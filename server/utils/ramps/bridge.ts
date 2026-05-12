@@ -224,24 +224,6 @@ export async function getProvider(params: {
         break;
     }
 
-    if (bridgeUser.future_requirements_due?.length) {
-      // TODO handle future requirements
-      captureException(new Error("bridge future requirements due"), {
-        contexts: {
-          bridge: { bridgeId: params.customerId, futureRequirementsDue: bridgeUser.future_requirements_due },
-        },
-        level: "warning",
-      });
-    }
-
-    if (bridgeUser.requirements_due?.length) {
-      // TODO handle requirements due
-      captureException(new Error("bridge requirements due"), {
-        contexts: { bridge: { bridgeId: params.customerId, requirementsDue: bridgeUser.requirements_due } },
-        level: "warning",
-      });
-    }
-
     return {
       status: "ACTIVE" as const,
       onramp: {
@@ -762,7 +744,6 @@ const AdditionalRequirements = [
   "kyc_approval",
 ] as const;
 
-const CapabilitiesStatus = ["pending", "active", "inactive", "rejected"] as const;
 const EndorsementStatus = ["incomplete", "approved", "revoked"] as const;
 
 const Quote = object({ midmarket_rate: string(), buy_rate: string(), sell_rate: string() }); // cspell:ignore midmarket
@@ -773,15 +754,6 @@ const CustomerResponse = object({
   id: string(),
   email: string(),
   status: picklist(CustomerStatus),
-  capabilities: optional(
-    object({
-      payin_crypto: optional(picklist(CapabilitiesStatus)), // cspell:ignore payin_crypto
-      payout_crypto: optional(picklist(CapabilitiesStatus)),
-      payin_fiat: optional(picklist(CapabilitiesStatus)), // cspell:ignore payin_fiat
-      payout_fiat: optional(picklist(CapabilitiesStatus)),
-    }),
-  ),
-  rejection_reasons: optional(array(object({ developer_reason: string(), reason: string(), created_at: string() }))),
   endorsements: array(
     object({
       name: picklist(Endorsements),
@@ -795,8 +767,6 @@ const CustomerResponse = object({
       }),
     }),
   ),
-  future_requirements_due: optional(array(picklist(["id_verification"]))),
-  requirements_due: optional(array(picklist(["id_verification", "external_account"]))),
 });
 
 const IdentityDocument = object({

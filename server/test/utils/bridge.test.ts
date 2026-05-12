@@ -1035,40 +1035,6 @@ describe("bridge utils", () => {
         );
       });
 
-      it("captures exception for future requirements due", async () => {
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-          fetchResponse({
-            ...activeCustomer,
-            future_requirements_due: ["id_verification"],
-          }),
-        );
-
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
-
-        expect(result).toStrictEqual({ status: "ACTIVE", onramp: { currencies: baseCurrencies } });
-        expect(captureException).toHaveBeenCalledWith(
-          expect.objectContaining({ message: "bridge future requirements due" }),
-          expect.objectContaining({ level: "warning" }),
-        );
-      });
-
-      it("captures exception for requirements due", async () => {
-        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-          fetchResponse({
-            ...activeCustomer,
-            requirements_due: ["id_verification"],
-          }),
-        );
-
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
-
-        expect(result).toStrictEqual({ status: "ACTIVE", onramp: { currencies: baseCurrencies } });
-        expect(captureException).toHaveBeenCalledWith(
-          expect.objectContaining({ message: "bridge requirements due" }),
-          expect.objectContaining({ level: "warning" }),
-        );
-      });
-
       it("captures exception for additional requirements on endorsement", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
           fetchResponse({
