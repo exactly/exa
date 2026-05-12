@@ -2343,9 +2343,9 @@ describe("concurrency", () => {
     ]);
 
     const [spend, spend2, collect] = await promises;
+    const spendStatuses = [spend.status, spend2.status].toSorted();
 
-    expect(spend.status).toBe(200);
-    expect(spend2.status).toBe(554);
+    expect(spendStatuses).toStrictEqual([200, 554]);
     expect(collect.status).toBe(200);
   });
 
