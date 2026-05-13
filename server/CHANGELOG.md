@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.93
+
+### Patch Changes
+
+- [#898](https://github.com/exactly/exa/pull/898) [`69aeae1`](https://github.com/exactly/exa/commit/69aeae1dddd06074e551841b363edd97b6c7f147) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add card limit handler
+
 ## 0.2.92
 
 ### Patch Changes
