@@ -1,5 +1,36 @@
 # @exactly/mobile
 
+## 1.2.8
+
+### Patch Changes
+
+- [#970](https://github.com/exactly/exa/pull/970) [`f6ffcbd`](https://github.com/exactly/exa/commit/f6ffcbd56e1b725799a94aa3c5b1d5262dd70882) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 walk cause chain when extracting error status
+
+- [#970](https://github.com/exactly/exa/pull/970) [`139440d`](https://github.com/exactly/exa/commit/139440deb55079b365c7a22c69f46bf48378092f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 namespace persisted storage by chain id
+
+- [#970](https://github.com/exactly/exa/pull/970) [`969fecd`](https://github.com/exactly/exa/commit/969fecd8ce43e23752f38a2f7ef78ebb6d4cc935) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 route cross-chain rpc through alchemy
+
+- [#970](https://github.com/exactly/exa/pull/970) [`0a36648`](https://github.com/exactly/exa/commit/0a36648256ccc894090188fbea4875af1f54ca19) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🧱 add cross-chain account client support
+
+- [#970](https://github.com/exactly/exa/pull/970) [`18545bd`](https://github.com/exactly/exa/commit/18545bd6549e13a70b2a304389eba327e7fdea9d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor bridge sources with multi-chain balance fetching
+
+- [#970](https://github.com/exactly/exa/pull/970) [`0326e87`](https://github.com/exactly/exa/commit/0326e8754399c09e83732d9318296702670d48fd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ send assets from portfolio
+
+- [#970](https://github.com/exactly/exa/pull/970) [`9117679`](https://github.com/exactly/exa/commit/9117679bc8848db9e959315c44eb4371a0cc425d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 avoid precision loss in external asset value
+
+- [#970](https://github.com/exactly/exa/pull/970) [`d9765d7`](https://github.com/exactly/exa/commit/d9765d770d661095e5525b9564a3b1f148e9940b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ split portfolio pending states
+
+- [#970](https://github.com/exactly/exa/pull/970) [`54174ff`](https://github.com/exactly/exa/commit/54174ffbb881eda6020cdd827c6cbefe0ceb0165) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swap insufficient balance check
+
+- [#970](https://github.com/exactly/exa/pull/970) [`ffd8218`](https://github.com/exactly/exa/commit/ffd821884341066893af1a88eef88d9c4d7a0a56) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ recover funds from any network
+
+- [#970](https://github.com/exactly/exa/pull/970) [`bd0f2c4`](https://github.com/exactly/exa/commit/bd0f2c4e54ce7f6cfbc16b4d1d8bef3715816c8f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 handle localized native auth errors by matching expo codes
+
+- [#970](https://github.com/exactly/exa/pull/970) [`3c145bc`](https://github.com/exactly/exa/commit/3c145bcd428f6b9093429a9d5337efab064be7e3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 allow provider access regardless of chain id
+
+- Updated dependencies [[`69aeae1`](https://github.com/exactly/exa/commit/69aeae1dddd06074e551841b363edd97b6c7f147)]:
+  - @exactly/server@0.2.93
+
 ## 1.2.7
 
 ### Patch Changes
