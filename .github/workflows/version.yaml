@@ -9,19 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+        with: { token: "${{ secrets.RELEASE_GITHUB_TOKEN }}" }
       - uses: actions/setup-node@v6
-        with:
-          node-version: "^24.14.1"
+        with: { node-version: 24, package-manager-cache: false }
       - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.5.1
-      - uses: actions/cache@v5
-        with:
-          path: .nx/cache
-          key: nx-${{ runner.os }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-
+        with: { version: v1.5.1, cache: false }
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - id: title
