@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
+import { Pressable, RefreshControl } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -31,6 +31,7 @@ import {
   balancesOptions,
   bridgeSourcesOptions,
   getRouteFrom,
+  lifiTokensOptions,
   tokenAmountsToBalances,
   tokenCorrelation,
   type RouteFrom,
@@ -99,12 +100,24 @@ export default function Bridge() {
   const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
   const { protocolSymbols, protocolAssets, externalAssets } = usePortfolio();
 
-  const { data: bridge, isPending: isSourcesPending } = useQuery({
+  const {
+    data: bridge,
+    isPending: isSourcesPending,
+    refetch: refetchSources,
+  } = useQuery({
     ...bridgeSourcesOptions(senderAddress, protocolSymbols),
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
   });
-  const { data: balances } = useQuery(balancesOptions(senderAddress));
+  const { data: balances, refetch: refetchBalances } = useQuery(balancesOptions(senderAddress));
+  const { mutate: refresh, isPending: refreshing } = useMutation({
+    mutationFn: async () => {
+      if (!senderAddress) return;
+      queryClient.removeQueries({ queryKey: lifiTokensOptions.queryKey });
+      await Promise.all([refetchSources(), refetchBalances()]);
+    },
+    onError: (error) => reportError(error),
+  });
   const sameChainBalances = balances?.[chain.id];
 
   const chains = bridge?.chains;
@@ -166,7 +179,11 @@ export default function Bridge() {
   const isTransfer = isSameChain && !isExaSender;
   const isNativeSource = source?.address === zeroAddress;
 
-  const destinationTokens = useMemo(() => bridge?.tokensByChain[chain.id] ?? [], [bridge?.tokensByChain]);
+  const destinationTokens = useMemo(
+    () =>
+      bridge?.tokensByChain[chain.id]?.filter((token) => token.chainId === (chain.id as typeof token.chainId)) ?? [],
+    [bridge?.tokensByChain],
+  );
 
   const effectiveDestinationAddress = useMemo(() => {
     if (!sourceTokenAddress) return;
@@ -673,7 +690,11 @@ export default function Bridge() {
             }}
           />
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} flex={1}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          flex={1}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        >
           <View padded>
             <YStack gap="$s5">
               {isLoadingAssets && (
@@ -728,6 +749,20 @@ export default function Bridge() {
                     setSourceAmount(maxAmount);
                   }}
                 />
+              )}
+              {!isTransfer && !isSourcesPending && assetGroups.length > 0 && destinationTokens.length === 0 && (
+                <View
+                  borderWidth={1}
+                  borderColor="$borderWarningStrong"
+                  backgroundColor="$interactiveBaseWarningSoftDefault"
+                  borderRadius="$r3"
+                  padding="$s4"
+                  gap="$s3"
+                >
+                  <Text emphasized callout color="$interactiveOnBaseWarningSoft">
+                    {t("Something went wrong. Please try again.")}
+                  </Text>
+                </View>
               )}
               {insufficientBalance && (
                 <Text caption2 color="$interactiveOnBaseWarningSoft">
