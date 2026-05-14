@@ -65,7 +65,16 @@ function handleError(
     });
     return;
   }
-  const { authKnown, bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
+  const { authKnown, bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletBusy, walletRejected } =
+    classifyError(error);
+  if (walletBusy) {
+    toast.show(t("Wallet is busy. Please complete the pending request."), {
+      native: true,
+      duration: 2000,
+      burntOptions: { haptic: "warning", preset: "error" },
+    });
+    return;
+  }
   if (authKnown) {
     const cancelled = bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     if (!cancelled && !auth) reportError(error);
