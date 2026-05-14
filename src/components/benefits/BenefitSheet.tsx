@@ -77,13 +77,15 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               <Text emphasized title>
                 {t(benefit.longTitle ?? benefit.title)}
               </Text>
-              <YStack gap="$s4">
-                {benefit.descriptions.map((description) => (
-                  <Text key={description} subHeadline secondary>
-                    {t(description)}
-                  </Text>
-                ))}
-              </YStack>
+              {benefit.descriptions && (
+                <YStack gap="$s4">
+                  {benefit.descriptions.map((description) => (
+                    <Text key={description} subHeadline secondary>
+                      {t(description)}
+                    </Text>
+                  ))}
+                </YStack>
+              )}
               {benefit.id === "pax" && (
                 <Pressable
                   aria-label={web ? undefined : paxLabel}
@@ -153,6 +155,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               minHeight={64}
               padding="$s4"
               onPress={() => {
+                if (!benefit.url) return;
                 const isPax = benefit.id === "pax";
                 let url = isPax
                   ? benefit.url.replace(

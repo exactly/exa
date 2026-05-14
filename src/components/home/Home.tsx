@@ -30,6 +30,7 @@ import InstallmentsSheet from "./InstallmentsSheet";
 import InstallmentsSpotlight from "./InstallmentsSpotlight";
 import PayModeSheet from "./PayModeSheet";
 import PortfolioSummary from "./PortfolioSummary";
+import PromoSheet from "./PromoSheet";
 import SpendingLimitSheet from "./SpendingLimitSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
@@ -39,6 +40,7 @@ import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
+import usePromoSheet from "../../utils/usePromoSheet";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
 import CardDetailsSheet from "../card/CardDetails";
@@ -75,6 +77,7 @@ export default function Home() {
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
   const pendingModeRef = useRef(0);
+  const pendingSheetOpenRef = useRef(false);
 
   const [focused, setFocused] = useState(false);
   useFocusEffect(
@@ -135,6 +138,10 @@ export default function Home() {
   );
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
+  const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
+  const { visible: promoVisible, dismiss: dismissPromo } = usePromoSheet();
+  const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
+  const promoSheetOpen = promoVisible && !!card && !spotlightVisible && focused;
   const toast = useToastController();
   const { mutate: mutateMode } = useMutation({
     ...cardModeMutationOptions,
@@ -159,6 +166,23 @@ export default function Home() {
     }
     pendingModeRef.current = mode;
     setManualRepaymentSheetOpen(true);
+  }
+  function openInstallments() {
+    if (!card) return;
+    queryClient.setQueryData(["settings", "installments-spotlight"], true);
+    const inNowMode = card.mode === 0;
+    if (!manualRepaymentAcknowledged) {
+      pendingSheetOpenRef.current = true;
+      if (inNowMode) {
+        handleModeChange(lastInstallments ?? 1);
+      } else {
+        pendingModeRef.current = card.mode;
+        setManualRepaymentSheetOpen(true);
+      }
+      return;
+    }
+    if (inNowMode) handleModeChange(lastInstallments ?? 1);
+    setInstallmentsSheetOpen(true);
   }
 
   const collateralUSD = useMemo(
@@ -284,7 +308,14 @@ export default function Home() {
                 </AnimatePresence>
               </View>
             )}
-            {isKYCFetched && isKYCApproved && <BenefitsSection />}
+            {isKYCFetched && isKYCApproved && (
+              <BenefitsSection
+                onExaPress={() => {
+                  if (card) openInstallments();
+                  else router.push("/card");
+                }}
+              />
+            )}
             <View paddingHorizontal="$s4" gap="$s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
@@ -315,6 +346,7 @@ export default function Home() {
             }}
             onModeChange={handleModeChange}
           />
+          <PromoSheet open={promoSheetOpen} onClose={dismissPromo} onActionPress={openInstallments} />
           <CreditLimitSheet
             open={creditLimitSheetOpen}
             onClose={() => {
@@ -324,12 +356,17 @@ export default function Home() {
           <ManualRepaymentSheet
             open={manualRepaymentSheetOpen}
             onClose={() => {
+              pendingSheetOpenRef.current = false;
               setManualRepaymentSheetOpen(false);
             }}
             onActionPress={() => {
               queryClient.setQueryData(["manual-repayment-acknowledged"], true);
-              mutateMode(pendingModeRef.current);
+              if (card?.mode !== pendingModeRef.current) mutateMode(pendingModeRef.current);
               setManualRepaymentSheetOpen(false);
+              if (pendingSheetOpenRef.current) {
+                pendingSheetOpenRef.current = false;
+                setInstallmentsSheetOpen(true);
+              }
             }}
             penaltyRate={markets?.find(({ market }) => market === marketUSDCAddress)?.penaltyRate}
           />
