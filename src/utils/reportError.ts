@@ -124,17 +124,27 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
   const passkeyWarning = passkeyKnown && !passkeyCancelled && !passkeyNotAllowed;
   const biometric = code === "ERR_BIOMETRIC";
   const walletRejected = status === "4001" || status === "5000";
+  const walletBusy = status === "-32001";
   const bundleCancelled = status === "5730";
+  const walletDisconnected = name === "ConnectorNotConnectedError";
   const authKnown =
     passkeyKnown ||
     passkeyNotAllowed ||
     biometric ||
     walletRejected ||
+    walletBusy ||
     bundleCancelled ||
+    walletDisconnected ||
     message === "invalid operation";
   const network = classifyNetwork(message);
   const knownWarning =
-    passkeyKnown || biometric || walletRejected || bundleCancelled || message === "invalid operation";
+    passkeyKnown ||
+    biometric ||
+    walletRejected ||
+    walletBusy ||
+    bundleCancelled ||
+    walletDisconnected ||
+    message === "invalid operation";
   const knownInfo = network !== undefined;
   const known = knownWarning || knownInfo;
   const value =
@@ -164,6 +174,7 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
     passkeyNotAllowed,
     passkeyWarning,
     revert,
+    walletBusy,
     walletRejected,
   };
 }

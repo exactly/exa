@@ -26,9 +26,12 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: AUTH_EXPIRY,
   queryFn: async () => {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
+    const ownerConnection = getConnection(ownerConfig);
     const owner =
       method === "siwe"
-        ? getConnection(ownerConfig).address
+        ? ownerConnection.status === "connected"
+          ? ownerConnection.address
+          : undefined
         : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
     if (method === "siwe" && !owner) return queryClient.getQueryData<number>(["auth"]) ?? 0;
     const get = await api.auth.authentication.$get({ query: { credentialId: owner } });
