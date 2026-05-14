@@ -46,8 +46,7 @@ contract RedeployerTest is ForkTest {
     EXA token = EXA(exaOP);
     assertEq(token.name(), "exactly");
     assertEq(token.symbol(), "EXA");
-    assertEq(token.totalSupply(), 10_000_000e18, "token should have same minted supply");
-    assertEq(token.balanceOf(address(redeployer.proxyAdmin())), 10_000_000e18, "ProxyAdmin should have tokens");
+    assertEq(token.totalSupply(), 0, "base should have zero supply");
     assertEq(token.decimals(), 18, "token should have 18 decimals");
   }
 

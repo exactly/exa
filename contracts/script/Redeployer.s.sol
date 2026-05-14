@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {
   TransparentUpgradeableProxy
 } from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import { TimelockController } from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {
@@ -15,6 +17,9 @@ import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
+
+import { HypERC20Collateral } from "@hyperlane-xyz/core/contracts/token/HypERC20Collateral.sol";
+import { HypXERC20 } from "@hyperlane-xyz/core/contracts/token/extensions/HypXERC20.sol";
 
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
@@ -191,7 +196,57 @@ contract Redeployer is BaseScript {
     vm.startBroadcast(acct("admin"));
     exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (acct("exactly")))
+    );
     vm.stopBroadcast();
+  }
+
+  /// @notice Deploys the latest EXA implementation via CREATE3.
+  function deployEXAImpl() external {
+    vm.broadcast(acct("admin"));
+    exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
+  }
+
+  function deployRouter(address token) external returns (HypXERC20 router) {
+    address admin = acct("admin");
+    router = HypXERC20(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("HypEXA"))));
+    if (address(router).code.length != 0) return router;
+    vm.startBroadcast(admin);
+    router = HypXERC20(
+      CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("HypEXA")),
+        abi.encodePacked(
+          type(TransparentUpgradeableProxy).creationCode,
+          abi.encode(
+            address(new HypXERC20(token, 1, 1, acct("mailbox"))),
+            protocol("ProxyAdmin"),
+            abi.encodeCall(HypERC20Collateral.initialize, (address(0), address(0), admin))
+          )
+        )
+      )
+    );
+    router.transferOwnership(acct("exactly"));
+    vm.stopBroadcast();
+  }
+
+  function setupRouter(uint32 remoteDomain) external {
+    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
+    if (router.code.length == 0) revert RouterNotDeployed();
+    vm.broadcast(acct("exactly"));
+    HypXERC20(router).enrollRemoteRouter(remoteDomain, bytes32(uint256(uint160(router))));
+  }
+
+  function proposeBridgeRole(address token, bytes32 salt) external {
+    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
+    if (router.code.length == 0) revert RouterNotDeployed();
+    if (IAccessControl(token).hasRole(keccak256("BRIDGE_ROLE"), router)) revert AlreadyGranted();
+    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
+    uint256 delay = timelock.getMinDelay();
+    vm.broadcast(acct("deployer"));
+    timelock.schedule(
+      token, 0, abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), router)), bytes32(0), salt, delay
+    );
   }
 
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
@@ -281,10 +336,12 @@ contract Redeployer is BaseScript {
 }
 
 error AdminIsDeployer();
+error AlreadyGranted();
 error DummyNotDeployed();
 error NonceNotFound();
 error NotPrepared();
 error ProxyAdminNotDeployed();
+error RouterNotDeployed();
 error TargetNonceTooLow();
 
 contract Dummy { } // solhint-disable-line no-empty-blocks
