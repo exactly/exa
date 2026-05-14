@@ -77,13 +77,15 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               <Text emphasized title>
                 {t(benefit.longTitle ?? benefit.title)}
               </Text>
-              <YStack gap="$s4">
-                {benefit.descriptions.map((description) => (
-                  <Text key={description} subHeadline secondary>
-                    {t(description)}
-                  </Text>
-                ))}
-              </YStack>
+              {benefit.descriptions && (
+                <YStack gap="$s4">
+                  {benefit.descriptions.map((description) => (
+                    <Text key={description} subHeadline secondary>
+                      {t(description)}
+                    </Text>
+                  ))}
+                </YStack>
+              )}
               {benefit.id === "pax" && (
                 <Pressable
                   aria-label={web ? undefined : paxLabel}
@@ -153,14 +155,14 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               minHeight={64}
               padding="$s4"
               onPress={() => {
-                const isPax = benefit.id === "pax";
-                let url = isPax
-                  ? benefit.url.replace(
-                      "{locale}",
-                      language.split("-")[1]?.toLowerCase() ?? { es: "ar", pt: "br" }[language] ?? "us",
-                    )
-                  : benefit.url;
-                if (isPax && paxData?.associateId) url += `?cid=${paxData.associateId}`;
+                if (!benefit.url) return;
+                let url = benefit.url
+                  .replace(
+                    "{locale}",
+                    language.split("-")[1]?.toLowerCase() ?? { es: "ar", pt: "br" }[language] ?? "us",
+                  )
+                  .replace("{language}", language.split("-")[0] ?? "en");
+                if (benefit.id === "pax" && paxData?.associateId) url += `?cid=${paxData.associateId}`;
                 openBrowser(url).catch(reportError);
               }}
             >

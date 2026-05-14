@@ -26,33 +26,31 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
   return (
     <GestureDetector gesture={tap}>
       <YStack
-        backgroundColor="$backgroundBrandSoft"
-        borderRadius="$r3"
-        paddingVertical="$s5"
-        paddingHorizontal="$s4"
-        gap="$s7"
+        borderRadius="$r4"
+        padding="$s4"
+        height={160}
+        justifyContent="space-between"
         cursor="pointer"
+        overflow="hidden"
       >
-        <YStack gap="$s2">
-          <Text footnote secondary>
-            {t(benefit.subtitle)}
-          </Text>
-          <Text emphasized headline>
+        <benefit.Background />
+        <YStack gap="$s3_5" maxWidth="60%">
+          <XStack alignItems="center" gap="$s2">
+            <BenefitLogo width={20} height={20} />
+            <Text subHeadline color="$backgroundBrandMild">
+              {t(benefit.partner)}
+            </Text>
+          </XStack>
+          <Text emphasized title2 color="$backgroundBrandSoft">
             {t(benefit.title)}
           </Text>
         </YStack>
         <XStack justifyContent="space-between">
-          <XStack alignItems="center" gap="$s2">
-            <BenefitLogo width={20} height={20} />
-            <Text emphasized callout>
-              {t(benefit.partner)}
-            </Text>
-          </XStack>
           <XStack alignItems="center" gap="$1">
-            <Text emphasized footnote color="$interactiveBaseBrandDefault">
+            <Text emphasized footnote color="$interactiveBaseBrandSoftDefault">
               {benefit.linkText ? t(benefit.linkText) : t("Get now")}
             </Text>
-            <ChevronRight color="$interactiveBaseBrandDefault" size={16} />
+            <ChevronRight color="$interactiveBaseBrandSoftDefault" size={16} />
           </XStack>
         </XStack>
       </YStack>

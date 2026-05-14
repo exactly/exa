@@ -1,41 +1,89 @@
 import React, { useCallback, useState } from "react";
+import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+
 import { useTheme, View, XStack } from "tamagui";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
 import AiraloLogo from "../../assets/images/airalo.svg";
+import airaloImage from "../../assets/images/airalo.webp";
+import exaLogo from "../../assets/images/exa-logo.svg";
+import ExaPromoSvg from "../../assets/images/exa-promo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
+import paxImage from "../../assets/images/pax.webp";
 import VisaLogo from "../../assets/images/visa.svg";
+import visaImage from "../../assets/images/visa.webp";
+import { isPromoActive } from "../../utils/promo";
 import AnimatedView from "../shared/AnimatedView";
 import Text from "../shared/Text";
 
+function ExaBackground() {
+  return (
+    <View
+      style={StyleSheet.absoluteFill}
+      backgroundColor="$backgroundBrand"
+      justifyContent="center"
+      alignItems="flex-end"
+    >
+      <ExaPromoSvg height="100%" preserveAspectRatio="xMidYMid" />
+    </View>
+  );
+}
+
+function RasterBackground({ source }: { source: ComponentProps<typeof Image>["source"] }) {
+  const theme = useTheme();
+  const brandColor = theme.interactiveBaseBrandDefault.val;
+  return (
+    <>
+      <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <LinearGradient
+        colors={[brandColor, `${brandColor}00`]}
+        locations={[0.2444, 0.7542]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={StyleSheet.absoluteFill}
+      />
+    </>
+  );
+}
+
 const BENEFITS = [
+  {
+    id: "exa",
+    partner: "Exa Card",
+    title: "Pay Later in 3 at 0% interest",
+    logo: exaLogo,
+    Background: ExaBackground,
+    linkText: "Choose installments",
+  },
   {
     id: "pax",
     partner: "Pax Assistance",
     title: "30 days of free travel insurance",
-    subtitle: "Travel with peace of mind.",
     descriptions: ["Copy your ID and get 30 days of travel insurance for free on Pax Assistance."],
     logo: PaxLogo,
+    Background: () => <RasterBackground source={paxImage} />,
     url: "https://www.paxassistance.com/{locale}/capitas/exacardcap/",
   },
   {
     id: "airalo",
     partner: "Airalo",
     title: "20% OFF on eSims",
-    subtitle: "Stay connected everywhere",
     descriptions: [
       "Stay connected around the world.",
       "Activate your eSIM and get online from anywhere with 20% off on Airalo.",
       "Available in 200+ countries and regions.",
     ],
     logo: AiraloLogo,
+    Background: () => <RasterBackground source={airaloImage} />,
     url: "https://airalo.pxf.io/c/6807698/3734384/15608?p.code=exaapp",
     termsURL: "https://www.airalo.com/more-info/terms-conditions",
   },
@@ -44,16 +92,16 @@ const BENEFITS = [
     partner: "Visa",
     title: "Visa Signature benefits",
     longTitle: "Visa Signature Exa Card benefits",
-    subtitle: "Access exclusive discounts",
     descriptions: [
       "A world of benefits.",
       "Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more.",
       "Learn more about all Visa Signature benefits.",
     ],
     logo: VisaLogo,
+    Background: () => <RasterBackground source={visaImage} />,
     linkText: "Learn more",
     buttonText: "Go to Visa",
-    url: "https://www.visa.com.pr/pague-con-visa/tarjetas/visa-signature.html",
+    url: "https://help.exactly.app/{language}/articles/11172343-visa-signature-benefits-with-your-exa-card",
   },
 ];
 
@@ -77,6 +125,7 @@ function calculateDistance(scrollOffset: number, index: number, length: number) 
 
 function PaginationDot({
   index,
+  length,
   scrollOffset,
   activeColor,
   inactiveColor,
@@ -84,10 +133,9 @@ function PaginationDot({
   activeColor: string;
   inactiveColor: string;
   index: number;
+  length: number;
   scrollOffset: SharedValue<number>;
 }) {
-  const length = BENEFITS.length;
-
   /* istanbul ignore next */
   const rStyle = useAnimatedStyle(() => {
     const distance = calculateDistance(scrollOffset.value, index, length);
@@ -106,9 +154,10 @@ function PaginationDot({
   return <AnimatedView style={[styles.dot, rStyle, rColorStyle]} />;
 }
 
-export default function BenefitsSection() {
+export default function BenefitsSection({ onExaPress }: { onExaPress?: () => void }) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const benefits = isPromoActive() && onExaPress ? BENEFITS : BENEFITS.filter((benefit) => benefit.id !== "exa");
   const [selectedBenefit, setSelectedBenefit] = useState<Benefit>();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -138,10 +187,11 @@ export default function BenefitsSection() {
             {t("Benefits")}
           </Text>
           <XStack alignItems="center" gap="$s2">
-            {BENEFITS.map((benefit, index) => (
+            {benefits.map((benefit, index) => (
               <PaginationDot
                 key={benefit.id}
                 index={index}
+                length={benefits.length}
                 scrollOffset={scrollOffset}
                 activeColor={theme.interactiveBaseBrandDefault.val}
                 inactiveColor={theme.interactiveDisabled.val}
@@ -156,7 +206,7 @@ export default function BenefitsSection() {
               containerStyle={styles.overflow}
               width={itemWidth}
               height={160}
-              data={BENEFITS}
+              data={benefits}
               autoPlay
               autoPlayInterval={5000}
               withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
@@ -167,6 +217,10 @@ export default function BenefitsSection() {
                   <BenefitCard
                     benefit={item}
                     onPress={() => {
+                      if (item.id === "exa" && onExaPress) {
+                        onExaPress();
+                        return;
+                      }
                       setSelectedBenefit(item);
                       setSheetOpen(true);
                     }}
