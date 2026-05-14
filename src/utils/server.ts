@@ -96,7 +96,9 @@ async function getCard() {
     throw new APIError(response.status, code);
   }
   const card = await response.json();
-  return { ...card, secret };
+  const result = { ...card, secret };
+  if (result.mode > 0) queryClient.setQueryData(["settings", "installments"], result.mode);
+  return result;
 }
 queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
 export type CardDetails = Awaited<ReturnType<typeof getCard>>;
