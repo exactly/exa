@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
-import DismissableAlert from "./DismissableAlert";
+import WalletButtons from "./WalletButtons";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import ExaLogoSignature from "../../assets/images/exa-logo-signature.svg";
@@ -20,7 +20,6 @@ import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
 import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { decrypt } from "../../utils/panda";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -34,7 +33,6 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   const theme = useColorScheme();
   const toast = useToastController();
   const { t } = useTranslation();
-  const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
@@ -171,14 +169,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   </YStack>
                 </YStack>
               ) : null}
-              {card && alertShown ? (
-                <DismissableAlert
-                  text={t("Manually add your card to Apple Pay & Google Pay to make contactless payments.")}
-                  onDismiss={() => {
-                    queryClient.setQueryData(["settings", "alertShown"], false);
-                  }}
-                />
-              ) : null}
+              {card ? <WalletButtons lastFour={card.lastFour} displayName={card.displayName} /> : null}
               <XStack alignSelf="center">
                 <Pressable onPress={onClose} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">
