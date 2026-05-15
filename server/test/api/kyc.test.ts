@@ -3,15 +3,28 @@ import "../mocks/deployments";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
+import canonicalize from "canonicalize";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import crypto from "node:crypto";
+import { getAddress, sha256 } from "viem";
+import { mnemonicToAccount } from "viem/accounts";
+import { createSiweMessage, generateSiweNonce } from "viem/siwe";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+
+import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/kyc";
-import database, { credentials } from "../../database";
+import database, { credentials, organizations, sources } from "../../database";
+import auth from "../../utils/auth";
+import * as panda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
+import ServiceError from "../../utils/ServiceError";
+
+import type * as v from "valibot";
 
 const appClient = testClient(app);
 
@@ -1609,6 +1622,705 @@ describe("authenticated", () => {
         });
         await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
         expect(response.status).toBe(200);
+      });
+    });
+  });
+
+  describe("application", () => {
+    describe("with organization", () => {
+      const owner = mnemonicToAccount("test test test test test test test test test test test kyc");
+      const ownerHeaders: Headers = new Headers();
+      const outsider = mnemonicToAccount("test test test test test test test test test test test bob");
+      const outsiderHeaders: Headers = new Headers();
+      const account = "bob";
+
+      const applicationPayload = {
+        email: "test@example.com",
+        lastName: "Doe",
+        firstName: "John",
+        nationalId: "12345678",
+        birthDate: "1990-01-01",
+        countryOfIssue: "US",
+        phoneCountryCode: "1",
+        phoneNumber: "5551234567",
+        address: {
+          line1: "123 Main St",
+          city: "New York",
+          region: "NY",
+          country: "US",
+          postalCode: "10001",
+          countryCode: "US",
+        },
+        ipAddress: "127.0.0.1",
+        occupation: "Engineer",
+        annualSalary: "100000",
+        accountPurpose: "Personal",
+        expectedMonthlyVolume: "5000",
+        isTermsOfServiceAccepted: true as const,
+      };
+
+      let organizationId: string;
+
+      beforeAll(async () => {
+        const adminNonceResult = await auth.api.getSiweNonce({
+          body: { walletAddress: owner.address, chainId: chain.id },
+        });
+
+        const statement = "I accept Exa terms and conditions";
+        const ownerMessage = createSiweMessage({
+          statement,
+          resources: ["https://exactly.github.io/exa"],
+          nonce: adminNonceResult.nonce,
+          uri: `https://${domain}`,
+          address: owner.address,
+          chainId: chain.id,
+          scheme: "https",
+          version: "1",
+          domain,
+        });
+
+        const ownerLogin = await auth.api.verifySiweMessage({
+          body: {
+            message: ownerMessage,
+            signature: await owner.signMessage({ message: ownerMessage }),
+            walletAddress: owner.address,
+            chainId: chain.id,
+          },
+          request: new Request(`https://${domain}`),
+          asResponse: true,
+        });
+        ownerHeaders.set("cookie", ownerLogin.headers.get("set-cookie") ?? "");
+
+        const externalOrganization = await auth.api.createOrganization({
+          headers: ownerHeaders,
+          body: {
+            name: "Organization",
+            slug: "organization",
+            keepCurrentActiveOrganization: false,
+          },
+        });
+        organizationId = externalOrganization.id;
+        await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
+
+        await auth.api
+          .getSiweNonce({
+            body: { walletAddress: outsider.address, chainId: chain.id },
+          })
+          .then((result) => {
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: result.nonce,
+              uri: `https://${domain}`,
+              address: outsider.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain,
+            });
+            return outsider.signMessage({ message }).then((signature) => {
+              return auth.api
+                .verifySiweMessage({
+                  body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
+                  request: new Request(`https://${domain}`),
+                  asResponse: true,
+                })
+                .then((response) => {
+                  outsiderHeaders.set("cookie", response.headers.get("set-cookie") ?? "");
+                });
+            });
+          });
+      });
+
+      describe("status", () => {
+        it("returns status", async () => {
+          await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+          const getApplicationStatus = vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+            id: "pandaId",
+            applicationStatus: "approved",
+            applicationReason: "",
+          });
+          const response = await appClient.application.$get(
+            { query: {} },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "ok",
+            legacy: "ok",
+            status: "approved",
+            reason: "",
+          });
+          expect(getApplicationStatus).toHaveBeenCalledWith("pandaId");
+          expect(response.status).toBe(200);
+        });
+
+        it("returns not started when no panda id", async () => {
+          await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+          const response = await appClient.application.$get(
+            { query: {} },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "not started",
+            legacy: "not started",
+          });
+        });
+      });
+
+      describe("submit", () => {
+        beforeAll(async () => {
+          await database.insert(sources).values([
+            {
+              id: organizationId,
+              config: {
+                type: "uphold",
+                secrets: { test: { key: "secret", type: "HMAC-SHA256" } },
+                webhooks: { sandbox: { url: "https://exa.test", secretId: "test" } },
+              },
+            },
+          ]);
+        });
+
+        it("returns ok when payload is valid and kyc is not started", async () => {
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://sandbox.exactly.app`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain: "sandbox.exactly.app",
+          });
+          const signature = await owner.signMessage({ message });
+
+          const verify = {
+            message,
+            signature,
+            walletAddress: owner.address,
+            chainId: chain.id,
+          };
+
+          await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            arrayBuffer: () =>
+              Promise.resolve(
+                new TextEncoder().encode(
+                  JSON.stringify({
+                    id: "pandaId",
+                    applicationStatus: "approved",
+                  }),
+                ).buffer,
+              ),
+          } as Response);
+
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          const updatedCredential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const calls = mockFetch.mock.calls;
+          const body = calls[0]?.[1]?.body;
+
+          expect(response.status).toBe(200);
+          expect(updatedCredential?.pandaId).toBe("pandaId");
+          expect(mockFetch).toHaveBeenCalledWith(
+            expect.stringContaining(`/issuing/applications/user`),
+            expect.objectContaining({
+              method: "POST",
+            }),
+          );
+          expect(JSON.parse(body as string)).toStrictEqual(applicationPayload);
+          await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+        });
+
+        it("returns 409 when kyc is already started", async () => {
+          await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://sandbox.exactly.app`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain: "sandbox.exactly.app",
+          });
+          const signature = await owner.signMessage({ message });
+
+          const verify = {
+            message,
+            signature,
+            walletAddress: owner.address,
+            chainId: chain.id,
+          };
+
+          const submitApplication = vi.spyOn(panda, "submitApplication");
+
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(409);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "already started",
+          });
+          expect(submitApplication).not.toHaveBeenCalled();
+        });
+
+        it("returns 400 when payload is invalid", async () => {
+          const response = await appClient.application.$post(
+            { json: {} as unknown as NonNullable<Parameters<typeof appClient.application.$post>[0]["json"]> },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toMatchObject({
+            code: "bad request",
+            legacy: "bad request",
+            message: expect.any(Array), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+          });
+        });
+
+        it("returns 400 if terms of service are not accepted", async () => {
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://sandbox.exactly.app`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain: "sandbox.exactly.app",
+          });
+          const signature = await owner.signMessage({ message });
+
+          const verify = {
+            message,
+            signature,
+            walletAddress: owner.address,
+            chainId: chain.id,
+          };
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify, isTermsOfServiceAccepted: false } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(400);
+        });
+
+        describe("with encrypted payload", () => {
+          const publicKey = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZixoAuo015iMt+JND0y
+usAvU2iJhtKRM+7uAxd8iXq7Z/3kXlGmoOJAiSNfpLnBAG0SCWslNCBzxf9+2p5t
+HGbQUkZGkfrYvpAzmXKsoCrhWkk1HKk9f7hMHsyRlOmXbFmIgQHggEzEArjhkoXD
+pl2iMP1ykCY0YAS+ni747DqcDOuFqLrNA138AxLNZdFsySHbxn8fzcfd3X0J/m/T
+2dZuy6ChfDZhGZxSJMjJcintFyXKv7RkwrYdtXuqD3IQYakY3u6R1vfcKVZl0yGY
+S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
+2wIDAQAB
+-----END PUBLIC KEY-----`;
+
+          function encrypt(payload: string) {
+            const aesKey = crypto.randomBytes(32);
+            const iv = crypto.randomBytes(12);
+            const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
+            const ciphertext = Buffer.concat([cipher.update(payload, "utf8"), cipher.final()]);
+            const tag = cipher.getAuthTag();
+            const key = crypto.publicEncrypt(
+              {
+                key: publicKey,
+                padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+                oaepHash: "sha256",
+              },
+              aesKey,
+            );
+
+            return { key, iv, ciphertext, tag };
+          }
+
+          it("returns ok when payload is valid", async () => {
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+
+            const verify = {
+              message,
+              signature,
+              walletAddress: owner.address,
+              chainId: chain.id,
+            };
+
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+            const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+              ok: true,
+              status: 200,
+              arrayBuffer: () =>
+                Promise.resolve(
+                  new TextEncoder().encode(
+                    JSON.stringify({
+                      id: "pandaId",
+                      applicationStatus: "approved",
+                    }),
+                  ).buffer,
+                ),
+            } as Response);
+
+            const response = await appClient.application.$post(
+              {
+                json: {
+                  key: encryptedPayload.key.toString("base64"),
+                  iv: encryptedPayload.iv.toString("base64"),
+                  ciphertext: encryptedPayload.ciphertext.toString("base64"),
+                  tag: encryptedPayload.tag.toString("base64"),
+                  verify,
+                },
+              },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            const updatedCredential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const calls = mockFetch.mock.calls;
+            const body = calls[0]?.[1]?.body;
+
+            expect(response.status).toBe(200);
+            expect(updatedCredential?.pandaId).toBe("pandaId");
+            expect(mockFetch).toHaveBeenCalledWith(
+              expect.stringContaining("/issuing/applications/user"),
+              expect.objectContaining({
+                method: "POST",
+                headers: expect.objectContaining({ encrypted: "true" }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+              }),
+            );
+            expect(JSON.parse(body as string)).toStrictEqual({
+              key: encryptedPayload.key.toString("base64"),
+              iv: encryptedPayload.iv.toString("base64"),
+              ciphertext: encryptedPayload.ciphertext.toString("base64"),
+              tag: encryptedPayload.tag.toString("base64"),
+            });
+            await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+          });
+
+          it("returns 403 no organization", async () => {
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: outsider.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+
+            const response = await appClient.application.$post(
+              {
+                json: {
+                  key: encryptedPayload.key.toString("base64"),
+                  iv: encryptedPayload.iv.toString("base64"),
+                  ciphertext: encryptedPayload.ciphertext.toString("base64"),
+                  tag: encryptedPayload.tag.toString("base64"),
+                  verify: {
+                    message,
+                    signature: await outsider.signMessage({ message }),
+                    walletAddress: outsider.address,
+                    chainId: chain.id,
+                  },
+                },
+              },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(403);
+          });
+
+          it("returns 403 no permission when organization role is not kyc", async () => {
+            await database.update(organizations).set({ role: null }).where(eq(organizations.id, organizationId));
+            try {
+              const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, account) });
+              const encryptedPayload = encrypt(JSON.stringify(applicationPayload));
+              const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(encryptedPayload.ciphertext)}`;
+              const message = createSiweMessage({
+                statement,
+                resources: ["https://exactly.github.io/exa"],
+                nonce: generateSiweNonce(),
+                uri: `https://sandbox.exactly.app`,
+                address: owner.address,
+                chainId: chain.id,
+                scheme: "https",
+                version: "1",
+                domain: "sandbox.exactly.app",
+              });
+
+              const response = await appClient.application.$post(
+                {
+                  json: {
+                    key: encryptedPayload.key.toString("base64"),
+                    iv: encryptedPayload.iv.toString("base64"),
+                    ciphertext: encryptedPayload.ciphertext.toString("base64"),
+                    tag: encryptedPayload.tag.toString("base64"),
+                    verify: {
+                      message,
+                      signature: await owner.signMessage({ message }),
+                      walletAddress: owner.address,
+                      chainId: chain.id,
+                    },
+                  },
+                },
+                { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+              );
+
+              expect(response.status).toBe(403);
+              await expect(response.json()).resolves.toStrictEqual({ code: "no permission" });
+            } finally {
+              await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
+            }
+          });
+        });
+
+        describe("panda errors", () => {
+          it("returns invalid encryption on bad request", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
+              new ServiceError("Panda", 400, '{"message":"bad encryption"}', undefined, "bad encryption"),
+            );
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+            const initialCalls = vi.mocked(captureException).mock.calls.length;
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(400);
+            await expect(response.json()).resolves.toStrictEqual({
+              code: "invalid encryption",
+              message: "bad encryption",
+            });
+            expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+          });
+
+          it("returns invalid payload on unauthorized", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
+              new ServiceError("Panda", 401, '{"message":"invalid data"}', undefined, "invalid data"),
+            );
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+            const initialCalls = vi.mocked(captureException).mock.calls.length;
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(401);
+            await expect(response.json()).resolves.toStrictEqual({
+              code: "invalid payload",
+              message: "invalid data",
+            });
+            expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+          });
+
+          it("propagates panda errors with unexpected status to global handler", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
+              new ServiceError("Panda", 500, '{"message":"server error"}', undefined, "server error"),
+            );
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(500);
+          });
+
+          it("propagates non-panda errors to global handler", async () => {
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(new Error("network failure"));
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, account),
+            });
+            const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+            const message = createSiweMessage({
+              statement,
+              resources: ["https://exactly.github.io/exa"],
+              nonce: generateSiweNonce(),
+              uri: `https://sandbox.exactly.app`,
+              address: owner.address,
+              chainId: chain.id,
+              scheme: "https",
+              version: "1",
+              domain: "sandbox.exactly.app",
+            });
+            const signature = await owner.signMessage({ message });
+            const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+
+            const response = await appClient.application.$post(
+              { json: { ...applicationPayload, verify } },
+              { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+            );
+
+            expect(response.status).toBe(500);
+          });
+        });
+      });
+
+      describe("update", () => {
+        it("returns ok when kyc is started", async () => {
+          await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            arrayBuffer: () => Promise.resolve(new TextEncoder().encode("{}").buffer),
+          } as Response);
+
+          const response = await appClient.application.$patch(
+            { json: { firstName: "john-updated" } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          const calls = mockFetch.mock.calls;
+          const body = calls[0]?.[1]?.body;
+
+          expect(response.status).toBe(200);
+          await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+          expect(mockFetch).toHaveBeenCalledWith(
+            expect.stringContaining(`/issuing/applications/user/pandaId`),
+            expect.objectContaining({
+              method: "PATCH",
+            }),
+          );
+          expect(JSON.parse(body as string)).toStrictEqual({ firstName: "john-updated" });
+        });
+
+        it("returns 400 when kyc is not started", async () => {
+          await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+          const response = await appClient.application.$patch(
+            { json: { firstName: "john-updated" } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "not started",
+            legacy: "not started",
+          });
+        });
+
+        it("returns 400 when payload is invalid", async () => {
+          const response = await appClient.application.$patch(
+            {
+              json: {
+                address: {
+                  line1: "123 main street",
+                },
+              } as unknown as v.InferOutput<typeof panda.UpdateApplicationRequest>,
+            },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "bad request",
+            legacy: "bad request",
+            message: expect.any(Array), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+          });
+        });
       });
     });
   });
