@@ -12,6 +12,7 @@ import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
+import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
 import app from "../../api/kyc";
@@ -1670,12 +1671,12 @@ describe("authenticated", () => {
           statement,
           resources: ["https://exactly.github.io/exa"],
           nonce: adminNonceResult.nonce,
-          uri: `https://localhost`,
+          uri: `https://${domain}`,
           address: owner.address,
           chainId: chain.id,
           scheme: "https",
           version: "1",
-          domain: "localhost",
+          domain,
         });
 
         const ownerLogin = await auth.api.verifySiweMessage({
@@ -1685,7 +1686,7 @@ describe("authenticated", () => {
             walletAddress: owner.address,
             chainId: chain.id,
           },
-          request: new Request("https://localhost"),
+          request: new Request(`https://${domain}`),
           asResponse: true,
         });
         ownerHeaders.set("cookie", ownerLogin.headers.get("set-cookie") ?? "");
@@ -1710,18 +1711,18 @@ describe("authenticated", () => {
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: result.nonce,
-              uri: `https://localhost`,
+              uri: `https://${domain}`,
               address: outsider.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "localhost",
+              domain,
             });
             return outsider.signMessage({ message }).then((signature) => {
               return auth.api
                 .verifySiweMessage({
                   body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
-                  request: new Request("https://localhost"),
+                  request: new Request(`https://${domain}`),
                   asResponse: true,
                 })
                 .then((response) => {
