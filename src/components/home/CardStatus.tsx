@@ -22,6 +22,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 
 import CardBg from "../../assets/images/card-bg.svg";
 import Exa from "../../assets/images/exa.svg";
+import { isPromoted } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { setCardStatus, type CardDetails } from "../../utils/server";
@@ -340,49 +341,87 @@ function PayModeToggle({
       neutral,
     ],
   );
+  const promoted = mode > 0 && isPromoted(mode);
   return (
-    <XStack
-      borderRadius="$r_0"
-      borderWidth={1}
-      style={{ borderColor }}
-      height={48}
-      onLayout={(event) => {
-        setWidth(event.nativeEvent.layout.width);
-      }}
-    >
-      <Animated.View style={[styles.pill, { width: Math.max(0, width / 2 - 6) }, pillStyle]} />
-      <Pressable
-        style={styles.segment}
-        onPress={() => {
-          if (isDebit) return;
-          selectionAsync().catch(reportError);
-          onModeChange(0);
+    <YStack>
+      <XStack
+        borderRadius="$r_0"
+        borderWidth={1}
+        style={{ borderColor }}
+        height={48}
+        onLayout={(event) => {
+          setWidth(event.nativeEvent.layout.width);
         }}
       >
-        <XStack alignItems="center" justifyContent="center" gap="$s2" flex={1}>
-          <Zap size={16} color={nowColor} />
-          <Text headline emphasized style={{ color: nowColor }} maxFontSizeMultiplier={1}>
-            {t("Now")}
-          </Text>
-        </XStack>
-      </Pressable>
-      <Pressable
-        ref={spotlightRef}
-        style={styles.segment}
-        onPress={() => {
-          selectionAsync().catch(reportError);
-          if (mode > 0) onInstallmentsPress();
-          else onModeChange(lastInstallments ?? 1);
-        }}
-      >
-        <XStack alignItems="center" justifyContent="center" gap="$s2" flex={1}>
-          <CalendarDays size={16} color={laterColor} />
-          <Text headline emphasized style={{ color: laterColor }} maxFontSizeMultiplier={1}>
-            {t("Later in {{count}}", { count: mode > 0 ? mode : (lastInstallments ?? 1) })}
-          </Text>
-        </XStack>
-      </Pressable>
-    </XStack>
+        <Animated.View style={[styles.pill, { width: Math.max(0, width / 2 - 6) }, pillStyle]} />
+        <Pressable
+          style={styles.segment}
+          onPress={() => {
+            if (isDebit) return;
+            selectionAsync().catch(reportError);
+            onModeChange(0);
+          }}
+        >
+          <XStack alignItems="center" justifyContent="center" gap="$s2" flex={1}>
+            <Zap size={16} color={nowColor} />
+            <Text headline emphasized style={{ color: nowColor }} maxFontSizeMultiplier={1}>
+              {t("Now")}
+            </Text>
+          </XStack>
+        </Pressable>
+        <Pressable
+          ref={spotlightRef}
+          style={styles.segment}
+          onPress={() => {
+            selectionAsync().catch(reportError);
+            if (mode > 0) onInstallmentsPress();
+            else onModeChange(lastInstallments ?? 1);
+          }}
+        >
+          <XStack alignItems="center" justifyContent="center" gap="$s2" flex={1}>
+            <CalendarDays size={16} color={laterColor} />
+            <Text headline emphasized style={{ color: laterColor }} maxFontSizeMultiplier={1}>
+              {t("Later in {{count}}", { count: mode > 0 ? mode : (lastInstallments ?? 1) })}
+            </Text>
+          </XStack>
+        </Pressable>
+      </XStack>
+      <AnimatePresence>
+        {promoted && (
+          <XStack
+            key="promo-badge"
+            marginTop={-10}
+            animation="default"
+            animateOnly={["opacity"]}
+            opacity={1}
+            enterStyle={{ opacity: 0 }}
+            exitStyle={{ opacity: 0 }}
+          >
+            <View flex={1} />
+            <View flex={1} alignItems="center">
+              <XStack
+                backgroundColor="$interactiveBaseSuccessDefault"
+                minHeight={20}
+                borderRadius="$r2"
+                alignItems="center"
+                justifyContent="center"
+                paddingHorizontal="$s2"
+              >
+                <Text
+                  color="$interactiveOnBaseSuccessDefault"
+                  caption2
+                  textTransform="uppercase"
+                  emphasized
+                  textAlign="center"
+                >
+                  {t("0% interest")}
+                </Text>
+              </XStack>
+            </View>
+          </XStack>
+        )}
+      </AnimatePresence>
+    </YStack>
   );
 }
 
