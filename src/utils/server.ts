@@ -276,7 +276,7 @@ async function getActivity(
   }
   const activity = await parseResponse(response);
   if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
-  return activity;
+  return activity.filter((item) => !("status" in item && item.status === "declined"));
 }
 queryClient.setQueryDefaults(["activity"], { staleTime: 60_000, gcTime: 60 * 60_000, queryFn: () => getActivity() });
 queryClient.setQueryDefaults(["activity", "card"], {
