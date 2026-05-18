@@ -35,7 +35,6 @@ import {
   type InferOutput,
 } from "valibot";
 import { decodeFunctionData, zeroHash, type Log } from "viem";
-import { anvil } from "viem/chains";
 
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
@@ -426,7 +425,6 @@ export default new Hono().get(
       }),
     ]
       .filter(<T>(value: T | undefined): value is T => value !== undefined)
-      .filter((item) => chain.id === anvil.id || !("status" in item && item.status === "declined"))
       .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
 
     if (maturity !== undefined && pdf) {
