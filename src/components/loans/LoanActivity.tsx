@@ -8,7 +8,7 @@ import Text from "../shared/Text";
 export default function LoanActivity() {
   const { t } = useTranslation();
   return (
-    <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">
+    <YStack backgroundColor="$backgroundSoft" borderRadius="$r3">
       <XStack padding="$s4">
         <Text emphasized body primary>
           {t("Loan activity")}

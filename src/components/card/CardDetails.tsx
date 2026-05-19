@@ -60,7 +60,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                 <Skeleton height={200} width="100%" />
               ) : card ? (
                 <YStack
-                  borderRadius="$s3"
+                  borderRadius="$r3"
                   borderWidth={1}
                   borderColor="$borderNeutralSoft"
                   backgroundColor={card.productId === SIGNATURE_PRODUCT_ID ? "$grayscaleLight12" : "$uiNeutralPrimary"}

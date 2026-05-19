@@ -27,7 +27,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
     <GestureDetector gesture={tap}>
       <YStack
         backgroundColor="$backgroundBrandSoft"
-        borderRadius="$3"
+        borderRadius="$r3"
         paddingVertical="$s5"
         paddingHorizontal="$s4"
         gap="$s7"

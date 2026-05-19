@@ -26,7 +26,7 @@ export default function NotificationToast() {
       scale={1}
       animation="quicker"
       viewportName={toast.viewportName}
-      borderRadius="$s3"
+      borderRadius="$r3"
     >
       <XStack justifyContent="space-between" alignItems="center" backgroundColor="transparent" alignSelf="center">
         <View
@@ -40,8 +40,8 @@ export default function NotificationToast() {
                 ? "$interactiveBaseErrorSoftDefault"
                 : "$interactiveBaseInformationSoftDefault"
           }
-          borderTopLeftRadius="$s3"
-          borderBottomLeftRadius="$s3"
+          borderTopLeftRadius="$r3"
+          borderBottomLeftRadius="$r3"
         >
           <InfoIcon
             size={24}

@@ -29,7 +29,7 @@ export default function CreditLine() {
   const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { markets, firstMaturity } = useMarkets({ enabled: !!bytecode });
   return (
-    <YStack backgroundColor="$backgroundSoft" borderRadius="$s3">
+    <YStack backgroundColor="$backgroundSoft" borderRadius="$r3">
       <XStack padding="$s4">
         <Text emphasized body primary>
           {t("Available funding")}

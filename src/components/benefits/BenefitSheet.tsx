@@ -103,7 +103,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                 >
                   <XStack
                     backgroundColor="$backgroundMild"
-                    borderRadius="$3"
+                    borderRadius="$r3"
                     padding="$s4"
                     justifyContent="space-between"
                     alignItems="center"
