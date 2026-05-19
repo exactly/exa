@@ -9,6 +9,7 @@ import { getAddress, sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
+import domain from "@exactly/common/domain";
 import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
@@ -531,6 +532,8 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       setContext("exa", { credential });
 
       const siweMessage = parseSiweMessage(payload.verify.message);
+
+      if (siweMessage.domain !== domain) return c.json({ code: "no permission", message: "invalid domain" }, 403);
 
       if (siweMessage.chainId !== chain.id)
         return c.json({ code: "bad chain", message: `expected ${chain.id} but got ${siweMessage.chainId}` }, 400);

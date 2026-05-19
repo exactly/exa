@@ -1793,12 +1793,12 @@ describe("authenticated", () => {
             statement,
             resources: ["https://exactly.github.io/exa"],
             nonce: generateSiweNonce(),
-            uri: `https://sandbox.exactly.app`,
+            uri: `https://${domain}`,
             address: owner.address,
             chainId: chain.id,
             scheme: "https",
             version: "1",
-            domain: "sandbox.exactly.app",
+            domain,
           });
           const signature = await owner.signMessage({ message });
 
@@ -1860,12 +1860,12 @@ describe("authenticated", () => {
             statement,
             resources: ["https://exactly.github.io/exa"],
             nonce: generateSiweNonce(),
-            uri: `https://sandbox.exactly.app`,
+            uri: `https://${domain}`,
             address: owner.address,
             chainId: chain.id,
             scheme: "https",
             version: "1",
-            domain: "sandbox.exactly.app",
+            domain,
           });
           const signature = await owner.signMessage({ message });
           const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
@@ -1901,12 +1901,12 @@ describe("authenticated", () => {
             statement,
             resources: ["https://exactly.github.io/exa"],
             nonce: generateSiweNonce(),
-            uri: `https://sandbox.exactly.app`,
+            uri: `https://${domain}`,
             address: owner.address,
             chainId: chain.id,
             scheme: "https",
             version: "1",
-            domain: "sandbox.exactly.app",
+            domain,
           });
           const signature = await owner.signMessage({ message });
 
@@ -1954,12 +1954,12 @@ describe("authenticated", () => {
             statement,
             resources: ["https://exactly.github.io/exa"],
             nonce: generateSiweNonce(),
-            uri: `https://sandbox.exactly.app`,
+            uri: `https://${domain}`,
             address: owner.address,
             chainId: chain.id,
             scheme: "https",
             version: "1",
-            domain: "sandbox.exactly.app",
+            domain,
           });
           const signature = await owner.signMessage({ message });
 
@@ -1975,6 +1975,36 @@ describe("authenticated", () => {
           );
 
           expect(response.status).toBe(400);
+        });
+
+        it("returns 403 when siwe domain does not match expected domain", async () => {
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://phishing.example`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain: "phishing.example",
+          });
+          const signature = await owner.signMessage({ message });
+          const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+          const submitApplication = vi.spyOn(panda, "submitApplication");
+
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(403);
+          await expect(response.json()).resolves.toStrictEqual({ code: "no permission", message: "invalid domain" });
+          expect(submitApplication).not.toHaveBeenCalled();
         });
 
         describe("with encrypted payload", () => {
@@ -2016,12 +2046,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: generateSiweNonce(),
-              uri: `https://sandbox.exactly.app`,
+              uri: `https://${domain}`,
               address: owner.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "sandbox.exactly.app",
+              domain,
             });
             const signature = await owner.signMessage({ message });
 
@@ -2094,12 +2124,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: generateSiweNonce(),
-              uri: `https://sandbox.exactly.app`,
+              uri: `https://${domain}`,
               address: outsider.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "sandbox.exactly.app",
+              domain,
             });
 
             const response = await appClient.application.$post(
@@ -2133,12 +2163,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
                 statement,
                 resources: ["https://exactly.github.io/exa"],
                 nonce: generateSiweNonce(),
-                uri: `https://sandbox.exactly.app`,
+                uri: `https://${domain}`,
                 address: owner.address,
                 chainId: chain.id,
                 scheme: "https",
                 version: "1",
-                domain: "sandbox.exactly.app",
+                domain,
               });
 
               const response = await appClient.application.$post(
@@ -2180,12 +2210,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: generateSiweNonce(),
-              uri: `https://sandbox.exactly.app`,
+              uri: `https://${domain}`,
               address: owner.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "sandbox.exactly.app",
+              domain,
             });
             const signature = await owner.signMessage({ message });
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
@@ -2217,12 +2247,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: generateSiweNonce(),
-              uri: `https://sandbox.exactly.app`,
+              uri: `https://${domain}`,
               address: owner.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "sandbox.exactly.app",
+              domain,
             });
             const signature = await owner.signMessage({ message });
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
@@ -2254,12 +2284,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: generateSiweNonce(),
-              uri: `https://sandbox.exactly.app`,
+              uri: `https://${domain}`,
               address: owner.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "sandbox.exactly.app",
+              domain,
             });
             const signature = await owner.signMessage({ message });
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
@@ -2283,12 +2313,12 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               statement,
               resources: ["https://exactly.github.io/exa"],
               nonce: generateSiweNonce(),
-              uri: `https://sandbox.exactly.app`,
+              uri: `https://${domain}`,
               address: owner.address,
               chainId: chain.id,
               scheme: "https",
               version: "1",
-              domain: "sandbox.exactly.app",
+              domain,
             });
             const signature = await owner.signMessage({ message });
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
