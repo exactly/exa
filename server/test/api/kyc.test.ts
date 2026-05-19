@@ -1847,6 +1847,50 @@ describe("authenticated", () => {
           await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
         });
 
+        it("accepts postal codes with hyphens and spaces", async () => {
+          const payload = {
+            ...applicationPayload,
+            address: { ...applicationPayload.address, postalCode: "09751-000", countryCode: "BR" },
+          };
+          const credential = await database.query.credentials.findFirst({
+            where: eq(credentials.id, account),
+          });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(payload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://sandbox.exactly.app`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain: "sandbox.exactly.app",
+          });
+          const signature = await owner.signMessage({ message });
+          const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
+
+          await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            arrayBuffer: () =>
+              Promise.resolve(
+                new TextEncoder().encode(JSON.stringify({ id: "pandaId", applicationStatus: "approved" })).buffer,
+              ),
+          } as Response);
+
+          const response = await appClient.application.$post(
+            { json: { ...payload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          const body = mockFetch.mock.calls[0]?.[1]?.body;
+          expect(response.status).toBe(200);
+          expect(JSON.parse(body as string)).toStrictEqual(payload);
+          await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+        });
+
         it("returns 409 when kyc is already started", async () => {
           await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
           const credential = await database.query.credentials.findFirst({
@@ -2286,6 +2330,35 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             }),
           );
           expect(JSON.parse(body as string)).toStrictEqual({ firstName: "john-updated" });
+        });
+
+        it("accepts postal code updates with hyphens and spaces", async () => {
+          await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            arrayBuffer: () => Promise.resolve(new TextEncoder().encode("{}").buffer),
+          } as Response);
+
+          const json = {
+            address: {
+              line1: "123 Main St",
+              city: "São Paulo",
+              region: "SP",
+              country: "BR",
+              postalCode: "09751-000",
+              countryCode: "BR",
+            },
+          };
+          const response = await appClient.application.$patch(
+            { json },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          const body = mockFetch.mock.calls[0]?.[1]?.body;
+          expect(response.status).toBe(200);
+          await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+          expect(JSON.parse(body as string)).toStrictEqual(json);
         });
 
         it("returns 400 when kyc is not started", async () => {

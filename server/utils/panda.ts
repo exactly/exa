@@ -493,7 +493,7 @@ const AddressSchema = object({
   city: pipe(string(), minLength(1), maxLength(50)),
   region: pipe(string(), minLength(1), maxLength(50)),
   country: optional(pipe(string(), minLength(1), maxLength(50))),
-  postalCode: pipe(string(), minLength(1), maxLength(15), regex(/^[a-z0-9]{1,15}$/i)),
+  postalCode: pipe(string(), minLength(1), maxLength(15), regex(/^[a-z0-9 -]{1,15}$/i)),
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
 });
 
