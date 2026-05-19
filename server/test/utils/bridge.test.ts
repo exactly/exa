@@ -2160,7 +2160,6 @@ function usdVirtualAccount(account: string) {
     status: "activated",
     source_deposit_instructions: {
       currency: "usd",
-      payment_rails: ["ach_push", "wire"],
       bank_name: "Test Bank",
       bank_address: "123 Bank St",
       bank_routing_number: "111000025",
@@ -2178,7 +2177,6 @@ function eurVirtualAccount(account: string) {
     status: "activated",
     source_deposit_instructions: {
       currency: "eur",
-      payment_rails: ["sepa"],
       bank_name: "EU Bank",
       bank_address: "789 EU St",
       account_holder_name: "Test Holder",
@@ -2195,7 +2193,6 @@ function mxnVirtualAccount(account: string) {
     status: "activated",
     source_deposit_instructions: {
       currency: "mxn",
-      payment_rails: ["spei"],
       account_holder_name: "Test Holder MX",
       clabe: "646180171800000178", // cspell:ignore clabe
     },
@@ -2209,7 +2206,6 @@ function brlVirtualAccount(account: string) {
     status: "activated",
     source_deposit_instructions: {
       currency: "brl",
-      payment_rails: ["pix"],
       account_holder_name: "Test Holder BR",
       br_code: "00020126580014br.gov.bcb.pix", // cspell:ignore bcb
     },
@@ -2223,7 +2219,6 @@ function gbpVirtualAccount(account: string) {
     status: "activated",
     source_deposit_instructions: {
       currency: "gbp",
-      payment_rails: ["faster_payments"],
       account_number: "12345678",
       sort_code: "123456",
       account_holder_name: "Test Holder GB",

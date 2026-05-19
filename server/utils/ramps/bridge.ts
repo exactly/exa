@@ -520,7 +520,6 @@ function containsRequirement(node: unknown, targets: Set<string>): boolean {
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa
 export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
-export const PaymentRail = ["ach_push", "faster_payments", "pix", "sepa", "spei", "wire"] as const;
 const VirtualAccountStatus = ["activated", "deactivated"] as const;
 
 export const FiatCurrency = ["BRL", "EUR", "GBP", "MXN", "USD"] as const;
@@ -843,13 +842,11 @@ const VirtualAccount = object({
   source_deposit_instructions: variant("currency", [
     object({
       currency: literal("brl" as const satisfies (typeof BridgeCurrency)[number]),
-      payment_rails: array(picklist(["pix"] as const satisfies (typeof PaymentRail)[number][])),
       account_holder_name: string(),
       br_code: string(),
     }),
     object({
       currency: literal("usd" as const satisfies (typeof BridgeCurrency)[number]),
-      payment_rails: array(picklist(["ach_push", "wire"] as const satisfies (typeof PaymentRail)[number][])),
       bank_name: string(),
       bank_address: string(),
       bank_routing_number: string(),
@@ -859,7 +856,6 @@ const VirtualAccount = object({
     }),
     object({
       currency: literal("eur" as const satisfies (typeof BridgeCurrency)[number]),
-      payment_rails: array(picklist(["sepa"] as const satisfies (typeof PaymentRail)[number][])),
       bank_name: string(),
       bank_address: string(),
       account_holder_name: string(),
@@ -868,13 +864,11 @@ const VirtualAccount = object({
     }),
     object({
       currency: literal("mxn" as const satisfies (typeof BridgeCurrency)[number]),
-      payment_rails: array(picklist(["spei"] as const satisfies (typeof PaymentRail)[number][])),
       account_holder_name: string(),
       clabe: string(), // cspell:ignore clabe
     }),
     object({
       currency: literal("gbp" as const satisfies (typeof BridgeCurrency)[number]),
-      payment_rails: array(picklist(["faster_payments"] as const satisfies (typeof PaymentRail)[number][])),
       account_number: string(),
       sort_code: string(),
       account_holder_name: string(),
