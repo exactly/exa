@@ -22,6 +22,7 @@ import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -106,11 +107,10 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                     >
                       {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
                     </Text>
-                    <Copy
-                      hitSlop={20}
+                    <IconButton
+                      icon={Copy}
                       size={16}
                       color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
-                      strokeWidth={2.5}
                       onPress={() => {
                         setStringAsync(details.pan).catch(reportError);
                         toast.show(t("Card number copied!"), {
