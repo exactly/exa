@@ -649,6 +649,230 @@ describe("bridge hook", () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
+
+  it("returns 200 without tracking for transfer.created events", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = { event_type: "transfer.created", event_object: { id: "tr_1" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 without tracking for transfer.updated events", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = { event_type: "transfer.updated", event_object: { id: "tr_1" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 without tracking for external_account.created events", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = { event_type: "external_account.created", event_object: { id: "ext_1" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 without tracking for external_account.updated events", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = { event_type: "external_account.updated", event_object: { id: "ext_1" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("tracks offramp and notifies on transfer payment_processed", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(transferProcessed) },
+      json: transferProcessed as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      event: "Offramp",
+      properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
+    });
+    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Withdraw completed"),
+      contents: t("{{amount}} {{asset}} withdrawn", { amount: f("2.97"), asset: "USD" }),
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("notifies on transfer funds_received without tracking", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(transferFundsReceived) },
+      json: transferFundsReceived as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Withdrawal in progress"),
+      contents: t("Your funds are on the way to your bank"),
+    });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures transfer funds_received notification errors", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(segment, "track").mockReturnValue();
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(transferFundsReceived) },
+      json: transferFundsReceived as never,
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+  });
+
+  it("captures transfer payment_processed notification errors", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(segment, "track").mockReturnValue();
+    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(transferProcessed) },
+      json: transferProcessed as never,
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      event: "Offramp",
+      properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
+    });
+  });
+
+  it("returns 200 without tracking for transfer non-payment_processed state", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = {
+      ...transferProcessed,
+      event_object: { ...transferProcessed.event_object, state: "payment_submitted" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 without tracking for transfer without external_account_id", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = {
+      ...transferProcessed,
+      event_object: {
+        ...transferProcessed.event_object,
+        destination: { ...transferProcessed.event_object.destination, external_account_id: null },
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 without tracking for transfer payment_processed without receipt", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const { receipt: _receipt, ...rest } = transferProcessed.event_object;
+    const payload = { ...transferProcessed, event_object: rest };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 with credential not found for transfer with unknown on_behalf_of", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const payload = {
+      ...transferProcessed,
+      event_object: { ...transferProcessed.event_object, on_behalf_of: "unknown-customer" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "credential not found" }),
+      { level: "error", contexts: { details: { bridgeId: "unknown-customer" } } },
+    );
+  });
 });
 
 const testSigningKey = createPrivateKey(`-----BEGIN PRIVATE KEY-----
@@ -732,6 +956,29 @@ const drain = {
     currency: "usdc",
     customer_id: "bridgeCustomerId",
     receipt: { initial_amount: "500", outgoing_amount: "500" },
+  },
+};
+
+const transferProcessed = {
+  event_type: "transfer.updated.status_transitioned",
+  event_object: {
+    id: "tr_123",
+    on_behalf_of: "bridgeCustomerId",
+    state: "payment_processed",
+    currency: "usd",
+    destination: { payment_rail: "ach", external_account_id: "ext_123" },
+    receipt: { initial_amount: "3", final_amount: "2.97" },
+  },
+};
+
+const transferFundsReceived = {
+  event_type: "transfer.updated.status_transitioned",
+  event_object: {
+    id: "tr_123",
+    on_behalf_of: "bridgeCustomerId",
+    state: "funds_received",
+    currency: "usd",
+    destination: { payment_rail: "ach", external_account_id: "ext_123" },
   },
 };
 

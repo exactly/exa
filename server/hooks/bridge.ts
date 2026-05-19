@@ -5,7 +5,7 @@ import { and, DrizzleQueryError, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createHash, createVerify } from "node:crypto";
-import { literal, object, parse, picklist, string, unknown, variant } from "valibot";
+import { literal, nullish, object, optional, parse, picklist, string, unknown, variant } from "valibot";
 
 import { Address } from "@exactly/common/validation";
 
@@ -88,6 +88,33 @@ export default new Hono().post(
         ]),
       }),
       object({ event_type: literal("virtual_account.activity.updated"), event_object: unknown() }),
+      object({ event_type: literal("external_account.created"), event_object: unknown() }),
+      object({ event_type: literal("external_account.updated"), event_object: unknown() }),
+      object({ event_type: literal("transfer.created"), event_object: unknown() }),
+      object({ event_type: literal("transfer.updated"), event_object: unknown() }),
+      object({
+        event_type: literal("transfer.updated.status_transitioned"),
+        event_object: object({
+          currency: picklist(BridgeCurrency),
+          destination: object({ external_account_id: nullish(string()) }),
+          id: string(),
+          on_behalf_of: string(),
+          receipt: optional(object({ initial_amount: string(), final_amount: string() })),
+          state: picklist([
+            "awaiting_funds",
+            "canceled",
+            "funds_received",
+            "in_review",
+            "payment_processed",
+            "payment_submitted",
+            "refund_failed",
+            "refund_in_flight",
+            "refunded",
+            "returned",
+            "undeliverable",
+          ]),
+        }),
+      }),
     ]),
     validatorHook({ code: "bad bridge", status: 200, debug }),
   ),
@@ -99,13 +126,19 @@ export default new Hono().post(
       case "liquidation_address.drain.created":
       case "liquidation_address.drain.updated":
       case "virtual_account.activity.updated":
+      case "external_account.created":
+      case "external_account.updated":
+      case "transfer.created":
+      case "transfer.updated":
         return c.json({ code: "ok" }, 200);
     }
 
     const bridgeId =
       payload.event_type === "customer.updated.status_transitioned"
         ? payload.event_object.id
-        : payload.event_object.customer_id;
+        : payload.event_type === "transfer.updated.status_transitioned"
+          ? payload.event_object.on_behalf_of
+          : payload.event_object.customer_id;
     let credential = await database.query.credentials.findFirst({
       columns: { account: true, source: true },
       where: eq(credentials.bridgeId, bridgeId),
@@ -227,6 +260,41 @@ export default new Hono().post(
           },
         });
         return c.json({ code: "ok" }, 200);
+      case "transfer.updated.status_transitioned":
+        if (!payload.event_object.destination.external_account_id) return c.json({ code: "ok" }, 200);
+        switch (payload.event_object.state) {
+          case "funds_received":
+            sendPushNotification({
+              userId: account,
+              headings: t("Withdrawal in progress"),
+              contents: t("Your funds are on the way to your bank"),
+            }).catch((error: unknown) => captureException(error, { level: "error" }));
+            return c.json({ code: "ok" }, 200);
+          case "payment_processed":
+            if (!payload.event_object.receipt) return c.json({ code: "ok" }, 200);
+            sendPushNotification({
+              userId: account,
+              headings: t("Withdraw completed"),
+              contents: t("{{amount}} {{asset}} withdrawn", {
+                amount: f(payload.event_object.receipt.final_amount),
+                asset: payload.event_object.currency.toUpperCase(),
+              }),
+            }).catch((error: unknown) => captureException(error, { level: "error" }));
+            track({
+              userId: account,
+              event: "Offramp",
+              properties: {
+                currency: payload.event_object.currency,
+                amount: Number(payload.event_object.receipt.final_amount),
+                provider: "bridge",
+                source: credential.source,
+                usdcAmount: Number(payload.event_object.receipt.initial_amount),
+              },
+            });
+            return c.json({ code: "ok" }, 200);
+          default:
+            return c.json({ code: "ok" }, 200);
+        }
     }
   },
 );

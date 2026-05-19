@@ -40,6 +40,16 @@ export function track(
     | { event: "CardIssued"; properties: SourceProperty & { productId: string } }
     | { event: "CardUnfrozen"; properties: SourceProperty }
     | {
+        event: "Offramp";
+        properties: {
+          amount: number;
+          currency: string;
+          provider: "bridge" | "manteca";
+          source: null | string;
+          usdcAmount: number;
+        };
+      }
+    | {
         event: "Onramp";
         properties: {
           amount: number;

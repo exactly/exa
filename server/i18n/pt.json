@@ -11,7 +11,9 @@
   "Refund processed": "Reembolso processado",
   "Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}": "Transação em {{merchantName}} de {{amount}} recusada: {{reason}}",
   "Withdraw completed": "Saque concluído",
+  "Withdrawal in progress": "Saque em andamento",
   "Your fiat onramp account has been activated": "Sua conta para depositar dinheiro fiat foi ativada",
+  "Your funds are on the way to your bank": "Seus fundos estão a caminho do seu banco",
   "frozen card": "cartão bloqueado",
   "insufficient funds": "fundos insuficientes",
   "merchant blocked": "estabelecimento bloqueado",
@@ -21,6 +23,7 @@
   "{{amount}} received": "{{amount}} recebidos",
   "{{amount}} received and instantly started earning yield": "{{amount}} recebidos e começaram a render",
   "{{amount}} {{asset}} deposited": "{{amount}} {{asset}} depositados",
+  "{{amount}} {{asset}} withdrawn": "{{amount}} {{asset}} sacados",
   "{{amount}} {{symbol}} sent to {{recipient}}": "{{amount}} {{symbol}} enviados para {{recipient}}",
   "{{refundAmount}} USDC from {{merchantName}} have been refunded to your account": "{{refundAmount}} USDC de {{merchantName}} foram reembolsados para sua conta"
 }

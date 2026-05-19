@@ -1,4 +1,4 @@
-// cspell:ignore SEPA, SPEI
+// cspell:ignore SEPA, SPEI, GABCDEFGHIJ
 import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/sentry";
@@ -61,6 +61,7 @@ describe("ramp api", () => {
       });
       vi.spyOn(bridge, "getProvider").mockResolvedValue({
         onramp: { currencies: [] },
+        offramp: { currencies: [] },
         status: "NOT_AVAILABLE",
       });
 
@@ -74,7 +75,12 @@ describe("ramp api", () => {
           onramp: { currencies: ["ARS", "USD"] },
           status: "NOT_STARTED",
         },
-        bridge: { provider: "bridge", onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
+        bridge: {
+          provider: "bridge",
+          onramp: { currencies: [] },
+          offramp: { currencies: [] },
+          status: "NOT_AVAILABLE",
+        },
       });
     });
 
@@ -82,6 +88,7 @@ describe("ramp api", () => {
       vi.spyOn(manteca, "getProvider").mockRejectedValue(new Error("manteca error"));
       vi.spyOn(bridge, "getProvider").mockResolvedValue({
         onramp: { currencies: [] },
+        offramp: { currencies: [] },
         status: "NOT_AVAILABLE",
       });
 
@@ -91,7 +98,12 @@ describe("ramp api", () => {
       const json = await response.json();
       expect(json).toStrictEqual({
         manteca: { provider: "manteca", onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
-        bridge: { provider: "bridge", onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
+        bridge: {
+          provider: "bridge",
+          onramp: { currencies: [] },
+          offramp: { currencies: [] },
+          status: "NOT_AVAILABLE",
+        },
       });
     });
 
@@ -108,7 +120,12 @@ describe("ramp api", () => {
       const json = await response.json();
       expect(json).toStrictEqual({
         manteca: { provider: "manteca", onramp: { currencies: ["ARS"] }, status: "ACTIVE" },
-        bridge: { provider: "bridge", onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
+        bridge: {
+          provider: "bridge",
+          onramp: { currencies: [] },
+          offramp: { currencies: [] },
+          status: "NOT_AVAILABLE",
+        },
       });
     });
 
@@ -119,6 +136,7 @@ describe("ramp api", () => {
       });
       const bridgeSpy = vi.spyOn(bridge, "getProvider").mockResolvedValue({
         onramp: { currencies: [] },
+        offramp: { currencies: [] },
         status: "NOT_AVAILABLE",
       });
 
@@ -555,7 +573,7 @@ describe("ramp api", () => {
         });
       });
 
-      it("returns deposit info with undefined quote for bridge USDC/SOLANA", async () => {
+      it("returns deposit info with default quote for bridge USDC/SOLANA", async () => {
         vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
         vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
           {
@@ -574,6 +592,7 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "1.0", sellRate: "1.0" },
           depositInfo: [
             {
               network: "SOLANA",
@@ -586,7 +605,7 @@ describe("ramp api", () => {
         });
       });
 
-      it("returns deposit info with undefined quote for bridge USDC/STELLAR", async () => {
+      it("returns deposit info with default quote for bridge USDC/STELLAR", async () => {
         vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
         vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
           {
@@ -606,6 +625,7 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "1.0", sellRate: "1.0" },
           depositInfo: [
             {
               network: "STELLAR",
@@ -619,7 +639,7 @@ describe("ramp api", () => {
         });
       });
 
-      it("returns deposit info with undefined quote for bridge USDC/BASE", async () => {
+      it("returns deposit info with default quote for bridge USDC/BASE", async () => {
         vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
         vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
           {
@@ -638,6 +658,7 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "1.0", sellRate: "1.0" },
           depositInfo: [
             {
               network: "BASE",
@@ -647,6 +668,196 @@ describe("ramp api", () => {
               estimatedProcessingTime: "300",
             },
           ],
+        });
+      });
+
+      describe("offramp", () => {
+        it("returns 400 when bridgeId is missing", async () => {
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USD",
+                direction: "offramp",
+                externalAccountId: "ext-acc-1",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-test" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+        });
+
+        it("returns 400 when bridge customer not found", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USD",
+                direction: "offramp",
+                externalAccountId: "ext-acc-1",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+        });
+
+        it("returns 400 when external account is not found", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+          vi.spyOn(bridge, "getOfframpDepositDetails").mockRejectedValue(
+            new Error(bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND),
+          );
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USD",
+                direction: "offramp",
+                externalAccountId: "ext-acc-missing",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "external account not found" });
+        });
+
+        it("returns 500 when bridge util throws an unexpected error", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+          vi.spyOn(bridge, "getOfframpDepositDetails").mockRejectedValue(new Error("unexpected"));
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USD",
+                direction: "offramp",
+                externalAccountId: "ext-acc-1",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(500);
+        });
+
+        it("returns quote and deposit info for USD offramp", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+          vi.spyOn(bridge, "getOfframpDepositDetails").mockResolvedValue([
+            {
+              network: "OPTIMISM" as const,
+              displayName: "Optimism" as const,
+              address: deposit,
+              fee: "0.0",
+              estimatedProcessingTime: "300",
+            },
+          ]);
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USD",
+                direction: "offramp",
+                externalAccountId: "ext-acc-1",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(200);
+          await expect(response.json()).resolves.toStrictEqual({
+            quote: { buyRate: "1.00", sellRate: "1.00" },
+            depositInfo: [
+              {
+                network: "OPTIMISM",
+                displayName: "Optimism",
+                address: deposit,
+                fee: "0.0",
+                estimatedProcessingTime: "300",
+              },
+            ],
+          });
+          expect(bridge.getOfframpDepositDetails).toHaveBeenCalledWith(
+            "ext-acc-1",
+            expect.any(String),
+            bridgeCustomer,
+            "USD",
+          );
+        });
+
+        it("returns 400 when crypto offramp to_address is invalid", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(
+            new Error(bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS),
+          );
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USDT",
+                direction: "offramp",
+                network: "TRON",
+                address: "not-a-tron-address",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "invalid deposit address" });
+        });
+
+        it("returns 500 when crypto offramp util throws an unexpected error", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(new Error("unexpected"));
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USDT",
+                direction: "offramp",
+                network: "TRON",
+                address: "TXyz",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(500);
+        });
+
+        it("returns 400 when STELLAR offramp is missing the memo", async () => {
+          const cryptoSpy = vi.spyOn(bridge, "getCryptoOfframpDepositDetails");
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USDC",
+                direction: "offramp",
+                network: "STELLAR",
+                address: "GABCDEFGHIJ",
+              } as never,
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          expect(cryptoSpy).not.toHaveBeenCalled();
         });
       });
     });
@@ -994,6 +1205,97 @@ describe("ramp api", () => {
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
       });
+    });
+  });
+
+  describe("delete external account", () => {
+    it("returns 400 for no credential", async () => {
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "non-existent" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    });
+
+    it("returns 400 when bridgeId is missing", async () => {
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "ramp-test" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+    });
+
+    it("returns 400 when bridge customer not found", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      const removeSpy = vi.spyOn(bridge, "removeExternalAccount");
+
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+      expect(removeSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when customer is not active", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue({ ...bridgeCustomer, status: "under_review" });
+      const removeSpy = vi.spyOn(bridge, "removeExternalAccount");
+
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+      expect(removeSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when external account is not found", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "removeExternalAccount").mockRejectedValue(
+        new Error(bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND),
+      );
+
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-missing" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "external account not found" });
+    });
+
+    it("returns 500 when bridge util throws an unexpected error", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "removeExternalAccount").mockRejectedValue(new Error("unexpected"));
+
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(500);
+    });
+
+    it("delegates to removeExternalAccount and returns ok", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      const removeSpy = vi.spyOn(bridge, "removeExternalAccount").mockResolvedValue();
+
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(removeSpy).toHaveBeenCalledWith(bridgeCustomer, "ext-acc-1");
     });
   });
 });

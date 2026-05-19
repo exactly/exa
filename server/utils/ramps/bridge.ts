@@ -1,10 +1,16 @@
-import { captureException, withScope } from "@sentry/core";
+import { captureException, setContext, withScope } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
 import {
   array,
+  boolean,
+  check,
+  flatten,
+  length,
   literal,
+  maxLength,
+  minLength,
   nullish,
   number,
   object,
@@ -12,11 +18,13 @@ import {
   parse,
   picklist,
   pipe,
+  regex,
   safeParse,
   string,
   union,
   unknown,
   url as urlValidator,
+  ValiError,
   variant,
   type BaseIssue,
   type BaseSchema,
@@ -38,6 +46,7 @@ export const name = "bridge" as const;
 
 export const EVMNetwork = ["BASE"] as const;
 export const Network = [...EVMNetwork, "SOLANA", "STELLAR", "TRON"] as const;
+export const OfframpNetwork = ["BASE", "SOLANA", "STELLAR", "TRON"];
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -122,19 +131,24 @@ export async function getVirtualAccounts(customerId: string) {
   const path = `/customers/${customerId}/virtual_accounts` as const;
   const first = await request(VirtualAccounts, `${path}?limit=20`);
   const all = [...first.data];
-  const paginated = all.length < first.count;
-  while (all.length < first.count) {
-    const last = all.at(-1);
-    if (!last) break;
-    const page = await request(VirtualAccounts, `${path}?limit=20&starting_after=${last.id}`);
-    if (page.data.length === 0) break;
-    all.push(...page.data);
-  }
-  if (paginated)
+  if (first.data.length < first.count)
     captureException(new Error("bridge virtual accounts pagination"), {
       level: "warning",
       contexts: { bridge: { customerId, count: first.count } },
     });
+  while (all.length < first.count) {
+    const last = all.at(-1);
+    if (!last) break;
+    const page = await request(VirtualAccounts, `${path}?limit=20&starting_after=${last.id}`);
+    if (page.data.length === 0) {
+      captureException(new Error("bridge virtual accounts empty page"), {
+        level: "warning",
+        contexts: { bridge: { customerId, count: first.count, fetched: all.length } },
+      });
+      break;
+    }
+    all.push(...page.data);
+  }
   return all;
 }
 
@@ -146,19 +160,57 @@ export async function getLiquidationAddresses(customerId: string) {
   const path = `/customers/${customerId}/liquidation_addresses` as const;
   const first = await request(LiquidationAddresses, `${path}?limit=20`);
   const all = [...first.data];
-  const paginated = all.length < first.count;
-  while (all.length < first.count) {
-    const last = all.at(-1);
-    if (!last) break;
-    const page = await request(LiquidationAddresses, `${path}?limit=20&starting_after=${last.id}`);
-    if (page.data.length === 0) break;
-    all.push(...page.data);
-  }
-  if (paginated)
+  if (first.data.length < first.count)
     captureException(new Error("bridge liquidation addresses pagination"), {
       level: "warning",
       contexts: { bridge: { customerId, count: first.count } },
     });
+  while (all.length < first.count) {
+    const last = all.at(-1);
+    if (!last) break;
+    const page = await request(LiquidationAddresses, `${path}?limit=20&starting_after=${last.id}`);
+    if (page.data.length === 0) {
+      captureException(new Error("bridge liquidation addresses empty page"), {
+        level: "warning",
+        contexts: { bridge: { customerId, count: first.count, fetched: all.length } },
+      });
+      break;
+    }
+    all.push(...page.data);
+  }
+  return all;
+}
+
+export async function createTransfer(data: InferInput<typeof CreateTransfer>, idempotencyKey?: string) {
+  return await request(Transfer, "/transfers", {}, data, "POST", 15_000, idempotencyKey);
+}
+
+export async function getTransfers(customerId: string) {
+  return await request(Transfers, `/customers/${customerId}/transfers`, {}, undefined, "GET");
+}
+
+export async function getStaticTemplates(customerId: string) {
+  const path = `/customers/${customerId}/transfers/static_templates` as const;
+  const first = await request(StaticTemplates, `${path}?limit=50`);
+  const all = [...first.data];
+  if (first.data.length < first.count)
+    captureException(new Error("bridge static templates pagination"), {
+      level: "warning",
+      contexts: { bridge: { customerId, count: first.count } },
+    });
+  while (all.length < first.count) {
+    const last = all.at(-1);
+    if (!last) break;
+    const page = await request(StaticTemplates, `${path}?limit=50&starting_after=${last.id}`);
+    if (page.data.length === 0) {
+      captureException(new Error("bridge static templates empty page"), {
+        level: "warning",
+        contexts: { bridge: { customerId, count: first.count, fetched: all.length } },
+      });
+      break;
+    }
+    all.push(...page.data);
+  }
   return all;
 }
 
@@ -172,6 +224,325 @@ export function getKYCLink(customerId: string, redirectUri?: string, endorsement
   ).then((result) => result.url);
 }
 
+export async function createExternalAccount(
+  customer: InferOutput<typeof CustomerResponse>,
+  externalAccount: InferInput<typeof ExternalAccountInput>,
+) {
+  const approved = customer.endorsements.some(
+    (endorsement) =>
+      endorsement.status === "approved" && CurrencyByEndorsement[endorsement.name].includes(externalAccount.currency),
+  );
+  if (!approved) throw new Error(ErrorCodes.NO_ENDORSEMENT);
+  return await request(
+    BridgeExternalAccount,
+    `/customers/${customer.id}/external_accounts`,
+    {},
+    ((): InferInput<typeof BridgeCreateExternalAccount> => {
+      switch (externalAccount.currency) {
+        case "USD":
+          return {
+            account_type: "us",
+            currency: "usd",
+            account_owner_name: externalAccount.accountOwnerName,
+            bank_name: externalAccount.bankName,
+            account: {
+              account_number: externalAccount.accountNumber,
+              routing_number: externalAccount.routingNumber,
+              checking_or_savings: externalAccount.checkingOrSavings,
+            },
+            address: {
+              city: externalAccount.address.city,
+              country: externalAccount.address.country,
+              street_line_1: externalAccount.address.streetLine1,
+              street_line_2: externalAccount.address.streetLine2,
+              state: externalAccount.address.state,
+              postal_code: externalAccount.address.postalCode,
+            },
+          };
+        case "EUR":
+          return externalAccount.accountOwnerType === "individual"
+            ? {
+                account_type: "iban",
+                address: externalAccount.address
+                  ? {
+                      city: externalAccount.address.city,
+                      country: externalAccount.address.country,
+                      street_line_1: externalAccount.address.streetLine1,
+                      street_line_2: externalAccount.address.streetLine2,
+                      state: externalAccount.address.state,
+                      postal_code: externalAccount.address.postalCode,
+                    }
+                  : undefined,
+                currency: "eur",
+                account_owner_name: externalAccount.accountOwnerName,
+                account_owner_type: "individual",
+                first_name: externalAccount.firstName,
+                last_name: externalAccount.lastName,
+                bank_name: externalAccount.bankName,
+                iban: {
+                  account_number: externalAccount.accountNumber,
+                  bic: externalAccount.bic,
+                  country: externalAccount.country,
+                },
+              }
+            : {
+                account_type: "iban",
+                address: externalAccount.address
+                  ? {
+                      city: externalAccount.address.city,
+                      country: externalAccount.address.country,
+                      street_line_1: externalAccount.address.streetLine1,
+                      street_line_2: externalAccount.address.streetLine2,
+                      state: externalAccount.address.state,
+                      postal_code: externalAccount.address.postalCode,
+                    }
+                  : undefined,
+                currency: "eur",
+                account_owner_name: externalAccount.accountOwnerName,
+                account_owner_type: "business",
+                business_name: externalAccount.businessName,
+                bank_name: externalAccount.bankName,
+                iban: {
+                  account_number: externalAccount.accountNumber,
+                  bic: externalAccount.bic,
+                  country: externalAccount.country,
+                },
+              };
+        case "MXN":
+          return {
+            account_type: "clabe",
+            address: externalAccount.address
+              ? {
+                  city: externalAccount.address.city,
+                  country: externalAccount.address.country,
+                  street_line_1: externalAccount.address.streetLine1,
+                  street_line_2: externalAccount.address.streetLine2,
+                  state: externalAccount.address.state,
+                  postal_code: externalAccount.address.postalCode,
+                }
+              : undefined,
+            currency: "mxn",
+            account_owner_name: externalAccount.accountOwnerName,
+            bank_name: externalAccount.bankName,
+            clabe: { account_number: externalAccount.clabe },
+          };
+        case "BRL":
+          return "pixKey" in externalAccount.account
+            ? {
+                account_type: "pix",
+                address: externalAccount.address
+                  ? {
+                      city: externalAccount.address.city,
+                      country: externalAccount.address.country,
+                      street_line_1: externalAccount.address.streetLine1,
+                      street_line_2: externalAccount.address.streetLine2,
+                      state: externalAccount.address.state,
+                      postal_code: externalAccount.address.postalCode,
+                    }
+                  : undefined,
+                currency: "brl",
+                account_owner_name: externalAccount.accountOwnerName,
+                bank_name: externalAccount.bankName,
+                pix_key: {
+                  pix_key: externalAccount.account.pixKey,
+                  document_number: externalAccount.account.documentNumber,
+                },
+              }
+            : {
+                account_type: "pix",
+                address: externalAccount.address
+                  ? {
+                      city: externalAccount.address.city,
+                      country: externalAccount.address.country,
+                      street_line_1: externalAccount.address.streetLine1,
+                      street_line_2: externalAccount.address.streetLine2,
+                      state: externalAccount.address.state,
+                      postal_code: externalAccount.address.postalCode,
+                    }
+                  : undefined,
+                currency: "brl",
+                account_owner_name: externalAccount.accountOwnerName,
+                bank_name: externalAccount.bankName,
+                br_code: {
+                  br_code: externalAccount.account.brCode,
+                  document_number: externalAccount.account.documentNumber,
+                },
+              };
+        case "GBP":
+          if (!("accountOwnerType" in externalAccount)) {
+            return {
+              account_type: "gb",
+              address: externalAccount.address
+                ? {
+                    city: externalAccount.address.city,
+                    country: externalAccount.address.country,
+                    street_line_1: externalAccount.address.streetLine1,
+                    street_line_2: externalAccount.address.streetLine2,
+                    state: externalAccount.address.state,
+                    postal_code: externalAccount.address.postalCode,
+                  }
+                : undefined,
+              currency: "gbp",
+              account_owner_name: externalAccount.accountOwnerName,
+              bank_name: externalAccount.bankName,
+              account: { account_number: externalAccount.accountNumber, sort_code: externalAccount.sortCode },
+            };
+          }
+          return externalAccount.accountOwnerType === "individual"
+            ? {
+                account_type: "gb",
+                address: externalAccount.address
+                  ? {
+                      city: externalAccount.address.city,
+                      country: externalAccount.address.country,
+                      street_line_1: externalAccount.address.streetLine1,
+                      street_line_2: externalAccount.address.streetLine2,
+                      state: externalAccount.address.state,
+                      postal_code: externalAccount.address.postalCode,
+                    }
+                  : undefined,
+                currency: "gbp",
+                account_owner_name: externalAccount.accountOwnerName,
+                account_owner_type: "individual",
+                first_name: externalAccount.firstName,
+                last_name: externalAccount.lastName,
+                bank_name: externalAccount.bankName,
+                account: { account_number: externalAccount.accountNumber, sort_code: externalAccount.sortCode },
+              }
+            : {
+                account_type: "gb",
+                address: externalAccount.address
+                  ? {
+                      city: externalAccount.address.city,
+                      country: externalAccount.address.country,
+                      street_line_1: externalAccount.address.streetLine1,
+                      street_line_2: externalAccount.address.streetLine2,
+                      state: externalAccount.address.state,
+                      postal_code: externalAccount.address.postalCode,
+                    }
+                  : undefined,
+                currency: "gbp",
+                account_owner_name: externalAccount.accountOwnerName,
+                account_owner_type: "business",
+                business_name: externalAccount.businessName,
+                bank_name: externalAccount.bankName,
+                account: { account_number: externalAccount.accountNumber, sort_code: externalAccount.sortCode },
+              };
+      }
+    })(),
+    "POST",
+  ).then(
+    ({ beneficiary_address_valid, bank_name, currency, id, account_owner_name }) =>
+      ({
+        addressValid: beneficiary_address_valid,
+        bankName: bank_name,
+        currency: parse(picklist(FiatCurrency), FiatByBridgeCurrency[currency]),
+        id,
+        ownerName: account_owner_name,
+      }) satisfies InferOutput<typeof ExternalAccount>,
+  );
+}
+
+export function updateExternalAccount(
+  customer: InferOutput<typeof CustomerResponse>,
+  externalAccountId: string,
+  update: InferInput<typeof UpdateExternalAccountInput>,
+) {
+  return request(
+    BridgeExternalAccount,
+    `/customers/${customer.id}/external_accounts/${externalAccountId}`,
+    {},
+    {
+      address: update.address && {
+        street_line_1: update.address.streetLine1,
+        street_line_2: update.address.streetLine2,
+        city: update.address.city,
+        state: update.address.state,
+        postal_code: update.address.postalCode,
+        country: update.address.country,
+      },
+      account: update.account && {
+        checking_or_savings: update.account.checkingOrSavings,
+        routing_number: update.account.routingNumber,
+      },
+    } satisfies InferInput<typeof BridgeUpdateExternalAccount>,
+    "PUT",
+  )
+    .catch((error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
+      ) {
+        throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
+      }
+      throw error;
+    })
+    .then(
+      (externalAccount) =>
+        ({
+          addressValid: externalAccount.beneficiary_address_valid,
+          bankName: externalAccount.bank_name,
+          currency: parse(picklist(FiatCurrency), FiatByBridgeCurrency[externalAccount.currency]),
+          id: externalAccount.id,
+          ownerName: externalAccount.account_owner_name,
+        }) satisfies InferOutput<typeof ExternalAccount>,
+    );
+}
+
+export async function getExternalAccount(customerId: string, externalAccountId: string) {
+  return await request(BridgeExternalAccount, `/customers/${customerId}/external_accounts/${externalAccountId}`).catch(
+    (error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
+      ) {
+        return;
+      }
+      throw error;
+    },
+  );
+}
+
+export async function listExternalAccounts(customerId: string) {
+  const path = `/customers/${customerId}/external_accounts` as const;
+  const first = await request(ExternalAccounts, `${path}?limit=20`);
+  const accounts = [...first.data];
+  if (first.data.length < first.count)
+    captureException(new Error("bridge external accounts pagination"), {
+      level: "warning",
+      contexts: { bridge: { customerId, count: first.count } },
+    });
+  while (accounts.length < first.count) {
+    const last = accounts.at(-1);
+    if (!last) break;
+    const page = await request(ExternalAccounts, `${path}?limit=20&starting_after=${last.id}`);
+    if (page.data.length === 0) {
+      captureException(new Error("bridge external accounts empty page"), {
+        level: "warning",
+        contexts: { bridge: { customerId, count: first.count, fetched: accounts.length } },
+      });
+      break;
+    }
+    accounts.push(...page.data);
+  }
+  return accounts.flatMap((account) => {
+    const currency = FiatByBridgeCurrency[account.currency];
+    if (!currency) return [];
+    if (!account.active) return [];
+    return [
+      {
+        addressValid: account.beneficiary_address_valid,
+        bankName: account.bank_name,
+        currency,
+        id: account.id,
+        ownerName: account.account_owner_name,
+      } satisfies InferOutput<typeof ExternalAccount>,
+    ];
+  });
+}
+
 export async function getProvider(params: {
   countryCode?: string;
   credentialId: string;
@@ -180,15 +551,23 @@ export async function getProvider(params: {
 }) {
   if (!Supported[chain.id]) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
-    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+    return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
-  const currencies = [
-    ...EVMNetwork.map((network) => ({ currency: "USDC" as const, network })),
-    { currency: "USDC" as const, network: "SOLANA" as const },
-    { currency: "USDC" as const, network: "STELLAR" as const },
-    { currency: "USDT" as const, network: "TRON" as const },
-  ];
+  const currencies = {
+    onramp: [
+      ...EVMNetwork.map((network) => ({ currency: "USDC" as const, network })),
+      { currency: "USDC" as const, network: "SOLANA" as const },
+      { currency: "USDC" as const, network: "STELLAR" as const },
+      { currency: "USDT" as const, network: "TRON" as const },
+    ],
+    offramp: [
+      { currency: "USDC" as const, network: "BASE" as const },
+      { currency: "USDC" as const, network: "SOLANA" as const },
+      { currency: "USDC" as const, network: "STELLAR" as const },
+      { currency: "USDT" as const, network: "TRON" as const },
+    ],
+  };
 
   if (params.customerId) {
     const bridgeUser = await getCustomer(params.customerId);
@@ -196,7 +575,7 @@ export async function getProvider(params: {
     switch (bridgeUser.status) {
       case "offboarded":
         captureException(new Error("bridge user not available"), { contexts: { bridgeUser }, level: "warning" });
-        return { status: "NOT_AVAILABLE" as const, onramp: { currencies: [] } };
+        return { status: "NOT_AVAILABLE" as const, onramp: { currencies: [] }, offramp: { currencies: [] } };
       case "paused":
       case "rejected":
       case "under_review":
@@ -208,7 +587,10 @@ export async function getProvider(params: {
         return {
           status: "ONBOARDING" as const,
           onramp: {
-            currencies: [...currencies, ...CurrencyByEndorsement.base],
+            currencies: [...currencies.onramp, ...CurrencyByEndorsement.base],
+          },
+          offramp: {
+            currencies: [...currencies.offramp, ...CurrencyByEndorsement.base],
           },
           kycLink: await maybeKYCLink(
             bridgeUser,
@@ -224,40 +606,38 @@ export async function getProvider(params: {
         break;
     }
 
+    const approvedCurrencies = bridgeUser.endorsements.flatMap((endorsement) => {
+      if (endorsement.status !== "approved") {
+        // TODO handle pending tasks
+        captureException(new Error("endorsement not approved"), {
+          contexts: { bridge: { bridgeId: params.customerId, endorsement } },
+          level: "warning",
+        });
+        return [];
+      }
+
+      if (endorsement.additional_requirements?.length) {
+        // TODO handle additional requirements
+        captureException(new Error("additional requirements"), {
+          contexts: { bridge: { bridgeId: params.customerId, endorsement } },
+          level: "warning",
+        });
+      }
+
+      if (endorsement.requirements.missing) {
+        captureException(new Error("requirements missing"), {
+          contexts: { bridge: { bridgeId: params.customerId, endorsement } },
+          level: "warning",
+        });
+      }
+
+      return CurrencyByEndorsement[endorsement.name];
+    });
+
     return {
       status: "ACTIVE" as const,
-      onramp: {
-        currencies: [
-          ...currencies,
-          ...bridgeUser.endorsements.flatMap((endorsement) => {
-            if (endorsement.status !== "approved") {
-              // TODO handle pending tasks
-              captureException(new Error("endorsement not approved"), {
-                contexts: { bridge: { bridgeId: params.customerId, endorsement } },
-                level: "warning",
-              });
-              return [];
-            }
-
-            if (endorsement.additional_requirements?.length) {
-              // TODO handle additional requirements
-              captureException(new Error("additional requirements"), {
-                contexts: { bridge: { bridgeId: params.customerId, endorsement } },
-                level: "warning",
-              });
-            }
-
-            if (endorsement.requirements.missing) {
-              captureException(new Error("requirements missing"), {
-                contexts: { bridge: { bridgeId: params.customerId, endorsement } },
-                level: "warning",
-              });
-            }
-
-            return CurrencyByEndorsement[endorsement.name];
-          }),
-        ],
-      },
+      onramp: { currencies: [...currencies.onramp, ...approvedCurrencies] },
+      offramp: { currencies: [...currencies.offramp, ...approvedCurrencies] },
     };
   }
 
@@ -266,7 +646,7 @@ export async function getProvider(params: {
 
   const countryCode = personaAccount.attributes["country-code"];
   if (Denylist.has(countryCode)) {
-    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+    return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
   const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
@@ -277,7 +657,7 @@ export async function getProvider(params: {
       contexts: { bridge: { credentialId: params.credentialId, idClass: validDocument.id_class.value } },
       level: "warning",
     });
-    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+    return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
   const country = alpha2ToAlpha3(countryCode);
@@ -306,7 +686,10 @@ export async function getProvider(params: {
       })(),
     ),
     onramp: {
-      currencies: [...currencies, ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement])],
+      currencies: [...currencies.onramp, ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement])],
+    },
+    offramp: {
+      currencies: [...currencies.offramp, ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement])],
     },
   };
 }
@@ -490,6 +873,136 @@ export async function getCryptoDepositDetails(
   );
 }
 
+export async function getOfframpDepositDetails(
+  externalAccountId: string,
+  account: string,
+  customer: InferOutput<typeof CustomerResponse>,
+  currency: (typeof SupportedCurrency)[number],
+) {
+  if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
+  const supportedChain = Supported[chain.id];
+  if (!supportedChain) {
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+  }
+
+  const externalAccount = await getExternalAccount(customer.id, externalAccountId);
+  if (!externalAccount) throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
+  if (externalAccount.currency !== CurrencyToBridge[currency]) {
+    throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH);
+  }
+  const paymentRail = PaymentRailByBridgeCurrency[externalAccount.currency];
+  if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
+  const templates = await getStaticTemplates(customer.id);
+  let transfer = templates.find(
+    ({ destination, source, state }) =>
+      destination.external_account_id === externalAccountId &&
+      source.payment_rail === supportedChain &&
+      source.currency === "usdc" &&
+      state !== "canceled",
+  );
+  if (transfer && transfer.state !== "awaiting_funds") throw new Error(ErrorCodes.TRANSFER_IN_USE);
+  transfer ??= await createTransfer({
+    on_behalf_of: customer.id,
+    client_reference_id: account,
+    source: { currency: "usdc", payment_rail: supportedChain },
+    destination: {
+      currency: externalAccount.currency,
+      payment_rail: paymentRail,
+      external_account_id: externalAccountId,
+    },
+    features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+  });
+
+  return [
+    {
+      network: "OPTIMISM" as const,
+      displayName: "Optimism" as const,
+      address: parse(Address, transfer.source_deposit_instructions.to_address),
+      fee: "0.0",
+      estimatedProcessingTime: "300",
+    },
+  ];
+}
+
+export async function getCryptoOfframpDepositDetails(
+  currency: "USDC" | "USDT",
+  network: (typeof Network)[number],
+  toAddress: string,
+  account: Address,
+  customer: InferOutput<typeof CustomerResponse>,
+  memo?: string,
+) {
+  if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
+  const supportedChain = Supported[chain.id];
+  if (!supportedChain) {
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+  }
+
+  const paymentRail = parse(picklist(["solana", "stellar", "tron", "base"]), NetworkToOfframpRail[network]);
+  if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
+    throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
+  }
+
+  const transfer = await createTransfer({
+    on_behalf_of: customer.id,
+    client_reference_id: account,
+    source: { currency: "usdc", payment_rail: supportedChain },
+    destination: {
+      currency: CurrencyToBridge[currency],
+      payment_rail: paymentRail,
+      to_address: toAddress,
+      blockchain_memo: memo,
+    },
+    features: { flexible_amount: true, allow_any_from_address: true },
+  }).catch((error: unknown) => {
+    if (
+      error instanceof ServiceError &&
+      typeof error.cause === "string" &&
+      error.cause.includes(BridgeApiErrorCodes.INVALID_PARAMETERS) &&
+      error.cause.includes("to_address")
+    ) {
+      throw new Error(ErrorCodes.INVALID_DEPOSIT_ADDRESS);
+    }
+    throw error;
+  });
+
+  return [
+    {
+      network: "OPTIMISM" as const,
+      displayName: "Optimism" as const,
+      address: parse(Address, transfer.source_deposit_instructions.to_address),
+      fee: "0.0",
+      estimatedProcessingTime: "300",
+    },
+  ];
+}
+
+export async function removeExternalAccount(customer: InferOutput<typeof CustomerResponse>, externalAccountId: string) {
+  const [externalAccount, templates] = await Promise.all([
+    getExternalAccount(customer.id, externalAccountId),
+    getStaticTemplates(customer.id),
+  ]);
+  if (!externalAccount) throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
+  const transfers = templates.filter(
+    ({ destination, state }) => destination.external_account_id === externalAccountId && state !== "canceled",
+  );
+  if (transfers.some(({ state }) => state !== "awaiting_funds")) throw new Error(ErrorCodes.TRANSFER_IN_USE);
+  await Promise.all(transfers.map(({ id }) => request(unknown(), `/transfers/${id}`, {}, undefined, "DELETE")));
+  await request(unknown(), `/customers/${customer.id}/external_accounts/${externalAccountId}`, {}, undefined, "DELETE");
+}
+
+const PaymentRailByBridgeCurrency: Partial<
+  Record<(typeof BridgeCurrency)[number], (typeof TransferPaymentRail)[number]>
+> = {
+  usd: "ach",
+  eur: "sepa",
+  mxn: "spei",
+  brl: "pix",
+  gbp: "faster_payments",
+};
+
 const missing = new Set(["tax_identification_number", "source_of_funds_questionnaire"]);
 const issues = new Set(["government_id_verification_failed"]);
 
@@ -557,7 +1070,7 @@ const CurrencyToBridge: Record<(typeof SupportedCurrency)[number], (typeof Bridg
   USDT: "usdt",
 } as const;
 
-const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof FiatCurrency)[number][]> = {
+export const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof FiatCurrency)[number][]> = {
   base: ["USD"],
   faster_payments: ["GBP"],
   pix: ["BRL"],
@@ -565,10 +1078,11 @@ const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof FiatC
   spei: ["MXN"],
 };
 
-export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron"] as const;
+export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron", "base"] as const;
 export const BridgeChain = ["optimism"] as const;
 
 const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
+  base: ["USDC"],
   evm: ["USDC"],
   solana: ["USDC"],
   stellar: ["USDC"],
@@ -577,6 +1091,13 @@ const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof 
 
 const NetworkToCryptoPaymentRail: Record<(typeof Network)[number], (typeof CryptoPaymentRail)[number]> = {
   BASE: "evm",
+  SOLANA: "solana",
+  STELLAR: "stellar",
+  TRON: "tron",
+} as const;
+
+const NetworkToOfframpRail: Record<(typeof OfframpNetwork)[number], (typeof CryptoPaymentRail)[number]> = {
+  BASE: "base",
   SOLANA: "solana",
   STELLAR: "stellar",
   TRON: "tron",
@@ -912,12 +1433,457 @@ const LiquidationAddress = object({
 
 const LiquidationAddresses = object({ count: number(), data: array(LiquidationAddress) });
 
+const AccountOwnerName = pipe(string(), minLength(1), maxLength(256));
+const BankName = pipe(string(), minLength(1), maxLength(256));
+const RoutingNumber = pipe(string(), regex(/^\d{9}$/, "9 digits"));
+const DocumentNumber = pipe(string(), regex(/^\d+$/, "digits only"));
+const CountryCode = pipe(string(), length(3, "3-letter iso 3166-1 code"));
+
+const AddressInput = object({
+  streetLine1: pipe(string(), minLength(4), maxLength(35)),
+  streetLine2: optional(pipe(string(), maxLength(35))),
+  city: pipe(string(), minLength(1)),
+  state: optional(pipe(string(), minLength(1), maxLength(3, "1-3 character iso 3166-2 code"))),
+  postalCode: optional(pipe(string(), minLength(1))),
+  country: CountryCode,
+});
+
+export const ExternalAccountInput = variant("currency", [
+  object({
+    currency: literal("USD"),
+    accountOwnerName: AccountOwnerName,
+    accountNumber: pipe(string(), minLength(1)),
+    routingNumber: RoutingNumber,
+    checkingOrSavings: optional(picklist(["checking", "savings"])),
+    bankName: optional(BankName),
+    address: object({
+      ...AddressInput.entries,
+      state: pipe(string(), minLength(1), maxLength(3, "1-3 character iso 3166-2 code")),
+    }),
+  }),
+  object({
+    currency: literal("EUR"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    accountOwnerType: literal("individual"),
+    firstName: pipe(string(), minLength(1)),
+    lastName: pipe(string(), minLength(1)),
+    accountNumber: pipe(string(), minLength(1)),
+    bic: optional(pipe(string(), minLength(1))),
+    country: CountryCode,
+    bankName: optional(BankName),
+  }),
+  object({
+    currency: literal("EUR"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    accountOwnerType: literal("business"),
+    businessName: pipe(string(), minLength(1)),
+    accountNumber: pipe(string(), minLength(1)),
+    bic: optional(pipe(string(), minLength(1))),
+    country: CountryCode,
+    bankName: optional(BankName),
+  }),
+  object({
+    currency: literal("MXN"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    clabe: pipe(string(), regex(/^\d{18}$/, "18 digits")),
+    bankName: optional(BankName),
+  }),
+  object({
+    currency: literal("BRL"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    account: union([
+      object({ pixKey: pipe(string(), minLength(1)), documentNumber: optional(DocumentNumber) }),
+      object({ brCode: pipe(string(), minLength(1)), documentNumber: optional(DocumentNumber) }),
+    ]),
+    bankName: optional(BankName),
+  }),
+  object({
+    currency: literal("GBP"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    accountOwnerType: literal("individual"),
+    firstName: pipe(string(), minLength(1)),
+    lastName: pipe(string(), minLength(1)),
+    accountNumber: pipe(string(), regex(/^\d{8}$/, "8 digits")),
+    sortCode: pipe(string(), regex(/^\d{6}$/, "6 digits, no hyphens")),
+    bankName: optional(BankName),
+  }),
+  object({
+    currency: literal("GBP"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    accountOwnerType: literal("business"),
+    businessName: pipe(string(), minLength(1)),
+    accountNumber: pipe(string(), regex(/^\d{8}$/, "8 digits")),
+    sortCode: pipe(string(), regex(/^\d{6}$/, "6 digits, no hyphens")),
+    bankName: optional(BankName),
+  }),
+  object({
+    currency: literal("GBP"),
+    address: optional(AddressInput),
+    accountOwnerName: AccountOwnerName,
+    accountNumber: pipe(string(), regex(/^\d{8}$/, "8 digits")),
+    sortCode: pipe(string(), regex(/^\d{6}$/, "6 digits, no hyphens")),
+    bankName: optional(BankName),
+  }),
+]);
+
+export const UpdateExternalAccountInput = pipe(
+  object({
+    address: optional(AddressInput),
+    account: optional(
+      pipe(
+        object({
+          checkingOrSavings: optional(picklist(["checking", "savings"])),
+          routingNumber: optional(RoutingNumber),
+        }),
+        check(
+          ({ checkingOrSavings, routingNumber }) => checkingOrSavings !== undefined || routingNumber !== undefined,
+          "account requires at least one field",
+        ),
+      ),
+    ),
+  }),
+  check(({ address, account }) => address !== undefined || account !== undefined, "address or account is required"),
+);
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- type-only usage
+const BridgeCreateExternalAccount = variant("account_type", [
+  object({
+    account_type: literal("us"),
+    currency: literal("usd"),
+    account_owner_name: string(),
+    bank_name: optional(string()),
+    account: object({
+      account_number: string(),
+      routing_number: string(),
+      checking_or_savings: optional(picklist(["checking", "savings"])),
+    }),
+    address: object({
+      city: string(),
+      country: string(),
+      postal_code: optional(string()),
+      state: optional(string()),
+      street_line_1: string(),
+      street_line_2: optional(string()),
+    }),
+  }),
+  object({
+    account_type: literal("iban"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("eur"),
+    account_owner_name: string(),
+    account_owner_type: literal("individual"),
+    first_name: string(),
+    last_name: string(),
+    bank_name: optional(string()),
+    iban: object({ account_number: string(), bic: optional(string()), country: string() }),
+  }),
+  object({
+    account_type: literal("iban"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("eur"),
+    account_owner_name: string(),
+    account_owner_type: literal("business"),
+    business_name: string(),
+    bank_name: optional(string()),
+    iban: object({ account_number: string(), bic: optional(string()), country: string() }),
+  }),
+  object({
+    account_type: literal("clabe"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("mxn"),
+    account_owner_name: string(),
+    bank_name: optional(string()),
+    clabe: object({ account_number: string() }),
+  }),
+  object({
+    account_type: literal("pix"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("brl"),
+    account_owner_name: string(),
+    bank_name: optional(string()),
+    pix_key: object({ pix_key: string(), document_number: optional(string()) }),
+  }),
+  object({
+    account_type: literal("pix"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("brl"),
+    account_owner_name: string(),
+    bank_name: optional(string()),
+    br_code: object({ br_code: string(), document_number: optional(string()) }),
+  }),
+  object({
+    account_type: literal("gb"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("gbp"),
+    account_owner_name: string(),
+    account_owner_type: literal("individual"),
+    first_name: string(),
+    last_name: string(),
+    bank_name: optional(string()),
+    account: object({ account_number: string(), sort_code: string() }),
+  }),
+  object({
+    account_type: literal("gb"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("gbp"),
+    account_owner_name: string(),
+    account_owner_type: literal("business"),
+    business_name: string(),
+    bank_name: optional(string()),
+    account: object({ account_number: string(), sort_code: string() }),
+  }),
+  object({
+    account_type: literal("gb"),
+    address: optional(
+      object({
+        city: string(),
+        country: string(),
+        postal_code: optional(string()),
+        state: optional(string()),
+        street_line_1: string(),
+        street_line_2: optional(string()),
+      }),
+    ),
+    currency: literal("gbp"),
+    account_owner_name: string(),
+    bank_name: optional(string()),
+    account: object({ account_number: string(), sort_code: string() }),
+  }),
+]);
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- type-only usage
+const BridgeUpdateExternalAccount = object({
+  address: optional(
+    object({
+      street_line_1: string(),
+      street_line_2: optional(string()),
+      city: string(),
+      state: optional(string()),
+      postal_code: optional(string()),
+      country: string(),
+    }),
+  ),
+  account: optional(
+    object({ checking_or_savings: optional(picklist(["checking", "savings"])), routing_number: optional(string()) }),
+  ),
+});
+
+const BridgeExternalAccount = object({
+  id: string(),
+  customer_id: string(),
+  account_type: string(),
+  currency: picklist(BridgeCurrency),
+  account_owner_name: string(),
+  bank_name: optional(string()),
+  active: boolean(),
+  beneficiary_address_valid: boolean(),
+});
+
+const ExternalAccounts = object({ count: number(), data: array(BridgeExternalAccount) });
+
+export const ExternalAccount = object({
+  addressValid: boolean(),
+  bankName: optional(string()),
+  currency: picklist(FiatCurrency),
+  id: string(),
+  ownerName: string(),
+});
+
+const FiatByBridgeCurrency: Partial<Record<(typeof BridgeCurrency)[number], (typeof FiatCurrency)[number]>> = {
+  brl: "BRL",
+  eur: "EUR",
+  gbp: "GBP",
+  mxn: "MXN",
+  usd: "USD",
+};
+
+const TransferCurrency = [
+  "brl",
+  "cop",
+  "dai",
+  "eur",
+  "eurc", // cspell:ignore eurc
+  "gbp",
+  "mxn",
+  "pyusd", // cspell:ignore pyusd
+  "usd",
+  "usdb", // cspell:ignore usdb
+  "usdc",
+  "usdt",
+] as const;
+
+const TransferPaymentRail = [
+  "ach",
+  "ach_push",
+  "ach_same_day",
+  "arbitrum",
+  "avalanche_c_chain",
+  "base",
+  "bre_b", // cspell:ignore bre_b
+  "bridge_wallet",
+  "celo",
+  "co_bank_transfer",
+  "ethereum",
+  "faster_payments",
+  "fiat_deposit_return",
+  "optimism",
+  "pix",
+  "polygon",
+  "sepa",
+  "solana",
+  "spei",
+  "stellar",
+  "swift",
+  "tempo",
+  "tron",
+  "wire",
+] as const;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const CreateTransfer = object({
+  on_behalf_of: string(),
+  client_reference_id: optional(string()),
+  amount: optional(string()),
+  developer_fee: optional(string()),
+  developer_fee_percent: optional(string()),
+  features: optional(
+    object({
+      flexible_amount: optional(boolean()),
+      static_template: optional(boolean()),
+      allow_any_from_address: optional(boolean()),
+    }),
+  ),
+  source: object({
+    currency: picklist(TransferCurrency),
+    payment_rail: picklist(TransferPaymentRail),
+    from_address: optional(Address),
+    bridge_wallet_id: optional(string()),
+  }),
+  destination: object({
+    currency: picklist(TransferCurrency),
+    payment_rail: picklist(TransferPaymentRail),
+    external_account_id: optional(string()),
+    bridge_wallet_id: optional(string()),
+    to_address: optional(string()),
+    amount: optional(string()),
+    wire_message: optional(string()),
+    sepa_reference: optional(string()),
+    swift_reference: optional(string()),
+    spei_reference: optional(string()),
+    ach_reference: optional(string()),
+    blockchain_memo: optional(string()),
+    swift_charges: optional(picklist(["ben", "our", "sha"])),
+  }),
+});
+
+const Transfer = object({
+  id: string(),
+  client_reference_id: optional(string()),
+  state: string(),
+  amount: nullish(string()),
+  currency: optional(picklist(TransferCurrency)),
+  developer_fee: optional(string()),
+  developer_fee_percent: optional(string()),
+  on_behalf_of: string(),
+  source: object({
+    payment_rail: picklist(TransferPaymentRail),
+    currency: picklist(TransferCurrency),
+    from_address: nullish(string()),
+  }),
+  destination: object({
+    blockchain_memo: nullish(string()),
+    currency: picklist(TransferCurrency),
+    external_account_id: nullish(string()),
+    payment_rail: picklist(TransferPaymentRail),
+    to_address: nullish(string()),
+  }),
+  source_deposit_instructions: object({
+    payment_rail: picklist(TransferPaymentRail),
+    currency: picklist(TransferCurrency),
+    from_address: nullish(string()),
+    to_address: nullish(string()),
+  }),
+});
+
+const Transfers = object({ count: number(), data: array(Transfer) });
+
+const StaticTemplates = object({ count: number(), data: array(Transfer) });
+
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
   headers = {},
   body?: unknown,
-  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+  method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
   idempotencyKey?: string,
 ) {
@@ -937,7 +1903,12 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   if (!response.ok) throw new ServiceError("Bridge", response.status, await response.text());
   const rawBody = await response.arrayBuffer();
   if (rawBody.byteLength === 0) return parse(schema, {});
-  return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+  const result = safeParse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+  if (!result.success) {
+    setContext("validation", { ...result, flatten: flatten(result.issues) });
+    throw new ValiError(result.issues);
+  }
+  return result.output;
 }
 
 async function encodeFile(file: File) {
@@ -1098,9 +2069,13 @@ export const ErrorCodes = {
   BAD_BRIDGE_ID: "bad bridge id",
   DENYLISTED_COUNTRY: "denylisted country",
   EMAIL_ALREADY_EXISTS: "email already exists",
+  EXTERNAL_ACCOUNT_CURRENCY_MISMATCH: "external account currency mismatch",
+  EXTERNAL_ACCOUNT_NOT_FOUND: "external account not found",
   INVALID_ACCOUNT: "invalid destination account",
   INVALID_ADDRESS: "invalid address",
+  INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NOT_ACTIVE_CUSTOMER: "not active customer",
+  NO_ENDORSEMENT: "no endorsement",
   NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
   NOT_AVAILABLE_CURRENCY: "not available currency",
   MISSING_STELLAR_MEMO: "missing stellar memo",
@@ -1112,6 +2087,7 @@ export const ErrorCodes = {
   NO_DOCUMENT_FILE: "no document file",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_SOCIAL_SECURITY_NUMBER: "no social security number",
+  TRANSFER_IN_USE: "transfer in use",
 };
 
 const BridgeApiErrorCodes = {

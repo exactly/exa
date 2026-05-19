@@ -34,8 +34,14 @@ import * as manteca from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 
 const ErrorCodes = {
+  EXTERNAL_ACCOUNT_CURRENCY_MISMATCH: "external account currency mismatch",
+  EXTERNAL_ACCOUNT_NOT_FOUND: "external account not found",
+  EXTERNAL_ACCOUNT_NOT_SUPPORTED: "external account not supported",
+  INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NO_CREDENTIAL: "no credential",
+  NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
+  WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
 };
 
 export default new Hono()
@@ -74,7 +80,11 @@ export default new Hono()
           })
           .catch((error: unknown) => {
             captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-            return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+            return {
+              onramp: { currencies: [] },
+              offramp: { currencies: [] },
+              status: "NOT_AVAILABLE" as const,
+            };
           }),
       ]);
 
@@ -93,13 +103,62 @@ export default new Hono()
     vValidator(
       "query",
       variant("provider", [
-        object({ provider: literal("manteca"), currency: picklist(manteca.Currency) }),
-        object({ provider: literal("bridge"), currency: picklist(bridge.FiatCurrency) }),
-        object({ provider: literal("bridge"), currency: literal("USDT"), network: literal("TRON") }),
         object({
+          currency: picklist(manteca.Currency),
+          direction: optional(literal("onramp")),
+          provider: literal("manteca"),
+        }),
+        object({
+          currency: picklist(bridge.FiatCurrency),
+          direction: optional(literal("onramp")),
           provider: literal("bridge"),
+        }),
+        object({
+          currency: picklist(bridge.FiatCurrency),
+          direction: literal("offramp"),
+          externalAccountId: string(),
+          provider: literal("bridge"),
+        }),
+        object({
+          address: Address,
           currency: literal("USDC"),
+          direction: literal("offramp"),
+          network: literal("BASE"),
+          provider: literal("bridge"),
+        }),
+        object({
+          address: string(),
+          currency: literal("USDC"),
+          direction: literal("offramp"),
+          network: literal("SOLANA"),
+          provider: literal("bridge"),
+        }),
+        object({
+          address: string(),
+          currency: literal("USDC"),
+          direction: literal("offramp"),
+          memo: string(),
+          network: literal("STELLAR"),
+          provider: literal("bridge"),
+        }),
+        object({
+          address: string(),
+          currency: literal("USDT"),
+          direction: literal("offramp"),
+          network: literal("TRON"),
+          provider: literal("bridge"),
+        }),
+        object({
+          currency: literal("USDT"),
+          direction: optional(literal("onramp")),
+          network: literal("TRON"),
+          provider: literal("bridge"),
+        }),
+        object({
+          currency: literal("USDC"),
+          direction: optional(literal("onramp")),
           network: picklist([...bridge.EVMNetwork, "SOLANA", "STELLAR"]),
+          provider: literal("bridge"),
         }),
       ]),
       validatorHook(),
@@ -115,13 +174,22 @@ export default new Hono()
       const account = parse(Address, credential.account);
       setUser({ id: account });
 
-      let depositInfo: InferOutput<typeof DepositDetails>[];
       switch (query.provider) {
         case "manteca": {
           const mantecaUser = await manteca.getUser(account);
           if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
           try {
-            depositInfo = manteca.getDepositDetails(query.currency, mantecaUser.exchange);
+            const depositInfo: InferOutput<typeof RampResponse>["depositInfo"] = manteca.getDepositDetails(
+              query.currency,
+              mantecaUser.exchange,
+            );
+            return c.json(
+              {
+                quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse,
+                depositInfo,
+              },
+              200,
+            );
           } catch (error) {
             captureException(error, { level: "error", contexts: { credential } });
             if (error instanceof Error && Object.values(manteca.ErrorCodes).includes(error.message)) {
@@ -132,30 +200,88 @@ export default new Hono()
             }
             throw error;
           }
-          return c.json(
-            {
-              quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse,
-              depositInfo,
-            },
-            200,
-          );
         }
         case "bridge": {
           if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
           const bridgeUser = await bridge.getCustomer(credential.bridgeId);
           if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+          if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+          const quote = (await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse;
 
-          depositInfo = await ("currency" in query && "network" in query
-            ? bridge.getCryptoDepositDetails(query.currency, query.network, credential.account, bridgeUser)
-            : bridge.getDepositDetails(query.currency, credential.account, bridgeUser));
+          if (query.direction === "offramp") {
+            if ("network" in query) {
+              try {
+                return c.json(
+                  {
+                    quote,
+                    depositInfo: await bridge.getCryptoOfframpDepositDetails(
+                      query.currency,
+                      query.network,
+                      query.address,
+                      parse(Address, credential.account),
+                      bridgeUser,
+                      query.network === "STELLAR" ? query.memo : undefined,
+                    ),
+                  } satisfies InferOutput<typeof RampResponse>,
+                  200,
+                );
+              } catch (error) {
+                if (error instanceof Error && error.message === bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS) {
+                  return c.json({ code: ErrorCodes.INVALID_DEPOSIT_ADDRESS }, 400);
+                }
+                throw error;
+              }
+            }
+            try {
+              return c.json(
+                {
+                  quote,
+                  depositInfo: await bridge.getOfframpDepositDetails(
+                    query.externalAccountId,
+                    credential.account,
+                    bridgeUser,
+                    query.currency,
+                  ),
+                } satisfies InferOutput<typeof RampResponse>,
+                200,
+              );
+            } catch (error) {
+              if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
+                return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
+              }
+              if (error instanceof Error && error.message === bridge.ErrorCodes.NOT_AVAILABLE_CURRENCY) {
+                return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_SUPPORTED }, 400);
+              }
+              if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH) {
+                return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH }, 400);
+              }
+              if (error instanceof Error && error.message === bridge.ErrorCodes.TRANSFER_IN_USE) {
+                return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
+              }
+              throw error;
+            }
+          }
+
+          if ("network" in query) {
+            return c.json(
+              {
+                quote,
+                depositInfo: await bridge.getCryptoDepositDetails(
+                  query.currency,
+                  query.network,
+                  credential.account,
+                  bridgeUser,
+                ),
+              } satisfies InferOutput<typeof RampResponse>,
+              200,
+            );
+          }
 
           return c.json(
             {
-              quote: ("currency" in query && "network" in query
-                ? undefined
-                : await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse,
-              depositInfo,
-            },
+              quote,
+              depositInfo: await bridge.getDepositDetails(query.currency, credential.account, bridgeUser),
+            } satisfies InferOutput<typeof RampResponse>,
             200,
           );
         }
@@ -232,6 +358,108 @@ export default new Hono()
       }
       return c.json({ code: "ok" }, 200);
     },
+  )
+  .post("/external-account", auth(), vValidator("json", bridge.ExternalAccountInput, validatorHook()), async (c) => {
+    const { credentialId } = c.req.valid("cookie");
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, credentialId),
+      columns: { account: true, bridgeId: true },
+    });
+    if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+    if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+    setUser({ id: parse(Address, credential.account) });
+
+    const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+    if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+    if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+
+    try {
+      return c.json(await bridge.createExternalAccount(bridgeUser, c.req.valid("json")), 200);
+    } catch (error) {
+      if (error instanceof Error && error.message === bridge.ErrorCodes.NO_ENDORSEMENT) {
+        return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+      }
+      throw error;
+    }
+  })
+  .get("/external-account", auth(), async (c) => {
+    const { credentialId } = c.req.valid("cookie");
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, credentialId),
+      columns: { account: true, bridgeId: true },
+    });
+    if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+    if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+    setUser({ id: parse(Address, credential.account) });
+
+    const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+    if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+    if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+
+    return c.json(await bridge.listExternalAccounts(credential.bridgeId), 200);
+  })
+  .patch(
+    "/external-account/:id",
+    auth(),
+    vValidator("param", object({ id: string() }), validatorHook()),
+    vValidator("json", bridge.UpdateExternalAccountInput, validatorHook()),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true, bridgeId: true },
+      });
+      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+      if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      setUser({ id: parse(Address, credential.account) });
+
+      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+      if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+      try {
+        return c.json(
+          await bridge.updateExternalAccount(bridgeUser, c.req.valid("param").id, c.req.valid("json")),
+          200,
+        );
+      } catch (error) {
+        if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
+          return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
+        }
+        throw error;
+      }
+    },
+  )
+  .delete(
+    "/external-account/:id",
+    auth(),
+    vValidator("param", object({ id: string() }), validatorHook()),
+    async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true, bridgeId: true },
+      });
+      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+      if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      setUser({ id: parse(Address, credential.account) });
+
+      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+      if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+
+      try {
+        await bridge.removeExternalAccount(bridgeUser, c.req.valid("param").id);
+      } catch (error) {
+        if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
+          return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
+        }
+        if (error instanceof Error && error.message === bridge.ErrorCodes.TRANSFER_IN_USE) {
+          return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
+        }
+        throw error;
+      }
+      return c.json({ code: "ok" }, 200);
+    },
   );
 
 async function getOrCreateInquiry(credentialId: string, template: string) {
@@ -249,117 +477,129 @@ async function getOrCreateInquiry(credentialId: string, template: string) {
 type QuoteResponse = undefined | { buyRate: string; sellRate: string };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const DepositDetails = variant("network", [
-  object({
-    network: literal("ARG_FIAT_TRANSFER"),
-    depositAlias: optional(string()),
-    cbu: string(),
-    displayName: picklist(["CBU", "CVU"]),
-    beneficiaryName: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("PIX"),
-    pixKey: string(),
-    displayName: literal("PIX KEY"),
-    beneficiaryName: string(),
-    postalCode: string(),
-    merchantCity: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("PIX-BR"),
-    brCode: string(),
-    displayName: literal("PIX BR"),
-    beneficiaryName: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("ACH"),
-    displayName: literal("ACH"),
-    beneficiaryName: string(),
-    routingNumber: string(),
-    accountNumber: string(),
-    bankName: string(),
-    bankAddress: string(),
-    beneficiaryAddress: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("WIRE"),
-    displayName: literal("WIRE"),
-    beneficiaryName: string(),
-    routingNumber: string(),
-    accountNumber: string(),
-    bankAddress: string(),
-    bankName: string(),
-    beneficiaryAddress: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("SEPA"), // cspell:ignore sepa
-    displayName: literal("SEPA"),
-    beneficiaryName: string(),
-    iban: string(), // cspell:ignore iban
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("SPEI"), // cspell:ignore spei
-    displayName: literal("SPEI"),
-    beneficiaryName: string(),
-    clabe: string(), // cspell:ignore clabe
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  ...bridge.EVMNetwork.map((network) =>
-    object({
-      network: literal(network),
-      displayName: literal(network),
-      address: Address,
-      fee: string(),
-      estimatedProcessingTime: string(),
-    }),
+const RampResponse = object({
+  quote: optional(object({ buyRate: string(), sellRate: string() })),
+  depositInfo: array(
+    variant("network", [
+      object({
+        network: literal("ARG_FIAT_TRANSFER"),
+        depositAlias: optional(string()),
+        cbu: string(),
+        displayName: picklist(["CBU", "CVU"]),
+        beneficiaryName: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("PIX"),
+        pixKey: string(),
+        displayName: literal("PIX KEY"),
+        beneficiaryName: string(),
+        postalCode: string(),
+        merchantCity: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("PIX-BR"),
+        brCode: string(),
+        displayName: literal("PIX BR"),
+        beneficiaryName: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("ACH"),
+        displayName: literal("ACH"),
+        beneficiaryName: string(),
+        routingNumber: string(),
+        accountNumber: string(),
+        bankName: string(),
+        bankAddress: string(),
+        beneficiaryAddress: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("WIRE"),
+        displayName: literal("WIRE"),
+        beneficiaryName: string(),
+        routingNumber: string(),
+        accountNumber: string(),
+        bankAddress: string(),
+        bankName: string(),
+        beneficiaryAddress: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("SEPA"), // cspell:ignore sepa
+        displayName: literal("SEPA"),
+        beneficiaryName: string(),
+        iban: string(), // cspell:ignore iban
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("SPEI"), // cspell:ignore spei
+        displayName: literal("SPEI"),
+        beneficiaryName: string(),
+        clabe: string(), // cspell:ignore clabe
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      ...bridge.EVMNetwork.map((network) =>
+        object({
+          network: literal(network),
+          displayName: literal(network),
+          address: Address,
+          fee: string(),
+          estimatedProcessingTime: string(),
+        }),
+      ),
+      object({
+        network: literal("OPTIMISM"),
+        displayName: literal("Optimism"),
+        address: Address,
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("TRON"),
+        displayName: literal("TRON"),
+        address: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("SOLANA"),
+        displayName: literal("SOLANA"),
+        address: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+      object({
+        network: literal("STELLAR"),
+        displayName: literal("STELLAR"),
+        address: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+        memo: string(),
+      }),
+      object({
+        network: literal("FASTER_PAYMENTS"),
+        displayName: literal("Faster Payments"),
+        accountNumber: string(),
+        sortCode: string(),
+        accountHolderName: string(),
+        bankName: string(),
+        bankAddress: string(),
+        fee: string(),
+        estimatedProcessingTime: string(),
+      }),
+    ]),
   ),
-  object({
-    network: literal("TRON"),
-    displayName: literal("TRON"),
-    address: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("SOLANA"),
-    displayName: literal("SOLANA"),
-    address: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-  object({
-    network: literal("STELLAR"),
-    displayName: literal("STELLAR"),
-    address: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-    memo: string(),
-  }),
-  object({
-    network: literal("FASTER_PAYMENTS"),
-    displayName: literal("Faster Payments"),
-    accountNumber: string(),
-    sortCode: string(),
-    accountHolderName: string(),
-    bankName: string(),
-    bankAddress: string(),
-    fee: string(),
-    estimatedProcessingTime: string(),
-  }),
-]);
+});
 
 const ProviderStatus = picklist(["ACTIVE", "NOT_AVAILABLE", "NOT_STARTED", "ONBOARDING"]);
 
@@ -380,6 +620,17 @@ const ProviderInfo = variant("provider", [
   }),
   object({
     provider: literal("bridge"),
+    offramp: object({
+      currencies: array(
+        union([
+          picklist(bridge.FiatCurrency),
+          variant("currency", [
+            object({ currency: literal("USDT"), network: literal("TRON") }),
+            object({ currency: literal("USDC"), network: picklist(["BASE", "SOLANA", "STELLAR"]) }),
+          ]),
+        ]),
+      ),
+    }),
     onramp: object({
       currencies: array(
         union([
