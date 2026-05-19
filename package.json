@@ -178,6 +178,7 @@
       "tar": "^7.5.11",
       "typescript@5": "catalog:",
       "unicorn-magic@0.3.0": "^0.2.0",
+      "ws@8": "^8.20.1",
       "yauzl": "^3.2.1",
       "@anthropic-ai/claude-code": "npm:@favware/skip-dependency@1.2.2",
       "@bigmi/core": "npm:@favware/skip-dependency@1.2.2",
