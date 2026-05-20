@@ -27,13 +27,8 @@ import Text from "../shared/Text";
 
 function ExaBackground() {
   return (
-    <View
-      style={StyleSheet.absoluteFill}
-      backgroundColor="$backgroundBrand"
-      justifyContent="center"
-      alignItems="flex-end"
-    >
-      <ExaPromoSvg height="100%" preserveAspectRatio="xMidYMid" />
+    <View style={StyleSheet.absoluteFill} backgroundColor="$backgroundBrand">
+      <ExaPromoSvg width="100%" height="100%" preserveAspectRatio="xMaxYMid meet" />
     </View>
   );
 }
