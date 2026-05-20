@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.9
+
+### Patch Changes
+
+- [#1026](https://github.com/exactly/exa/pull/1026) [`36ff7a6`](https://github.com/exactly/exa/commit/36ff7a6a48ada21dbea549ea49778b1f8b9d8a8a) Thanks [@franm91](https://github.com/franm91)! - 🚑️ fix svg render on mobile
+
+- Updated dependencies [[`ef8f534`](https://github.com/exactly/exa/commit/ef8f534f19dc1d6a14661ec5fc4c6a98c19b307c)]:
+  - @exactly/server@0.2.94
+
 ## 1.2.8
 
 ### Patch Changes
