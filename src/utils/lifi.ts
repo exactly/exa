@@ -66,9 +66,9 @@ export const lifiTokensOptions = queryOptions({
   },
 });
 
-export function balancesOptions(account: Address | undefined) {
+export function balancesOptions(account: Address | undefined, nonce?: number) {
   return queryOptions({
-    queryKey: ["lifi", "balances", account],
+    queryKey: nonce === undefined ? ["lifi", "balances", account] : ["lifi", "balances", account, nonce],
     staleTime: 30_000,
     gcTime: 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
@@ -76,7 +76,7 @@ export function balancesOptions(account: Address | undefined) {
       if (!account) return {} as Record<number, TokenAmount[]>;
       ensureConfig();
       const [balances, exa] = await Promise.all([
-        getWalletBalances(account).catch((error: unknown) => {
+        getWalletBalances(account, nonce).catch((error: unknown) => {
           reportError(error);
           return {} as Record<number, TokenAmount[]>;
         }),
@@ -457,7 +457,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
   };
 }
 
-async function getWalletBalances(account: Address) {
+async function getWalletBalances(account: Address, nonce?: number) {
   const balances: Record<number, TokenAmount[]> = {};
   const lifiConfig = config.get();
   let offset: string | undefined;
@@ -465,6 +465,7 @@ async function getWalletBalances(account: Address) {
     const url = new URL(`${lifiConfig.apiUrl}/wallets/${account}/balances`);
     url.searchParams.set("extended", "true");
     url.searchParams.set("limit", "1000");
+    if (nonce !== undefined) url.searchParams.set("_", String(nonce));
     if (offset) url.searchParams.set("offset", offset);
     const response = await fetch(url, {
       headers: {

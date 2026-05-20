@@ -429,7 +429,7 @@ export default function Bridge() {
         if (!isExaSender) await switchChain(senderConfig, { chainId: chain.id }).catch(reportError);
       }
     },
-    onSuccess: async () => {
+    onSuccess: () => {
       toast.show(
         bridgePreview?.operation === "swap" ? t("Swap transaction submitted") : t("Bridge transaction submitted"),
         {
@@ -438,10 +438,22 @@ export default function Bridge() {
           burntOptions: { haptic: "success", preset: "done" },
         },
       );
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] }),
-        queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }),
-      ]);
+      const accounts = senderAddress ? [senderAddress] : [];
+      if (account && account.toLowerCase() !== senderAddress?.toLowerCase()) accounts.push(account);
+      const nonce = Date.now();
+      Promise.all(
+        accounts.map((item) =>
+          queryClient
+            .fetchQuery({ ...balancesOptions(item, nonce), staleTime: 0 })
+            .then((fresh) => {
+              queryClient.setQueryData(balancesOptions(item).queryKey, fresh);
+              queryClient.removeQueries({ queryKey: balancesOptions(item, nonce).queryKey });
+            })
+            .catch(reportError),
+        ),
+      )
+        .then(() => queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] }))
+        .catch(reportError);
     },
     onError(error) {
       if (reportError(error).authKnown) {
