@@ -1,5 +1,15 @@
 # @exactly/docs
 
+## 0.1.4
+
+### Patch Changes
+
+- [#948](https://github.com/exactly/exa/pull/948) [`8bc23b4`](https://github.com/exactly/exa/commit/8bc23b4e9301b2b34b5d34e8428f3580b0a97dc7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔥 drop header from encrypted kyc
+
+- [#948](https://github.com/exactly/exa/pull/948) [`1dc0927`](https://github.com/exactly/exa/commit/1dc09270d7e7a1b15a799365ba2e4cafbf230d13) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ improve nonce usage for encrypted kyc
+
+- [#926](https://github.com/exactly/exa/pull/926) [`a1063c4`](https://github.com/exactly/exa/commit/a1063c44dd5650c947131f79a0ef3cd0e5c14519) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix update card webhook schema
+
 ## 0.1.3
 
 ### Patch Changes

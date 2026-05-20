@@ -1,5 +1,60 @@
 # @exactly/mobile
 
+## 1.2.8
+
+### Patch Changes
+
+- [#970](https://github.com/exactly/exa/pull/970) [`f6ffcbd`](https://github.com/exactly/exa/commit/f6ffcbd56e1b725799a94aa3c5b1d5262dd70882) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 walk cause chain when extracting error status
+
+- [#970](https://github.com/exactly/exa/pull/970) [`139440d`](https://github.com/exactly/exa/commit/139440deb55079b365c7a22c69f46bf48378092f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 namespace persisted storage by chain id
+
+- [#833](https://github.com/exactly/exa/pull/833) [`0a79e0c`](https://github.com/exactly/exa/commit/0a79e0cb18e486c0fcfa4030234c1560224e5f47) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ provision alchemy rpc urls across lifi chains
+
+- [#970](https://github.com/exactly/exa/pull/970) [`969fecd`](https://github.com/exactly/exa/commit/969fecd8ce43e23752f38a2f7ef78ebb6d4cc935) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 route cross-chain rpc through alchemy
+
+- [#1017](https://github.com/exactly/exa/pull/1017) [`9a4b983`](https://github.com/exactly/exa/commit/9a4b98313fd286e90df493499b1634d43be1fd67) Thanks [@franm91](https://github.com/franm91)! - ✨ add 0% installments promo and redesign benefit cards
+
+- [#1022](https://github.com/exactly/exa/pull/1022) [`4a64eaa`](https://github.com/exactly/exa/commit/4a64eaa7333e283bd5adbd6422ede4cff857b966) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 exclude declined card entries from activity
+
+- [#970](https://github.com/exactly/exa/pull/970) [`0a36648`](https://github.com/exactly/exa/commit/0a36648256ccc894090188fbea4875af1f54ca19) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🧱 add cross-chain account client support
+
+- [#833](https://github.com/exactly/exa/pull/833) [`847ec09`](https://github.com/exactly/exa/commit/847ec096907b652fbf48cc97c2901a89aabdef2f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 surface lifi token errors
+
+- [#970](https://github.com/exactly/exa/pull/970) [`18545bd`](https://github.com/exactly/exa/commit/18545bd6549e13a70b2a304389eba327e7fdea9d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ refactor bridge sources with multi-chain balance fetching
+
+- [#1014](https://github.com/exactly/exa/pull/1014) [`eacea26`](https://github.com/exactly/exa/commit/eacea26105031042958830a0ce8d94a175a26141) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ use icon button for card number copy
+
+- [#1017](https://github.com/exactly/exa/pull/1017) [`b54a4fb`](https://github.com/exactly/exa/commit/b54a4fbf13911cdb08b6e1f6440c27a51d8f1cb2) Thanks [@franm91](https://github.com/franm91)! - 🍱 add benefits images
+
+- [#833](https://github.com/exactly/exa/pull/833) [`be18fd6`](https://github.com/exactly/exa/commit/be18fd679a5a275677ad40fb5afe2019b0f791f3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 scope bridge destinations to current chain
+
+- [#1014](https://github.com/exactly/exa/pull/1014) [`3418b6a`](https://github.com/exactly/exa/commit/3418b6ab5b897eba45cc88114e024fa3cc6e4614) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix spotlight target measurement
+
+- [#970](https://github.com/exactly/exa/pull/970) [`0326e87`](https://github.com/exactly/exa/commit/0326e8754399c09e83732d9318296702670d48fd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ send assets from portfolio
+
+- [#1020](https://github.com/exactly/exa/pull/1020) [`75c1fc8`](https://github.com/exactly/exa/commit/75c1fc87601bef31a3824b158b482a7b2e9d0bd2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 implement alchemy gas policy for bridge
+
+- [#970](https://github.com/exactly/exa/pull/970) [`9117679`](https://github.com/exactly/exa/commit/9117679bc8848db9e959315c44eb4371a0cc425d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 avoid precision loss in external asset value
+
+- [#970](https://github.com/exactly/exa/pull/970) [`d9765d7`](https://github.com/exactly/exa/commit/d9765d770d661095e5525b9564a3b1f148e9940b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ split portfolio pending states
+
+- [#970](https://github.com/exactly/exa/pull/970) [`54174ff`](https://github.com/exactly/exa/commit/54174ffbb881eda6020cdd827c6cbefe0ceb0165) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swap insufficient balance check
+
+- [#1014](https://github.com/exactly/exa/pull/1014) [`248d219`](https://github.com/exactly/exa/commit/248d219c5415162721d2c78100f502dae12eafd9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix border radius tokens
+
+- [#833](https://github.com/exactly/exa/pull/833) [`cf824f9`](https://github.com/exactly/exa/commit/cf824f959e95ffeb2019257cd178766454b34701) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 cache lifi tokens by chain in bridge sources
+
+- [#970](https://github.com/exactly/exa/pull/970) [`ffd8218`](https://github.com/exactly/exa/commit/ffd821884341066893af1a88eef88d9c4d7a0a56) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ recover funds from any network
+
+- [#833](https://github.com/exactly/exa/pull/833) [`6e77f1d`](https://github.com/exactly/exa/commit/6e77f1d96d3ac3990e47181ee32dd7a608e084bd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 refresh lifi balances after bridge
+
+- [#970](https://github.com/exactly/exa/pull/970) [`bd0f2c4`](https://github.com/exactly/exa/commit/bd0f2c4e54ce7f6cfbc16b4d1d8bef3715816c8f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 handle localized native auth errors by matching expo codes
+
+- [#970](https://github.com/exactly/exa/pull/970) [`3c145bc`](https://github.com/exactly/exa/commit/3c145bcd428f6b9093429a9d5337efab064be7e3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 allow provider access regardless of chain id
+
+- Updated dependencies [[`ea9d783`](https://github.com/exactly/exa/commit/ea9d783fb93add5376779adb7c8331911770ba5e), [`010b281`](https://github.com/exactly/exa/commit/010b28141142361df7acd99dc301bb8a0a5e12a0), [`8bc23b4`](https://github.com/exactly/exa/commit/8bc23b4e9301b2b34b5d34e8428f3580b0a97dc7), [`69aeae1`](https://github.com/exactly/exa/commit/69aeae1dddd06074e551841b363edd97b6c7f147), [`1dc0927`](https://github.com/exactly/exa/commit/1dc09270d7e7a1b15a799365ba2e4cafbf230d13), [`a1063c4`](https://github.com/exactly/exa/commit/a1063c44dd5650c947131f79a0ef3cd0e5c14519), [`618a497`](https://github.com/exactly/exa/commit/618a49733465b9b484548248d11bb6dfe0e8876d), [`d986650`](https://github.com/exactly/exa/commit/d986650b33fc763a1c1ebec262a0d0e19c532eac), [`a64fa60`](https://github.com/exactly/exa/commit/a64fa608a682109cb24a81482b3b77bb0cd401b7), [`8d6cc2b`](https://github.com/exactly/exa/commit/8d6cc2bf5518adce7e374ec1654247c94f02263d), [`2eacd4b`](https://github.com/exactly/exa/commit/2eacd4bbe7939a545178d83b2f185f578521ee25), [`fe7fff1`](https://github.com/exactly/exa/commit/fe7fff14126227a64647b8439fca03e4cc13c9b9), [`db059eb`](https://github.com/exactly/exa/commit/db059eb2017cd234ddde712a6bf18ed28dceaf81), [`f57da90`](https://github.com/exactly/exa/commit/f57da9051f2843118b8ccbadb6d4907540461462), [`89250f4`](https://github.com/exactly/exa/commit/89250f4d1452211c9caf525b58b16894ec65a759), [`8cbe317`](https://github.com/exactly/exa/commit/8cbe31774d61d0d35e7f8791d026a37aea2fc607), [`7ec74aa`](https://github.com/exactly/exa/commit/7ec74aabbe3f8d8c2bbd05eff9a60110a20e7b2b), [`2cbbfa0`](https://github.com/exactly/exa/commit/2cbbfa0a30aba05301ccef8d292c3f8703646129)]:
+  - @exactly/server@0.2.93
+
 ## 1.2.7
 
 ### Patch Changes

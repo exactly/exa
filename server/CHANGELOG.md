@@ -1,5 +1,45 @@
 # @exactly/server
 
+## 0.2.93
+
+### Patch Changes
+
+- [#926](https://github.com/exactly/exa/pull/926) [`ea9d783`](https://github.com/exactly/exa/commit/ea9d783fb93add5376779adb7c8331911770ba5e) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ enhance webhook crud
+
+- [#926](https://github.com/exactly/exa/pull/926) [`010b281`](https://github.com/exactly/exa/commit/010b28141142361df7acd99dc301bb8a0a5e12a0) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ forward declined transaction webhook
+
+- [#948](https://github.com/exactly/exa/pull/948) [`8bc23b4`](https://github.com/exactly/exa/commit/8bc23b4e9301b2b34b5d34e8428f3580b0a97dc7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔥 drop header from encrypted kyc
+
+- [#898](https://github.com/exactly/exa/pull/898) [`69aeae1`](https://github.com/exactly/exa/commit/69aeae1dddd06074e551841b363edd97b6c7f147) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add card limit handler
+
+- [#948](https://github.com/exactly/exa/pull/948) [`1dc0927`](https://github.com/exactly/exa/commit/1dc09270d7e7a1b15a799365ba2e4cafbf230d13) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ improve nonce usage for encrypted kyc
+
+- [#926](https://github.com/exactly/exa/pull/926) [`a1063c4`](https://github.com/exactly/exa/commit/a1063c44dd5650c947131f79a0ef3cd0e5c14519) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix update card webhook schema
+
+- [#1025](https://github.com/exactly/exa/pull/1025) [`618a497`](https://github.com/exactly/exa/commit/618a49733465b9b484548248d11bb6dfe0e8876d) Thanks [@mainqueg](https://github.com/mainqueg)! - 🚑 drop unused payment rails field
+
+- [#926](https://github.com/exactly/exa/pull/926) [`d986650`](https://github.com/exactly/exa/commit/d986650b33fc763a1c1ebec262a0d0e19c532eac) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix webhook logging for text response
+
+- [#948](https://github.com/exactly/exa/pull/948) [`a64fa60`](https://github.com/exactly/exa/commit/a64fa608a682109cb24a81482b3b77bb0cd401b7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ implement kyc data submission
+
+- [#926](https://github.com/exactly/exa/pull/926) [`8d6cc2b`](https://github.com/exactly/exa/commit/8d6cc2bf5518adce7e374ec1654247c94f02263d) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix webhook retries
+
+- [#926](https://github.com/exactly/exa/pull/926) [`2eacd4b`](https://github.com/exactly/exa/commit/2eacd4bbe7939a545178d83b2f185f578521ee25) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix user webhook routing
+
+- [#926](https://github.com/exactly/exa/pull/926) [`fe7fff1`](https://github.com/exactly/exa/commit/fe7fff14126227a64647b8439fca03e4cc13c9b9) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add webhook api
+
+- [#926](https://github.com/exactly/exa/pull/926) [`db059eb`](https://github.com/exactly/exa/commit/db059eb2017cd234ddde712a6bf18ed28dceaf81) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add transaction receipt to webhook
+
+- [#948](https://github.com/exactly/exa/pull/948) [`f57da90`](https://github.com/exactly/exa/commit/f57da9051f2843118b8ccbadb6d4907540461462) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🦺 enforce siwe domain on kyc application
+
+- [#948](https://github.com/exactly/exa/pull/948) [`89250f4`](https://github.com/exactly/exa/commit/89250f4d1452211c9caf525b58b16894ec65a759) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🗃️ add role to organization database table
+
+- [#926](https://github.com/exactly/exa/pull/926) [`8cbe317`](https://github.com/exactly/exa/commit/8cbe31774d61d0d35e7f8791d026a37aea2fc607) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ forward exchange rate to webhooks
+
+- [#948](https://github.com/exactly/exa/pull/948) [`7ec74aa`](https://github.com/exactly/exa/commit/7ec74aabbe3f8d8c2bbd05eff9a60110a20e7b2b) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add kyc role to organizations
+
+- [#926](https://github.com/exactly/exa/pull/926) [`2cbbfa0`](https://github.com/exactly/exa/commit/2cbbfa0a30aba05301ccef8d292c3f8703646129) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ forward webhooks to source
+
 ## 0.2.92
 
 ### Patch Changes
