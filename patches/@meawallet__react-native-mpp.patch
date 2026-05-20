@@ -1,5 +1,218 @@
+diff --git a/ios/ApplePay.mm b/ios/ApplePay.mm
+index d5cb54b..394130d 100644
+--- a/ios/ApplePay.mm
++++ b/ios/ApplePay.mm
+@@ -36,8 +36,34 @@ @implementation ApplePay
+ GET_TURBO_MODULE(ApplePay)
+ 
+ static NSString *APPLE_PAY_EVENT = @"ApplePayDataChanged";
++static NSString *APPLE_PAY_TRACE_EVENT = @"ApplePayTrace";
+ static NSSet *PAYMENT_NETWORKS;
+ 
++static NSString *redactedTail(NSString *value, NSUInteger count)
++{
++    if (!value) return nil;
++    if (value.length <= count) return [@"…" stringByAppendingString:value];
++    return [@"…" stringByAppendingString:[value substringFromIndex:value.length - count]];
++}
++
++static NSDictionary *traceError(NSError *error)
++{
++    if (!error) return @{};
++
++    NSMutableDictionary *details = [NSMutableDictionary new];
++    if (error.domain) details[@"domain"] = error.domain;
++    details[@"code"] = @(error.code);
++    if (error.localizedDescription) details[@"description"] = error.localizedDescription;
++    if (error.localizedFailureReason) details[@"failureReason"] = error.localizedFailureReason;
++    if (error.localizedRecoverySuggestion) details[@"recoverySuggestion"] = error.localizedRecoverySuggestion;
++    NSError *underlyingError = error.userInfo[NSUnderlyingErrorKey];
++    if (underlyingError) details[@"underlyingError"] = traceError(underlyingError);
++    if (error.userInfo.count > 0) {
++        details[@"userInfoKeys"] = error.userInfo.allKeys;
++        details[@"userInfo"] = [NSString stringWithFormat:@"%@", error.userInfo];
++    }
++    return details;
++}
+ RCT_EXPORT_MODULE()
+ 
+ - (instancetype)init
+@@ -106,7 +125,21 @@ - (instancetype)init
+ 
+ - (NSArray<NSString *> *)supportedEvents
+ {
+-    return @[APPLE_PAY_EVENT];
++    return @[APPLE_PAY_EVENT, APPLE_PAY_TRACE_EVENT];
++}
++
++- (void)emitTrace:(NSString *)event details:(NSDictionary *)details
++{
++    NSMutableDictionary *body = [NSMutableDictionary new];
++    body[@"event"] = event;
++    body[@"timestamp"] = @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
++    if (details.count > 0) [body addEntriesFromDictionary:details];
++    NSLog(@"ApplePayTrace %@", body);
++    if (self.hasListeners) {
++        dispatch_async(dispatch_get_main_queue(), ^{
++            [self sendEventWithName:APPLE_PAY_TRACE_EVENT body:body];
++        });
++    }
+ }
+ 
+ - (void)startObserving
+@@ -127,6 +160,7 @@ + (BOOL)requiresMainQueueSetup
+ RCT_EXPORT_METHOD(setDebugLoggingEnabled:(BOOL)enabled)
+ {
+     RCTLogInfo(@"setDebugLoggingEnabled: %i", enabled);
++    [self emitTrace:@"setDebugLoggingEnabled" details:@{ @"enabled": @(enabled) }];
+ 
+     RCTSetLogThreshold(enabled ? RCTLogLevelTrace : RCTLogLevelFatal);
+ 
+@@ -163,7 +197,11 @@ + (BOOL)requiresMainQueueSetup
+                   resolve:(RCTPromiseResolveBlock)resolve
+                   reject:(RCTPromiseRejectBlock)reject)
+ {
+-    RCTLogInfo(@"initializeOemTokenization: %@", card);
++    NSMutableDictionary *requestDetails = [NSMutableDictionary new];
++    requestDetails[@"cardKeys"] = card.allKeys ?: @[];
++    requestDetails[@"hasCardSecret"] = @(card[@"cardSecret"] != nil);
++    if (card[@"cardDataType"]) requestDetails[@"cardDataType"] = [NSString stringWithFormat:@"%@", card[@"cardDataType"]];
++    [self emitTrace:@"initializeOemTokenization.request" details:requestDetails];
+ 
+     [MeaPushProvisioning initializeOemTokenization:[Serialization reactToCardDataParameters:card]
+                                  completionHandler:^(MppInitializeOemTokenizationResponseData *data, NSError *error) {
+@@ -171,6 +209,17 @@ + (BOOL)requiresMainQueueSetup
+ 
+         if (data && [data isValid]) {
+             RCTLogInfo(@"initializeOemTokenization:completionHandler: data isValid");
++            NSMutableDictionary *details = [NSMutableDictionary new];
++            details[@"hasPrimaryAccountIdentifier"] = @(data.primaryAccountIdentifier.length > 0);
++            if (data.localizedDescription) details[@"localizedDescription"] = data.localizedDescription;
++            if (data.networkName) details[@"networkName"] = data.networkName;
++            NSString *identifier = redactedTail(data.primaryAccountIdentifier, 8);
++            if (identifier) details[@"primaryAccountIdentifier"] = identifier;
++            if (data.primaryAccountIdentifier) details[@"primaryAccountIdentifierLength"] = @(data.primaryAccountIdentifier.length);
++            if (data.primaryAccountSuffix) details[@"primaryAccountSuffix"] = data.primaryAccountSuffix;
++            if (data.tokenizationReceipt) details[@"tokenizationReceiptLength"] = @(data.tokenizationReceipt.length);
++            details[@"validFor"] = @(data.validFor);
++            [self emitTrace:@"initializeOemTokenization.success" details:details];
+ 
+             resolve([Serialization initializeOemTokenizationResponseDataToReact:data]);
+         }
+@@ -181,6 +228,11 @@ + (BOOL)requiresMainQueueSetup
+                                         userInfo:@{NSLocalizedDescriptionKey:@"Invalid Tokenization Response Data." }];
+             }
+ 
++            NSMutableDictionary *details = [NSMutableDictionary new];
++            details[@"hasData"] = @(data != nil);
++            details[@"isValid"] = @([data isValid]);
++            [details addEntriesFromDictionary:traceError(error)];
++            [self emitTrace:@"initializeOemTokenization.error" details:details];
+             RCTLogError(@"initializeOemTokenization:completionHandler: error: %@", error);
+ 
+             reject(@(error.code).stringValue, [NSString stringWithFormat:@"%@", error], error);
+@@ -299,7 +351,16 @@ + (BOOL)requiresMainQueueSetup
+                   resolve:(RCTPromiseResolveBlock)resolve
+                   reject:(RCTPromiseRejectBlock)reject)
+ {
+-    RCTLogInfo(@"showAddPaymentPassView: %@", tokenizationData);
++    NSMutableDictionary *requestDetails = [NSMutableDictionary new];
++    requestDetails[@"hasPrimaryAccountIdentifier"] = @(tokenizationData[@"primaryAccountIdentifier"] != nil);
++    requestDetails[@"keys"] = tokenizationData.allKeys ?: @[];
++    if (tokenizationData[@"localizedDescription"]) requestDetails[@"localizedDescription"] = tokenizationData[@"localizedDescription"];
++    if (tokenizationData[@"networkName"]) requestDetails[@"networkName"] = tokenizationData[@"networkName"];
++    if (tokenizationData[@"primaryAccountIdentifier"]) requestDetails[@"primaryAccountIdentifier"] = redactedTail([NSString stringWithFormat:@"%@", tokenizationData[@"primaryAccountIdentifier"]], 8);
++    if (tokenizationData[@"primaryAccountSuffix"]) requestDetails[@"primaryAccountSuffix"] = tokenizationData[@"primaryAccountSuffix"];
++    if (tokenizationData[@"tokenizationReceipt"]) requestDetails[@"tokenizationReceiptLength"] = @([[NSString stringWithFormat:@"%@", tokenizationData[@"tokenizationReceipt"]] length]);
++    if (tokenizationData[@"validFor"]) requestDetails[@"validFor"] = tokenizationData[@"validFor"];
++    [self emitTrace:@"showAddPaymentPassView.request" details:requestDetails];
+ 
+     @synchronized (self) {
+ /*
+@@ -324,6 +384,7 @@ + (BOOL)requiresMainQueueSetup
+                 if (self.paymentPassController) {
+ 
+                     [RCTPresentedViewController() presentViewController:self.paymentPassController animated:YES completion:^{
++                        [self emitTrace:@"showAddPaymentPassView.presented" details:@{}];
+                         RCTLogInfo(@"showAddPaymentPassView: paymentPassController presented");
+                     }];
+                 } else {
+@@ -331,6 +392,7 @@ + (BOOL)requiresMainQueueSetup
+                                                          code:MPP_ERROR_API
+                                                      userInfo:@{NSLocalizedDescriptionKey:@"PKAddPaymentPassViewController can't be created."}];
+ 
++                    [self emitTrace:@"showAddPaymentPassView.error" details:traceError(error)];
+                     RCTLogError(@"showAddPaymentPassView: error: %@", error);
+ 
+                     self.tokenizationResponseData = nil;
+@@ -343,6 +405,7 @@ + (BOOL)requiresMainQueueSetup
+                                                  code:MPP_ERROR_API
+                                              userInfo:@{NSLocalizedDescriptionKey:@"showAddPaymentPassView() already running."}];
+ 
++            [self emitTrace:@"showAddPaymentPassView.error" details:traceError(error)];
+             RCTLogError(@"showAddPaymentPassView: error: %@", error);
+ 
+             reject(@(error.code).stringValue, [NSString stringWithFormat:@"%@", error], error);
+@@ -657,6 +720,12 @@ - (void)addPaymentPassViewController:(PKAddPaymentPassViewController *)controlle
+                       nonceSignature:(NSData *)nonceSignature
+                    completionHandler:(void(^)(PKAddPaymentPassRequest *request))handler
+ {
++    NSMutableDictionary *details = [NSMutableDictionary new];
++    details[@"certificateCount"] = @(certificates.count);
++    details[@"nonceLength"] = @(nonce.length);
++    details[@"nonceSignatureLength"] = @(nonceSignature.length);
++    if (self.tokenizationResponseData.tokenizationReceipt) details[@"tokenizationReceiptLength"] = @(self.tokenizationResponseData.tokenizationReceipt.length);
++    [self emitTrace:@"generateRequestWithCertificateChain" details:details];
+     RCTLogInfo(@"addPaymentPassViewController:generateRequestWithCertificateChain:");
+ 
+     @synchronized (self) {
+@@ -670,6 +739,13 @@ - (void)addPaymentPassViewController:(PKAddPaymentPassViewController *)controlle
+             if (valid && !error) {
+                 PKAddPaymentPassRequest *addPaymentPassRequest = [data addPaymentPassRequest];
+ 
++                NSMutableDictionary *details = [NSMutableDictionary new];
++                details[@"hasRequest"] = @(addPaymentPassRequest != nil);
++                details[@"isValid"] = @(valid);
++                if (addPaymentPassRequest.activationData) details[@"activationDataLength"] = @(addPaymentPassRequest.activationData.length);
++                if (addPaymentPassRequest.encryptedPassData) details[@"encryptedPassDataLength"] = @(addPaymentPassRequest.encryptedPassData.length);
++                if (addPaymentPassRequest.ephemeralPublicKey) details[@"ephemeralPublicKeyLength"] = @(addPaymentPassRequest.ephemeralPublicKey.length);
++                [self emitTrace:@"completeOemTokenization.success" details:details];
+                 RCTLogInfo(@"addPaymentPassViewController:generateRequestWithCertificateChain: addPaymentPassRequest created");
+ 
+                 self.tokenizationResponseData = nil;
+@@ -682,6 +755,11 @@ - (void)addPaymentPassViewController:(PKAddPaymentPassViewController *)controlle
+                                             userInfo:@{ NSLocalizedDescriptionKey:@"Can't add payment pass." }];
+                 }
+ 
++                NSMutableDictionary *details = [NSMutableDictionary new];
++                details[@"hasData"] = @(data != nil);
++                details[@"isValid"] = @(valid);
++                [details addEntriesFromDictionary:traceError(error)];
++                [self emitTrace:@"completeOemTokenization.error" details:details];
+                 RCTLogError(@"addPaymentPassViewController:generateRequestWithCertificateChain: error: %@", error);
+             }
+         }];
+@@ -698,11 +776,17 @@ - (void)addPaymentPassViewController:(PKAddPaymentPassViewController *)controlle
+         self.tokenizationResponseData = nil;
+ 
+         if (!error) {
++            NSString *activationState = [Serialization getActivateStateString:pass.activationState];
++            [self emitTrace:@"didFinishAddingPaymentPass.success" details:@{ @"activationState": activationState ?: @"unknown" }];
+             RCTLogInfo(@"addPaymentPassViewController:didFinishAddingPaymentPass: pass.activationState: %lu", (unsigned long)pass.activationState);
+ 
+-            self.resolve([Serialization getActivateStateString:pass.activationState]);
++            self.resolve(activationState);
+         }
+         else {
++            NSMutableDictionary *details = [traceError(error) mutableCopy];
++            details[@"hasPass"] = @(pass != nil);
++            if (pass) details[@"activationState"] = [Serialization getActivateStateString:pass.activationState] ?: @"unknown";
++            [self emitTrace:@"didFinishAddingPaymentPass.error" details:details];
+             RCTLogError(@"addPaymentPassViewController:didFinishAddingPaymentPass: error: %@", error);
+ 
+             self.reject(@(error.code).stringValue, [NSString stringWithFormat:@"%@", error], error);
 diff --git a/meawallet-react-native-mpp.podspec b/meawallet-react-native-mpp.podspec
-index 05795f1b..7396ff2b 100644
+index 05795f1..7396ff2 100644
 --- a/meawallet-react-native-mpp.podspec
 +++ b/meawallet-react-native-mpp.podspec
 @@ -21,4 +21,5 @@ Pod::Spec.new do |s|
