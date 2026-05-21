@@ -677,15 +677,7 @@ async function encryptPIN(pin: string) {
       return mutex
         .runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
-            columns: {
-              account: true,
-              counter: true,
-              factory: true,
-              pandaId: true,
-              publicKey: true,
-              source: true,
-              transports: true,
-            },
+            columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true, transports: true },
             where: eq(credentials.id, credentialId),
             with: {
               cards: {
@@ -776,7 +768,7 @@ async function encryptPIN(pin: string) {
                       credential: {
                         publicKey: { type: "Buffer", data: [...credential.publicKey] },
                         transports: credential.transports,
-                        counter: credential.counter,
+                        counter: 0,
                       },
                       assertion: patch.assertion,
                       factory: credential.factory,

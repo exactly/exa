@@ -1496,7 +1496,7 @@ describe("authenticated", () => {
           credential: {
             publicKey: { type: "Buffer", data: [1, 2, 3] },
             transports: ["internal"],
-            counter: 5,
+            counter: 0,
           },
           assertion,
           factory,

@@ -309,7 +309,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       if (!sessionId) return c.json({ code: "bad session" }, 400);
       const [credential, challenge] = await Promise.all([
         database.query.credentials.findFirst({
-          columns: { publicKey: true, account: true, factory: true, transports: true, counter: true },
+          columns: { publicKey: true, account: true, factory: true, transports: true },
           where: eq(credentials.id, assertion.id),
         }),
         redis.getdel(sessionId),
@@ -374,7 +374,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 id: assertion.id,
                 publicKey: credential.publicKey,
                 transports: (credential.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
-                counter: credential.counter,
+                counter: 0,
               },
             });
             if (!verified || authenticationInfo.credentialID !== assertion.id) {
