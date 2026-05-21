@@ -1477,7 +1477,6 @@ describe("authenticated", () => {
           factory,
           pandaId: "webauthn-verify-panda",
           transports: ["internal"],
-          counter: 5,
         });
         await database.insert(cards).values({ id: "webauthn-verify-card", credentialId, lastFour: "3377" });
         const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
@@ -1496,7 +1495,6 @@ describe("authenticated", () => {
           credential: {
             publicKey: { type: "Buffer", data: [1, 2, 3] },
             transports: ["internal"],
-            counter: 0,
           },
           assertion,
           factory,
@@ -1514,7 +1512,6 @@ describe("authenticated", () => {
           account,
           factory,
           pandaId: "webauthn-null-panda",
-          counter: 0,
         });
         await database.insert(cards).values({ id: "webauthn-null-card", credentialId, lastFour: "2020" });
         const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
@@ -1530,7 +1527,7 @@ describe("authenticated", () => {
         await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
         expect(verifySpy).toHaveBeenCalledWith("webauthn-null-panda", {
           authType: "webauthn",
-          credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null, counter: 0 },
+          credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null },
           assertion,
           factory,
           statement,
@@ -1570,7 +1567,6 @@ describe("authenticated", () => {
           factory,
           pandaId: "webauthn-panda-401-panda",
           transports: ["internal"],
-          counter: 0,
         });
         await database.insert(cards).values({ id: "webauthn-panda-401-card", credentialId, lastFour: "4141" });
         const verifySpy = vi
@@ -1587,7 +1583,7 @@ describe("authenticated", () => {
         await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
         expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-401-panda", {
           authType: "webauthn",
-          credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"], counter: 0 },
+          credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"] },
           assertion,
           factory,
           statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 4141 for my user (webauthn-panda-401-panda)`,
@@ -1605,7 +1601,6 @@ describe("authenticated", () => {
           factory,
           pandaId: "webauthn-panda-503-panda",
           transports: ["internal"],
-          counter: 0,
         });
         await database.insert(cards).values({ id: "webauthn-panda-503-card", credentialId, lastFour: "5151" });
         const verifySpy = vi
@@ -1621,7 +1616,7 @@ describe("authenticated", () => {
         expect(response.status).toBe(500);
         expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-503-panda", {
           authType: "webauthn",
-          credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"], counter: 0 },
+          credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"] },
           assertion,
           factory,
           statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 5151 for my user (webauthn-panda-503-panda)`,

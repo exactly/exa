@@ -41,7 +41,6 @@ export default async function createCredential<C extends string>(
       publicKey,
       factory: exaAccountFactoryAddress,
       transports: options?.webauthn?.transports,
-      counter: options?.webauthn?.counter,
       source: options?.source,
     },
   ]);

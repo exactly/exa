@@ -199,7 +199,6 @@ export function verify(
         };
         authType: "webauthn";
         credential: {
-          counter: number;
           publicKey: { data: number[]; type: "Buffer" };
           transports: null | string[];
         };

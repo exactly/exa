@@ -768,7 +768,6 @@ async function encryptPIN(pin: string) {
                       credential: {
                         publicKey: { type: "Buffer", data: [...credential.publicKey] },
                         transports: credential.transports,
-                        counter: 0,
                       },
                       assertion: patch.assertion,
                       factory: credential.factory,

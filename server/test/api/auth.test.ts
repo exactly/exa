@@ -37,7 +37,6 @@ describe("authentication", () => {
         publicKey: new Uint8Array(),
         account: zeroAddress,
         factory: parse(Address, inject("ExaAccountFactory")),
-        counter: 0,
         transports: [],
       },
     ]);
@@ -198,7 +197,7 @@ describe("authentication", () => {
   it("consumes challenge after unverified authentication response to prevent replay", async () => {
     vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
       verified: false,
-      authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk", newCounter: 1 },
+      authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk" },
     } as Awaited<ReturnType<typeof verifyAuthenticationResponse>>);
 
     const firstResponse = await appClient.index.$post(
@@ -237,7 +236,7 @@ describe("authentication", () => {
   it("consumes challenge after mismatched authentication credential id to prevent replay", async () => {
     vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
       verified: true,
-      authenticationInfo: { credentialID: "another-credential", newCounter: 1 },
+      authenticationInfo: { credentialID: "another-credential" },
     } as Awaited<ReturnType<typeof verifyAuthenticationResponse>>);
 
     const firstResponse = await appClient.index.$post(
@@ -429,7 +428,6 @@ describe("registration", () => {
         credential: {
           id: "another-credential",
           publicKey: new Uint8Array(65),
-          counter: 0,
           transports: ["internal"],
         },
         credentialDeviceType: "multiDevice",
@@ -452,7 +450,6 @@ describe("registration", () => {
         credential: {
           id: "dGVzdC1jcmVkLWlk2",
           publicKey: new Uint8Array(65),
-          counter: 0,
           transports: ["internal"],
         },
         credentialDeviceType: "singleDevice",
@@ -581,16 +578,16 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
   return {
     ...actual,
     verifyAuthenticationResponse: vi
-      .fn<() => Promise<{ authenticationInfo: { credentialID: string; newCounter: number }; verified: boolean }>>()
+      .fn<() => Promise<{ authenticationInfo: { credentialID: string }; verified: boolean }>>()
       .mockResolvedValue({
         verified: true,
-        authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk", newCounter: 1 },
+        authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk" },
       }),
     verifyRegistrationResponse: vi
       .fn<
         (options: { response: { id: string } }) => Promise<{
           registrationInfo: {
-            credential: { counter: number; id: string; publicKey: Uint8Array; transports: string[] };
+            credential: { id: string; publicKey: Uint8Array; transports: string[] };
             credentialDeviceType: string;
           };
           verified: boolean;
@@ -603,7 +600,6 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
             credential: {
               id: options.response.id,
               publicKey: new Uint8Array(65),
-              counter: 0,
               transports: ["internal"],
             },
             credentialDeviceType: "multiDevice",

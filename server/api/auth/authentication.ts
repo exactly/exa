@@ -227,7 +227,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
     describeRoute({
       summary: "Authenticate",
       description: `
-Authenticates a user using a WebAuthn credential. This endpoint verifies the authentication response from the client, updates the credential counter, and sets a signed cookie for the authenticated session.
+Authenticates a user using a WebAuthn credential. This endpoint verifies the authentication response from the client and sets a signed cookie for the authenticated session.
 
 **SIWE Authentication**
 
@@ -347,7 +347,6 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       }
       setUser({ id: parse(Address, credential.account) });
 
-      let newCounter: number | undefined;
       try {
         switch (assertion.method) {
           case "siwe": {
@@ -380,7 +379,6 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             if (!verified || authenticationInfo.credentialID !== assertion.id) {
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
-            newCounter = authenticationInfo.newCounter;
           }
         }
       } catch (error) {
@@ -398,7 +396,6 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             ? { sameSite: "lax", secure: false }
             : { domain, sameSite: "none", secure: true, partitioned: true }),
         }),
-        newCounter && database.update(credentials).set({ counter: newCounter }).where(eq(credentials.id, assertion.id)),
       ]);
 
       return c.json(
