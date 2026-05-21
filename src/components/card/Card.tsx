@@ -81,7 +81,7 @@ export default function Card() {
   const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
   const weeklyPurchases = purchases
     ? purchases.filter((item): item is Extract<CardActivity, { type: "panda" }> => {
-        if (item.type !== "panda") return false;
+        if (item.type !== "panda" || item.status === "declined") return false;
         const elapsedTime = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
         return elapsedTime <= 604_800;
       })

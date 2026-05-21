@@ -39,7 +39,8 @@ export default function ActivityItem({
 }) {
   const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
-  const processing = item.type === "panda" && country === "US" && isProcessing(item.timestamp);
+  const declined = item.type === "panda" && item.status === "declined";
+  const processing = item.type === "panda" && !declined && country === "US" && isProcessing(item.timestamp);
   const refund = item.type === "panda" && item.usdAmount < 0;
   const {
     t,
@@ -83,23 +84,27 @@ export default function ActivityItem({
               secondary
               caption
               numberOfLines={1}
-              color={processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralSecondary"}
+              color={
+                processing ? "$interactiveOnBaseWarningSoft" : declined ? "$uiErrorSecondary" : "$uiNeutralSecondary"
+              }
             >
-              {refund
-                ? t("Refund")
-                : processing
-                  ? t("Processing...")
-                  : (item.type === "card" || item.type === "panda") &&
-                    titleCase(
-                      [
-                        item.merchant.city,
-                        item.merchant.state,
-                        item.merchant.country && getName(item.merchant.country, "en"),
-                      ]
-                        .filter((field) => field && field !== "null")
-                        .join(", ")
-                        .toLowerCase(),
-                    )}
+              {declined
+                ? t("Payment failed")
+                : refund
+                  ? t("Refund")
+                  : processing
+                    ? t("Processing...")
+                    : (item.type === "card" || item.type === "panda") &&
+                      titleCase(
+                        [
+                          item.merchant.city,
+                          item.merchant.state,
+                          item.merchant.country && getName(item.merchant.country, "en"),
+                        ]
+                          .filter((field) => field && field !== "null")
+                          .join(", ")
+                          .toLowerCase(),
+                      )}
               {item.type !== "card" &&
                 item.type !== "panda" &&
                 "timestamp" in item &&
@@ -109,7 +114,14 @@ export default function ActivityItem({
           {"usdAmount" in item ? (
             <YStack gap="$s2">
               <XStack alignItems="center" justifyContent="flex-end">
-                <Text sensitive emphasized subHeadline textAlign="right">
+                <Text
+                  sensitive
+                  emphasized
+                  subHeadline
+                  textAlign="right"
+                  strikeThrough={declined}
+                  color="$uiNeutralPrimary"
+                >
                   {`$${Math.abs(item.usdAmount).toLocaleString(language, {
                     style: "decimal",
                     minimumFractionDigits: 2,

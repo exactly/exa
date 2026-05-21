@@ -10,7 +10,10 @@ export default function isProcessing(timestamp: number | string) {
 
 export function selectBalance(activity: ActivityItem[]) {
   return activity.reduce(
-    (total, item) => (item.type === "panda" && isProcessing(item.timestamp) ? total + item.usdAmount : total),
+    (total, item) =>
+      item.type === "panda" && item.status !== "declined" && isProcessing(item.timestamp)
+        ? total + item.usdAmount
+        : total,
     0,
   );
 }

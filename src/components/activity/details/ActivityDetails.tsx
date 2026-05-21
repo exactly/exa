@@ -8,6 +8,7 @@ import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
 import { useQuery } from "@tanstack/react-query";
 
 import CardActivity from "./CardActivity";
+import DeclinedActivity from "./DeclinedActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
@@ -42,7 +43,8 @@ export default function ActivityDetails() {
       {item.type === "received" && <ReceivedActivity item={item} />}
       {item.type === "repay" && <RepayActivity item={item} />}
       {item.type === "sent" && <SentActivity item={item} />}
-      {item.type === "panda" && <CardActivity item={item} />}
+      {item.type === "panda" &&
+        (item.status === "declined" ? <DeclinedActivity item={item} /> : <CardActivity item={item} />)}
       <ActionButton
         width="100%"
         alignSelf="flex-end"
