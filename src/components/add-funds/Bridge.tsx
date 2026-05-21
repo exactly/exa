@@ -579,12 +579,33 @@ export default function Bridge() {
           });
           id = result.id;
         } catch (error) {
-          if (isExaSender) throw error;
           if (classifyError(error).authKnown) throw error;
+          if (isExaSender && (!paymasterFee || !alchemyGasPolicyId)) throw error;
           reportError(error, {
             level: "warning",
             extra: error instanceof Error ? { cause: error.cause } : undefined,
           });
+          if (isExaSender) {
+            setBridgeStatus(t("Retrying bridge transaction..."));
+            const retry = await sendCallsTx({
+              chainId: source.chain,
+              calls: [
+                ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
+                { to: from.to, data: from.data, value: from.value },
+              ],
+              capabilities: {
+                paymasterService: {
+                  optional: true,
+                  url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                  context: { policyId: alchemyGasPolicyId },
+                },
+              },
+            });
+            const { status } = await waitForCallsStatus(senderConfig, { id: retry.id });
+            if (status === "failure") throw new Error("failed to submit bridge transaction", { cause: error });
+            setBridgeStatus(t("Bridge transaction submitted"));
+            return;
+          }
           await switchChain(senderConfig, { chainId: source.chain });
           if (approval) {
             const hash = await sendTx({ chainId: source.chain, to: getAddress(source.address), data: approval });

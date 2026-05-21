@@ -75,10 +75,14 @@ export function balancesOptions(account: Address | undefined, nonce?: number) {
     queryFn: async () => {
       if (!account) return {} as Record<number, TokenAmount[]>;
       ensureConfig();
-      const [balances, exa] = await Promise.all([
+      const [balances, lifiTokens, exa] = await Promise.all([
         getWalletBalances(account, nonce).catch((error: unknown) => {
           reportError(error);
           return {} as Record<number, TokenAmount[]>;
+        }),
+        queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
+          reportError(error);
+          return [] as Token[];
         }),
         chain.id === infra.optimism.id
           ? getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B")
@@ -89,6 +93,12 @@ export function balancesOptions(account: Address | undefined, nonce?: number) {
               })
           : undefined,
       ]);
+      const known = new Set(lifiTokens.map((token) => `${token.chainId}:${token.address.toLowerCase()}`));
+      if (known.size > 0) {
+        for (const [chainId, tokens] of Object.entries(balances)) {
+          balances[Number(chainId)] = tokens.filter((token) => known.has(`${chainId}:${token.address.toLowerCase()}`));
+        }
+      }
       if (exa) {
         balances[chain.id] = [
           exa,
