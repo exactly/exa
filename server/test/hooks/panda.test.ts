@@ -2281,25 +2281,17 @@ describe("concurrency", () => {
             args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
           },
         ),
-      ])
-        .then(() =>
-          keeper.writeContract({
+      ]).then(() =>
+        keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          {
             address: account2,
             abi: exaPluginAbi,
             functionName: "poke",
             args: [inject("MarketUSDC")],
-          }),
-        )
-        .then(async (hash) => {
-          const { status } = await publicClient.waitForTransactionReceipt({ hash, confirmations: 0 });
-          if (status !== "success") {
-            const trace = await traceClient.traceTransaction(hash);
-            const error = new Error(trace.output);
-            captureException(error, { contexts: { tx: { trace } } });
-            Object.assign(error, { trace });
-            throw error;
-          }
-        }),
+          },
+        ),
+      ),
     ]);
   });
 
@@ -2881,25 +2873,17 @@ describe("webhooks", () => {
             args: [0n, [{ x: hexToBigInt(webhookOwner.account.address), y: 0n }]],
           },
         ),
-      ])
-        .then(() =>
-          keeper.writeContract({
+      ]).then(() =>
+        keeper.exaSend(
+          { name: "poke", op: "exa.poke" },
+          {
             address: webhookAccount,
             abi: exaPluginAbi,
             functionName: "poke",
             args: [inject("MarketUSDC")],
-          }),
-        )
-        .then(async (hash) => {
-          const { status } = await publicClient.waitForTransactionReceipt({ hash, confirmations: 0 });
-          if (status !== "success") {
-            const trace = await traceClient.traceTransaction(hash);
-            const error = new Error(trace.output);
-            captureException(error, { contexts: { tx: { trace } } });
-            Object.assign(error, { trace });
-            throw error;
-          }
-        }),
+          },
+        ),
+      ),
     ]);
   });
 
