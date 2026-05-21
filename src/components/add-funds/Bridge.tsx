@@ -507,6 +507,7 @@ export default function Bridge() {
       setBridgeStatus(t("Submitting bridge transaction..."));
       try {
         let id: string | undefined;
+        let paymasterApproval: Hex | undefined;
         try {
           if (paymasterFee && paymasterAddress) {
             setBridgeStatus(t("Checking allowance..."));
@@ -521,37 +522,20 @@ export default function Bridge() {
               paymasterAllowance = 0n;
             }
             if ((paymasterAllowance ?? 0n) < erc20GasReserve) {
-              setBridgeStatus(t("Approving..."));
-              const result = await sendCallsTx({
-                chainId: source.chain,
-                calls: [
-                  {
-                    to: getAddress(paymasterFee.token.address),
-                    data: encodeFunctionData({
-                      abi: erc20Abi,
-                      functionName: "approve",
-                      args: [paymasterAddress, maxUint256],
-                    }),
-                  },
-                ],
-                capabilities: {
-                  paymasterService: {
-                    optional: true,
-                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    context: { policyId: bridgePolicyId },
-                  },
-                },
+              paymasterApproval = encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [paymasterAddress, maxUint256],
               });
-              const { status } = await waitForCallsStatus(senderConfig, { id: result.id });
-              if (status === "failure") throw new Error("failed to approve fee token");
-              const allowance = await refetchPaymasterAllowance();
-              if ((allowance.data ?? 0n) < erc20GasReserve) throw new Error("missing fee token allowance");
             }
             setBridgeStatus(t("Submitting bridge transaction..."));
           }
           const result = await sendCallsTx({
             chainId: source.chain,
             calls: [
+              ...(paymasterFee && paymasterApproval
+                ? [{ to: getAddress(paymasterFee.token.address), data: paymasterApproval }]
+                : []),
               ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
               { to: from.to, data: from.data, value: from.value },
             ],
