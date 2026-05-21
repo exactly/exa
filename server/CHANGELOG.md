@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.95
+
+### Patch Changes
+
+- [#1038](https://github.com/exactly/exa/pull/1038) [`14fdc02`](https://github.com/exactly/exa/commit/14fdc0272a7b47f55f4e01ae55f3f42a59ad0c25) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix multi-device passkey auth
+
+- [`204a4cf`](https://github.com/exactly/exa/commit/204a4cfb66f674753611044e18aa1438c1d38192) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚀 deploy new app version
+
+- [#1038](https://github.com/exactly/exa/pull/1038) [`3210782`](https://github.com/exactly/exa/commit/32107827fd32676fe01b06ef90c4db0b1c35e6da) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🗃️ drop passkey counter column
+
 ## 0.2.94
 
 ### Patch Changes

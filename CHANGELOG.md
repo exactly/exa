@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.10
+
+### Patch Changes
+
+- [#1028](https://github.com/exactly/exa/pull/1028) [`3a93b05`](https://github.com/exactly/exa/commit/3a93b051dca58edd7c289d6543f91d4de78cc0d2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix bridge fee estimation
+
+- [#1028](https://github.com/exactly/exa/pull/1028) [`32cacf7`](https://github.com/exactly/exa/commit/32cacf73b8500679be85599b5ad5249caf60cbb2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 filter unverified tokens from portfolio
+
+- [#1028](https://github.com/exactly/exa/pull/1028) [`7ac0a19`](https://github.com/exactly/exa/commit/7ac0a190089765ff748236dcd420ce92f2ecd651) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 batch fee token approval into bridge call
+
+- Updated dependencies [[`14fdc02`](https://github.com/exactly/exa/commit/14fdc0272a7b47f55f4e01ae55f3f42a59ad0c25), [`204a4cf`](https://github.com/exactly/exa/commit/204a4cfb66f674753611044e18aa1438c1d38192), [`3210782`](https://github.com/exactly/exa/commit/32107827fd32676fe01b06ef90c4db0b1c35e6da)]:
+  - @exactly/server@0.2.95
+
 ## 1.2.9
 
 ### Patch Changes
