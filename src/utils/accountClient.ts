@@ -18,6 +18,7 @@ import {
 } from "@aa-sdk/core";
 import {
   alchemy,
+  alchemyFeeEstimator,
   alchemyGasAndPaymasterAndDataMiddleware,
   alchemyGasManagerMiddleware,
   createAlchemyPublicRpcClient,
@@ -229,7 +230,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                       policyToken,
                       transport: remote.alchemyTransport,
                     })
-                  : {}),
+                  : {
+                      feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
+                      feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } },
+                    }),
                 customMiddleware: dummySignatureMiddleware,
               });
               const { hash } = await crossClient.sendUserOperation({
