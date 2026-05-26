@@ -16,7 +16,10 @@ import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { getName, registerLocale, type LocaleData } from "i18n-iso-countries/index";
+import { getName, registerLocale } from "i18n-iso-countries/index";
+import en from "i18n-iso-countries/langs/en.json";
+import es from "i18n-iso-countries/langs/es.json";
+import pt from "i18n-iso-countries/langs/pt.json";
 import { titleCase } from "title-case";
 
 import isProcessing from "../../utils/isProcessing";
@@ -26,7 +29,9 @@ import Text from "../shared/Text";
 
 import type { TFunction } from "i18next";
 
-registerLocale(require("i18n-iso-countries/langs/en.json") as LocaleData); // eslint-disable-line unicorn/prefer-module
+registerLocale(en);
+registerLocale(es);
+registerLocale(pt);
 
 export default function ActivityItem({
   item,
@@ -99,7 +104,7 @@ export default function ActivityItem({
                         [
                           item.merchant.city,
                           item.merchant.state,
-                          item.merchant.country && getName(item.merchant.country, "en"),
+                          item.merchant.country && getName(item.merchant.country, language.split("-")[0] ?? "en"),
                         ]
                           .filter((field) => field && field !== "null")
                           .join(", ")
