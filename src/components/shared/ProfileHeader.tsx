@@ -50,8 +50,11 @@ export default function ProfileHeader() {
             <Pressable
               hitSlop={15}
               onPress={() => {
-                setStringAsync(address).catch(reportError);
-                setCopyAddressShown(true);
+                setStringAsync(address)
+                  .then(() => {
+                    setCopyAddressShown(true);
+                  })
+                  .catch(reportError);
               }}
             >
               <View display="flex" flexDirection="row" alignItems="flex-start">

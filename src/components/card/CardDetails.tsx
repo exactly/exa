@@ -112,12 +112,15 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                       size={16}
                       color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                       onPress={() => {
-                        setStringAsync(details.pan).catch(reportError);
-                        toast.show(t("Card number copied!"), {
-                          native: true,
-                          duration: 1000,
-                          burntOptions: { haptic: "success" },
-                        });
+                        setStringAsync(details.pan)
+                          .then(() => {
+                            toast.show(t("Card number copied!"), {
+                              native: true,
+                              duration: 1000,
+                              burntOptions: { haptic: "success" },
+                            });
+                          })
+                          .catch(reportError);
                       }}
                     />
                   </XStack>

@@ -67,12 +67,15 @@ export default function TransactionDetails({
               alignItems="center"
               gap="$s3"
               onPress={() => {
-                setStringAsync(item.receiver).catch(reportError);
-                toast.show(t("Address copied!"), {
-                  native: true,
-                  duration: 1000,
-                  burntOptions: { haptic: "success" },
-                });
+                setStringAsync(item.receiver)
+                  .then(() => {
+                    toast.show(t("Address copied!"), {
+                      native: true,
+                      duration: 1000,
+                      burntOptions: { haptic: "success" },
+                    });
+                  })
+                  .catch(reportError);
               }}
             >
               <Text callout textDecorationLine="underline">
@@ -126,8 +129,15 @@ export default function TransactionDetails({
                 onPress={() => {
                   const explorerUrl = chain.blockExplorers?.default.url;
                   if (!explorerUrl) return;
-                  setStringAsync(`${explorerUrl}/tx/${item.transactionHash}`).catch(reportError);
-                  toast.show(t("Link copied!"), { native: true, duration: 1000, burntOptions: { haptic: "success" } });
+                  setStringAsync(`${explorerUrl}/tx/${item.transactionHash}`)
+                    .then(() => {
+                      toast.show(t("Link copied!"), {
+                        native: true,
+                        duration: 1000,
+                        burntOptions: { haptic: "success" },
+                      });
+                    })
+                    .catch(reportError);
                 }}
               >
                 <Copy size="$iconSize.md" strokeWidth="$iconStroke.md" color="$interactiveBaseBrandDefault" />

@@ -117,8 +117,11 @@ export default function Settings() {
             <Pressable
               hitSlop={20}
               onPress={() => {
-                setStringAsync(release).catch(reportError);
-                Alert.alert(t("Copied"), t("App version has been copied to the clipboard."));
+                setStringAsync(release)
+                  .then(() => {
+                    Alert.alert(t("Copied"), t("App version has been copied to the clipboard."));
+                  })
+                  .catch(reportError);
               }}
             >
               <Text footnote color="$uiNeutralSecondary" textAlign="center">

@@ -63,8 +63,11 @@ export default function AddCrypto() {
 
   const copy = useCallback(() => {
     if (!address) return;
-    setStringAsync(address).catch(reportError);
-    setCopyAddressShown(true);
+    setStringAsync(address)
+      .then(() => {
+        setCopyAddressShown(true);
+      })
+      .catch(reportError);
   }, [address]);
 
   const share = useCallback(async () => {

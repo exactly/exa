@@ -40,8 +40,11 @@ export default function OperationDetails({ item }: { item: CreditActivity | Debi
             callout
             color="$uiNeutralPrimary"
             onPress={() => {
-              setStringAsync(item.id).catch(reportError);
-              Alert.alert(t("Copied!"), t("The operation ID has been copied to the clipboard."));
+              setStringAsync(item.id)
+                .then(() => {
+                  Alert.alert(t("Copied!"), t("The operation ID has been copied to the clipboard."));
+                })
+                .catch(reportError);
             }}
             hitSlop={15}
           >

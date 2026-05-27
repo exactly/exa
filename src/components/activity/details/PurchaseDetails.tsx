@@ -56,12 +56,15 @@ export default function PurchaseDetails({
             </Text>
             <Pressable
               onPress={() => {
-                setStringAsync(item.id).catch(reportError);
-                toast.show(t("Operation ID copied!"), {
-                  native: true,
-                  duration: 1000,
-                  burntOptions: { haptic: "success" },
-                });
+                setStringAsync(item.id)
+                  .then(() => {
+                    toast.show(t("Operation ID copied!"), {
+                      native: true,
+                      duration: 1000,
+                      burntOptions: { haptic: "success" },
+                    });
+                  })
+                  .catch(reportError);
               }}
               hitSlop={15}
             >
