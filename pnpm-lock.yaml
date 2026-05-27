@@ -12987,8 +12987,8 @@ packages:
   title-case@4.3.2:
     resolution: {integrity: sha512-I/nkcBo73mO42Idfv08jhInV61IMb61OdIFxk+B4Gu1oBjWBPOLmhZdsli+oJCVaD+86pYQA93cJfFt224ZFAA==}
 
-  tmp@0.2.5:
-    resolution: {integrity: sha512-voyz6MApa1rQGUxT3E+BK7/ROe8itEx7vD8/HEvt4xwXucvQ5G5oeEiHkmHZJuBO21RpOf+YYm9MOivj709jow==}
+  tmp@0.2.6:
+    resolution: {integrity: sha512-5sJPdPjfI5Kx+qbrDesxkglRBxW//g7hCsqspEjwkewGvBMGIKMOTKzLt1hFVJzyadba3lDUN20O9qhvbQUSTA==}
     engines: {node: '>=14.14'}
 
   tmpl@1.0.5:
@@ -27186,7 +27186,7 @@ snapshots:
       semver: 7.7.4
       string-width: 4.2.3
       tar-stream: 2.2.0
-      tmp: 0.2.5
+      tmp: 0.2.6
       tree-kill: 1.2.2
       tsconfig-paths: 4.2.0
       tslib: 2.8.1
@@ -28232,7 +28232,7 @@ snapshots:
       rimraf: 5.0.10
       semver: 7.7.4
       tar: 7.5.13
-      tmp: 0.2.5
+      tmp: 0.2.6
       uuid: 8.3.2
     transitivePeerDependencies:
       - supports-color
@@ -29403,7 +29403,7 @@ snapshots:
 
   title-case@4.3.2: {}
 
-  tmp@0.2.5: {}
+  tmp@0.2.6: {}
 
   tmpl@1.0.5: {}
 
