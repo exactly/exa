@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.96
+
+### Patch Changes
+
+- [#1047](https://github.com/exactly/exa/pull/1047) [`d886e71`](https://github.com/exactly/exa/commit/d886e71afa98a87c559b6f916b108e640b5c1ea1) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔊 log suspicious user
+
 ## 0.2.95
 
 ### Patch Changes
