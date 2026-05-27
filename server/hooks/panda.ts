@@ -1003,6 +1003,13 @@ export default new Hono().post(
                 ? v.parse(TransactionPayload, tx.payload).bodies.some((body) => body.action === "created")
                 : false;
               if (!tx || !hasCreated) {
+                debug("suspicious-user:%j", {
+                  eventId: payload.id,
+                  transactionId: payload.body.id,
+                  userId: payload.body.spend.userId,
+                  account,
+                  amount: payload.body.spend.amount,
+                });
                 await updateUser({ id: payload.body.spend.userId, isActive: false });
                 getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
                 return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);

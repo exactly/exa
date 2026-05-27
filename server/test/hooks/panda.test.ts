@@ -2132,6 +2132,13 @@ describe("card operations", () => {
 
         expect(completeResponse.status).toBe(556);
         expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
+          eventId: authorization.json.id,
+          transactionId: cardId,
+          userId: account,
+          account,
+          amount: capture,
+        });
       });
     });
   });
@@ -3579,10 +3586,15 @@ const userResponseTemplate = {
 } as const;
 
 vi.mock("@sentry/node", { spy: true });
+const pandaLogger = vi.hoisted(() => vi.fn());
 const webhookLogger = vi.hoisted(() => vi.fn());
 
 vi.mock("debug", () => {
-  const createDebug = vi.fn().mockReturnValueOnce(vi.fn()).mockReturnValueOnce(webhookLogger);
+  const createDebug = vi.fn((namespace: string) => {
+    if (namespace === "exa:panda") return pandaLogger;
+    if (namespace === "exa:webhook") return webhookLogger;
+    return vi.fn();
+  });
   return { default: createDebug };
 });
 
