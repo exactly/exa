@@ -294,7 +294,9 @@ export default new Hono().post(
           where: eq(cards.id, payload.body.spend.cardId),
           with: { credential: { columns: { account: true, id: true, source: true } } },
         });
-        if (!card) return c.json({ code: "card not found" }, 404);
+        if (!card) {
+          return c.json({ code: "card not found", rejectionCode: "UNKNOWN" }, 404);
+        }
 
         const account = v.parse(Address, card.credential.account);
         setUser({ id: account });
@@ -304,12 +306,12 @@ export default new Hono().post(
 
           await reject(account, payload, jsonBody, "frozenCard");
 
-          return c.json({ code: "frozen card" }, 403 as UnofficialStatusCode);
+          return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
         }
 
         if (card.status !== "ACTIVE") {
           trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "card-not-active");
-          return c.json({ code: "card not active" }, 403);
+          return c.json({ code: "card not active", rejectionCode: "NOT_PERMITTED" }, 403);
         }
         const assess = () => {
           return risk({
@@ -357,7 +359,7 @@ export default new Hono().post(
           if (error === E_TIMEOUT) {
             captureException(error, { level: "fatal", tags: { unhandled: true } });
             trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "mutex-timeout");
-            return c.json({ code: "mutex timeout" }, 554 as UnofficialStatusCode);
+            return c.json({ code: "mutex timeout", rejectionCode: "UNKNOWN" }, 554 as UnofficialStatusCode);
           }
           trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unknown-error");
           throw error;
@@ -444,7 +446,11 @@ export default new Hono().post(
               if (contractError instanceof BaseError && contractError.cause instanceof ContractFunctionRevertedError) {
                 switch (contractError.cause.data?.errorName) {
                   case "InsufficientAccountLiquidity":
-                    throw new PandaError("InsufficientAccountLiquidity", 557 as UnofficialStatusCode);
+                    throw new PandaError(
+                      "InsufficientAccountLiquidity",
+                      557 as UnofficialStatusCode,
+                      "INSUFFICIENT_FUNDS",
+                    );
                   case "Replay":
                     throw new PandaError("Replay", 558 as UnofficialStatusCode);
                 }
@@ -496,14 +502,17 @@ export default new Hono().post(
               await reject(account, payload, jsonBody, error.message);
             }
 
-            return c.json({ code: error.message }, error.statusCode as UnofficialStatusCode);
+            return c.json(
+              { code: error.message, rejectionCode: error.rejectionCode },
+              error.statusCode as UnofficialStatusCode,
+            );
           }
           trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unexpected-error");
           captureException(error, { level: "error", tags: { unhandled: true } });
 
           await reject(account, payload, jsonBody, error instanceof Error ? error.message : "unexpected error");
 
-          return c.json({ code: "ouch" }, 569 as UnofficialStatusCode);
+          return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
         }
       }
       case "completed":
@@ -1302,6 +1311,7 @@ class PandaError extends Error {
   constructor(
     message: string,
     public statusCode: number,
+    public rejectionCode: "INSUFFICIENT_FUNDS" | "NOT_PERMITTED" | "UNKNOWN" = "UNKNOWN",
   ) {
     super(message);
     this.name = "PandaError";

@@ -128,6 +128,10 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(557);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "InsufficientAccountLiquidity",
+          rejectionCode: "INSUFFICIENT_FUNDS",
+        });
         expect(captureException).not.toHaveBeenCalled();
       });
 
@@ -148,10 +152,70 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(558);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "Replay",
+          rejectionCode: "UNKNOWN",
+        });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "Replay" }),
           expect.objectContaining({ level: "error", tags: { unhandled: true } }),
         );
+      });
+
+      it("fails with card not found", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "rc-missing" } },
+          },
+        });
+
+        expect(response.status).toBe(404);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "card not found",
+          rejectionCode: "UNKNOWN",
+        });
+      });
+
+      it("fails with frozen card", async () => {
+        const cardId = "rc-frozen";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0001", status: "FROZEN" }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "frozen card",
+          rejectionCode: "NOT_PERMITTED",
+        });
+      });
+
+      it("fails with inactive card", async () => {
+        const cardId = "rc-deleted";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", lastFour: "0002", status: "DELETED" }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "card not active",
+          rejectionCode: "NOT_PERMITTED",
+        });
       });
 
       it("fails with bad panda", async () => {
@@ -309,6 +373,74 @@ describe("card operations", () => {
           expect.objectContaining({ level: "error", tags: { unhandled: true } }),
         );
         expect(response.status).toBe(550);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "tx reverted",
+          rejectionCode: "UNKNOWN",
+        });
+      });
+
+      it("fails with bad collection", async () => {
+        vi.spyOn(traceClient, "traceCall").mockResolvedValueOnce({ ...callFrame });
+        const cardId = "rc-bad-collection";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0004", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(551);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "bad collection",
+          rejectionCode: "UNKNOWN",
+        });
+      });
+
+      it("fails with mutex timeout", async () => {
+        const cardId = "rc-mutex";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0003" }]);
+        const mutex = panda.createMutex(account);
+        await mutex.acquire();
+        try {
+          const response = await appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId } },
+            },
+          });
+
+          expect(response.status).toBe(554);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "mutex timeout",
+            rejectionCode: "UNKNOWN",
+          });
+        } finally {
+          mutex.release();
+        }
+      });
+
+      it("fails with unexpected outer-catch error", async () => {
+        vi.spyOn(panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        const cardId = "rc-ouch";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "ouch",
+          rejectionCode: "UNKNOWN",
+        });
       });
 
       it("alarms high risk authorization", async () => {
@@ -2812,6 +2944,10 @@ describe("concurrency", () => {
       });
 
       expect(response.status).toBe(569);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "unexpected error",
+        rejectionCode: "UNKNOWN",
+      });
       expect(sendPushNotificationSpy).not.toHaveBeenCalled();
     });
   });
