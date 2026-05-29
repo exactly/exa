@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 
 import { ArrowLeft, Headphones } from "@tamagui/lucide-icons";
-import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -27,19 +26,18 @@ export default function ActivityDetails() {
   if (!item) return null;
   return (
     <GradientScrollView variant="neutral" stickyHeader>
-      <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
-        <IconButton
-          icon={ArrowLeft}
-          aria-label={t("Back")}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/(main)/(home)");
-            }
-          }}
-        />
-      </XStack>
+      <IconButton
+        alignSelf="flex-start"
+        icon={ArrowLeft}
+        aria-label={t("Back")}
+        onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(main)/(home)");
+          }
+        }}
+      />
       {item.type === "card" && <CardActivity item={item} />}
       {item.type === "received" && <ReceivedActivity item={item} />}
       {item.type === "repay" && <RepayActivity item={item} />}
