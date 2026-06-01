@@ -655,3 +655,121 @@ This webhook is currently triggered when a user adds their card to a digital wal
 | body.limit.frequency | "per24HourPeriod" \| "per7DayPeriod" \| "per30DayPeriod" \| "perYearPeriod" | frequency of the spending limit | per7DayPeriod |
 | body.status | "ACTIVE" \| "FROZEN" \| "DELETED" \| "INACTIVE" | current status of the card | ACTIVE |
 | body.tokenWallets | ["Apple"] \| ["Google Pay"] \| undefined | array of token wallets | ["Apple"] |
+
+## Webhook API migration guide
+
+### Summary table
+
+| # | Break | Previous behavior | New behavior | Client suggestion |
+| --- | --- | --- | --- | --- |
+| 1 | `GET /webhook/:name` returns 404 when the webhook (or source) is missing | Not available — only the collection endpoint existed | The **collection** `GET /webhook` still returns `200 {}` when the org has no source; only the **single** `GET /webhook/:name` returns `404 { "code": "not found" }` when the source or named webhook is missing | For single reads via `:name`, treat 404 as "no such webhook"; the collection endpoint stays `200 {}` when empty |
+| 2 | New path variant `GET /webhook/:name` | Not available — only collection endpoint | Returns the single matching webhook, or `404 { "code": "not found" }` | Switch single-webhook reads from `GET /webhook` + client-side lookup to `GET /webhook/:name` |
+| 3 | `POST /webhook` no longer overwrites | Reusing a `name` overwrote the existing webhook (including url/event maps) and returned `200` | Duplicate `name` returns `409 { "code": "name conflict" }` | Replace the overwrite flow with `PATCH /webhook/:name` (or delete-then-create if you must keep the old call shape) |
+| 4 | `POST /webhook` success status `200` → `201` | `200 OK` on create or update | `201 Created` on create only | Accept `201` (or `>=200 <300`) instead of strict `200` equality |
+| 5 | `POST /webhook` response shape gains `name` | `{ url, transaction?, card?, user?, secret }` | `{ name, url, transaction?, card?, user?, secret }` | Not breaking if clients ignored unknown fields, but valibot/zod consumers should add `name` to the schema |
+| 6 | `POST /webhook` accepts name via path | Required `name` field in body | Name accepted as path param (`POST /webhook/:name`) **or** body field; path wins when both present; missing both → `400 { "code": "invalid name" }` | Prefer the path form for new code; the body form still works for backwards compatibility |
+| 7 | `name` must match slug regex `^[a-z0-9-]{1,64}$` | Any non-empty string accepted | Invalid name → `400 { "code": "invalid name" }` (also on `GET/PATCH/DELETE /:name`) | Normalize names client-side to lowercase, digits, hyphens, ≤64 chars |
+| 8 | URL validation rejects non-https and private/loopback hosts | Used the `isValid` helper (lenient — allowed http and any reachable host) | Rejects: non-`https:`, unresolvable hosts, and addresses in `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `0.0.0.0`, `::1`, `fc00::/7`, `fe80::/10`, `2001:db8::/32` → `400 { "code": "invalid url" }` (the handler catches the validation error and returns only `code`; no `message` array is sent despite the OpenAPI schema allowing one) | Use only public https endpoints; update local-dev tunnels (ngrok et al. — must resolve to a public IP) |
+| 9 | New `PATCH /webhook/:name` endpoint | Not available | Partial update; omitted fields preserved; `null` on a per-event URL clears it; the parent group is dropped when empty; `404` if the webhook is missing; secret preserved and not returned | Use `PATCH` for any field change; do not re-`POST` the same name |
+| 10 | `DELETE /webhook` body → `DELETE /webhook/:name` path | Name passed as a `{ "name": "..." }` JSON body | Name is a **required path param**; body ignored | Move the name to the URL; remove the JSON body and `content-type: application/json` from delete requests |
+| 11 | `DELETE` no longer silent on missing name | Unknown name returned `200 { "code": "ok" }` | `404 { "code": "not found" }` | Stop relying on an idempotent "ok" — treat 404 as already-deleted if that's acceptable |
+| 12 | `DELETE` of the last webhook drops the source row | Source row preserved with an empty webhooks map | When the last webhook is deleted, the entire `sources` row is deleted | The collection `GET /webhook` then returns `200 {}` (not 404); a subsequent `GET /webhook/:name` returns `404 not found` — see break #1 |
+| 13 | Secret length doubled (16 → 32 bytes hex) | 32-char hex string | 64-char hex string | Widen any fixed-length column / validation regex storing the secret |
+| 14 | New source `type` is `"integrator"` (was `"uphold"`) | `WebhookConfig.type === "uphold"` when the first webhook was created | `WebhookConfig.type === "integrator"` for new sources; existing rows untouched | Only relevant if a client reads/parses the raw `sources.config.type` — accept both values |
+| 15 | New permission `webhook:update` | Roles `admin`/`owner` had `["create","delete","read"]` | Roles now also have `"update"`; `PATCH` requires it | Re-issue better-auth role assignments if you cache them; the member role is unchanged |
+| 16 | `POST` body URL fields now strictly validated as URLs at the API boundary | `BaseWebhook.url` etc. were plain `string()` (validation happened elsewhere) | Every URL field uses `pipe(string(), url())` — malformed strings fail `400` before URL-reachability checks | Ensure `transaction.{created,updated,completed}`, `card.updated`, `user.updated`, and top-level `url` are well-formed absolute URLs |
+
+### Examples
+
+#### Break #1 — collection stays `{}`, single `:name` is 404
+
+```http
+# collection endpoint — empty org still returns 200 {}
+GET /webhook
+HTTP/1.1 200 OK
+{}
+
+# single-webhook endpoint — missing source or name returns 404
+GET /webhook/main
+HTTP/1.1 404 Not Found
+{ "code": "not found" }
+```
+
+#### Break #3 / #4 — POST no longer overwrites, 201 instead of 200
+
+```http
+# before — same name twice, second call overwrote
+POST /webhook            { "name": "main", "url": "https://a/" }   -> 200 { url:"https://a/", secret:"…" }
+POST /webhook            { "name": "main", "url": "https://b/" }   -> 200 { url:"https://b/", secret:"…" } (overwrite)
+
+# after
+POST /webhook            { "name": "main", "url": "https://a/" }   -> 201 { name:"main", url:"https://a/", secret:"…" }
+POST /webhook            { "name": "main", "url": "https://b/" }   -> 409 { "code": "name conflict" }
+PATCH /webhook/main      { "url": "https://b/" }                   -> 200 { url:"https://b/", … }
+```
+
+#### Break #6 / #7 — name in path, slug regex
+
+```http
+# valid
+POST /webhook/main-prod  { "url": "https://hooks.example.com/" }   -> 201
+
+# invalid name
+POST /webhook            { "name": "Main_Prod!", "url": "https://hooks.example.com/" }  -> 400 { "code":"invalid name" }
+```
+
+#### Break #8 — URL validation: https + public address
+
+```http
+POST /webhook/dev { "url": "http://localhost:3000/hook" }   -> 400 { "code":"invalid url" }
+POST /webhook/dev { "url": "https://10.0.0.5/hook" }        -> 400 { "code":"invalid url" }
+POST /webhook/dev { "url": "https://hooks.example.com/" }   -> 201
+```
+
+#### Break #9 — PATCH semantics
+
+```http
+# clear card.updated, keep everything else
+PATCH /webhook/main  { "card": { "updated": null } }
+-> 200  { "url": "...", "transaction": {...}, "user": {...} }   # no "card" group anymore
+
+# replace url only
+PATCH /webhook/main  { "url": "https://new.example.com/" }
+-> 200  { "url": "https://new.example.com/", "transaction": {...}, ... }
+```
+
+Note: the secret is **not** returned by `PATCH` (only by `POST` on create).
+
+#### Break #10 / #11 — DELETE is path-based and not idempotent
+
+```http
+# before
+DELETE /webhook
+Content-Type: application/json
+{ "name": "main" }
+-> 200 { "code": "ok" }   # even when "main" didn't exist
+
+# after
+DELETE /webhook/main
+-> 200 { "code": "ok" }
+DELETE /webhook/main      # again
+-> 404 { "code": "not found" }
+```
+
+#### Break #13 — secret length
+
+```jsonc
+// before
+{ "secret": "9f3c…",            /* 32 hex chars (16 bytes) */ }
+// after
+{ "secret": "9f3c…ab12…",       /* 64 hex chars (32 bytes) */ }
+```
+
+### Quick migration checklist
+
+1. Swap `DELETE /webhook` (body) → `DELETE /webhook/:name` (path).
+2. Accept `201` on `POST /webhook[/:name]`; handle `409 name conflict` explicitly.
+3. Add a `PATCH /webhook/:name` code path for updates instead of re-`POST`ing.
+4. Handle `404` on `GET /webhook/:name` (single missing); note the collection `GET /webhook` still returns `200 {}` when empty.
+5. Slugify names to `[a-z0-9-]{1,64}` before any call that takes `:name`.
+6. Widen secret storage to 64 chars.
