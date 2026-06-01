@@ -6,6 +6,7 @@ module.exports = {
   ignorePaths: ["package.json", "patches/*", "src/generated/versionCode.js"],
   extraSources: [
     { type: "contents", id: "APP_DOMAIN", contents: env.APP_DOMAIN ?? "" },
+    { type: "contents", id: "EXPO_PUBLIC_ENV", contents: env.EXPO_PUBLIC_ENV ?? "" },
     { type: "contents", id: "NODE_ENV", contents: env.NODE_ENV ?? "" }, // eslint-disable-line @typescript-eslint/no-unnecessary-condition -- can be undefined
   ],
 };
