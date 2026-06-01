@@ -27,12 +27,6 @@ export default {
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
     versionCode,
-    splash: {
-      backgroundColor: "#FCFCFC",
-      image: "src/assets/splash.png",
-      resizeMode: "contain",
-      dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
-    },
   },
   ios: {
     icon: "src/assets/icon.png",
@@ -47,12 +41,6 @@ export default {
       NSLocationWhenInUseUsageDescription: "Exa uses your location to verify your identity.",
     },
     userInterfaceStyle: "automatic",
-    splash: {
-      backgroundColor: "#FCFCFC",
-      image: "src/assets/splash.png",
-      resizeMode: "contain",
-      dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
-    },
   },
   web: { output: "static", favicon: "src/assets/favicon.png" },
   plugins: [
@@ -83,6 +71,15 @@ export default {
       { supportedLocales: ["en", "es", "es-AR", "es-CR", "es-GT", "es-HN", "es-NI", "es-PY", "es-SV", "es-UY", "pt"] },
     ],
     "expo-router",
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: "#FCFCFC",
+        image: "src/assets/splash.png",
+        resizeMode: "contain",
+        dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
+      },
+    ],
     [
       "@intercom/intercom-react-native",
       {

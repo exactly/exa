@@ -12,6 +12,7 @@
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
+      "expo-build-properties/build/pluginConfig": ["./node_modules/expo-build-properties/build/pluginConfig.d.ts"],
       "expo-font/plugin/build/withFonts": ["./node_modules/expo-font/plugin/build/withFonts.d.ts"],
       "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types": [
         "./node_modules/@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types.d.ts"
