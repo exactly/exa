@@ -6,6 +6,7 @@ jobs:
   fingerprint:
     type: fingerprint
     environment: development
+    env: { EXPO_PUBLIC_ENV: e2e }
 
   ios_get:
     type: get-build
