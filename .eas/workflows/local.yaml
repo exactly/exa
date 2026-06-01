@@ -10,7 +10,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     type: fingerprint
     environment: development
-    env: { APP_DOMAIN: localhost, CHAIN_ID: "31337" }
+    env: { APP_DOMAIN: localhost, CHAIN_ID: "31337", EXPO_PUBLIC_ENV: e2e }
 
   android_get:
     type: get-build
