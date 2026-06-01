@@ -56,6 +56,12 @@ export default {
     ],
     "expo-camera",
     [
+      "expo-dev-client",
+      env.EXPO_PUBLIC_ENV === "e2e"
+        ? { launchMode: "most-recent", toolsButton: false, skipOnboarding: true, showMenuAtLaunch: false }
+        : {},
+    ],
+    [
       "expo-font",
       {
         fonts: [
