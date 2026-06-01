@@ -265,6 +265,9 @@ export async function getProvider(params: {
   if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
 
   const countryCode = personaAccount.attributes["country-code"];
+  if (Denylist.has(countryCode)) {
+    return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+  }
   const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
   const idClass = safeParse(picklist(persona.IdentificationClasses), validDocument.id_class.value);
@@ -320,6 +323,13 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
   if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
 
   const countryCode = personaAccount.attributes["country-code"];
+  if (Denylist.has(countryCode)) {
+    captureException(new Error("bridge denylisted country"), {
+      contexts: { bridge: { credentialId: params.credentialId, countryCode } },
+      level: "warning",
+    });
+    throw new Error(ErrorCodes.DENYLISTED_COUNTRY);
+  }
 
   const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
@@ -517,6 +527,7 @@ function containsRequirement(node: unknown, targets: Set<string>): boolean {
   return false;
 }
 
+const Denylist = new Set(["ID"]);
 const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa
 export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
@@ -1085,6 +1096,7 @@ function getDepositDetailsFromLiquidationAddress(
 export const ErrorCodes = {
   ALREADY_ONBOARDED: "already onboarded",
   BAD_BRIDGE_ID: "bad bridge id",
+  DENYLISTED_COUNTRY: "denylisted country",
   EMAIL_ALREADY_EXISTS: "email already exists",
   INVALID_ACCOUNT: "invalid destination account",
   INVALID_ADDRESS: "invalid address",

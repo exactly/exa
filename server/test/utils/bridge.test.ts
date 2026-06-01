@@ -1091,6 +1091,19 @@ describe("bridge utils", () => {
         await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
       });
 
+      it("returns NOT_AVAILABLE when country is denylisted", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+          ...personaAccount,
+          attributes: { ...personaAccount.attributes, "country-code": "ID" },
+        });
+
+        const result = await bridge.getProvider({ credentialId: "cred-1" });
+
+        expect(result).toStrictEqual({ onramp: { currencies: [] }, status: "NOT_AVAILABLE" });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
       it("returns NOT_AVAILABLE when id class is not mappable to bridge type", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
@@ -1297,6 +1310,26 @@ describe("bridge utils", () => {
       await expect(
         bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
+    });
+
+    it("throws DENYLISTED_COUNTRY when country is denylisted", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...personaAccount,
+        attributes: { ...personaAccount.attributes, "country-code": "ID" },
+      });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.DENYLISTED_COUNTRY);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge denylisted country" }),
+        expect.objectContaining({
+          contexts: { bridge: { credentialId: "cred-1", countryCode: "ID" } },
+          level: "warning",
+        }),
+      );
     });
 
     it("throws when front document photo is missing", async () => {
