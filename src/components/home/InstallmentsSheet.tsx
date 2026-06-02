@@ -12,7 +12,7 @@ import { View, XStack, YStack } from "tamagui";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import { presentArticle } from "../../utils/intercom";
-import { isPromoActive, isPromoted } from "../../utils/promo";
+import { getPromoMonths, isPromoActive, isPromoted } from "../../utils/promo";
 import reportError from "../../utils/reportError";
 import useInstallmentRates from "../../utils/useInstallmentRates";
 import IconButton from "../shared/IconButton";
@@ -37,6 +37,7 @@ export default function InstallmentsSheet({
     t,
     i18n: { language },
   } = useTranslation();
+  const { promoEnd, refund } = getPromoMonths(language);
   const [selected, setSelected] = useState(mode > 0 ? mode : 1);
   useEffect(() => {
     if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
@@ -80,7 +81,7 @@ export default function InstallmentsSheet({
                 >
                   <XStack alignItems="center" gap="$s2">
                     <Text emphasized subHeadline color="$interactiveOnBaseSuccessDefault">
-                      {t("*0% interest promo through May")}
+                      {t("*0% interest promo through {{month}}", { month: promoEnd })}
                     </Text>
                     <IconButton
                       icon={Info}
@@ -93,7 +94,9 @@ export default function InstallmentsSheet({
                     />
                   </XStack>
                   <Text caption2 color="$interactiveOnBaseSuccessDefault">
-                    {t("Applies only for 1, 2, or 3 installments. Interest is reimbursed in early June.")}
+                    {t("Applies only for 1, 2, or 3 installments. Interest is reimbursed in early {{month}}.", {
+                      month: refund,
+                    })}
                   </Text>
                 </YStack>
               )}

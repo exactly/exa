@@ -7,6 +7,7 @@ import { View, XStack, YStack } from "tamagui";
 
 import ExaPromoSvg from "../../assets/images/exa-promo.svg";
 import { presentArticle } from "../../utils/intercom";
+import { getPromoMonths } from "../../utils/promo";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
@@ -35,6 +36,7 @@ export default function PromoSheet({
     t,
     i18n: { language },
   } = useTranslation();
+  const { promoEnd, refund } = getPromoMonths(language);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView paddingTop={0} borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="$backgroundSoft">
@@ -78,8 +80,12 @@ export default function PromoSheet({
             </Text>
             <Text footnote secondary textAlign="center">
               {t(
-                "Pay in 1, 2, or 3 installments at 0% interest on Exa Card purchases up to {{limit}}, through May. Interest is reimbursed in early June.",
-                { limit: `$${(5000).toLocaleString(language, { maximumFractionDigits: 0 })}` },
+                "Pay in 1, 2, or 3 installments at 0% interest on Exa Card purchases up to {{limit}}, through {{promoEnd}}. Interest is reimbursed in early {{refund}}.",
+                {
+                  limit: `$${(5000).toLocaleString(language, { maximumFractionDigits: 0 })}`,
+                  promoEnd,
+                  refund,
+                },
               )}
             </Text>
           </YStack>

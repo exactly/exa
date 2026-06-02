@@ -1,14 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable } from "react-native";
 
-import { setStringAsync } from "expo-clipboard";
-
-import { Copy, ExternalLink, X } from "@tamagui/lucide-icons";
-import { useToastController } from "@tamagui/toast";
-import { ScrollView, Spinner, XStack, YStack } from "tamagui";
-
-import { useQuery } from "@tanstack/react-query";
+import { ExternalLink, X } from "@tamagui/lucide-icons";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
@@ -20,7 +14,6 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Benefit } from "./BenefitsSection";
-import type { PaxId } from "../../utils/server";
 
 type BenefitSheetProperties = {
   benefit: Benefit | undefined;
@@ -33,19 +26,6 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
     t,
     i18n: { language },
   } = useTranslation();
-  const toast = useToastController();
-
-  const {
-    data: paxData,
-    isError: isPaxError,
-    isLoading: isPaxLoading,
-  } = useQuery<PaxId>({
-    queryKey: ["pax", "id"],
-    enabled: benefit?.id === "pax" && open,
-  });
-
-  const paxLabel = paxData ? t("Copy Pax ID {{id}}", { id: paxData.associateId }) : undefined;
-  const web = Platform.OS === "web";
 
   if (!benefit) return null;
 
@@ -86,83 +66,20 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                   ))}
                 </YStack>
               )}
-              {benefit.id === "pax" && (
-                <Pressable
-                  aria-label={web ? undefined : paxLabel}
-                  disabled={!paxData || isPaxError}
-                  onPress={() => {
-                    if (!paxData) return;
-                    setStringAsync(paxData.associateId)
-                      .then(() => {
-                        toast.show(t("Pax ID copied!"), {
-                          native: true,
-                          duration: 1000,
-                          burntOptions: { haptic: "success" },
-                        });
-                      })
-                      .catch(reportError);
-                  }}
-                >
-                  <XStack
-                    backgroundColor="$backgroundMild"
-                    borderRadius="$r3"
-                    padding="$s4"
-                    justifyContent="space-between"
-                    alignItems="center"
-                  >
-                    {paxLabel && (
-                      <Text
-                        aria-label={web ? paxLabel : undefined}
-                        aria-hidden={!web}
-                        position="absolute"
-                        opacity={0}
-                        pointerEvents="none"
-                      >
-                        {paxLabel}
-                      </Text>
-                    )}
-                    {isPaxLoading ? (
-                      <Spinner color="$uiNeutralSecondary" />
-                    ) : paxData ? (
-                      <Text emphasized body mono>
-                        {paxData.associateId}
-                      </Text>
-                    ) : (
-                      <Text body color="$uiNeutralSecondary">
-                        {t("Failed to load")}
-                      </Text>
-                    )}
-                    <XStack
-                      alignItems="center"
-                      gap="$s1"
-                      backgroundColor="$interactiveBaseSuccessDefault"
-                      paddingHorizontal="$s3"
-                      paddingVertical="$s2"
-                    >
-                      <Text caption2 color="$interactiveOnBaseSuccessDefault">
-                        {t("COPY ID")}
-                      </Text>
-                      <Copy size={16} color="$interactiveOnBaseSuccessDefault" />
-                    </XStack>
-                  </XStack>
-                </Pressable>
-              )}
             </YStack>
             <Button
-              disabled={benefit.id === "pax" && (isPaxLoading || isPaxError || !paxData)}
               backgroundColor="$interactiveBaseBrandDefault"
               justifyContent="space-between"
               minHeight={64}
               padding="$s4"
               onPress={() => {
                 if (!benefit.url) return;
-                let url = benefit.url
+                const url = benefit.url
                   .replace(
                     "{locale}",
                     language.split("-")[1]?.toLowerCase() ?? { es: "ar", pt: "br" }[language] ?? "us",
                   )
                   .replace("{language}", language.split("-")[0] ?? "en");
-                if (benefit.id === "pax" && paxData?.associateId) url += `?cid=${paxData.associateId}`;
                 openBrowser(url).catch(reportError);
               }}
             >

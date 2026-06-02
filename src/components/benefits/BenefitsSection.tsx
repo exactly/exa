@@ -1,15 +1,13 @@
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import type { ComponentProps } from "react";
-import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
-import type { SharedValue } from "react-native-reanimated";
-import { Easing, Extrapolation, interpolate, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { Easing } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { useTheme, View, XStack } from "tamagui";
+import { useTheme, View } from "tamagui";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
@@ -17,13 +15,9 @@ import AiraloLogo from "../../assets/images/airalo.svg";
 import airaloImage from "../../assets/images/airalo.webp";
 import exaLogo from "../../assets/images/exa-logo.svg";
 import ExaPromoSvg from "../../assets/images/exa-promo.svg";
-import PaxLogo from "../../assets/images/pax.svg";
-import paxImage from "../../assets/images/pax.webp";
 import VisaLogo from "../../assets/images/visa.svg";
 import visaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
-import AnimatedView from "../shared/AnimatedView";
-import Text from "../shared/Text";
 
 function ExaBackground() {
   return (
@@ -60,15 +54,6 @@ const BENEFITS = [
     linkText: "Choose installments",
   },
   {
-    id: "pax",
-    partner: "Pax Assistance",
-    title: "30 days of free travel insurance",
-    descriptions: ["Copy your ID and get 30 days of travel insurance for free on Pax Assistance."],
-    logo: PaxLogo,
-    Background: () => <RasterBackground source={paxImage} />,
-    url: "https://www.paxassistance.com/{locale}/capitas/exacardcap/",
-  },
-  {
     id: "airalo",
     partner: "Airalo",
     title: "20% OFF on eSims",
@@ -103,97 +88,26 @@ const BENEFITS = [
 export type Benefit = (typeof BENEFITS)[number];
 
 const styles = StyleSheet.create({
-  dot: { height: 4, borderRadius: 9999 },
   overflow: { overflow: "visible" },
 });
 
-/* istanbul ignore next */
-function calculateDistance(scrollOffset: number, index: number, length: number) {
-  "worklet";
-  const normalizedOffset = ((scrollOffset % length) + length) % length;
-  let distance = Math.abs(normalizedOffset - index);
-  if (distance > length / 2) {
-    distance = length - distance;
-  }
-  return distance;
-}
-
-function PaginationDot({
-  index,
-  length,
-  scrollOffset,
-  activeColor,
-  inactiveColor,
-}: {
-  activeColor: string;
-  inactiveColor: string;
-  index: number;
-  length: number;
-  scrollOffset: SharedValue<number>;
-}) {
-  /* istanbul ignore next */
-  const rStyle = useAnimatedStyle(() => {
-    const distance = calculateDistance(scrollOffset.value, index, length);
-    const width = interpolate(distance, [0, 1], [24, 8], Extrapolation.CLAMP);
-    const opacity = interpolate(distance, [0, 1], [1, 0.4], Extrapolation.CLAMP);
-    return { width, opacity };
-  }, [scrollOffset, index, length]);
-
-  /* istanbul ignore next */
-  const rColorStyle = useAnimatedStyle(() => {
-    const distance = calculateDistance(scrollOffset.value, index, length);
-    const isActive = distance < 0.5;
-    return { backgroundColor: isActive ? activeColor : inactiveColor };
-  }, [scrollOffset, index, activeColor, inactiveColor]);
-
-  return <AnimatedView style={[styles.dot, rStyle, rColorStyle]} />;
-}
-
 export default function BenefitsSection({ onExaPress }: { onExaPress?: () => void }) {
-  const { t } = useTranslation();
-  const theme = useTheme();
   const benefits = isPromoActive() && onExaPress ? BENEFITS : BENEFITS.filter((benefit) => benefit.id !== "exa");
   const [selectedBenefit, setSelectedBenefit] = useState<Benefit>();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const scrollOffset = useSharedValue(0);
   const [width, setWidth] = useState(0);
   const itemWidth = Math.max(width - 40, 250);
-
-  const handleProgressChange = useCallback(
-    (_: number, absoluteProgress: number) => {
-      scrollOffset.value = absoluteProgress;
-    },
-    [scrollOffset],
-  );
 
   return (
     <>
       <View
         backgroundColor="$backgroundSoft"
         paddingVertical="$s4_5"
-        gap="$s3_5"
         borderTopWidth={1}
         borderBottomWidth={1}
         borderColor="$borderNeutralSoft"
       >
-        <XStack alignItems="center" gap="$s3_5" paddingHorizontal="$s6">
-          <Text emphasized headline flex={1}>
-            {t("Benefits")}
-          </Text>
-          <XStack alignItems="center" gap="$s2">
-            {benefits.map((benefit, index) => (
-              <PaginationDot
-                key={benefit.id}
-                index={index}
-                length={benefits.length}
-                scrollOffset={scrollOffset}
-                activeColor={theme.interactiveBaseBrandDefault.val}
-                inactiveColor={theme.interactiveDisabled.val}
-              />
-            ))}
-          </XStack>
-        </XStack>
         <View overflow="hidden" alignItems="center" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
           {width === 0 ? undefined : (
             <Carousel
@@ -205,7 +119,6 @@ export default function BenefitsSection({ onExaPress }: { onExaPress?: () => voi
               autoPlay
               autoPlayInterval={5000}
               withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
-              onProgressChange={handleProgressChange}
               onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}
               renderItem={({ item }) => (
                 <View paddingHorizontal="$s2">
