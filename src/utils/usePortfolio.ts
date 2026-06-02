@@ -1,16 +1,18 @@
 import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
+import { safeParse } from "valibot";
 import { formatUnits } from "viem";
 
 import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 import { floatingDepositRates, withdrawLimit } from "@exactly/lib";
 
 import { balancesOptions } from "./lifi";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
-import type { Hex } from "@exactly/common/validation";
+import type { Hex, Address as ViemAddress } from "@exactly/common/validation";
 import type { TokenAmount } from "@lifi/sdk";
 
 export type ProtocolAsset = {
@@ -26,7 +28,7 @@ export type ProtocolAsset = {
 };
 
 export type ExternalAsset = {
-  address: string;
+  address: ViemAddress;
   amount?: bigint;
   chainId: number;
   decimals: number;
@@ -174,7 +176,9 @@ function compareAssets(sortBy: "usdcFirst" | "usdValue" | undefined) {
 
 function toExternalAsset(token: TokenAmount): ExternalAsset | undefined {
   if (!token.amount) return undefined;
+  const address = safeParse(Address, token.address);
+  if (!address.success) return undefined;
   const rawUsd = Number(formatUnits(token.amount, token.decimals)) * Number(token.priceUSD);
   const usdValue = Number.isFinite(rawUsd) && rawUsd > 0 ? rawUsd : 0;
-  return { ...token, type: "external", usdValue };
+  return { ...token, address: address.output, type: "external", usdValue };
 }

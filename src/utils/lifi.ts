@@ -427,7 +427,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 
     if (id === chain.id) {
       for (const { token, usdValue } of balances) {
-        const key = `${id}:${token.address}`;
+        const key = `${id}:${token.address.toLowerCase()}`;
         usdByToken[key] = usdValue;
       }
     }

@@ -228,8 +228,9 @@ export default function Bridge() {
     const assets = destinationTokens
       .filter((token) => token.logoURI && protocolSymbols.includes(token.symbol))
       .map((token) => {
-        const balance = sameChainBalances?.find((item) => item.address === token.address)?.amount ?? 0n;
-        const usdKey = `${chain.id}:${token.address}`;
+        const tokenAddress = token.address.toLowerCase();
+        const balance = sameChainBalances?.find((item) => item.address.toLowerCase() === tokenAddress)?.amount ?? 0n;
+        const usdKey = `${chain.id}:${tokenAddress}`;
         const usdValue = usdByToken?.[usdKey] ?? 0;
         return {
           token: token.symbol === "wstETH" ? { ...token, name: "Wrapped Staked ETH" } : token,

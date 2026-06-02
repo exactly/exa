@@ -97,7 +97,8 @@ export default function Swaps() {
   const isExternal = useCallback(
     (address: string) => {
       if (!markets) return false;
-      return !markets.some((m) => parse(Address, m.asset) === parse(Address, address));
+      const normalized = address.toLowerCase();
+      return !markets.some((m) => m.asset.toLowerCase() === normalized);
     },
     [markets],
   );
@@ -115,9 +116,11 @@ export default function Swaps() {
     (token?: Token) => {
       if (!token) return 0n;
       if (isExternal(token.address)) {
-        return externalAssets.find((a) => a.address === token.address)?.amount ?? 0n;
+        const address = parse(Address, token.address);
+        return externalAssets.find((a) => a.address === address)?.amount ?? 0n;
       }
-      return protocolAssets.find((a) => a.asset === token.address)?.floatingDepositAssets ?? 0n;
+      const address = parse(Address, token.address);
+      return protocolAssets.find((a) => a.asset === address)?.floatingDepositAssets ?? 0n;
     },
     [externalAssets, isExternal, protocolAssets],
   );
