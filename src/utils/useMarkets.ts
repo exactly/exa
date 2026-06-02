@@ -1,7 +1,13 @@
 import { multicall3Abi, zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
 
-import chain, { previewerAbi, previewerAddress, ratePreviewerAddress } from "@exactly/common/generated/chain";
+import chain, {
+  marketAbi,
+  marketUSDCAddress,
+  previewerAbi,
+  previewerAddress,
+  ratePreviewerAddress,
+} from "@exactly/common/generated/chain";
 import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { MATURITY_INTERVAL } from "@exactly/lib";
@@ -27,6 +33,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
         functionName: "getCurrentBlockTimestamp",
         chainId: chain.id,
       },
+      { address: marketUSDCAddress, abi: marketAbi, functionName: "previewFloatingAssetsAverage", chainId: chain.id },
     ],
     query: { ...query, enabled: query?.enabled ?? true },
   });
@@ -38,6 +45,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     data,
     markets: data?.[0],
     rateSnapshot: data?.[1],
+    floatingAssetsAverage: data?.[3],
     timestamp,
     firstMaturity: nextMaturity - now < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity,
   };

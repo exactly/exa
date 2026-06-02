@@ -13,10 +13,11 @@ import {
 } from "@exactly/lib";
 
 import reportError from "./reportError";
-import useAsset from "./useAsset";
+import useMarkets from "./useMarkets";
 
 export default function useInstallmentRates(amount = 100_000_000n) {
-  const { market, timestamp, firstMaturity } = useAsset(marketUSDCAddress);
+  const { markets, timestamp, firstMaturity, floatingAssetsAverage } = useMarkets();
+  const market = markets?.find(({ market: address }) => address === marketUSDCAddress);
   const now = Number(timestamp);
   return useMemo(() => {
     if (!market) return;
@@ -30,41 +31,43 @@ export default function useInstallmentRates(amount = 100_000_000n) {
     const {
       fixedPools,
       floatingBackupBorrowed,
-      floatingUtilization,
       interestRateModel: { parameters },
       totalFloatingBorrowAssets,
-      totalFloatingDepositAssets,
     } = market;
-    if (totalFloatingDepositAssets === 0n) {
+    const assets = floatingAssetsAverage;
+    if (assets === undefined) return;
+    if (assets === 0n) {
       const installments = [];
       for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
         installments.push({ count, payments: undefined, rate: 0n, total: 0n });
       }
       return { installments, firstMaturity };
     }
-    const marketUtilization = globalUtilization(
-      totalFloatingDepositAssets,
-      totalFloatingBorrowAssets,
-      floatingBackupBorrowed,
-    );
-    const borrowImpact = totalFloatingDepositAssets > 0n ? (amount * WAD - 1n) / totalFloatingDepositAssets + 1n : 0n;
+    const floatingUtilization = globalUtilization(assets, totalFloatingBorrowAssets, 0n);
+    const marketUtilization = globalUtilization(assets, totalFloatingBorrowAssets, floatingBackupBorrowed);
     try {
       const installments = [];
       for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
-        const poolUtilizations = fixedPools
-          .filter(({ maturity }) => maturity >= firstMaturity && maturity < firstMaturity + count * MATURITY_INTERVAL)
-          .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, totalFloatingDepositAssets));
-        if (poolUtilizations.length === 0) {
-          installments.push({ count, payments: undefined, rate: 0n, total: 0n });
-          continue;
-        }
         if (count === 1) {
+          const pool = fixedPools.find(
+            ({ maturity }) => maturity >= firstMaturity && maturity < firstMaturity + MATURITY_INTERVAL,
+          );
+          if (!pool) {
+            installments.push({ count, payments: undefined, rate: 0n, total: 0n });
+            continue;
+          }
+          const { supplied, borrowed } = pool;
+          const headroom = supplied > borrowed ? supplied - borrowed : 0n;
           const rate = fixedRate(
             firstMaturity,
             fixedPools.length,
-            (poolUtilizations[0] ?? 0n) + borrowImpact,
+            fixedUtilization(supplied, borrowed + amount, assets),
             floatingUtilization,
-            marketUtilization + borrowImpact,
+            globalUtilization(
+              assets,
+              totalFloatingBorrowAssets,
+              floatingBackupBorrowed + (amount > headroom ? amount - headroom : 0n),
+            ),
             parameters,
             now,
           );
@@ -73,9 +76,16 @@ export default function useInstallmentRates(amount = 100_000_000n) {
           installments.push({ count, payments: [total], rate, total });
           continue;
         }
+        const poolUtilizations = fixedPools
+          .filter(({ maturity }) => maturity >= firstMaturity && maturity < firstMaturity + count * MATURITY_INTERVAL)
+          .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, assets));
+        if (poolUtilizations.length === 0) {
+          installments.push({ count, payments: undefined, rate: 0n, total: 0n });
+          continue;
+        }
         const { installments: payments, effectiveRate } = splitInstallments(
           amount,
-          totalFloatingDepositAssets,
+          assets,
           firstMaturity,
           fixedPools.length,
           poolUtilizations,
@@ -90,5 +100,5 @@ export default function useInstallmentRates(amount = 100_000_000n) {
     } catch (error) {
       reportError(error);
     }
-  }, [market, firstMaturity, now, amount]);
+  }, [market, floatingAssetsAverage, firstMaturity, now, amount]);
 }
