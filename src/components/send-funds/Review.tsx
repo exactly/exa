@@ -4,7 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, TriangleAlert } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, TriangleAlert } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 

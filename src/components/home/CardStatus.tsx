@@ -14,7 +14,7 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { selectionAsync } from "expo-haptics";
 
-import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons";
+import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 
@@ -90,7 +90,7 @@ export default function CardStatus({
       overflow="hidden"
       opacity={1}
       transform={[{ translateY: 0 }]}
-      animation="default"
+      transition="default"
       animateOnly={["opacity", "transform"]}
       enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
       exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
@@ -129,7 +129,7 @@ export default function CardStatus({
                 <View
                   key="exa-logo"
                   style={styles.exa}
-                  animation="default"
+                  transition="default"
                   animateOnly={["opacity"]}
                   opacity={1}
                   enterStyle={{ opacity: 0 }}
@@ -147,7 +147,7 @@ export default function CardStatus({
               paddingHorizontal="$s3"
               alignItems="center"
               gap="$s2"
-              animation="quick"
+              transition="quick"
               animateOnly={["transform", "backgroundColor"]}
               pressStyle={{ scale: 0.92, backgroundColor: "rgba(255,255,255,0.15)" }}
               cursor="pointer"
@@ -175,7 +175,7 @@ export default function CardStatus({
                   backgroundColor="rgba(0,0,0,0.4)"
                   zIndex={2}
                   pointerEvents="none"
-                  animation="default"
+                  transition="default"
                   animateOnly={["opacity"]}
                   opacity={1}
                   enterStyle={{ opacity: 0 }}
@@ -192,7 +192,7 @@ export default function CardStatus({
                   justifyContent="center"
                   zIndex={3}
                   pointerEvents="none"
-                  animation="default"
+                  transition="default"
                   animateOnly={["opacity", "transform"]}
                   opacity={1}
                   enterStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
@@ -208,7 +208,7 @@ export default function CardStatus({
           {frozen && (
             <YStack
               key="freeze-toggle"
-              animation="default"
+              transition="default"
               animateOnly={["opacity", "transform"]}
               enterStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
               exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
@@ -249,7 +249,7 @@ export default function CardStatus({
           {!frozen && (
             <YStack
               key="pay-mode"
-              animation="default"
+              transition="default"
               animateOnly={["opacity", "transform"]}
               enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
               exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
@@ -268,7 +268,7 @@ export default function CardStatus({
         {!frozen && (
           <YStack
             key="limit-paginator"
-            animation="default"
+            transition="default"
             animateOnly={["opacity", "transform"]}
             enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
             exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
@@ -394,7 +394,7 @@ function PayModeToggle({
           <XStack
             key="promo-badge"
             marginTop={-10}
-            animation="default"
+            transition="default"
             animateOnly={["opacity"]}
             opacity={1}
             enterStyle={{ opacity: 0 }}
@@ -465,7 +465,7 @@ function LimitPaginator({
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
     >
       {width > 0 && (
-        <XStack width={width * 2} x={mode > 0 ? -width : 0} animation="default" animateOnly={["transform"]}>
+        <XStack width={width * 2} x={mode > 0 ? -width : 0} transition="default" animateOnly={["transform"]}>
           <XStack
             width={width}
             height={48}

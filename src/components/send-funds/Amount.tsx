@@ -1,12 +1,19 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TextInput } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ChevronRight, CircleHelp, CircleX } from "@tamagui/lucide-icons";
-import { ScrollView, XStack, YStack } from "tamagui";
+import {
+  ArrowDownUp,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ChevronRight,
+  CircleHelp,
+  CircleX,
+} from "@tamagui/lucide-icons-2";
+import { ScrollView, XStack, YStack, type TamaguiElement } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
@@ -47,7 +54,7 @@ export default function Amount() {
   const payChainParameter = typeof fromChain === "string" ? Number(fromChain) : chain.id;
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
 
-  const inputRef = useRef<null | TextInput>(null);
+  const inputRef = useRef<null | TamaguiElement>(null);
   const [entry, setEntry] = useState<{ mode: "token" | "usd"; text: string }>({ mode: "usd", text: "" });
   const [mode, setMode] = useState<"token" | "usd">("usd");
   const [room, setRoom] = useState(0);

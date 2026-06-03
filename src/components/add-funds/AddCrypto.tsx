@@ -16,7 +16,7 @@ import {
   QrCode,
   RefreshCw,
   Share as ShareIcon,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 

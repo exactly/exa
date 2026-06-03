@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Headset, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Headset, X } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, YStack } from "tamagui";
 
