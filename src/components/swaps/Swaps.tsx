@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Repeat,
   TriangleAlert,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 

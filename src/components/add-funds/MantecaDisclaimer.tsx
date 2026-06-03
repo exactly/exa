@@ -1,7 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { Info } from "@tamagui/lucide-icons";
+import { Info } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";

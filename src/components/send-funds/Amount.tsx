@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons-2";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";

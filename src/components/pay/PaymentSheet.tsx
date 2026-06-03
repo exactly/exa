@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { Coins, ExternalLink, FileText, Info, RefreshCw } from "@tamagui/lucide-icons";
+import { Coins, ExternalLink, FileText, Info, RefreshCw } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { XStack, YStack, type YStackProps } from "tamagui";
 

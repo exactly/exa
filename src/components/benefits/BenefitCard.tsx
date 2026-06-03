@@ -2,7 +2,7 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
-import { ChevronRight } from "@tamagui/lucide-icons";
+import { ChevronRight } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";

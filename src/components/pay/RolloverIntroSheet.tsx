@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight, Calendar, CirclePercent, Siren } from "@tamagui/lucide-icons";
+import { ArrowRight, Calendar, CirclePercent, Siren } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
 

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 
-import { Search } from "@tamagui/lucide-icons";
+import { Search } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";

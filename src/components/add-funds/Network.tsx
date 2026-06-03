@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp, Info } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp, Info } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { queryOptions, skipToken, useQueries, useQuery } from "@tanstack/react-query";

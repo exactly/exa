@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { CalendarClock, CircleHelp, CreditCard } from "@tamagui/lucide-icons";
+import { CalendarClock, CircleHelp, CreditCard } from "@tamagui/lucide-icons-2";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { presentArticle } from "../../../utils/intercom";

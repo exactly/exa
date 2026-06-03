@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { ChevronRight, Info } from "@tamagui/lucide-icons";
+import { ChevronRight, Info } from "@tamagui/lucide-icons-2";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -111,7 +111,7 @@ export default function ExternalAssets() {
     <>
       <YStack
         key="non-collateral-content"
-        animation="default"
+        transition="default"
         enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
         transform={[{ translateY: 0 }]}
         backgroundColor="$backgroundSoft"

@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight, CreditCard } from "@tamagui/lucide-icons";
+import { ArrowRight, CreditCard } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { YStack } from "tamagui";
 

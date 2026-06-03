@@ -3,7 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -140,7 +140,7 @@ export default function Portfolio() {
         ) : (
           <YStack
             key="portfolio-content"
-            animation="default"
+            transition="default"
             enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
             transform={[{ translateY: 0 }]}
           >

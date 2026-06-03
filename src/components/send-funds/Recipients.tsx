@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp, Contact, PencilLine, Settings, TriangleAlert } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp, Contact, PencilLine, Settings, TriangleAlert } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 

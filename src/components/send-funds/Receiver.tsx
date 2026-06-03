@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";

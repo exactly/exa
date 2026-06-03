@@ -7,7 +7,7 @@ import Carousel from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
-import { CircleHelp, Key, User } from "@tamagui/lucide-icons";
+import { CircleHelp, Key, User } from "@tamagui/lucide-icons-2";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";

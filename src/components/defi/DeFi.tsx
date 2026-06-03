@@ -3,7 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { CircleHelp, Link } from "@tamagui/lucide-icons";
+import { CircleHelp, Link } from "@tamagui/lucide-icons-2";
 import { ScrollView, useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

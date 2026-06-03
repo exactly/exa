@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { Copy } from "@tamagui/lucide-icons";
+import { Copy } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
 

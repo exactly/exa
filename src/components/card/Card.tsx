@@ -4,7 +4,16 @@ import { Trans, useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
+import {
+  ChevronRight,
+  CircleHelp,
+  CreditCard,
+  DollarSign,
+  Eye,
+  EyeOff,
+  Hash,
+  Snowflake,
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 

@@ -5,7 +5,7 @@ import { SvgUri } from "react-native-svg";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight, Check, X } from "@tamagui/lucide-icons";
+import { ArrowRight, Check, X } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 

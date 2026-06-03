@@ -4,7 +4,7 @@ import { PixelRatio, Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
+import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { Spinner, XStack, YStack } from "tamagui";
 
@@ -51,7 +51,7 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
       borderRadius="$r3"
       opacity={1}
       transform={[{ translateY: 0 }]}
-      animation="default"
+      transition="default"
       animateOnly={["opacity", "transform"]}
       enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
       exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}

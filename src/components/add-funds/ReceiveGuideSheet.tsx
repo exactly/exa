@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { ArrowRight, Check, Info } from "@tamagui/lucide-icons";
+import { ArrowRight, Check, Info } from "@tamagui/lucide-icons-2";
 import { Checkbox, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";

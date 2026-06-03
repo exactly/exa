@@ -2,7 +2,7 @@ import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 
-import { File } from "@tamagui/lucide-icons";
+import { File } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
 import * as Sentry from "@sentry/react-native";

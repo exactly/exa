@@ -1,7 +1,7 @@
 import React from "react";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 
-import { Loader } from "@tamagui/lucide-icons";
+import { Loader } from "@tamagui/lucide-icons-2";
 
 import AnimatedView from "./AnimatedView";
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowUpFromLine } from "@tamagui/lucide-icons";
+import { ArrowUpFromLine } from "@tamagui/lucide-icons-2";
 import { Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";

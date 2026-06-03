@@ -29,11 +29,14 @@ catalog:
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  tamagui: &tamagui ^1.144.4
-  "@tamagui/animations-moti": *tamagui
+  tamagui: &tamagui ^2.7.7
+  "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
   "@tamagui/config": *tamagui
-  "@tamagui/lucide-icons": *tamagui
+  "@tamagui/core": *tamagui
+  "@tamagui/helpers-icon": *tamagui
+  "@tamagui/lucide-icons-2": *tamagui
+  "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.1
   hono: ^4.12.34
