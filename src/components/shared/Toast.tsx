@@ -24,7 +24,7 @@ export default function NotificationToast() {
       borderWidth={1}
       opacity={1}
       scale={1}
-      animation="quicker"
+      transition="quick"
       viewportName={toast.viewportName}
       borderRadius="$r3"
     >

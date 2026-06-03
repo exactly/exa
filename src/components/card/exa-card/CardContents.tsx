@@ -46,14 +46,14 @@ export default function CardContents({
   return (
     <XStack
       height={160}
-      animation="default"
+      transition="default"
       animateOnly={["opacity"]}
       justifyContent="space-between"
       padding="$s4"
       opacity={disabled ? 0.5 : 1}
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" flex={1} width="100%" zIndex={1}>
-        <AnimatePresence exitBeforeEnter>
+        <AnimatePresence mode="wait">
           {disabled ? (
             <LockKeyhole size={40} strokeWidth={2} color="white" />
           ) : revealing ? (
@@ -63,7 +63,7 @@ export default function CardContents({
           ) : frozen ? null : isCredit ? (
             <View
               key="credit"
-              animation="default"
+              transition="default"
               enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
               exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
               transform={[{ translateX: 0 }]}
@@ -84,7 +84,7 @@ export default function CardContents({
           ) : (
             <View
               key="debit"
-              animation="default"
+              transition="default"
               enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
               exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
               transform={[{ translateX: 0 }]}
@@ -105,7 +105,7 @@ export default function CardContents({
           )}
         </AnimatePresence>
       </YStack>
-      <XStack animation="default" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
+      <XStack transition="default" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
         {productId === PLATINUM_PRODUCT_ID ? (
           <Card
             width="100%"
@@ -134,7 +134,7 @@ export default function CardContents({
             backgroundColor="rgba(0,0,0,0.4)"
             zIndex={2}
             pointerEvents="none"
-            animation="default"
+            transition="default"
             animateOnly={["opacity"]}
             opacity={1}
             enterStyle={{ opacity: 0 }}

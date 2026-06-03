@@ -111,7 +111,7 @@ export default function ExternalAssets() {
     <>
       <YStack
         key="non-collateral-content"
-        animation="default"
+        transition="default"
         enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
         transform={[{ translateY: 0 }]}
         backgroundColor="$backgroundSoft"

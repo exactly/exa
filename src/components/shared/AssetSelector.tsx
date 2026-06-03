@@ -88,7 +88,6 @@ export default function AssetSelector({
               borderWidth={0}
               backgroundColor="transparent"
               cursor="pointer"
-              disablePassStyles
             >
               <View
                 flexDirection="row"

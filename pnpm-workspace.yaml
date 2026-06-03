@@ -5,11 +5,14 @@ catalog:
   "@account-kit/smart-contracts": *aaSDK
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
-  tamagui: &tamagui ^1.144.4
-  "@tamagui/animations-moti": *tamagui
+  tamagui: &tamagui ^2.1.0
+  "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
   "@tamagui/config": *tamagui
-  "@tamagui/lucide-icons": *tamagui
+  "@tamagui/core": *tamagui
+  "@tamagui/helpers-icon": *tamagui
+  "@tamagui/lucide-icons": 2.0.0-rc.26
+  "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.1
   hono: ^4.12.23

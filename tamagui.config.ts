@@ -1,6 +1,6 @@
 import { Easing } from "react-native-reanimated";
 
-import { createAnimations } from "@tamagui/animations-moti";
+import { createAnimations } from "@tamagui/animations-reanimated";
 import { config } from "@tamagui/config/v3";
 import { createFont, createTamagui, createTokens } from "tamagui";
 

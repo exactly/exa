@@ -1,6 +1,7 @@
 import { Input, styled } from "tamagui";
 
 export default styled(Input, {
+  // @ts-expect-error valid runtime style narrowed out of input's v2 prop types
   fontVariant: ["stylistic-one", "stylistic-two", "stylistic-three"],
   fontSize: 15,
   padding: "$s3",

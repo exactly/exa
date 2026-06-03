@@ -142,7 +142,7 @@ export default function Portfolio() {
         ) : (
           <YStack
             key="portfolio-content"
-            animation="default"
+            transition="default"
             enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
             transform={[{ translateY: 0 }]}
           >

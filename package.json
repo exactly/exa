@@ -52,8 +52,9 @@
     "@sentry/browser": "^10.46.0",
     "@sentry/react-native": "^8.6.0",
     "@simplewebauthn/browser": "^13.3.0",
-    "@tamagui/animations-moti": "catalog:",
+    "@tamagui/animations-reanimated": "catalog:",
     "@tamagui/config": "catalog:",
+    "@tamagui/core": "catalog:",
     "@tamagui/lucide-icons": "catalog:",
     "@tamagui/toast": "catalog:",
     "@tanstack/query-async-storage-persister": "^5.95.2",
@@ -168,6 +169,9 @@
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
+      "@tamagui/core": "catalog:",
+      "@tamagui/helpers-icon": "catalog:",
+      "@tamagui/sizable-context": "catalog:",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
       "comlink": "$comlink",

@@ -141,7 +141,7 @@ export default function InstallmentsSheet({
                             backgroundColor={isSelected ? accentColor : "transparent"}
                             borderWidth={1}
                             borderColor={isSelected || promoted ? accentColor : "$cardCreditBorder"}
-                            animation="quick"
+                            transition="quick"
                             animateOnly={["transform"]}
                             pressStyle={{ scale: 0.96 }}
                             cursor="pointer"
