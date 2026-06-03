@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, RefreshControl } from "react-native";
+import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -53,6 +53,7 @@ import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import IconButton from "../shared/IconButton";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import ExaSpinner from "../shared/Spinner";
@@ -115,14 +116,11 @@ export default function Bridge() {
     refetchIntervalInBackground: true,
   });
   const { data: balances, refetch: refetchBalances } = useQuery(balancesOptions(senderAddress));
-  const { mutate: refresh, isPending: refreshing } = useMutation({
-    mutationFn: async () => {
-      if (!senderAddress) return;
-      queryClient.removeQueries({ queryKey: lifiTokensOptions.queryKey });
-      await Promise.all([refetchSources(), refetchBalances()]);
-    },
-    onError: (error) => reportError(error),
-  });
+  async function refresh() {
+    if (!senderAddress) return;
+    queryClient.removeQueries({ queryKey: lifiTokensOptions.queryKey });
+    await Promise.all([refetchSources(), refetchBalances()]);
+  }
   const sameChainBalances = balances?.[chain.id];
 
   const chains = bridge?.chains;
@@ -903,7 +901,7 @@ export default function Bridge() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           flex={1}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <View padded>
             <YStack gap="$s5">

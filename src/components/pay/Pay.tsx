@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -35,6 +34,7 @@ import useTabPress from "../../utils/useTabPress";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -60,20 +60,18 @@ export default function Pay() {
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { account, market: exaUSDC } = useAsset(marketUSDCAddress);
-  const { markets, timestamp, refetch, isPending } = useMarkets({ refetchInterval: 30_000 });
+  const { markets, timestamp, refetch } = useMarkets({ refetchInterval: 30_000 });
 
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
   const [infoType, setInfoType] = useState<"discount" | "fees" | "total" | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const refresh = useCallback(() => {
-    refetch().catch(reportError);
-    queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
-  }, [refetch]);
+  const refresh = () =>
+    Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["activity"], exact: true })]);
   useTabPress("pay-mode", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
-    refresh();
+    refresh().catch(reportError);
   });
 
   const allMaturities = useMemo(() => {
@@ -129,7 +127,7 @@ export default function Pay() {
           contentContainerStyle={{ flexGrow: 1, backgroundColor: hasPayments ? "$backgroundMild" : "$backgroundSoft" }}
           showsVerticalScrollIndicator={false}
           flex={1}
-          refreshControl={<RefreshControl refreshing={isPending} onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           {hasPayments ? (
             <>

@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, RefreshControl } from "react-native";
+import { FlatList } from "react-native";
 
 import { useTheme } from "tamagui";
 
@@ -15,12 +15,13 @@ import useAsset from "../../utils/useAsset";
 import useTabPress from "../../utils/useTabPress";
 import ProcessingBalanceBanner from "../shared/ProcessingBalanceBanner";
 import ProposalBanner from "../shared/ProposalBanner";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Activity() {
-  const { data: activity, isFetching } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
+  const { data: activity } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
   const { queryKey } = useAsset();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -51,13 +52,14 @@ export default function Activity() {
   }, [activity]);
 
   const listRef = useRef<FlatList<ActivityItemType>>(null);
-  const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
-    queryClient.refetchQueries({ queryKey }).catch(reportError);
-  };
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      queryClient.refetchQueries({ queryKey }),
+    ]);
   useTabPress("activity", () => {
     if (data.length > 0) listRef.current?.scrollToIndex({ index: 0, animated: true });
-    refresh();
+    refresh().catch(reportError);
   });
 
   return (
@@ -73,7 +75,7 @@ export default function Activity() {
             backgroundColor: data.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} />}
           ListHeaderComponent={
             <>
               <View padded gap="$s5" backgroundColor="$backgroundSoft">

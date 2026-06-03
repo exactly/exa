@@ -1,6 +1,5 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -19,6 +18,7 @@ import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import IconButton from "../shared/IconButton";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -35,8 +35,8 @@ export default function Portfolio() {
   } = useTranslation();
   const { balanceUSD } = portfolio;
 
-  const { refetch: refetchMarkets, isFetching: isFetchingMarkets } = useMarkets();
-  const { refetch: refetchBalances, isFetching: isFetchingBalances } = useQuery(balancesOptions(address));
+  const { refetch: refetchMarkets } = useMarkets();
+  const { refetch: refetchBalances } = useQuery(balancesOptions(address));
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
@@ -74,12 +74,7 @@ export default function Portfolio() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isFetchingMarkets || isFetchingBalances}
-            onRefresh={() => {
-              if (!address) return;
-              refetchMarkets().catch(reportError);
-              refetchBalances().catch(reportError);
-            }}
+            onRefresh={() => (address ? Promise.all([refetchMarkets(), refetchBalances()]) : Promise.resolve())}
           />
         }
       >

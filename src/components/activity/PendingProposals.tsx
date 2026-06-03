@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, RefreshControl, ScrollView } from "react-native";
+import { Pressable, ScrollView } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -33,6 +33,7 @@ import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import usePendingOperations from "../../utils/usePendingOperations";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -141,7 +142,7 @@ export default function PendingProposals() {
   const {
     count,
     mutations,
-    proposals: { isLoading, refetch: refetchPendingProposals, data: pendingProposals },
+    proposals: { refetch: refetchPendingProposals, data: pendingProposals },
   } = usePendingOperations();
   return (
     <SafeView fullScreen>
@@ -173,14 +174,7 @@ export default function PendingProposals() {
         </View>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isLoading}
-              onRefresh={() => {
-                refetchPendingProposals().catch(reportError);
-              }}
-            />
-          }
+          refreshControl={<RefreshControl onRefresh={() => refetchPendingProposals()} />}
         >
           <View flex={1}>
             {count === 0 && (

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshControl, type View as RNView } from "react-native";
+import type { View as RNView } from "react-native";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
@@ -53,6 +53,7 @@ import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
 import ProfileHeader from "../shared/ProfileHeader";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
@@ -125,13 +126,9 @@ export default function Home() {
     args: account ? [account] : undefined,
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
-  const { data: activity, isFetching: isFetchingActivity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
-  const { markets, refetch: refetchMarkets, isFetching: isFetchingPreviewer } = useMarkets();
-  const {
-    data: kycStatus,
-    isFetched: isKYCFetched,
-    isFetching: isFetchingKYC,
-  } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const { data: activity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
+  const { markets, refetch: refetchMarkets } = useMarkets();
+  const { data: kycStatus, isFetched: isKYCFetched } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const needsMigration = Boolean(kycStatus && "code" in kycStatus && kycStatus.code === "legacy kyc");
   const isKYCApproved = Boolean(
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
@@ -196,19 +193,19 @@ export default function Home() {
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
-  const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
-    queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }).catch(reportError);
-    if (account) refetchMarkets().catch(reportError);
-    if (account) refetchBytecode().catch(reportError);
-    if (account && bytecode) refetchPendingProposals().catch(reportError);
-  };
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      account ? refetchMarkets() : undefined,
+      account ? refetchBytecode() : undefined,
+      account && bytecode ? refetchPendingProposals() : undefined,
+    ]);
   useTabPress("index", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
-    refresh();
+    refresh().catch(reportError);
   });
 
-  const isFetching = isFetchingActivity || isFetchingPreviewer || isFetchingKYC;
   const showKYCMigration = isKYCFetched && needsMigration;
   const showPluginOutdated = !!bytecode && !!installedPlugins && !isLatestPlugin;
   return (
@@ -224,7 +221,7 @@ export default function Home() {
           onScroll={(event) => {
             scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
           }}
-          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <ProfileHeader />
           <View flex={1} gap="$s5" paddingBottom="$s5">

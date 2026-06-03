@@ -1,6 +1,5 @@
 import React, { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -19,6 +18,7 @@ import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
 import IconButton from "../shared/IconButton";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -28,7 +28,7 @@ export default function Loans() {
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
-  const { refetch, isPending } = useMarkets();
+  const { refetch } = useMarkets();
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
@@ -38,12 +38,12 @@ export default function Loans() {
           flex={1}
           refreshControl={
             <RefreshControl
-              ref={loansRefreshControlReference}
-              refreshing={isPending}
-              onRefresh={() => {
-                if (account) refetch().catch(reportError);
-                queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
-              }}
+              onRefresh={() =>
+                Promise.all([
+                  account ? refetch() : undefined,
+                  queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+                ])
+              }
             />
           }
         >
@@ -102,4 +102,3 @@ export default function Loans() {
 }
 
 export const loansScrollReference: RefObject<null | ScrollView> = { current: null };
-export const loansRefreshControlReference: RefObject<null | RefreshControl> = { current: null };

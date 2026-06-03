@@ -1,6 +1,5 @@
 import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { RefreshControl } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -43,6 +42,7 @@ import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import PluginUpgrade from "../shared/PluginUpgrade";
+import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Switch from "../shared/Switch";
@@ -68,7 +68,7 @@ export default function Card() {
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: purchases, isFetching: isFetchingPurchases } = useQuery<CardActivity[]>({
+  const { data: purchases } = useQuery<CardActivity[]>({
     queryKey: ["activity", "card"],
   });
 
@@ -88,26 +88,21 @@ export default function Card() {
     : [];
   const totalSpent = weeklyPurchases.reduce((accumulator, item) => accumulator + item.usdAmount, 0);
 
-  const { queryKey, isFetching: isFetchingAsset } = useAsset(marketUSDCAddress);
+  const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
-  const {
-    data: kycStatus,
-    isFetching: isFetchingKYC,
-    isPending: isPendingKYC,
-  } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const { data: kycStatus, isPending: isPendingKYC } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const isKYCApproved = Boolean(
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
   );
-  const { refetch: refetchInstalledPlugins, isFetching: isFetchingPlugins } =
-    useReadUpgradeableModularAccountGetInstalledPlugins({
-      address,
-      chainId: chain.id,
-      factory: credential?.factory,
-      factoryData: credential && accountInit(credential),
-      query: { enabled: !!address && !!credential },
-    });
+  const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
+    address,
+    chainId: chain.id,
+    factory: credential?.factory,
+    factoryData: credential && accountInit(credential),
+    query: { enabled: !!address && !!credential },
+  });
 
-  const { markets, refetch: refetchMarkets, isFetching: isFetchingMarkets } = useMarkets();
+  const { markets, refetch: refetchMarkets } = useMarkets();
 
   let usdBalance = 0n;
   if (markets) {
@@ -118,21 +113,19 @@ export default function Card() {
     }
   }
 
-  const isRefreshing =
-    isFetchingCard || isFetchingPurchases || isFetchingMarkets || isFetchingKYC || isFetchingPlugins || isFetchingAsset;
-
   const scrollRef = useRef<ScrollView>(null);
-  const refresh = () => {
-    refetchCard().catch(reportError);
-    queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }).catch(reportError);
-    queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }).catch(reportError);
-    if (address) refetchMarkets().catch(reportError);
-    if (address && credential) refetchInstalledPlugins().catch(reportError);
-    queryClient.refetchQueries({ queryKey }).catch(reportError);
-  };
+  const refresh = () =>
+    Promise.all([
+      refetchCard(),
+      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      address ? refetchMarkets() : undefined,
+      address && credential ? refetchInstalledPlugins() : undefined,
+      queryClient.refetchQueries({ queryKey }),
+    ]);
   useTabPress("card", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
-    refresh();
+    refresh().catch(reportError);
   });
 
   const beginKYC = useBeginKYC();
@@ -274,7 +267,7 @@ export default function Card() {
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <View fullScreen>
             <View flex={1} gap="$s5" paddingBottom="$s5">
