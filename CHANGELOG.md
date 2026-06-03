@@ -1,5 +1,24 @@
 # @exactly/mobile
 
+## 1.2.11
+
+### Patch Changes
+
+- [#1056](https://github.com/exactly/exa/pull/1056) [`ecc36c0`](https://github.com/exactly/exa/commit/ecc36c0b10e43ef83bab0dfa54187504a2848cdc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 prefer regular font in portfolio value
+
+- [#1046](https://github.com/exactly/exa/pull/1046) [`2096113`](https://github.com/exactly/exa/commit/2096113a30c9617655ac62a55b7d80548c8e6ec7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 fix premature copy toast
+
+- [#1046](https://github.com/exactly/exa/pull/1046) [`10b313a`](https://github.com/exactly/exa/commit/10b313ae571e00700ccef6fde8a27bdaabf4a219) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 localize country names in card activity
+
+- [#1056](https://github.com/exactly/exa/pull/1056) [`252e68b`](https://github.com/exactly/exa/commit/252e68b9bfac785e4250595b707a3bd3a37d0c81) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 align back button in activity details
+
+- [#1046](https://github.com/exactly/exa/pull/1046) [`701340c`](https://github.com/exactly/exa/commit/701340c6a159e79ca8859ef72211a1a9436018ef) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ display activity entry for declined card purchases
+
+- [#1069](https://github.com/exactly/exa/pull/1069) [`4e493dd`](https://github.com/exactly/exa/commit/4e493ddfac17e60c3eceaeadace52593a552044b) Thanks [@franm91](https://github.com/franm91)! - 🐛 normalize addresses
+
+- Updated dependencies [[`cd7514b`](https://github.com/exactly/exa/commit/cd7514b1e83b54efbdf65319cc5db11c5d511dee), [`f56a007`](https://github.com/exactly/exa/commit/f56a0079feadd109fdc6cf375639068e39c9c151), [`1a88c70`](https://github.com/exactly/exa/commit/1a88c70669ccd309aeb24c50edbfab0a39dcb44b)]:
+  - @exactly/server@0.2.97
+
 ## 1.2.10
 
 ### Patch Changes

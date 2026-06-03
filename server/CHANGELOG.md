@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.97
+
+### Patch Changes
+
+- [#1051](https://github.com/exactly/exa/pull/1051) [`cd7514b`](https://github.com/exactly/exa/commit/cd7514b1e83b54efbdf65319cc5db11c5d511dee) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add rejection code to authorization declines
+
+- [#1024](https://github.com/exactly/exa/pull/1024) [`f56a007`](https://github.com/exactly/exa/commit/f56a0079feadd109fdc6cf375639068e39c9c151) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ add bridge offramp
+
+- [#1066](https://github.com/exactly/exa/pull/1066) [`1a88c70`](https://github.com/exactly/exa/commit/1a88c70669ccd309aeb24c50edbfab0a39dcb44b) Thanks [@mainqueg](https://github.com/mainqueg)! - 🔒️ restrict bridge access by country
+
 ## 0.2.96
 
 ### Patch Changes
