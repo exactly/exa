@@ -50,6 +50,7 @@ import("../api")
               name: "credential_id",
             },
             siweAuth: { type: "apiKey", in: "cookie", name: "__Secure-better-auth.session_token" },
+            walletExtensionAuth: { type: "http", scheme: "bearer" },
           },
         },
       },

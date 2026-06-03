@@ -50,6 +50,7 @@ import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
+import { createToken } from "../../utils/walletExtension";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -114,6 +115,8 @@ export const Authentication = object({
   ...Credential.entries,
   auth: pipe(number(), title("Session expiry"), description("When the authenticated session will expire.")),
   intercomToken: pipe(nullable(string()), description("Intercom Identity Verification Token")),
+  walletExtensionToken: pipe(optional(string()), description("Apple Wallet Extension bearer token.")),
+  walletExtensionTokenExpires: pipe(optional(number()), description("Apple Wallet Extension bearer token expiry.")),
 });
 
 export const LegacyAuthentication = object({
@@ -249,7 +252,15 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       Cookie,
       validatorHook({ code: "bad session" }),
     ),
-    vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
+    vValidator(
+      "header",
+      optional(
+        object({
+          "Client-Fid": optional(pipe(string(), maxLength(36))),
+          "client-platform": optional(picklist(["android", "ios"])),
+        }),
+      ),
+    ),
     vValidator(
       "json",
       variant("method", [
@@ -304,6 +315,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     ),
     async (c) => {
       const assertion = c.req.valid("json");
+      const headers = c.req.valid("header");
+      const platform = headers?.["client-platform"];
       setContext("auth", assertion);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
@@ -337,6 +350,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               ...result,
               expires: result.auth,
               intercomToken,
+              ...(await walletExtensionCredentials(assertion.id, result.auth, platform)),
             } satisfies InferOutput<typeof LegacyAuthentication>,
             200,
           );
@@ -406,6 +420,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           auth: expires.getTime(),
           expires: expires.getTime(),
           intercomToken,
+          ...(await walletExtensionCredentials(assertion.id, expires.getTime(), platform)),
         } satisfies InferOutput<typeof LegacyAuthentication>,
         200,
       );
@@ -413,3 +428,12 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
   );
 
 const scheme = domain === "localhost" ? "http" : "https";
+
+async function walletExtensionCredentials(credentialId: string, expires: number, platform?: "android" | "ios") {
+  return platform === "ios"
+    ? {
+        walletExtensionToken: await createToken(credentialId, expires),
+        walletExtensionTokenExpires: expires,
+      }
+    : {};
+}

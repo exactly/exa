@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { decodeJwt } from "jose";
 import assert from "node:assert";
-import { parse, type InferOutput } from "valibot";
+import { parse } from "valibot";
 import { zeroAddress } from "viem";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -16,11 +16,12 @@ import * as derive from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import app, { type Authentication } from "../../api/auth/authentication";
+import app, { Authentication } from "../../api/auth/authentication";
 import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import { verifyToken } from "../../utils/walletExtension";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
@@ -68,8 +69,7 @@ describe("authentication", () => {
 
     expect(response.status).toBe(200);
 
-    const json = await response.json();
-    const authResponse = json as InferOutput<typeof Authentication>;
+    const authResponse = parse(Authentication, await response.json());
 
     assert.ok(authResponse.intercomToken);
 
@@ -81,6 +81,95 @@ describe("authentication", () => {
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
     expect(await redis.exists("test-session")).toBe(0);
+  });
+
+  it("returns wallet extension token on ios login", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+    );
+
+    expect(response.status).toBe(200);
+    const authResponse = parse(Authentication, await response.json());
+
+    assert.ok(authResponse.walletExtensionToken);
+    expect(authResponse.walletExtensionTokenExpires).toBe(authResponse.auth);
+    await expect(verifyToken(authResponse.walletExtensionToken)).resolves.toStrictEqual({
+      credentialId: "dGVzdC1jcmVkLWlk",
+      scope: "card:provisioning",
+    });
+  });
+
+  it("returns wallet extension token on ios siwe signup", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0x1234567890123456789012345678901234567888";
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+    );
+
+    expect(response.status).toBe(200);
+    const authResponse = parse(Authentication, await response.json());
+
+    assert.ok(authResponse.walletExtensionToken);
+    expect(authResponse.walletExtensionTokenExpires).toBe(authResponse.auth);
+    await expect(verifyToken(authResponse.walletExtensionToken)).resolves.toStrictEqual({
+      credentialId: id,
+      scope: "card:provisioning",
+    });
+  });
+
+  it("omits wallet extension token on android login", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "android" } },
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json).not.toHaveProperty("walletExtensionToken");
+    expect(json).not.toHaveProperty("walletExtensionTokenExpires");
+  });
+
+  it("omits wallet extension token without client platform", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    const authResponse = parse(Authentication, await response.json());
+
+    expect(authResponse.walletExtensionToken).toBeUndefined();
+    expect(authResponse.walletExtensionTokenExpires).toBeUndefined();
   });
 
   it("returns 400 if authentication challenge is missing", async () => {
