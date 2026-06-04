@@ -12,6 +12,8 @@ import { createHmac, randomBytes } from "node:crypto";
 import { object, parse, string } from "valibot";
 import {
   BaseError,
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
   createWalletClient,
   decodeEventLog,
   encodeAbiParameters,
@@ -1734,6 +1736,7 @@ describe("card operations", () => {
         ]);
 
         const track = vi.spyOn(segment, "track").mockReturnValue();
+        const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
         vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(new Error("settlement failed"));
         const completeResponse = await appClient.index.$post({
           ...authorization,
@@ -1751,12 +1754,15 @@ describe("card operations", () => {
                 postedAt: new Date().toISOString(),
                 cardId,
                 status: "completed",
+                userId: account,
               },
             },
           },
         });
 
         expect(completeResponse.status).toBe(569);
+        expect(updateUser).not.toHaveBeenCalled();
+        expect(pandaLogger).not.toHaveBeenCalledWith("suspicious-user:%j", expect.anything());
         expect(track).toHaveBeenCalledWith({
           userId: account,
           event: "TransactionRejected",
@@ -1826,6 +1832,79 @@ describe("card operations", () => {
             }) as unknown,
           }),
         );
+      });
+
+      it("suspects over-capture collection failures", async () => {
+        const hold = 100;
+        const capture = 120;
+
+        const cardId = "over-capture-fraud";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
+
+        const createResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: hold,
+                authorizedAmount: hold,
+                cardId,
+                localAmount: hold,
+              },
+            },
+          },
+        });
+
+        vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(
+          new BaseError("execution reverted", {
+            cause: new ContractFunctionExecutionError(
+              new ContractFunctionRevertedError({
+                abi: auditorAbi,
+                functionName: "checkBorrow",
+                data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
+              }),
+              { abi: auditorAbi, functionName: "checkBorrow", args: [] },
+            ),
+          }),
+        );
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: capture,
+                authorizedAmount: hold,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+                userId: account,
+              },
+            },
+          },
+        });
+
+        expect(createResponse.status).toBe(200);
+        expect(completeResponse.status).toBe(556);
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
+          eventId: authorization.json.id,
+          transactionId: cardId,
+          userId: account,
+          account,
+          amount: capture,
+        });
       });
 
       it("captures collection errors when transaction lookup fails", async () => {
@@ -2240,6 +2319,66 @@ describe("card operations", () => {
 
         const cardId = "force-capture-fraud";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        const { authorizedAmount, ...spend } = authorization.json.body.spend;
+        const completeResponse = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...spend,
+                amount: capture,
+                authorizedAt: new Date().toISOString(),
+                postedAt: new Date().toISOString(),
+                cardId,
+                status: "completed",
+                userId: account,
+              },
+            },
+          },
+        });
+
+        expect(completeResponse.status).toBe(556);
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
+          eventId: authorization.json.id,
+          transactionId: cardId,
+          userId: account,
+          account,
+          amount: capture,
+        });
+      });
+
+      it("force-captures fraud without created body", async () => {
+        const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
+        const capture = 80;
+
+        const cardId = "force-capture-uncreated";
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database.insert(transactions).values([
+          {
+            id: cardId,
+            cardId,
+            hashes: [zeroHash],
+            payload: { bodies: [{ action: "updated", createdAt: new Date().toISOString() }], type: "panda" },
+          },
+        ]);
+
+        vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(
+          new BaseError("execution reverted", {
+            cause: new ContractFunctionExecutionError(
+              new ContractFunctionRevertedError({
+                abi: auditorAbi,
+                functionName: "checkBorrow",
+                data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
+              }),
+              { abi: auditorAbi, functionName: "checkBorrow", args: [] },
+            ),
+          }),
+        );
         const { authorizedAmount, ...spend } = authorization.json.body.spend;
         const completeResponse = await appClient.index.$post({
           ...authorization,
