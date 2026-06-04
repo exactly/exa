@@ -21,6 +21,7 @@ import {
   regex,
   safeParse,
   string,
+  transform,
   union,
   unknown,
   url as urlValidator,
@@ -651,6 +652,15 @@ export async function getProvider(params: {
       status: "ACTIVE" as const,
       onramp: { currencies: [...currencies.onramp, ...approvedCurrencies] },
       offramp: { currencies: [...currencies.offramp, ...approvedCurrencies] },
+      futureRequirement: await futureRequirement(
+        bridgeUser,
+        (() => {
+          if (!params.redirectURL) return;
+          const redirect = new URL(params.redirectURL);
+          redirect.searchParams.set("provider", "bridge");
+          return String(redirect);
+        })(),
+      ),
     };
   }
 
@@ -1065,6 +1075,24 @@ function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirect
   }
 }
 
+function futureRequirement(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
+  const next = bridgeUser.endorsements
+    .flatMap((endorsement) => endorsement.future_requirements ?? [])
+    .flatMap((requirement) => {
+      if (requirement.pending.length > 0) return [];
+      if (!requirement.effective_date) return [];
+      if (new Date(requirement.effective_date).getTime() - Date.now() > 30 * 24 * 60 * 60 * 1000) return [];
+      return [requirement.effective_date];
+    })
+    .toSorted((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+  if (!next) return;
+  return getKYCLink(bridgeUser.id, redirectUri)
+    .then((url) => ({ url, date: next }))
+    .catch((error: unknown): undefined => {
+      captureException(error, { level: "error" });
+    });
+}
+
 function containsRequirement(node: unknown, targets: Set<string>): boolean {
   if (typeof node === "string") return targets.has(node);
   const allOf = safeParse(object({ all_of: array(unknown()) }), node);
@@ -1330,6 +1358,23 @@ const CustomerResponse = object({
         missing: nullish(unknown()),
         issues: array(union([string(), unknown()])),
       }),
+      future_requirements: optional(
+        array(
+          object({
+            effective_date: pipe(
+              string(),
+              transform((value) => {
+                if (!Number.isNaN(new Date(value).getTime())) return value;
+                captureException(new Error("invalid bridge future requirement effective date"), {
+                  contexts: { bridge: { effectiveDate: value } },
+                  level: "error",
+                });
+              }),
+            ),
+            pending: array(string()),
+          }),
+        ),
+      ),
     }),
   ),
 });
