@@ -1032,6 +1032,7 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "GBP"] },
           offramp: { currencies: [...baseCurrencies, "USD", "GBP"] },
+          futureKYCLink: undefined,
         });
       });
 
@@ -1047,6 +1048,7 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
           offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          futureKYCLink: undefined,
         });
       });
 
@@ -1079,6 +1081,7 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
           offramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
+          futureKYCLink: undefined,
         });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "endorsement not approved" }),
@@ -1100,6 +1103,7 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
         });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "additional requirements" }),
@@ -1126,6 +1130,7 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
         });
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "requirements missing" }),
@@ -1143,6 +1148,7 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
         });
         expect(getAccount).not.toHaveBeenCalled();
       });
@@ -1157,8 +1163,234 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
         });
         expect(getAccount).not.toHaveBeenCalled();
+      });
+
+      it("returns ACTIVE with futureKYCLink when a future requirement falls within the window", async () => {
+        const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [{ effective_date: date, pending: [], missing: null, issues: [] }],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: { url: "https://kyc.bridge.xyz/link", date },
+        });
+      });
+
+      it("returns ACTIVE without futureKYCLink when future requirement has pending items", async () => {
+        const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            endorsements: [
+              {
+                ...endorsement("base", "approved"),
+                future_requirements: [{ effective_date: date, pending: ["task-1"], missing: null, issues: [] }],
+              },
+            ],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("returns ACTIVE without futureKYCLink when all future requirements are beyond the window", async () => {
+        const date = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            endorsements: [
+              {
+                ...endorsement("base", "approved"),
+                future_requirements: [{ effective_date: date, pending: [], missing: null, issues: [] }],
+              },
+            ],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("picks the earliest in-window future requirement when multiple apply unordered", async () => {
+        const later = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+        const earlier = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+        const middle = new Date(Date.now() + 15 * 86_400_000).toISOString().slice(0, 10);
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [
+                    { effective_date: later, pending: [], missing: null, issues: [] },
+                    { effective_date: earlier, pending: [], missing: null, issues: [] },
+                    { effective_date: middle, pending: [], missing: null, issues: [] },
+                  ],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+          futureKYCLink: { url: "https://kyc.bridge.xyz/link", date: earlier },
+        });
+      });
+
+      it("ignores beyond-window items and returns the in-window one", async () => {
+        const inWindow = new Date(Date.now() + 12 * 86_400_000).toISOString().slice(0, 10);
+        const beyond = new Date(Date.now() + 200 * 86_400_000).toISOString().slice(0, 10);
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [
+                    { effective_date: beyond, pending: [], missing: null, issues: [] },
+                    { effective_date: inWindow, pending: [], missing: null, issues: [] },
+                  ],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+          futureKYCLink: { url: "https://kyc.bridge.xyz/link", date: inWindow },
+        });
+      });
+
+      it("skips in-window items with pending and picks the next in-window one", async () => {
+        const pendingDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+        const cleanDate = new Date(Date.now() + 12 * 86_400_000).toISOString().slice(0, 10);
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [
+                    { effective_date: pendingDate, pending: ["task-1"], missing: null, issues: [] },
+                    { effective_date: cleanDate, pending: [], missing: null, issues: [] },
+                  ],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+          futureKYCLink: { url: "https://kyc.bridge.xyz/link", date: cleanDate },
+        });
+      });
+
+      it("aggregates future_requirements across multiple endorsements and picks the earliest", async () => {
+        const baseDate = new Date(Date.now() + 25 * 86_400_000).toISOString().slice(0, 10);
+        const sepaDate = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [{ effective_date: baseDate, pending: [], missing: null, issues: [] }],
+                },
+                {
+                  ...endorsement("sepa", "approved"),
+                  future_requirements: [{ effective_date: sepaDate, pending: [], missing: null, issues: [] }],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+          futureKYCLink: { url: "https://kyc.bridge.xyz/link", date: sepaDate },
+        });
+      });
+
+      it("returns undefined when every in-window item has pending", async () => {
+        const a = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+        const b = new Date(Date.now() + 15 * 86_400_000).toISOString().slice(0, 10);
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            endorsements: [
+              {
+                ...endorsement("base", "approved"),
+                future_requirements: [
+                  { effective_date: a, pending: ["task-a"], missing: null, issues: [] },
+                  { effective_date: b, pending: ["task-b"], missing: null, issues: [] },
+                ],
+              },
+            ],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
+        });
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it("captures exception and returns undefined when futureKYCLink fetch fails", async () => {
+        const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [{ effective_date: date, pending: [], missing: null, issues: [] }],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchError(500, "boom"));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureKYCLink: undefined,
+        });
+        expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ level: "error" }));
       });
     });
 
