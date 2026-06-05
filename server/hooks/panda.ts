@@ -814,7 +814,7 @@ export default new Hono().post(
           }
           try {
             await keeper.exaSend(
-              { name: "collect credit", op: "exa.collect", attributes: { account } },
+              { name: card.mode ? "collect credit" : "collect debit", op: "exa.collect", attributes: { account } },
               {
                 address: account,
                 abi: [
