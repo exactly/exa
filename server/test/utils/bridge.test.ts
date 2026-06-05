@@ -1132,6 +1132,34 @@ describe("bridge utils", () => {
           expect.objectContaining({ level: "warning" }),
         );
       });
+
+      it("returns ACTIVE without consulting persona when bridge_enable is unset", async () => {
+        const getAccount = vi.spyOn(persona, "getAccount");
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+        });
+        expect(getAccount).not.toHaveBeenCalled();
+      });
+
+      it("returns ACTIVE without consulting persona when bridge_enable is true", async () => {
+        const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+        });
+        expect(getAccount).not.toHaveBeenCalled();
+      });
     });
 
     describe("without existing customer", () => {
@@ -1144,7 +1172,7 @@ describe("bridge utils", () => {
       });
 
       it("throws when no valid document found", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
         await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
@@ -1167,8 +1195,62 @@ describe("bridge utils", () => {
         expect(fetchSpy).not.toHaveBeenCalled();
       });
 
-      it("returns NOT_AVAILABLE when id class is not mappable to bridge type", async () => {
+      it("returns ONBOARDING when bridge_enable is missing", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+
+        const result = await bridge.getProvider({ credentialId: "cred-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns ONBOARDING when bridge_enable is false", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+          ...personaAccount,
+          attributes: {
+            ...personaAccount.attributes,
+            fields: { ...personaAccount.attributes.fields, bridge_enable: { value: false } },
+          },
+        });
+
+        const result = await bridge.getProvider({ credentialId: "cred-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns ONBOARDING when bridge_enable value is null", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+          ...personaAccount,
+          attributes: {
+            ...personaAccount.attributes,
+            fields: { ...personaAccount.attributes.fields, bridge_enable: { value: null } },
+          },
+        });
+
+        const result = await bridge.getProvider({ credentialId: "cred-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns NOT_AVAILABLE when id class is not mappable to bridge type", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
           ...identityDocument,
           id_class: { value: "wp" },
@@ -1191,7 +1273,7 @@ describe("bridge utils", () => {
       });
 
       it("returns NOT_AVAILABLE when id class is not listed in IdentificationClasses", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
           ...identityDocument,
           id_class: { value: "unknown_type" },
@@ -1215,8 +1297,8 @@ describe("bridge utils", () => {
 
       it("throws when country alpha3 conversion fails", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: { ...personaAccount.attributes, "country-code": "INVALID" },
+          ...enabledPersonaAccount,
+          attributes: { ...enabledPersonaAccount.attributes, "country-code": "INVALID" },
         });
 
         await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(
@@ -1226,8 +1308,12 @@ describe("bridge utils", () => {
 
       it("throws when US user has no SSN", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: { ...personaAccount.attributes, "country-code": "US", "social-security-number": null },
+          ...enabledPersonaAccount,
+          attributes: {
+            ...enabledPersonaAccount.attributes,
+            "country-code": "US",
+            "social-security-number": null,
+          },
         });
 
         await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(
@@ -1236,7 +1322,7 @@ describe("bridge utils", () => {
       });
 
       it("returns NOT_STARTED with basic currencies for standard country", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         await expect(bridge.getProvider({ credentialId: "cred-1" })).resolves.toStrictEqual({
@@ -1249,8 +1335,8 @@ describe("bridge utils", () => {
 
       it("appends spei endorsement for MX country", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: { ...personaAccount.attributes, "country-code": "MX" },
+          ...enabledPersonaAccount,
+          attributes: { ...enabledPersonaAccount.attributes, "country-code": "MX" },
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
@@ -1267,8 +1353,8 @@ describe("bridge utils", () => {
 
       it("appends pix endorsement for BR country", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: { ...personaAccount.attributes, "country-code": "BR" },
+          ...enabledPersonaAccount,
+          attributes: { ...enabledPersonaAccount.attributes, "country-code": "BR" },
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
@@ -1285,8 +1371,8 @@ describe("bridge utils", () => {
 
       it("appends faster_payments endorsement for GB country", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: { ...personaAccount.attributes, "country-code": "GB" },
+          ...enabledPersonaAccount,
+          attributes: { ...enabledPersonaAccount.attributes, "country-code": "GB" },
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
@@ -1302,7 +1388,7 @@ describe("bridge utils", () => {
       });
 
       it("appends redirect URL with provider param", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         const fetchSpy = vi
           .spyOn(globalThis, "fetch")
           .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
@@ -1321,7 +1407,7 @@ describe("bridge utils", () => {
       });
 
       it("preserves existing query params in tos URL when appending redirect_uri", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
           fetchResponse({ url: "https://tos.link/agree?session_token=abc" }),
         );
@@ -1339,7 +1425,7 @@ describe("bridge utils", () => {
 
       it("works on development chain", async () => {
         chainMock.id = optimismSepolia.id;
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         await expect(bridge.getProvider({ credentialId: "cred-1" })).resolves.toStrictEqual({
@@ -1380,7 +1466,7 @@ describe("bridge utils", () => {
     });
 
     it("throws when no valid document found", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
       await expect(
@@ -1408,8 +1494,71 @@ describe("bridge utils", () => {
       );
     });
 
-    it("throws when front document photo is missing", async () => {
+    it("throws NOT_ENABLED when bridge_enable is missing", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge not enabled" }),
+        expect.objectContaining({
+          contexts: { bridge: { credentialId: "cred-1" } },
+          level: "warning",
+        }),
+      );
+    });
+
+    it("throws NOT_ENABLED when bridge_enable is false", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...personaAccount,
+        attributes: {
+          ...personaAccount.attributes,
+          fields: { ...personaAccount.attributes.fields, bridge_enable: { value: false } },
+        },
+      });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge not enabled" }),
+        expect.objectContaining({
+          contexts: { bridge: { credentialId: "cred-1" } },
+          level: "warning",
+        }),
+      );
+    });
+
+    it("throws NOT_ENABLED when bridge_enable value is null", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...personaAccount,
+        attributes: {
+          ...personaAccount.attributes,
+          fields: { ...personaAccount.attributes.fields, bridge_enable: { value: null } },
+        },
+      });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge not enabled" }),
+        expect.objectContaining({
+          contexts: { bridge: { credentialId: "cred-1" } },
+          level: "warning",
+        }),
+      );
+    });
+
+    it("throws when front document photo is missing", async () => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce({
         ...documentResponse,
         attributes: { ...documentResponse.attributes, "front-photo": null },
@@ -1422,11 +1571,11 @@ describe("bridge utils", () => {
 
     it("throws NO_DOCUMENT when only document has unsupported id class", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
+        ...enabledPersonaAccount,
         attributes: {
-          ...personaAccount.attributes,
+          ...enabledPersonaAccount.attributes,
           fields: {
-            ...personaAccount.attributes.fields,
+            ...enabledPersonaAccount.attributes.fields,
             documents: { value: [{ value: { ...identityDocument, id_class: { value: "wp" } } }] },
           },
         },
@@ -1438,7 +1587,7 @@ describe("bridge utils", () => {
     });
 
     it("throws NOT_FOUND_IDENTIFICATION_CLASS when getDocumentForBridge returns not supported class", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
         ...identityDocument,
         id_class: { value: "wp" },
@@ -1452,7 +1601,7 @@ describe("bridge utils", () => {
     });
 
     it("throws NOT_FOUND_IDENTIFICATION_CLASS when id class is not listed in IdentificationClasses", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
         ...identityDocument,
         id_class: { value: "unknown_type" },
@@ -1467,8 +1616,8 @@ describe("bridge utils", () => {
 
     it("throws when country alpha3 conversion fails", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
-        attributes: { ...personaAccount.attributes, "country-code": "INVALID" },
+        ...enabledPersonaAccount,
+        attributes: { ...enabledPersonaAccount.attributes, "country-code": "INVALID" },
       });
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
@@ -1480,8 +1629,12 @@ describe("bridge utils", () => {
 
     it("throws when US user has no SSN", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
-        attributes: { ...personaAccount.attributes, "country-code": "US", "social-security-number": null },
+        ...enabledPersonaAccount,
+        attributes: {
+          ...enabledPersonaAccount.attributes,
+          "country-code": "US",
+          "social-security-number": null,
+        },
       });
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
@@ -1493,9 +1646,9 @@ describe("bridge utils", () => {
 
     it("includes ssn and subdivision for US country", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
+        ...enabledPersonaAccount,
         attributes: {
-          ...personaAccount.attributes,
+          ...enabledPersonaAccount.attributes,
           "country-code": "US",
           "address-subdivision": "CA",
           "social-security-number": "123456789",
@@ -1520,7 +1673,7 @@ describe("bridge utils", () => {
     });
 
     it("omits subdivision for non-US country", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
@@ -1539,8 +1692,8 @@ describe("bridge utils", () => {
 
     it("includes spei endorsement for MX country", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
-        attributes: { ...personaAccount.attributes, "country-code": "MX" },
+        ...enabledPersonaAccount,
+        attributes: { ...enabledPersonaAccount.attributes, "country-code": "MX" },
       });
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const fetchSpy = vi
@@ -1558,8 +1711,8 @@ describe("bridge utils", () => {
 
     it("includes faster_payments endorsement for GB country", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
-        attributes: { ...personaAccount.attributes, "country-code": "GB" },
+        ...enabledPersonaAccount,
+        attributes: { ...enabledPersonaAccount.attributes, "country-code": "GB" },
       });
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const fetchSpy = vi
@@ -1577,8 +1730,8 @@ describe("bridge utils", () => {
 
     it("includes pix endorsement for BR country", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-        ...personaAccount,
-        attributes: { ...personaAccount.attributes, "country-code": "BR" },
+        ...enabledPersonaAccount,
+        attributes: { ...enabledPersonaAccount.attributes, "country-code": "BR" },
       });
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const fetchSpy = vi
@@ -1595,7 +1748,7 @@ describe("bridge utils", () => {
     });
 
     it("retries on timeout and succeeds", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
       vi.spyOn(globalThis, "fetch")
@@ -1615,7 +1768,7 @@ describe("bridge utils", () => {
     });
 
     it("retries on 500 and succeeds", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(blobResponse())
@@ -1634,7 +1787,7 @@ describe("bridge utils", () => {
     });
 
     it("throws after exhausting retries on timeout", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
       const fetchSpy = vi
@@ -1652,7 +1805,7 @@ describe("bridge utils", () => {
     });
 
     it("does not retry on non-retryable errors", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
@@ -1667,7 +1820,7 @@ describe("bridge utils", () => {
     });
 
     it("rejects duplicate bridgeId on customer creation", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(blobResponse())
@@ -1680,7 +1833,7 @@ describe("bridge utils", () => {
     });
 
     it("uses same idempotency key across retries", async () => {
-      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
       const timeout = Object.assign(new Error("signal timed out"), { name: "TimeoutError" });
       const fetchSpy = vi
@@ -3729,6 +3882,14 @@ const personaAccount = {
       email_address: { value: "test@example.com" },
       documents: { value: [{ value: identityDocument }] },
     },
+  },
+};
+
+const enabledPersonaAccount = {
+  ...personaAccount,
+  attributes: {
+    ...personaAccount.attributes,
+    fields: { ...personaAccount.attributes.fields, bridge_enable: { value: true } },
   },
 };
 

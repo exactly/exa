@@ -1039,6 +1039,18 @@ describe("ramp api", () => {
         await expect(response.json()).resolves.toStrictEqual({ code: "denylisted country" });
       });
 
+      it("returns 400 when bridge is not enabled", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NOT_ENABLED));
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not enabled" });
+      });
+
       it("returns 400 with new inquiry for invalid address when no existing inquiry", async () => {
         vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_ADDRESS));
         vi.spyOn(persona, "getInquiry").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined

@@ -648,6 +648,13 @@ export async function getProvider(params: {
   if (Denylist.has(countryCode)) {
     return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
+  if (personaAccount.attributes.fields.bridge_enable?.value !== true) {
+    return {
+      status: "ONBOARDING" as const,
+      onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base] },
+      offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base] },
+    };
+  }
   const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
   const idClass = safeParse(picklist(persona.IdentificationClasses), validDocument.id_class.value);
@@ -712,6 +719,14 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
       level: "warning",
     });
     throw new Error(ErrorCodes.DENYLISTED_COUNTRY);
+  }
+
+  if (personaAccount.attributes.fields.bridge_enable?.value !== true) {
+    captureException(new Error("bridge not enabled"), {
+      contexts: { bridge: { credentialId: params.credentialId } },
+      level: "warning",
+    });
+    throw new Error(ErrorCodes.NOT_ENABLED);
   }
 
   const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
@@ -2080,6 +2095,7 @@ export const ErrorCodes = {
   NOT_AVAILABLE_CURRENCY: "not available currency",
   MISSING_STELLAR_MEMO: "missing stellar memo",
   NOT_AVAILABLE_EVM_NETWORK: "not available evm network",
+  NOT_ENABLED: "not enabled",
   NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   NO_COUNTRY_ALPHA3: "no country alpha3",

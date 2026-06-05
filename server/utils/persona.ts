@@ -9,6 +9,7 @@ import {
   literal,
   minValue,
   nullable,
+  nullish,
   number,
   object,
   optional,
@@ -282,6 +283,17 @@ const MantecaAccount = object({
   }),
 });
 
+const BridgeAccount = object({
+  ...BaseAccount.entries,
+  attributes: object({
+    ...BaseAccountAttributes.entries,
+    fields: object({
+      ...AccountBasicFields.entries,
+      bridge_enable: nullish(object({ value: nullable(boolean()) })),
+    }),
+  }),
+});
+
 const UnknownAccount = object({
   data: array(object({ id: string(), type: literal("account"), attributes: unknown() })),
 });
@@ -296,7 +308,7 @@ const CardLimitAccount = object({
 });
 
 const accountScopeSchemas = {
-  bridge: object({ data: array(BaseAccount) }),
+  bridge: object({ data: array(BridgeAccount) }),
   basic: object({ data: array(BaseAccount) }),
   manteca: object({ data: array(MantecaAccount) }),
   document: object({ data: array(DocumentAccount) }),

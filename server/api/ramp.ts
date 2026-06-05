@@ -345,6 +345,7 @@ export default new Hono()
               switch (error.message) {
                 case bridge.ErrorCodes.ALREADY_ONBOARDED:
                 case bridge.ErrorCodes.DENYLISTED_COUNTRY:
+                case bridge.ErrorCodes.NOT_ENABLED:
                   return c.json({ code: error.message }, 400);
                 case bridge.ErrorCodes.INVALID_ADDRESS: {
                   const { inquiryId, sessionToken } = await getOrCreateInquiry(credentialId, ADDRESS_TEMPLATE);
