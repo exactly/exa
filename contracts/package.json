@@ -28,9 +28,9 @@
     "@openzeppelin/contracts-upgradeable": "^5.6.1",
     "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@^4.9.6",
     "account-abstraction": "eth-infinitism/account-abstraction#v0.6.0",
-    "forge-std": "foundry-rs/forge-std#v1.15.0",
+    "forge-std": "foundry-rs/forge-std#v1.16.1",
     "fresh-crypto-lib": "rdubois-crypto/FreshCryptoLib#fd2a0e6e64609ade0b0c165e4d66de8106a70db6",
-    "solhint": "^6.1.0",
+    "solhint": "^6.2.1",
     "solmate": "transmissions11/solmate#v7",
     "surl": "memester-xyz/surl",
     "typescript": "catalog:"

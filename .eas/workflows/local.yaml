@@ -3,7 +3,7 @@ on:
   push: { branches: ["main"], tags: ["@exactly/mobile@*"] }
   pull_request: {}
   workflow_dispatch: {}
-defaults: { tools: { node: "24.14.1", pnpm: "11.5.2" } }
+defaults: { tools: { node: "24.16.0", pnpm: "11.5.2" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
   fingerprint:
