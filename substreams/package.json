@@ -11,9 +11,9 @@
     "test:protolint": "protolint proto"
   },
   "devDependencies": {
-    "@bufbuild/buf": "^1.66.1",
+    "@bufbuild/buf": "^1.72.0",
     "@exactly/plugin": "workspace:^1.1.0",
-    "protolint": "^0.56.4"
+    "protolint": "^0.57.0"
   },
   "nx": {
     "projectType": "application",

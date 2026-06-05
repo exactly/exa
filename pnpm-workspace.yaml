@@ -44,21 +44,30 @@ auditConfig:
     - GHSA-w3rx-r6r6-pgpr # cspell:ignore pgpr
     - GHSA-w5hq-g745-h8pq
 autoInstallPeers: false
+blockExoticSubdeps: false
 catalog:
-  "@aa-sdk/core": &aaSDK ^4.86.1
+  "@aa-sdk/core": &aaSDK ^4.88.4
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
-  eslint: &eslint ^9.39.4
-  "@eslint/js": *eslint
   "@hono/node-server": ^2.0.12
+  "@sentry/core": &sentry ^10.71.0
+  "@sentry/node": *sentry
+  "@sentry/profiling-node": *sentry
+  "@wagmi/core": ^3.6.4
+  comlink: ^4.4.2
+  eslint: ^10.4.1
+  hono: ^4.13.5
+  i18next: ^26.3.6
+  ioredis: ^6.0.0
   nx: &nx ^23.1.1
   "@nx/esbuild": *nx
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  "@sentry/core": &sentry ^10.71.0
-  "@sentry/node": *sentry
-  "@sentry/profiling-node": *sentry
+  ox: ^1.6.3
+  prettier: ^3.9.6
+  react: &react "19.2.3"
+  react-dom: *react
   tamagui: &tamagui ^2.7.7
   "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
@@ -68,21 +77,16 @@ catalog:
   "@tamagui/lucide-icons-2": *tamagui
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
-  "@wagmi/core": ^3.4.1
-  comlink: ^4.4.2
-  hono: ^4.13.5
-  i18next: ^26.0.5
-  ioredis: ^5.10.1
-  ox: ^0.14.7
-  react: &react "19.2.3"
-  react-dom: *react
   typescript: ^5.9.3
+  typescript-eslint: &typescriptEslint ^8.67.0
+  "@typescript-eslint/utils": *typescriptEslint
   valibot: ^1.4.2
-  viem: ^2.47.6
-  wagmi: ^3.6.0
+  viem: ^2.55.18
+  wagmi: ^3.7.6
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
 overrides:
   "@hono/node-server": "catalog:"
   "@humanfs/node@0.16.7": ^0.16.8
@@ -90,11 +94,17 @@ overrides:
   "@sentry/core@10": "catalog:"
   "@sentry/node@10": "catalog:"
   "@sentry/profiling-node@10": "catalog:"
-  "@tamagui/core": "catalog:"
-  "@tamagui/helpers-icon": "catalog:"
-  "@tamagui/sizable-context": "catalog:"
+  "@typescript-eslint/eslint-plugin": *typescriptEslint
+  "@typescript-eslint/parser": *typescriptEslint
+  "@typescript-eslint/project-service": *typescriptEslint
+  "@typescript-eslint/scope-manager": *typescriptEslint
+  "@typescript-eslint/tsconfig-utils": *typescriptEslint
+  "@typescript-eslint/type-utils": *typescriptEslint
+  "@typescript-eslint/types": *typescriptEslint
+  "@typescript-eslint/typescript-estree": *typescriptEslint
+  "@typescript-eslint/utils": *typescriptEslint
+  "@typescript-eslint/visitor-keys": *typescriptEslint
   "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": ^6.0.0
-  "@wagmi/core": "catalog:"
   "@xmldom/xmldom@0.8.13": ^0.8.15 # cspell:ignore xmldom
   abitype>zod: ^4.0.0
   axios@1.16.1: ^1.18.0
@@ -112,7 +122,6 @@ overrides:
   js-yaml@3: ^3.15.2
   js-yaml@4: ^4.3.2
   js-yaml@5: ^5.2.2
-  lodash-es@4: ^4.18.0
   markdown-it@14: ^14.2.0
   nanoid@3.3.11: ^3.3.12
   picomatch@4: ^4.0.4 # cspell:ignore picomatch
@@ -125,7 +134,6 @@ overrides:
   svgo@3: ^3.3.5
   tar: ^7.5.21
   typescript@5: "catalog:"
-  unicorn-magic@0.3.0: ^0.2.0
   ws@8: ^8.21.0
   yauzl: ^3.2.1 # cspell:ignore yauzl
   "@anthropic-ai/claude-code": npm:@favware/skip-dependency@1.2.2
@@ -163,8 +171,11 @@ patchedDependencies:
   eslint-config-universe: patches/eslint-config-universe.patch
 peerDependencyRules:
   allowedVersions:
+    "@farcaster/miniapp-wagmi-connector>@wagmi/core": "3"
     "@hono/mcp>hono-rate-limiter": "0.5"
     abitype>zod: "3"
+    esbuild-register>esbuild: "0.27"
+    eslint: "10"
     hono-openapi>zod: "4"
     rollup-plugin-import-trace>vite: "8" # cspell:ignore rollup
 publicHoistPattern:
@@ -178,7 +189,6 @@ publicHoistPattern:
   - sharp
 updateConfig:
   ignoreDependencies:
-    - "@eslint/js"
     - "@expo/fingerprint"
     - "@expo/metro-runtime"
     - "@hono/valibot-validator"
@@ -189,11 +199,11 @@ updateConfig:
     - "@types/react"
     - account-abstraction
     - babel-preset-expo
-    - eslint
     - expo-asset
     - expo-build-properties
     - expo-camera
     - expo-clipboard
+    - expo-constants
     - expo-dev-client
     - expo-font
     - expo-image
