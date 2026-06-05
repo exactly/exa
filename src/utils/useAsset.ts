@@ -24,7 +24,7 @@ export default function useAsset(address?: Address) {
     if (markets && market) return withdrawLimit(markets, market.market);
     return externalAsset?.amount ?? 0n;
   }, [markets, market, externalAsset]);
-  const borrowAvailable = useMemo(() => {
+  const borrowAvailable = /* eslint-disable-line react-hooks/preserve-manual-memoization */ useMemo(() => {
     if (markets && market && !externalAsset) return borrowLimit(markets, market.market);
     return 0n;
   }, [markets, market, externalAsset]);

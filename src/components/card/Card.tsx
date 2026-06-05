@@ -183,7 +183,7 @@ export default function Card() {
         }
       }
       const status = await queryClient
-        .fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 })
+        .query<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 })
         .catch((error: unknown) => {
           reportError(error);
           toast.show(t("An error occurred. Please try again later."), {

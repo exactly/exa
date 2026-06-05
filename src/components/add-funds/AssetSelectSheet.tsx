@@ -15,7 +15,8 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Chain, Token } from "@lifi/sdk";
+import type { Token } from "../../utils/lifi";
+import type { Chain } from "@lifi/sdk";
 
 export default function AssetSelectSheet({
   open,

@@ -16,7 +16,7 @@ import parseAmount from "./parseAmount";
 import reportError from "./reportError";
 import exa from "./wagmi/exa";
 
-import type { TokenAmount } from "@lifi/sdk";
+import type { TokenAmount } from "./lifi";
 import type { Address } from "viem";
 
 export default function useCrossChainGas({

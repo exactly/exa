@@ -365,7 +365,7 @@ describe("refund worker", () => {
           source: null,
           usdAmount: 10,
           merchant: { name: "merchant", category: undefined, city: undefined, country: "AR" },
-        } as unknown,
+        },
       }),
     );
     expect(feedback).toHaveBeenCalledExactlyOnceWith({
@@ -708,7 +708,7 @@ describe("refund worker", () => {
           updated: true,
           usdAmount: 5,
           merchant: { name: "merchant", category: undefined, city: undefined, country: "AR" },
-        } as unknown,
+        },
       }),
     );
     expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "user is not active" }), {
@@ -775,7 +775,7 @@ describe("refund worker", () => {
           updated: false,
           usdAmount: 5,
           merchant: { name: "merchant", category: undefined, city: undefined, country: "AR" },
-        } as unknown,
+        },
       }),
     );
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ContractFunctionExecutionError), {
@@ -875,7 +875,7 @@ describe("refund worker", () => {
           updated: false,
           usdAmount: 5,
           merchant: { name: "merchant", category: undefined, city: undefined, country: "AR" },
-        } as unknown,
+        },
       }),
     );
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {

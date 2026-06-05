@@ -20,7 +20,7 @@ import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
-import type { Token } from "@lifi/sdk";
+import type { Token } from "../../utils/lifi";
 
 export default function Success({
   chainId,

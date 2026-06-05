@@ -16,7 +16,7 @@ export function parseBRCode(payload: string) {
   if (isStaticPix(code)) {
     let parsed: Static;
     try {
-      parsed = parseStaticPix(code) as Static;
+      parsed = parseStaticPix(code);
     } catch {
       return;
     }
@@ -37,7 +37,7 @@ export function parseBRCode(payload: string) {
   if (isDynamicPix(code)) {
     let parsed: Dynamic;
     try {
-      parsed = parseDynamicPix(code) as Dynamic;
+      parsed = parseDynamicPix(code);
     } catch {
       return;
     }

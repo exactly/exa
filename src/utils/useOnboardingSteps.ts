@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 
-import type { KYCState } from "./useKYC";
+import type useKYC from "./useKYC";
 
-export default function useOnboardingSteps({ kyc, isDeployed }: { isDeployed: boolean; kyc: KYCState }) {
+export default function useOnboardingSteps({
+  kyc,
+  isDeployed,
+}: {
+  isDeployed: boolean;
+  kyc: ReturnType<typeof useKYC>["status"];
+}) {
   return useMemo(() => {
     const steps = [
       { id: "create-account", status: "completed", title: "Account created" },

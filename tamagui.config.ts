@@ -299,7 +299,7 @@ const body = createFont({
 const tamagui = createTamagui({
   ...config,
   tokens,
-  defaultProps: { Text: { fontFamily: "$body" } } as Record<string, object>,
+  defaultProps: { Text: { fontFamily: "$body" } } as Record<string, object>, // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- prevent recursive config inference
   groups: { column: { pseudo: true }, portfolio: { pseudo: true } },
   fonts: {
     body,

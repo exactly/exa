@@ -13,7 +13,7 @@ const workspace = await automation.LocalWorkspace.create({ workDir: import.meta.
 const meta = await rejectSecrets("meta", workspace);
 const disabled: unknown = meta.config?.["pulumi:disable-default-providers"];
 if (!Array.isArray(disabled) || disabled.length !== 1 || disabled[0] !== "*") throw new Error("invalid meta config");
-const files = await readdir(import.meta.dirname); // eslint-disable-line security/detect-non-literal-fs-filename -- module directory
+const files = await readdir(import.meta.dirname);
 const stacks = await Promise.all(
   files
     .map((file) => /^Pulumi\.(.+)\.yaml$/.exec(file)?.[1])

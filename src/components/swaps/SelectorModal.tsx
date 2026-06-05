@@ -22,7 +22,7 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Token } from "@lifi/sdk";
+import type { Token } from "../../utils/lifi";
 
 function TokenListItem({
   token,
@@ -158,7 +158,7 @@ export default function TokenSelectModal({
       !query || fields.some((field) => field?.toLowerCase().includes(query));
     return tokens.filter((token) => {
       if (filter === "stocks" && !isStock(token)) return false;
-      if (typeof filter === "number" && (token.chainId as number) !== filter) return false;
+      if (typeof filter === "number" && token.chainId !== filter) return false;
       if (withBalanceOnly) {
         const key = `${token.chainId}:${token.address}`;
         const asset = assetByToken.get(key);

@@ -12,8 +12,8 @@ import { balancesOptions } from "./lifi";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
+import type { TokenAmount } from "./lifi";
 import type { Hex, Address as ViemAddress } from "@exactly/common/validation";
-import type { TokenAmount } from "@lifi/sdk";
 
 export type ProtocolAsset = {
   asset: Hex;

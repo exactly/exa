@@ -1,4 +1,5 @@
 import {
+  ChainId,
   ChainType,
   config,
   createConfig as createLifiConfig,
@@ -9,11 +10,10 @@ import {
   getToken,
   getTokens,
   getTools,
-  type ChainId,
   type Estimate,
   type ExtendedChain,
-  type Token,
-  type TokenAmount,
+  type Token as LifiToken,
+  type TokenAmount as LifiTokenAmount,
 } from "@lifi/sdk";
 import { base58, bech32, bech32m, createBase58check } from "@scure/base";
 import { queryOptions, skipToken } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ import {
   object,
   optional,
   parse,
+  picklist,
   pipe,
   regex,
   safeParse,
@@ -104,7 +105,7 @@ export const lifiTokensOptions = queryOptions({
       return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
         const token = {
           address: asset,
-          chainId: chain.id as ChainId,
+          chainId: chain.id,
           decimals,
           name: symbol,
           priceUSD: formatUnits(usdPrice, 18),
@@ -117,16 +118,18 @@ export const lifiTokensOptions = queryOptions({
     }
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
-    const allTokens = Object.values(tokens)
+    const allTokens: Token[] = Object.values(tokens)
       .flat()
       .filter((token) => token.verificationStatus !== "flagged");
-    if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
+    if (!allTokens.some((token) => token.chainId === chain.id)) {
       throw new Error("missing destination tokens");
     }
     if (!exaAddress) return allTokens;
-    const exa = await getToken(chain.id, exaAddress).catch((error: unknown) => {
-      reportError(error);
-    });
+    const exa: Token | undefined = await getToken(parse(Network, chain.id), exaAddress).catch(
+      (error: unknown): undefined => {
+        reportError(error);
+      },
+    );
     return exa
       ? [
           exa,
@@ -139,7 +142,7 @@ export const lifiTokensOptions = queryOptions({
 });
 
 export function isStock({ address, chainId }: Token) {
-  return chainId === (base.id as ChainId) && stocks.has(address.toLowerCase());
+  return chainId === base.id && stocks.has(address.toLowerCase());
 }
 
 export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
@@ -151,13 +154,13 @@ export function balancesOptions(account: Address | undefined) {
     gcTime: isServer ? Infinity : 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
     queryFn: async () => {
-      if (!account) return {} as Record<number, TokenAmount[]>;
+      if (!account) return {};
       ensureConfig();
       const [amounts, lifiTokens, exa] = await Promise.all([
         getWalletBalances(account),
-        queryClient.fetchQuery(lifiTokensOptions),
+        queryClient.query(lifiTokensOptions),
         exaAddress
-          ? getToken(chain.id, exaAddress).catch((error: unknown) => {
+          ? getToken(parse(Network, chain.id), exaAddress).catch((error: unknown) => {
               reportError(error);
             })
           : undefined,
@@ -254,7 +257,7 @@ function ensureConfig() {
       reportError(error);
     });
   configured = true;
-  queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
+  queryClient.query(lifiTokensOptions).catch(() => undefined);
 }
 
 export async function getRoute(
@@ -328,7 +331,7 @@ export async function getRoute(
 export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
   ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
-  const { tokens } = await getTokens({ chains: [chain.id] });
+  const { tokens } = await getTokens({ chains: [parse(Network, chain.id)] });
   const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
   const allowed = new Set(
     [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)]
@@ -338,7 +341,7 @@ export async function getAllowTokens(markets: readonly { asset: string; symbol: 
   const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
   if (!exaAddress) return allowTokens;
   try {
-    const exa = await getToken(chain.id, exaAddress);
+    const exa = await getToken(parse(Network, chain.id), exaAddress);
     return [exa, ...allowTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())];
   } catch {
     return allowTokens;
@@ -507,6 +510,10 @@ const liquidityCodes = new Set([
   "INSUFFICIENT_LIQUIDITY",
 ]);
 
+export type Token = Omit<LifiToken, "chainId"> & { chainId: number };
+
+export type TokenAmount = Pick<LifiTokenAmount, "amount" | "blockNumber"> & Token;
+
 export type TokenBalance = { balance: bigint; token: Token; usdValue: number };
 
 export function tokenAmountsToBalances(tokenAmounts: TokenAmount[]): TokenBalance[] {
@@ -539,19 +546,19 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
   if (!account) throw new Error("account is required");
   const cachedTokens = queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey);
   const [supportedChains, allTokens, allBalances] = await Promise.all([
-    queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
-    cachedTokens?.some((token) => token.chainId === (chain.id as typeof token.chainId))
+    queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.query(lifiChainsOptions),
+    cachedTokens?.some((token) => token.chainId === chain.id)
       ? cachedTokens
-      : queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
+      : queryClient.query(lifiTokensOptions).catch((error: unknown) => {
           reportError(error);
           return [] as Token[];
         }),
-    queryClient.fetchQuery(balancesOptions(account)),
+    queryClient.query(balancesOptions(account)),
   ]);
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const destinationTokens = allTokens.filter((token) => token.chainId === (chain.id as typeof token.chainId));
+  const destinationTokens = allTokens.filter((token) => token.chainId === chain.id);
   const balancesByChain: Record<number, TokenBalance[]> = {};
 
   for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {
@@ -603,7 +610,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 async function getWalletBalances(account: Address) {
   const [chains, networks] = await Promise.all([
     config.getChains(),
-    queryClient.fetchQuery(networksOptions).catch((error: unknown) => {
+    queryClient.query(networksOptions).catch((error: unknown) => {
       reportError(error);
       return [];
     }),
@@ -714,6 +721,8 @@ const Balances = object({
 
 const knownTokens = new WeakMap<Token[], Map<string, Token>>();
 
+const Network = picklist(Object.values(ChainId).filter((id) => typeof id === "number"));
+
 type Holding = { address: string; amount: bigint };
 
 export const tokenCorrelation = {
@@ -802,7 +811,7 @@ function legacy(input: string, ...versions: number[]) {
 }
 
 function witness(coder: typeof bech32, input: string, valid: (version: number, size: number) => boolean) {
-  const parsed = coder.decodeUnsafe(input as `${string}1${string}`);
+  const parsed = coder.decodeUnsafe(input);
   if (parsed?.prefix !== "bc") return false;
   const [version, ...program] = parsed.words;
   const bytes = coder.fromWordsUnsafe(program);

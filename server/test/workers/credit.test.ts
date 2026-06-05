@@ -25,10 +25,11 @@ import type { JobsOptions } from "bullmq";
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
 const unknown = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
-const credit = createCredit(bullmq);
+const connection = bullmq.duplicate({ db: 1 });
+const credit = createCredit(connection);
 const onesignal = createOnesignal("onesignal");
-const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
-const events = new QueueEvents("credit", { connection: bullmq });
+const queue = new Queue<Credit, void, "credit">("credit", { connection });
+const events = new QueueEvents("credit", { connection });
 let worker: ReturnType<typeof creditWorker>;
 
 beforeAll(async () => {
@@ -56,6 +57,7 @@ afterAll(async () => {
   await database.delete(cards).where(eq(cards.credentialId, "credit-worker"));
   await database.delete(credentials).where(eq(credentials.id, "credit-worker"));
   await Promise.all([queue.close(), events.close(), credit.close()]);
+  await connection.quit();
 });
 
 describe("credit queue", () => {
@@ -99,7 +101,7 @@ describe("credit queue", () => {
 
 describe("credit worker", () => {
   beforeAll(async () => {
-    worker = creditWorker({ bullmq, database, onesignal });
+    worker = creditWorker({ bullmq: connection, database, onesignal });
     await worker.ready;
   });
 
@@ -338,7 +340,7 @@ async function spyScopeSetUser() {
 async function spySpanSetAttribute() {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
-  vi.mocked(startSpan).mockImplementation(((options, callback) =>
+  vi.mocked(startSpan).mockImplementation((options, callback) =>
     realStartSpan(options, (span) => {
       const originalSetAttribute = span.setAttribute.bind(span);
       span.setAttribute = (...args: Parameters<typeof span.setAttribute>) => {
@@ -346,6 +348,7 @@ async function spySpanSetAttribute() {
         return originalSetAttribute(...args);
       };
       return callback(span);
-    })) as typeof startSpan);
+    }),
+  );
   return setAttribute;
 }

@@ -108,7 +108,7 @@ async function spyScopeSetUser() {
 async function spySpanSetAttribute() {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
-  vi.mocked(startSpan).mockImplementation(((options, callback) =>
+  vi.mocked(startSpan).mockImplementation((options, callback) =>
     realStartSpan(options, (span) => {
       const originalSetAttribute = span.setAttribute.bind(span);
       span.setAttribute = (...args: Parameters<typeof span.setAttribute>) => {
@@ -116,7 +116,8 @@ async function spySpanSetAttribute() {
         return originalSetAttribute(...args);
       };
       return callback(span);
-    })) as typeof startSpan);
+    }),
+  );
   return setAttribute;
 }
 
@@ -476,7 +477,7 @@ describe("poke worker", () => {
       if (hidden && parameters.functionName === "balanceOf" && parameters.address === token2) {
         hidden = false;
         await mint(token2, account, usdcDeposit);
-        return 0n as never;
+        return 0n;
       }
       return readContract(parameters as never);
     });
@@ -502,7 +503,7 @@ describe("poke worker", () => {
       if (hidden && parameters.functionName === "balanceOf" && parameters.address === token2) {
         hidden = false;
         await mint(token2, account, 2_000_000n);
-        return 0n as never;
+        return 0n;
       }
       return readContract(parameters as never);
     });

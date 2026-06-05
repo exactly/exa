@@ -1,6 +1,8 @@
 {
   "reject": [
-    "@eslint/js",
+    "@babel/core",
+    "@babel/preset-env",
+    "better-auth",
     "@expo/fingerprint",
     "@expo/metro-runtime",
     "@hono/valibot-validator",
@@ -8,14 +10,15 @@
     "@openzeppelin/contracts-v4",
     "@openzeppelin/contracts-upgradeable-v4",
     "@react-native-async-storage/async-storage",
+    "@react-pdf/renderer",
     "@types/react",
     "account-abstraction",
     "babel-preset-expo",
-    "eslint",
     "expo-asset",
     "expo-build-properties",
     "expo-camera",
     "expo-clipboard",
+    "expo-constants",
     "expo-dev-client",
     "expo-font",
     "expo-image",
@@ -28,7 +31,6 @@
     "expo-updates",
     "expo-web-browser",
     "hono-openapi",
-    "metro-config",
     "react",
     "react-dom",
     "react-native",
@@ -38,6 +40,7 @@
     "react-native-safe-area-context",
     "react-native-screens",
     "react-native-svg",
+    "react-native-webview",
     "react-native-worklets",
     "typescript"
   ]

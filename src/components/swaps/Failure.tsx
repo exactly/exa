@@ -16,7 +16,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Token } from "@lifi/sdk";
+import type { Token } from "../../utils/lifi";
 
 export default function Failure({
   fromUsdAmount,

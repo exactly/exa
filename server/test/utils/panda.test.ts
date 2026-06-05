@@ -12,7 +12,7 @@ import { Address } from "@exactly/common/validation";
 import createPanda, * as Panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
-const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
+const chainMock = vi.hoisted(() => ({ id: 0, testnet: true }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   ...(await importOriginal()),

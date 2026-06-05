@@ -42,7 +42,7 @@ export default function InstallmentsSheet({
   const [page, setPage] = useState<number>();
   useEffect(() => {
     if (open) {
-      setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
+      setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect, react-hooks/set-state-in-effect
       setPage(undefined); // eslint-disable-line @eslint-react/set-state-in-effect
     }
   }, [mode, open]);

@@ -26,6 +26,8 @@ import ProposalType, {
   decodeRepayAtMaturity,
   decodeRollDebt,
   decodeWithdraw,
+  recognize,
+  type Proposal,
 } from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 
@@ -42,14 +44,6 @@ import type { RouteFrom } from "../../utils/lifi";
 import type { MutationState } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 
-type Proposal = {
-  amount: bigint;
-  data: `0x${string}`;
-  market: `0x${string}`;
-  proposalType: ProposalType;
-  timestamp: bigint;
-};
-
 type ProposalWithMetadata = Proposal & {
   decoded?:
     | ReturnType<typeof decodeBorrowAtMaturity>
@@ -61,7 +55,7 @@ type ProposalWithMetadata = Proposal & {
   label: string;
 };
 
-function getProposalLabel(proposalType: ProposalType, t: TFunction): string {
+function getProposalLabel(proposalType: ProposalType | undefined, t: TFunction): string {
   switch (proposalType) {
     case ProposalType.BorrowAtMaturity:
       return t("Protocol borrow");
@@ -81,7 +75,8 @@ function getProposalLabel(proposalType: ProposalType, t: TFunction): string {
 }
 
 function getProposal(proposal: Proposal, t: TFunction): ProposalWithMetadata {
-  const { data, proposalType } = proposal;
+  const { data } = proposal;
+  const proposalType = recognize(proposal.proposalType);
   switch (proposalType) {
     case ProposalType.BorrowAtMaturity:
       return {
@@ -210,7 +205,8 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
     t,
     i18n: { language },
   } = useTranslation();
-  const { label, icon, decoded, market: proposalMarket, proposalType } = getProposal(proposal, t);
+  const { label, icon, decoded, market: proposalMarket } = getProposal(proposal, t);
+  const proposalType = recognize(proposal.proposalType);
   const { market } = useAsset(proposalMarket);
   const symbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : null;
   const usdValue = market ? (proposal.amount * market.usdPrice) / BigInt(10 ** market.decimals) : 0n;

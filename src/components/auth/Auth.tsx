@@ -64,14 +64,14 @@ export default function Auth() {
 
   const startProgressAnimation = useCallback(() => {
     cancelAnimation(progress);
-    progress.value = 0;
-    progress.value = withTiming(1, { duration: 5000, easing: Easing.linear });
+    progress.set(0);
+    progress.set(withTiming(1, { duration: 5000, easing: Easing.linear }));
   }, [progress]);
 
   const handleSnapToItem = useCallback(
     function (index: number) {
       setActiveIndex(index);
-      isScrolling.value = false;
+      isScrolling.set(false);
       startProgressAnimation();
     },
     [isScrolling, startProgressAnimation],
@@ -79,18 +79,18 @@ export default function Auth() {
 
   const handleProgressChange = useCallback(
     function (absoluteProgress: number) {
-      const previousOffset = scrollOffset.value;
+      const previousOffset = scrollOffset.get();
       const delta = Math.abs(absoluteProgress - previousOffset);
-      scrollOffset.value = absoluteProgress;
+      scrollOffset.set(absoluteProgress);
 
       const nearestIndex = Math.round(absoluteProgress);
       const distanceFromRest = Math.abs(absoluteProgress - nearestIndex);
       const scrolling = distanceFromRest > 0.01 && delta > 0.001;
 
-      if (scrolling && !isScrolling.value) {
-        isScrolling.value = true;
+      if (scrolling && !isScrolling.get()) {
+        isScrolling.set(true);
         cancelAnimation(progress);
-        progress.value = 0;
+        progress.set(0);
       }
     },
     [scrollOffset, isScrolling, progress],
@@ -287,7 +287,7 @@ export default function Auth() {
           />
         </>
       ) : null}
-      <TimeToFullDisplay record />
+      <TimeToFullDisplay ready />
     </SafeView>
   );
 }

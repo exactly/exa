@@ -7,7 +7,6 @@ import {
   getTraceData,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
-  setExtra,
   startSpan,
   withScope,
 } from "@sentry/node";
@@ -88,13 +87,13 @@ export default function hook({
   const signingKeys = new Set(blockKey && [blockKey]);
   const ready = Promise.all([
     redis
-      .zrange("withdraw", 0, Infinity, "BYSCORE")
+      .zrange("withdraw", 0, "+inf", "BYSCORE")
       .then((messages) => {
         for (const message of messages) scheduleWithdraw(message);
       })
       .catch((error: unknown) => captureException(error)),
     redis
-      .zrange("proposals", 0, Infinity, "BYSCORE")
+      .zrange("proposals", 0, "+inf", "BYSCORE")
       .then((messages) => {
         for (const message of messages) scheduleMessage(message);
       })
@@ -135,7 +134,7 @@ export default function hook({
       const { timestamp, logs } = c.req.valid("json").event.data.block;
 
       if (logs.length === 0) {
-        setExtra("exa.ignore", true);
+        getActiveSpan()?.setAttribute("exa.ignore", true);
         return c.json({}, 200);
       }
       setContext("alchemy", await c.req.json());

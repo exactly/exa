@@ -1,3 +1,4 @@
+import { picklist, safeParse } from "valibot";
 import { decodeAbiParameters } from "viem";
 
 enum ProposalType {
@@ -79,4 +80,17 @@ export function decodeBorrowAtMaturity(data: `0x${string}`) {
     ],
     data,
   )[0];
+}
+
+export type Proposal = {
+  amount: bigint;
+  data: `0x${string}`;
+  market: `0x${string}`;
+  proposalType: number;
+  timestamp: bigint;
+};
+
+export function recognize(value: number) {
+  const result = safeParse(picklist(Object.values(ProposalType).filter((type) => typeof type === "number")), value);
+  return result.success ? result.output : undefined;
 }

@@ -15,7 +15,7 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Token } from "@lifi/sdk";
+import type { Token } from "../../utils/lifi";
 
 export default function TokenInput({
   label,

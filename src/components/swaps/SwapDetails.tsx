@@ -6,7 +6,7 @@ import { XStack, YStack } from "tamagui";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
-import type { Token } from "@lifi/sdk";
+import type { Token } from "../../utils/lifi";
 
 export default function SwapDetails({
   exchange,

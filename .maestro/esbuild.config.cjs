@@ -3,12 +3,11 @@ const path = require("node:path");
 /** @satisfies {import("esbuild").BuildOptions} */
 module.exports = {
   bundle: true,
-  outdir: "dist",
+  outdir: ".maestro/dist",
   platform: "neutral",
   external: ["isows"],
   mainFields: ["module", "main"],
-  inject: ["src/polyfill.ts"],
-  absWorkingDir: __dirname,
+  inject: [".maestro/src/polyfill.ts"],
   plugins: [
     {
       name: "fix-tsconfig",

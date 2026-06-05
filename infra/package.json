@@ -11,17 +11,17 @@
     "test": "nx test infra"
   },
   "engines": {
-    "node": "^24.14.1"
+    "node": "^24.21.0"
   },
   "dependencies": {
-    "@pulumi/gcp": "^9.35.0",
-    "@pulumi/pulumi": "^3.259.0"
+    "@pulumi/gcp": "^9.37.0",
+    "@pulumi/pulumi": "^3.265.0"
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.20",
-    "@types/node": "^25.5.0",
+    "@types/node": "^26.6.3",
     "eslint": "catalog:",
-    "eslint-config-universe": "^15.0.3",
+    "eslint-config-universe": "^16.1.2",
     "typescript": "catalog:"
   },
   "nx": {

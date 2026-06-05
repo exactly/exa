@@ -91,6 +91,18 @@ describe("authentication", () => {
     await redis.del("test-session");
   });
 
+  it("returns public-key authentication options", async () => {
+    const response = await appClient.index.$get({ query: { credentialId: "dGVzdC1jcmVkLWlk" } });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        method: "webauthn",
+        allowCredentials: [{ id: "dGVzdC1jcmVkLWlk", type: "public-key" }],
+      }),
+    );
+  });
+
   it("returns intercom token on successful login", async () => {
     const response = await appClient.index.$post(
       {
@@ -660,6 +672,15 @@ describe("registration", () => {
     await redis.del("test-session");
   });
 
+  it("returns public-key registration options", async () => {
+    const response = await registrationAppClient.index.$get({ query: {} });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(
+      expect.objectContaining({ method: "webauthn", pubKeyCredParams: [{ type: "public-key", alg: -7 }] }),
+    );
+  });
+
   it("returns 400 if registration challenge is missing", async () => {
     await redis.del("test-session");
     const response = await postRegistrationWebauthn();
@@ -683,7 +704,7 @@ describe("registration", () => {
   it("consumes challenge after bad registration to prevent replay", async () => {
     vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
       verified: false,
-    } as Awaited<ReturnType<typeof verifyRegistrationResponse>>);
+    });
 
     const firstResponse = await postRegistrationWebauthn();
     const secondResponse = await postRegistrationWebauthn();

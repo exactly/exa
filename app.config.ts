@@ -2,6 +2,7 @@ import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-prope
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
 import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
+import { createRequire, registerHooks } from "node:module";
 import { env } from "node:process";
 
 import metadata from "./package.json";
@@ -10,6 +11,7 @@ import versionCode from "./src/generated/versionCode.js";
 import type { IntercomPluginProps } from "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types";
 import type { withSentry } from "@sentry/react-native/expo";
 import type { ExpoConfig } from "expo/config";
+import type { OneSignalPluginProps } from "onesignal-expo-plugin";
 
 if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
@@ -107,48 +109,56 @@ export default {
       "@sentry/react-native/expo",
       { organization: "exactly", project: "exa" } satisfies Parameters<typeof withSentry>[1],
     ],
-    [
-      "onesignal-expo-plugin",
-      {
-        mode: env.NODE_ENV === "production" ? "production" : "development",
-        smallIcons: ["src/assets/notifications_default.png"],
-        largeIcons: ["src/assets/notifications_default_large.png"],
-      },
-    ],
     // @ts-expect-error inline plugin
-    ((config) =>
-      withAndroidManifest(
-        withAppBuildGradle(config, (c) => {
-          c.modResults.contents = c.modResults.contents.replace(
-            /defaultConfig\s*\{/,
-            '$& ndk { debugSymbolLevel "FULL" }',
-          );
-          c.modResults.contents = c.modResults.contents.replace(
-            /dependencies\s*\{/,
-            '$&\nimplementation(enforcedPlatform("com.squareup.okhttp3:okhttp-bom:4.12.0"))', // cspell:ignore okhttp
-          );
-          return c;
-        }),
-        (configWithManifest) => {
-          const manifest = configWithManifest.modResults;
-          manifest.manifest.$["xmlns:tools"] ??= "http://schemas.android.com/tools";
-          const mainApplication = AndroidConfig.Manifest.getMainApplication(manifest);
-          if (!mainApplication) return configWithManifest;
-          const META_NAME = "com.google.mlkit.vision.DEPENDENCIES"; // cspell:ignore mlkit
-          mainApplication["meta-data"] =
-            mainApplication["meta-data"]?.filter(({ $ }) => $["android:name"] !== META_NAME) ?? [];
-          mainApplication["meta-data"].push({
-            $: {
-              "android:name": META_NAME,
-              "android:value": "ocr,face,barcode,barcode_ui",
-              // @ts-expect-error xmlns:tools
-              "tools:replace": "android:value",
+    function withNative(config) {
+      const hooks = registerHooks({
+        resolve: (specifier, context, resolve) =>
+          resolve(specifier === "expo/config-plugins.js" ? "expo/config-plugins" : specifier, context),
+      });
+      try {
+        return withAndroidManifest(
+          withAppBuildGradle(
+            (createRequire(__filename)("onesignal-expo-plugin") as ConfigPlugin<OneSignalPluginProps>)(config, {
+              mode: env.NODE_ENV === "production" ? "production" : "development",
+              smallIcons: ["src/assets/notifications_default.png"],
+              largeIcons: ["src/assets/notifications_default_large.png"],
+            }),
+            (c) => {
+              c.modResults.contents = c.modResults.contents.replace(
+                /defaultConfig\s*\{/,
+                '$& ndk { debugSymbolLevel "FULL" }',
+              );
+              c.modResults.contents = c.modResults.contents.replace(
+                /dependencies\s*\{/,
+                '$&\nimplementation(enforcedPlatform("com.squareup.okhttp3:okhttp-bom:4.12.0"))', // cspell:ignore okhttp
+              );
+              return c;
             },
-          });
-          configWithManifest.modResults = manifest;
-          return configWithManifest;
-        },
-      )) satisfies ConfigPlugin,
+          ),
+          (configWithManifest) => {
+            const manifest = configWithManifest.modResults;
+            manifest.manifest.$["xmlns:tools"] ??= "http://schemas.android.com/tools";
+            const mainApplication = AndroidConfig.Manifest.getMainApplication(manifest);
+            if (!mainApplication) return configWithManifest;
+            const META_NAME = "com.google.mlkit.vision.DEPENDENCIES"; // cspell:ignore mlkit
+            mainApplication["meta-data"] =
+              mainApplication["meta-data"]?.filter(({ $ }) => $["android:name"] !== META_NAME) ?? [];
+            mainApplication["meta-data"].push({
+              $: {
+                "android:name": META_NAME,
+                "android:value": "ocr,face,barcode,barcode_ui",
+                // @ts-expect-error xmlns:tools
+                "tools:replace": "android:value",
+              },
+            });
+            configWithManifest.modResults = manifest;
+            return configWithManifest;
+          },
+        );
+      } finally {
+        hooks.deregister();
+      }
+    } satisfies ConfigPlugin,
   ],
   experiments: { typedRoutes: true },
   extra: { eas: { projectId: "06bc0158-d23b-430b-a7e8-802df03c450b" } },

@@ -12,7 +12,7 @@ import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "
 
 import { ChainType } from "@lifi/sdk";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { parse, safeParse } from "valibot";
+import { enum_, parse, safeParse } from "valibot";
 import {
   encodeEventTopics,
   encodeFunctionData,
@@ -140,9 +140,7 @@ export default function Confirm() {
       };
     }
     const token = tokens?.find(
-      (item) =>
-        item.chainId === (destinationChain as typeof item.chainId) &&
-        item.address.toLowerCase() === toToken.toLowerCase(),
+      (item) => item.chainId === destinationChain && item.address.toLowerCase() === toToken.toLowerCase(),
     );
     if (token) {
       return {
@@ -464,7 +462,7 @@ export default function Confirm() {
   /* istanbul ignore next */
   const fillStyle = useAnimatedStyle(() => ({ width: `${hold.value * 100}%` }));
 
-  const sendReady = useMemo(() => {
+  const sendReady = /* eslint-disable-line react-hooks/preserve-manual-memoization */ useMemo(() => {
     if (fromAmount <= 0n || !destination || insufficientGas || quoteExpired) return false;
     const estimated = !!transferEstimate && !isTransferEstimateStale && networkCost !== undefined;
     if (routed) return !!route && (market ? !!bridgePropose : !!payUnderlying && estimated);
@@ -530,7 +528,7 @@ export default function Confirm() {
         [
           {
             address: receiver,
-            chainType: typeof chainType === "string" ? (chainType as ChainType) : ChainType.EVM,
+            chainType: typeof chainType === "string" ? parse(enum_(ChainType), chainType) : ChainType.EVM,
             ens,
             date: Date.now(),
           },
@@ -603,7 +601,7 @@ export default function Confirm() {
     if (!prepareError) return;
     reportError(prepareError, { level: "warning" });
     if (!routed || !tool || stalled || outage) return;
-    setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line @eslint-react/set-state-in-effect
+    setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line react-hooks/set-state-in-effect, @eslint-react/set-state-in-effect
   }, [outage, prepareError, routed, stalled, tool]);
   const failure =
     routeError && !transient

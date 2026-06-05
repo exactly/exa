@@ -120,7 +120,7 @@ export default function AssetSelection() {
     (id: number) => {
       if (typeof chainType !== "string") return true;
       const known = chains?.find((item) => item.id === id);
-      return known ? known.chainType === (chainType as ChainType) : chainType === (ChainType.EVM as string);
+      return known ? (known.chainType as string) === chainType : chainType === (ChainType.EVM as string);
     },
     [chainType, chains],
   );
@@ -220,8 +220,7 @@ export default function AssetSelection() {
       .sort(
         (a, b) =>
           a.rank - b.rank ||
-          Number(b.token.chainId === (chain.id as typeof b.token.chainId)) -
-            Number(a.token.chainId === (chain.id as typeof a.token.chainId)) ||
+          Number(b.token.chainId === chain.id) - Number(a.token.chainId === chain.id) ||
           (names.get(a.token.chainId) ?? "").localeCompare(names.get(b.token.chainId) ?? ""),
       )
       .slice(0, 20)
@@ -505,7 +504,7 @@ export default function AssetSelection() {
                 )}
                 {trending.map((token) => {
                   const chainName =
-                    chains?.find((item) => item.id === (token.chainId as number))?.name ??
+                    chains?.find((item) => item.id === token.chainId)?.name ??
                     alchemyChainById.get(token.chainId)?.name ??
                     chain.name;
                   return (

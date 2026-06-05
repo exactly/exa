@@ -1,4 +1,4 @@
-FROM node:24.14.1-slim AS base
+FROM node:24.21.0-slim AS base
 
 ARG APP_DOMAIN="sandbox.exactly.app"
 ARG CHAIN_ID="11155420"
@@ -34,5 +34,5 @@ WORKDIR /prod/server
 COPY --from=build --chown=server:server /prod/server .
 USER server
 EXPOSE 3000/tcp
-ENTRYPOINT ["dumb-init", "node", "--require=./instrument.cjs"]
+ENTRYPOINT ["dumb-init", "node", "--import=./instrument.cjs"]
 CMD ["dist/index.cjs"]

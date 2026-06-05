@@ -1,5 +1,4 @@
 import { Platform } from "react-native";
-import type { Environment } from "react-native-persona";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
@@ -11,7 +10,7 @@ import { getKYCTokens, type KYCStatus } from "./server";
 
 import type { UseMutationOptions } from "@tanstack/react-query";
 
-export const environment = (__DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production") as Environment;
+export const environment = __DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e" ? "sandbox" : "production";
 
 type KYCResult = { status: "cancel" } | { status: "complete" };
 type InquiryResult = KYCResult | { status: "error" };
@@ -56,7 +55,7 @@ export function startKYC() {
         const client = new Client({
           inquiryId,
           sessionToken,
-          environment: environment as "production" | "sandbox", // TODO implement environmentId
+          environment, // TODO implement environmentId
           onReady: () => client.open(),
           onComplete: () => {
             signal.removeEventListener("abort", onAbort);
@@ -170,7 +169,7 @@ function startScopedInquiry(
         const client = new Client({
           inquiryId,
           sessionToken,
-          environment: environment as "production" | "sandbox",
+          environment,
           onReady: () => client.open(),
           onComplete: () => {
             signal.removeEventListener("abort", onAbort);
@@ -260,9 +259,7 @@ function handleCancel() {
 }
 
 export type KYCMutationResult =
-  | { kyc: KYCStatus; status: "blocked" }
-  | { kyc: KYCStatus; status: "complete" }
-  | { status: "cancel" };
+  { kyc: KYCStatus; status: "blocked" } | { kyc: KYCStatus; status: "complete" } | { status: "cancel" };
 
 export function kycMutationOptions(): Pick<
   UseMutationOptions<KYCMutationResult>,
@@ -271,13 +268,13 @@ export function kycMutationOptions(): Pick<
   return {
     mutationKey: ["kyc"],
     async mutationFn() {
-      const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
+      const status = await queryClient.query<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
       const code = "code" in status ? status.code : undefined;
       if (code === "ok" || code === "legacy kyc") return { status: "complete", kyc: status };
       if (code !== "not started" && code !== "no kyc") return { status: "blocked", kyc: status };
       const result = await startKYC();
       if (result.status === "cancel") return { status: "cancel" };
-      const kyc = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
+      const kyc = await queryClient.query<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
       return {
         status: "code" in kyc && (kyc.code === "ok" || kyc.code === "legacy kyc") ? "complete" : "blocked",
         kyc,

@@ -55,6 +55,7 @@ import {
   tokenAmountsToBalances,
   tokenCorrelation,
   type RouteFrom,
+  type Token,
   type TokenBalance,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -78,7 +79,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 import TokenInput from "../swaps/TokenInput";
 
-import type { Chain, Token } from "@lifi/sdk";
+import type { Chain } from "@lifi/sdk";
 
 export default function Bridge() {
   const router = useRouter();
@@ -174,7 +175,7 @@ export default function Bridge() {
 
   const previousSourceRef = useRef<string | undefined>(undefined);
 
-  const source = useMemo(() => {
+  const source = /* eslint-disable-line react-hooks/preserve-manual-memoization */ useMemo(() => {
     if (assetGroups.length === 0) return;
     if (selectedSource) {
       const matched = assetGroups
@@ -209,14 +210,16 @@ export default function Bridge() {
     : source?.address === zeroAddress;
 
   const destinationTokens = useMemo(
-    () =>
-      bridge?.tokensByChain[chain.id]?.filter((token) => token.chainId === (chain.id as typeof token.chainId)) ?? [],
+    () => bridge?.tokensByChain[chain.id]?.filter((token) => token.chainId === chain.id) ?? [],
     [bridge?.tokensByChain],
   );
 
   const effectiveDestinationAddress = useMemo(() => {
     if (!sourceTokenAddress) return;
-    if (previousSourceRef.current === sourceTokenAddress && selectedDestinationAddress) {
+    if (
+      /* eslint-disable-line react-hooks/refs */ previousSourceRef.current === sourceTokenAddress &&
+      selectedDestinationAddress
+    ) {
       return selectedDestinationAddress;
     }
     const correlatedSymbol = sourceTokenSymbol && tokenCorrelation[sourceTokenSymbol as keyof typeof tokenCorrelation];
@@ -225,7 +228,7 @@ export default function Bridge() {
       : undefined;
     const nextToken = correlatedToken ?? destinationTokens.find((token) => token.symbol === "USDC");
     return nextToken?.address ?? selectedDestinationAddress;
-  }, [sourceTokenAddress, sourceTokenSymbol, selectedDestinationAddress, destinationTokens]);
+  }, [sourceTokenAddress, sourceTokenSymbol, selectedDestinationAddress, destinationTokens]); // eslint-disable-line react-hooks/preserve-manual-memoization
 
   useEffect(() => {
     previousSourceRef.current = sourceTokenAddress;
@@ -354,9 +357,11 @@ export default function Bridge() {
       )
       .reduce((sum, { amount }) => sum + BigInt(amount), 0n);
     return (estimatedNativeGas * gasReserveBuffer) / 100n;
-  }, [approvalRequired, quote, nativeAddress]);
+  }, [approvalRequired, quote, nativeAddress]); // eslint-disable-line react-hooks/preserve-manual-memoization
 
-  const gasToken = useMemo<undefined | { balance: bigint; token: Token }>(() => {
+  const gasToken = /* eslint-disable-line react-hooks/preserve-manual-memoization */ useMemo<
+    undefined | { balance: bigint; token: Token }
+  >(() => {
     if (!isExaSender || isNativeSource || !source || !sourceToken) return;
     if (bridgePolicySymbols.has(sourceToken.symbol)) {
       return { balance: sourceBalance, token: sourceToken };
@@ -367,7 +372,7 @@ export default function Bridge() {
         bridgePolicySymbols.has(item.token.symbol) &&
         item.balance > 0n,
     );
-  }, [bridge?.balancesByChain, isExaSender, source, sourceToken, sourceBalance, isNativeSource, nativeAddress]);
+  }, [bridge?.balancesByChain, isExaSender, source, sourceToken, sourceBalance, isNativeSource, nativeAddress]); // eslint-disable-line react-hooks/preserve-manual-memoization
 
   const feeIsSource = !!gasToken && !!source && gasToken.token.address.toLowerCase() === source.address.toLowerCase();
   const paymasterChain = source ? alchemyChainById.get(source.chain) : undefined;
@@ -669,7 +674,7 @@ export default function Bridge() {
         accounts.map((item) =>
           queryClient
             .cancelQueries({ queryKey: balancesOptions(item).queryKey })
-            .then(() => queryClient.fetchQuery({ ...balancesOptions(item), staleTime: 0 }))
+            .then(() => queryClient.query({ ...balancesOptions(item), staleTime: 0 }))
             .catch(reportError),
         ),
       )

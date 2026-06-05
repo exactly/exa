@@ -21,7 +21,7 @@ import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
 } from "@exactly/common/generated/hooks";
-import ProposalType from "@exactly/common/ProposalType";
+import ProposalType, { recognize, type Proposal } from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
 import IconButton from "../../components/shared/IconButton";
@@ -309,9 +309,9 @@ function RolloverButton({
   });
 
   const hasProposed = pendingProposals?.some(
-    ({ proposal }) =>
+    ({ proposal }: { proposal: Proposal }) =>
       proposal.market === marketUSDCAddress &&
-      proposal.proposalType === (ProposalType.RollDebt as number) &&
+      recognize(proposal.proposalType) === ProposalType.RollDebt &&
       proposal.amount === maxRepayAssets,
   );
 

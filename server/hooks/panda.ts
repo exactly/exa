@@ -326,20 +326,16 @@ export default function hook({
                 ) {
                   switch (contractError.cause.data?.errorName) {
                     case "InsufficientAccountLiquidity":
-                      throw new PandaError(
-                        "InsufficientAccountLiquidity",
-                        557 as UnofficialStatusCode,
-                        "INSUFFICIENT_FUNDS",
-                      );
+                      throw new PandaError("InsufficientAccountLiquidity", 557, "INSUFFICIENT_FUNDS");
                     case "Replay":
-                      throw new PandaError("Replay", 558 as UnofficialStatusCode);
+                      throw new PandaError("Replay", 558);
                   }
                 }
                 captureException(contractError, {
                   contexts: { tx: { call, trace } },
                   fingerprint: revertFingerprint(contractError),
                 });
-                throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
+                throw new PandaError("tx reverted", 550);
               }
               if (
                 usdcTransfersToCollectors(trace).reduce(
@@ -360,13 +356,13 @@ export default function hook({
                     contexts: { tx: { call, trace } },
                   });
                 });
-                throw new PandaError("bad collection", 551 as UnofficialStatusCode);
+                throw new PandaError("bad collection", 551);
               }
               return authorize();
             } catch (error: unknown) {
               if (error instanceof PandaError) throw error;
               captureException(error, { contexts: { tx: { call } } });
-              throw new PandaError("unexpected error", 569 as UnofficialStatusCode);
+              throw new PandaError("unexpected error", 569);
             }
           } catch (error: unknown) {
             mutex.release();

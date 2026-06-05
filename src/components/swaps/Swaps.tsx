@@ -89,8 +89,9 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Token } from "../../utils/lifi";
 import type { Credential } from "@exactly/common/validation";
-import type { Estimate, ExtendedTransactionInfo, Token } from "@lifi/sdk";
+import type { Estimate, ExtendedTransactionInfo } from "@lifi/sdk";
 
 export type Swap = {
   denied: string[];
@@ -176,8 +177,8 @@ export default function Swaps() {
     } = defaultSwap,
   } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
   const { filter } = useLocalSearchParams();
-  const fromChain = (fromToken?.token.chainId as number | undefined) ?? chain.id;
-  const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
+  const fromChain = fromToken?.token.chainId ?? chain.id;
+  const toChain = toToken?.token.chainId ?? chain.id;
   const crossChain = fromChain !== toChain;
 
   const allowedChains = useMemo(
@@ -228,7 +229,7 @@ export default function Swaps() {
     (token?: Token) => {
       if (!token) return 0n;
       const address = parse(Address, token.address);
-      const tokenChain = token.chainId as number;
+      const tokenChain = token.chainId;
       if (tokenChain !== chain.id) {
         return crossChainAssets.find((a) => a.chainId === tokenChain && a.address === address)?.amount ?? 0n;
       }
@@ -244,9 +245,7 @@ export default function Swaps() {
     const reachable = new Set(networks.map(({ id }) => id));
     return [
       ...(homeTokens ?? []),
-      ...(lifiTokens ?? []).filter(
-        (token) => (token.chainId as number) !== chain.id && reachable.has(token.chainId as number),
-      ),
+      ...(lifiTokens ?? []).filter((token) => token.chainId !== chain.id && reachable.has(token.chainId)),
     ];
   }, [homeTokens, lifiTokens, networks]);
 
@@ -277,7 +276,7 @@ export default function Swaps() {
   useEffect(() => {
     if (!markets || !homeTokens || (fromToken && toToken)) return;
     updateSwap((old) => {
-      const home = payableTokens.filter((token) => (token.chainId as number) === chain.id);
+      const home = payableTokens.filter((token) => token.chainId === chain.id);
       const preferred = home.length > 0 ? home : payableTokens;
       const payable = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
       const target =
@@ -698,9 +697,9 @@ export default function Swaps() {
     statusOptions(
       routed || crossChain ? (proposal ? executionHash : receipt?.transactionHash) : undefined,
       toChain,
-      tool || resultRef.current.tool || undefined,
+      tool || resultRef.current.tool || undefined, // eslint-disable-line react-hooks/refs
       fromChain,
-      resultRef.current.duration,
+      resultRef.current.duration, // eslint-disable-line react-hooks/refs
     ),
   );
   const delivered = !crossChain || routeStatus?.status === "DONE";
@@ -1177,20 +1176,22 @@ export default function Swaps() {
     const settled =
       routeStatus && "receiving" in routeStatus ? (routeStatus.receiving as ExtendedTransactionInfo) : undefined;
     const received = settled?.token && settled.amount ? settled.token : resultRef.current.toToken;
-    if (!paid || !received) return null;
+    if (!paid || !received) return null; // eslint-disable-line react-hooks/refs
     const resultToAmount = settled?.token && settled.amount ? BigInt(settled.amount) : resultRef.current.toAmount;
     const properties = {
-      fromUsdAmount: Number(formatUnits((resultFromAmount * parseUnits(paid.priceUSD, 18)) / WAD, paid.decimals)),
-      fromAmount: resultFromAmount,
-      fromToken: paid,
-      toUsdAmount: Number(formatUnits((resultToAmount * parseUnits(received.priceUSD, 18)) / WAD, received.decimals)),
-      toAmount: resultToAmount,
-      toToken: received,
+      fromUsdAmount: Number(formatUnits((resultFromAmount * parseUnits(paid.priceUSD, 18)) / WAD, paid.decimals)), // eslint-disable-line react-hooks/refs
+      fromAmount: resultFromAmount, // eslint-disable-line react-hooks/refs
+      fromToken: paid, // eslint-disable-line react-hooks/refs
+      toUsdAmount: Number(formatUnits((resultToAmount * parseUnits(received.priceUSD, 18)) / WAD, received.decimals)), // eslint-disable-line react-hooks/refs
+      toAmount: resultToAmount, // eslint-disable-line react-hooks/refs
+      toToken: received, // eslint-disable-line react-hooks/refs
     };
     if (isSwapping || (isSwapSuccess && !delivered && !undelivered))
       return (
         <Pending
-          {...properties}
+          {
+            ...properties /* eslint-disable-line react-hooks/refs */
+          }
           network={crossChain ? networkName : undefined}
           onClose={() => {
             onClose();
@@ -1200,12 +1201,14 @@ export default function Swaps() {
     if (isSwapSuccess && !undelivered)
       return (
         <Success
-          {...properties}
+          {
+            ...properties /* eslint-disable-line react-hooks/refs */
+          }
           chainId={fromChain}
           completed={!!fromToken?.external || crossChain}
           fee={
-            resultRef.current.networkFeeUSD
-              ? `$${resultRef.current.networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            resultRef.current.networkFeeUSD // eslint-disable-line react-hooks/refs
+              ? `$${resultRef.current.networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` // eslint-disable-line react-hooks/refs
               : undefined
           }
           hash={executionHash ?? receipt?.transactionHash}
@@ -1216,7 +1219,9 @@ export default function Swaps() {
       );
     return (
       <Failure
-        {...properties}
+        {
+          ...properties /* eslint-disable-line react-hooks/refs */
+        }
         onClose={() => {
           onClose();
         }}

@@ -84,7 +84,7 @@ export default function AssetSelector({
               aria-label={t("{{symbol}}, {{balance}} available", { symbol, balance })}
               unstyled
               key={asset.type === "external" ? asset.address : asset.market}
-              value={(asset.type === "external" ? asset.address : asset.market) as Address}
+              value={asset.type === "external" ? asset.address : asset.market}
               borderWidth={0}
               backgroundColor="transparent"
               cursor="pointer"

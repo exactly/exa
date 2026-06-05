@@ -9,6 +9,7 @@ import ProposalType, {
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
   decodeRollDebt,
+  recognize,
 } from "@exactly/common/ProposalType";
 
 import useAccount from "./useAccount";
@@ -31,7 +32,7 @@ export default function usePendingOperations() {
   const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({
     filters: { mutationKey: ["bridge", "execute"], exact: true },
     select: ({ state, mutationId }) => {
-      return { ...state, id: mutationId, variables: state.variables as RouteFrom };
+      return { ...state, id: mutationId, variables: state.variables };
     },
   });
 
@@ -44,18 +45,14 @@ export default function usePendingOperations() {
     (maturity: bigint) => {
       if (!proposals.data) return false;
       return proposals.data.some(({ proposal }) => {
-        const { proposalType: type, data } = proposal;
-        if (
-          type === (ProposalType.RepayAtMaturity as number) ||
-          type === (ProposalType.CrossRepayAtMaturity as number)
-        ) {
+        const { data } = proposal;
+        const type = recognize(proposal.proposalType);
+        if (type === ProposalType.RepayAtMaturity || type === ProposalType.CrossRepayAtMaturity) {
           const decoded =
-            type === (ProposalType.RepayAtMaturity as number)
-              ? decodeRepayAtMaturity(data)
-              : decodeCrossRepayAtMaturity(data);
+            type === ProposalType.RepayAtMaturity ? decodeRepayAtMaturity(data) : decodeCrossRepayAtMaturity(data);
           return decoded.maturity === maturity;
         }
-        if (type === (ProposalType.RollDebt as number)) return decodeRollDebt(data).repayMaturity === maturity;
+        if (type === ProposalType.RollDebt) return decodeRollDebt(data).repayMaturity === maturity;
         return false;
       });
     },

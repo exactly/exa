@@ -14,9 +14,15 @@ import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { KYCState } from "../../utils/useKYC";
+import type useKYC from "../../utils/useKYC";
 
-export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolean; kyc: KYCState }) {
+export default function GettingStarted({
+  isDeployed,
+  kyc,
+}: {
+  isDeployed: boolean;
+  kyc: ReturnType<typeof useKYC>["status"];
+}) {
   const router = useRouter();
   const { t } = useTranslation();
   const toast = useToastController();
