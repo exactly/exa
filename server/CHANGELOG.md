@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.98
+
+### Patch Changes
+
+- [#1073](https://github.com/exactly/exa/pull/1073) [`6e154aa`](https://github.com/exactly/exa/commit/6e154aaa61ee5ad397a56ee51fbd38867af8a4f7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔒️ flag failed over captures as suspicious
+
+- [#1079](https://github.com/exactly/exa/pull/1079) [`db8be2a`](https://github.com/exactly/exa/commit/db8be2ac0dba120c42d3db8825a9eafd82b08dbb) Thanks [@mainqueg](https://github.com/mainqueg)! - 🔒️ restrict bridge ramp to enabled users
+
 ## 0.2.97
 
 ### Patch Changes
