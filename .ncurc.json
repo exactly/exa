@@ -1,6 +1,5 @@
 {
   "reject": [
-    "@eslint/js",
     "@expo/fingerprint",
     "@expo/metro-runtime",
     "@hono/valibot-validator",
@@ -11,11 +10,11 @@
     "@types/react",
     "account-abstraction",
     "babel-preset-expo",
-    "eslint",
     "expo-asset",
     "expo-build-properties",
     "expo-camera",
     "expo-clipboard",
+    "expo-constants",
     "expo-dev-client",
     "expo-font",
     "expo-image",
