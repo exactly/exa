@@ -4,7 +4,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y ca-certificates curl gcc git jq libc6-dev rsync unzip --no-install-recommends && \
   rm -rf /var/lib/apt/lists/* && \
-  curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=9.15.9 bash && \
+  curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=12.6.0 bash && \
   curl -fsSL https://foundry.paradigm.xyz | bash && \
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y
 ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin:/root/.cargo/bin"
