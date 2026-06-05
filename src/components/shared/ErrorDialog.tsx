@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { X } from "@tamagui/lucide-icons";
+import { X } from "@tamagui/lucide-icons-2";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./Button";

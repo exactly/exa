@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowRight, X } from "@tamagui/lucide-icons";
+import { ArrowRight, X } from "@tamagui/lucide-icons-2";
 import { ScrollView, YStack } from "tamagui";
 
 import VerifyIdentity from "../../assets/images/verify-identity.svg";

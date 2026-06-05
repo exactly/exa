@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { Check } from "@tamagui/lucide-icons";
+import { Check } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import chain, { previewerAddress } from "@exactly/common/generated/chain";

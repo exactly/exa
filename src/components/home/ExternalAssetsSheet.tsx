@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ThumbsUp } from "@tamagui/lucide-icons";
+import { ThumbsUp } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
+import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";

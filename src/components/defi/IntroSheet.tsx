@@ -1,7 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { ArrowRight, Info, X } from "@tamagui/lucide-icons";
+import { ArrowRight, Info, X } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import Defi from "../../assets/images/defi.svg";

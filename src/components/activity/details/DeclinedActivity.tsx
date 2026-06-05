@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { AlertTriangle, Copy, ShoppingCart } from "@tamagui/lucide-icons";
+import { AlertTriangle, Copy, ShoppingCart } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { Separator, Square, View, XStack, YStack } from "tamagui";
 

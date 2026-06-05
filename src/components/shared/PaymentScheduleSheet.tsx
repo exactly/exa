@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { X } from "@tamagui/lucide-icons";
+import { X } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

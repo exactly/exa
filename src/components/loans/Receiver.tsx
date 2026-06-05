@@ -4,7 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { getStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 

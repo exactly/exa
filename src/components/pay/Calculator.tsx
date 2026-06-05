@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { formatUnits, parseUnits } from "viem";

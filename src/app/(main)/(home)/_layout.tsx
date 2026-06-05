@@ -6,7 +6,7 @@ import { selectionAsync } from "expo-haptics";
 import Head from "expo-router/head";
 import { TabList, Tabs, TabSlot, TabTrigger, useTabTrigger } from "expo-router/ui";
 
-import { Boxes, CalendarCheck, CreditCard, History, Home } from "@tamagui/lucide-icons";
+import { Boxes, CalendarCheck, CreditCard, History, Home } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
 import SafeView from "../../../components/shared/SafeView";

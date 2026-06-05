@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { router } from "expo-router";
 
-import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons-2";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";

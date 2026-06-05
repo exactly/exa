@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect, useRouter } from "expo-router";
 
-import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
+import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons-2";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 
 import { parse, safeParse } from "valibot";

@@ -2,7 +2,7 @@ import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable, StyleSheet } from "react-native";
 
-import { ArrowRight, X } from "@tamagui/lucide-icons";
+import { ArrowRight, X } from "@tamagui/lucide-icons-2";
 import { ScrollView, YStack } from "tamagui";
 
 import Blob from "../../assets/images/exa-card-blob.svg";

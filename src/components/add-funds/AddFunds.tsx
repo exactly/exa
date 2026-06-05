@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Banknote, Blocks, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
+import { ArrowLeft, Banknote, Blocks, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 

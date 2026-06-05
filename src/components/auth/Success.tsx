@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight } from "@tamagui/lucide-icons";
+import { ArrowRight } from "@tamagui/lucide-icons-2";
 
 import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
 import AccountCreatedImage from "../../assets/images/account-created.svg";

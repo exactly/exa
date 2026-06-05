@@ -2,7 +2,7 @@ import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import React from "react";
 import { Platform } from "react-native";
 
-import type { ArrowRight } from "@tamagui/lucide-icons";
+import type { ArrowRight } from "@tamagui/lucide-icons-2";
 import { styled, View } from "tamagui";
 
 export default function IconButton({

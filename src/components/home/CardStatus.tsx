@@ -14,7 +14,7 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { selectionAsync } from "expo-haptics";
 
-import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons";
+import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 

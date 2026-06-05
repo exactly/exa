@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable } from "react-native";
 
-import { ChevronRight, Info } from "@tamagui/lucide-icons";
+import { ChevronRight, Info } from "@tamagui/lucide-icons-2";
 import { Spinner, View, XStack } from "tamagui";
 
 import Text from "./Text";

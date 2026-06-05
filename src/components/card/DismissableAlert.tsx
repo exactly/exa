@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { Info, X } from "@tamagui/lucide-icons";
+import { Info, X } from "@tamagui/lucide-icons-2";
 import { XStack } from "tamagui";
 
 import Text from "../shared/Text";

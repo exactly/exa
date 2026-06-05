@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { X } from "@tamagui/lucide-icons";
+import { X } from "@tamagui/lucide-icons-2";
 import { ScrollView, YStack } from "tamagui";
 
 import SafeView from "../shared/SafeView";

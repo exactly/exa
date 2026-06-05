@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons";
+import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import Connect from "../../assets/images/connect.svg";

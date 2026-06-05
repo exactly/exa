@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { Info } from "@tamagui/lucide-icons";
+import { Info } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";

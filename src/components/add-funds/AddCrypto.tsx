@@ -5,7 +5,7 @@ import { PixelRatio, Pressable, Share } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { AlertTriangle, ArrowLeft, Copy, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { AlertTriangle, ArrowLeft, Copy, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 

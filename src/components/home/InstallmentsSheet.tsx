@@ -6,7 +6,7 @@ import Carousel, { type ICarouselInstance } from "react-native-reanimated-carous
 import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { Info, X } from "@tamagui/lucide-icons";
+import { Info, X } from "@tamagui/lucide-icons-2";
 import { View, XStack, YStack } from "tamagui";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";

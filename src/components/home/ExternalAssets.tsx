@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { ChevronRight, Info } from "@tamagui/lucide-icons";
+import { ChevronRight, Info } from "@tamagui/lucide-icons-2";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";

@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { TimerReset } from "@tamagui/lucide-icons";
+import { TimerReset } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

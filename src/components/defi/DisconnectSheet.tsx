@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { PowerOff } from "@tamagui/lucide-icons";
+import { PowerOff } from "@tamagui/lucide-icons-2";
 import { ScrollView, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";

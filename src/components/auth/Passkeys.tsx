@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { Key, X } from "@tamagui/lucide-icons";
+import { Key, X } from "@tamagui/lucide-icons-2";
 import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

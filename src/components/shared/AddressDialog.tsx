@@ -1,7 +1,7 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { Copy } from "@tamagui/lucide-icons";
+import { Copy } from "@tamagui/lucide-icons-2";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";

@@ -8,7 +8,7 @@ import type { SvgProps } from "react-native-svg";
 
 import { useRouter } from "expo-router";
 
-import { Key, User } from "@tamagui/lucide-icons";
+import { Key, User } from "@tamagui/lucide-icons-2";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";

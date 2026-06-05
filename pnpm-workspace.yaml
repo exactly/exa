@@ -11,7 +11,7 @@ catalog:
   "@tamagui/config": *tamagui
   "@tamagui/core": *tamagui
   "@tamagui/helpers-icon": *tamagui
-  "@tamagui/lucide-icons": 2.0.0-rc.26
+  "@tamagui/lucide-icons-2": *tamagui
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.1

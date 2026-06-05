@@ -4,7 +4,7 @@ import { Alert } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { ExternalLink } from "@tamagui/lucide-icons";
+import { ExternalLink } from "@tamagui/lucide-icons-2";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";

@@ -4,7 +4,7 @@ import { Pressable, RefreshControl } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 

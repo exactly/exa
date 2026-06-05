@@ -11,7 +11,7 @@ import {
   Import,
   ShoppingCart,
   SquareDashed,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

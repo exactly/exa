@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowUpToLine } from "@tamagui/lucide-icons";
+import { ArrowUpToLine } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { YStack } from "tamagui";
 

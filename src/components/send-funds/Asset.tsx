@@ -4,7 +4,7 @@ import { Alert, Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
+import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons-2";
 import { Avatar, ScrollView, XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight, XCircle } from "@tamagui/lucide-icons";
+import { ArrowRight, XCircle } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import DeFiBanner from "../../assets/images/defi-banner.svg";
