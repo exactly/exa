@@ -1,5 +1,5 @@
 import "./utils/polyfill";
-import "./utils/wdyr";
+import "./utils/debug";
 
 import "expo-router/entry";
 
