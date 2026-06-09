@@ -21,12 +21,13 @@ import { HypXERC20 } from "@hyperlane-xyz/core/contracts/token/extensions/HypXER
 
 import {
   AlreadyGranted,
+  HypEXA,
   IStaticAggregationHookFactory,
   IStaticAggregationIsm,
   IStaticAggregationIsmFactory,
-  Redeployer,
   RouterNotDeployed
-} from "../script/Redeployer.s.sol";
+} from "../script/HypEXA.s.sol";
+import { Redeployer } from "../script/Redeployer.s.sol";
 import { ForkTest } from "./Fork.t.sol";
 
 contract HypEXATest is ForkTest {
@@ -39,6 +40,7 @@ contract HypEXATest is ForkTest {
   HypXERC20 internal baseRouter;
   HypXERC20 internal polygonRouter;
   Redeployer internal opRedeployer;
+  HypEXA internal opHypEXA;
   address internal opMailbox;
   address internal baseMailbox;
   address internal polygonMailbox;
@@ -51,27 +53,29 @@ contract HypEXATest is ForkTest {
 
   function setUp() external {
     polygonFork = vm.createSelectFork("polygon", 83_700_000);
-    polygonMailbox = acct("mailbox");
+    polygonMailbox = acct("hyperlaneMailbox");
     Redeployer polygonRedeployer = new Redeployer();
     polygonRedeployer.setUp();
     if (address(polygonRedeployer.proxyAdmin()).code.length == 0) polygonRedeployer.prepare();
     polygonRedeployer.proxyThrough(polygonRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
     set("exactly", makeAddr("exactly")); // no exactly on polygon — test-only chain
+    set("TimelockController", makeAddr("exactly"));
     set("pauser", makeAddr("pauser"));
     set("ProxyAdmin", address(polygonRedeployer.proxyAdmin())); // no protocol deployment on polygon
     polygonRedeployer.deployEXA(address(exa));
     uint32[] memory polygonRemotes = new uint32[](2);
     polygonRemotes[0] = OP_DOMAIN;
     polygonRemotes[1] = BASE_DOMAIN;
-    polygonRouter = polygonRedeployer.deployRouter(address(exa), polygonRemotes);
+    polygonRouter = new HypEXA().deployRouter(address(exa), polygonRemotes);
     unset("ProxyAdmin");
     vm.prank(makeAddr("exactly"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(polygonRouter));
     unset("exactly");
+    unset("TimelockController");
     unset("pauser");
 
     baseFork = vm.createSelectFork("base", 42_380_000);
-    baseMailbox = acct("mailbox");
+    baseMailbox = acct("hyperlaneMailbox");
     Redeployer baseRedeployer = new Redeployer();
     baseRedeployer.setUp();
     if (address(baseRedeployer.proxyAdmin()).code.length == 0) baseRedeployer.prepare();
@@ -80,12 +84,12 @@ contract HypEXATest is ForkTest {
     uint32[] memory baseRemotes = new uint32[](2);
     baseRemotes[0] = OP_DOMAIN;
     baseRemotes[1] = POLYGON_DOMAIN;
-    baseRouter = baseRedeployer.deployRouter(address(exa), baseRemotes);
-    vm.prank(acct("exactly"));
+    baseRouter = new HypEXA().deployRouter(address(exa), baseRemotes);
+    vm.prank(protocol("TimelockController"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(baseRouter));
 
     opFork = vm.createSelectFork("optimism", 147_967_000);
-    opMailbox = acct("mailbox");
+    opMailbox = acct("hyperlaneMailbox");
     opRedeployer = new Redeployer();
     opRedeployer.setUp();
     opRedeployer.prepare();
@@ -94,8 +98,9 @@ contract HypEXATest is ForkTest {
     uint32[] memory opRemotes = new uint32[](2);
     opRemotes[0] = BASE_DOMAIN;
     opRemotes[1] = POLYGON_DOMAIN;
-    opRouter = opRedeployer.deployRouter(address(exa), opRemotes);
-    vm.prank(acct("exactly"));
+    opHypEXA = new HypEXA();
+    opRouter = opHypEXA.deployRouter(address(exa), opRemotes);
+    vm.prank(protocol("TimelockController"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(opRouter));
     assertEq(opRouter.owner(), acct("exactly"), "router owner");
     assertEq(opRouter.routers(BASE_DOMAIN), bytes32(uint256(uint160(address(opRouter)))), "base enrollment");
@@ -184,7 +189,7 @@ contract HypEXATest is ForkTest {
   }
 
   function test_transferRemote_reverts_withoutBridgeRole() external {
-    vm.prank(acct("exactly"));
+    vm.prank(protocol("TimelockController"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(opRouter));
 
     uint256 fee = opRouter.quoteGasPayment(BASE_DOMAIN);
@@ -196,7 +201,7 @@ contract HypEXATest is ForkTest {
 
   function test_handle_reverts_withoutBridgeRole() external {
     vm.selectFork(baseFork);
-    vm.prank(acct("exactly"));
+    vm.prank(protocol("TimelockController"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(baseRouter));
 
     vm.prank(baseMailbox);
@@ -211,20 +216,19 @@ contract HypEXATest is ForkTest {
   function test_proposeBridgeRole_reverts_whenRouterNotDeployed() external {
     vm.createSelectFork("base", 42_380_001);
 
-    Redeployer redeployer = new Redeployer();
-    redeployer.setUp();
+    HypEXA hypEXA = new HypEXA();
 
     vm.expectRevert(RouterNotDeployed.selector);
-    redeployer.proposeBridgeRole(address(exa), keccak256("HypEXA.BRIDGE_ROLE"));
+    hypEXA.proposeBridgeRole(address(exa), keccak256("HypEXA.BRIDGE_ROLE"));
   }
 
   function test_proposeBridgeRole_schedulesGrantOnTimelock() external {
     vm.selectFork(opFork);
-    vm.prank(acct("exactly"));
+    vm.prank(protocol("TimelockController"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(opRouter));
 
     bytes32 salt = keccak256("HypEXA.BRIDGE_ROLE");
-    opRedeployer.proposeBridgeRole(address(exa), salt);
+    opHypEXA.proposeBridgeRole(address(exa), salt);
 
     TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
     bytes32 id = timelock.hashOperation(
@@ -240,7 +244,7 @@ contract HypEXATest is ForkTest {
   function test_proposeBridgeRole_reverts_whenAlreadyGranted() external {
     vm.selectFork(opFork);
     vm.expectRevert(AlreadyGranted.selector);
-    opRedeployer.proposeBridgeRole(address(exa), keccak256("HypEXA.BRIDGE_ROLE"));
+    opHypEXA.proposeBridgeRole(address(exa), keccak256("HypEXA.BRIDGE_ROLE"));
   }
 
   function test_deployRouter_setsHookAndIsm() external {
@@ -250,20 +254,22 @@ contract HypEXATest is ForkTest {
     assertEq(hooks.length, 3, "hook count");
     assertEq(
       aggregationHook,
-      IStaticAggregationHookFactory(acct("staticAggregationHookFactory")).getAddress(hooks),
+      IStaticAggregationHookFactory(acct("hyperlaneStaticAggregationHookFactory")).getAddress(hooks),
       "hook not set"
     );
     assertEq(PausableHook(hooks[0]).owner(), acct("exactly"), "exactly hook owner");
-    address pauserIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("pauserPausableIsm")));
+    (address[] memory modules,) =
+      IStaticAggregationIsm(address(opRouter.interchainSecurityModule())).modulesAndThreshold("");
+    address exactlyIsm = modules[0];
+    address pauserIsm = modules[1];
     assertEq(PausableHook(hooks[1]).owner(), PausableIsm(pauserIsm).owner(), "pauser hook owner");
-    address exactlyIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("exactlyPausableIsm")));
     address[] memory isms = new address[](3);
     isms[0] = exactlyIsm;
     isms[1] = pauserIsm;
-    isms[2] = address(IMailbox(acct("mailbox")).defaultIsm());
+    isms[2] = address(IMailbox(acct("hyperlaneMailbox")).defaultIsm());
     assertEq(
       address(opRouter.interchainSecurityModule()),
-      IStaticAggregationIsmFactory(acct("staticAggregationIsmFactory")).getAddress(isms, 3),
+      IStaticAggregationIsmFactory(acct("hyperlaneStaticAggregationIsmFactory")).getAddress(isms, 3),
       "ism not set"
     );
   }
@@ -301,8 +307,10 @@ contract HypEXATest is ForkTest {
   function test_process_reverts_whenIsmPaused() external {
     vm.selectFork(baseFork);
     address mailbox = baseMailbox;
-    address pauserIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("pauserPausableIsm")));
-    address exactlyIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("exactlyPausableIsm")));
+    (address[] memory modules,) =
+      IStaticAggregationIsm(address(baseRouter.interchainSecurityModule())).modulesAndThreshold("");
+    address exactlyIsm = modules[0];
+    address pauserIsm = modules[1];
     address defaultIsm = address(IMailbox(mailbox).defaultIsm());
 
     vm.prank(PausableIsm(pauserIsm).owner());
@@ -348,7 +356,9 @@ contract HypEXATest is ForkTest {
     vm.selectFork(opFork);
     address pauser = acct("pauser");
     address pauserHook = StaticAggregationHook(address(opRouter.hook())).hooks("")[1];
-    address pauserIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("pauserPausableIsm")));
+    (address[] memory modules,) =
+      IStaticAggregationIsm(address(opRouter.interchainSecurityModule())).modulesAndThreshold("");
+    address pauserIsm = modules[1];
     assertEq(PausableHook(pauserHook).owner(), pauser, "pauser hook owner");
     assertEq(PausableIsm(pauserIsm).owner(), pauser, "pauser ism owner");
 
@@ -362,10 +372,10 @@ contract HypEXATest is ForkTest {
     assertTrue(PausableIsm(pauserIsm).paused());
   }
 
-  function test_refreshRouterAggregators_updatesMailboxDefaultsAndReusesPausables() external {
+  function test_refreshDefaults_updatesMailboxDefaults() external {
     vm.selectFork(opFork);
 
-    address mailbox = acct("mailbox");
+    address mailbox = acct("hyperlaneMailbox");
     address oldAggregationHook = address(opRouter.hook());
     address oldAggregationIsm = address(opRouter.interchainSecurityModule());
 
@@ -384,13 +394,7 @@ contract HypEXATest is ForkTest {
     vm.mockCall(mailbox, IMailbox.defaultHook.selector, abi.encode(newDefaultHook));
     vm.mockCall(mailbox, IMailbox.defaultIsm.selector, abi.encode(newDefaultIsm));
 
-    {
-      (address hook, address ism) = opRedeployer.refreshRouterAggregators();
-      vm.startPrank(acct("exactly"));
-      opRouter.setHook(hook);
-      opRouter.setInterchainSecurityModule(ism);
-      vm.stopPrank();
-    }
+    opHypEXA.refreshDefaults();
 
     address newAggregationHook = address(opRouter.hook());
     address newAggregationIsm = address(opRouter.interchainSecurityModule());
@@ -405,7 +409,7 @@ contract HypEXATest is ForkTest {
     assertEq(hooks[2], newDefaultHook, "default hook not updated");
     assertEq(
       newAggregationHook,
-      IStaticAggregationHookFactory(acct("staticAggregationHookFactory")).getAddress(hooks),
+      IStaticAggregationHookFactory(acct("hyperlaneStaticAggregationHookFactory")).getAddress(hooks),
       "hook not set"
     );
 
@@ -416,7 +420,7 @@ contract HypEXATest is ForkTest {
     assertEq(modules[2], newDefaultIsm, "default ism not updated");
     assertEq(
       newAggregationIsm,
-      IStaticAggregationIsmFactory(acct("staticAggregationIsmFactory")).getAddress(modules, 3),
+      IStaticAggregationIsmFactory(acct("hyperlaneStaticAggregationIsmFactory")).getAddress(modules, 3),
       "ism not set"
     );
 
@@ -424,7 +428,7 @@ contract HypEXATest is ForkTest {
     assertTrue(oldDefaultIsm != newDefaultIsm, "default ism unchanged");
   }
 
-  function test_rotatePauserPausables_restoresTransferRemoteAfterPauserHookPaused() external {
+  function test_rotateRouterPausable_restoresTransferRemoteAfterPauserHookPaused() external {
     vm.selectFork(opFork);
     address pauser = acct("pauser");
     address oldAggregation = address(opRouter.hook());
@@ -440,11 +444,7 @@ contract HypEXATest is ForkTest {
     vm.prank(exaHolder);
     vm.expectRevert();
     opRouter.transferRemote{ value: fee }(BASE_DOMAIN, makeAddr("receiver").addressToBytes32(), 100e18);
-    (address aggregationHook, address aggregationIsm) = opRedeployer.rotatePauserPausables("pauserPausableIsm2");
-    vm.startPrank(acct("exactly"));
-    opRouter.setHook(aggregationHook);
-    opRouter.setInterchainSecurityModule(aggregationIsm);
-    vm.stopPrank();
+    opHypEXA.rotateRouterPausable();
     address newAggregation = address(opRouter.hook());
     address newPauserHook = StaticAggregationHook(newAggregation).hooks("")[1];
     assertTrue(newAggregation != oldAggregation, "aggregation unchanged");
@@ -456,13 +456,14 @@ contract HypEXATest is ForkTest {
     opRouter.transferRemote{ value: fee }(BASE_DOMAIN, makeAddr("receiver").addressToBytes32(), 100e18);
   }
 
-  function test_rotatePauserPausables_restoresProcessAfterPauserIsmPaused() external {
+  function test_rotateRouterPausable_restoresProcessAfterPauserIsmPaused() external {
     vm.selectFork(baseFork);
 
     address mailbox = baseMailbox;
     address oldAggregation = address(baseRouter.interchainSecurityModule());
-    address exactlyIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("exactlyPausableIsm")));
-    address oldPauserIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("pauserPausableIsm")));
+    (address[] memory oldModules,) = IStaticAggregationIsm(oldAggregation).modulesAndThreshold("");
+    address exactlyIsm = oldModules[0];
+    address oldPauserIsm = oldModules[1];
     address defaultIsm = address(IMailbox(mailbox).defaultIsm());
 
     vm.prank(PausableIsm(oldPauserIsm).owner());
@@ -484,25 +485,16 @@ contract HypEXATest is ForkTest {
     vm.expectRevert(bytes("Pausable: paused"));
     IMailbox(mailbox).process(metadata, message);
 
-    Redeployer baseRedeployer = new Redeployer();
-    baseRedeployer.setUp();
+    new HypEXA().rotateRouterPausable();
 
-    (address aggregationHook, address aggregationIsm) = baseRedeployer.rotatePauserPausables("pauserPausableIsm2");
-    vm.startPrank(acct("exactly"));
-    baseRouter.setHook(aggregationHook);
-    baseRouter.setInterchainSecurityModule(aggregationIsm);
-    vm.stopPrank();
-
-    address newPauserIsm = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("pauserPausableIsm2")));
+    (address[] memory newModules,) =
+      IStaticAggregationIsm(address(baseRouter.interchainSecurityModule())).modulesAndThreshold("");
+    address newPauserIsm = newModules[1];
     assertTrue(address(baseRouter.interchainSecurityModule()) != oldAggregation, "aggregation unchanged");
     assertTrue(newPauserIsm != oldPauserIsm, "pauser ism not rotated");
     assertFalse(PausableIsm(newPauserIsm).paused(), "new pauser ism paused");
     assertTrue(PausableIsm(oldPauserIsm).paused(), "old pauser ism unpaused");
-    assertEq(
-      CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("exactlyPausableIsm"))),
-      exactlyIsm,
-      "exactly ism not reused"
-    );
+    assertEq(newModules[0], exactlyIsm, "exactly ism not reused");
 
     vm.mockCall(defaultIsm, IInterchainSecurityModule.verify.selector, abi.encode(true));
     IMailbox(mailbox).process(metadata, message);
@@ -515,7 +507,9 @@ contract HypEXATest is ForkTest {
     ProxyAdmin p = ProxyAdmin(address(uint160(uint256(vm.load(proxy, ERC1967Utils.ADMIN_SLOT)))));
     vm.prank(p.owner());
     p.upgradeAndCall(
-      ITransparentUpgradeableProxy(proxy), implementation, abi.encodeCall(EXA.initialize2, (acct("exactly")))
+      ITransparentUpgradeableProxy(proxy),
+      implementation,
+      abi.encodeCall(EXA.initialize2, (protocol("TimelockController")))
     );
   }
 }
