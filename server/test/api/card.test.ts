@@ -134,6 +134,7 @@ describe("authenticated", () => {
   afterEach(() => vi.resetAllMocks());
   beforeEach(() => {
     vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+    vi.spyOn(panda, "getCards").mockResolvedValue([]);
   });
 
   it("returns 404 card not found", async () => {
@@ -530,6 +531,232 @@ describe("authenticated", () => {
     expect(response.status).toBe(500);
     expect(createCard).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 card limit reached when panda rejects with the max cards error", async () => {
+    const credentialId = "card-limit-reached";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4042", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    const createCard = vi
+      .spyOn(panda, "createCard")
+      .mockRejectedValueOnce(
+        new ServiceError(
+          "Panda",
+          400,
+          '{"message":"User has reached the maximum number of cards allowed: 3","error":"BadRequestError","statusCode":400}',
+        ),
+      );
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toStrictEqual({ code: "card limit reached" });
+    expect(createCard).toHaveBeenCalledOnce();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
+      level: "warning",
+      fingerprint: ["card-limit-reached"],
+      extra: { credentialId, pandaId: credentialId },
+    });
+    const persisted = await database.query.cards.findFirst({ where: eq(cards.credentialId, credentialId) });
+    expect(persisted).toBeUndefined();
+  });
+
+  it("throws when createCard fails with an unrelated 400 error", async () => {
+    const credentialId = "card-bad-request";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4043", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    const createCard = vi
+      .spyOn(panda, "createCard")
+      .mockRejectedValueOnce(
+        new ServiceError("Panda", 400, '{"message":"Invalid request","error":"BadRequestError","statusCode":400}'),
+      );
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(500);
+    expect(createCard).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("adopts an existing active panda card instead of creating a duplicate", async () => {
+    const credentialId = "orphan-adopt";
+    const orphanId = "00000000-0000-4000-8000-0000000000aa";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4051", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+      { id: orphanId, status: "active", last4: "4242", expirationMonth: "9", expirationYear: "2029" },
+    ]);
+    const createCard = vi.spyOn(panda, "createCard");
+    const getAccount = vi.spyOn(persona, "getAccount");
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "4242",
+      cardId: orphanId,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    expect(createCard).not.toHaveBeenCalled();
+    expect(getAccount).not.toHaveBeenCalled();
+    const adopted = await database.query.cards.findFirst({
+      columns: { id: true, status: true, lastFour: true, productId: true },
+      where: eq(cards.credentialId, credentialId),
+    });
+    expect(adopted).toStrictEqual({
+      id: orphanId,
+      status: "ACTIVE",
+      lastFour: "4242",
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error) as Error, {
+      level: "warning",
+      fingerprint: ["orphan-card-adopted"],
+      extra: { credentialId, pandaId: credentialId, cardId: orphanId },
+    });
+  });
+
+  it("adopts only the first active card when panda has multiple orphans", async () => {
+    const credentialId = "orphan-multi";
+    const first = "00000000-0000-4000-8000-0000000000c1";
+    const second = "00000000-0000-4000-8000-0000000000c2";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4053", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+      { id: first, status: "active", last4: "4444", expirationMonth: "9", expirationYear: "2029" },
+      { id: second, status: "active", last4: "5555", expirationMonth: "9", expirationYear: "2029" },
+      {
+        id: "00000000-0000-4000-8000-0000000000c3",
+        status: "canceled",
+        last4: "6666",
+        expirationMonth: "9",
+        expirationYear: "2029",
+      },
+    ]);
+    const createCard = vi.spyOn(panda, "createCard");
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "4444",
+      cardId: first,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    expect(createCard).not.toHaveBeenCalled();
+    const persisted = await database.query.cards.findMany({
+      columns: { id: true },
+      where: eq(cards.credentialId, credentialId),
+    });
+    expect(persisted).toStrictEqual([{ id: first }]);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error) as Error, {
+      level: "warning",
+      fingerprint: ["orphan-card-adopted"],
+      extra: { credentialId, pandaId: credentialId, cardId: first },
+    });
+  });
+
+  it("creates a new card when panda has only non-active cards", async () => {
+    const credentialId = "orphan-nonactive";
+    const createdId = "00000000-0000-4000-8000-0000000000bb";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4052", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+      {
+        id: "00000000-0000-4000-8000-0000000000b1",
+        status: "canceled",
+        last4: "1111",
+        expirationMonth: "9",
+        expirationYear: "2029",
+      },
+      {
+        id: "00000000-0000-4000-8000-0000000000b2",
+        status: "locked",
+        last4: "2222",
+        expirationMonth: "9",
+        expirationYear: "2029",
+      },
+    ]);
+    const createCard = vi
+      .spyOn(panda, "createCard")
+      .mockResolvedValueOnce({ ...cardTemplate, id: createdId, last4: "3333" });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "3333",
+      cardId: createdId,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    expect(createCard).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+    const created = await database.query.cards.findFirst({
+      columns: { id: true },
+      where: eq(cards.credentialId, credentialId),
+    });
+    expect(created).toStrictEqual({ id: createdId });
+  });
+
+  it("throws and does not create a card when getCards fails", async () => {
+    const credentialId = "orphan-list-fail";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4054", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "getCards").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
+    const createCard = vi.spyOn(panda, "createCard");
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(500);
+    expect(createCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    const persisted = await database.query.cards.findFirst({ where: eq(cards.credentialId, credentialId) });
+    expect(persisted).toBeUndefined();
   });
 
   it("returns 403 no panda when getApplicationStatus reports user not found", async () => {
