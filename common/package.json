@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@account-kit/infra": "catalog:",
+    "ox": "catalog:",
     "valibot": "catalog:",
     "viem": "catalog:"
   },
