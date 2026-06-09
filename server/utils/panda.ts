@@ -25,6 +25,7 @@ import {
   string,
   transform,
   union,
+  unknown,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
@@ -98,6 +99,20 @@ export async function createUser(user: {
   personaShareToken: string;
 }) {
   return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
+}
+
+export function createSubtenant(name?: string) {
+  return request(
+    object({
+      id: string(),
+      name: string(),
+      applicationCompletionLink: optional(object({ url: string(), params: unknown() })),
+    }),
+    "/issuing/subtenants",
+    {},
+    { name },
+    "POST",
+  );
 }
 
 export async function updateUser(user: {

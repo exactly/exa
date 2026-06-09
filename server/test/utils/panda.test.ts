@@ -65,3 +65,42 @@ describe("siwe", () => {
     );
   });
 });
+
+describe("subtenants", () => {
+  it("creates a named subtenant", async () => {
+    const response = {
+      id: "subtenant_123",
+      name: "acme",
+      applicationCompletionLink: {
+        url: "https://rain.test/applications/subtenant_123",
+        params: { flow: "sandbox" },
+      },
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(response));
+
+    await expect(panda.createSubtenant("acme")).resolves.toStrictEqual(response);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://panda.test/issuing/subtenants",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          "Api-Key": "panda",
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name: "acme" }),
+      }),
+    );
+  });
+
+  it("creates an unnamed subtenant", async () => {
+    const response = { id: "subtenant_456", name: "Subtenant" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(response));
+
+    await expect(panda.createSubtenant()).resolves.toStrictEqual(response);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://panda.test/issuing/subtenants",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
+    );
+  });
+});
