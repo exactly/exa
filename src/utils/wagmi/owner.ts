@@ -8,6 +8,7 @@ import * as chains from "viem/chains";
 import { createConfig, createStorage, custom, injected } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 
 import publicClient from "../publicClient";
@@ -28,6 +29,7 @@ const config = createConfig({
     [chain.id]: custom(publicClient),
   },
   storage: createStorage({ key: `wagmi.owner.${chain.id}`, storage: AsyncStorage }),
+  dataSuffix,
 });
 export default config;
 

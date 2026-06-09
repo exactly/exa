@@ -16,6 +16,7 @@ import {
 } from "viem";
 import { mnemonicToAccount, nonceManager } from "viem/accounts";
 
+import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 
 import publicClient from "./publicClient";
@@ -27,7 +28,7 @@ const account =
         { nonceManager },
       )
     : undefined;
-const client = account && createWalletClient({ chain, account, transport: http() });
+const client = account && createWalletClient({ chain, account, transport: http(), dataSuffix });
 export default client;
 
 const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
@@ -50,11 +51,13 @@ if (client) {
           return account.signMessage({ message: { raw: params[0] } });
         case "wallet_sendCalls": {
           if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-          const [{ from, calls }] = params as WalletSendCallsParameters;
+          const [{ calls, capabilities, from }] = params as WalletSendCallsParameters;
           if (from && from !== account.address) throw new Error("bad account");
+          const attribution = (capabilities as undefined | { dataSuffix?: { value?: unknown } })?.dataSuffix?.value;
+          const suffix = isHex(attribution) ? attribution : dataSuffix;
           const hashes = await Promise.all(
             calls.map(({ to, data, value }) =>
-              client.sendTransaction({ to, data, value: value && BigInt(value), gas: 6_666_666n }),
+              client.sendTransaction({ to, data, dataSuffix: suffix, value: value && BigInt(value), gas: 6_666_666n }),
             ),
           );
           return { id: concat([...hashes, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };

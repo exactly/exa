@@ -72,6 +72,7 @@ import { anvil } from "viem/chains";
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
+import { dataSuffix } from "@exactly/common/attribution";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
@@ -195,13 +196,15 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
             const { calls, capabilities, chainId, from, id } = params[0] as {
               calls: readonly Call[];
-              capabilities?: ExtractCapabilities<"sendCalls", "Request">;
+              capabilities?: ExtractCapabilities<"sendCalls", "Request"> & { dataSuffix?: { value?: unknown } };
               chainId?: Hex;
               from?: Address;
               id?: string;
             };
             if (from && from !== accountAddress) throw new Error("bad account");
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
+            const suffix = isHex(capabilities?.dataSuffix?.value) ? capabilities.dataSuffix.value : dataSuffix;
+            const uo = calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value }));
             const context = capabilities?.paymasterService?.context as
               | undefined
               | { erc20Context?: { maxTokenAmount?: bigint; tokenAddress?: Address }; policyId?: string | string[] };
@@ -237,7 +240,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 customMiddleware: dummySignatureMiddleware,
               });
               const { hash } = await crossClient.sendUserOperation({
-                uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
+                uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
                 overrides: { verificationGasLimit: { multiplier: 2 } },
               });
               return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
@@ -258,7 +261,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                     })
                   : client;
               const { hash } = await uoClient.sendUserOperation({
-                uo: calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value })),
+                uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
             }
@@ -274,6 +277,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 chainId: chain.id,
                 calls: [execute],
                 capabilities: {
+                  ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
                   paymasterService: {
                     optional: true,
                     url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
@@ -307,6 +311,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 to: accountAddress,
                 data: encodeFunctionData(execute),
                 chainId: chain.id,
+                ...(suffix ? { dataSuffix: suffix } : {}),
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
             }
@@ -335,6 +340,12 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             const result = await getCallsStatus(ownerConfig, { id: params[0] });
             return { ...result, status: result.statusCode };
           }
+          case "wallet_getCapabilities":
+            return Object.fromEntries(
+              (Array.isArray(params) && Array.isArray(params[1]) ? (params[1] as unknown[]) : [numberToHex(chain.id)])
+                .filter((id): id is Hex => isHex(id))
+                .map((id) => [id, { dataSuffix: { supported: true } }]),
+            );
           case "eth_sendTransaction": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
             if (!e2e) {
@@ -351,6 +362,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                     },
                   ],
                   capabilities: {
+                    ...(dataSuffix ? { dataSuffix: { optional: true, value: dataSuffix } } : {}),
                     paymasterService: {
                       optional: true,
                       url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,

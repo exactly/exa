@@ -5,6 +5,7 @@ import * as chains from "viem/chains";
 import { createConfig, createStorage, custom, http } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 
 import alchemyConnector from "../alchemyConnector";
@@ -29,4 +30,5 @@ export default createConfig({
   },
   storage: createStorage({ key: `wagmi.exa.${chain.id}`, storage: AsyncStorage }),
   multiInjectedProviderDiscovery: false,
+  dataSuffix,
 });
