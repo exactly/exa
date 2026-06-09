@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 import {
   TransparentUpgradeableProxy
 } from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
-import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
-import { TimelockController } from "openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {
@@ -17,13 +15,6 @@ import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
-
-import { PausableHook } from "@hyperlane-xyz/core/contracts/hooks/PausableHook.sol";
-import { StaticAggregationHook } from "@hyperlane-xyz/core/contracts/hooks/aggregation/StaticAggregationHook.sol";
-import { IMailbox } from "@hyperlane-xyz/core/contracts/interfaces/IMailbox.sol";
-import { PausableIsm } from "@hyperlane-xyz/core/contracts/isms/PausableIsm.sol";
-import { HypERC20Collateral } from "@hyperlane-xyz/core/contracts/token/HypERC20Collateral.sol";
-import { HypXERC20 } from "@hyperlane-xyz/core/contracts/token/extensions/HypXERC20.sol";
 
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
@@ -39,20 +30,6 @@ import { MarketData } from "../src/IExaAccount.sol";
 import { IssuerChecker } from "../src/IssuerChecker.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
 import { BaseScript } from "./Base.s.sol";
-
-interface IStaticAggregationHookFactory {
-  function deploy(address[] calldata values) external returns (address);
-  function getAddress(address[] calldata values) external view returns (address);
-}
-
-interface IStaticAggregationIsm {
-  function modulesAndThreshold(bytes calldata) external view returns (address[] memory, uint8);
-}
-
-interface IStaticAggregationIsmFactory {
-  function deploy(address[] calldata values, uint8 threshold) external returns (address);
-  function getAddress(address[] calldata values, uint8 threshold) external view returns (address);
-}
 
 /// @title Redeployer
 /// @notice Deploys transparent proxies to consume deployer nonces, enabling same-address deployments across chains.
@@ -215,7 +192,9 @@ contract Redeployer is BaseScript {
     exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
     proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize2, (acct("exactly")))
+      ITransparentUpgradeableProxy(proxy),
+      address(exa),
+      abi.encodeCall(EXA.initialize2, (protocol("TimelockController")))
     );
     vm.stopBroadcast();
   }
@@ -224,73 +203,6 @@ contract Redeployer is BaseScript {
   function deployEXAImpl() external {
     vm.broadcast(acct("admin"));
     exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
-  }
-
-  function deployRouter(address token, uint32[] calldata remoteDomains) external returns (HypXERC20 router) {
-    address admin = acct("admin");
-    router = HypXERC20(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("HypEXA"))));
-    if (address(router).code.length != 0) return router;
-    vm.startBroadcast(admin);
-    (address aggregationHook, address aggregationIsm) = _deployRouterSecurity();
-    router = HypXERC20(
-      CREATE3_FACTORY.deploy(
-        keccak256(abi.encode("HypEXA")),
-        abi.encodePacked(
-          type(TransparentUpgradeableProxy).creationCode,
-          abi.encode(
-            address(new HypXERC20(token, 1, 1, acct("mailbox"))),
-            protocol("ProxyAdmin"),
-            abi.encodeCall(HypERC20Collateral.initialize, (aggregationHook, aggregationIsm, admin))
-          )
-        )
-      )
-    );
-
-    if (remoteDomains.length > 0) {
-      bytes32[] memory addresses = new bytes32[](remoteDomains.length);
-      bytes32 remote = bytes32(uint256(uint160(address(router))));
-      for (uint256 i = 0; i < remoteDomains.length; ++i) {
-        addresses[i] = remote;
-      }
-      router.enrollRemoteRouters(remoteDomains, addresses);
-    }
-
-    router.transferOwnership(acct("exactly"));
-    vm.stopBroadcast();
-  }
-
-  function proposeBridgeRole(address token, bytes32 salt) external {
-    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
-    if (router.code.length == 0) revert RouterNotDeployed();
-    if (IAccessControl(token).hasRole(keccak256("BRIDGE_ROLE"), router)) revert AlreadyGranted();
-    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
-    uint256 delay = timelock.getMinDelay();
-    vm.broadcast(acct("deployer"));
-    timelock.schedule(
-      token, 0, abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), router)), bytes32(0), salt, delay
-    );
-  }
-
-  // Use to deploy new aggregators with new pausable hook and ism for the Pauser contract
-  // when the Pauser contract triggered a pause.
-  function rotatePauserPausables(string calldata pauserIsmSalt)
-    external
-    returns (address aggregationHook, address aggregationIsm)
-  {
-    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
-    if (router.code.length == 0) revert RouterNotDeployed();
-    vm.startBroadcast(acct("admin"));
-    (aggregationHook, aggregationIsm) = _deployRotatedPauserPausables(HypXERC20(router), pauserIsmSalt);
-    vm.stopBroadcast();
-  }
-
-  // Use to deploy new aggregators, keeping the pausable hooks/isms, with the new defaults hooks and ism from the Mailbox.
-  function refreshRouterAggregators() external returns (address aggregationHook, address aggregationIsm) {
-    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
-    if (router.code.length == 0) revert RouterNotDeployed();
-    vm.startBroadcast(acct("admin"));
-    (aggregationHook, aggregationIsm) = _refreshRouterAggregations(HypXERC20(router));
-    vm.stopBroadcast();
   }
 
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
@@ -377,78 +289,13 @@ contract Redeployer is BaseScript {
       targets[i + 1] = vm.parseAddress(keys[i]);
     }
   }
-
-  function _deployRouterSecurity() internal returns (address aggregationHook, address aggregationIsm) {
-    return _deployAggregations(
-      _deployPausableHook(acct("exactly")),
-      _deployPausableHook(acct("pauser")),
-      _create3PausableIsm("exactlyPausableIsm", acct("exactly")),
-      _create3PausableIsm("pauserPausableIsm", acct("pauser"))
-    );
-  }
-
-  function _deployRotatedPauserPausables(HypXERC20 router, string memory pauserIsmSalt)
-    internal
-    returns (address aggregationHook, address aggregationIsm)
-  {
-    return _deployAggregations(
-      StaticAggregationHook(address(router.hook())).hooks("")[0],
-      _deployPausableHook(acct("pauser")),
-      CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("exactlyPausableIsm"))),
-      _create3PausableIsm(pauserIsmSalt, acct("pauser"))
-    );
-  }
-
-  function _refreshRouterAggregations(HypXERC20 router)
-    internal
-    returns (address aggregationHook, address aggregationIsm)
-  {
-    address[] memory hooks = StaticAggregationHook(address(router.hook())).hooks("");
-    (address[] memory modules,) =
-      IStaticAggregationIsm(address(router.interchainSecurityModule())).modulesAndThreshold("");
-    return _deployAggregations(hooks[0], hooks[1], modules[0], modules[1]);
-  }
-
-  function _deployAggregations(address exactlyHook, address pauserHook, address exactlyIsm, address pauserIsm)
-    internal
-    returns (address aggregationHook, address aggregationIsm)
-  {
-    address mailbox = acct("mailbox");
-    address[] memory hooks = new address[](3);
-    hooks[0] = exactlyHook;
-    hooks[1] = pauserHook;
-    hooks[2] = address(IMailbox(mailbox).defaultHook());
-    aggregationHook = IStaticAggregationHookFactory(acct("staticAggregationHookFactory")).deploy(hooks);
-    address[] memory isms = new address[](3);
-    isms[0] = exactlyIsm;
-    isms[1] = pauserIsm;
-    isms[2] = address(IMailbox(mailbox).defaultIsm());
-    aggregationIsm = IStaticAggregationIsmFactory(acct("staticAggregationIsmFactory")).deploy(isms, 3);
-  }
-
-  function _deployPausableHook(address owner) internal returns (address hook) {
-    // PausableHook cannot be deployed via CREATE3 because it sets the owner
-    // on the constructor to the msg.sender which is the CREATE3 factory.
-    hook = address(new PausableHook());
-    PausableHook(hook).transferOwnership(owner);
-  }
-
-  function _create3PausableIsm(string memory salt, address owner) internal returns (address ism) {
-    bytes32 id = keccak256(abi.encode(salt));
-    ism = CREATE3_FACTORY.getDeployed(acct("admin"), id);
-    if (ism.code.length == 0) {
-      ism = CREATE3_FACTORY.deploy(id, abi.encodePacked(type(PausableIsm).creationCode, abi.encode(owner)));
-    }
-  }
 }
 
 error AdminIsDeployer();
-error AlreadyGranted();
 error DummyNotDeployed();
 error NonceNotFound();
 error NotPrepared();
 error ProxyAdminNotDeployed();
-error RouterNotDeployed();
 error TargetNonceTooLow();
 
 contract Dummy { } // solhint-disable-line no-empty-blocks

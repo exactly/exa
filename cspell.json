@@ -89,6 +89,7 @@
     "inheritdoc",
     "initializable",
     "interactable",
+    "interchain",
     "ioredis",
     "ipfs",
     "isows",
