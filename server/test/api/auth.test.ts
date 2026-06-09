@@ -410,7 +410,7 @@ describe("registration", () => {
   it("consumes challenge after bad registration to prevent replay", async () => {
     vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
       verified: false,
-    } as Awaited<ReturnType<typeof verifyRegistrationResponse>>);
+    });
 
     const firstResponse = await postRegistrationWebauthn();
     const secondResponse = await postRegistrationWebauthn();

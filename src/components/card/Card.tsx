@@ -5,7 +5,16 @@ import { RefreshControl } from "react-native";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons-2";
+import {
+  ChevronRight,
+  CircleHelp,
+  CreditCard,
+  DollarSign,
+  Eye,
+  EyeOff,
+  Hash,
+  Snowflake,
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
@@ -68,7 +77,11 @@ export default function Card() {
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: purchases, isFetching: isFetchingPurchases } = useQuery<CardActivity[]>({
+  const {
+    data: purchases,
+    dataUpdatedAt: purchasesUpdatedAt,
+    isFetching: isFetchingPurchases,
+  } = useQuery<CardActivity[]>({
     queryKey: ["activity", "card"],
   });
 
@@ -82,7 +95,7 @@ export default function Card() {
   const weeklyPurchases = purchases
     ? purchases.filter((item): item is Extract<CardActivity, { type: "panda" }> => {
         if (item.type !== "panda" || item.status === "declined") return false;
-        const elapsedTime = (Date.now() - new Date(item.timestamp).getTime()) / 1000;
+        const elapsedTime = (purchasesUpdatedAt - new Date(item.timestamp).getTime()) / 1000;
         return elapsedTime <= 604_800;
       })
     : [];

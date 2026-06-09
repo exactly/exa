@@ -13,7 +13,7 @@ class ProtoCursor {
   readVarint() {
     let result = 0n;
     let shift = 0n;
-    let byte = 0;
+    let byte: number;
 
     do {
       if (this.offset >= this.buffer.length) throw new Error("Varint out of bounds");

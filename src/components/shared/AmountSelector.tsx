@@ -24,7 +24,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
     t,
     i18n: { language },
   } = useTranslation();
-  const usdInputReference = useRef<null | TamaguiElement>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
+  const usdInputRef = useRef<null | TamaguiElement>(null);
   const [overlayShown, setOverlayShown] = useState(false);
 
   const { asset: assetAddress } = useLocalSearchParams();
@@ -32,74 +32,77 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
 
   const { market, externalAsset, available } = useAsset(withdrawAsset);
 
-  const { Field, setFieldValue } = useForm({ defaultValues: { assetInput: "", usdInput: "" } });
+  const form = useForm({ defaultValues: { assetInput: "", usdInput: "" } });
 
   const handleAssetChange = useCallback(
     (text: string) => {
       if (market) {
-        setFieldValue("assetInput", text);
+        form.setFieldValue("assetInput", text);
         const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), market.decimals);
-        setFieldValue("usdInput", assets > 0n ? formatUnits((assets * market.usdPrice) / WAD, market.decimals) : "");
+        form.setFieldValue(
+          "usdInput",
+          assets > 0n ? formatUnits((assets * market.usdPrice) / WAD, market.decimals) : "",
+        );
         onChange(assets);
         return;
       }
       if (externalAsset) {
-        setFieldValue("assetInput", text);
+        form.setFieldValue("assetInput", text);
         const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), externalAsset.decimals);
         const assetPriceUSD = parseUnits(externalAsset.priceUSD, 18);
-        setFieldValue(
+        form.setFieldValue(
           "usdInput",
           assets > 0n ? formatUnits((assets * assetPriceUSD) / WAD, externalAsset.decimals) : "",
         );
         onChange(assets);
       }
     },
-    [market, externalAsset, setFieldValue, onChange],
+    [market, externalAsset, form, onChange],
   );
 
   const handleUsdChange = useCallback(
     (text: string) => {
       if (market) {
-        setFieldValue("usdInput", text);
+        form.setFieldValue("usdInput", text);
         const assets =
           (((parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 18) * WAD) / market.usdPrice) *
             BigInt(10 ** market.decimals)) /
           WAD;
-        setFieldValue("assetInput", assets > 0n ? formatUnits(assets, market.decimals) : "");
+        form.setFieldValue("assetInput", assets > 0n ? formatUnits(assets, market.decimals) : "");
         onChange(assets);
         return;
       }
       if (externalAsset) {
-        setFieldValue("usdInput", text);
+        form.setFieldValue("usdInput", text);
         const assetPriceUSD = parseUnits(externalAsset.priceUSD, 18);
         const assets =
           (parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), externalAsset.decimals) * WAD) /
           assetPriceUSD;
-        setFieldValue("assetInput", assets > 0n ? formatUnits(assets, externalAsset.decimals) : "");
+        form.setFieldValue("assetInput", assets > 0n ? formatUnits(assets, externalAsset.decimals) : "");
         onChange(assets);
       }
     },
-    [market, externalAsset, setFieldValue, onChange],
+    [market, externalAsset, form, onChange],
   );
 
   const handleMaxAmount = useCallback(() => {
     if (market) {
       setOverlayShown(true);
-      setFieldValue("assetInput", formatUnits(available, market.decimals));
-      setFieldValue("usdInput", formatUnits((available * market.usdPrice) / WAD, market.decimals));
+      form.setFieldValue("assetInput", formatUnits(available, market.decimals));
+      form.setFieldValue("usdInput", formatUnits((available * market.usdPrice) / WAD, market.decimals));
       onChange(available);
       return;
     }
     if (externalAsset) {
       setOverlayShown(true);
-      setFieldValue("assetInput", formatUnits(available, externalAsset.decimals));
-      setFieldValue(
+      form.setFieldValue("assetInput", formatUnits(available, externalAsset.decimals));
+      form.setFieldValue(
         "usdInput",
         formatUnits((available * parseUnits(externalAsset.priceUSD, 18)) / WAD, externalAsset.decimals),
       );
       onChange(available);
     }
-  }, [available, market, externalAsset, onChange, setFieldValue]);
+  }, [available, market, externalAsset, onChange, form]);
   return (
     <YStack gap="$s3">
       <Button
@@ -111,7 +114,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
         {t("MAX")}
       </Button>
       <View borderRadius="$r3" gap="$s3" backgroundColor="$backgroundBrandSoft" padding="$s3">
-        <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
+        <form.Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
           {({ state: { value } }) => (
             <Input
               onFocus={() => {
@@ -131,17 +134,17 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
               flex={1}
             />
           )}
-        </Field>
-        <Field name="usdInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
+        </form.Field>
+        <form.Field name="usdInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
           {({ state: { value } }) => (
             <View
               onPress={() => {
                 setOverlayShown(false);
-                usdInputReference.current?.focus();
+                usdInputRef.current?.focus();
               }}
             >
               <Input
-                ref={usdInputReference}
+                ref={usdInputRef}
                 inputMode="decimal"
                 onChangeText={handleUsdChange}
                 placeholder={t("USD")}
@@ -180,7 +183,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
               </View>
             </View>
           )}
-        </Field>
+        </form.Field>
       </View>
     </YStack>
   );

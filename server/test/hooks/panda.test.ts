@@ -43,7 +43,7 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
-import { Address, type Hash } from "@exactly/common/validation";
+import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
@@ -733,7 +733,7 @@ describe("card operations", () => {
         const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
-          await args[2]?.onHash?.(zeroHash as Hash);
+          await args[2]?.onHash?.(zeroHash);
         });
         const localAmount = 123_456;
         const cardId = "locale-notify";
@@ -769,7 +769,7 @@ describe("card operations", () => {
         vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
-          await args[2]?.onHash?.(zeroHash as Hash);
+          await args[2]?.onHash?.(zeroHash);
         });
         const cardId = "locale-notify-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
@@ -801,7 +801,7 @@ describe("card operations", () => {
         vi.spyOn(sardine, "feedback").mockRejectedValue(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
-          await args[2]?.onHash?.(zeroHash as Hash);
+          await args[2]?.onHash?.(zeroHash);
         });
         const cardId = "locale-feedback-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
@@ -833,7 +833,7 @@ describe("card operations", () => {
         const track = vi.spyOn(segment, "track").mockReturnValue();
         const exaSend = vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           const options = args[2];
-          await options?.onHash?.(zeroHash as Hash);
+          await options?.onHash?.(zeroHash);
           throw error;
         });
 

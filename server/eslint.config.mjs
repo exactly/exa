@@ -24,7 +24,7 @@ export default defineConfig([
       "unicorn/prefer-top-level-await": "off", // unsupported in cjs
     },
   },
-  { files: ["**/*.tsx"], extends: [reactConfig, jsxRuntime], settings: { react: { version: "detect" } } },
+  { files: ["**/*.tsx"], extends: [reactConfig, jsxRuntime] },
   {
     files: ["api/**"],
     rules: {

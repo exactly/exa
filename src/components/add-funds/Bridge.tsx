@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl } from "react-native";
 
@@ -151,9 +151,7 @@ export default function Bridge() {
     return next;
   }, [chains, balancesByChain, sameChainAssets]);
 
-  const previousSourceRef = useRef<string | undefined>(undefined);
-
-  const source = useMemo(() => {
+  const source = (() => {
     if (assetGroups.length === 0) return;
     if (selectedSource) {
       const matched = assetGroups
@@ -168,7 +166,7 @@ export default function Bridge() {
     const group = defaultAsset ? defaultGroup : assetGroups[0];
     const asset = defaultAsset ?? assetGroups[0]?.assets[0];
     if (group && asset) return { chain: group.chain.id, address: asset.token.address };
-  }, [assetGroups, selectedSource, bridge?.defaultChainId, bridge?.defaultTokenAddress]);
+  })();
 
   const selectedGroup = assetGroups.find((group) => group.chain.id === source?.chain);
   const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === source?.address);
@@ -187,28 +185,22 @@ export default function Bridge() {
     ? source?.address.toLowerCase() === nativeAddress
     : source?.address === zeroAddress;
 
+  const lifiChainId: Token["chainId"] = chain.id;
   const destinationTokens = useMemo(
-    () =>
-      bridge?.tokensByChain[chain.id]?.filter((token) => token.chainId === (chain.id as typeof token.chainId)) ?? [],
-    [bridge?.tokensByChain],
+    () => bridge?.tokensByChain[chain.id]?.filter((token) => token.chainId === lifiChainId) ?? [],
+    [bridge?.tokensByChain, lifiChainId],
   );
 
-  const effectiveDestinationAddress = useMemo(() => {
+  const effectiveDestinationAddress = (() => {
     if (!sourceTokenAddress) return;
-    if (previousSourceRef.current === sourceTokenAddress && selectedDestinationAddress) {
-      return selectedDestinationAddress;
-    }
+    if (selectedDestinationAddress) return selectedDestinationAddress;
     const correlatedSymbol = sourceTokenSymbol && tokenCorrelation[sourceTokenSymbol as keyof typeof tokenCorrelation];
     const correlatedToken = correlatedSymbol
       ? destinationTokens.find((token) => token.symbol === correlatedSymbol)
       : undefined;
     const nextToken = correlatedToken ?? destinationTokens.find((token) => token.symbol === "USDC");
     return nextToken?.address ?? selectedDestinationAddress;
-  }, [sourceTokenAddress, sourceTokenSymbol, selectedDestinationAddress, destinationTokens]);
-
-  useEffect(() => {
-    previousSourceRef.current = sourceTokenAddress;
-  }, [sourceTokenAddress]);
+  })();
 
   const destinationToken = destinationTokens.find((token) => token.address === effectiveDestinationAddress);
   const destinationMarketSymbol = destinationToken?.symbol === "WETH" ? "ETH" : destinationToken?.symbol;
@@ -321,7 +313,7 @@ export default function Bridge() {
 
   const approvalRequired = canReadAllowance && (allowanceData ?? 0n) < sourceAmount;
 
-  const nativeGasReserve = useMemo(() => {
+  const nativeGasReserve = (() => {
     if (!quote?.estimate.gasCosts || !nativeAddress) return 0n;
     const estimatedNativeGas = quote.estimate.gasCosts
       .filter(
@@ -329,9 +321,9 @@ export default function Bridge() {
       )
       .reduce((sum, { amount }) => sum + BigInt(amount), 0n);
     return (estimatedNativeGas * gasReserveBuffer) / 100n;
-  }, [approvalRequired, quote, nativeAddress]);
+  })();
 
-  const gasToken = useMemo<undefined | { balance: bigint; token: Token }>(() => {
+  const gasToken: undefined | { balance: bigint; token: Token } = (() => {
     if (!isExaSender || isNativeSource || !source || !sourceToken) return;
     if (bridgePolicySymbols.has(sourceToken.symbol)) {
       return { balance: sourceBalance, token: sourceToken };
@@ -342,13 +334,13 @@ export default function Bridge() {
         bridgePolicySymbols.has(item.token.symbol) &&
         item.balance > 0n,
     );
-  }, [bridge?.balancesByChain, isExaSender, source, sourceToken, sourceBalance, isNativeSource, nativeAddress]);
+  })();
 
   const feeIsSource = !!gasToken && !!source && gasToken.token.address.toLowerCase() === source.address.toLowerCase();
   const paymasterChain = source ? alchemyChainById.get(source.chain) : undefined;
   const paymasterAddress = paymasterChain ? getAlchemyPaymasterAddress(paymasterChain, "0.6.0") : undefined;
 
-  const erc20GasReserve = useMemo(() => {
+  const erc20GasReserve = (() => {
     if (nativeGasReserve === 0n || !sourceChain || !gasToken) return 0n;
     const nativeUsd = Number(sourceChain.nativeToken.priceUSD);
     const tokenUsd = Number(gasToken.token.priceUSD);
@@ -357,7 +349,7 @@ export default function Bridge() {
     const tokenAmount = (nativeAmount * nativeUsd) / tokenUsd;
     if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) return 0n;
     return parseUnits(tokenAmount.toFixed(gasToken.token.decimals), gasToken.token.decimals);
-  }, [nativeGasReserve, sourceChain, gasToken]);
+  })();
 
   const paymasterFee =
     isExaSender && source && gasToken && paymasterAddress && erc20GasReserve > 0n && gasToken.balance > erc20GasReserve
@@ -638,7 +630,7 @@ export default function Bridge() {
       );
       const accounts = senderAddress ? [senderAddress] : [];
       if (account && account.toLowerCase() !== senderAddress?.toLowerCase()) accounts.push(account);
-      const nonce = Date.now();
+      const nonce = refreshNonce++;
       Promise.all(
         accounts.map((item) =>
           queryClient
@@ -1289,6 +1281,7 @@ export default function Bridge() {
           selected={source}
           onSelect={(chainId, token) => {
             setSourceAmount(0n);
+            setSelectedDestinationAddress(undefined);
             setSelectedSource({ chain: chainId, address: token.address.toLowerCase() });
           }}
         />
@@ -1312,5 +1305,6 @@ export default function Bridge() {
 }
 
 const gasReserveBuffer = 300n;
+let refreshNonce = 0;
 const bridgePolicyId = "97633483-b01d-4a91-bac5-11011a06b15d";
 const bridgePolicySymbols = new Set(["USDC", "USDT", "USD₮0", "DAI", "USDe", "WETH", "WBTC", "WLD"]);

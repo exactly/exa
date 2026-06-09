@@ -807,7 +807,7 @@ describe("address activity", () => {
             {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
-              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
+              rawContract: { address: inject("WETH"), rawValue: "0x1" },
             },
           ],
         },
@@ -859,7 +859,7 @@ describe("address activity", () => {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
               value: 0,
-              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
+              rawContract: { address: inject("WETH"), rawValue: "0x1" },
             },
           ],
         },
@@ -988,9 +988,7 @@ describe("address activity", () => {
   it("captures auto credit notification errors", async () => {
     const error = new Error("push failed");
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    sendPushNotification
-      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>)
-      .mockRejectedValueOnce(error);
+    sendPushNotification.mockResolvedValueOnce({}).mockRejectedValueOnce(error);
     const autoCredit = vi.spyOn(panda, "autoCredit").mockResolvedValue(true);
     await database
       .insert(cards)

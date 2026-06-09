@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -230,10 +230,7 @@ export default function Swaps() {
   const toAmount = activeInput === "from" && route?.toAmount != null ? route.toAmount : inputToAmount;
   const tool = route?.tool ?? "";
 
-  const isInsufficientBalance = useMemo(() => {
-    if (!fromToken) return false;
-    return fromAmount > getBalance(fromToken.token);
-  }, [fromToken, fromAmount, getBalance]);
+  const isInsufficientBalance = fromToken ? fromAmount > getBalance(fromToken.token) : false;
 
   const {
     request: swapPropose,
@@ -323,7 +320,7 @@ export default function Swaps() {
     protocol: isSimulatingSwap,
   }[fromToken?.external ? "external" : "protocol"];
 
-  const resultRef = useRef({ fromAmount: 0n, toAmount: 0n });
+  const [result, setResult] = useState({ fromAmount: 0n, toAmount: 0n });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
     mutate: swap,
@@ -358,7 +355,7 @@ export default function Swaps() {
       if (status === "failure") throw new Error("failed to swap");
     },
     onMutate() {
-      resultRef.current = { fromAmount, toAmount };
+      setResult({ fromAmount, toAmount });
       updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
     onSuccess() {
@@ -387,16 +384,15 @@ export default function Swaps() {
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
   const disabled = !route || isSimulating || !!simulationError || isInsufficientBalance || danger;
-  const buttonLabel = useMemo(() => {
+  const buttonLabel = (() => {
     if (isInsufficientBalance) return t("Insufficient balance");
     if (isSimulating && route) return t("Please wait...");
     if (simulationError) return t("Cannot proceed");
     if (danger) return t("Enter a lower amount to swap");
-    if (fromToken && toToken) {
+    if (fromToken && toToken)
       return t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol });
-    }
     return t("Swap");
-  }, [isSimulating, route, isInsufficientBalance, simulationError, danger, fromToken, toToken, t]);
+  })();
 
   if (!isSwapping && !isSwapSuccess && !writeContractError)
     return (
@@ -588,7 +584,7 @@ export default function Swaps() {
     );
   {
     if (!fromToken || !toToken) return null;
-    const { fromAmount: resultFromAmount, toAmount: resultToAmount } = resultRef.current;
+    const { fromAmount: resultFromAmount, toAmount: resultToAmount } = result;
     const properties = {
       fromUsdAmount: Number(
         formatUnits((resultFromAmount * parseUnits(fromToken.token.priceUSD, 18)) / WAD, fromToken.token.decimals),

@@ -2,7 +2,6 @@ import js from "@eslint/js";
 import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
 import nx from "@nx/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
-import { flatConfigs as importPlugin } from "eslint-plugin-import";
 import jsdoc from "eslint-plugin-jsdoc";
 import perfectionist from "eslint-plugin-perfectionist";
 import { Alphabet } from "eslint-plugin-perfectionist/alphabet";
@@ -18,8 +17,6 @@ export default defineConfig([
   js.configs.recommended,
   ts.strictTypeChecked,
   ts.stylisticTypeChecked,
-  importPlugin.recommended,
-  importPlugin.typescript,
   unicorn.configs.recommended,
   nx.configs["flat/base"],
   // @ts-expect-error bad config types

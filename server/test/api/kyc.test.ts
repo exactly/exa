@@ -54,9 +54,7 @@ describe("authenticated", () => {
       it("returns ok kyc approved with country code when panda id is present", async () => {
         await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
         const getInquiry = vi.spyOn(persona, "getInquiry");
-        const getAccount = vi
-          .spyOn(persona, "getAccount")
-          .mockResolvedValueOnce(basicAccount as persona.AccountOutput<"basic">);
+        const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
 
         const response = await appClient.index.$get(
           { query: { countryCode: "true", scope: "basic" } },
@@ -712,7 +710,7 @@ describe("authenticated", () => {
 
       it("returns ok when account has all manteca fields and country code", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mantecaAccount as persona.AccountOutput<"manteca">);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mantecaAccount);
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -1021,7 +1019,7 @@ describe("authenticated", () => {
 
       it("returns ok with country code header when account has a supported document", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount as persona.AccountOutput<"bridge">);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined

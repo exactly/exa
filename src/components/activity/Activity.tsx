@@ -101,7 +101,7 @@ export default function Activity() {
 type ActivityItemType = { date: string; type: "header" } | { event: ActivityEvent; isLast: boolean; type: "event" };
 type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
 
-const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
+const HeaderRow = memo(({ date }: { date: string }) => {
   return (
     <View paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
       <Text subHeadline color="$uiNeutralSecondary">

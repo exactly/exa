@@ -302,12 +302,12 @@ function RolloverButton({
     },
   });
 
-  const hasProposed = pendingProposals?.some(
-    ({ proposal }) =>
-      proposal.market === marketUSDCAddress &&
-      proposal.proposalType === (ProposalType.RollDebt as number) &&
-      proposal.amount === maxRepayAssets,
-  );
+  const hasProposed = pendingProposals?.some(({ proposal }) => {
+    const rollDebt: typeof proposal.proposalType = ProposalType.RollDebt;
+    return (
+      proposal.market === marketUSDCAddress && proposal.proposalType === rollDebt && proposal.amount === maxRepayAssets
+    );
+  });
 
   const disabled =
     isError ||

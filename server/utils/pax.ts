@@ -62,7 +62,7 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     json = JSON.parse(text);
   } catch (error) {
     captureException(error);
-    throw new Error("failed to parse pax response");
+    throw new Error("failed to parse pax response", { cause: error });
   }
 
   const result = safeParse(schema, json);

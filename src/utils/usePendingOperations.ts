@@ -45,17 +45,14 @@ export default function usePendingOperations() {
       if (!proposals.data) return false;
       return proposals.data.some(({ proposal }) => {
         const { proposalType: type, data } = proposal;
-        if (
-          type === (ProposalType.RepayAtMaturity as number) ||
-          type === (ProposalType.CrossRepayAtMaturity as number)
-        ) {
-          const decoded =
-            type === (ProposalType.RepayAtMaturity as number)
-              ? decodeRepayAtMaturity(data)
-              : decodeCrossRepayAtMaturity(data);
+        const repayAtMaturity: typeof type = ProposalType.RepayAtMaturity;
+        const crossRepayAtMaturity: typeof type = ProposalType.CrossRepayAtMaturity;
+        const rollDebt: typeof type = ProposalType.RollDebt;
+        if (type === repayAtMaturity || type === crossRepayAtMaturity) {
+          const decoded = type === repayAtMaturity ? decodeRepayAtMaturity(data) : decodeCrossRepayAtMaturity(data);
           return decoded.maturity === maturity;
         }
-        if (type === (ProposalType.RollDebt as number)) return decodeRollDebt(data).repayMaturity === maturity;
+        if (type === rollDebt) return decodeRollDebt(data).repayMaturity === maturity;
         return false;
       });
     },

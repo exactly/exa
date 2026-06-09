@@ -1662,10 +1662,10 @@ describe("legacy withdraw", () => {
         data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
       }),
       { abi: auditorAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
+    ) as Error;
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
     const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(terminalError as Error);
+    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(terminalError);
     vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
       call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
     );
@@ -1692,10 +1692,10 @@ describe("legacy withdraw", () => {
         }),
       }),
       { abi: upgradeableModularAccountAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
+    ) as Error;
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
     const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(noProposalError as Error);
+    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(noProposalError);
     vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
       call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
     );

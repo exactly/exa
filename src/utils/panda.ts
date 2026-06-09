@@ -72,7 +72,7 @@ export async function decrypt(base64Secret: string, base64Iv: string, secretKey:
     const iv = Buffer.from(base64Iv, "base64");
     const decipher = crypto.createDecipheriv("aes-128-gcm", Buffer.from(secretKey, "hex"), iv);
     decipher.setAutoPadding(false);
-    decipher.setAuthTag(secret.subarray(-16) as never); // bad buffer type
+    decipher.setAuthTag(secret.subarray(-16));
     return Buffer.concat([decipher.update(secret.subarray(0, -16)), decipher.final()]).toString("utf8");
   }
 

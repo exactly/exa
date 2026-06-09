@@ -8,9 +8,9 @@ import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { parse } from "valibot";
+import { parse, safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -39,13 +39,16 @@ export default function Receiver() {
   const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
 
   const [receiverType, setReceiverType] = useState<"external" | "internal">("internal");
+  const [externalReceiver, setExternalReceiver] = useState("");
+  const receiver = receiverType === "internal" ? (address ?? "") : externalReceiver;
+  const isValid = receiverType === "internal" ? !!address : safeParse(Address, externalReceiver).success;
 
   const form = useForm({
     defaultValues: { receiver: address ?? "" },
     onSubmit: ({ value }) => {
       try {
-        const receiver = parse(Address, value.receiver);
-        queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver }));
+        const nextReceiver = parse(Address, receiverType === "internal" ? address : value.receiver);
+        queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver: nextReceiver }));
         router.push("/loan/review");
       } catch {
         toast.show(t("Invalid address"), {
@@ -56,9 +59,6 @@ export default function Receiver() {
       }
     },
   });
-
-  const receiver = useStore(form.store, (state) => state.values.receiver);
-  const isValid = useStore(form.store, (state) => state.isValid);
 
   const displayInput = receiverType === "external";
   useEffect(() => {
@@ -146,6 +146,7 @@ export default function Receiver() {
                   backgroundColor={receiverType === "external" ? "$interactiveBaseBrandSoftDefault" : "$backgroundSoft"}
                   onPress={() => {
                     setReceiverType("external");
+                    setExternalReceiver("");
                     form.setFieldValue("receiver", "");
                   }}
                   minHeight={72}
@@ -186,7 +187,10 @@ export default function Receiver() {
                             borderTopRightRadius={0}
                             borderBottomRightRadius={0}
                             value={value}
-                            onChangeText={handleChange}
+                            onChangeText={(text) => {
+                              setExternalReceiver(text);
+                              handleChange(text);
+                            }}
                           />
                           <Button
                             outlined
@@ -200,6 +204,7 @@ export default function Receiver() {
                             onPress={() => {
                               getStringAsync()
                                 .then((text) => {
+                                  setExternalReceiver(text);
                                   setValue(text);
                                 })
                                 .catch(reportError);

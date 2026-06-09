@@ -56,7 +56,7 @@ export function startKYC() {
         const client = new Client({
           inquiryId,
           sessionToken,
-          environment: environment as "production" | "sandbox", // TODO implement environmentId
+          environment, // TODO implement environmentId
           onReady: () => client.open(),
           onComplete: () => {
             signal.removeEventListener("abort", onAbort);
@@ -163,7 +163,7 @@ function startRampKYC(type: "bridge" | "manteca", tokens?: { inquiryId: string; 
         const client = new Client({
           inquiryId,
           sessionToken,
-          environment: environment as "production" | "sandbox",
+          environment,
           onReady: () => client.open(),
           onComplete: () => {
             signal.removeEventListener("abort", onAbort);

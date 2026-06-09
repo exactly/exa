@@ -4,7 +4,11 @@ import node from "eslint-plugin-n";
 import security from "eslint-plugin-security";
 
 export default defineConfig([
-  node.configs["flat/recommended"],
+  {
+    name: node.configs["flat/recommended"].name,
+    languageOptions: node.configs["flat/recommended"].languageOptions,
+    rules: node.configs["flat/recommended"].rules,
+  },
   // @ts-expect-error -- bad types
   security.configs.recommended,
   { rules: { "security/detect-object-injection": "off" } },

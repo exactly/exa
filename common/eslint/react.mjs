@@ -10,6 +10,7 @@ export default defineConfig([
   jsxA11y.flatConfigs.recommended,
   eslintReact.configs["strict-type-checked"],
   tanstackQuery.configs["flat/recommended"],
+  { settings: { react: { version: "19.2.3" } } },
 ]);
 
 export const jsxRuntime = react.configs.flat["jsx-runtime"];

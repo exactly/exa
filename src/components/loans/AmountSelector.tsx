@@ -23,16 +23,16 @@ export default function AmountSelector({
 }) {
   const { t } = useTranslation();
   const { market: selectedMarket, borrowAvailable } = useAsset(market);
-  const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { assetInput: "" } });
+  const form = useForm({ defaultValues: { assetInput: "" } });
   const [focused, setFocused] = useState(false);
 
   const highAmount =
-    Number(getFieldValue("assetInput")) >=
+    Number(form.getFieldValue("assetInput")) >=
     Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket?.decimals ?? 0));
 
   const handleAmountChange = useCallback(
     (value: string) => {
-      setFieldValue("assetInput", value);
+      form.setFieldValue("assetInput", value);
       if (!selectedMarket) return;
       const inputAmount = parseUnits(
         value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""),
@@ -43,21 +43,21 @@ export default function AmountSelector({
         Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket.decimals));
       onChange(inputAmount, newHighAmount);
     },
-    [selectedMarket, borrowAvailable, setFieldValue, onChange],
+    [selectedMarket, borrowAvailable, form, onChange],
   );
 
   const handlePercentage = useCallback(
     (percentage: number) => {
       if (selectedMarket) {
         const amount = (borrowAvailable * BigInt(percentage)) / 100n;
-        setFieldValue("assetInput", formatUnits(amount, selectedMarket.decimals));
+        form.setFieldValue("assetInput", formatUnits(amount, selectedMarket.decimals));
         const newHighAmount =
           Number(formatUnits(amount, selectedMarket.decimals)) >=
           Number(formatUnits((borrowAvailable * 75n) / 100n, selectedMarket.decimals));
         onChange(amount, newHighAmount);
       }
     },
-    [selectedMarket, borrowAvailable, setFieldValue, onChange],
+    [selectedMarket, borrowAvailable, form, onChange],
   );
   return (
     <YStack
@@ -70,7 +70,7 @@ export default function AmountSelector({
     >
       <YStack gap="$s6">
         <YStack maxWidth="80%" minWidth="60%" alignSelf="center">
-          <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
+          <form.Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
             {({ state: { value } }) => {
               return (
                 <XStack
@@ -119,7 +119,7 @@ export default function AmountSelector({
                 </XStack>
               );
             }}
-          </Field>
+          </form.Field>
           <Separator
             height={1}
             borderColor={highAmount ? "$borderErrorStrong" : focused ? "$borderBrandStrong" : "$borderNeutralSoft"}
@@ -129,9 +129,10 @@ export default function AmountSelector({
           {Array.from({ length: 4 }).map((_, index) => {
             const percentage = index === 0 ? 5 : index * 25;
             const selected =
-              selectedMarket && getFieldValue("assetInput")
+              selectedMarket && form.getFieldValue("assetInput")
                 ? parseUnits(
-                    getFieldValue("assetInput")
+                    form
+                      .getFieldValue("assetInput")
                       .replaceAll(/\D/g, ".")
                       .replaceAll(/\.(?=.*\.)/g, ""),
                     selectedMarket.decimals,
