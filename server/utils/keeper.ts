@@ -3,6 +3,7 @@ import { captureException, startSpan, withScope } from "@sentry/node";
 import { setTimeout } from "node:timers/promises";
 import { parse, safeParse } from "valibot";
 import {
+  concatHex,
   createWalletClient,
   encodeFunctionData,
   getContractError,
@@ -25,6 +26,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
+import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
 import { Address, Hash } from "@exactly/common/validation";
@@ -97,7 +99,7 @@ export function extender(
               }),
             } as const;
             const { request: writeRequest } = await startSpan({ name: "eth_call", op: "tx.simulate" }, () =>
-              publicClient.simulateContract({ account: keeper.account, ...txOptions, ...call }),
+              publicClient.simulateContract({ account: keeper.account, dataSuffix, ...txOptions, ...call }),
             );
             const {
               abi: _,
@@ -106,10 +108,11 @@ export function extender(
               ...request
             } = { from: writeRequest.account.address, to: writeRequest.address, ...writeRequest };
             scope.setContext("tx", { request });
+            const data = encodeFunctionData(call);
             const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
               keeper.prepareTransactionRequest({
                 to: call.address,
-                data: encodeFunctionData(call),
+                data: dataSuffix ? concatHex([data, dataSuffix]) : data,
                 ...txOptions,
                 nonceManager,
               }),

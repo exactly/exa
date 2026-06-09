@@ -4,9 +4,10 @@ import "../mocks/sentry";
 
 import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
-import { encodeErrorResult, getContractError, RawContractError } from "viem";
+import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, RawContractError } from "viem";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
+import { dataSuffix } from "@exactly/common/attribution";
 import { auditorAbi } from "@exactly/common/generated/chain";
 
 import keeper from "../../utils/keeper";
@@ -32,6 +33,22 @@ describe("fault tolerance", () => {
     expect(onHash).toHaveBeenCalledOnce();
     expect(receipt?.status).toBe("success");
     expect(sendRawTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies data suffix", async () => {
+    const call = {
+      address: inject("Auditor"),
+      abi: auditorAbi,
+      functionName: "enterMarket",
+      args: [inject("MarketUSDC")],
+    } as const;
+    const receipt = await keeper.exaSend({ name: "test transfer", op: "test.transfer" }, call);
+
+    if (!dataSuffix) throw new Error("missing data suffix");
+    if (!receipt) throw new Error("missing receipt");
+    await expect(publicClient.getTransaction({ hash: receipt.transactionHash })).resolves.toMatchObject({
+      input: concatHex([encodeFunctionData(call), dataSuffix]),
+    });
   });
 
   it("times out if can't send transaction", async () => {
@@ -343,6 +360,7 @@ describe("level option", () => {
 });
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@exactly/common/attribution", () => ({ dataSuffix: "0xdeadbeef" }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
   return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(500, ...arguments_.slice(1)) };
