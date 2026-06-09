@@ -6,9 +6,9 @@ import { ScrollView, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -31,16 +31,11 @@ export default function AboutDefiSheet({ open, onClose }: { onClose: () => void;
                     )}
                   </Text>
 
-                  <Button
-                    flexBasis={60}
-                    onPress={onClose}
-                    contained
-                    main
-                    spaced
-                    fullwidth
-                    iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
-                  >
-                    {t("Close")}
+                  <Button primary width="100%" onPress={onClose}>
+                    <Button.Text>{t("Close")}</Button.Text>
+                    <Button.Icon>
+                      <X />
+                    </Button.Icon>
                   </Button>
                   <Text
                     footnote

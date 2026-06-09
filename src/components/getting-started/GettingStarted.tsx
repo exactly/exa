@@ -18,9 +18,9 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
-import ActionButton from "../shared/ActionButton";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -196,20 +196,10 @@ function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: bool
       </YStack>
       <StepCounter completedSteps={completedSteps} />
       <YStack>
-        <ActionButton
-          marginTop="$s4"
-          marginBottom="$s5"
-          onPress={handleAction}
-          iconAfter={
-            currentStep.id === "add-funds" ? (
-              <ArrowDownToLine size={20} color="$interactiveOnBaseBrandDefault" strokeWidth={2} />
-            ) : (
-              <IdCard size={20} color="$interactiveOnBaseBrandDefault" strokeWidth={2} />
-            )
-          }
-        >
-          {currentStep.id === "add-funds" ? t("Add funds") : t("Begin verifying")}
-        </ActionButton>
+        <Button primary marginTop="$s4" marginBottom="$s5" onPress={handleAction}>
+          <Button.Text>{currentStep.id === "add-funds" ? t("Add funds") : t("Begin verifying")}</Button.Text>
+          <Button.Icon>{currentStep.id === "add-funds" ? <ArrowDownToLine /> : <IdCard />}</Button.Icon>
+        </Button>
       </YStack>
     </YStack>
   );

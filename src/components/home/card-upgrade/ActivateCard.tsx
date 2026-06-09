@@ -16,8 +16,8 @@ import openBrowser from "../../../utils/openBrowser";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";
-import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
+import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
@@ -118,24 +118,17 @@ export default function ActivateCard() {
             </Pressable>
           )}
           <Button
+            primary
+            width="100%"
+            disabled={isActivating}
             onPress={() => {
               activateCard().catch(reportError);
             }}
-            flexBasis={60}
-            contained
-            main
-            spaced
-            fullwidth
-            backgroundColor={isActivating ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"}
-            color={isActivating ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-            iconAfter={
-              <ArrowRight
-                strokeWidth={2.5}
-                color={isActivating ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-              />
-            }
           >
-            {t("Accept and activate Exa Card")}
+            <Button.Text>{t("Accept and activate Exa Card")}</Button.Text>
+            <Button.Icon>
+              <ArrowRight />
+            </Button.Icon>
           </Button>
         </YStack>
         {!isActivating && (

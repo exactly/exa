@@ -16,8 +16,8 @@ import { Address } from "@exactly/common/validation";
 import queryClient from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
 import Blocky from "../shared/Blocky";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -80,7 +80,9 @@ export default function AssetSelection() {
                 </Text>
               </XStack>
               <Button
-                backgroundColor={hasContact ? "$interactiveBaseErrorSoftDefault" : "$interactiveBaseBrandSoftDefault"}
+                secondary={!hasContact}
+                dangerSecondary={!!hasContact}
+                minHeight={0}
                 padding="$s3_5"
                 onPress={() => {
                   queryClient.setQueryData<undefined | { address: Address; ens: string; name: string }[]>(
@@ -101,11 +103,7 @@ export default function AssetSelection() {
                   );
                 }}
               >
-                {hasContact ? (
-                  <UserMinus size={24} color="$interactiveOnBaseErrorSoft" />
-                ) : (
-                  <UserPlus size={24} color="$interactiveOnBaseBrandSoft" />
-                )}
+                <Button.Icon>{hasContact ? <UserMinus size={24} /> : <UserPlus size={24} />}</Button.Icon>
               </Button>
             </XStack>
             <AssetSelector

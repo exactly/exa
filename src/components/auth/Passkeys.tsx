@@ -14,11 +14,11 @@ import PasskeysImage from "../../assets/images/passkeys.svg";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
-import ActionButton from "../shared/ActionButton";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -101,27 +101,23 @@ export default function Passkeys() {
           </View>
           <View>
             <View flexDirection="row" alignSelf="stretch">
-              <ActionButton
+              <Button
+                primary
                 flex={1}
                 marginTop="$s4"
                 marginBottom="$s5"
-                isLoading={loading}
-                loadingContent={t("Creating account...")}
-                iconAfter={
-                  <Key
-                    size={20}
-                    color={loading ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-                    fontWeight="bold"
-                  />
-                }
+                loading={loading}
                 disabled={loading}
                 onPress={() => {
                   if (loading) return;
                   signIn({ method: "webauthn", register: true });
                 }}
               >
-                {t("Set passkey and create account")}
-              </ActionButton>
+                <Button.Text>{loading ? t("Creating account...") : t("Set passkey and create account")}</Button.Text>
+                <Button.Icon>
+                  <Key />
+                </Button.Icon>
+              </Button>
             </View>
             <XStack justifyContent="center">
               <Text

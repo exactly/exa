@@ -150,7 +150,7 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
 
 const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWithoutRef<typeof ArrowRight>> }) => {
   const { children } = properties;
-  const { size = "$iconSize.md", strokeWidth = "$iconStroke.md", ...iconProperties } = children.props;
+  const { size = "$iconSize.md", strokeWidth = 2.5, ...iconProperties } = children.props;
   const IconComponent = children.type as React.ComponentType<ComponentPropsWithoutRef<typeof ArrowRight>>;
   const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent, loading } = use(
     ButtonContext.context,

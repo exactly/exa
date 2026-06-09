@@ -20,12 +20,12 @@ import MantecaDisclaimer from "./MantecaDisclaimer";
 import { isValidCurrency, fees as rampFees } from "../../utils/currencies";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote } from "../../utils/server";
-import Button from "../shared/Button";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -174,16 +174,11 @@ export default function Ramp() {
               )}
               {isError && !data && <InfoAlert title={t("Error loading account details. Please try again later.")} />}
               {qrCode && (
-                <Button
-                  onPress={() => setQRSheetOpen(true)}
-                  flexBasis={60}
-                  contained
-                  main
-                  spaced
-                  fullwidth
-                  iconAfter={<QrCode size={20} />}
-                >
-                  {t("Show QR Code")}
+                <Button primary width="100%" onPress={() => setQRSheetOpen(true)}>
+                  <Button.Text>{t("Show QR Code")}</Button.Text>
+                  <Button.Icon>
+                    <QrCode />
+                  </Button.Icon>
                 </Button>
               )}
               {typedProvider === "manteca" && (

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
 import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
-import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+import { Checkbox, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
@@ -38,9 +38,9 @@ import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exaConfig from "../../utils/wagmi/exa";
-import Button from "../shared/Button";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -543,35 +543,17 @@ export default function Swaps() {
             </XStack>
           </YStack>
           <Button
+            primary={!(caution && acknowledged)}
+            dangerSecondary={caution && acknowledged}
+            disabled={disabled || (caution && !acknowledged)}
+            loading={!danger && isSimulating && !!route && !isInsufficientBalance}
+            width="100%"
             onPress={() => {
               swap();
             }}
-            contained
-            main
-            spaced
-            fullwidth
-            danger={caution && acknowledged}
-            disabled={disabled || (caution && !acknowledged)}
-            iconAfter={
-              danger ? (
-                <TriangleAlert size={16} color="$interactiveOnDisabled" />
-              ) : isSimulating && route && !isInsufficientBalance ? (
-                <Spinner color="$interactiveOnDisabled" />
-              ) : (
-                <Repeat
-                  strokeWidth={2.5}
-                  color={
-                    disabled || (caution && !acknowledged)
-                      ? "$interactiveOnDisabled"
-                      : caution && acknowledged
-                        ? "$interactiveOnBaseErrorSoft"
-                        : "$interactiveOnBaseBrandDefault"
-                  }
-                />
-              )
-            }
           >
-            {buttonLabel}
+            <Button.Text>{buttonLabel}</Button.Text>
+            <Button.Icon>{danger ? <TriangleAlert /> : <Repeat />}</Button.Icon>
           </Button>
         </YStack>
         <TokenSelectModal

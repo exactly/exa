@@ -26,8 +26,8 @@ import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useAccount from "../../../utils/useAccount";
 import exa from "../../../utils/wagmi/exa";
-import Button from "../../shared/Button";
 import Spinner from "../../shared/Spinner";
+import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
@@ -148,25 +148,17 @@ export default function UpgradeAccount() {
       )}
       <YStack paddingBottom="$s7">
         <Button
+          primary
+          width="100%"
           disabled={isUpgrading}
           onPress={() => {
             upgradeAccount().catch(reportError);
           }}
-          flexBasis={60}
-          contained
-          main
-          spaced
-          fullwidth
-          backgroundColor={isUpgrading ? "$interactiveDisabled" : "$interactiveBaseBrandDefault"}
-          color={isUpgrading ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-          iconAfter={
-            <ArrowUpToLine
-              strokeWidth={2.5}
-              color={isUpgrading ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-            />
-          }
         >
-          {t("Upgrade account now")}
+          <Button.Text>{t("Upgrade account now")}</Button.Text>
+          <Button.Icon>
+            <ArrowUpToLine />
+          </Button.Icon>
         </Button>
       </YStack>
     </View>

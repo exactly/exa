@@ -183,7 +183,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
           >
             <Button.Text>{t("Learn more")}</Button.Text>
             <Button.Icon>
-              <ExternalLink color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+              <ExternalLink />
             </Button.Icon>
           </Button>
           <Text
@@ -339,13 +339,13 @@ function DetailsView({
             <Button primary flex={1} onPress={onRepayPress}>
               <Button.Text>{t("Pay")}</Button.Text>
               <Button.Icon>
-                <Coins color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                <Coins />
               </Button.Icon>
             </Button>
             <Button secondary flex={1} onPress={onRolloverPress}>
               <Button.Text>{t("Rollover")}</Button.Text>
               <Button.Icon>
-                <RefreshCw color="$interactiveOnBaseBrandSoft" strokeWidth={2.5} />
+                <RefreshCw />
               </Button.Icon>
             </Button>
           </XStack>

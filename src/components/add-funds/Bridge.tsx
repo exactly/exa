@@ -1274,7 +1274,7 @@ export default function Bridge() {
                   : t("Select source asset")}
               </Button.Text>
               <Button.Icon>
-                <Repeat strokeWidth={2.5} />
+                <Repeat />
               </Button.Icon>
             </Button>
           </YStack>

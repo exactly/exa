@@ -8,8 +8,8 @@ import { ArrowRight } from "@tamagui/lucide-icons";
 
 import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
 import AccountCreatedImage from "../../assets/images/account-created.svg";
-import ActionButton from "../shared/ActionButton";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -43,17 +43,20 @@ export default function Success() {
         </View>
         <View>
           <View flexDirection="row" alignSelf="stretch">
-            <ActionButton
+            <Button
+              primary
               flex={1}
               marginTop="$s4"
               marginBottom="$s5"
               onPress={() => {
                 router.replace("/(main)/(home)");
               }}
-              iconAfter={<ArrowRight color="$interactiveOnBaseBrandDefault" />}
             >
-              {t("Get started")}
-            </ActionButton>
+              <Button.Text>{t("Get started")}</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
+            </Button>
           </View>
         </View>
       </View>

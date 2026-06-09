@@ -114,7 +114,7 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
             <Button primary onPress={navigate}>
               <Button.Text>{t("Review refinance details")}</Button.Text>
               <Button.Icon>
-                <ArrowRight color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                <ArrowRight />
               </Button.Icon>
             </Button>
           </YStack>

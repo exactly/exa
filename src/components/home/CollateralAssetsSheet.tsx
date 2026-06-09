@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { ThumbsUp } from "@tamagui/lucide-icons";
 import { YStack } from "tamagui";
 
-import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function CollateralAssetsSheet({ onClose, open }: { onClose: () => void; open: boolean }) {
@@ -30,15 +30,11 @@ export default function CollateralAssetsSheet({ onClose, open }: { onClose: () =
           </Text>
         </YStack>
         <YStack paddingHorizontal="$s5" paddingBottom="$s7">
-          <Button
-            onPress={onClose}
-            contained
-            main
-            spaced
-            fullwidth
-            iconAfter={<ThumbsUp strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
-          >
-            {t("Got it!")}
+          <Button primary width="100%" onPress={onClose}>
+            <Button.Text>{t("Got it!")}</Button.Text>
+            <Button.Icon>
+              <ThumbsUp />
+            </Button.Icon>
           </Button>
         </YStack>
       </YStack>

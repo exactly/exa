@@ -12,8 +12,8 @@ import Image from "./Image";
 import ModalSheet from "./ModalSheet";
 import assetLogos from "../../utils/assetLogos";
 import useAccount from "../../utils/useAccount";
-import Button from "../shared/Button";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 const supportedAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
@@ -103,16 +103,11 @@ export default function CopyAddressSheet({
                 </XStack>
               </XStack>
             </YStack>
-            <Button
-              onPress={onClose}
-              flexBasis={60}
-              contained
-              main
-              spaced
-              fullwidth
-              iconAfter={<X strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
-            >
-              {t("Close")}
+            <Button primary width="100%" onPress={onClose}>
+              <Button.Text>{t("Close")}</Button.Text>
+              <Button.Icon>
+                <X />
+              </Button.Icon>
             </Button>
           </YStack>
         </SafeView>

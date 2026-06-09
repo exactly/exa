@@ -10,10 +10,10 @@ import ExaCard from "../../assets/images/exa-card.svg";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -65,16 +65,11 @@ export default function CardDisclaimer({
                       />
                     </Text>
                   </Pressable>
-                  <Button
-                    flexBasis={60}
-                    onPress={onActionPress}
-                    contained
-                    main
-                    spaced
-                    fullwidth
-                    iconAfter={<ArrowRight strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
-                  >
-                    {t("Accept and enable card")}
+                  <Button primary width="100%" onPress={onActionPress}>
+                    <Button.Text>{t("Accept and enable card")}</Button.Text>
+                    <Button.Icon>
+                      <ArrowRight />
+                    </Button.Icon>
                   </Button>
                 </YStack>
                 <Text color="$interactiveOnDisabled" caption textAlign="justify">

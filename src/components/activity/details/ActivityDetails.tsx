@@ -14,9 +14,9 @@ import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
 import { present } from "../../../utils/intercom";
 import reportError from "../../../utils/reportError";
-import ActionButton from "../../shared/ActionButton";
 import GradientScrollView from "../../shared/GradientScrollView";
 import IconButton from "../../shared/IconButton";
+import Button from "../../shared/StyledButton";
 
 import type { ActivityItem } from "../../../utils/queryClient";
 
@@ -45,7 +45,8 @@ export default function ActivityDetails() {
       {item.type === "sent" && <SentActivity item={item} />}
       {item.type === "panda" &&
         (item.status === "declined" ? <DeclinedActivity item={item} /> : <CardActivity item={item} />)}
-      <ActionButton
+      <Button
+        outlined
         width="100%"
         alignSelf="flex-end"
         marginTop="$s4"
@@ -53,14 +54,12 @@ export default function ActivityDetails() {
         onPress={() => {
           present().catch(reportError);
         }}
-        backgroundColor="transparent"
-        borderWidth={1}
-        borderColor="$interactiveBaseBrandDefault"
-        color="$interactiveBaseBrandDefault"
-        iconAfter={<Headphones color="$interactiveBaseBrandDefault" />}
       >
-        {t("Contact support")}
-      </ActionButton>
+        <Button.Text>{t("Contact support")}</Button.Text>
+        <Button.Icon>
+          <Headphones />
+        </Button.Icon>
+      </Button>
     </GradientScrollView>
   );
 }

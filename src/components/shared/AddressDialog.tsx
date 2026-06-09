@@ -6,8 +6,8 @@ import { AlertDialog, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
-import Button from "./Button";
 import ChainLogo from "./ChainLogo";
+import Button from "./StyledButton";
 import Text from "./Text";
 import View from "./View";
 import useAspectRatio from "../../utils/useAspectRatio";
@@ -78,15 +78,11 @@ export default function AddressDialog({
               </YStack>
               <XStack>
                 <AlertDialog.Action asChild flex={1}>
-                  <Button
-                    onPress={onActionPress}
-                    contained
-                    main
-                    spaced
-                    fullwidth
-                    iconAfter={<Copy strokeWidth={3} color="$interactiveOnBaseBrandDefault" />}
-                  >
-                    {t("Copy account address")}
+                  <Button onPress={onActionPress} primary width="100%">
+                    <Button.Text>{t("Copy account address")}</Button.Text>
+                    <Button.Icon>
+                      <Copy />
+                    </Button.Icon>
                   </Button>
                 </AlertDialog.Action>
               </XStack>

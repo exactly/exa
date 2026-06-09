@@ -40,7 +40,7 @@ export default function CardFreezeSheet({
           <Button primary onPress={onConfirm}>
             <Button.Text>{t("Freeze card")}</Button.Text>
             <Button.Icon>
-              <Snowflake strokeWidth={2.5} />
+              <Snowflake />
             </Button.Icon>
           </Button>
           <Pressable onPress={onClose}>

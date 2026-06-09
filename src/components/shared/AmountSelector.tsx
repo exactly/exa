@@ -13,8 +13,8 @@ import { formatUnits, parseUnits } from "viem";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
-import Button from "./Button";
 import Input from "./Input";
+import Button from "./StyledButton";
 import Text from "./Text";
 import View from "./View";
 import useAsset from "../../utils/useAsset";
@@ -102,13 +102,10 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
   }, [available, market, externalAsset, onChange, setFieldValue]);
   return (
     <YStack gap="$s3">
-      <Button
-        alignSelf="flex-end"
-        backgroundColor="$interactiveBaseBrandSoftDefault"
-        color="$interactiveOnBaseBrandSoft"
-        onPress={handleMaxAmount}
-      >
-        {t("MAX")}
+      <Button alignSelf="flex-end" secondary minHeight={0} padding="$s3" onPress={handleMaxAmount}>
+        <Button.Text flex={0} textAlign="center">
+          {t("MAX")}
+        </Button.Text>
       </Button>
       <View borderRadius="$r3" gap="$s3" backgroundColor="$backgroundBrandSoft" padding="$s3">
         <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>

@@ -203,7 +203,7 @@ export default function Pay() {
                 <Button primary onPress={() => setInfoType(null)}>
                   <Button.Text>{t("Got it!")}</Button.Text>
                   <Button.Icon>
-                    <Check color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                    <Check />
                   </Button.Icon>
                 </Button>
               </InfoSheet>
@@ -225,7 +225,7 @@ export default function Pay() {
                 >
                   <Button.Text>{t("Learn more")}</Button.Text>
                   <Button.Icon>
-                    <ExternalLink color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                    <ExternalLink />
                   </Button.Icon>
                 </Button>
                 <Text
@@ -256,7 +256,7 @@ export default function Pay() {
                 >
                   <Button.Text>{t("Learn more")}</Button.Text>
                   <Button.Icon>
-                    <ExternalLink color="$interactiveOnBaseBrandDefault" strokeWidth={2.5} />
+                    <ExternalLink />
                   </Button.Icon>
                 </Button>
                 <Text
@@ -447,19 +447,13 @@ function FirstMaturityCard({
           <Button primary flex={1} disabled={processing} onPress={onPay}>
             <Button.Text>{t("Pay")}</Button.Text>
             <Button.Icon>
-              <Coins
-                color={processing ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-                strokeWidth={2.5}
-              />
+              <Coins />
             </Button.Icon>
           </Button>
           <Button secondary flex={1} disabled={processing} onPress={onRollover}>
             <Button.Text>{t("Rollover")}</Button.Text>
             <Button.Icon>
-              <RefreshCw
-                color={processing ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
-                strokeWidth={2.5}
-              />
+              <RefreshCw />
             </Button.Icon>
           </Button>
         </XStack>

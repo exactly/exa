@@ -7,8 +7,8 @@ import { YStack } from "tamagui";
 
 import * as Sentry from "@sentry/react-native";
 
-import Button from "./Button";
 import SafeView from "./SafeView";
+import Button from "./StyledButton";
 import Text from "./Text";
 import View from "./View";
 import ErrorImage from "../../assets/images/error.svg";
@@ -69,14 +69,13 @@ export default function Error({ resetError }: { resetError: () => void }) {
           onPress={() => {
             Sentry.showFeedbackWidget();
           }}
-          flexBasis={64}
-          contained
-          main
-          spaced
-          fullwidth
-          iconAfter={<File strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
+          primary
+          width="100%"
         >
-          {t("Send error report")}
+          <Button.Text>{t("Send error report")}</Button.Text>
+          <Button.Icon>
+            <File />
+          </Button.Icon>
         </Button>
         <Pressable
           onPress={() => {

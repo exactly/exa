@@ -7,9 +7,9 @@ import { XStack, YStack } from "tamagui";
 
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function SpendingLimitSheet({ onClose, open }: { onClose: () => void; open: boolean }) {
@@ -49,13 +49,13 @@ export default function SpendingLimitSheet({ onClose, open }: { onClose: () => v
             onPress={() => {
               presentArticle("9922633").catch(reportError);
             }}
-            contained
-            main
-            spaced
-            fullwidth
-            iconAfter={<ExternalLink strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
+            primary
+            width="100%"
           >
-            {t("Learn more")}
+            <Button.Text>{t("Learn more")}</Button.Text>
+            <Button.Icon>
+              <ExternalLink />
+            </Button.Icon>
           </Button>
           <Pressable onPress={onClose}>
             <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">

@@ -8,8 +8,8 @@ import { formatUnits } from "viem";
 
 import { newMessage, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
@@ -79,13 +79,13 @@ export default function UnsupportedNetworksSheet({
                   : "";
               onClose();
             }}
-            contained
-            main
-            spaced
-            fullwidth
-            iconAfter={<Headphones strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
+            primary
+            width="100%"
           >
-            {t("Contact support")}
+            <Button.Text>{t("Contact support")}</Button.Text>
+            <Button.Icon>
+              <Headphones />
+            </Button.Icon>
           </Button>
         </YStack>
       </YStack>

@@ -7,10 +7,10 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import reportError from "../../utils/reportError";
-import Button from "../shared/Button";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -117,8 +117,7 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
         </Text>
       )}
       <Button
-        main
-        spaced
+        primary
         onPress={() => {
           if (error) {
             onRetry();
@@ -127,8 +126,8 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
           handleToggle();
         }}
       >
-        {error ? t("Retry") : displayPIN ? t("Hide PIN") : t("Show PIN")}
-        {`${!error && displayPIN && countdown > 0 ? countdown : " "}`}
+        <Button.Text>{error ? t("Retry") : displayPIN ? t("Hide PIN") : t("Show PIN")}</Button.Text>
+        {!error && displayPIN && countdown > 0 && <Button.Text flex={0}>{countdown}</Button.Text>}
       </Button>
     </YStack>
   );

@@ -13,10 +13,10 @@ import { formatUnits } from "viem";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import AssetLogo from "../shared/AssetLogo";
-import Button from "../shared/Button";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import ExaSpinner from "../shared/Spinner";
+import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
@@ -107,17 +107,17 @@ export default function Success({
         <YStack alignItems="center" gap="$s4" padding="$s4">
           {!external && (
             <Button
+              primary
+              width="100%"
               onPress={() => {
                 invalidateSwap();
                 router.dismissTo("/pending-proposals");
               }}
-              contained
-              main
-              fullwidth
-              spaced
-              iconAfter={<ArrowRight size={16} />}
             >
-              {t("View pending request")}
+              <Button.Text>{t("View pending request")}</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
             </Button>
           )}
           <Pressable

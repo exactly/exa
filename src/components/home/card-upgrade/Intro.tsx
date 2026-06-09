@@ -6,7 +6,7 @@ import { ArrowUpToLine, CreditCard, IdCard } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import ExaCard from "../../../assets/images/exa-card.svg";
-import Button from "../../shared/Button";
+import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
@@ -58,16 +58,11 @@ export default function Intro({ onPress }: { onPress: () => void }) {
         </YStack>
       </YStack>
       <YStack paddingHorizontal="$s5" paddingBottom="$s7">
-        <Button
-          onPress={onPress}
-          flexBasis={60}
-          contained
-          main
-          spaced
-          fullwidth
-          iconAfter={<IdCard strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />}
-        >
-          {t("Verify your identity")}
+        <Button primary width="100%" onPress={onPress}>
+          <Button.Text>{t("Verify your identity")}</Button.Text>
+          <Button.Icon>
+            <IdCard />
+          </Button.Icon>
         </Button>
       </YStack>
     </View>

@@ -3,13 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { IdCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { Spinner, YStack } from "tamagui";
+import { YStack } from "tamagui";
 
 import Progression from "./Progression";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import useBeginKYC from "../../../utils/useBeginKYC";
-import Button from "../../shared/Button";
+import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
 
@@ -36,7 +36,10 @@ export default function VerifyIdentity() {
       <Progression />
       <YStack paddingBottom="$s7">
         <Button
+          primary
+          width="100%"
           disabled={beginKYC.isPending}
+          loading={beginKYC.isPending}
           onPress={() => {
             beginKYC.mutate(undefined, {
               onSuccess(result) {
@@ -52,22 +55,11 @@ export default function VerifyIdentity() {
               },
             });
           }}
-          flexBasis={60}
-          contained
-          main
-          spaced
-          fullwidth
-          color={beginKYC.isPending ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandDefault"}
-          backgroundColor={beginKYC.isPending ? "$interactiveDisabled" : "$uiBrandSecondary"}
-          iconAfter={
-            beginKYC.isPending ? (
-              <Spinner color="$interactiveOnDisabled" />
-            ) : (
-              <IdCard strokeWidth={2.5} color="$interactiveOnBaseBrandDefault" />
-            )
-          }
         >
-          {t("Start verification")}
+          <Button.Text>{t("Start verification")}</Button.Text>
+          <Button.Icon>
+            <IdCard />
+          </Button.Icon>
         </Button>
       </YStack>
     </View>
