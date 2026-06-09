@@ -46,6 +46,7 @@ import {
   createCard,
   getApplicationStatus,
   getCard,
+  getCards,
   getNonce,
   getPIN,
   getProcessorDetails,
@@ -431,6 +432,14 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             },
           },
         },
+        409: {
+          description: "Conflict",
+          content: {
+            "application/json": {
+              schema: resolver(object({ code: literal("card limit reached") }), { errorMode: "ignore" }),
+            },
+          },
+        },
       },
     }),
     async (c) => {
@@ -453,6 +462,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           setUser({ id: account });
 
           if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+          const pandaId = credential.pandaId;
 
           let isUpgradeFromPlatinum = credential.cards.some(
             ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
@@ -480,26 +490,44 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
           try {
-            const kyc = await getApplicationStatus(credential.pandaId);
+            const kyc = await getApplicationStatus(pandaId);
             if (kyc.applicationStatus !== "approved") {
               return c.json({ code: "kyc not approved" }, 403);
             }
-            const card = await createCard(
-              credential.pandaId,
-              SIGNATURE_PRODUCT_ID,
-              await getAccount(credentialId, "cardLimit")
-                .then((persona) =>
-                  persona?.attributes.fields.card_limit_usd?.value == null
-                    ? undefined
-                    : persona.attributes.fields.card_limit_usd.value * 100,
-                )
-                .catch((error: unknown): undefined => {
-                  captureException(error, {
-                    level: "error",
-                    contexts: { details: { credentialId, scope: "cardLimit" } },
+            const card = await getCards(pandaId)
+              .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
+              .then(async (orphan) => {
+                if (orphan) {
+                  captureException(new Error("orphan card adopted"), {
+                    level: "warning",
+                    fingerprint: ["orphan-card-adopted"],
+                    extra: {
+                      credentialId,
+                      pandaId,
+                      cardId: orphan.id,
+                    },
                   });
-                }),
-            );
+                  return orphan;
+                } else {
+                  return createCard(
+                    pandaId,
+                    SIGNATURE_PRODUCT_ID,
+                    await getAccount(credentialId, "cardLimit")
+                      .then((persona) =>
+                        persona?.attributes.fields.card_limit_usd?.value == null
+                          ? undefined
+                          : persona.attributes.fields.card_limit_usd.value * 100,
+                      )
+                      .catch((error: unknown): undefined => {
+                        captureException(error, {
+                          level: "error",
+                          contexts: { details: { credentialId, scope: "cardLimit" } },
+                        });
+                      }),
+                  );
+                }
+              });
+
             let mode = 0;
             try {
               if (await autoCredit(account)) mode = 1;
@@ -551,6 +579,18 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               200,
             );
           } catch (error) {
+            if (
+              error instanceof ServiceError &&
+              error.status === 400 &&
+              error.message.includes("maximum number of cards allowed")
+            ) {
+              captureException(error, {
+                level: "warning",
+                fingerprint: ["card-limit-reached"],
+                extra: { credentialId, pandaId },
+              });
+              return c.json({ code: "card limit reached" }, 409);
+            }
             const issue = noUser(error);
             if (!issue) throw error;
             const hasCardHistory = credential.cards.length > 0;
@@ -567,7 +607,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                   extra: {
                     credentialId,
                     hasCardHistory,
-                    pandaId: credential.pandaId,
+                    pandaId,
                     statuses: credential.cards.map(({ status }) => status),
                     userIssue: issue.type,
                   },

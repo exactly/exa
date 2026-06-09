@@ -85,6 +85,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
       return Promise.resolve({ id });
     }),
     getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
+    getCards: vi.fn().mockResolvedValue([]),
     getPIN: vi.fn().mockResolvedValue({ pin: null }),
     getProcessorDetails: vi
       .fn()
