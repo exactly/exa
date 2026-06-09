@@ -2,6 +2,7 @@ import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import {
+  array,
   boolean,
   check,
   email,
@@ -130,6 +131,10 @@ export async function getUser(userId: string) {
 
 export async function getCard(cardId: string) {
   return await request(CardResponse, `/issuing/cards/${cardId}`);
+}
+
+export async function getCards(userId: string) {
+  return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`);
 }
 
 export function getProcessorDetails(cardId: string) {
@@ -310,6 +315,16 @@ const CardResponse = object({
   expirationMonth: pipe(string(), minLength(1), maxLength(2)),
   expirationYear: pipe(string(), length(4)),
 });
+
+const CardsResponse = array(
+  object({
+    id: string(),
+    status: picklist(["notActivated", "active", "locked", "canceled"]),
+    last4: pipe(string(), length(4)),
+    expirationMonth: pipe(string(), minLength(1), maxLength(2)),
+    expirationYear: pipe(string(), length(4)),
+  }),
+);
 
 const UserResponse = object({
   id: string(),
