@@ -41,6 +41,28 @@ describe("panda request", () => {
     await expect(rejection).rejects.toBeInstanceOf(ServiceError);
     await expect(rejection).rejects.toMatchObject({ name: "PandaNotFound", status: 404, message: "card" });
   });
+
+  it("lists a user's cards", async () => {
+    const cards = [
+      {
+        id: "3c90c3cc-0d44-4b50-8888-8dd25736052a",
+        status: "active",
+        last4: "4242",
+        expirationMonth: "9",
+        expirationYear: "2029",
+      },
+    ];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(cards)).buffer),
+    } as Response);
+
+    await expect(panda.getCards("e5cd86bb-a19e-4a66-9728-9e6c5d97e616")).resolves.toStrictEqual(cards);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/cards?userId=e5cd86bb-a19e-4a66-9728-9e6c5d97e616&limit=100"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });
 
 describe("create card", () => {
