@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { cancelAnimation, Easing, useSharedValue, withTiming } from "react-native-reanimated";
-import Carousel from "react-native-reanimated-carousel";
+import { Carousel } from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
@@ -36,8 +36,8 @@ import View from "../shared/View";
 
 import type { EmbeddingContext } from "../../utils/queryClient";
 
-function renderItem({ item, animationValue }: { animationValue: SharedValue<number>; item: Page }) {
-  return <ListItem item={item} animationValue={animationValue} />;
+function renderItem({ item, relativeProgress }: { item: Page; relativeProgress: SharedValue<number> }) {
+  return <ListItem item={item} animationValue={relativeProgress} />;
 }
 
 export default function Auth() {
@@ -70,15 +70,17 @@ export default function Auth() {
     progress.value = withTiming(1, { duration: 5000, easing: Easing.linear });
   }, [progress]);
 
-  const handleSnapToItem = useCallback((index: number) => setActiveIndex(index), []);
-
-  const handleScrollEnd = useCallback(() => {
-    isScrolling.value = false;
-    startProgressAnimation();
-  }, [isScrolling, startProgressAnimation]);
+  const handleSnapToItem = useCallback(
+    (index: number) => {
+      setActiveIndex(index);
+      isScrolling.value = false;
+      startProgressAnimation();
+    },
+    [isScrolling, startProgressAnimation],
+  );
 
   const handleProgressChange = useCallback(
-    (_: number, absoluteProgress: number) => {
+    (absoluteProgress: number) => {
       const previousOffset = scrollOffset.value;
       const delta = Math.abs(absoluteProgress - previousOffset);
       scrollOffset.value = absoluteProgress;
@@ -128,13 +130,12 @@ export default function Auth() {
       <View flexGrow={1} justifyContent="center" flexShrink={1}>
         <Carousel
           data={pages}
-          width={itemWidth}
-          height={itemWidth / aspectRatio}
-          autoPlay
-          autoPlayInterval={5000}
-          withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
+          style={{ width: itemWidth, height: itemWidth / aspectRatio }}
+          loop
+          autoplay
+          autoplayInterval={5000}
+          animation={{ type: "timing", duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) }}
           onSnapToItem={handleSnapToItem}
-          onScrollEnd={handleScrollEnd}
           onProgressChange={handleProgressChange}
           renderItem={renderItem}
         />

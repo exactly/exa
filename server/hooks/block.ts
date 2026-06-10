@@ -88,13 +88,13 @@ export default function hook({
   const signingKeys = new Set(blockKey && [blockKey]);
   const ready = Promise.all([
     redis
-      .zrange("withdraw", 0, Infinity, "BYSCORE")
+      .zrange("withdraw", 0, "+inf", "BYSCORE")
       .then((messages) => {
         for (const message of messages) scheduleWithdraw(message);
       })
       .catch((error: unknown) => captureException(error)),
     redis
-      .zrange("proposals", 0, Infinity, "BYSCORE")
+      .zrange("proposals", 0, "+inf", "BYSCORE")
       .then((messages) => {
         for (const message of messages) scheduleMessage(message);
       })

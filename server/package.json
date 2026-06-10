@@ -64,7 +64,7 @@
     "@valibot/to-json-schema": "^1.7.1",
     "@valora/viem-account-hsm-gcp": "^1.2.19",
     "async-mutex": "^0.5.0",
-    "better-auth": "^1.7.1",
+    "better-auth": "~1.6.30",
     "bullmq": "^6.1.2",
     "canonicalize": "^4.0.0",
     "debug": "^4.4.3",
@@ -84,7 +84,7 @@
     "viem": "catalog:"
   },
   "devDependencies": {
-    "@eslint/compat": "^2.1.0",
+    "@eslint/compat": "^2.0.3",
     "@exactly/common": "workspace:^0.0.20",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/substreams": "workspace:^0.1.0",
@@ -101,7 +101,7 @@
     "drizzle-kit": "^0.31.10",
     "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "catalog:",
-    "eslint-config-universe": "^16.0.0",
+    "eslint-config-universe": "^15.0.3",
     "eslint-plugin-drizzle": "^0.2.3",
     "execa": "^10.0.1",
     "openapi-types": "^12.1.3",

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
-import Carousel, { type ICarouselInstance } from "react-native-reanimated-carousel";
+import { Carousel, type CarouselRef } from "react-native-reanimated-carousel";
 
 import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -42,7 +42,7 @@ export default function InstallmentsSheet({
   useEffect(() => {
     if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
   }, [mode, open]);
-  const carouselRef = useRef<ICarouselInstance>(null);
+  const carouselRef = useRef<CarouselRef>(null);
   const rates = useInstallmentRates();
   const [width, setWidth] = useState(0);
   const handleLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
@@ -105,9 +105,8 @@ export default function InstallmentsSheet({
               {width === 0 ? undefined : (
                 <Carousel
                   ref={carouselRef}
-                  width={pageWidth}
-                  height={CARD_SIZE}
-                  style={{ width: width - PADDING - GAP, marginLeft: PADDING, overflow: "visible" }}
+                  itemSize={pageWidth}
+                  style={{ width: width - PADDING - GAP, height: CARD_SIZE, marginLeft: PADDING, overflow: "visible" }}
                   data={pages}
                   defaultIndex={Math.floor((Math.max(mode, 1) - 1) / perPage)}
                   loop={false}

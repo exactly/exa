@@ -46,16 +46,17 @@ auditConfig:
 autoInstallPeers: false
 blockExoticSubdeps: false
 catalog:
-  "@aa-sdk/core": &aaSDK ^4.88.4
+  "@aa-sdk/core": &aaSDK ^4.88.5
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
-  "@hono/node-server": ^2.0.12
+  "@hono/node-server": ^2.1.1
   "@sentry/core": &sentry ^10.71.0
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
   "@wagmi/core": ^3.6.4
   comlink: ^4.4.2
-  eslint: ^10.4.1
+  eslint: &eslint ^9.39.4
+  "@eslint/js": *eslint
   hono: ^4.13.5
   i18next: ^26.3.6
   ioredis: ^6.0.0
@@ -64,10 +65,11 @@ catalog:
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  ox: ^1.6.3
-  prettier: ^3.9.6
+  ox: ^1.7.1
   react: &react "19.2.3"
   react-dom: *react
+  react-native: &reactNative "0.86.3"
+  "@react-native/metro-config": *reactNative
   tamagui: &tamagui ^2.7.7
   "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
@@ -78,10 +80,8 @@ catalog:
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   typescript: ^5.9.3
-  typescript-eslint: &typescriptEslint ^8.67.0
-  "@typescript-eslint/utils": *typescriptEslint
   valibot: ^1.4.2
-  viem: ^2.55.18
+  viem: ^2.55.19
   wagmi: ^3.7.6
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
@@ -94,18 +94,9 @@ overrides:
   "@sentry/core@10": "catalog:"
   "@sentry/node@10": "catalog:"
   "@sentry/profiling-node@10": "catalog:"
-  "@typescript-eslint/eslint-plugin": *typescriptEslint
-  "@typescript-eslint/parser": *typescriptEslint
-  "@typescript-eslint/project-service": *typescriptEslint
-  "@typescript-eslint/scope-manager": *typescriptEslint
-  "@typescript-eslint/tsconfig-utils": *typescriptEslint
-  "@typescript-eslint/type-utils": *typescriptEslint
-  "@typescript-eslint/types": *typescriptEslint
-  "@typescript-eslint/typescript-estree": *typescriptEslint
-  "@typescript-eslint/utils": *typescriptEslint
-  "@typescript-eslint/visitor-keys": *typescriptEslint
   "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": ^6.0.0
   "@xmldom/xmldom@0.8.13": ^0.8.15 # cspell:ignore xmldom
+  "@wagmi/core>zustand": 5.0.15 # cspell:ignore zustand
   abitype>zod: ^4.0.0
   axios@1.16.1: ^1.18.0
   brace-expansion@5.0.6: ^5.0.7
@@ -129,11 +120,13 @@ overrides:
   postcss-selector-parser@7.1.1: ^7.1.3
   postcss@8: ^8.5.10
   qs@6.15.2: ^6.16.0
+  react-native-webview: 13.16.1
   sharp: ^0.35.4
   smol-toml: ^1.7.1
   svgo@3: ^3.3.5
   tar: ^7.5.21
   typescript@5: "catalog:"
+  wagmi>use-sync-external-store: ^1.6.0
   ws@8: ^8.21.0
   yauzl: ^3.2.1 # cspell:ignore yauzl
   "@anthropic-ai/claude-code": npm:@favware/skip-dependency@1.2.2
@@ -175,7 +168,6 @@ peerDependencyRules:
     "@hono/mcp>hono-rate-limiter": "0.5"
     abitype>zod: "3"
     esbuild-register>esbuild: "0.27"
-    eslint: "10"
     hono-openapi>zod: "4"
     rollup-plugin-import-trace>vite: "8" # cspell:ignore rollup
 publicHoistPattern:
@@ -189,6 +181,8 @@ publicHoistPattern:
   - sharp
 updateConfig:
   ignoreDependencies:
+    - "@babel/core"
+    - "@babel/preset-env"
     - "@expo/fingerprint"
     - "@expo/metro-runtime"
     - "@hono/valibot-validator"
@@ -196,8 +190,10 @@ updateConfig:
     - "@openzeppelin/contracts-v4"
     - "@openzeppelin/contracts-upgradeable-v4"
     - "@react-native-async-storage/async-storage"
+    - "@react-native/metro-config"
     - "@types/react"
     - account-abstraction
+    - better-auth
     - babel-preset-expo
     - expo-asset
     - expo-build-properties
@@ -226,5 +222,6 @@ updateConfig:
     - react-native-safe-area-context
     - react-native-screens
     - react-native-svg
+    - react-native-webview
     - react-native-worklets
     - typescript

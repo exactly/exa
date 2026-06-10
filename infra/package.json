@@ -21,7 +21,7 @@
     "@exactly/common": "workspace:^0.0.20",
     "@types/node": "^26.2.0",
     "eslint": "catalog:",
-    "eslint-config-universe": "^16.0.0",
+    "eslint-config-universe": "^15.0.3",
     "typescript": "catalog:"
   },
   "nx": {

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import type { ComponentProps } from "react";
 import { StyleSheet } from "react-native";
 import { Easing } from "react-native-reanimated";
-import Carousel from "react-native-reanimated-carousel";
+import { Carousel } from "react-native-reanimated-carousel";
 
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -143,14 +143,13 @@ export default function BenefitsSection({ onExaPress }: { onExaPress?: () => voi
         <View overflow="hidden" alignItems="center" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
           {width === 0 ? undefined : (
             <Carousel
-              style={styles.overflow}
-              containerStyle={styles.overflow}
-              width={itemWidth}
-              height={160}
+              style={[styles.overflow, { width: itemWidth, height: 160 }]}
+              contentContainerStyle={styles.overflow}
               data={benefits}
-              autoPlay
-              autoPlayInterval={5000}
-              withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
+              loop
+              autoplay
+              autoplayInterval={5000}
+              animation={{ type: "timing", duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) }}
               onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}
               renderItem={({ item }) => (
                 <View paddingHorizontal="$s2">

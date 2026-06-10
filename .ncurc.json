@@ -1,5 +1,8 @@
 {
   "reject": [
+    "@babel/core",
+    "@babel/preset-env",
+    "better-auth",
     "@expo/fingerprint",
     "@expo/metro-runtime",
     "@hono/valibot-validator",
@@ -7,6 +10,7 @@
     "@openzeppelin/contracts-v4",
     "@openzeppelin/contracts-upgradeable-v4",
     "@react-native-async-storage/async-storage",
+    "@react-native/metro-config",
     "@types/react",
     "account-abstraction",
     "babel-preset-expo",
@@ -37,6 +41,7 @@
     "react-native-safe-area-context",
     "react-native-screens",
     "react-native-svg",
+    "react-native-webview",
     "react-native-worklets",
     "typescript"
   ]
