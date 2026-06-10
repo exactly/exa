@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 import Carousel, { type ICarouselInstance } from "react-native-reanimated-carousel";
@@ -38,10 +38,9 @@ export default function InstallmentsSheet({
     i18n: { language },
   } = useTranslation();
   const { promoEnd, refund } = getPromoMonths(language);
-  const [selected, setSelected] = useState(mode > 0 ? mode : 1);
-  useEffect(() => {
-    if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
-  }, [mode, open]);
+  const initialSelected = mode > 0 ? mode : 1;
+  const [selection, setSelection] = useState({ mode, selected: initialSelected });
+  const selected = selection.mode === mode ? selection.selected : initialSelected;
   const carouselRef = useRef<ICarouselInstance>(null);
   const rates = useInstallmentRates();
   const [width, setWidth] = useState(0);
@@ -146,7 +145,7 @@ export default function InstallmentsSheet({
                             pressStyle={{ scale: 0.96 }}
                             cursor="pointer"
                             onPress={() => {
-                              setSelected(installment);
+                              setSelection({ mode, selected: installment });
                               if (installment !== mode) onModeChange(installment);
                               impactAsync(ImpactFeedbackStyle.Medium).catch(reportError);
                               const target = Math.floor((installment - 1) / perPage);

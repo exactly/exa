@@ -8,7 +8,9 @@ const subscribers = new Map<TabName, Set<() => void>>();
 
 export default function useTabPress(name: TabName, onPress: () => void) {
   const handlerRef = useRef(onPress);
-  handlerRef.current = onPress;
+  useEffect(() => {
+    handlerRef.current = onPress;
+  }, [onPress]);
 
   useEffect(() => {
     const handler: () => void = () => handlerRef.current();

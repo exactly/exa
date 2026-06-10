@@ -81,7 +81,7 @@ describe.concurrent("validation", () => {
 });
 
 describe.concurrent("authenticated", () => {
-  describe.sequential("card", () => {
+  describe("card", { concurrent: false }, () => {
     type CardActivity = InferOutput<
       typeof CreditActivity | typeof DebitActivity | typeof InstallmentsActivity | typeof PandaActivity
     > & { cardId: string; lastFour: string };

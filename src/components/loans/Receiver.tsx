@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm } from "@tanstack/react-form";
 import { parse, safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
@@ -38,6 +38,8 @@ export default function Receiver() {
 
   const [selected, setSelected] = useState<boolean>();
   const external = selected ?? (preset !== undefined && preset !== address);
+  const [receiver, setReceiver] = useState(preset ?? "");
+  const valid = !external || safeParse(Address, receiver).success;
 
   const form = useForm({
     defaultValues: { receiver: preset ?? "" },
@@ -59,9 +61,6 @@ export default function Receiver() {
       });
     },
   });
-
-  const receiver = useStore(form.store, (state) => state.values.receiver);
-  const isValid = useStore(form.store, (state) => state.isValid);
 
   if (!market || !amount || !installments || !maturity || (markets && !asset)) return <Redirect href="/loan" />;
   if (preset !== undefined && !address && (isConnecting || isReconnecting)) {
@@ -154,6 +153,7 @@ export default function Receiver() {
                   backgroundColor={external ? "$interactiveBaseBrandSoftDefault" : "$backgroundSoft"}
                   onPress={() => {
                     setSelected(true);
+                    setReceiver("");
                     form.setFieldValue("receiver", "");
                   }}
                   minHeight={72}
@@ -194,7 +194,10 @@ export default function Receiver() {
                             borderTopRightRadius={0}
                             borderBottomRightRadius={0}
                             value={value}
-                            onChangeText={handleChange}
+                            onChangeText={(text) => {
+                              setReceiver(text);
+                              handleChange(text);
+                            }}
                           />
                           <Button
                             outlined
@@ -208,6 +211,7 @@ export default function Receiver() {
                             onPress={() => {
                               getStringAsync()
                                 .then((text) => {
+                                  setReceiver(text);
                                   setValue(text);
                                 })
                                 .catch(reportError);
@@ -258,7 +262,7 @@ export default function Receiver() {
               onPress={() => {
                 form.handleSubmit().catch(reportError);
               }}
-              disabled={external ? !receiver || !isValid : !address}
+              disabled={external ? !receiver || !valid : !address}
             >
               <Button.Text>{t("Review loan terms")}</Button.Text>
               <Button.Icon>

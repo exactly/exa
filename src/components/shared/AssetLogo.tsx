@@ -14,6 +14,8 @@ import { getTokenLogoURI } from "../../utils/assetLogos";
 import { lifiTokensOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 
+import type { Token } from "@lifi/sdk";
+
 const StyledImage = styled(Image, {
   name: "AssetLogo",
   cachePolicy: "memory-disk",
@@ -48,11 +50,12 @@ export default function AssetLogo({
   width: number;
 }) {
   const { data: tokens = [] } = useQuery({ ...lifiTokensOptions, enabled: !defaultUri });
+  const lifiChainId: Token["chainId"] = chainId;
   const uri =
     defaultUri ??
     (symbol
       ? getTokenLogoURI(
-          tokens.filter((token) => token.chainId === (chainId as typeof token.chainId)),
+          tokens.filter((token) => token.chainId === lifiChainId),
           symbol,
         )
       : undefined);

@@ -54,7 +54,8 @@ export const lifiTokensOptions = queryOptions({
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
     const allTokens = Object.values(tokens).flat();
-    if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
+    const lifiChainId: Token["chainId"] = chain.id;
+    if (!allTokens.some((token) => token.chainId === lifiChainId)) {
       throw new Error("missing destination tokens");
     }
     if (!exaAddress) return allTokens;
@@ -79,7 +80,7 @@ export function balancesOptions(account: Address | undefined) {
     gcTime: isServer ? Infinity : 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
     queryFn: async () => {
-      if (!account) return {} as Record<number, TokenAmount[]>;
+      if (!account) return {};
       ensureConfig();
       const [amounts, lifiTokens, exa] = await Promise.all([
         getWalletBalances(account),
@@ -371,9 +372,10 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
   ensureConfig();
   if (!account) throw new Error("account is required");
   const cachedTokens = queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey);
+  const lifiChainId: Token["chainId"] = chain.id;
   const [supportedChains, allTokens, allBalances] = await Promise.all([
     queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
-    cachedTokens?.some((token) => token.chainId === (chain.id as typeof token.chainId))
+    cachedTokens?.some((token) => token.chainId === lifiChainId)
       ? cachedTokens
       : queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
           reportError(error);
@@ -384,7 +386,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const destinationTokens = allTokens.filter((token) => token.chainId === (chain.id as typeof token.chainId));
+  const destinationTokens = allTokens.filter((token) => token.chainId === lifiChainId);
   const balancesByChain: Record<number, TokenBalance[]> = {};
 
   for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {

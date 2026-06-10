@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons-2";
 import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
@@ -62,8 +62,9 @@ export default function Amount() {
 
   const { market, externalAsset: external, available, isFetching } = useAsset(withdrawAsset ?? zeroAddress);
 
-  const form = useForm({ defaultValues: { amount: typeof amount === "string" ? BigInt(amount) : 0n } });
-  const formAmount = useStore(form.store, (state) => state.values.amount);
+  const initialAmount = typeof amount === "string" ? BigInt(amount) : 0n;
+  const [formAmount, setFormAmount] = useState(initialAmount);
+  const form = useForm({ defaultValues: { amount: initialAmount } });
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
@@ -154,22 +155,11 @@ export default function Amount() {
     },
   });
 
-  const sendReady = useMemo(
-    () =>
-      formAmount > 0n &&
-      (market
-        ? !!proposeSimulation
-        : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation)),
-    [
-      external,
-      formAmount,
-      isNativeTransfer,
-      market,
-      nativeTransferEstimate,
-      proposeSimulation,
-      erc20TransferSimulation,
-    ],
-  );
+  const sendReady =
+    formAmount > 0n &&
+    (market
+      ? !!proposeSimulation
+      : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation));
 
   const details: {
     amount: string;
@@ -335,7 +325,12 @@ export default function Amount() {
               >
                 {({ state: { meta }, handleChange }) => (
                   <>
-                    <AmountSelector onChange={handleChange} />
+                    <AmountSelector
+                      onChange={(value) => {
+                        handleChange(value);
+                        setFormAmount(value);
+                      }}
+                    />
                     {meta.errors.length > 0 ? (
                       <Text padding="$s3" footnote color="$uiNeutralSecondary">
                         {meta.errors[0]?.message.split(",")[0]}
