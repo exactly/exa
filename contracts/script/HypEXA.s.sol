@@ -77,13 +77,13 @@ contract HypEXA is BaseScript {
     if (router.code.length == 0) revert RouterNotDeployed();
     vm.startBroadcast(acct("exactly"));
 
+    address[] memory hooks = StaticAggregationHook(address(HypXERC20(router).hook())).hooks("");
     (address[] memory modules,) =
       IStaticAggregationIsm(address(HypXERC20(router).interchainSecurityModule())).modulesAndThreshold("");
+    _expectOwner(hooks[0], acct("exactly"));
+    _expectOwner(modules[0], acct("exactly"));
     (hook, ism) = _deployAggregations(
-      StaticAggregationHook(address(HypXERC20(router).hook())).hooks("")[0],
-      _deployPausableHook(acct("pauser")),
-      modules[0],
-      _deployPausableIsm(acct("pauser"))
+      hooks[0], _deployPausableHook(acct("pauser")), modules[0], _deployPausableIsm(acct("pauser"))
     );
     HypXERC20(router).setHook(hook);
     HypXERC20(router).setInterchainSecurityModule(ism);
@@ -100,6 +100,10 @@ contract HypEXA is BaseScript {
     address[] memory hooks = StaticAggregationHook(address(HypXERC20(router).hook())).hooks("");
     (address[] memory modules,) =
       IStaticAggregationIsm(address(HypXERC20(router).interchainSecurityModule())).modulesAndThreshold("");
+    _expectOwner(hooks[0], acct("exactly"));
+    _expectOwner(hooks[1], acct("pauser"));
+    _expectOwner(modules[0], acct("exactly"));
+    _expectOwner(modules[1], acct("pauser"));
     (hook, ism) = _deployAggregations(hooks[0], hooks[1], modules[0], modules[1]);
     HypXERC20(router).setHook(hook);
     HypXERC20(router).setInterchainSecurityModule(ism);
@@ -133,10 +137,15 @@ contract HypEXA is BaseScript {
   function _deployPausableIsm(address owner) internal returns (address ism) {
     ism = address(new PausableIsm(owner));
   }
+
+  function _expectOwner(address target, address owner) internal view {
+    if (PausableHook(target).owner() != owner) revert UnexpectedOwner(target, owner);
+  }
 }
 
 error AlreadyGranted();
 error RouterNotDeployed();
+error UnexpectedOwner(address target, address owner);
 
 interface IStaticAggregationHookFactory {
   function deploy(address[] calldata values) external returns (address);
