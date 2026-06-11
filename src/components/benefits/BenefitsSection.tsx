@@ -14,17 +14,18 @@ import BenefitSheet from "./BenefitSheet";
 import AiraloLogo from "../../assets/images/airalo.svg";
 import AiraloImage from "../../assets/images/airalo.webp";
 import ExaLogo from "../../assets/images/exa-logo.svg";
-import ExaPromoSvg from "../../assets/images/exa-promo.svg";
+import exaPromo from "../../assets/images/exa-promo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import PaxImage from "../../assets/images/pax.webp";
 import VisaLogo from "../../assets/images/visa.svg";
 import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
+import ThemedSvg from "../shared/ThemedSvg";
 
 function ExaBackground() {
   return (
     <View style={StyleSheet.absoluteFill} backgroundColor="$backgroundBrand">
-      <ExaPromoSvg width="100%" height="100%" preserveAspectRatio="xMaxYMid meet" />
+      <ThemedSvg xml={exaPromo} width="100%" height="100%" preserveAspectRatio="xMaxYMid meet" />
     </View>
   );
 }

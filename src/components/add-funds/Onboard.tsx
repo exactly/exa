@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
 import ARS from "../../assets/images/ars.svg";
-import Background from "../../assets/images/background.svg";
+import background from "../../assets/images/background.svg";
 import Base from "../../assets/images/base.svg";
 import BRL from "../../assets/images/brl.svg";
 import EUR from "../../assets/images/euro.svg";
@@ -24,6 +24,7 @@ import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 type SvgComponent = React.FC<{ height: string; viewBox?: string; width: string }>;
@@ -69,9 +70,11 @@ export default function Onboard() {
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1}>
+                  <View position="absolute" width="100%" height="100%">
+                    <ThemedSvg xml={background} width="100%" height="100%" />
+                  </View>
                   {(
                     [
-                      { Svg: Background },
                       typeof currency === "string"
                         ? isCrypto
                           ? crypto[currency] && { Svg: crypto[currency] }

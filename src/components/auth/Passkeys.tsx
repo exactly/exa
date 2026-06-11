@@ -7,8 +7,8 @@ import { useRouter } from "expo-router";
 import { Key, X } from "@tamagui/lucide-icons";
 import { XStack } from "tamagui";
 
-import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
-import PasskeysImage from "../../assets/images/passkeys.svg";
+import passkeysBlob from "../../assets/images/passkeys-blob.svg";
+import passkeys from "../../assets/images/passkeys.svg";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
@@ -17,6 +17,7 @@ import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Passkeys() {
@@ -56,10 +57,10 @@ export default function Passkeys() {
             position="relative"
           >
             <View width="100%" height="100%" aspectRatio={1}>
-              <PasskeysBlob width="100%" height="100%" />
+              <ThemedSvg xml={passkeysBlob} width="100%" height="100%" />
             </View>
             <View width="100%" height="100%" aspectRatio={1} style={StyleSheet.absoluteFill}>
-              <PasskeysImage width="100%" height="100%" />
+              <ThemedSvg xml={passkeys} width="100%" height="100%" />
             </View>
           </View>
           <View gap="$s5" justifyContent="center">

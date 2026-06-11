@@ -20,7 +20,10 @@ import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import CardBg from "../../assets/images/card-bg.svg";
+import { BASE_PRODUCT_ID } from "@exactly/common/panda";
+
+import BaseArt from "../../assets/images/card-bg-base.svg";
+import DefaultArt from "../../assets/images/card-bg.svg";
 import Exa from "../../assets/images/exa.svg";
 import { isPromoted } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
@@ -79,6 +82,7 @@ export default function CardStatus({
     },
   });
   const frozen = (isSettingCardStatus ? optimisticCardStatus : card?.status) === "FROZEN";
+  const Art = card?.productId === BASE_PRODUCT_ID ? BaseArt : DefaultArt;
   return (
     <YStack
       key="card-status"
@@ -116,10 +120,10 @@ export default function CardStatus({
             overflow="hidden"
             alignItems="center"
             justifyContent="flex-end"
-            backgroundColor="$cardBackground"
+            backgroundColor={card?.productId === BASE_PRODUCT_ID ? "$baseBlue" : "$cardPreviewBackground"}
           >
             <View position="absolute" top={0} left={0} right={0} bottom={0} alignItems="center" justifyContent="center">
-              <CardBg width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+              <Art width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
             </View>
             <AnimatePresence>
               {frozen ? null : (

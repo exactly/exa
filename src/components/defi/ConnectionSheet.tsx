@@ -4,12 +4,13 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, Check, Info, X } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import Connect from "../../assets/images/connect.svg";
+import connect from "../../assets/images/connect.svg";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function ConnectionSheet({
@@ -47,7 +48,7 @@ export default function ConnectionSheet({
         <YStack flex={1} padding="$s4" gap="$s4_5">
           <YStack flex={1} gap="$s4">
             <View flex={1} width="100%">
-              <Connect width="100%" height="100%" />
+              <ThemedSvg xml={connect} width="100%" height="100%" />
             </View>
             <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title adjustsFontSizeToFit>
               {title}
