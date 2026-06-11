@@ -5,18 +5,19 @@ import { StatusBar } from "expo-status-bar";
 
 import { TamaguiProvider } from "tamagui";
 
-import tamagui from "../../../tamagui.config";
+import tamagui, { isBase } from "../../../tamagui.config";
 import NotificationToast from "../shared/Toast";
 import SafeToastViewport from "../shared/ToastViewport";
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useColorScheme();
+  const dark = !isBase && theme === "dark";
   return (
-    <TamaguiProvider config={tamagui} defaultTheme={theme === "dark" ? "dark" : "light"}>
+    <TamaguiProvider config={tamagui} defaultTheme={dark ? "dark" : "light"}>
       {children}
       <NotificationToast />
       <SafeToastViewport />
-      <StatusBar style="auto" />
+      <StatusBar style={dark ? "light" : "dark"} />
     </TamaguiProvider>
   );
 }

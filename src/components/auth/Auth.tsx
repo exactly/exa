@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useState, type FC } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import { cancelAnimation, Easing, useSharedValue, withTiming } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
-import type { SvgProps } from "react-native-svg";
 
 import { useRouter } from "expo-router";
 
@@ -17,14 +16,14 @@ import { useQuery } from "@tanstack/react-query";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import CalendarBlob from "../../assets/images/calendar-blob.svg";
-import Calendar from "../../assets/images/calendar.svg";
-import EarningsBlob from "../../assets/images/earnings-blob.svg";
-import Earnings from "../../assets/images/earnings.svg";
-import ExaCardBlob from "../../assets/images/exa-card-blob.svg";
-import ExaCard from "../../assets/images/exa-card.svg";
-import QrCodeBlob from "../../assets/images/qr-code-blob.svg";
-import QrCode from "../../assets/images/qr-code.svg";
+import calendarBlob from "../../assets/images/calendar-blob.svg";
+import calendar from "../../assets/images/calendar.svg";
+import earningsBlob from "../../assets/images/earnings-blob.svg";
+import earnings from "../../assets/images/earnings.svg";
+import exaCardBlob from "../../assets/images/exa-card-blob.svg";
+import exaCard from "../../assets/images/exa-card.svg";
+import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
+import qrCode from "../../assets/images/qr-code.svg";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAuth from "../../utils/useAuth";
@@ -266,32 +265,32 @@ export default function Auth() {
 }
 
 export type Page = {
-  backgroundImage: FC<SvgProps>;
+  backgroundImage: unknown;
   disabled?: boolean;
-  image: FC<SvgProps>;
+  image: unknown;
   title: string;
 };
 
 const pages: [Page, ...Page[]] = [
   {
-    backgroundImage: ExaCardBlob,
-    image: ExaCard,
+    backgroundImage: exaCardBlob,
+    image: exaCard,
     title: "Introducing the first onchain card",
   },
   {
-    backgroundImage: CalendarBlob,
-    image: Calendar,
+    backgroundImage: calendarBlob,
+    image: calendar,
     title: "Pay later in installments and hold your crypto",
   },
   {
-    backgroundImage: EarningsBlob,
-    image: Earnings,
+    backgroundImage: earningsBlob,
+    image: earnings,
     title: "Maximize earnings, effortlessly",
   },
   {
-    backgroundImage: QrCodeBlob,
+    backgroundImage: qrCodeBlob,
     disabled: true,
-    image: QrCode,
+    image: qrCode,
     title: "In-store QR payments, with crypto",
   },
 ];

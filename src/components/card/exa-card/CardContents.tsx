@@ -7,9 +7,10 @@ import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
+import BaseCard from "../../../assets/images/card-signature-base.svg";
 import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
 import useMarkets from "../../../utils/useMarkets";
@@ -108,6 +109,13 @@ export default function CardContents({
       <XStack animation="default" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
         {productId === PLATINUM_PRODUCT_ID ? (
           <Card
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        ) : productId === BASE_PRODUCT_ID ? (
+          <BaseCard
             width="100%"
             height="100%"
             preserveAspectRatio="xMaxYMid"
