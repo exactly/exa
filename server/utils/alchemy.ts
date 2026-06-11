@@ -55,14 +55,15 @@ export async function createWebhook(
   return parse(WebhookResponse, await create.json()).data;
 }
 
-export async function updateWebhookAddresses(id: string | undefined, add: Address[], remove: Address[] = []) {
-  if (!id) return;
-  const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
+export async function addWebhookAddresses(id: string | undefined, addresses: Address[]) {
+  if (addresses.length === 0) return;
+  if (!id) throw new Error("no active webhook");
+  const response = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
     headers,
     method: "PATCH",
-    body: JSON.stringify({ webhook_id: id, addresses_to_add: add, addresses_to_remove: remove }),
+    body: JSON.stringify({ webhook_id: id, addresses_to_add: addresses, addresses_to_remove: [] }),
   });
-  if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
+  if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
 }
 
 const Webhook = object({

@@ -4,13 +4,14 @@ import customer from "../mocks/sardine";
 import "../mocks/sentry";
 
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
+import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { decodeJwt } from "jose";
 import assert from "node:assert";
 import { parse, type InferOutput } from "valibot";
 import { zeroAddress } from "viem";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
@@ -19,6 +20,7 @@ import { Address } from "@exactly/common/validation";
 import app, { type Authentication } from "../../api/auth/authentication";
 import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import { closeQueue, type Subscription } from "../../utils/createCredential";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 
@@ -28,6 +30,13 @@ import type * as ViemSiwe from "viem/siwe";
 
 const appClient = testClient(app);
 const registrationAppClient = testClient(registrationApp);
+
+vi.mock("../../hooks/activity", () => ({ webhookId: "activity" }));
+vi.spyOn(Queue.prototype, "add").mockResolvedValue({} as AccountJob);
+
+afterAll(async () => {
+  await closeQueue();
+});
 
 describe("authentication", () => {
   beforeAll(async () => {
@@ -52,19 +61,7 @@ describe("authentication", () => {
   });
 
   it("returns intercom token on successful login", async () => {
-    const response = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const response = await postAuthenticationWebauthn();
 
     expect(response.status).toBe(200);
 
@@ -86,38 +83,14 @@ describe("authentication", () => {
   it("returns 400 if authentication challenge is missing", async () => {
     await redis.del("test-session");
 
-    const response = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const response = await postAuthenticationWebauthn();
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
   });
 
   it("returns 400 for missing credential with non-siwe assertion", async () => {
-    const response = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "bWlzc2luZy1jcmVk", // cspell:ignore Wlzc
-          rawId: "bWlzc2luZy1jcmVk", // cspell:ignore Wlzc
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const response = await postAuthenticationWebauthn("bWlzc2luZy1jcmVk"); // cspell:ignore Wlzc
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no credential" }));
@@ -125,32 +98,8 @@ describe("authentication", () => {
   });
 
   it("consumes challenge after failed authentication to prevent replay", async () => {
-    const firstResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "bWlzc2luZy1jcmVk", // cspell:ignore Wlzc
-          rawId: "bWlzc2luZy1jcmVk", // cspell:ignore Wlzc
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
-    const secondResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "bWlzc2luZy1jcmVk", // cspell:ignore Wlzc
-          rawId: "bWlzc2luZy1jcmVk", // cspell:ignore Wlzc
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const firstResponse = await postAuthenticationWebauthn("bWlzc2luZy1jcmVk"); // cspell:ignore Wlzc
+    const secondResponse = await postAuthenticationWebauthn("bWlzc2luZy1jcmVk");
 
     expect(firstResponse.status).toBe(400);
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "no credential" }));
@@ -161,32 +110,8 @@ describe("authentication", () => {
   it("consumes challenge before verifier exceptions", async () => {
     vi.mocked(verifyAuthenticationResponse).mockRejectedValueOnce(new Error("boom"));
 
-    const firstResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
-    const secondResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const firstResponse = await postAuthenticationWebauthn();
+    const secondResponse = await postAuthenticationWebauthn();
 
     expect(firstResponse.status).toBe(500);
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "ouch" }));
@@ -200,32 +125,8 @@ describe("authentication", () => {
       authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk" },
     } as Awaited<ReturnType<typeof verifyAuthenticationResponse>>);
 
-    const firstResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
-    const secondResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const firstResponse = await postAuthenticationWebauthn();
+    const secondResponse = await postAuthenticationWebauthn();
 
     expect(firstResponse.status).toBe(400);
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
@@ -239,32 +140,8 @@ describe("authentication", () => {
       authenticationInfo: { credentialID: "another-credential" },
     } as Awaited<ReturnType<typeof verifyAuthenticationResponse>>);
 
-    const firstResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
-    const secondResponse = await appClient.index.$post(
-      {
-        json: {
-          method: "webauthn",
-          id: "dGVzdC1jcmVkLWlk",
-          rawId: "dGVzdC1jcmVkLWlk",
-          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
-          clientExtensionResults: {},
-          type: "public-key",
-        },
-      },
-      { headers: { cookie: "session_id=test-session" } },
-    );
+    const firstResponse = await postAuthenticationWebauthn();
+    const secondResponse = await postAuthenticationWebauthn();
 
     expect(firstResponse.status).toBe(400);
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
@@ -642,6 +519,22 @@ vi.mock("viem/siwe", async (importOriginal) => {
   };
 });
 
+function postAuthenticationWebauthn(id = "dGVzdC1jcmVkLWlk") {
+  return appClient.index.$post(
+    {
+      json: {
+        method: "webauthn",
+        id,
+        rawId: id,
+        response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+        clientExtensionResults: {},
+        type: "public-key",
+      },
+    },
+    { headers: { cookie: "session_id=test-session" } },
+  );
+}
+
 type RegistrationWebauthnAssertion = {
   clientExtensionResults: Record<string, never>;
   id: string;
@@ -654,9 +547,10 @@ type RegistrationWebauthnAssertionOverride = Partial<Omit<RegistrationWebauthnAs
   response?: Partial<RegistrationWebauthnAssertion["response"]>;
 };
 
-function registrationWebauthnAssertion(
-  override: RegistrationWebauthnAssertionOverride = {},
-): RegistrationWebauthnAssertion {
+type AccountQueue = Queue<Subscription, void, "subscribe">;
+type AccountJob = Awaited<ReturnType<AccountQueue["add"]>>;
+
+function registrationWebauthnAssertion(override: RegistrationWebauthnAssertionOverride = {}) {
   const base: RegistrationWebauthnAssertion = {
     id: "dGVzdC1jcmVkLWlk2",
     rawId: "dGVzdC1jcmVkLWlk2",
