@@ -40,6 +40,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import database, { cards, credentials } from "../database";
 import t from "../i18n";
 import auth from "../middleware/auth";
+import cardAuth from "../middleware/card-auth";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   autoCredit,
@@ -189,7 +190,7 @@ export default new Hono()
       ),
       validatorHook(),
     ),
-    auth(),
+    cardAuth(),
     describeRoute({
       summary: "Get card information",
       description: `
@@ -200,6 +201,7 @@ The \`sessionid\` header and the \`scope\` query parameter are independent and m
 - Provide \`scope=siwe\` or \`scope=webauthn\` to receive a \`challenge\` to be signed and submitted via \`PATCH /\`. \`siwe\` and \`webauthn\` are mutually exclusive within a single request.
 
 Successful responses include push-provisioning credentials in the \`provisioning\` field only when the \`scope=provisioning\` query parameter is sent.
+Authentication accepts the legacy \`credential_id\` cookie, a Better Auth session cookie, or Wallet Extension bearer access. Wallet Extension bearer access is accepted only when \`scope=provisioning\` is the only scope and the \`sessionid\` header is not sent.
 
 **Retrieving encrypted card details**
 1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
@@ -254,9 +256,9 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
 }
 \`\`\`
 
-`,
+      `,
       tags: ["Card"],
-      security: [{ credentialAuth: [] }],
+      security: [{ credentialAuth: [] }, { siweAuth: [] }, { walletExtensionAuth: [] }],
       validateResponse: true,
       responses: {
         200: {
