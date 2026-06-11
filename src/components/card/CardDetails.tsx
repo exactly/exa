@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, useColorScheme } from "react-native";
+import { Pressable } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
 import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, useThemeName, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
 import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
@@ -32,11 +32,12 @@ import View from "../shared/View";
 import type { CardDetails as CardDetailsData } from "../../utils/server";
 
 export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
-  const theme = useColorScheme();
+  const theme = useThemeName();
   const toast = useToastController();
   const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
+  const banner = card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
     if (card?.encryptedPan && card.encryptedCvc) {
@@ -63,7 +64,13 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   borderRadius="$r3"
                   borderWidth={1}
                   borderColor="$borderNeutralSoft"
-                  backgroundColor={card.productId === SIGNATURE_PRODUCT_ID ? "$grayscaleLight12" : "$uiNeutralPrimary"}
+                  backgroundColor={
+                    card.productId === BASE_PRODUCT_ID
+                      ? "$baseBlue"
+                      : card.productId === SIGNATURE_PRODUCT_ID
+                        ? "$cardBackground"
+                        : "$uiNeutralPrimary"
+                  }
                   paddingHorizontal="$s5"
                   paddingTop="$s9"
                   paddingBottom="$s9"
@@ -71,7 +78,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   width="100%"
                   gap="$s4"
                 >
-                  {card.productId === SIGNATURE_PRODUCT_ID ? (
+                  {banner ? (
                     <>
                       <View position="absolute" top="$s4" left="$s5">
                         <ExaLogoSignature height={20} width={63} />

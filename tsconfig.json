@@ -27,6 +27,7 @@
     "expo-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
-    "src/index.js"
+    "src/index.js",
+    "svgTransformer.cjs"
   ]
 }

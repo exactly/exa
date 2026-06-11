@@ -4,8 +4,9 @@ import { StyleSheet } from "react-native";
 
 import { YStack } from "tamagui";
 
-import EmptyActivity from "../../assets/images/activity-empty.svg";
+import activityEmpty from "../../assets/images/activity-empty.svg";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Empty() {
@@ -15,7 +16,7 @@ export default function Empty() {
       <YStack gap="$s6" alignItems="center" justifyContent="center">
         <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
           <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <EmptyActivity width="100%" height="100%" />
+            <ThemedSvg xml={activityEmpty} width="100%" height="100%" />
           </View>
         </View>
         <YStack alignItems="center" justifyContent="center" gap="$s6">

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, X } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
-import VerifyIdentity from "../../assets/images/verify-identity.svg";
+import verifyIdentity from "../../assets/images/verify-identity.svg";
 import { present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
@@ -12,6 +12,7 @@ import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function VerificationFailure({ open, onClose }: { onClose: () => void; open: boolean }) {
@@ -28,7 +29,7 @@ export default function VerificationFailure({ open, onClose }: { onClose: () => 
               <YStack flex={1} justifyContent="center" gap="$s4">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
                   <View width="100%" height="100%" justifyContent="center" alignItems="center">
-                    <VerifyIdentity width="100%" height="100%" />
+                    <ThemedSvg xml={verifyIdentity} width="100%" height="100%" />
                   </View>
                 </View>
               </YStack>
