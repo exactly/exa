@@ -7,9 +7,10 @@ import { useRouter } from "expo-router";
 import { ArrowRight, XCircle } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import DeFiBanner from "../../assets/images/defi-banner.svg";
+import defiBanner from "../../assets/images/defi-banner.svg";
 import queryClient from "../../utils/queryClient";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 
 export default function ExploreDeFi() {
   const router = useRouter();
@@ -41,7 +42,8 @@ export default function ExploreDeFi() {
         </XStack>
       </YStack>
       <XStack position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
-        <DeFiBanner
+        <ThemedSvg
+          xml={defiBanner}
           width="50%"
           height="100%"
           preserveAspectRatio="xMaxYMid"

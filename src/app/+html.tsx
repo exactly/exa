@@ -2,7 +2,10 @@ import React, { type ReactNode } from "react";
 
 import { ScrollViewStyleReset } from "expo-router/html";
 
+import { base, baseSepolia } from "viem/chains";
+
 import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 
 import appMetadata from "../../package.json";
 
@@ -28,26 +31,30 @@ export default function HTML({ children }: { children: ReactNode }) {
         <meta name="base:app_id" content="69a9d841964308b7af99b1aa" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="color-scheme" content="light dark" />
+        <meta name="color-scheme" content={isBase ? "light" : "light dark"} />
         <link rel="manifest" href="/manifest.json" />
         <ScrollViewStyleReset />
         <style>
           {css`
             /* #region variables */
             :root {
-              color-scheme: light dark;
-              --loader-background: #fbfdfc;
-              --loader-track: rgba(18, 165, 148, 0.25);
-              --loader-active: #12a594;
+              color-scheme: ${isBase ? "light" : "light dark"};
+              --loader-background: ${isBase ? "#ffffff" : "#fbfdfc"};
+              --loader-track: ${isBase ? "rgba(0, 0, 255, 0.25)" : "rgba(18, 165, 148, 0.25)"};
+              --loader-active: ${isBase ? "#0000ff" : "#12a594"};
             }
 
-            @media (prefers-color-scheme: dark) {
-              :root {
-                --loader-background: #171918;
-                --loader-track: rgba(87, 246, 225, 0.2);
-                --loader-active: #57f6e1;
-              }
-            }
+            ${isBase
+              ? ""
+              : css`
+                  @media (prefers-color-scheme: dark) {
+                    :root {
+                      --loader-background: #171918;
+                      --loader-track: rgba(87, 246, 225, 0.2);
+                      --loader-active: #57f6e1;
+                    }
+                  }
+                `}
             /* #endregion */
 
             /* #region layout */
@@ -162,4 +169,5 @@ export default function HTML({ children }: { children: ReactNode }) {
   );
 }
 
+const isBase = chain.id === base.id || chain.id === baseSepolia.id;
 const css = String.raw;
