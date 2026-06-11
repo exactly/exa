@@ -14,7 +14,7 @@ export default function Empty() {
   return (
     <View fullScreen padding="$s5" alignItems="center" justifyContent="center" backgroundColor="$backgroundSoft">
       <YStack gap="$s6" alignItems="center" justifyContent="center">
-        <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
+        <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
           <View style={StyleSheet.absoluteFill}>
             <ExaCardBlob width="100%" height="100%" />
           </View>

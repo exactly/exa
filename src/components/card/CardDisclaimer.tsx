@@ -37,7 +37,7 @@ export default function CardDisclaimer({
           <View fullScreen flex={1}>
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center" gap="$s4">
-                <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
+                <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
                   <View width="100%" height="100%">
                     <Blob width="100%" height="100%" />
                   </View>

@@ -52,7 +52,14 @@ export default function Passkeys() {
           />
         </View>
         <View justifyContent="center" alignItems="center" flexGrow={1} flexShrink={1}>
-          <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" flexShrink={1}>
+          <View
+            width="100%"
+            aspectRatio={1}
+            justifyContent="center"
+            alignItems="center"
+            flexShrink={1}
+            position="relative"
+          >
             <View width="100%" height="100%" aspectRatio={1}>
               <PasskeysBlob width="100%" height="100%" />
             </View>
