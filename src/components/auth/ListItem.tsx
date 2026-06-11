@@ -6,6 +6,7 @@ import { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reani
 import { View } from "tamagui";
 
 import AnimatedView from "../shared/AnimatedView";
+import ThemedSvg from "../shared/ThemedSvg";
 
 import type { Page } from "./Auth";
 
@@ -31,10 +32,10 @@ function ListItem({ item, animationValue }: ListItemProperties) {
   return (
     <View width="100%" height="100%" justifyContent="center" alignItems="center">
       <AnimatedView style={rBackgroundStyle} width="100%" height="100%">
-        <item.backgroundImage width="100%" height="100%" />
+        <ThemedSvg xml={item.backgroundImage} width="100%" height="100%" />
       </AnimatedView>
       <AnimatedView style={[StyleSheet.absoluteFill, rImageStyle]} width="100%" height="100%">
-        <item.image width="100%" height="100%" />
+        <ThemedSvg xml={item.image} width="100%" height="100%" />
       </AnimatedView>
     </View>
   );
