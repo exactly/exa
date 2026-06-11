@@ -4,7 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { ArrowRight, Info, X } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import Defi from "../../assets/images/defi.svg";
+import defi from "../../assets/images/defi.svg";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
@@ -12,6 +12,7 @@ import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function IntroSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
@@ -31,7 +32,7 @@ export default function IntroSheet({ open, onClose }: { onClose: () => void; ope
         <YStack flex={1} padding="$s4" gap="$s4_5">
           <YStack flex={1} gap="$s5">
             <View flex={1} width="100%">
-              <Defi width="100%" height="100%" />
+              <ThemedSvg xml={defi} width="100%" height="100%" />
             </View>
             <YStack gap="$s3">
               <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title adjustsFontSizeToFit>

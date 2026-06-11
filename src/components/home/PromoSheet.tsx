@@ -5,7 +5,7 @@ import { StyleSheet } from "react-native";
 import { ArrowRight, X } from "@tamagui/lucide-icons";
 import { View, XStack, YStack } from "tamagui";
 
-import ExaPromoSvg from "../../assets/images/exa-promo.svg";
+import exaPromo from "../../assets/images/exa-promo.svg";
 import { presentArticle } from "../../utils/intercom";
 import { getPromoMonths } from "../../utils/promo";
 import reportError from "../../utils/reportError";
@@ -14,11 +14,12 @@ import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 
 function ExaBanner() {
   return (
     <View style={StyleSheet.absoluteFill} backgroundColor="$backgroundBrand">
-      <ExaPromoSvg width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+      <ThemedSvg xml={exaPromo} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
     </View>
   );
 }

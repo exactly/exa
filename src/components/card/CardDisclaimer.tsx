@@ -5,8 +5,8 @@ import { Pressable, StyleSheet } from "react-native";
 import { ArrowRight, X } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
-import Blob from "../../assets/images/exa-card-blob.svg";
-import ExaCard from "../../assets/images/exa-card.svg";
+import exaCardBlob from "../../assets/images/exa-card-blob.svg";
+import exaCard from "../../assets/images/exa-card.svg";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
@@ -15,6 +15,7 @@ import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function CardDisclaimer({
@@ -39,10 +40,10 @@ export default function CardDisclaimer({
               <YStack flex={1} justifyContent="center" gap="$s4">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
                   <View width="100%" height="100%">
-                    <Blob width="100%" height="100%" />
+                    <ThemedSvg xml={exaCardBlob} width="100%" height="100%" />
                   </View>
                   <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-                    <ExaCard width="100%" height="100%" />
+                    <ThemedSvg xml={exaCard} width="100%" height="100%" />
                   </View>
                 </View>
                 <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>

@@ -11,7 +11,7 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
   const { t } = useTranslation();
   return (
     <XStack
-      backgroundColor="$grayscaleLight12"
+      backgroundColor="$backgroundBanner"
       borderRadius="$r4"
       alignItems="center"
       overflow="hidden"

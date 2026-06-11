@@ -6,11 +6,12 @@ import { useRouter } from "expo-router";
 
 import { ArrowRight } from "@tamagui/lucide-icons";
 
-import AccountCreatedBlob from "../../assets/images/account-created-blob.svg";
-import AccountCreatedImage from "../../assets/images/account-created.svg";
+import accountCreatedBlob from "../../assets/images/account-created-blob.svg";
+import accountCreated from "../../assets/images/account-created.svg";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Success() {
@@ -29,10 +30,10 @@ export default function Success() {
             position="relative"
           >
             <View width="100%" height="100%" aspectRatio={1}>
-              <AccountCreatedBlob width="100%" height="100%" />
+              <ThemedSvg xml={accountCreatedBlob} width="100%" height="100%" />
             </View>
             <View width="100%" height="100%" aspectRatio={1} style={StyleSheet.absoluteFill}>
-              <AccountCreatedImage width="100%" height="100%" />
+              <ThemedSvg xml={accountCreated} width="100%" height="100%" />
             </View>
           </View>
           <View gap="$s5" justifyContent="center">
