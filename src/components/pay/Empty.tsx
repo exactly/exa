@@ -4,9 +4,10 @@ import { StyleSheet } from "react-native";
 
 import { YStack } from "tamagui";
 
-import ExaCardBlob from "../../assets/images/exa-card-blob.svg";
-import ExaCard from "../../assets/images/exa-card.svg";
+import exaCardBlob from "../../assets/images/exa-card-blob.svg";
+import exaCard from "../../assets/images/exa-card.svg";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Empty() {
@@ -16,10 +17,10 @@ export default function Empty() {
       <YStack gap="$s6" alignItems="center" justifyContent="center">
         <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
           <View style={StyleSheet.absoluteFill}>
-            <ExaCardBlob width="100%" height="100%" />
+            <ThemedSvg xml={exaCardBlob} width="100%" height="100%" />
           </View>
           <View style={StyleSheet.absoluteFill}>
-            <ExaCard width="100%" height="100%" />
+            <ThemedSvg xml={exaCard} width="100%" height="100%" />
           </View>
         </View>
         <YStack alignItems="center" justifyContent="center" gap="$s6">

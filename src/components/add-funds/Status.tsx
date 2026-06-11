@@ -15,9 +15,9 @@ import domain from "@exactly/common/domain";
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import RampWebView from "./RampWebView";
-import Denied from "../../assets/images/denied.svg";
-import Documents from "../../assets/images/documents.svg";
-import FaceId from "../../assets/images/face-id.svg";
+import denied from "../../assets/images/denied.svg";
+import documents from "../../assets/images/documents.svg";
+import faceId from "../../assets/images/face-id.svg";
 import { isValidCurrency } from "../../utils/currencies";
 import { newMessage } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
@@ -27,6 +27,7 @@ import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Status() {
@@ -156,11 +157,11 @@ export default function Status() {
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
                   {needsMoreInfo ? (
-                    <Documents width="100%" height="100%" />
+                    <ThemedSvg xml={documents} width="100%" height="100%" />
                   ) : isOnboarding || needsSupport ? (
-                    <FaceId width="100%" height="100%" />
+                    <ThemedSvg xml={faceId} width="100%" height="100%" />
                   ) : (
-                    <Denied width="100%" height="100%" />
+                    <ThemedSvg xml={denied} width="100%" height="100%" />
                   )}
                 </View>
                 <YStack gap="$s4" alignSelf="center">
