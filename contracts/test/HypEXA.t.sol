@@ -254,7 +254,7 @@ contract HypEXATest is ForkTest {
     assertEq(hooks.length, 3, "hook count");
     assertEq(
       aggregationHook,
-      IStaticAggregationHookFactory(acct("hyperlaneStaticAggregationHookFactory")).getAddress(hooks),
+      IStaticAggregationHookFactory(acct("hyperlaneAggregationHookFactory")).getAddress(hooks),
       "hook not set"
     );
     assertEq(PausableHook(hooks[0]).owner(), acct("exactly"), "exactly hook owner");
@@ -269,7 +269,7 @@ contract HypEXATest is ForkTest {
     isms[2] = address(IMailbox(acct("hyperlaneMailbox")).defaultIsm());
     assertEq(
       address(opRouter.interchainSecurityModule()),
-      IStaticAggregationIsmFactory(acct("hyperlaneStaticAggregationIsmFactory")).getAddress(isms, 3),
+      IStaticAggregationIsmFactory(acct("hyperlaneAggregationIsmFactory")).getAddress(isms, 3),
       "ism not set"
     );
   }
@@ -409,7 +409,7 @@ contract HypEXATest is ForkTest {
     assertEq(hooks[2], newDefaultHook, "default hook not updated");
     assertEq(
       newAggregationHook,
-      IStaticAggregationHookFactory(acct("hyperlaneStaticAggregationHookFactory")).getAddress(hooks),
+      IStaticAggregationHookFactory(acct("hyperlaneAggregationHookFactory")).getAddress(hooks),
       "hook not set"
     );
 
@@ -420,7 +420,7 @@ contract HypEXATest is ForkTest {
     assertEq(modules[2], newDefaultIsm, "default ism not updated");
     assertEq(
       newAggregationIsm,
-      IStaticAggregationIsmFactory(acct("hyperlaneStaticAggregationIsmFactory")).getAddress(modules, 3),
+      IStaticAggregationIsmFactory(acct("hyperlaneAggregationIsmFactory")).getAddress(modules, 3),
       "ism not set"
     );
 

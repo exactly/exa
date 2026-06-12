@@ -21,12 +21,12 @@
       "137": "0x5d934f4e2f797775e53561bB72aca21ba36B96BB",
       "8453": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
     },
-    "hyperlaneStaticAggregationHookFactory": {
+    "hyperlaneAggregationHookFactory": {
       "10": "0xb0464AE267dbD8b0c611D7768Cd658d4c39b54d6",
       "137": "0xF30E3d79F8B9520Fc53454cf43bB2D90Cd65e066",
       "8453": "0x4f0547800Db0a2427F7367960dc331f8Cbe2e270"
     },
-    "hyperlaneStaticAggregationIsmFactory": {
+    "hyperlaneAggregationIsmFactory": {
       "10": "0x7491843F3A5Ba24E0f17a22645bDa04A1Ae2c584",
       "137": "0x81AdDD9Ca89105063DaDEBd5B4408551Ce850E22",
       "8453": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6"
