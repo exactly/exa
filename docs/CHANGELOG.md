@@ -1,5 +1,11 @@
 # @exactly/docs
 
+## 0.1.5
+
+### Patch Changes
+
+- [#1049](https://github.com/exactly/exa/pull/1049) [`ce3b598`](https://github.com/exactly/exa/commit/ce3b598c15fcd4e57db3fa28cdf6f17c4c2a0622) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📝 add configuration resources
+
 ## 0.1.4
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.2.13
+
+### Patch Changes
+
+- [#1081](https://github.com/exactly/exa/pull/1081) [`c587e63`](https://github.com/exactly/exa/commit/c587e634bacde4165c39663fdf63ef5cf3b53a9f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement transaction attribution
+
+- Updated dependencies [[`e7831f6`](https://github.com/exactly/exa/commit/e7831f612e948fe4fa20e83c599d628935f15e8c), [`695e5d2`](https://github.com/exactly/exa/commit/695e5d2da6169cb0a54f077dd2f9f17a9c9c3d50), [`7242bf2`](https://github.com/exactly/exa/commit/7242bf2d0e86fc13c8aad7d70ca5d0ca92a1829b), [`fb9eac1`](https://github.com/exactly/exa/commit/fb9eac1a35ed30827ed6df292311365bd9dbacc5), [`90ea59c`](https://github.com/exactly/exa/commit/90ea59c41f6ed233c7a2b8933d798fc53b4e0574), [`845f2b8`](https://github.com/exactly/exa/commit/845f2b8e72e102f7eb5dcb0252e7e995fcbd1b17), [`3bcb742`](https://github.com/exactly/exa/commit/3bcb742a19607b085595d64e2f100316f66f9a18), [`9862876`](https://github.com/exactly/exa/commit/9862876eefb7ba554963bf707a649cf075486f60), [`bd438df`](https://github.com/exactly/exa/commit/bd438dfdaba3b15aa17a7fd9b29afff7d23323e2)]:
+  - @exactly/server@0.2.99
+  - @exactly/common@0.0.15
+
 ## 1.2.12
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.15
+
+### Patch Changes
+
+- [#1081](https://github.com/exactly/exa/pull/1081) [`3bcb742`](https://github.com/exactly/exa/commit/3bcb742a19607b085595d64e2f100316f66f9a18) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ add base builder code and attribution data
+
 ## 0.0.14
 
 ### Patch Changes
