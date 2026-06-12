@@ -1,5 +1,25 @@
 # @exactly/server
 
+## 0.2.99
+
+### Patch Changes
+
+- [#1089](https://github.com/exactly/exa/pull/1089) [`e7831f6`](https://github.com/exactly/exa/commit/e7831f612e948fe4fa20e83c599d628935f15e8c) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ support factory selection in credential creation
+
+- [#1048](https://github.com/exactly/exa/pull/1048) [`695e5d2`](https://github.com/exactly/exa/commit/695e5d2da6169cb0a54f077dd2f9f17a9c9c3d50) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔧 set card art for sandbox
+
+- [#1088](https://github.com/exactly/exa/pull/1088) [`7242bf2`](https://github.com/exactly/exa/commit/7242bf2d0e86fc13c8aad7d70ca5d0ca92a1829b) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🥅 add expected to siwe statement error
+
+- [#1081](https://github.com/exactly/exa/pull/1081) [`fb9eac1`](https://github.com/exactly/exa/commit/fb9eac1a35ed30827ed6df292311365bd9dbacc5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement transaction attribution
+
+- [#1048](https://github.com/exactly/exa/pull/1048) [`90ea59c`](https://github.com/exactly/exa/commit/90ea59c41f6ed233c7a2b8933d798fc53b4e0574) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📝 add create card docs
+
+- [`845f2b8`](https://github.com/exactly/exa/commit/845f2b8e72e102f7eb5dcb0252e7e995fcbd1b17) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 make card creation idempotent
+
+- [#1048](https://github.com/exactly/exa/pull/1048) [`9862876`](https://github.com/exactly/exa/commit/9862876eefb7ba554963bf707a649cf075486f60) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ return card id
+
+- [#1048](https://github.com/exactly/exa/pull/1048) [`bd438df`](https://github.com/exactly/exa/commit/bd438dfdaba3b15aa17a7fd9b29afff7d23323e2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🥅 improve weak pin error handling
+
 ## 0.2.98
 
 ### Patch Changes
