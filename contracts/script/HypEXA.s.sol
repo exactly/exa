@@ -120,13 +120,13 @@ contract HypEXA is BaseScript {
     hooks[0] = exactlyHook;
     hooks[1] = pauserHook;
     hooks[2] = address(IMailbox(mailbox).defaultHook());
-    aggregationHook = IStaticAggregationHookFactory(acct("hyperlaneStaticAggregationHookFactory")).deploy(hooks);
+    aggregationHook = IStaticAggregationHookFactory(acct("hyperlaneAggregationHookFactory")).deploy(hooks);
 
     address[] memory isms = new address[](3);
     isms[0] = exactlyIsm;
     isms[1] = pauserIsm;
     isms[2] = address(IMailbox(mailbox).defaultIsm());
-    aggregationIsm = IStaticAggregationIsmFactory(acct("hyperlaneStaticAggregationIsmFactory")).deploy(isms, 3);
+    aggregationIsm = IStaticAggregationIsmFactory(acct("hyperlaneAggregationIsmFactory")).deploy(isms, 3);
   }
 
   function _deployPausableHook(address owner) internal returns (address hook) {
