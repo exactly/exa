@@ -461,10 +461,10 @@ export function updateExternalAccount(
         postal_code: update.address.postalCode,
         country: update.address.country,
       },
-      account: update.account && {
-        checking_or_savings: update.account.checkingOrSavings,
-        routing_number: update.account.routingNumber,
-      },
+      account:
+        update.currency === "USD" && update.account
+          ? { checking_or_savings: update.account.checkingOrSavings, routing_number: update.account.routingNumber }
+          : undefined,
     } satisfies InferInput<typeof BridgeUpdateExternalAccount>,
     "PUT",
   )
@@ -1547,24 +1547,28 @@ export const ExternalAccountInput = variant("currency", [
   }),
 ]);
 
-export const UpdateExternalAccountInput = pipe(
-  object({
-    address: optional(AddressInput),
-    account: optional(
-      pipe(
-        object({
-          checkingOrSavings: optional(picklist(["checking", "savings"])),
-          routingNumber: optional(RoutingNumber),
-        }),
-        check(
-          ({ checkingOrSavings, routingNumber }) => checkingOrSavings !== undefined || routingNumber !== undefined,
-          "account requires at least one field",
+export const UpdateExternalAccountInput = variant("currency", [
+  pipe(
+    object({
+      currency: literal("USD"),
+      address: optional(AddressInput),
+      account: optional(
+        pipe(
+          object({
+            checkingOrSavings: optional(picklist(["checking", "savings"])),
+            routingNumber: optional(RoutingNumber),
+          }),
+          check(
+            ({ checkingOrSavings, routingNumber }) => checkingOrSavings !== undefined || routingNumber !== undefined,
+            "account requires at least one field",
+          ),
         ),
       ),
-    ),
-  }),
-  check(({ address, account }) => address !== undefined || account !== undefined, "address or account is required"),
-);
+    }),
+    check(({ address, account }) => address !== undefined || account !== undefined, "address or account is required"),
+  ),
+  object({ currency: picklist(["BRL", "EUR", "GBP", "MXN"]), address: AddressInput }),
+]);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- type-only usage
 const BridgeCreateExternalAccount = variant("account_type", [
@@ -1760,13 +1764,13 @@ const BridgeExternalAccount = object({
   account_owner_name: string(),
   bank_name: optional(string()),
   active: boolean(),
-  beneficiary_address_valid: boolean(),
+  beneficiary_address_valid: optional(boolean()),
 });
 
 const ExternalAccounts = object({ count: number(), data: array(BridgeExternalAccount) });
 
 export const ExternalAccount = object({
-  addressValid: boolean(),
+  addressValid: optional(boolean()),
   bankName: optional(string()),
   currency: picklist(FiatCurrency),
   id: string(),

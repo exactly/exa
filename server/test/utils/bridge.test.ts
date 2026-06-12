@@ -3362,6 +3362,7 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")));
 
       const result = await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", {
+        currency: "USD",
         address,
         account: { routingNumber: "121000248", checkingOrSavings: "savings" },
       });
@@ -3395,6 +3396,7 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")));
 
       await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", {
+        currency: "USD",
         account: { routingNumber: "121000248" },
       });
 
@@ -3406,9 +3408,9 @@ describe("bridge utils", () => {
     it("omits account when not provided", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("eur")));
+        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")));
 
-      await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { address });
+      await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { currency: "USD", address });
 
       expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
         address: {
@@ -3421,32 +3423,76 @@ describe("bridge utils", () => {
       });
     });
 
+    it("maps a missing beneficiary_address_valid for non-us accounts", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("eur")));
+
+      const result = await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { currency: "EUR", address });
+
+      expect(result).toStrictEqual({
+        addressValid: undefined,
+        bankName: "Test Bank",
+        currency: "EUR",
+        id: "ext-acc-1",
+        ownerName: "John Doe",
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        address: {
+          street_line_1: "10 Downing St",
+          city: "London",
+          state: "ENG",
+          country: "GBR",
+          postal_code: "SW1A",
+        },
+      });
+    });
+
     it("rejects empty update payloads at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, {});
+      const result = safeParse(bridge.UpdateExternalAccountInput, { currency: "USD" });
       expect(result.success).toBe(false);
       expect(result.issues?.[0]?.message).toBe("address or account is required");
     });
 
     it("rejects account-only updates with no fields at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, { account: {} });
+      const result = safeParse(bridge.UpdateExternalAccountInput, { currency: "USD", account: {} });
       expect(result.success).toBe(false);
       expect(result.issues?.[0]?.message).toBe("account requires at least one field");
+    });
+
+    it("rejects non-us updates without address at the schema level", () => {
+      const result = safeParse(bridge.UpdateExternalAccountInput, {
+        currency: "EUR",
+        account: { routingNumber: "121000248" },
+      });
+      expect(result.success).toBe(false);
+      expect(result.issues?.some((issue) => issue.path?.at(-1)?.key === "address")).toBe(true);
+    });
+
+    it("drops account for non-us updates at the schema level", () => {
+      const result = safeParse(bridge.UpdateExternalAccountInput, {
+        currency: "EUR",
+        address,
+        account: { routingNumber: "121000248" },
+      });
+      expect(result.success).toBe(true);
+      expect(result.output).toStrictEqual({ currency: "EUR", address });
     });
 
     it("normalizes bridge 404 into EXTERNAL_ACCOUNT_NOT_FOUND", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(404, "not_found"));
 
-      await expect(bridge.updateExternalAccount(activeCustomer, "ext-acc-missing", { address })).rejects.toThrow(
-        bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND,
-      );
+      await expect(
+        bridge.updateExternalAccount(activeCustomer, "ext-acc-missing", { currency: "GBP", address }),
+      ).rejects.toThrow(bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
     });
 
     it("propagates non-404 bridge errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(500, "internal error"));
 
-      await expect(bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { address })).rejects.toThrow(
-        "internal error",
-      );
+      await expect(
+        bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { currency: "GBP", address }),
+      ).rejects.toThrow("internal error");
     });
   });
 
@@ -3805,7 +3851,7 @@ function externalAccountResponse(currency: "brl" | "eur" | "gbp" | "mxn" | "usd"
     account_owner_name: "John Doe",
     bank_name: "Test Bank",
     active: true,
-    beneficiary_address_valid: true,
+    ...(currency === "usd" && { beneficiary_address_valid: true }),
   };
 }
 
