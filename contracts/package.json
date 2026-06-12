@@ -23,10 +23,11 @@
     "webauthn-sol": "base/webauthn-sol#v1.0.0"
   },
   "devDependencies": {
-    "@exactly/protocol": "^0.2.22",
+    "@exactly/protocol": "exactly/protocol#5833408",
     "@openzeppelin/contracts-upgradeable-v4": "npm:@openzeppelin/contracts-upgradeable@^4.9.6",
     "@openzeppelin/contracts-upgradeable": "^5.6.1",
     "@openzeppelin/contracts-v4": "npm:@openzeppelin/contracts@^4.9.6",
+    "@hyperlane-xyz/core": "^11.0.0",
     "account-abstraction": "eth-infinitism/account-abstraction#v0.6.0",
     "forge-std": "foundry-rs/forge-std#v1.15.0",
     "fresh-crypto-lib": "rdubois-crypto/FreshCryptoLib#fd2a0e6e64609ade0b0c165e4d66de8106a70db6",
