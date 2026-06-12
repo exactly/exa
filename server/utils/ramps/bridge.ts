@@ -638,6 +638,15 @@ export async function getProvider(params: {
       status: "ACTIVE" as const,
       onramp: { currencies: [...currencies.onramp, ...approvedCurrencies] },
       offramp: { currencies: [...currencies.offramp, ...approvedCurrencies] },
+      futureKYCLink: await futureKYCLink(
+        bridgeUser,
+        (() => {
+          if (!params.redirectURL) return;
+          const redirect = new URL(params.redirectURL);
+          redirect.searchParams.set("provider", "bridge");
+          return String(redirect);
+        })(),
+      ),
     };
   }
 
@@ -1021,6 +1030,8 @@ const PaymentRailByBridgeCurrency: Partial<
 const missing = new Set(["tax_identification_number", "source_of_funds_questionnaire"]);
 const issues = new Set(["government_id_verification_failed"]);
 
+const FutureKYCWindowMs = 30 * 24 * 60 * 60 * 1000;
+
 function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
   if (bridgeUser.status === "offboarded") return;
   if (
@@ -1044,6 +1055,23 @@ function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirect
       captureException(error, { level: "error" });
     });
   }
+}
+
+function futureKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
+  const next = bridgeUser.endorsements
+    .flatMap((endorsement) => endorsement.future_requirements ?? [])
+    .filter(
+      (requirement) =>
+        requirement.pending.length === 0 &&
+        new Date(requirement.effective_date).getTime() - Date.now() <= FutureKYCWindowMs,
+    )
+    .toSorted((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime())[0];
+  if (!next) return;
+  return getKYCLink(bridgeUser.id, redirectUri)
+    .then((url) => ({ url, date: next.effective_date }))
+    .catch((error: unknown): undefined => {
+      captureException(error, { level: "error" });
+    });
 }
 
 function containsRequirement(node: unknown, targets: Set<string>): boolean {
@@ -1311,6 +1339,14 @@ const CustomerResponse = object({
         missing: nullish(unknown()),
         issues: array(union([string(), unknown()])),
       }),
+      future_requirements: optional(
+        array(
+          object({
+            effective_date: string(),
+            pending: array(string()),
+          }),
+        ),
+      ),
     }),
   ),
 });

@@ -646,5 +646,6 @@ const ProviderInfo = variant("provider", [
     status: ProviderStatus,
     tosLink: optional(string()),
     kycLink: optional(string()),
+    futureKYCLink: optional(object({ url: string(), date: string() })),
   }),
 ]);
