@@ -1220,6 +1220,353 @@ describe("ramp api", () => {
     });
   });
 
+  describe("create external account", () => {
+    const input = {
+      currency: "USD" as const,
+      accountOwnerName: "John Doe",
+      accountNumber: "1210002481111",
+      routingNumber: "121000248",
+      address: { streetLine1: "123 Main St", city: "Anytown", state: "CA", country: "USA" }, // cspell:ignore anytown
+    };
+
+    it("returns 400 for no credential", async () => {
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "non-existent" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    });
+
+    it("returns 400 when bridgeId is missing", async () => {
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-test" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+    });
+
+    it("returns 400 when bridge customer not found", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when customer is not active", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue({ ...bridgeCustomer, status: "under_review" });
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for input without account details", async () => {
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        { json: { currency: "USD" } as never },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when the customer lacks the required endorsement", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(new Error(bridge.ErrorCodes.NO_ENDORSEMENT));
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+    });
+
+    it("returns 400 when bridge cannot determine the bank name", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(new Error(bridge.ErrorCodes.INVALID_BANK_NAME));
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "invalid bank name" });
+    });
+
+    it("returns 400 when bridge requires the postal code", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(new Error(bridge.ErrorCodes.POSTAL_CODE_REQUIRED));
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "postal code required" });
+    });
+
+    it("returns 400 when the external account already exists", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(
+        new Error(bridge.ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS),
+      );
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "external account already exists" });
+    });
+
+    it("returns 500 when bridge util throws an unexpected error", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(new Error("unexpected"));
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(500);
+    });
+
+    it("delegates to createExternalAccount and returns the external account", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      const createSpy = vi.spyOn(bridge, "createExternalAccount").mockResolvedValue(externalAccount);
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual(externalAccount);
+      expect(createSpy).toHaveBeenCalledWith(bridgeCustomer, input);
+    });
+  });
+
+  describe("list external accounts", () => {
+    it("returns 400 for no credential", async () => {
+      const response = await appClient["external-account"].$get(
+        {},
+        { headers: { "test-credential-id": "non-existent" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    });
+
+    it("returns 400 when bridgeId is missing", async () => {
+      const response = await appClient["external-account"].$get({}, { headers: { "test-credential-id": "ramp-test" } });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+    });
+
+    it("returns 400 when bridge customer not found", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      const listSpy = vi.spyOn(bridge, "listExternalAccounts");
+
+      const response = await appClient["external-account"].$get(
+        {},
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when customer is not active", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue({ ...bridgeCustomer, status: "under_review" });
+      const listSpy = vi.spyOn(bridge, "listExternalAccounts");
+
+      const response = await appClient["external-account"].$get(
+        {},
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("delegates to listExternalAccounts and returns the external accounts", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      const listSpy = vi.spyOn(bridge, "listExternalAccounts").mockResolvedValue([externalAccount]);
+
+      const response = await appClient["external-account"].$get(
+        {},
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([externalAccount]);
+      expect(listSpy).toHaveBeenCalledWith("bridge-customer-123");
+    });
+  });
+
+  describe("update external account", () => {
+    const address = { streetLine1: "10 Downing St", city: "London", state: "ENG", country: "GBR", postalCode: "SW1A" };
+
+    it("returns 400 for no credential", async () => {
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-1" }, json: { currency: "USD", address } },
+        { headers: { "test-credential-id": "non-existent" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    });
+
+    it("returns 400 when bridgeId is missing", async () => {
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-1" }, json: { currency: "USD", address } },
+        { headers: { "test-credential-id": "ramp-test" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+    });
+
+    it("returns 400 when bridge customer not found", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      const updateSpy = vi.spyOn(bridge, "updateExternalAccount");
+
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-1" }, json: { currency: "USD", address } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when customer is not active", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue({ ...bridgeCustomer, status: "under_review" });
+      const updateSpy = vi.spyOn(bridge, "updateExternalAccount");
+
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-1" }, json: { currency: "USD", address } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 for input without currency", async () => {
+      const updateSpy = vi.spyOn(bridge, "updateExternalAccount");
+
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-1" }, json: { address } as never },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 400 when external account is not found", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "updateExternalAccount").mockRejectedValue(
+        new Error(bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND),
+      );
+
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-missing" }, json: { currency: "USD", address } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "external account not found" });
+    });
+
+    it("returns 500 when bridge util throws an unexpected error", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "updateExternalAccount").mockRejectedValue(new Error("unexpected"));
+
+      const response = await appClient["external-account"][":id"].$patch(
+        { param: { id: "ext-acc-1" }, json: { currency: "USD", address } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(500);
+    });
+
+    it("delegates to updateExternalAccount and returns the external account", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      const updateSpy = vi.spyOn(bridge, "updateExternalAccount").mockResolvedValue(externalAccount);
+
+      const response = await appClient["external-account"][":id"].$patch(
+        {
+          param: { id: "ext-acc-1" },
+          json: { currency: "USD", address, account: { routingNumber: "121000248" } },
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual(externalAccount);
+      expect(updateSpy).toHaveBeenCalledWith(bridgeCustomer, "ext-acc-1", {
+        currency: "USD",
+        address,
+        account: { routingNumber: "121000248" },
+      });
+    });
+
+    it("drops account for non-us accounts", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      const updateSpy = vi
+        .spyOn(bridge, "updateExternalAccount")
+        .mockResolvedValue({ ...externalAccount, currency: "EUR", addressValid: undefined });
+
+      const response = await appClient["external-account"][":id"].$patch(
+        {
+          param: { id: "ext-acc-1" },
+          json: { currency: "EUR", address, account: { routingNumber: "121000248" } } as never,
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({
+        bankName: "Test Bank",
+        currency: "EUR",
+        id: "ext-acc-1",
+        ownerName: "John Doe",
+      });
+      expect(updateSpy).toHaveBeenCalledWith(bridgeCustomer, "ext-acc-1", { currency: "EUR", address });
+    });
+  });
+
   describe("delete external account", () => {
     it("returns 400 for no credential", async () => {
       const response = await appClient["external-account"][":id"].$delete(
@@ -1284,6 +1631,19 @@ describe("ramp api", () => {
       await expect(response.json()).resolves.toStrictEqual({ code: "external account not found" });
     });
 
+    it("returns 400 when a withdrawal is in progress", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "removeExternalAccount").mockRejectedValue(new Error(bridge.ErrorCodes.TRANSFER_IN_USE));
+
+      const response = await appClient["external-account"][":id"].$delete(
+        { param: { id: "ext-acc-1" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "withdrawal in progress" });
+    });
+
     it("returns 500 when bridge util throws an unexpected error", async () => {
       vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
       vi.spyOn(bridge, "removeExternalAccount").mockRejectedValue(new Error("unexpected"));
@@ -1328,4 +1688,12 @@ const bridgeCustomer = {
   email: "test@example.com",
   status: "active" as const,
   endorsements: [],
+};
+
+const externalAccount = {
+  addressValid: true,
+  bankName: "Test Bank",
+  currency: "USD" as const,
+  id: "ext-acc-1",
+  ownerName: "John Doe",
 };

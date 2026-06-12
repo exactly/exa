@@ -34,13 +34,16 @@ import * as manteca from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 
 const ErrorCodes = {
+  EXTERNAL_ACCOUNT_ALREADY_EXISTS: "external account already exists",
   EXTERNAL_ACCOUNT_CURRENCY_MISMATCH: "external account currency mismatch",
   EXTERNAL_ACCOUNT_NOT_FOUND: "external account not found",
   EXTERNAL_ACCOUNT_NOT_SUPPORTED: "external account not supported",
+  INVALID_BANK_NAME: "invalid bank name",
   INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NO_CREDENTIAL: "no credential",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
+  POSTAL_CODE_REQUIRED: "postal code required",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
 };
 
@@ -379,6 +382,15 @@ export default new Hono()
     } catch (error) {
       if (error instanceof Error && error.message === bridge.ErrorCodes.NO_ENDORSEMENT) {
         return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+      }
+      if (error instanceof Error && error.message === bridge.ErrorCodes.INVALID_BANK_NAME) {
+        return c.json({ code: ErrorCodes.INVALID_BANK_NAME }, 400);
+      }
+      if (error instanceof Error && error.message === bridge.ErrorCodes.POSTAL_CODE_REQUIRED) {
+        return c.json({ code: ErrorCodes.POSTAL_CODE_REQUIRED }, 400);
+      }
+      if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS) {
+        return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS }, 400);
       }
       throw error;
     }

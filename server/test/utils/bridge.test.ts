@@ -2608,8 +2608,9 @@ describe("bridge utils", () => {
       );
     });
 
-    it("throws TRANSFER_IN_USE when an existing template is not in awaiting_funds state", async () => {
-      vi.spyOn(globalThis, "fetch")
+    it("reuses an existing static template that is not in awaiting_funds state", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")))
         .mockResolvedValueOnce(
           fetchResponse({
@@ -2623,9 +2624,13 @@ describe("bridge utils", () => {
           }),
         );
 
-      await expect(bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD")).rejects.toThrow(
-        bridge.ErrorCodes.TRANSFER_IN_USE,
-      );
+      const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
+
+      expect(result).toStrictEqual([
+        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
+      ]);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy.mock.calls.every((call) => call[1]?.method !== "POST")).toBe(true);
     });
 
     it("ignores canceled templates and creates a new transfer", async () => {
@@ -2888,6 +2893,82 @@ describe("bridge utils", () => {
         }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_ENDORSEMENT);
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("throws INVALID_BANK_NAME when bridge cannot determine the bank name", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchError(
+          400,
+          '{"code":"invalid_parameters","message":"Please resubmit the following parameters that are either missing or invalid","source":{"location":"body","key":{"bank_name":"must be provided for this routing number as we are unable to determine the name automatically"}}}',
+        ),
+      );
+
+      await expect(
+        bridge.createExternalAccount(activeCustomerWithBaseEndorsement, {
+          currency: "USD",
+          accountOwnerName: "John Doe",
+          accountNumber: "1210002481111",
+          routingNumber: "121000248",
+          address: usdAddress,
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.INVALID_BANK_NAME);
+    });
+
+    it("throws POSTAL_CODE_REQUIRED when bridge requires the postal code", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchError(
+          400,
+          '{"code":"invalid_parameters","message":"Please resubmit the following parameters that are either missing or invalid","source":{"location":"body","key":{"address.postal_code":"is required"}}}',
+        ),
+      );
+
+      await expect(
+        bridge.createExternalAccount(activeCustomerWithBaseEndorsement, {
+          currency: "USD",
+          accountOwnerName: "John Doe",
+          accountNumber: "1210002481111",
+          routingNumber: "121000248",
+          address: usdAddress,
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.POSTAL_CODE_REQUIRED);
+    });
+
+    it("throws EXTERNAL_ACCOUNT_ALREADY_EXISTS when the account is a duplicate", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchError(
+          400,
+          '{"id":"f9d1715c-0196-4fe2-84a7-385568b86d0c","code":"duplicate_external_account","message":"An external account with the same information has already been added for this customer"}',
+        ),
+      );
+
+      await expect(
+        bridge.createExternalAccount(activeCustomerWithBaseEndorsement, {
+          currency: "USD",
+          accountOwnerName: "John Doe",
+          accountNumber: "1210002481111",
+          routingNumber: "121000248",
+          address: usdAddress,
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS);
+    });
+
+    it("rethrows other invalid_parameters errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchError(
+          400,
+          '{"code":"invalid_parameters","message":"Please resubmit","source":{"location":"body","key":{"account.routing_number":"is not valid"}}}',
+        ),
+      );
+
+      await expect(
+        bridge.createExternalAccount(activeCustomerWithBaseEndorsement, {
+          currency: "USD",
+          accountOwnerName: "John Doe",
+          accountNumber: "1210002481111",
+          routingNumber: "121000248",
+          address: usdAddress,
+        }),
+      ).rejects.toThrow("Please resubmit");
     });
 
     it("posts a US bank account to bridge and returns the ExternalAccount shape", async () => {
@@ -3362,6 +3443,7 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")));
 
       const result = await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", {
+        currency: "USD",
         address,
         account: { routingNumber: "121000248", checkingOrSavings: "savings" },
       });
@@ -3395,6 +3477,7 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")));
 
       await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", {
+        currency: "USD",
         account: { routingNumber: "121000248" },
       });
 
@@ -3406,9 +3489,9 @@ describe("bridge utils", () => {
     it("omits account when not provided", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("eur")));
+        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")));
 
-      await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { address });
+      await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { currency: "USD", address });
 
       expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
         address: {
@@ -3421,32 +3504,76 @@ describe("bridge utils", () => {
       });
     });
 
+    it("maps a missing beneficiary_address_valid for non-us accounts", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("eur")));
+
+      const result = await bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { currency: "EUR", address });
+
+      expect(result).toStrictEqual({
+        addressValid: undefined,
+        bankName: "Test Bank",
+        currency: "EUR",
+        id: "ext-acc-1",
+        ownerName: "John Doe",
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        address: {
+          street_line_1: "10 Downing St",
+          city: "London",
+          state: "ENG",
+          country: "GBR",
+          postal_code: "SW1A",
+        },
+      });
+    });
+
     it("rejects empty update payloads at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, {});
+      const result = safeParse(bridge.UpdateExternalAccountInput, { currency: "USD" });
       expect(result.success).toBe(false);
       expect(result.issues?.[0]?.message).toBe("address or account is required");
     });
 
     it("rejects account-only updates with no fields at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, { account: {} });
+      const result = safeParse(bridge.UpdateExternalAccountInput, { currency: "USD", account: {} });
       expect(result.success).toBe(false);
       expect(result.issues?.[0]?.message).toBe("account requires at least one field");
+    });
+
+    it("rejects non-us updates without address at the schema level", () => {
+      const result = safeParse(bridge.UpdateExternalAccountInput, {
+        currency: "EUR",
+        account: { routingNumber: "121000248" },
+      });
+      expect(result.success).toBe(false);
+      expect(result.issues?.some((issue) => issue.path?.at(-1)?.key === "address")).toBe(true);
+    });
+
+    it("drops account for non-us updates at the schema level", () => {
+      const result = safeParse(bridge.UpdateExternalAccountInput, {
+        currency: "EUR",
+        address,
+        account: { routingNumber: "121000248" },
+      });
+      expect(result.success).toBe(true);
+      expect(result.output).toStrictEqual({ currency: "EUR", address });
     });
 
     it("normalizes bridge 404 into EXTERNAL_ACCOUNT_NOT_FOUND", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(404, "not_found"));
 
-      await expect(bridge.updateExternalAccount(activeCustomer, "ext-acc-missing", { address })).rejects.toThrow(
-        bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND,
-      );
+      await expect(
+        bridge.updateExternalAccount(activeCustomer, "ext-acc-missing", { currency: "GBP", address }),
+      ).rejects.toThrow(bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
     });
 
     it("propagates non-404 bridge errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(500, "internal error"));
 
-      await expect(bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { address })).rejects.toThrow(
-        "internal error",
-      );
+      await expect(
+        bridge.updateExternalAccount(activeCustomer, "ext-acc-1", { currency: "GBP", address }),
+      ).rejects.toThrow("internal error");
     });
   });
 
@@ -3465,6 +3592,21 @@ describe("bridge utils", () => {
         expect.stringContaining("/customers/cust-123/external_accounts?limit=20"),
         expect.objectContaining({ method: "GET" }),
       );
+    });
+
+    it("maps null bank_name and beneficiary_address_valid to undefined", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({
+          count: 1,
+          data: [{ ...externalAccountResponse("eur"), bank_name: null, beneficiary_address_valid: null }],
+        }),
+      );
+
+      const result = await bridge.listExternalAccounts("cust-123");
+
+      expect(result).toStrictEqual([
+        { addressValid: undefined, bankName: undefined, currency: "EUR", id: "ext-acc-1", ownerName: "John Doe" },
+      ]);
     });
 
     it("filters out non-fiat currencies", async () => {
@@ -3805,7 +3947,7 @@ function externalAccountResponse(currency: "brl" | "eur" | "gbp" | "mxn" | "usd"
     account_owner_name: "John Doe",
     bank_name: "Test Bank",
     active: true,
-    beneficiary_address_valid: true,
+    ...(currency === "usd" && { beneficiary_address_valid: true }),
   };
 }
 

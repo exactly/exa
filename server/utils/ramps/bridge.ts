@@ -431,16 +431,29 @@ export async function createExternalAccount(
       }
     })(),
     "POST",
-  ).then(
-    ({ beneficiary_address_valid, bank_name, currency, id, account_owner_name }) =>
-      ({
-        addressValid: beneficiary_address_valid,
-        bankName: bank_name,
-        currency: parse(picklist(FiatCurrency), FiatByBridgeCurrency[currency]),
-        id,
-        ownerName: account_owner_name,
-      }) satisfies InferOutput<typeof ExternalAccount>,
-  );
+  )
+    .catch((error: unknown) => {
+      if (error instanceof ServiceError && typeof error.cause === "string") {
+        if (error.cause.includes(BridgeApiErrorCodes.DUPLICATE_EXTERNAL_ACCOUNT)) {
+          throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS);
+        }
+        if (error.cause.includes(BridgeApiErrorCodes.INVALID_PARAMETERS)) {
+          if (error.cause.includes("bank_name")) throw new Error(ErrorCodes.INVALID_BANK_NAME);
+          if (error.cause.includes("address.postal_code")) throw new Error(ErrorCodes.POSTAL_CODE_REQUIRED);
+        }
+      }
+      throw error;
+    })
+    .then(
+      ({ beneficiary_address_valid, bank_name, currency, id, account_owner_name }) =>
+        ({
+          addressValid: beneficiary_address_valid ?? undefined,
+          bankName: bank_name ?? undefined,
+          currency: parse(picklist(FiatCurrency), FiatByBridgeCurrency[currency]),
+          id,
+          ownerName: account_owner_name,
+        }) satisfies InferOutput<typeof ExternalAccount>,
+    );
 }
 
 export function updateExternalAccount(
@@ -461,10 +474,10 @@ export function updateExternalAccount(
         postal_code: update.address.postalCode,
         country: update.address.country,
       },
-      account: update.account && {
-        checking_or_savings: update.account.checkingOrSavings,
-        routing_number: update.account.routingNumber,
-      },
+      account:
+        update.currency === "USD" && update.account
+          ? { checking_or_savings: update.account.checkingOrSavings, routing_number: update.account.routingNumber }
+          : undefined,
     } satisfies InferInput<typeof BridgeUpdateExternalAccount>,
     "PUT",
   )
@@ -481,8 +494,8 @@ export function updateExternalAccount(
     .then(
       (externalAccount) =>
         ({
-          addressValid: externalAccount.beneficiary_address_valid,
-          bankName: externalAccount.bank_name,
+          addressValid: externalAccount.beneficiary_address_valid ?? undefined,
+          bankName: externalAccount.bank_name ?? undefined,
           currency: parse(picklist(FiatCurrency), FiatByBridgeCurrency[externalAccount.currency]),
           id: externalAccount.id,
           ownerName: externalAccount.account_owner_name,
@@ -533,8 +546,8 @@ export async function listExternalAccounts(customerId: string) {
     if (!account.active) return [];
     return [
       {
-        addressValid: account.beneficiary_address_valid,
-        bankName: account.bank_name,
+        addressValid: account.beneficiary_address_valid ?? undefined,
+        bankName: account.bank_name ?? undefined,
         currency,
         id: account.id,
         ownerName: account.account_owner_name,
@@ -916,7 +929,6 @@ export async function getOfframpDepositDetails(
       source.currency === "usdc" &&
       state !== "canceled",
   );
-  if (transfer && transfer.state !== "awaiting_funds") throw new Error(ErrorCodes.TRANSFER_IN_USE);
   transfer ??= await createTransfer({
     on_behalf_of: customer.id,
     client_reference_id: account,
@@ -1547,24 +1559,28 @@ export const ExternalAccountInput = variant("currency", [
   }),
 ]);
 
-export const UpdateExternalAccountInput = pipe(
-  object({
-    address: optional(AddressInput),
-    account: optional(
-      pipe(
-        object({
-          checkingOrSavings: optional(picklist(["checking", "savings"])),
-          routingNumber: optional(RoutingNumber),
-        }),
-        check(
-          ({ checkingOrSavings, routingNumber }) => checkingOrSavings !== undefined || routingNumber !== undefined,
-          "account requires at least one field",
+export const UpdateExternalAccountInput = variant("currency", [
+  pipe(
+    object({
+      currency: literal("USD"),
+      address: optional(AddressInput),
+      account: optional(
+        pipe(
+          object({
+            checkingOrSavings: optional(picklist(["checking", "savings"])),
+            routingNumber: optional(RoutingNumber),
+          }),
+          check(
+            ({ checkingOrSavings, routingNumber }) => checkingOrSavings !== undefined || routingNumber !== undefined,
+            "account requires at least one field",
+          ),
         ),
       ),
-    ),
-  }),
-  check(({ address, account }) => address !== undefined || account !== undefined, "address or account is required"),
-);
+    }),
+    check(({ address, account }) => address !== undefined || account !== undefined, "address or account is required"),
+  ),
+  object({ currency: picklist(["BRL", "EUR", "GBP", "MXN"]), address: AddressInput }),
+]);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- type-only usage
 const BridgeCreateExternalAccount = variant("account_type", [
@@ -1758,15 +1774,15 @@ const BridgeExternalAccount = object({
   account_type: string(),
   currency: picklist(BridgeCurrency),
   account_owner_name: string(),
-  bank_name: optional(string()),
+  bank_name: nullish(string()),
   active: boolean(),
-  beneficiary_address_valid: boolean(),
+  beneficiary_address_valid: nullish(boolean()),
 });
 
 const ExternalAccounts = object({ count: number(), data: array(BridgeExternalAccount) });
 
 export const ExternalAccount = object({
-  addressValid: boolean(),
+  addressValid: optional(boolean()),
   bankName: optional(string()),
   currency: picklist(FiatCurrency),
   id: string(),
@@ -2084,10 +2100,12 @@ export const ErrorCodes = {
   BAD_BRIDGE_ID: "bad bridge id",
   DENYLISTED_COUNTRY: "denylisted country",
   EMAIL_ALREADY_EXISTS: "email already exists",
+  EXTERNAL_ACCOUNT_ALREADY_EXISTS: "external account already exists",
   EXTERNAL_ACCOUNT_CURRENCY_MISMATCH: "external account currency mismatch",
   EXTERNAL_ACCOUNT_NOT_FOUND: "external account not found",
   INVALID_ACCOUNT: "invalid destination account",
   INVALID_ADDRESS: "invalid address",
+  INVALID_BANK_NAME: "invalid bank name",
   INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NOT_ACTIVE_CUSTOMER: "not active customer",
   NO_ENDORSEMENT: "no endorsement",
@@ -2103,10 +2121,12 @@ export const ErrorCodes = {
   NO_DOCUMENT_FILE: "no document file",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_SOCIAL_SECURITY_NUMBER: "no social security number",
+  POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_IN_USE: "transfer in use",
 };
 
 const BridgeApiErrorCodes = {
+  DUPLICATE_EXTERNAL_ACCOUNT: "duplicate_external_account",
   EMAIL_ALREADY_EXISTS: "A customer with this email already exists",
   INVALID_PARAMETERS: "invalid_parameters",
   NOT_FOUND: "not_found",
