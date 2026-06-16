@@ -4,13 +4,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { router } from "expo-router";
 
-import { ArrowLeft, Check, CircleHelp, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, CircleHelp, IdCard, Repeat, TriangleAlert } from "@tamagui/lucide-icons";
+import { useToastController } from "@tamagui/toast";
 import { Checkbox, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { parse } from "valibot";
 import { encodeFunctionData, formatUnits, parseUnits, zeroAddress } from "viem";
+import { base } from "viem/chains";
 import { useSendCalls, useSimulateContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -34,6 +36,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useBeginKYC from "../../utils/useBeginKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
@@ -44,6 +47,7 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { KYCStatus } from "../../utils/server";
 import type { Token } from "@lifi/sdk";
 
 export type Swap = {
@@ -74,11 +78,21 @@ export default function Swaps() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { address: account } = useAccount();
-  const { externalAssets, protocolAssets } = usePortfolio();
+  const { externalAssets, protocolAssets, isBalancesPending } = usePortfolio();
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
   const { markets, queryKey: marketsQueryKey } = useMarkets();
-  const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
+  const toast = useToastController();
+  const beginKYC = useBeginKYC();
+  const { data: kycStatus, isFetched: isKYCFetched } = useQuery<KYCStatus>({
+    queryKey: ["kyc", "status"],
+    enabled: chain.id === base.id,
+  });
+  const {
+    data: tokens,
+    isLoading: isTokensLoading,
+    error: tokensError,
+  } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
   const {
     data: {
       fromToken,
@@ -127,19 +141,31 @@ export default function Swaps() {
 
   const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
 
+  const payableTokens = useMemo(() => (tokens ?? []).filter((token) => getBalance(token) > 0n), [tokens, getBalance]);
+
   useEffect(() => {
     if (!fromToken && !toToken && tokens && markets) {
-      const usdc = tokens.find(({ symbol }) => symbol === "USDC");
-      const exa = tokens.find(({ symbol }) => symbol === "EXA");
-      if (usdc && exa) {
+      const payable = payableTokens.find(({ symbol }) => symbol === "USDC") ?? payableTokens[0];
+      const target = ["EXA", "WETH", "USDC"]
+        .map((symbol) => tokens.find((token) => token.symbol === symbol))
+        .find((token) => token !== undefined && token.address !== payable?.address);
+      if (payable && target) {
         updateSwap((old) => ({
           ...old,
-          fromToken: { token: usdc, external: isExternal(usdc.address) },
-          toToken: { token: exa, external: isExternal(exa.address) },
+          fromToken: { token: payable, external: isExternal(payable.address) },
+          toToken: { token: target, external: isExternal(target.address) },
         }));
       }
     }
-  }, [fromToken, isExternal, markets, toToken, tokens]);
+  }, [fromToken, isExternal, markets, payableTokens, toToken, tokens]);
+
+  const unverified =
+    chain.id === base.id &&
+    isKYCFetched &&
+    !(kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"));
+
+  const empty =
+    !isTokensLoading && !tokensError && !isBalancesPending && !!markets && !fromToken && payableTokens.length === 0;
 
   const handleTokenSelect = (selected: Token) => {
     if (!fromToken || !toToken) return;
@@ -431,141 +457,191 @@ export default function Swaps() {
             }}
           />
         </View>
-        <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
-          <View padded>
-            <YStack paddingBottom="$s3" gap="$s4_5">
-              <YStack gap="$s3_5">
-                {(["from", "to"] as const).map((type) => {
-                  const tokenData = type === "from" ? fromToken : toToken;
-                  const amount = type === "from" ? fromAmount : toAmount;
-                  const isActive = activeInput === type;
-                  return (
-                    <TokenInput
-                      key={type}
-                      label={t(type === "from" ? "You pay" : "You receive")}
-                      token={tokenData?.token}
-                      amount={amount}
-                      balance={getBalance(tokenData?.token)}
-                      disabled={type === "to"}
-                      isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
-                      isActive={isActive}
-                      isDanger={type === "from" && showWarning}
-                      onTokenSelect={() => {
-                        updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
-                        setAcknowledged(false);
+        {unverified ? (
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
+            <IdCard size={48} color="$uiBrandSecondary" />
+            <Text emphasized primary headline textAlign="center">
+              {t("Verify your identity")}
+            </Text>
+            <Text secondary footnote textAlign="center">
+              {t("Complete identity verification to start swapping.")}
+            </Text>
+            <Button
+              primary
+              marginTop="$s4"
+              loading={beginKYC.isPending}
+              disabled={beginKYC.isPending}
+              onPress={() => {
+                beginKYC.mutate(undefined, {
+                  onSuccess(result) {
+                    if (result.status !== "cancel") router.replace("/(main)/(home)");
+                  },
+                  onError(error) {
+                    toast.show(t("Error verifying identity"), {
+                      native: true,
+                      duration: 1000,
+                      burntOptions: { haptic: "error", preset: "error" },
+                    });
+                    reportError(error);
+                  },
+                });
+              }}
+            >
+              <Button.Text>{t("Begin verifying")}</Button.Text>
+              <Button.Icon>
+                <IdCard />
+              </Button.Icon>
+            </Button>
+          </YStack>
+        ) : empty ? (
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
+            <TriangleAlert size={48} color="$uiNeutralSecondary" />
+            <Text emphasized primary headline textAlign="center">
+              {t("Nothing to swap yet")}
+            </Text>
+            <Text secondary footnote textAlign="center">
+              {t("Deposit assets to start swapping.")}
+            </Text>
+          </YStack>
+        ) : (
+          <>
+            <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
+              <View padded>
+                <YStack paddingBottom="$s3" gap="$s4_5">
+                  <YStack gap="$s3_5">
+                    {(["from", "to"] as const).map((type) => {
+                      const tokenData = type === "from" ? fromToken : toToken;
+                      const amount = type === "from" ? fromAmount : toAmount;
+                      const isActive = activeInput === type;
+                      return (
+                        <TokenInput
+                          key={type}
+                          label={t(type === "from" ? "You pay" : "You receive")}
+                          token={tokenData?.token}
+                          amount={amount}
+                          balance={getBalance(tokenData?.token)}
+                          disabled={type === "to"}
+                          isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
+                          isActive={isActive}
+                          isDanger={type === "from" && showWarning}
+                          onTokenSelect={() => {
+                            updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
+                            setAcknowledged(false);
+                          }}
+                          onFocus={() => {
+                            setAcknowledged(false);
+                          }}
+                          onChange={(value: bigint) => {
+                            setActiveInput(type);
+                            handleAmountChange(value, type);
+                            setAcknowledged(false);
+                          }}
+                          onUseMax={(value: bigint) => {
+                            setActiveInput(type);
+                            handleAmountChange(value, type);
+                            setAcknowledged(false);
+                          }}
+                        />
+                      );
+                    })}
+                  </YStack>
+                  {fromToken && toToken && route && (
+                    <SwapDetails
+                      exchange={tool}
+                      slippage={SLIPPAGE_PERCENT}
+                      exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
+                      fromToken={fromToken.token}
+                      toToken={toToken.token}
+                    />
+                  )}
+                </YStack>
+              </View>
+            </ScrollView>
+            <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
+              <YStack gap="$s3">
+                {(caution || danger) && showWarning && (
+                  <YStack gap="$s4_5">
+                    <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
+                    <XStack
+                      gap="$s3"
+                      alignItems="center"
+                      cursor="pointer"
+                      onPress={() => {
+                        setAcknowledged(!acknowledged);
                       }}
-                      onFocus={() => {
-                        setAcknowledged(false);
-                      }}
-                      onChange={(value: bigint) => {
-                        setActiveInput(type);
-                        handleAmountChange(value, type);
-                        setAcknowledged(false);
-                      }}
-                      onUseMax={(value: bigint) => {
-                        setActiveInput(type);
-                        handleAmountChange(value, type);
-                        setAcknowledged(false);
+                    >
+                      {danger ? (
+                        <TriangleAlert size={16} color="$uiErrorSecondary" />
+                      ) : (
+                        <Checkbox
+                          pointerEvents="none"
+                          borderColor="$backgroundBrand"
+                          backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
+                          checked={acknowledged}
+                        >
+                          <Checkbox.Indicator>
+                            <Check size={16} color="$uiNeutralPrimary" />
+                          </Checkbox.Indicator>
+                        </Checkbox>
+                      )}
+                      <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
+                        {danger
+                          ? t(
+                              "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.",
+                            )
+                          : t("I acknowledge the risks of swapping this much of my collateral assets.")}
+                      </Text>
+                    </XStack>
+                    <Separator borderColor="$borderNeutralSoft" />
+                  </YStack>
+                )}
+                <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
+                  <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                    <Trans
+                      i18nKey="Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
+                      components={{
+                        link: (
+                          <Text
+                            cursor="pointer"
+                            caption2
+                            color="$interactiveOnDisabled"
+                            textDecorationLine="underline"
+                            onPress={() => {
+                              openBrowser(`https://li.fi/`).catch(reportError);
+                            }}
+                          />
+                        ),
                       }}
                     />
-                  );
-                })}
-              </YStack>
-              {fromToken && toToken && route && (
-                <SwapDetails
-                  exchange={tool}
-                  slippage={SLIPPAGE_PERCENT}
-                  exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
-                  fromToken={fromToken.token}
-                  toToken={toToken.token}
-                />
-              )}
-            </YStack>
-          </View>
-        </ScrollView>
-        <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
-          <YStack gap="$s3">
-            {(caution || danger) && showWarning && (
-              <YStack gap="$s4_5">
-                <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
-                <XStack
-                  gap="$s3"
-                  alignItems="center"
-                  cursor="pointer"
-                  onPress={() => {
-                    setAcknowledged(!acknowledged);
-                  }}
-                >
-                  {danger ? (
-                    <TriangleAlert size={16} color="$uiErrorSecondary" />
-                  ) : (
-                    <Checkbox
-                      pointerEvents="none"
-                      borderColor="$backgroundBrand"
-                      backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                      checked={acknowledged}
-                    >
-                      <Checkbox.Indicator>
-                        <Check size={16} color="$uiNeutralPrimary" />
-                      </Checkbox.Indicator>
-                    </Checkbox>
-                  )}
-                  <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
-                    {danger
-                      ? t(
-                          "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.",
-                        )
-                      : t("I acknowledge the risks of swapping this much of my collateral assets.")}
                   </Text>
                 </XStack>
-                <Separator borderColor="$borderNeutralSoft" />
               </YStack>
-            )}
-            <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
-              <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                <Trans
-                  i18nKey="Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
-                  components={{
-                    link: (
-                      <Text
-                        cursor="pointer"
-                        caption2
-                        color="$interactiveOnDisabled"
-                        textDecorationLine="underline"
-                        onPress={() => {
-                          openBrowser(`https://li.fi/`).catch(reportError);
-                        }}
-                      />
-                    ),
-                  }}
-                />
-              </Text>
-            </XStack>
-          </YStack>
-          <Button
-            primary={!(caution && acknowledged)}
-            dangerSecondary={caution && acknowledged}
-            disabled={disabled || (caution && !acknowledged)}
-            loading={!danger && isSimulating && !!route && !isInsufficientBalance}
-            width="100%"
-            onPress={() => {
-              swap();
-            }}
-          >
-            <Button.Text>{buttonLabel}</Button.Text>
-            <Button.Icon>{danger ? <TriangleAlert /> : <Repeat />}</Button.Icon>
-          </Button>
-        </YStack>
-        <TokenSelectModal
-          withBalanceOnly={tokenSelectionType === "from"}
-          open={tokenModalOpen}
-          tokens={tokens ?? []}
-          selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
-          onSelect={handleTokenSelect}
-          onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
-          isLoading={isTokensLoading}
-          title={tokenSelectionType === "from" ? t("Select token to pay") : t("Select token to receive")}
-        />
+              <Button
+                primary={!(caution && acknowledged)}
+                dangerSecondary={caution && acknowledged}
+                disabled={disabled || (caution && !acknowledged)}
+                loading={!danger && isSimulating && !!route && !isInsufficientBalance}
+                width="100%"
+                onPress={() => {
+                  swap();
+                }}
+              >
+                <Button.Text>{buttonLabel}</Button.Text>
+                <Button.Icon>{danger ? <TriangleAlert /> : <Repeat />}</Button.Icon>
+              </Button>
+            </YStack>
+            <TokenSelectModal
+              withBalanceOnly={tokenSelectionType === "from"}
+              open={tokenModalOpen}
+              tokens={tokens ?? []}
+              selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
+              onSelect={handleTokenSelect}
+              onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
+              isLoading={isTokensLoading}
+              title={tokenSelectionType === "from" ? t("Select token to pay") : t("Select token to receive")}
+            />
+          </>
+        )}
       </SafeView>
     );
   {
