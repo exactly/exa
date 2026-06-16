@@ -3,8 +3,10 @@ pragma solidity ^0.8.0;
 
 import { ForkTest } from "./Fork.t.sol";
 
+import { TimelockController } from "@openzeppelin/contracts-v4/governance/TimelockController.sol";
 import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {
   ITransparentUpgradeableProxy
@@ -304,6 +306,124 @@ contract RedeployerTest is ForkTest {
     vm.prank(account);
     UpgradeableModularAccount(payable(account)).execute(receiver, 1 ether, new bytes(4));
     assertEq(receiver.balance, 1 ether, "receiver should have ETH");
+  }
+
+  function test_deployEXA_migratesProxyAdmin_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+
+    ProxyAdmin adminV5 = redeployer.proxyAdmin();
+    address adminV4 = protocol("ProxyAdmin");
+    address timelock = protocol("TimelockController");
+
+    redeployer.deployEXA(exa);
+
+    assertEq(address(uint160(uint256(vm.load(exa, ERC1967Utils.ADMIN_SLOT)))), adminV4, "admin slot != v4 ProxyAdmin");
+    assertEq(
+      address(uint160(uint256(vm.load(exa, ERC1967Utils.IMPLEMENTATION_SLOT)))),
+      address(redeployer.exa()),
+      "implementation slot != EXA"
+    );
+    assertEq(Ownable(adminV4).owner(), timelock, "v4 ProxyAdmin owner != timelock");
+    assertTrue(adminV4 != address(adminV5), "v4 admin == v5 admin");
+
+    assertEq(EXA(exa).name(), "exactly", "token name broken after migration");
+    assertEq(EXA(exa).symbol(), "EXA", "token symbol broken after migration");
+  }
+
+  function test_deployEXA_revokesOldProxyAdmin_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+
+    ProxyAdmin adminV5 = redeployer.proxyAdmin();
+    redeployer.deployEXA(exa);
+
+    EXA newImpl = new EXA();
+    vm.prank(acct("admin"));
+    vm.expectRevert();
+    adminV5.upgradeAndCall(ITransparentUpgradeableProxy(exa), address(newImpl), "");
+  }
+
+  function test_deployEXA_allowsProxyAdminV4Upgrade_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+    redeployer.deployEXA(exa);
+
+    ProxyAdmin adminV4 = ProxyAdmin(protocol("ProxyAdmin"));
+    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
+    address multisig = acct("exactly");
+
+    assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), multisig), "multisig not proposer");
+    assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), multisig), "multisig not executor");
+
+    EXA newImpl = new EXA();
+    bytes memory call = abi.encodeCall(
+      ProxyAdmin.upgradeAndCall,
+      (ITransparentUpgradeableProxy(exa), address(newImpl), abi.encodeCall(EXA(exa).symbol, ()))
+    );
+    uint256 delay = timelock.getMinDelay();
+
+    vm.startPrank(multisig);
+    timelock.schedule(address(adminV4), 0, call, bytes32(0), bytes32(0), delay);
+    vm.warp(block.timestamp + delay);
+    timelock.execute(address(adminV4), 0, call, bytes32(0), bytes32(0));
+    vm.stopPrank();
+
+    assertEq(
+      address(uint160(uint256(vm.load(exa, ERC1967Utils.IMPLEMENTATION_SLOT)))),
+      address(newImpl),
+      "implementation not upgraded by timelock"
+    );
+  }
+
+  function test_deployEXA_preservesERC20_onBase() external {
+    vm.createSelectFork("base", 47_400_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+
+    address exa = protocol("EXA", true, 10);
+    redeployer.deployEXA(exa);
+
+    EXA token = EXA(exa);
+    address bridge = makeAddr("bridge");
+    address user = makeAddr("user");
+    address recipient = makeAddr("recipient");
+
+    vm.prank(protocol("TimelockController"));
+    token.grantRole(keccak256("BRIDGE_ROLE"), bridge);
+
+    uint256 initialSupply = token.totalSupply();
+    uint256 mintAmount = 1000e18;
+    uint256 transferAmount = 400e18;
+
+    vm.prank(bridge);
+    token.mint(user, mintAmount);
+    assertEq(token.balanceOf(user), mintAmount, "user balance after mint");
+    assertEq(token.totalSupply(), initialSupply + mintAmount, "total supply after mint");
+
+    vm.prank(user);
+    token.transfer(recipient, transferAmount);
+    assertEq(token.balanceOf(user), mintAmount - transferAmount, "user balance after transfer");
+    assertEq(token.balanceOf(recipient), transferAmount, "recipient balance after transfer");
+
+    vm.prank(recipient);
+    token.transfer(user, 100e18);
+    assertEq(token.balanceOf(user), mintAmount - transferAmount + 100e18, "user balance after return transfer");
+    assertEq(token.balanceOf(recipient), transferAmount - 100e18, "recipient balance after return transfer");
+    assertEq(token.totalSupply(), initialSupply + mintAmount, "total supply unchanged");
   }
 
   // solhint-enable func-name-mixedcase

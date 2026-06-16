@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
+import { IERC1967 } from "@openzeppelin/contracts-v4/interfaces/IERC1967.sol";
 import {
   TransparentUpgradeableProxy
 } from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { StorageSlot } from "@openzeppelin/contracts-v4/utils/StorageSlot.sol";
 import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ProxyAdmin } from "openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {
@@ -190,16 +192,31 @@ contract Redeployer is BaseScript {
   function deployEXA(address proxy) external {
     address admin = acct("admin");
     vm.startBroadcast(admin);
+
     exa = EXA(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("EXA"))));
     if (address(exa).code.length == 0) {
       exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
     }
+
+    address proxyTransferer = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyTransferer")));
+    if (proxyTransferer.code.length == 0) {
+      proxyTransferer = CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("ProxyTransferer")), vm.getCode("Redeployer.s.sol:ProxyTransferer")
+      );
+    }
+
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(proxy),
       address(exa),
       abi.encodeCall(EXA.initialize2, (protocol("TimelockController")))
     );
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(proxy),
+      proxyTransferer,
+      abi.encodeCall(ProxyTransferer.transferAndUpgrade, (protocol("ProxyAdmin"), address(exa)))
+    );
+
     vm.stopBroadcast();
   }
 
@@ -304,6 +321,24 @@ error NonceNotFound();
 error NotPrepared();
 error ProxyAdminNotDeployed();
 error TargetNonceTooLow();
+
+contract ProxyTransferer is IERC1967 {
+  error NotProxyAdmin();
+  error InvalidAdmin(address admin);
+  error InvalidImplementation(address implementation);
+
+  function transferAndUpgrade(address admin, address implementation) external {
+    if (msg.sender != StorageSlot.getAddressSlot(ERC1967Utils.ADMIN_SLOT).value) revert NotProxyAdmin();
+    if (implementation.code.length == 0) revert InvalidImplementation(implementation);
+    if (admin.code.length == 0) revert InvalidAdmin(admin);
+
+    emit AdminChanged(StorageSlot.getAddressSlot(ERC1967Utils.ADMIN_SLOT).value, admin);
+    StorageSlot.getAddressSlot(ERC1967Utils.ADMIN_SLOT).value = admin;
+
+    StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT).value = implementation;
+    emit Upgraded(implementation);
+  }
+}
 
 contract Dummy { } // solhint-disable-line no-empty-blocks
 
