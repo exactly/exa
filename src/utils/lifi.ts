@@ -82,14 +82,8 @@ export function balancesOptions(account: Address | undefined) {
       if (!account) return {} as Record<number, TokenAmount[]>;
       ensureConfig();
       const [amounts, lifiTokens, exa] = await Promise.all([
-        getWalletBalances(account).catch((error: unknown) => {
-          reportError(error);
-          return {} as Record<number, Holding[]>;
-        }),
-        queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
-          reportError(error);
-          return [] as Token[];
-        }),
+        getWalletBalances(account),
+        queryClient.fetchQuery(lifiTokensOptions),
         exaAddress
           ? getToken(chain.id, exaAddress).catch((error: unknown) => {
               reportError(error);
@@ -483,6 +477,7 @@ async function getWalletBalances(account: Address) {
         } while (pageKey);
         if (held.length > 0) balances[id] = held;
       } catch (error) {
+        if (id === chain.id) throw error;
         const key = String(error);
         const failure = failures.get(key) ?? { ids: [], error };
         failure.ids.push(id);
@@ -490,9 +485,7 @@ async function getWalletBalances(account: Address) {
       }
     }),
   );
-  for (const [key, { ids, error }] of failures) {
-    reportError(new Error(`balances failed for chains ${ids.join(", ")}: ${key}`, { cause: error }));
-  }
+  for (const { error, ids } of failures.values()) reportError(error, { extra: { chains: ids } });
   return balances;
 }
 
