@@ -136,6 +136,13 @@ queryClient.setQueryDefaults(["settings", "installments-spotlight"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "installments-spotlight"]),
 });
+queryClient.setQueryDefaults<boolean>(["settings", "card-support-contacted"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
 queryClient.setQueryDefaults<boolean>(["settings", "promo-seen"], {
   initialData: false,
   retry: false,

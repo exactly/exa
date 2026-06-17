@@ -20,6 +20,7 @@ import CardFreezeSheet from "./CardFreezeSheet";
 import CardPIN from "./CardPIN";
 import ExaCard from "./exa-card/ExaCard";
 import SpendingLimits from "./SpendingLimits";
+import TimeoutSheet from "./TimeoutSheet";
 import VerificationFailure from "./VerificationFailure";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
@@ -62,6 +63,7 @@ export default function Card() {
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
+  const [signal, setSignal] = useState(0);
 
   const { data: cardDetailsOpen } = useQuery<boolean>({ queryKey: ["card-details-open"] });
   const [spendingLimitsOpen, setSpendingLimitsOpen] = useState(false);
@@ -216,9 +218,14 @@ export default function Card() {
     },
   });
 
-  const { mutateAsync: generateCard, isPending: isGeneratingCard } = useMutation({
+  const {
+    mutateAsync: generateCard,
+    isPending: isGeneratingCard,
+    failureCount: generateCardFailures,
+    submittedAt: generateSubmittedAt,
+  } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (_, error) => error instanceof APIError,
+    retry: (_, error) => error instanceof APIError && !error.text.includes("already created"),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!credential) return;
@@ -230,6 +237,7 @@ export default function Card() {
         duration: 1000,
         burntOptions: { haptic: "success" },
       });
+      queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
       const { data: card } = await refetchCard();
       if (card) queryClient.setQueryData(["card-details-open"], true);
     },
@@ -243,7 +251,8 @@ export default function Card() {
         });
         return;
       }
-      if (error.text.includes("card already exists")) {
+      if (error.text.includes("already created")) {
+        queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-details-open"], true);
         return;
@@ -309,7 +318,17 @@ export default function Card() {
                   revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
                   frozen={displayStatus === "FROZEN"}
                   onPress={() => {
-                    if (isRevealing || isGeneratingCard || beginKYC.isPending) return;
+                    if (isRevealing || beginKYC.isPending) return;
+                    if (isGeneratingCard) {
+                      refetchCard()
+                        .then(({ data, error }) => {
+                          if (error) reportError(error);
+                          else if (data) queryClient.setQueryData(["card-details-open"], true);
+                          else setSignal((previous) => previous + 1);
+                        })
+                        .catch(reportError);
+                      return;
+                    }
                     revealCard().catch(reportError);
                   }}
                 />
@@ -534,6 +553,12 @@ export default function Card() {
             setFreezeConfirmOpen(false);
             changeCardStatus("FROZEN");
           }}
+        />
+        <TimeoutSheet
+          failureCount={generateCardFailures}
+          signal={signal}
+          pending={isGeneratingCard}
+          submittedAt={generateSubmittedAt}
         />
       </View>
     </SafeView>

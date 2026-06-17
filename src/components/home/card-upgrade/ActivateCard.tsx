@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -16,6 +16,7 @@ import openBrowser from "../../../utils/openBrowser";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
 import { APIError, createCard } from "../../../utils/server";
+import TimeoutSheet from "../../card/TimeoutSheet";
 import Spinner from "../../shared/Spinner";
 import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
@@ -26,8 +27,14 @@ export default function ActivateCard() {
   const { data: step } = useQuery<number | undefined>({ queryKey: ["card-upgrade"] });
   const router = useRouter();
   const { t } = useTranslation();
-  const { mutateAsync: activateCard, isPending: isActivating } = useMutation({
-    retry: (_, error) => error instanceof APIError,
+  const [signal, setSignal] = useState(0);
+  const {
+    mutateAsync: activateCard,
+    isPending: isActivating,
+    failureCount: activateFailures,
+    submittedAt: activateSubmittedAt,
+  } = useMutation({
+    retry: (_, error) => error instanceof APIError && !error.text.includes("already created"),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: createCard,
     onSuccess: async () => {
@@ -36,6 +43,7 @@ export default function ActivateCard() {
         duration: 1000,
         burntOptions: { haptic: "success" },
       });
+      queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
       await queryClient.refetchQueries({ queryKey: ["card", "details"] });
       await queryClient.setQueryData(["card-upgrade-open"], false);
       await queryClient.resetQueries({ queryKey: ["card-upgrade"] });
@@ -52,7 +60,8 @@ export default function ActivateCard() {
         });
         return;
       }
-      if (error.text.includes("card already exists")) {
+      if (error.text.includes("already created")) {
+        queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-upgrade-open"], false);
         await queryClient.resetQueries({ queryKey: ["card-upgrade"] });
@@ -71,7 +80,13 @@ export default function ActivateCard() {
   return (
     <View fullScreen flex={1} gap="$s6" paddingHorizontal="$s5" paddingTop="$s5">
       {isActivating ? (
-        <YStack gap="$s6" justifyContent="center" alignItems="center">
+        <YStack
+          gap="$s6"
+          justifyContent="center"
+          alignItems="center"
+          cursor="pointer"
+          onPress={() => setSignal((previous) => previous + 1)}
+        >
           <Spinner color="$uiNeutralPrimary" backgroundColor="$backgroundMild" containerSize={52} size={32} />
           <YStack gap="$s2" justifyContent="center" alignItems="center">
             <Text emphasized title3 color="$uiNeutralSecondary">
@@ -152,6 +167,12 @@ export default function ActivateCard() {
           </Text>
         )}
       </YStack>
+      <TimeoutSheet
+        failureCount={activateFailures}
+        signal={signal}
+        pending={isActivating}
+        submittedAt={activateSubmittedAt}
+      />
     </View>
   );
 }
