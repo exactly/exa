@@ -13,13 +13,14 @@ import { testClient } from "hono/testing";
 import { parse } from "valibot";
 import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import app from "../../api/card";
@@ -942,6 +943,127 @@ describe("authenticated", () => {
       lastFour: "1224",
       cardId: "123e4567-e89b-12d3-a456-426655440001",
       productId: SIGNATURE_PRODUCT_ID,
+    });
+  });
+
+  describe("product selection by chain", () => {
+    const defaultChainId = chain.id;
+
+    beforeAll(async () => {
+      await database.insert(credentials).values([
+        {
+          id: "base-default",
+          publicKey: new Uint8Array(),
+          account: padHex("0xba51", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "base-default-panda",
+          source: "some-other-source",
+        },
+        {
+          id: "base-signature",
+          publicKey: new Uint8Array(),
+          account: padHex("0xba52", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "base-signature-panda",
+          source: "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG",
+        },
+        {
+          id: "optimism-credential",
+          publicKey: new Uint8Array(),
+          account: padHex("0x0b71", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+          pandaId: "optimism-panda",
+          source: null,
+        },
+      ]);
+    });
+
+    afterEach(() => {
+      chain.id = defaultChainId;
+    });
+
+    it("issues a base product card on base", async () => {
+      chain.id = base.id;
+      vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: "base-default-panda",
+        applicationStatus: "approved",
+      });
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: "543c1771-beae-4f26-b662-44ea48b40ba1", last4: "4081" });
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": "base-default" } });
+
+      expect(response.status).toBe(200);
+      expect(createCard).toHaveBeenCalledWith("base-default-panda", BASE_PRODUCT_ID, undefined);
+      await expect(response.json()).resolves.toStrictEqual({
+        status: "ACTIVE",
+        lastFour: "4081",
+        cardId: "543c1771-beae-4f26-b662-44ea48b40ba1",
+        productId: BASE_PRODUCT_ID,
+      });
+      const created = await database.query.cards.findFirst({
+        columns: { productId: true },
+        where: eq(cards.credentialId, "base-default"),
+      });
+      expect(created?.productId).toBe(BASE_PRODUCT_ID);
+    });
+
+    it("issues a signature product card on base for the override source", async () => {
+      chain.id = base.id;
+      vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: "base-signature-panda",
+        applicationStatus: "approved",
+      });
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: "543c1771-beae-4f26-b662-44ea48b40ba2", last4: "4242" });
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": "base-signature" } });
+
+      expect(response.status).toBe(200);
+      expect(createCard).toHaveBeenCalledWith("base-signature-panda", SIGNATURE_PRODUCT_ID, undefined);
+      await expect(response.json()).resolves.toStrictEqual({
+        status: "ACTIVE",
+        lastFour: "4242",
+        cardId: "543c1771-beae-4f26-b662-44ea48b40ba2",
+        productId: SIGNATURE_PRODUCT_ID,
+      });
+      const created = await database.query.cards.findFirst({
+        columns: { productId: true },
+        where: eq(cards.credentialId, "base-signature"),
+      });
+      expect(created?.productId).toBe(SIGNATURE_PRODUCT_ID);
+    });
+
+    it("issues a signature product card on optimism", async () => {
+      chain.id = optimism.id;
+      vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: "optimism-panda",
+        applicationStatus: "approved",
+      });
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: "543c1771-beae-4f26-b662-44ea48b40fa1", last4: "1010" });
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": "optimism-credential" } });
+
+      expect(response.status).toBe(200);
+      expect(createCard).toHaveBeenCalledWith("optimism-panda", SIGNATURE_PRODUCT_ID, undefined);
+      await expect(response.json()).resolves.toStrictEqual({
+        status: "ACTIVE",
+        lastFour: "1010",
+        cardId: "543c1771-beae-4f26-b662-44ea48b40fa1",
+        productId: SIGNATURE_PRODUCT_ID,
+      });
+      const created = await database.query.cards.findFirst({
+        columns: { productId: true },
+        where: eq(cards.credentialId, "optimism-credential"),
+      });
+      expect(created?.productId).toBe(SIGNATURE_PRODUCT_ID);
     });
   });
 

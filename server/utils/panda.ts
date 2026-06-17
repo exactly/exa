@@ -43,7 +43,7 @@ import chain, {
   previewerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
@@ -66,7 +66,7 @@ export default key;
 
 export async function createCard(
   userId: string,
-  productId: typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
+  productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
   amount = 1_000_000,
 ) {
   return await request(
@@ -85,6 +85,7 @@ export async function createCard(
             : {
                 [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
                 [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
               }[productId],
       },
     }),
@@ -292,7 +293,10 @@ const CreateCardRequest = object({
       "allTime",
     ]),
   }),
-  configuration: object({ productId: picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]), virtualCardArt: string() }),
+  configuration: object({
+    productId: picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    virtualCardArt: string(),
+  }),
 });
 
 const CardResponse = object({

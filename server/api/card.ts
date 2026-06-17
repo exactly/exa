@@ -29,12 +29,13 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
@@ -95,8 +96,8 @@ const CardResponse = object({
     ]),
   }),
   productId: pipe(
-    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
   ),
   challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
   provisioning: optional(
@@ -112,8 +113,8 @@ const CreatedCardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   productId: pipe(
-    picklist([PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
   ),
 });
 
@@ -494,6 +495,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             if (kyc.applicationStatus !== "approved") {
               return c.json({ code: "kyc not approved" }, 403);
             }
+            const productId =
+              chain.id === base.id
+                ? credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG"
+                  ? SIGNATURE_PRODUCT_ID
+                  : BASE_PRODUCT_ID
+                : SIGNATURE_PRODUCT_ID;
             const card = await getCards(pandaId)
               .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
               .then(async (orphan) => {
@@ -511,7 +518,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                 } else {
                   return createCard(
                     pandaId,
-                    SIGNATURE_PRODUCT_ID,
+                    productId,
                     await getAccount(credentialId, "cardLimit")
                       .then((persona) =>
                         persona?.attributes.fields.card_limit_usd?.value == null
@@ -534,13 +541,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
             } catch (error) {
               captureException(error);
             }
-            await database
-              .insert(cards)
-              .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId: SIGNATURE_PRODUCT_ID }]);
+            await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId }]);
             track({
               event: "CardIssued",
               userId: account,
-              properties: { productId: SIGNATURE_PRODUCT_ID, source: credential.source },
+              properties: { productId, source: credential.source },
             });
 
             if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account);
@@ -574,7 +579,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                 lastFour: card.last4,
                 status: "ACTIVE",
                 cardId: card.id,
-                productId: SIGNATURE_PRODUCT_ID,
+                productId,
               } satisfies InferOutput<typeof CreatedCardResponse>,
               200,
             );
