@@ -7,14 +7,11 @@ import { useRouter } from "expo-router";
 import { Key, X } from "@tamagui/lucide-icons";
 import { XStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-
 import PasskeysBlob from "../../assets/images/passkeys-blob.svg";
 import PasskeysImage from "../../assets/images/passkeys.svg";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
-import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -25,8 +22,6 @@ import View from "../shared/View";
 export default function Passkeys() {
   const router = useRouter();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
-  const [connectModalOpen, setConnectModalOpen] = useState(false);
-  const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
   const { t } = useTranslation();
 
   const { signIn, isPending: loading } = useAuth(() => {
@@ -146,20 +141,6 @@ export default function Passkeys() {
           setErrorDialogOpen(false);
         }}
       />
-      {isOwnerAvailable ? (
-        <ConnectSheet
-          open={connectModalOpen}
-          onClose={(method) => {
-            setConnectModalOpen(false);
-            if (!method) return;
-            signIn({ method });
-          }}
-          title={t("Create account")}
-          description={t("Choose your preferred authentication method")}
-          webAuthnText={t("Sign up with Passkey")}
-          siweText={t("Sign up with browser wallet")}
-        />
-      ) : null}
     </SafeView>
   );
 }
