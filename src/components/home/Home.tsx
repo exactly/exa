@@ -34,6 +34,7 @@ import PromoSheet from "./PromoSheet";
 import SpendingLimitSheet from "./SpendingLimitSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
+import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -197,6 +198,7 @@ export default function Home() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
       account ? refetchBytecode() : undefined,
       account && bytecode ? refetchPendingProposals() : undefined,

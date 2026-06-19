@@ -79,7 +79,7 @@ export default function ExternalAssets() {
       for (const [index, chainId] of crossChainIds.entries()) {
         const result = results[index];
         if (!result) continue;
-        if (typeof result.data === "boolean") deployed.set(chainId, result.data);
+        if (result.isSuccess && typeof result.data === "boolean") deployed.set(chainId, result.data);
         else if (result.isLoading || result.isFetching) pending.add(chainId);
       }
       return { deployedChains: deployed, pendingChains: pending };

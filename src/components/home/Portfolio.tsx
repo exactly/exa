@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import AssetList from "./AssetList";
 import ExternalAssets from "./ExternalAssets";
+import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { balancesOptions } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -74,7 +75,9 @@ export default function Portfolio() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            onRefresh={() => (address ? Promise.all([refetchMarkets(), refetchBalances()]) : Promise.resolve())}
+            onRefresh={() =>
+              address ? Promise.all([refetchMarkets(), refetchBalances(), revalidateUnsupported()]) : Promise.resolve()
+            }
           />
         }
       >

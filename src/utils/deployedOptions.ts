@@ -1,6 +1,7 @@
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import { getBytecode } from "@wagmi/core/actions";
 
+import queryClient from "./queryClient";
 import exaConfig from "./wagmi/exa";
 
 import type { Address } from "viem";
@@ -15,4 +16,8 @@ export default function deployedOptions(address: Address | undefined, chainId: n
     staleTime: (query) => (query.state.data ? Infinity : 0),
     gcTime: Infinity,
   });
+}
+
+export function revalidateUnsupported() {
+  return queryClient.invalidateQueries({ queryKey: ["deployed"], predicate: (query) => query.state.data === false });
 }
