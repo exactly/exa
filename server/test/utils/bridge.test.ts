@@ -1910,13 +1910,28 @@ describe("bridge utils", () => {
     });
 
     it("creates virtual account when none exists", async () => {
-      vi.spyOn(globalThis, "fetch")
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
         .mockResolvedValueOnce(fetchResponse(usdVirtualAccount(account)));
 
       const result = await bridge.getDepositDetails("USD", account, activeCustomerWithBaseEndorsement);
 
       expect(result).toHaveLength(2);
+      const createCall = fetchSpy.mock.calls[1];
+      expect(createCall?.[0]).toContain("/virtual_accounts");
+      expect(JSON.parse(createCall?.[1]?.body as string)).toStrictEqual({
+        source: { currency: "usd" },
+        developer_fee_percentage: "0.0",
+        destination: { currency: "usdc", payment_rail: "optimism", address: account },
+        travel_rule_data: {
+          beneficiary: {
+            is_self: true,
+            wallet_type: "self_custodied", // cspell:ignore custodied
+            wallet_attested_ownership_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) as unknown,
+          },
+        },
+      });
     });
 
     it("returns EUR deposit details with SEPA info", async () => {

@@ -854,6 +854,13 @@ export async function getDepositDetails(
     source: { currency: CurrencyToBridge[currency] },
     developer_fee_percentage: "0.0",
     destination: { currency: "usdc", payment_rail: supportedChainId, address: account },
+    travel_rule_data: {
+      beneficiary: {
+        is_self: true,
+        wallet_type: "self_custodied", // cspell:ignore custodied
+        wallet_attested_ownership_at: new Date().toISOString(),
+      },
+    },
   });
 
   return getDepositDetailsFromVirtualAccount(virtualAccount, account);
@@ -1391,6 +1398,13 @@ const CreateVirtualAccount = object({
     currency: picklist(["usdc"]),
     payment_rail: picklist(BridgeChain),
     address: Address,
+  }),
+  travel_rule_data: object({
+    beneficiary: object({
+      is_self: boolean(),
+      wallet_type: picklist(["external", "hosted", "self_custodied"]), // cspell:ignore custodied
+      wallet_attested_ownership_at: string(),
+    }),
   }),
 });
 
