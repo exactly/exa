@@ -15,7 +15,7 @@
     "@exactly/common": "workspace:^0.0.14",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
-    "esbuild": "^0.27.4",
+    "esbuild": "^0.28.1",
     "eslint": "catalog:",
     "fast-text-encoding": "^1.0.6",
     "typescript": "catalog:",

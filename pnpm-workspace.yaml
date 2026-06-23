@@ -12,7 +12,7 @@ catalog:
   "@tamagui/lucide-icons": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.1
-  hono: ^4.12.23
+  hono: ^4.12.26
   i18next: ^26.0.5
   ioredis: ^5.10.1
   ox: ^0.14.7
