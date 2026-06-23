@@ -12,11 +12,13 @@ import { useTheme, View } from "tamagui";
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
 import AiraloLogo from "../../assets/images/airalo.svg";
-import airaloImage from "../../assets/images/airalo.webp";
-import exaLogo from "../../assets/images/exa-logo.svg";
+import AiraloImage from "../../assets/images/airalo.webp";
+import ExaLogo from "../../assets/images/exa-logo.svg";
 import ExaPromoSvg from "../../assets/images/exa-promo.svg";
+import PaxLogo from "../../assets/images/pax.svg";
+import PaxImage from "../../assets/images/pax.webp";
 import VisaLogo from "../../assets/images/visa.svg";
-import visaImage from "../../assets/images/visa.webp";
+import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
 
 function ExaBackground() {
@@ -49,7 +51,7 @@ const BENEFITS = [
     id: "exa",
     partner: "Exa Card",
     title: "Pay Later in 3 at 0% interest",
-    logo: exaLogo,
+    logo: ExaLogo,
     Background: ExaBackground,
     linkText: "Choose installments",
   },
@@ -63,9 +65,22 @@ const BENEFITS = [
       "Available in 200+ countries and regions.",
     ],
     logo: AiraloLogo,
-    Background: () => <RasterBackground source={airaloImage} />,
+    Background: () => <RasterBackground source={AiraloImage} />,
     url: "https://airalo.pxf.io/c/6807698/3734384/15608?p.code=exaapp",
     termsURL: "https://www.airalo.com/more-info/terms-conditions",
+  },
+  {
+    id: "pax",
+    partner: "Pax Assistance",
+    title: "Discounts on travel insurance",
+    longTitle: "Exclusive discounts on travel insurance",
+    descriptions: [
+      "Stay safe around the world. Pay with the Exa Card to get exclusive discounts on Pax Assistance's insurance plans.",
+    ],
+    logo: PaxLogo,
+    Background: () => <RasterBackground source={PaxImage} />,
+    buttonText: "Go to Pax Assistance",
+    url: "https://www.paxassistance.com/exacard",
   },
   {
     id: "visa",
@@ -78,7 +93,7 @@ const BENEFITS = [
       "Learn more about all Visa Signature benefits.",
     ],
     logo: VisaLogo,
-    Background: () => <RasterBackground source={visaImage} />,
+    Background: () => <RasterBackground source={VisaImage} />,
     linkText: "Learn more",
     buttonText: "Go to Visa",
     url: "https://help.exactly.app/{language}/articles/11172343-visa-signature-benefits-with-your-exa-card",
