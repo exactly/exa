@@ -17,14 +17,14 @@ import { useQuery } from "@tanstack/react-query";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import calendarBlob from "../../assets/images/calendar-blob.svg";
-import calendar from "../../assets/images/calendar.svg";
-import earningsBlob from "../../assets/images/earnings-blob.svg";
-import earnings from "../../assets/images/earnings.svg";
-import exaCardBlob from "../../assets/images/exa-card-blob.svg";
-import exaCard from "../../assets/images/exa-card.svg";
-import qrCodeBlob from "../../assets/images/qr-code-blob.svg";
-import qrCode from "../../assets/images/qr-code.svg";
+import CalendarBlob from "../../assets/images/calendar-blob.svg";
+import Calendar from "../../assets/images/calendar.svg";
+import EarningsBlob from "../../assets/images/earnings-blob.svg";
+import Earnings from "../../assets/images/earnings.svg";
+import ExaCardBlob from "../../assets/images/exa-card-blob.svg";
+import ExaCard from "../../assets/images/exa-card.svg";
+import QrCodeBlob from "../../assets/images/qr-code-blob.svg";
+import QrCode from "../../assets/images/qr-code.svg";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAuth from "../../utils/useAuth";
@@ -274,24 +274,24 @@ export type Page = {
 
 const pages: [Page, ...Page[]] = [
   {
-    backgroundImage: exaCardBlob,
-    image: exaCard,
+    backgroundImage: ExaCardBlob,
+    image: ExaCard,
     title: "Introducing the first onchain card",
   },
   {
-    backgroundImage: calendarBlob,
-    image: calendar,
+    backgroundImage: CalendarBlob,
+    image: Calendar,
     title: "Pay later in installments and hold your crypto",
   },
   {
-    backgroundImage: earningsBlob,
-    image: earnings,
+    backgroundImage: EarningsBlob,
+    image: Earnings,
     title: "Maximize earnings, effortlessly",
   },
   {
-    backgroundImage: qrCodeBlob,
+    backgroundImage: QrCodeBlob,
     disabled: true,
-    image: qrCode,
+    image: QrCode,
     title: "In-store QR payments, with crypto",
   },
 ];
