@@ -1,6 +1,6 @@
 {
   "name": "@exactly/docs",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "scripts": {
     "prepare": "nx generate:astro docs",
@@ -18,8 +18,8 @@
   "devDependencies": {
     "@astrojs/starlight": "^0.40.0",
     "@eslint/markdown": "^8.0.0",
-    "@exactly/common": "workspace:^0.0.14",
-    "@exactly/server": "workspace:^0.2.93",
+    "@exactly/common": "workspace:^0.0.15",
+    "@exactly/server": "workspace:^0.2.99",
     "astro": "^7.0.0",
     "astro-mermaid": "^2.0.1",
     "eslint": "catalog:",

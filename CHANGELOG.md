@@ -1,5 +1,29 @@
 # @exactly/mobile
 
+## 1.2.13
+
+### Patch Changes
+
+- [#1110](https://github.com/exactly/exa/pull/1110) [`acf127d`](https://github.com/exactly/exa/commit/acf127d17edc06b0f717e6f09a7e40c04bd7cec2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ update pax assistance benefit
+
+- [#1100](https://github.com/exactly/exa/pull/1100) [`40ce8c2`](https://github.com/exactly/exa/commit/40ce8c2b0dfcef18c7bfcf2d0094bda76b894b6e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix installment apr calculation
+
+- [#1105](https://github.com/exactly/exa/pull/1105) [`6cca2bd`](https://github.com/exactly/exa/commit/6cca2bd10743a0b52d4713f53dd6da6fcba98ee7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 improve card creation timeout ux
+
+- [#1081](https://github.com/exactly/exa/pull/1081) [`c587e63`](https://github.com/exactly/exa/commit/c587e634bacde4165c39663fdf63ef5cf3b53a9f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement transaction attribution
+
+- [#1100](https://github.com/exactly/exa/pull/1100) [`892ff79`](https://github.com/exactly/exa/commit/892ff79057c71682f175b5cc64c9b1788b3699e2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix refresh control layout shift on background fetch
+
+- [#1100](https://github.com/exactly/exa/pull/1100) [`ce1f000`](https://github.com/exactly/exa/commit/ce1f000e7e64e725112111b7946b217f0f697054) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 prefer styled button
+
+- [#1100](https://github.com/exactly/exa/pull/1100) [`42a3df9`](https://github.com/exactly/exa/commit/42a3df9545566548bffe541fc711484ba5974b08) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 revalidate unsupported chains on refresh
+
+- [#1100](https://github.com/exactly/exa/pull/1100) [`78bab66`](https://github.com/exactly/exa/commit/78bab662141d2212d5e5674e58b6e9441049beb5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 fix svg positions
+
+- Updated dependencies [[`e7831f6`](https://github.com/exactly/exa/commit/e7831f612e948fe4fa20e83c599d628935f15e8c), [`c9160e0`](https://github.com/exactly/exa/commit/c9160e06bf41344495bfec5ae825c84a79cd5296), [`695e5d2`](https://github.com/exactly/exa/commit/695e5d2da6169cb0a54f077dd2f9f17a9c9c3d50), [`8cfb810`](https://github.com/exactly/exa/commit/8cfb810055be81452257de846a1f21971b238d51), [`7242bf2`](https://github.com/exactly/exa/commit/7242bf2d0e86fc13c8aad7d70ca5d0ca92a1829b), [`fb9eac1`](https://github.com/exactly/exa/commit/fb9eac1a35ed30827ed6df292311365bd9dbacc5), [`90ea59c`](https://github.com/exactly/exa/commit/90ea59c41f6ed233c7a2b8933d798fc53b4e0574), [`23ba566`](https://github.com/exactly/exa/commit/23ba566d6ac3e099606ac4541ae62e37e011599c), [`149d39f`](https://github.com/exactly/exa/commit/149d39f1d45c4efd174f8f5e74ed6ae566762ce9), [`845f2b8`](https://github.com/exactly/exa/commit/845f2b8e72e102f7eb5dcb0252e7e995fcbd1b17), [`3bcb742`](https://github.com/exactly/exa/commit/3bcb742a19607b085595d64e2f100316f66f9a18), [`9862876`](https://github.com/exactly/exa/commit/9862876eefb7ba554963bf707a649cf075486f60), [`bd438df`](https://github.com/exactly/exa/commit/bd438dfdaba3b15aa17a7fd9b29afff7d23323e2)]:
+  - @exactly/server@0.2.99
+  - @exactly/common@0.0.15
+
 ## 1.2.12
 
 ### Patch Changes

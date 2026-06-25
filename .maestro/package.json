@@ -12,7 +12,7 @@
     "node": "^24.14.1"
   },
   "devDependencies": {
-    "@exactly/common": "workspace:^0.0.14",
+    "@exactly/common": "workspace:^0.0.15",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
     "esbuild": "^0.28.1",
