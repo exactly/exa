@@ -74,9 +74,10 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
 const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
   init: { credentials: "include" },
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
-    if (!(await sdk.isInMiniApp())) return fetch(input, init);
-    const { client } = await sdk.context;
     const headers = new Headers(init?.headers);
+    if (Platform.OS === "ios") headers.set("Client-Platform", Platform.OS);
+    if (!(await sdk.isInMiniApp())) return fetch(input, { ...init, headers });
+    const { client } = await sdk.context;
     headers.set("Client-Fid", String(client.clientFid));
     return fetch(input, { ...init, headers });
   },
