@@ -23,6 +23,7 @@ import {
   optional,
   pipe,
   record,
+  safeParse,
   string,
   title,
   unknown,
@@ -46,6 +47,7 @@ import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
+import { walletExtension } from "../../utils/walletExtension";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -255,7 +257,15 @@ export default new Hono()
       Cookie,
       validatorHook({ code: "bad session" }),
     ),
-    vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
+    vValidator(
+      "header",
+      optional(
+        object({
+          "Client-Fid": optional(pipe(string(), maxLength(36))),
+          "Client-Platform": optional(literal("ios")),
+        }),
+      ),
+    ),
     vValidator(
       "query",
       optional(
@@ -315,6 +325,8 @@ export default new Hono()
     async (c) => {
       const attestation = c.req.valid("json");
       const factory = c.req.valid("query")?.factory ?? undefined;
+      const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
+      if (!platform.success) return c.json({ code: "bad client platform" }, 400);
       setContext("auth", attestation);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
@@ -382,6 +394,7 @@ export default new Hono()
           {
             ...result,
             intercomToken,
+            ...(platform.output === "ios" ? await walletExtension(attestation.id) : {}),
           } satisfies InferOutput<typeof Authentication>,
           200,
         );

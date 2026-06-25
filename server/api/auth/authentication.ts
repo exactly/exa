@@ -24,6 +24,7 @@ import {
   picklist,
   pipe,
   record,
+  safeParse,
   string,
   title,
   union,
@@ -51,6 +52,7 @@ import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
+import { walletExtension } from "../../utils/walletExtension";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -115,6 +117,12 @@ export const Authentication = object({
   ...Credential.entries,
   auth: pipe(number(), title("Session expiry"), description("When the authenticated session will expire.")),
   intercomToken: pipe(nullable(string()), description("Intercom Identity Verification Token")),
+  walletExtension: optional(
+    object({
+      token: pipe(string(), description("Apple Wallet Extension bearer token.")),
+      expire: pipe(number(), description("Apple Wallet Extension bearer token expiry.")),
+    }),
+  ),
 });
 
 export const LegacyAuthentication = object({
@@ -250,7 +258,15 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       Cookie,
       validatorHook({ code: "bad session" }),
     ),
-    vValidator("header", optional(object({ "Client-Fid": optional(pipe(string(), maxLength(36))) }))),
+    vValidator(
+      "header",
+      optional(
+        object({
+          "Client-Fid": optional(pipe(string(), maxLength(36))),
+          "Client-Platform": optional(literal("ios")),
+        }),
+      ),
+    ),
     vValidator(
       "query",
       optional(
@@ -315,6 +331,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     async (c) => {
       const assertion = c.req.valid("json");
       const factory = c.req.valid("query")?.factory ?? undefined;
+      const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
+      if (!platform.success) return c.json({ code: "bad client platform" }, 400);
       setContext("auth", assertion);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
       if (!sessionId) return c.json({ code: "bad session" }, 400);
@@ -349,6 +367,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               ...result,
               expires: result.auth,
               intercomToken,
+              ...(platform.output === "ios" ? await walletExtension(assertion.id) : {}),
             } satisfies InferOutput<typeof LegacyAuthentication>,
             200,
           );
@@ -419,6 +438,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           auth: expires.getTime(),
           expires: expires.getTime(),
           intercomToken,
+          ...(platform.output === "ios" ? await walletExtension(assertion.id) : {}),
         } satisfies InferOutput<typeof LegacyAuthentication>,
         200,
       );

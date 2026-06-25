@@ -10,6 +10,9 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
+import { serializeSigned } from "hono/utils/cookie";
+import { SignJWT } from "jose";
+import { createSecretKey } from "node:crypto";
 import { parse } from "valibot";
 import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
@@ -25,15 +28,21 @@ import { Address } from "@exactly/common/validation";
 
 import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
+import auth from "../../utils/auth";
+import authSecret from "../../utils/authSecret";
 import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
+import { walletExtension } from "../../utils/walletExtension";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const appClient = testClient(app);
+const { WALLET_EXTENSION_SECRET } = process.env;
+if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
+const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
 
 describe("authenticated", () => {
   beforeAll(async () => {
@@ -2227,6 +2236,377 @@ describe("authenticated", () => {
   });
 });
 
+describe("wallet extension", () => {
+  beforeAll(async () => {
+    await database.insert(credentials).values([
+      {
+        id: "wallet-extension",
+        publicKey: new Uint8Array(),
+        account: parse(Address, "0x0000000000000000000000000000000000000456"),
+        factory: parse(Address, inject("ExaAccountFactory")),
+        pandaId: "wallet-extension",
+      },
+      {
+        id: "wallet-extension-empty",
+        publicKey: new Uint8Array(),
+        account: parse(Address, "0x0000000000000000000000000000000000000457"),
+        factory: parse(Address, inject("ExaAccountFactory")),
+        pandaId: "wallet-extension-empty",
+      },
+      {
+        id: "wallet-extension-no-panda",
+        publicKey: new Uint8Array(),
+        account: parse(Address, "0x0000000000000000000000000000000000000458"),
+        factory: parse(Address, inject("ExaAccountFactory")),
+      },
+      {
+        id: "wallet-extension-frozen",
+        publicKey: new Uint8Array(),
+        account: parse(Address, "0x0000000000000000000000000000000000000460"),
+        factory: parse(Address, inject("ExaAccountFactory")),
+        pandaId: "wallet-extension-frozen",
+      },
+      {
+        id: "wallet-extension-deleted",
+        publicKey: new Uint8Array(),
+        account: parse(Address, "0x0000000000000000000000000000000000000461"),
+        factory: parse(Address, inject("ExaAccountFactory")),
+        pandaId: "wallet-extension-deleted",
+      },
+    ]);
+    await database.insert(cards).values([
+      {
+        id: "wallet-extension-card",
+        credentialId: "wallet-extension",
+        lastFour: "4567",
+      },
+      {
+        id: "wallet-extension-no-panda-card",
+        credentialId: "wallet-extension-no-panda",
+        lastFour: "4568",
+      },
+      {
+        id: "wallet-extension-frozen-card",
+        credentialId: "wallet-extension-frozen",
+        lastFour: "4570",
+        status: "FROZEN",
+      },
+      {
+        id: "wallet-extension-deleted-card",
+        credentialId: "wallet-extension-deleted",
+        lastFour: "4571",
+        status: "DELETED",
+      },
+    ]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("rejects cookie auth", async () => {
+    const response = await app.request("/provisioning", {
+      headers: { cookie: await serializeSigned("credential_id", "wallet-extension", authSecret) },
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+  });
+
+  it("rejects better auth", async () => {
+    const session = vi.spyOn(auth.api, "getSession");
+    const response = await app.request("/provisioning", {
+      headers: { cookie: "__Secure-better-auth.session_token=session" },
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+    expect(session).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing authorization", async () => {
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning");
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects bearer auth with credential cookie", async () => {
+    const response = await app.request("/provisioning", {
+      headers: {
+        authorization: await bearer(),
+        cookie: await serializeSigned("credential_id", "wallet-extension", authSecret),
+      },
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+  });
+
+  it("rejects bearer auth with sessionid", async () => {
+    const response = await app.request("/provisioning", {
+      headers: {
+        authorization: await bearer(),
+        sessionid: "session",
+      },
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+  });
+
+  it.each([
+    ["malformed", "Bearer nope"],
+    ["wrong scheme", "Basic nope"],
+    ["missing token", "Bearer"],
+  ])("rejects %s authorization", async (_, authorization) => {
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", { headers: { authorization } });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "expired", expires: Date.now() - 1000 },
+    { name: "wrong algorithm", algorithm: "HS384" },
+    { name: "wrong audience", audience: "other" },
+    { name: "wrong issuer", issuer: "other" },
+    { name: "wrong scope", payload: { scope: "other" } },
+  ])(
+    "rejects $name token",
+    async ({
+      algorithm = "HS256",
+      audience = "wallet-extension",
+      expires = Date.now() + 60_000,
+      issuer = "exa-server",
+      payload = {},
+    }) => {
+      const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+      const calls = vi.mocked(captureException).mock.calls.length;
+      const response = await app.request("/provisioning", {
+        headers: {
+          authorization: `Bearer ${await new SignJWT({
+            credentialId: "wallet-extension",
+            scope: "card:provisioning",
+            ...payload,
+          })
+            .setProtectedHeader({ alg: algorithm })
+            .setAudience(audience)
+            .setIssuer(issuer)
+            .setIssuedAt()
+            .setExpirationTime(Math.floor(expires / 1000))
+            .sign(walletExtensionKey)}`,
+        },
+      });
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+      expect(getProcessorDetails).not.toHaveBeenCalled();
+      expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+        [expect.any(Error), { level: "warning" }],
+      ]);
+    },
+  );
+
+  it("rejects bearer auth with extra authorization segments", async () => {
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", {
+      headers: { authorization: `${await bearer()} extra` },
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("returns bearer card secret", async () => {
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      expirationMonth: "1",
+      expirationYear: "2030",
+      id: "wallet-extension-card",
+      last4: "4567",
+      limit: { amount: 100, frequency: "per24HourPeriod" },
+      userId: "wallet-extension",
+    });
+    const getUser = vi.spyOn(panda, "getUser");
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-wallet-extension",
+      timeBasedSecret: "secret-wallet-extension",
+    });
+    vi.spyOn(panda, "getPIN");
+    vi.spyOn(panda, "getSecrets");
+
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer() },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({
+      id: "proc-wallet-extension",
+      secret: "secret-wallet-extension",
+    });
+    expect(getUser).not.toHaveBeenCalled();
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getPIN).not.toHaveBeenCalled();
+    expect(panda.getSecrets).not.toHaveBeenCalled();
+  });
+
+  it("returns bearer card secret when local card is frozen", async () => {
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "wallet-extension-frozen-card",
+      last4: "4570",
+      status: "locked",
+      userId: "wallet-extension-frozen",
+    });
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-wallet-extension-frozen",
+      timeBasedSecret: "secret-wallet-extension-frozen",
+    });
+    vi.spyOn(panda, "getPIN");
+    vi.spyOn(panda, "getSecrets");
+
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer("wallet-extension-frozen") },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({
+      id: "proc-wallet-extension-frozen",
+      secret: "secret-wallet-extension-frozen",
+    });
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-frozen-card");
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-frozen-card");
+    expect(panda.getPIN).not.toHaveBeenCalled();
+    expect(panda.getSecrets).not.toHaveBeenCalled();
+  });
+
+  it("returns no card when provider card is stale", async () => {
+    vi.spyOn(panda, "getCard").mockRejectedValueOnce(new ServiceError("Panda", 404, "card not found"));
+    vi.spyOn(panda, "getProcessorDetails");
+
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer() },
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [404, "no card"],
+    [403, "no panda"],
+  ])("returns %s when processor details fail with %s", async (status, code) => {
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "wallet-extension-card",
+      userId: "wallet-extension",
+    });
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(new ServiceError("Panda", status, code));
+
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer() },
+    });
+
+    expect(response.status).toBe(status);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code });
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+  });
+
+  it("rejects bearer card secret when credential is missing", async () => {
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer("missing-wallet-extension") },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects bearer card secret when card is missing", async () => {
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer("wallet-extension-empty") },
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects bearer card secret when local card is deleted", async () => {
+    const getCard = vi.spyOn(panda, "getCard");
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer("wallet-extension-deleted") },
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects bearer card secret when credential has no panda user", async () => {
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer("wallet-extension-no-panda") },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects bearer card secret when provider card belongs to another user", async () => {
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: "wallet-extension-card", userId: "other" });
+    vi.spyOn(panda, "getProcessorDetails");
+
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer() },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(panda.getProcessorDetails).not.toHaveBeenCalled();
+  });
+
+  it("rejects bearer card secret when provider card is not active", async () => {
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "wallet-extension-card",
+      status: "canceled",
+      userId: "wallet-extension",
+    });
+    vi.spyOn(panda, "getProcessorDetails");
+
+    const response = await app.request("/provisioning", {
+      headers: { authorization: await bearer() },
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(panda.getProcessorDetails).not.toHaveBeenCalled();
+  });
+});
+
 const cardTemplate = {
   expirationMonth: "9",
   expirationYear: "2029",
@@ -2268,6 +2648,11 @@ const mockERC20Abi = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+async function bearer(credentialId = "wallet-extension") {
+  const { walletExtension: extension } = await walletExtension(credentialId);
+  return `Bearer ${extension.token}`;
+}
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/node", async (importOriginal) => {

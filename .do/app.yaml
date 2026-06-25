@@ -165,6 +165,10 @@ services:
       - key: SENTRY_DSN
         scope: RUN_TIME
         value: ${{ env.SENTRY_DSN }}
+      - key: WALLET_EXTENSION_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_WALLET_EXTENSION_SECRET || env.WALLET_EXTENSION_SECRET }}
     http_port: 3000
     image:
       registry: exactly

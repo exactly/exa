@@ -31,6 +31,7 @@ process.env.REDIS_URL = "redis";
 process.env.SARDINE_API_KEY = "sardine";
 process.env.SARDINE_API_URL = "https://api.sardine.ai";
 process.env.SEGMENT_WRITE_KEY = "segment";
+process.env.WALLET_EXTENSION_SECRET = zeroHash;
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
@@ -49,6 +50,7 @@ import("../api")
               in: "cookie",
               name: "credential_id",
             },
+            extensionAuth: { type: "http", scheme: "bearer" },
             siweAuth: { type: "apiKey", in: "cookie", name: "__Secure-better-auth.session_token" },
           },
         },

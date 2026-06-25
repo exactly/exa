@@ -2,6 +2,7 @@ import { captureException, setContext, setUser, withScope } from "@sentry/node";
 import { Mutex } from "async-mutex";
 import { eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
@@ -64,6 +65,7 @@ import { customer } from "../utils/sardine";
 import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
+import { verifyToken } from "../utils/walletExtension";
 
 const mutexes = new Map<string, Mutex>();
 function createMutex(credentialId: string) {
@@ -256,7 +258,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
 }
 \`\`\`
 
-`,
+      `,
       tags: ["Card"],
       security: [{ credentialAuth: [] }],
       validateResponse: true,
@@ -396,6 +398,106 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           200,
         );
       } else return c.json({ code: "no card" }, 404);
+    },
+  )
+  .get(
+    "/provisioning",
+    describeRoute({
+      summary: "Get wallet extension card provisioning information",
+      description: `
+Retrieve push-provisioning credentials for Apple Wallet Extension callers.
+
+This endpoint only accepts Wallet Extension bearer access. It does not accept \`credential_id\` cookies, Better Auth sessions, or \`sessionid\`.
+    `,
+      tags: ["Card"],
+      security: [{ extensionAuth: [] }],
+      validateResponse: true,
+      responses: {
+        200: {
+          description: "Card provisioning information",
+          content: {
+            "application/json": {
+              schema: resolver(
+                object({
+                  id: pipe(string(), metadata({ examples: ["card_abc123"] })),
+                  secret: pipe(string(), metadata({ examples: ["otp_xyz"] })),
+                }),
+                { errorMode: "ignore" },
+              ),
+            },
+          },
+        },
+        401: {
+          description: "Unauthorized",
+          content: {
+            "application/json": {
+              schema: resolver(object({ code: literal("unauthorized") }), { errorMode: "ignore" }),
+            },
+          },
+        },
+        403: {
+          description: "Forbidden",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+          },
+        },
+        404: {
+          description: "Not found",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
+          },
+        },
+      },
+    }),
+    createMiddleware<{
+      Variables: { walletExtension: NonNullable<Awaited<ReturnType<typeof verifyToken>>> };
+    }>(async (c, next) => {
+      const authorization = c.req.header("authorization");
+      if (!authorization) return c.json({ code: "unauthorized" }, 401);
+      if (!/^Bearer \S+$/i.test(authorization)) return c.json({ code: "unauthorized" }, 401);
+      if (c.req.header("cookie") || c.req.header("sessionid")) return c.json({ code: "unauthorized" }, 401);
+      const verified = await verifyToken(authorization.slice("Bearer ".length));
+      if (!verified) return c.json({ code: "unauthorized" }, 401);
+      c.set("walletExtension", verified);
+      await next();
+    }),
+    async (c) => {
+      c.header("Cache-Control", "no-store");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, c.get("walletExtension").credentialId),
+        columns: { pandaId: true },
+        with: {
+          cards: {
+            columns: { id: true },
+            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+          },
+        },
+      });
+      if (!credential) return c.json({ code: "unauthorized" }, 401);
+      const [card] = credential.cards;
+      if (!card) return c.json({ code: "no card" }, 404);
+      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+      const provider = await getCard(card.id).catch((error: unknown) => {
+        if (error instanceof ServiceError && error.status === 404) return null;
+        throw error;
+      });
+      if (!provider) return c.json({ code: "no card" }, 404);
+      if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
+      if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
+      try {
+        const { processorCardId, timeBasedSecret } = await getProcessorDetails(card.id);
+        return c.json(
+          {
+            id: processorCardId,
+            secret: timeBasedSecret,
+          } satisfies InferOutput<typeof CardResponse>["provisioning"],
+          200,
+        );
+      } catch (error) {
+        if (error instanceof ServiceError && error.status === 404) return c.json({ code: "no card" }, 404);
+        if (error instanceof ServiceError && error.status === 403) return c.json({ code: "no panda" }, 403);
+        throw error;
+      }
     },
   )
   .post(

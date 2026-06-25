@@ -3,10 +3,11 @@ import "../expect";
 import customer from "../mocks/sardine";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { decodeJwt } from "jose";
+import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { parse, type InferOutput } from "valibot";
 import { getAddress, padHex, zeroAddress } from "viem";
@@ -16,12 +17,14 @@ import * as derive from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import app, { type Authentication } from "../../api/auth/authentication";
+import app, { Authentication } from "../../api/auth/authentication";
 import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import authSecret from "../../utils/authSecret";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validFactories from "../../utils/validFactories";
+import { verifyToken } from "../../utils/walletExtension";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
@@ -29,6 +32,15 @@ import type * as ViemSiwe from "viem/siwe";
 
 const appClient = testClient(app);
 const registrationAppClient = testClient(registrationApp);
+const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
+
+vi.mock("@sentry/node", { spy: true });
+
+function expectWalletExtensionExpire(expire: number, auth: number, start: number) {
+  expect(expire).toBeGreaterThan(auth);
+  expect(expire).toBeGreaterThan(start + WALLET_EXTENSION_EXPIRY - 1000);
+  expect(expire).toBeLessThanOrEqual(Date.now() + WALLET_EXTENSION_EXPIRY);
+}
 
 describe("authentication", () => {
   beforeAll(async () => {
@@ -69,8 +81,7 @@ describe("authentication", () => {
 
     expect(response.status).toBe(200);
 
-    const json = await response.json();
-    const authResponse = json as InferOutput<typeof Authentication>;
+    const authResponse = parse(Authentication, await response.json());
 
     assert.ok(authResponse.intercomToken);
 
@@ -82,6 +93,123 @@ describe("authentication", () => {
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
     await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("returns wallet extension token on ios login", async () => {
+    const start = Date.now();
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    const authResponse = parse(Authentication, json);
+
+    assert.ok(authResponse.walletExtension);
+    const { token } = authResponse.walletExtension;
+    const payload = decodeJwt(token);
+    const header = decodeProtectedHeader(token);
+    expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
+    await expect(verifyToken(token)).resolves.toStrictEqual({
+      credentialId: "dGVzdC1jcmVkLWlk",
+      scope: "card:provisioning",
+    });
+    await expect(
+      jwtVerify(token, new TextEncoder().encode(authSecret), {
+        audience: "wallet-extension",
+      }),
+    ).rejects.toThrow();
+    expect(payload.exp).toBe(Math.floor(authResponse.walletExtension.expire / 1000));
+    expect(payload.iss).toBe("exa-server");
+    expect(header.alg).toBe("HS256");
+  });
+
+  it("captures invalid wallet extension token verification", async () => {
+    await expect(verifyToken("invalid")).resolves.toBeNull();
+
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), { level: "warning" });
+  });
+
+  it("rejects short wallet extension secrets", async () => {
+    const secret = process.env.WALLET_EXTENSION_SECRET;
+    vi.resetModules();
+    vi.stubEnv("WALLET_EXTENSION_SECRET", "short");
+
+    await expect(import("../../utils/walletExtension")).rejects.toThrow("wallet extension secret too short for HS256");
+
+    vi.stubEnv("WALLET_EXTENSION_SECRET", secret);
+    vi.resetModules();
+  });
+
+  it("returns wallet extension token on ios siwe signup", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0x1234567890123456789012345678901234567888";
+    const start = Date.now();
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    const authResponse = parse(Authentication, json);
+
+    assert.ok(authResponse.walletExtension);
+    expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
+    await expect(verifyToken(authResponse.walletExtension.token)).resolves.toStrictEqual({
+      credentialId: id,
+      scope: "card:provisioning",
+    });
+  });
+
+  it("rejects unknown client platform login", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad client platform" });
+  });
+
+  it("omits wallet extension token without client platform", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    const authResponse = await response.json();
+
+    expect(authResponse).not.toHaveProperty("walletExtension");
   });
 
   it("returns 400 if authentication challenge is missing", async () => {
@@ -629,6 +757,56 @@ describe("registration", () => {
     });
     expect(credential?.source).toBe("12345");
     await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("returns wallet extension token on ios webauthn registration", async () => {
+    const id = "aW9zLXJlZ2lzdHJhdGlvbg"; // cspell:ignore Glvbg
+    const account = parse(Address, "0x1234567890123456789012345678901234567894");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const start = Date.now();
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    const authResponse = parse(Authentication, json);
+
+    assert.ok(authResponse.walletExtension);
+    expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
+    await expect(verifyToken(authResponse.walletExtension.token)).resolves.toStrictEqual({
+      credentialId: id,
+      scope: "card:provisioning",
+    });
+  });
+
+  it("omits wallet extension token without client platform webauthn registration", async () => {
+    const id = "bm8tcGxhdGZvcm0tcmVnaXN0cmF0aW9u"; // cspell:ignore bm8tcGxhdGZvcm0tcmVnaXN0cmF0aW9u
+    const account = parse(Address, "0x1234567890123456789012345678901234567897");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json).not.toHaveProperty("walletExtension");
+  });
+
+  it("rejects unknown client platform webauthn registration", async () => {
+    const id = "ZGVza3RvcC1yZWdpc3RyYXRpb24"; // cspell:ignore ZGVza3RvcC1yZWdpc3RyYXRpb24
+    const account = parse(Address, "0x1234567890123456789012345678901234567898");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad client platform" });
   });
 
   it("creates a credential using webauthn", async () => {
