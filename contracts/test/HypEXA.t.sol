@@ -62,7 +62,7 @@ contract HypEXATest is ForkTest {
     set("TimelockController", makeAddr("exactly"));
     set("pauser", makeAddr("pauser"));
     set("ProxyAdmin", address(polygonRedeployer.proxyAdmin())); // no protocol deployment on polygon
-    polygonRedeployer.deployEXA(address(exa));
+    polygonRedeployer.deployEXA();
     uint32[] memory polygonRemotes = new uint32[](2);
     polygonRemotes[0] = uint32(getChain("optimism").chainId);
     polygonRemotes[1] = uint32(getChain("base").chainId);
@@ -80,7 +80,7 @@ contract HypEXATest is ForkTest {
     baseRedeployer.setUp();
     if (address(baseRedeployer.proxyAdmin()).code.length == 0) baseRedeployer.prepare();
     baseRedeployer.proxyThrough(baseRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
-    baseRedeployer.deployEXA(address(exa));
+    baseRedeployer.deployEXA();
     uint32[] memory baseRemotes = new uint32[](2);
     baseRemotes[0] = uint32(getChain("optimism").chainId);
     baseRemotes[1] = uint32(getChain("polygon").chainId);

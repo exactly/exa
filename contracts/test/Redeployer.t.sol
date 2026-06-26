@@ -43,7 +43,7 @@ contract RedeployerTest is ForkTest {
 
     assertTrue(exaOP.code.length > 0, "EXA not deployed at same address");
 
-    redeployer.deployEXA(exaOP);
+    redeployer.deployEXA();
 
     EXA token = EXA(exaOP);
     assertEq(token.name(), "exactly");
@@ -52,27 +52,29 @@ contract RedeployerTest is ForkTest {
     assertEq(token.decimals(), 18, "token should have 18 decimals");
   }
 
-  function test_serialProxies_reverts_whenAttackerUpgradesProxy() external {
+  function test_deployEXA_usesProtectedEXAProxy() external {
     vm.createSelectFork("base", 41_053_217);
 
     address deployer = acct("deployer");
-    uint256 target = vm.getNonce(deployer) + 10;
     redeployer = new Redeployer();
+    address proxy = protocol("EXA", true, 10);
+    uint256 target = redeployer.findNonce(deployer, proxy, 1_000_000);
+
     redeployer.prepare();
     redeployer.proxyThrough(target);
 
-    address proxy = vm.computeCreateAddress(deployer, target - 1);
+    assertEq(vm.computeCreateAddress(deployer, target), proxy, "proxy != expected");
     assertTrue(proxy.code.length > 0, "proxy not deployed");
 
     ProxyAdmin proxyAdmin = redeployer.proxyAdmin();
-    EXA exa = new EXA();
+    EXA token = new EXA();
 
     address attacker = address(0xbad);
     vm.prank(attacker);
     vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
-    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
+    proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(token), abi.encodeCall(EXA.initialize, ()));
 
-    redeployer.deployEXA(proxy);
+    redeployer.deployEXA();
 
     assertEq(EXA(proxy).name(), "exactly");
   }
@@ -320,7 +322,7 @@ contract RedeployerTest is ForkTest {
     address adminV4 = protocol("ProxyAdmin");
     address timelock = protocol("TimelockController");
 
-    redeployer.deployEXA(exa);
+    redeployer.deployEXA();
 
     assertEq(address(uint160(uint256(vm.load(exa, ERC1967Utils.ADMIN_SLOT)))), adminV4, "admin slot != v4 ProxyAdmin");
     assertEq(
@@ -344,7 +346,7 @@ contract RedeployerTest is ForkTest {
     address exa = protocol("EXA", true, 10);
 
     ProxyAdmin adminV5 = redeployer.proxyAdmin();
-    redeployer.deployEXA(exa);
+    redeployer.deployEXA();
 
     EXA newImpl = new EXA();
     vm.prank(acct("admin"));
@@ -359,7 +361,7 @@ contract RedeployerTest is ForkTest {
     redeployer.setUp();
 
     address exa = protocol("EXA", true, 10);
-    redeployer.deployEXA(exa);
+    redeployer.deployEXA();
 
     ProxyAdmin adminV4 = ProxyAdmin(protocol("ProxyAdmin"));
     TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
@@ -395,7 +397,7 @@ contract RedeployerTest is ForkTest {
     redeployer.setUp();
 
     address exa = protocol("EXA", true, 10);
-    redeployer.deployEXA(exa);
+    redeployer.deployEXA();
 
     EXA token = EXA(exa);
     address bridge = makeAddr("bridge");

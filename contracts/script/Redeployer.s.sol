@@ -189,7 +189,8 @@ contract Redeployer is BaseScript {
   }
 
   /// @notice Deploys EXA token and upgrades the proxy to it.
-  function deployEXA(address proxy) external {
+  function deployEXA() external {
+    address proxy = protocol("EXA", true, getChain("optimism").chainId);
     address admin = acct("admin");
     vm.startBroadcast(admin);
 
