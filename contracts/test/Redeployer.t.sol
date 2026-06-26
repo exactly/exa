@@ -32,7 +32,7 @@ contract RedeployerTest is ForkTest {
 
     redeployer = new Redeployer();
 
-    address deployer = acct("deployer");
+    address deployer = acct("redeployer");
     address exaOP = protocol("EXA", true, 10);
     uint256 targetNonce = redeployer.findNonce(deployer, exaOP, 1_000_000);
     uint256 currentNonce = vm.getNonce(deployer);
@@ -55,7 +55,7 @@ contract RedeployerTest is ForkTest {
   function test_deployEXA_usesProtectedEXAProxy() external {
     vm.createSelectFork("base", 41_053_217);
 
-    address deployer = acct("deployer");
+    address deployer = acct("redeployer");
     redeployer = new Redeployer();
     address proxy = protocol("EXA", true, 10);
     uint256 target = redeployer.findNonce(deployer, proxy, 1_000_000);
@@ -125,7 +125,7 @@ contract RedeployerTest is ForkTest {
   function test_serialProxies_reverts_whenTargetNonceTooLow() external {
     vm.createSelectFork("base", 41_053_217);
 
-    vm.prank(acct("deployer"));
+    vm.prank(acct("redeployer"));
     new Redeployer();
 
     redeployer = new Redeployer();
@@ -141,7 +141,7 @@ contract RedeployerTest is ForkTest {
 
     redeployer = new Redeployer();
 
-    address deployer = acct("deployer");
+    address deployer = acct("redeployer");
     uint256 targetNonce = redeployer.findNonce(deployer, factoryOP, 1_000_000);
     uint256 currentNonce = vm.getNonce(deployer);
     assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
@@ -188,7 +188,7 @@ contract RedeployerTest is ForkTest {
 
     redeployer = new Redeployer();
 
-    address deployer = acct("deployer");
+    address deployer = acct("redeployer");
     uint256 targetNonce = redeployer.findNonce(deployer, factoryOP, 1_000_000);
     uint256 currentNonce = vm.getNonce(deployer);
     assertGt(targetNonce, currentNonce, "target nonce <= current nonce");
@@ -242,7 +242,7 @@ contract RedeployerTest is ForkTest {
     vm.createSelectFork("polygon", 82_000_000);
     redeployer = new Redeployer();
     redeployer.prepare();
-    address deployer = acct("deployer");
+    address deployer = acct("redeployer");
     uint256 nonce = vm.getNonce(deployer);
     redeployer.proxyThrough(nonce);
     address proxy = vm.computeCreateAddress(deployer, nonce);

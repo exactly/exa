@@ -64,7 +64,7 @@ contract Redeployer is BaseScript {
   /// @notice Deploys all reusable contracts via CREATE3, skipping any already deployed.
   function prepare() external {
     address admin = acct("admin");
-    if (admin == acct("deployer")) revert AdminIsDeployer();
+    if (admin == acct("redeployer")) revert AdminIsDeployer();
     vm.startBroadcast(admin);
     if (address(dummy).code.length == 0) {
       dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), vm.getCode("Redeployer.s.sol:Dummy")));
@@ -169,7 +169,7 @@ contract Redeployer is BaseScript {
     if (address(dummy).code.length == 0) revert DummyNotDeployed();
     if (address(proxyAdmin).code.length == 0) revert ProxyAdminNotDeployed();
 
-    address deployer = acct("deployer");
+    address deployer = acct("redeployer");
 
     start = vm.getNonce(deployer);
     if (targetNonce < start) revert TargetNonceTooLow();

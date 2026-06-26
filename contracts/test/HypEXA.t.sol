@@ -57,7 +57,7 @@ contract HypEXATest is ForkTest {
     Redeployer polygonRedeployer = new Redeployer();
     polygonRedeployer.setUp();
     if (address(polygonRedeployer.proxyAdmin()).code.length == 0) polygonRedeployer.prepare();
-    polygonRedeployer.proxyThrough(polygonRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
+    polygonRedeployer.proxyThrough(polygonRedeployer.findNonce(acct("redeployer"), address(exa), 1000) + 1);
     set("exactly", makeAddr("exactly")); // no exactly on polygon — test-only chain
     set("TimelockController", makeAddr("exactly"));
     set("pauser", makeAddr("pauser"));
@@ -79,7 +79,7 @@ contract HypEXATest is ForkTest {
     Redeployer baseRedeployer = new Redeployer();
     baseRedeployer.setUp();
     if (address(baseRedeployer.proxyAdmin()).code.length == 0) baseRedeployer.prepare();
-    baseRedeployer.proxyThrough(baseRedeployer.findNonce(acct("deployer"), address(exa), 1000) + 1);
+    baseRedeployer.proxyThrough(baseRedeployer.findNonce(acct("redeployer"), address(exa), 1000) + 1);
     baseRedeployer.deployEXA();
     uint32[] memory baseRemotes = new uint32[](2);
     baseRemotes[0] = uint32(getChain("optimism").chainId);
@@ -88,7 +88,7 @@ contract HypEXATest is ForkTest {
     vm.prank(protocol("TimelockController"));
     exa.grantRole(keccak256("BRIDGE_ROLE"), address(baseRouter));
 
-    opFork = vm.createSelectFork("optimism", 147_967_000);
+    opFork = vm.createSelectFork("optimism", 153_448_100);
     opMailbox = acct("hyperlaneMailbox");
     opRedeployer = new Redeployer();
     opRedeployer.setUp();
