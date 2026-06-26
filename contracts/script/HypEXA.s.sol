@@ -74,7 +74,8 @@ contract HypEXA is BaseScript {
     vm.stopBroadcast();
   }
 
-  function proposeBridgeRole(bytes32 salt) external {
+  function proposeBridgeRole() external {
+    bytes32 salt = keccak256("propose-exa-bridge-role");
     address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
     if (router.code.length == 0) revert RouterNotDeployed();
     address exa = protocol("EXA", true, getChain("optimism").chainId);

@@ -234,7 +234,7 @@ contract HypEXATest is ForkTest {
     HypEXA hypEXA = new HypEXA();
 
     vm.expectRevert(RouterNotDeployed.selector);
-    hypEXA.proposeBridgeRole(keccak256("HypEXA.BRIDGE_ROLE"));
+    hypEXA.proposeBridgeRole();
   }
 
   function test_proposeBridgeRole_schedulesGrantOnTimelock() external {
@@ -242,8 +242,8 @@ contract HypEXATest is ForkTest {
     vm.prank(protocol("TimelockController"));
     exa.revokeRole(keccak256("BRIDGE_ROLE"), address(opRouter));
 
-    bytes32 salt = keccak256("HypEXA.BRIDGE_ROLE");
-    opHypEXA.proposeBridgeRole(salt);
+    bytes32 salt = keccak256("propose-exa-bridge-role");
+    opHypEXA.proposeBridgeRole();
 
     TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
     bytes32 id = timelock.hashOperation(
@@ -259,7 +259,7 @@ contract HypEXATest is ForkTest {
   function test_proposeBridgeRole_reverts_whenAlreadyGranted() external {
     vm.selectFork(opFork);
     vm.expectRevert(AlreadyGranted.selector);
-    opHypEXA.proposeBridgeRole(keccak256("HypEXA.BRIDGE_ROLE"));
+    opHypEXA.proposeBridgeRole();
   }
 
   function test_deployRouter_setsHookAndIsm() external {
