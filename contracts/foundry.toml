@@ -8,6 +8,7 @@ verbosity = 3
 isolate = true
 disable_block_gas_limit = true
 libs = ["../node_modules", "node_modules"]
+auto_detect_remappings = false
 ignored_error_codes = ["unused-param", "code-size", "init-code-size"]
 fs_permissions = [
   { access = "read", path = "broadcast" },
