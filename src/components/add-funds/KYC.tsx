@@ -25,15 +25,18 @@ import View from "../shared/View";
 export default function KYC() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { currency, network, provider, kycCode, acceptedTermsId } = useLocalSearchParams();
+  const { currency, network, provider, kycCode, acceptedTermsId, direction } = useLocalSearchParams();
   const validCurrency = isValidCurrency(currency);
   const isCrypto = !!network;
   const isBridge = provider === "bridge";
+  const offramp = direction === "offramp";
+  const directionKey = offramp ? "offramp" : "onramp";
   const isAddress = kycCode === "invalid address";
   const storedTokens = queryClient.getQueryData<{ inquiryId: string; sessionToken: string }>([
     "ramp",
     "kyc-tokens",
     provider,
+    directionKey,
   ]);
 
   const { mutateAsync: handleContinue, isPending } = useMutation({
@@ -42,10 +45,10 @@ export default function KYC() {
       if (typeof currency !== "string") return;
 
       function fail() {
-        queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider] });
+        queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider, directionKey] });
         router.replace({
-          pathname: "/add-funds/status",
-          params: { status: "error", currency, provider, network },
+          pathname: offramp ? "/send-funds/status" : "/add-funds/status",
+          params: { status: "error", currency, provider, network, direction },
         });
       }
 
@@ -59,18 +62,19 @@ export default function KYC() {
         fail();
         return;
       }
-      queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider] });
+      queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider, directionKey] });
       await completeOnboarding(
         router,
         currency,
         isBridge ? "bridge" : "manteca",
         typeof acceptedTermsId === "string" ? acceptedTermsId : undefined,
         typeof network === "string" ? network : undefined,
+        offramp ? "offramp" : "onramp",
       );
     },
   });
 
-  if (!validCurrency && !isCrypto) return <Redirect href="/add-funds" />;
+  if (!validCurrency && !isCrypto) return <Redirect href={offramp ? "/send-funds" : "/add-funds"} />;
 
   function handlePress() {
     handleContinue().catch(reportError);
@@ -85,7 +89,7 @@ export default function KYC() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider] });
+                queryClient.removeQueries({ queryKey: ["ramp", "kyc-tokens", provider, directionKey] });
                 if (router.canGoBack()) {
                   router.back();
                 } else {

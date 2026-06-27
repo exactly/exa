@@ -60,7 +60,7 @@ export default function AssetList() {
         onSelect={(asset) => {
           if (!asset.market) return;
           selectionAsync().catch(reportError);
-          router.push({ pathname: "/send-funds", params: { asset: asset.market as Address } });
+          router.push({ pathname: "/send-funds/receiver", params: { asset: asset.market as Address } });
         }}
       />
       <CollateralAssetsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />

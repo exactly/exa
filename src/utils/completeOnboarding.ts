@@ -10,7 +10,9 @@ export default async function completeOnboarding(
   provider: "bridge" | "manteca" = "manteca",
   acceptedTermsId?: string,
   network?: string,
+  direction: "offramp" | "onramp" = "onramp",
 ) {
+  const offramp = direction === "offramp";
   try {
     if (provider === "bridge" && !acceptedTermsId) throw new Error("missing acceptedTermsId for bridge");
     const onboarding: Parameters<typeof startRampOnboarding>[0] =
@@ -18,25 +20,25 @@ export default async function completeOnboarding(
     const result = await startRampOnboarding(onboarding);
     queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
     if ("inquiryId" in result) {
-      queryClient.setQueryData(["ramp", "kyc-tokens", provider], {
+      queryClient.setQueryData(["ramp", "kyc-tokens", provider, direction], {
         inquiryId: result.inquiryId,
         sessionToken: result.sessionToken,
       });
       router.replace({
-        pathname: "/add-funds/kyc",
-        params: { currency, provider, network, kycCode: result.code, acceptedTermsId },
+        pathname: offramp ? "/send-funds/kyc" : "/add-funds/kyc",
+        params: { currency, provider, network, kycCode: result.code, acceptedTermsId, direction },
       });
       return;
     }
     router.replace({
-      pathname: "/add-funds/status",
-      params: { status: "ONBOARDING", currency, provider, pending: "true", network },
+      pathname: offramp ? "/send-funds/status" : "/add-funds/status",
+      params: { status: "ONBOARDING", currency, provider, pending: "true", network, direction },
     });
   } catch (error) {
     reportError(error);
     router.replace({
-      pathname: "/add-funds/status",
-      params: { status: "error", currency, provider, network },
+      pathname: offramp ? "/send-funds/status" : "/add-funds/status",
+      params: { status: "error", currency, provider, network, direction },
     });
   }
 }
