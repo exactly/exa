@@ -5,21 +5,23 @@ import { useRouter } from "expo-router";
 
 import chain from "@exactly/common/generated/chain";
 
-import AddFundsOption from "./AddFundsOption";
 import { bridgeMethods, currencies } from "../../utils/currencies";
 import networkLogos from "../../utils/networkLogos";
+import AddFundsOption from "../add-funds/AddFundsOption";
 import AssetLogo from "../shared/AssetLogo";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function AddRampButton({
+export default function RampButton({
   currency,
+  direction,
   network,
   provider,
   status,
 }: {
   currency: string;
+  direction: "offramp" | "onramp";
   network?: string;
   provider: "bridge" | "manteca";
   status: "ACTIVE" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
@@ -27,6 +29,7 @@ export default function AddRampButton({
   const { t } = useTranslation();
   const router = useRouter();
   const isCrypto = !!network;
+  const offramp = direction === "offramp";
 
   if (status === "NOT_AVAILABLE") return null;
 
@@ -34,13 +37,19 @@ export default function AddRampButton({
     const params = { currency, provider, ...(network && { network }) };
     switch (status) {
       case "NOT_STARTED":
-        router.push({ pathname: "/add-funds/onboard", params });
+        router.push({ pathname: offramp ? "/send-funds/onboard" : "/add-funds/onboard", params });
         break;
       case "ONBOARDING":
-        router.push({ pathname: "/add-funds/status", params: { ...params, status: "ONBOARDING" } });
+        router.push({
+          pathname: offramp ? "/send-funds/status" : "/add-funds/status",
+          params: { ...params, status: "ONBOARDING", direction },
+        });
         break;
       case "ACTIVE":
-        router.push({ pathname: isCrypto ? "/add-funds/add-crypto" : "/add-funds/ramp", params });
+        router.push({
+          pathname: offramp ? "/send-funds/recipients" : isCrypto ? "/add-funds/add-crypto" : "/add-funds/ramp",
+          params,
+        });
         break;
     }
   }
@@ -48,6 +57,7 @@ export default function AddRampButton({
   if (isCrypto) {
     return (
       <AddFundsOption
+        disabled={offramp}
         icon={
           <View position="relative" width={24} height={24}>
             <AssetLogo symbol={currency} width={24} height={24} />
@@ -66,8 +76,12 @@ export default function AddRampButton({
             )}
           </View>
         }
-        title={t("{{currency}} from {{network}}", { currency, network })}
-        subtitle={t("Receive USDC on {{chain}}", { chain: chain.name })}
+        title={
+          offramp
+            ? t("{{currency}} via {{network}}", { currency, network })
+            : t("{{currency}} from {{network}}", { currency, network })
+        }
+        subtitle={offramp ? t("Send USDC") : t("Receive USDC on {{chain}}", { chain: chain.name })}
         onPress={handlePress}
       />
     );
@@ -80,11 +94,16 @@ export default function AddRampButton({
   const title =
     provider === "bridge" && method
       ? t("{{currency}} via {{method}}", { currency: shortName, method })
-      : provider === "manteca" && currency === "USD"
+      : !offramp && provider === "manteca" && currency === "USD"
         ? t("{{currency}} from Argentina", { currency: shortName })
         : shortName;
 
   return (
-    <AddFundsOption icon={<Text>{emoji}</Text>} title={title} subtitle={t("Receive USDC")} onPress={handlePress} />
+    <AddFundsOption
+      icon={<Text>{emoji}</Text>}
+      title={title}
+      subtitle={offramp ? t("Send USDC") : t("Receive USDC")}
+      onPress={handlePress}
+    />
   );
 }

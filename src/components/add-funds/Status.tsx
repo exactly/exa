@@ -32,8 +32,9 @@ export default function Status() {
   const router = useRouter();
   const toast = useToastController();
 
-  const { currency, network, status, pending, provider } = useLocalSearchParams<{
+  const { currency, network, status, pending, provider, direction } = useLocalSearchParams<{
     currency?: string;
+    direction?: string;
     network?: string;
     pending?: string;
     provider?: string;
@@ -43,7 +44,8 @@ export default function Status() {
   const isCrypto = !!network;
   const isOnboarding = status === "ONBOARDING";
   const isPending = pending === "true";
-  const typedProvider = provider === "bridge" ? provider : "manteca";
+  const offramp = direction === "offramp";
+  const typedProvider = offramp || provider === "bridge" ? "bridge" : "manteca";
 
   const [timedOut, setTimedOut] = useState(!isPending);
   const [openKYC, setOpenKYC] = useState(false);
@@ -54,7 +56,7 @@ export default function Status() {
   }, [isPending]);
 
   const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
-  const redirectURL = `https://${domain}/add-funds`;
+  const redirectURL = `https://${domain}/${offramp ? "send-funds" : "add-funds"}`;
   const { data: providers, isFetching } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
@@ -63,10 +65,18 @@ export default function Status() {
   const bridge = providers?.bridge;
   const kycLink = bridge && "kycLink" in bridge ? bridge.kycLink : undefined;
   const needsMoreInfo = isOnboarding && typedProvider === "bridge" && !!kycLink;
+  const offrampAvailable =
+    !!currency &&
+    !!bridge &&
+    "offramp" in bridge &&
+    bridge.offramp.currencies.some((item) => (typeof item === "string" ? item : item.currency) === currency);
 
   useEffect(() => {
     if ((isOnboarding || isPending) && providers?.[typedProvider].status === "ACTIVE" && currency) {
-      if (isCrypto) {
+      if (offramp) {
+        if (!offrampAvailable) return;
+        router.replace({ pathname: "/send-funds/recipients", params: { currency, provider: typedProvider } });
+      } else if (isCrypto) {
         router.replace({
           pathname: "/add-funds/add-crypto",
           params: { provider: typedProvider, currency, network },
@@ -75,11 +85,22 @@ export default function Status() {
         router.replace({ pathname: "/add-funds/ramp", params: { currency, provider: typedProvider } });
       }
     }
-  }, [isOnboarding, isPending, providers, currency, isCrypto, network, router, typedProvider]);
+  }, [
+    isOnboarding,
+    isPending,
+    providers,
+    currency,
+    isCrypto,
+    network,
+    router,
+    typedProvider,
+    offramp,
+    offrampAvailable,
+  ]);
 
   const ready = !isPending || (timedOut && !isFetching);
 
-  if (!validCurrency && !isCrypto) return <Redirect href="/add-funds" />;
+  if (!validCurrency && !isCrypto) return <Redirect href={offramp ? "/send-funds" : "/add-funds"} />;
 
   function handleClose() {
     router.replace("/(main)/(home)");

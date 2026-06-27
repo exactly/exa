@@ -38,12 +38,17 @@ export default function AddCrypto() {
   const { address: accountAddress } = useAccount();
   const { supportedAssets, isPending } = useMarkets();
   const { t } = useTranslation();
-  const { provider, currency, network } = useLocalSearchParams();
+  const { provider, currency: currencyParameter, network: networkParameter } = useLocalSearchParams();
+  const currency = typeof currencyParameter === "string" ? currencyParameter : "";
+  const network = typeof networkParameter === "string" ? networkParameter : "";
   const isBridge = provider === "bridge" && !!currency && !!network;
 
   const { data, isError, isFetching, refetch } = useQuery({
     queryKey: ["ramp", "quote", "bridge", currency, network],
-    queryFn: () => getRampQuote({ provider: "bridge", currency, network } as Parameters<typeof getRampQuote>[0]),
+    queryFn: () =>
+      getRampQuote({ provider: "bridge", currency, network, direction: "onramp" } as Parameters<
+        typeof getRampQuote
+      >[0]),
     enabled: isBridge,
     retry: false,
     staleTime: 10_000,

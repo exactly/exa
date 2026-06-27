@@ -368,3 +368,48 @@ export async function startRampOnboarding(onboarding: InferRequestType<typeof ap
   }
   return response.json();
 }
+
+export async function listExternalAccounts() {
+  await auth();
+  const response = await api.ramp["external-account"].$get();
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export async function createExternalAccount(
+  input: InferRequestType<(typeof api.ramp)["external-account"]["$post"]>["json"],
+) {
+  await auth();
+  const response = await api.ramp["external-account"].$post({ json: input });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export async function updateExternalAccount(
+  id: string,
+  input: InferRequestType<(typeof api.ramp)["external-account"][":id"]["$patch"]>["json"],
+) {
+  await auth();
+  const response = await api.ramp["external-account"][":id"].$patch({ param: { id }, json: input });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export async function deleteExternalAccount(id: string) {
+  await auth();
+  const response = await api.ramp["external-account"][":id"].$delete({ param: { id } });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}

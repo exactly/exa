@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -7,124 +7,54 @@ import { ArrowLeft, ArrowRight, Check } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-
-import domain from "@exactly/common/domain";
-
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import RampWebView from "./RampWebView";
-import completeOnboarding from "../../utils/completeOnboarding";
 import { bridgeMethods, isValidCurrency, fees as rampFees, type Currency } from "../../utils/currencies";
 import openBrowser from "../../utils/openBrowser";
-import { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getKYCStatus, getRampProviders } from "../../utils/server";
+import useRampOnboarding from "../../utils/useRampOnboarding";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function Fees() {
+export default function Fees({ direction }: { direction: "offramp" | "onramp" }) {
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
   const toast = useToastController();
-  const { currency, network, provider } = useLocalSearchParams();
+  const {
+    currency: currencyParameter,
+    network: networkParameter,
+    provider: providerParameter,
+  } = useLocalSearchParams();
+  const currency = typeof currencyParameter === "string" ? currencyParameter : "";
+  const network = typeof networkParameter === "string" ? networkParameter : "";
+  const provider = typeof providerParameter === "string" ? providerParameter : "";
   const validCurrency = isValidCurrency(currency);
   const isCrypto = !!network;
   const isBridge = provider === "bridge";
+  const offramp = direction === "offramp";
   const [acknowledged, setAcknowledged] = useState(true);
-  const [tosLink, setTOSLink] = useState<string>();
   const feeRows = rows(provider, currency, network, t);
 
-  const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
-  const redirectURL = `https://${domain}/add-funds`;
+  const { handleContinue, handleTOSRedirect, isPending, providerTOSLink, redirectURL, setTOSLink, tosLink } =
+    useRampOnboarding(direction);
 
-  const { data: providers } = useQuery({
-    queryKey: ["ramp", "providers", countryCode, redirectURL],
-    queryFn: () => getRampProviders(countryCode, redirectURL),
-    enabled: isBridge && !!countryCode,
-    staleTime: 60_000,
-  });
-  const bridge = providers?.bridge;
-  const providerTOSLink = bridge && "tosLink" in bridge ? bridge.tosLink : undefined;
-
-  const { mutateAsync: handleBridgeOnboarding, isPending: isBridgePending } = useMutation({
-    mutationKey: ["ramp", "onboarding", "bridge"],
-    mutationFn: async (signedAgreementId: string) => {
-      if (typeof currency !== "string") return;
-      return await completeOnboarding(
-        router,
-        currency,
-        "bridge",
-        signedAgreementId,
-        typeof network === "string" ? network : undefined,
-      );
-    },
-  });
-
-  const { mutateAsync: handleMantecaOnboarding, isPending: isMantecaPending } = useMutation({
-    mutationKey: ["ramp", "onboarding", "manteca"],
-    async mutationFn() {
-      if (typeof currency !== "string") return;
-      const status = await getKYCStatus("manteca").catch((error: unknown) => {
-        if (error instanceof APIError) return { code: error.text };
-        throw error;
-      });
-      const kycCode = "code" in status && typeof status.code === "string" ? status.code : "not started";
-
-      if (kycCode === "not started") {
-        router.replace({ pathname: "/add-funds/kyc", params: { currency, provider } });
-        return;
-      }
-
-      if (kycCode === "ok") {
-        await completeOnboarding(router, currency, "manteca");
-        return;
-      }
-
-      router.replace({ pathname: "/add-funds/status", params: { status: "error", currency, provider } });
-    },
-  });
-
-  const isPending = isBridgePending || isMantecaPending;
   const [locale = "en"] = language.split("-");
   const termsURL = isBridge
     ? `https://help.exactly.app/${locale}/articles/13862897-bridge-terms-and-conditions`
     : `https://help.exactly.app/${locale}/articles/13616694-fiat-on-ramp-terms-and-conditions`;
 
-  const handleTOSRedirect = useCallback(
-    (url: string) => {
-      let signedAgreementId: string | undefined;
-      try {
-        signedAgreementId = new URL(url).searchParams.get("signed_agreement_id") ?? undefined;
-      } catch {} // eslint-disable-line no-empty
-      if (!signedAgreementId) {
-        toast.show(t("Something went wrong. Please try again."), {
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
-        return;
-      }
-      handleBridgeOnboarding(signedAgreementId).catch(reportError);
-    },
-    [handleBridgeOnboarding, t, toast],
-  );
-
-  const handleContinue = useCallback(async () => {
-    if (isBridge) {
-      if (!providerTOSLink) return;
-      setTOSLink(providerTOSLink);
-      return;
-    }
-    await handleMantecaOnboarding();
-  }, [handleMantecaOnboarding, isBridge, providerTOSLink]);
-
-  if (!validCurrency && !isCrypto) return <Redirect href="/add-funds" />;
+  const validProvider = provider === "bridge" || (!offramp && provider === "manteca");
+  const validSelection = offramp ? validCurrency && !isCrypto : validCurrency || (!!currency && isCrypto);
+  if (!validProvider || !validSelection) {
+    return <Redirect href={offramp ? "/send-funds" : "/add-funds"} />;
+  }
 
   if (tosLink) {
     return (
@@ -176,15 +106,20 @@ export default function Fees() {
                 {t("Open your {{provider}} virtual account", { provider: isBridge ? "Bridge" : "Manteca" })}
               </Text>
               <Text color="$uiNeutralSecondary" subHeadline>
-                {isBridge
+                {offramp
                   ? t(
-                      "Bridge provides a United States virtual account, converts your {{currency}} to USDC, and sends the funds to Exa App.",
+                      "Bridge provides a United States virtual account, converts your USDC to {{currency}}, and sends the funds to bank accounts.",
                       { currency },
                     )
-                  : t(
-                      "Manteca provides local virtual account for {{currency}}, converts your transfers to USDC, and sends the funds to Exa App.",
-                      { currency },
-                    )}
+                  : isBridge
+                    ? t(
+                        "Bridge provides a United States virtual account, converts your {{currency}} to USDC, and sends the funds to Exa App.",
+                        { currency },
+                      )
+                    : t(
+                        "Manteca provides local virtual account for {{currency}}, converts your transfers to USDC, and sends the funds to Exa App.",
+                        { currency },
+                      )}
               </Text>
             </YStack>
             <YStack gap="$s4_5">
