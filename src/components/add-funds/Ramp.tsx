@@ -12,12 +12,15 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { createStatic } from "@pix.js/qrcode";
 import { useQuery } from "@tanstack/react-query";
+import { parseISO } from "date-fns";
 
 import domain from "@exactly/common/domain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
+import RampWebView from "./RampWebView";
 import { isValidCurrency, fees as rampFees } from "../../utils/currencies";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote } from "../../utils/server";
 import IconButton from "../shared/IconButton";
@@ -44,6 +47,7 @@ export default function Ramp() {
   const router = useRouter();
   const toast = useToastController();
   const [qrSheetOpen, setQRSheetOpen] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const { currency, provider } = useLocalSearchParams();
 
   const typedCurrency = isValidCurrency(currency) ? currency : undefined;
@@ -71,6 +75,12 @@ export default function Ramp() {
     enabled: !!countryCode,
     staleTime: 60_000,
   });
+  const bridge = providers?.bridge;
+  const requirement = bridge && "futureRequirement" in bridge ? bridge.futureRequirement : undefined;
+  const date = useMemo(
+    () => requirement && parseISO(requirement.date).toLocaleDateString(language, { day: "numeric", month: "long" }),
+    [requirement, language],
+  );
 
   const deposits = data?.depositInfo ?? [];
   const quote = data?.quote;
@@ -99,6 +109,32 @@ export default function Ramp() {
   }, [pixDeposit]);
 
   if (!typedCurrency || !typedProvider) return <Redirect href="/add-funds" />;
+
+  if (verifying && requirement) {
+    return (
+      <SafeView fullScreen>
+        <View padded alignSelf="flex-start">
+          <IconButton icon={ArrowLeft} aria-label={t("Back")} onPress={() => setVerifying(false)} />
+        </View>
+        <RampWebView
+          uri={requirement.url}
+          redirectURL={redirectURL}
+          onRedirect={() => {
+            setVerifying(false);
+            queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
+          }}
+          onError={() => {
+            setVerifying(false);
+            toast.show(t("Something went wrong. Please try again."), {
+              native: true,
+              duration: 1000,
+              burntOptions: { haptic: "error" },
+            });
+          }}
+        />
+      </SafeView>
+    );
+  }
 
   const mantecaOnramp = providers?.manteca.onramp;
   const limits = mantecaOnramp && "limits" in mantecaOnramp ? mantecaOnramp.limits : undefined;
@@ -148,6 +184,13 @@ export default function Ramp() {
         <ScrollView flex={1}>
           <View flex={1} gap="$s4_5">
             <YStack flex={1} padding="$s4" gap="$s5">
+              {typedProvider === "bridge" && requirement && (
+                <InfoAlert
+                  title={t("We need more information to keep your account active after {{date}}.", { date })}
+                  actionText={t("Get started")}
+                  onPress={() => setVerifying(true)}
+                />
+              )}
               <YStack gap="$s4" alignSelf="center">
                 <Text emphasized title3>
                   {typedCurrency} {t("Account details")}

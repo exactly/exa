@@ -670,6 +670,7 @@
   "We couldn’t verify your identity": "Não foi possível verificar sua identidade",
   "We cover incoming transfers to your Bridge accounts in Exa App up to $3,000 or 60 transactions per month. Fees apply after that.": "Cobrimos as transferências recebidas para suas contas Bridge no Exa App até $3,000 ou 60 transações por mês. Depois disso, tarifas são aplicadas.",
   "We need more information about you": "Precisamos de mais informações sobre você",
+  "We need more information to keep your account active after {{date}}.": "Precisamos de mais informações para manter sua conta ativa após {{date}}.",
   "We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.": "Estamos atualizando todos os Exa Cards migrando-os para um novo e melhor emissor de cartões. Os cartões existentes funcionarão até {{deadline}} e a atualização será necessária após essa data.",
   "We’re verifying your information. You’ll be able to add funds soon.": "Estamos verificando suas informações. Em breve você poderá adicionar fundos.",
   "webhook declined": "transação rejeitada",
