@@ -75,16 +75,28 @@ contract HypEXA is BaseScript {
   }
 
   function proposeBridgeRole() external {
-    bytes32 salt = keccak256("propose-exa-bridge-role");
+    bytes32 salt = keccak256(abi.encode("propose-exa-bridge-role"));
     address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
     if (router.code.length == 0) revert RouterNotDeployed();
     address exa = protocol("EXA", true, getChain("optimism").chainId);
     if (IAccessControl(exa).hasRole(keccak256("BRIDGE_ROLE"), router)) revert AlreadyGranted();
     TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
-    uint256 delay = timelock.getMinDelay();
+    bytes memory call = abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), router));
+    if (timelock.isOperationPending(timelock.hashOperation(exa, 0, call, bytes32(0), salt))) return;
     vm.broadcast(acct("deployer"));
-    timelock.schedule(
-      exa, 0, abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), router)), bytes32(0), salt, delay
+    timelock.schedule(exa, 0, call, bytes32(0), salt, timelock.getMinDelay());
+  }
+
+  function executeBridgeRole() external {
+    bytes32 salt = keccak256(abi.encode("propose-exa-bridge-role"));
+    address router = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("HypEXA")));
+    if (router.code.length == 0) revert RouterNotDeployed();
+    address exa = protocol("EXA", true, getChain("optimism").chainId);
+    if (IAccessControl(exa).hasRole(keccak256("BRIDGE_ROLE"), router)) revert AlreadyGranted();
+    TimelockController timelock = TimelockController(payable(protocol("TimelockController")));
+    vm.broadcast(acct("exactly"));
+    timelock.execute(
+      exa, 0, abi.encodeCall(IAccessControl.grantRole, (keccak256("BRIDGE_ROLE"), router)), bytes32(0), salt
     );
   }
 
