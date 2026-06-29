@@ -1,7 +1,7 @@
 export const PROMO = {
-  id: "jun-2026-zero-apr",
+  id: "jul-2026-zero-apr",
   installments: [1, 2, 3] as readonly number[],
-  expiresAt: new Date("2026-07-01T00:00:00Z"),
+  expiresAt: new Date("2026-08-01T00:00:00Z"),
 } as const;
 
 export const isPromoActive = () => process.env.EXPO_PUBLIC_ENV !== "e2e" && Date.now() < PROMO.expiresAt.getTime();
