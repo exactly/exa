@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.100
+
+### Patch Changes
+
+- [#1070](https://github.com/exactly/exa/pull/1070) [`6c1c221`](https://github.com/exactly/exa/commit/6c1c22173b1aa76b2fe33960a1c584f9539d4277) Thanks [@aguxez](https://github.com/aguxez)! - ✨ server: add ios wallet extension provisioning
+
 ## 0.2.99
 
 ### Patch Changes

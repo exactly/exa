@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.14
+
+### Patch Changes
+
+- [#1121](https://github.com/exactly/exa/pull/1121) [`c19acf3`](https://github.com/exactly/exa/commit/c19acf3de89afb88059a33dc7c3a93e7c963fd6e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ prompt bridge future requirements on account details
+
+- [#1070](https://github.com/exactly/exa/pull/1070) [`73aa075`](https://github.com/exactly/exa/commit/73aa075ad0f6de837a5cf53e9659ce3a0a165cc2) Thanks [@aguxez](https://github.com/aguxez)! - ✨ send client platform header
+
+- [#1122](https://github.com/exactly/exa/pull/1122) [`aa3f7a0`](https://github.com/exactly/exa/commit/aa3f7a027b73432f99bed59398ce1ee76c6c95aa) Thanks [@franm91](https://github.com/franm91)! - 👔 extend installment benefit
+
+- Updated dependencies [[`6c1c221`](https://github.com/exactly/exa/commit/6c1c22173b1aa76b2fe33960a1c584f9539d4277)]:
+  - @exactly/server@0.2.100
+
 ## 1.2.13
 
 ### Patch Changes
