@@ -23,8 +23,6 @@ import EarningsBlob from "../../assets/images/earnings-blob.svg";
 import Earnings from "../../assets/images/earnings.svg";
 import ExaCardBlob from "../../assets/images/exa-card-blob.svg";
 import ExaCard from "../../assets/images/exa-card.svg";
-import QrCodeBlob from "../../assets/images/qr-code-blob.svg";
-import QrCode from "../../assets/images/qr-code.svg";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAuth from "../../utils/useAuth";
@@ -58,7 +56,7 @@ export default function Auth() {
   const itemWidth = Math.max(Platform.OS === "web" ? height * aspectRatio : width, 250);
 
   const currentItem = pages[activeIndex] ?? pages[0];
-  const { title, disabled } = currentItem;
+  const { title } = currentItem;
 
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
@@ -145,25 +143,9 @@ export default function Auth() {
               isScrolling={isScrolling}
             />
           </View>
-          <View flexDirection="column" gap="$s5">
-            <Text emphasized title brand centered>
-              {t(title)}
-            </Text>
-            <View height={20}>
-              {disabled && (
-                <Text
-                  pill
-                  emphasized
-                  caption2
-                  alignSelf="center"
-                  backgroundColor="$interactiveBaseBrandDefault"
-                  color="$interactiveOnBaseBrandDefault"
-                >
-                  {t("COMING SOON")}
-                </Text>
-              )}
-            </View>
-          </View>
+          <Text emphasized title brand centered>
+            {t(title)}
+          </Text>
           <View alignItems="stretch" alignSelf="stretch" gap="$s3">
             <View flexDirection="row" alignSelf="stretch">
               <Button
@@ -267,7 +249,6 @@ export default function Auth() {
 
 export type Page = {
   backgroundImage: FC<SvgProps>;
-  disabled?: boolean;
   image: FC<SvgProps>;
   title: string;
 };
@@ -287,11 +268,5 @@ const pages: [Page, ...Page[]] = [
     backgroundImage: EarningsBlob,
     image: Earnings,
     title: "Maximize earnings, effortlessly",
-  },
-  {
-    backgroundImage: QrCodeBlob,
-    disabled: true,
-    image: QrCode,
-    title: "In-store QR payments, with crypto",
   },
 ];
