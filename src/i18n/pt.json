@@ -322,7 +322,7 @@
   "INSTANT PAY ({{asset}})": "PAGAR AGORA ({{asset}})",
   "Insufficient balance": "Saldo insuficiente",
   "insufficient funds": "fundos insuficientes",
-  "Introducing the first onchain card": "Apresentamos o primeiro cartão on-chain",
+  "Introducing the first onchain credit card": "Apresentamos o primeiro cartão de crédito on-chain",
   "Invalid address": "Endereço inválido",
   "Invalid asset address": "Endereço do ativo inválido",
   "Invalid receiver address": "Endereço do destinatário inválido",

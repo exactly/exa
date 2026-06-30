@@ -257,7 +257,7 @@ const pages: [Page, ...Page[]] = [
   {
     backgroundImage: ExaCardBlob,
     image: ExaCard,
-    title: "Introducing the first onchain card",
+    title: "Introducing the first onchain credit card",
   },
   {
     backgroundImage: CalendarBlob,
