@@ -10,13 +10,12 @@ import AssetLogo from "./AssetLogo";
 import ChainLogo from "./ChainLogo";
 import Image from "./Image";
 import ModalSheet from "./ModalSheet";
-import assetLogos from "../../utils/assetLogos";
+import Skeleton from "./Skeleton";
 import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
-
-const supportedAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
 
 export default function CopyAddressSheet({
   open,
@@ -34,6 +33,7 @@ export default function CopyAddressSheet({
   open: boolean;
 }) {
   const { address: accountAddress } = useAccount();
+  const { supportedAssets, isPending } = useMarkets();
   const displayAssets = assets ?? supportedAssets;
   const { t } = useTranslation();
   return (
@@ -95,11 +95,17 @@ export default function CopyAddressSheet({
                   padding="$s3_5"
                   alignSelf="flex-end"
                 >
-                  {displayAssets.map((symbol, index) => (
-                    <XStack key={symbol} marginRight={index < displayAssets.length - 1 ? -12 : 0} zIndex={index}>
-                      <AssetLogo symbol={symbol} width={32} height={32} />
-                    </XStack>
-                  ))}
+                  {!assets && isPending
+                    ? Array.from({ length: 5 }, (_, index) => (
+                        <XStack key={index} marginRight={index < 4 ? -12 : 0} zIndex={index}>
+                          <Skeleton width={32} height={32} radius="round" />
+                        </XStack>
+                      ))
+                    : displayAssets.map((symbol, index) => (
+                        <XStack key={symbol} marginRight={index < displayAssets.length - 1 ? -12 : 0} zIndex={index}>
+                          <AssetLogo symbol={symbol} width={32} height={32} />
+                        </XStack>
+                      ))}
                 </XStack>
               </XStack>
             </YStack>

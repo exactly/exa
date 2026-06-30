@@ -15,12 +15,12 @@ import chain from "@exactly/common/generated/chain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
-import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import networkLogos from "../../utils/networkLogos";
 import reportError from "../../utils/reportError";
 import { getRampQuote } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
@@ -32,12 +32,11 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const defaultAssets = Object.keys(assetLogos).filter((s) => s !== "USDC.e" && s !== "DAI");
-
 export default function AddCrypto() {
   const router = useRouter();
   const fontScale = PixelRatio.getFontScale();
   const { address: accountAddress } = useAccount();
+  const { supportedAssets, isPending } = useMarkets();
   const { t } = useTranslation();
   const { provider, currency, network } = useLocalSearchParams();
   const isBridge = provider === "bridge" && !!currency && !!network;
@@ -55,7 +54,7 @@ export default function AddCrypto() {
 
   const address = isBridge ? depositAddress : accountAddress;
   const networkName = isBridge && typeof network === "string" ? network : chain.name;
-  const assets = isBridge && typeof currency === "string" ? [currency] : defaultAssets;
+  const assets = isBridge && typeof currency === "string" ? [currency] : supportedAssets;
 
   const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
@@ -247,11 +246,17 @@ export default function AddCrypto() {
                 cursor="pointer"
                 onPress={isBridge ? undefined : () => setSupportedAssetsShown(true)}
               >
-                {assets.map((symbol, index) => (
-                  <XStack key={symbol} marginRight={index < assets.length - 1 ? -12 : 0} zIndex={index}>
-                    <AssetLogo symbol={symbol} width={32} height={32} />
-                  </XStack>
-                ))}
+                {!isBridge && isPending
+                  ? Array.from({ length: 5 }, (_, index) => (
+                      <XStack key={index} marginRight={index < 4 ? -12 : 0} zIndex={index}>
+                        <Skeleton width={32} height={32} radius="round" />
+                      </XStack>
+                    ))
+                  : assets.map((symbol, index) => (
+                      <XStack key={symbol} marginRight={index < assets.length - 1 ? -12 : 0} zIndex={index}>
+                        <AssetLogo symbol={symbol} width={32} height={32} />
+                      </XStack>
+                    ))}
               </XStack>
             </XStack>
           </YStack>

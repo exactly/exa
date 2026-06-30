@@ -44,17 +44,9 @@ export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
 export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: account } = useAccount();
-  const { markets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
+  const { markets, supportedAssets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
 
   const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
-
-  const protocolSymbols = useMemo(() => {
-    if (!markets) return [];
-    const excluded = new Set(["USDC.e", "DAI", "WETH"]);
-    const symbols = new Set(markets.map((m) => m.symbol.slice(3)).filter((s) => !excluded.has(s)));
-    symbols.add("ETH");
-    return [...symbols];
-  }, [markets]);
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n };
@@ -157,7 +149,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     externalAssets,
     crossChainAssets,
     totalBalanceUSD,
-    protocolSymbols,
+    protocolSymbols: supportedAssets,
     markets,
     isPending: isMarketsPending,
     isBalancesPending,

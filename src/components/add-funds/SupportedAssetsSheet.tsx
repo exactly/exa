@@ -6,20 +6,20 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
-import assetLogos from "../../utils/assetLogos";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-const supportedAssets = Object.keys(assetLogos).filter((symbol) => symbol !== "USDC.e" && symbol !== "DAI");
-
 export default function SupportedAssetsSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
+  const { supportedAssets, isPending } = useMarkets();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView $platform-web={{ maxHeight: "100vh" }}>
@@ -38,24 +38,21 @@ export default function SupportedAssetsSheet({ open, onClose }: { onClose: () =>
               </Text>
             </YStack>
             <XStack justifyContent="center" flexWrap="wrap">
-              {supportedAssets.map((symbol) => (
-                <XStack
-                  key={symbol}
-                  borderWidth={1}
-                  alignItems="center"
-                  borderColor="$borderNeutralSoft"
-                  borderRadius="$r_0"
-                  alignSelf="center"
-                  padding="$s3_5"
-                  margin="$s3"
-                  gap="$s2"
-                >
-                  <AssetLogo symbol={symbol} width={32} height={32} />
-                  <Text primary emphasized callout>
-                    {symbol}
-                  </Text>
-                </XStack>
-              ))}
+              {isPending
+                ? Array.from({ length: 5 }, (_, index) => (
+                    <Chip key={index}>
+                      <Skeleton height={32} width={32} radius="round" />
+                      <Skeleton height={16} width={44} />
+                    </Chip>
+                  ))
+                : supportedAssets.map((symbol) => (
+                    <Chip key={symbol}>
+                      <AssetLogo symbol={symbol} width={32} height={32} />
+                      <Text primary emphasized callout>
+                        {symbol}
+                      </Text>
+                    </Chip>
+                  ))}
             </XStack>
             <XStack
               gap="$s4"
@@ -99,5 +96,22 @@ export default function SupportedAssetsSheet({ open, onClose }: { onClose: () =>
         </SafeView>
       </ScrollView>
     </ModalSheet>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <XStack
+      borderWidth={1}
+      alignItems="center"
+      borderColor="$borderNeutralSoft"
+      borderRadius="$r_0"
+      alignSelf="center"
+      padding="$s3_5"
+      margin="$s3"
+      gap="$s2"
+    >
+      {children}
+    </XStack>
   );
 }
