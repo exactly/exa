@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -8,6 +8,7 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
+import { isAfter, parseISO } from "date-fns";
 import { isAddress } from "viem";
 import { base } from "viem/chains";
 
@@ -18,6 +19,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import AddFundsOption from "./AddFundsOption";
 import AddRampButton from "./AddRampButton";
 import { presentArticle } from "../../utils/intercom";
+import openBrowser from "../../utils/openBrowser";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
@@ -67,6 +69,12 @@ export default function AddFunds() {
 
   const hasFiat =
     providers && Object.values(providers).some((p) => p.onramp.currencies.some((item) => typeof item === "string"));
+  const hasCrypto =
+    providers &&
+    Object.values(providers).some((p) =>
+      p.onramp.currencies.some((item) => typeof item === "object" && "network" in item),
+    );
+  const past = useMemo(() => isAfter(new Date(), parseISO("2026-07-01")), []);
 
   function renderProviders(filter: "crypto" | "fiat") {
     if (countryCode && isPending) {
@@ -185,7 +193,20 @@ export default function AddFunds() {
             )}
             {type === "crypto" && (
               <>
-                {!isKYCApproved && chain.id !== base.id && (
+                {hasCrypto && (
+                  <InfoAlert
+                    title={
+                      past
+                        ? t("Crypto on-ramps are no longer available as of July 1st.")
+                        : t("Crypto on-ramps will no longer be available from July 1st.")
+                    }
+                    actionText={t("Learn more")}
+                    onPress={() => {
+                      openBrowser("https://x.com/exa_app/status/2071690658339770622").catch(reportError);
+                    }}
+                  />
+                )}
+                {!past && !isKYCApproved && chain.id !== base.id && (
                   <InfoAlert
                     title={t("Complete a quick identity check to access more networks.")}
                     actionText={t("Get verified")}
@@ -226,7 +247,7 @@ export default function AddFunds() {
                   }}
                 />
 
-                {renderProviders("crypto")}
+                {!past && renderProviders("crypto")}
               </>
             )}
             {type === "fiat" && countryCode && isPending && (
