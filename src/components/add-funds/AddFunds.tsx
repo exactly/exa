@@ -17,13 +17,13 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import AddFundsOption from "./AddFundsOption";
-import AddRampButton from "./AddRampButton";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
+import RampButton from "../ramp/RampButton";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
@@ -95,9 +95,10 @@ export default function AddFunds() {
               const currency = isCrypto ? item.currency : item;
               const network = isCrypto ? item.network : undefined;
               return (
-                <AddRampButton
+                <RampButton
                   key={`${providerKey}-${currency}-${network ?? "fiat"}`}
                   currency={currency}
+                  direction="onramp"
                   network={network}
                   provider={providerKey as "bridge" | "manteca"}
                   status={provider.status}
@@ -274,7 +275,15 @@ export default function AddFunds() {
                       <YStack gap="$s3_5">
                         {fiatCurrencies.map((item) => {
                           if (typeof item !== "string") return null;
-                          return <AddRampButton key={item} currency={item} provider={key} status={provider.status} />;
+                          return (
+                            <RampButton
+                              key={item}
+                              currency={item}
+                              direction="onramp"
+                              provider={key}
+                              status={provider.status}
+                            />
+                          );
                         })}
                       </YStack>
                     </YStack>

@@ -90,7 +90,7 @@ export default function ExternalAssets() {
     if (!exaAccount) return;
     if (asset.chainId === chain.id) {
       selectionAsync().catch(reportError);
-      router.push({ pathname: "/send-funds", params: { asset: asset.address } });
+      router.push({ pathname: "/send-funds/receiver", params: { asset: asset.address } });
       return;
     }
     if (isUnsupported(asset.chainId, deployedChains)) {

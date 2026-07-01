@@ -6,9 +6,9 @@ import QRCode from "react-native-qrcode-styled";
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Banknote, Clock, Copy, Percent, QrCode, Repeat } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Banknote, Clock, Copy, Percent, QrCode, Repeat } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import { createStatic } from "@pix.js/qrcode";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +47,7 @@ export default function Ramp() {
   const router = useRouter();
   const toast = useToastController();
   const [qrSheetOpen, setQRSheetOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const { currency, provider } = useLocalSearchParams();
 
@@ -60,8 +61,10 @@ export default function Ramp() {
     queryFn: () =>
       getRampQuote(
         typedProvider === "bridge"
-          ? ({ provider: "bridge", currency: typedCurrency } as Parameters<typeof getRampQuote>[0])
-          : ({ provider: "manteca", currency: typedCurrency } as Parameters<typeof getRampQuote>[0]),
+          ? ({ provider: "bridge", currency: typedCurrency, direction: "onramp" } as Parameters<typeof getRampQuote>[0])
+          : ({ provider: "manteca", currency: typedCurrency, direction: "onramp" } as Parameters<
+              typeof getRampQuote
+            >[0]),
       ),
     enabled: !!typedCurrency && !!typedProvider,
     refetchInterval: 30_000,
@@ -231,102 +234,23 @@ export default function Ramp() {
           </View>
         </ScrollView>
         <YStack gap="$s4" padding="$s2">
-          <Separator height={1} borderColor="$borderNeutralSoft" />
-
-          <YStack gap="$s2" paddingHorizontal="$s4_5">
-            {typedProvider === "manteca" && (
-              <XStack gap="$s3" alignItems="center">
-                <Banknote size={16} color="$uiNeutralPrimary" />
-                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
-                  {t("Amount")}
-                </Text>
-                <XStack alignItems="center">
-                  {typedCurrency === limitCurrency &&
-                    (minAmount === undefined ? (
-                      <Skeleton width={80} height={16} />
-                    ) : (
-                      <Text emphasized secondary caption2 color="$uiNeutralSecondary">
-                        {`${t("Min")} ${limitCurrency} ${formatAmount(minAmount)} - `}
-                      </Text>
-                    ))}
-                  {maxAmount !== undefined && limitCurrency ? (
-                    <Text emphasized secondary caption2 color="$uiNeutralSecondary">
-                      {`${t("Max")} ${limitCurrency} ${formatAmount(maxAmount)}`}
-                    </Text>
-                  ) : (
-                    <Skeleton width={80} height={16} />
-                  )}
-                </XStack>
-              </XStack>
-            )}
-            {typedProvider === "bridge" && (
-              <XStack gap="$s3" alignItems="center">
-                <View flexShrink={0} alignItems="center">
-                  <Banknote size={16} color="$uiNeutralPrimary" />
-                </View>
-                <XStack gap="$s1" alignItems="center" flex={1} flexWrap="wrap">
-                  <Text secondary caption2 color="$uiNeutralPlaceholder">
-                    {t(
-                      "We cover incoming transfers to your Bridge accounts in Exa App up to $3,000 or 60 transactions per month. Fees apply after that.",
-                    )}
-                    {bridgeFees && (
-                      <>
-                        {" "}
-                        <Text secondary caption2 color="$uiNeutralPlaceholder">
-                          {bridgeFees}
-                        </Text>
-                      </>
-                    )}
-                  </Text>
-                </XStack>
-              </XStack>
-            )}
-            {deposits.some((d) => d.estimatedProcessingTime) && (
-              <XStack gap="$s3" alignItems="flex-start">
-                <Clock size={16} color="$uiNeutralPrimary" />
-                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder" flex={1}>
-                  {t("Delivery time: {{details}}", {
-                    details: deposits
-                      .filter((d) => d.estimatedProcessingTime)
-                      .map((d) => {
-                        const seconds = Number(d.estimatedProcessingTime);
-                        const time = Number.isFinite(seconds)
-                          ? t("Between {{min}} and {{max}} minutes", {
-                              min: Math.round(seconds / 60),
-                              max: Math.round(seconds / 60) + 5,
-                            })
-                          : d.estimatedProcessingTime;
-                        return `${d.displayName}: ${time}`;
-                      })
-                      .join(". "),
-                  })}
-                </Text>
-              </XStack>
-            )}
-            {quote?.buyRate && (
-              <XStack gap="$s3" alignItems="center">
-                <Repeat size={16} color="$uiNeutralPrimary" />
-                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
-                  {t("Exchange rate")}
-                </Text>
-                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
-                  {`${typedCurrency} ${Number(quote.buyRate).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })} = 1 USDC`}
-                </Text>
-              </XStack>
-            )}
-            {deposit?.fee && Number.parseFloat(deposit.fee) !== 0 && (
-              <XStack gap="$s3" alignItems="center">
-                <Percent size={16} color="$uiNeutralPrimary" />
-                <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
-                  {t("Fee")}
-                </Text>
-                <Text emphasized secondary caption2 color="$uiNeutralSecondary">
-                  {deposit.fee}
-                </Text>
-              </XStack>
-            )}
-            {typedProvider === "bridge" ? <BridgeDisclaimer primary /> : <MantecaDisclaimer primary />}
-          </YStack>
+          <Button
+            primary
+            disabled={isPending || !deposit}
+            onPress={() => {
+              if (deposit) copyToClipboard(fullDetails(deposit, t));
+            }}
+          >
+            <Button.Text>{t("Copy full details")}</Button.Text>
+            <Button.Icon>
+              <ArrowRight />
+            </Button.Icon>
+          </Button>
+          <Pressable role="button" onPress={() => setDetailsOpen(true)}>
+            <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
+              {t("Fees and transfer times")}
+            </Text>
+          </Pressable>
         </YStack>
       </View>
       {qrCode && (
@@ -355,6 +279,116 @@ export default function Ramp() {
           </SafeView>
         </ModalSheet>
       )}
+      <ModalSheet open={detailsOpen} onClose={() => setDetailsOpen(false)}>
+        <SafeView borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+          <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+            <YStack gap="$s5" padding="$s5">
+              <Text emphasized headline color="$uiNeutralPrimary">
+                {t("Fees and transfer times")}
+              </Text>
+              <YStack gap="$s4">
+                {typedProvider === "manteca" && (
+                  <XStack gap="$s3" alignItems="center">
+                    <Banknote size={16} color="$uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                      {t("Amount")}
+                    </Text>
+                    <XStack alignItems="center">
+                      {typedCurrency === limitCurrency &&
+                        (minAmount === undefined ? (
+                          <Skeleton width={80} height={16} />
+                        ) : (
+                          <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                            {`${t("Min")} ${limitCurrency} ${formatAmount(minAmount)} - `}
+                          </Text>
+                        ))}
+                      {maxAmount !== undefined && limitCurrency ? (
+                        <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                          {`${t("Max")} ${limitCurrency} ${formatAmount(maxAmount)}`}
+                        </Text>
+                      ) : (
+                        <Skeleton width={80} height={16} />
+                      )}
+                    </XStack>
+                  </XStack>
+                )}
+                {typedProvider === "bridge" && (
+                  <XStack gap="$s3" alignItems="center">
+                    <View flexShrink={0} alignItems="center">
+                      <Banknote size={16} color="$uiNeutralPrimary" />
+                    </View>
+                    <XStack gap="$s1" alignItems="center" flex={1} flexWrap="wrap">
+                      <Text secondary caption2 color="$uiNeutralPlaceholder">
+                        {t(
+                          "We cover incoming transfers to your Bridge accounts in Exa App up to $3,000 or 60 transactions per month. Fees apply after that.",
+                        )}
+                        {bridgeFees && (
+                          <>
+                            {" "}
+                            <Text secondary caption2 color="$uiNeutralPlaceholder">
+                              {bridgeFees}
+                            </Text>
+                          </>
+                        )}
+                      </Text>
+                    </XStack>
+                  </XStack>
+                )}
+                {deposits.some((d) => d.estimatedProcessingTime) && (
+                  <XStack gap="$s3" alignItems="flex-start">
+                    <Clock size={16} color="$uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder" flex={1}>
+                      {t("Delivery time: {{details}}", {
+                        details: deposits
+                          .filter((d) => d.estimatedProcessingTime)
+                          .map((d) => {
+                            const seconds = Number(d.estimatedProcessingTime);
+                            const time = Number.isFinite(seconds)
+                              ? t("Between {{min}} and {{max}} minutes", {
+                                  min: Math.round(seconds / 60),
+                                  max: Math.round(seconds / 60) + 5,
+                                })
+                              : d.estimatedProcessingTime;
+                            return `${d.displayName}: ${time}`;
+                          })
+                          .join(". "),
+                      })}
+                    </Text>
+                  </XStack>
+                )}
+                {quote?.buyRate && (
+                  <XStack gap="$s3" alignItems="center">
+                    <Repeat size={16} color="$uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                      {t("Exchange rate")}
+                    </Text>
+                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                      {`${typedCurrency} ${Number(quote.buyRate).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })} = 1 USDC`}
+                    </Text>
+                  </XStack>
+                )}
+                {deposit?.fee && Number.parseFloat(deposit.fee) !== 0 && (
+                  <XStack gap="$s3" alignItems="center">
+                    <Percent size={16} color="$uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                      {t("Fee")}
+                    </Text>
+                    <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                      {deposit.fee}
+                    </Text>
+                  </XStack>
+                )}
+                {typedProvider === "bridge" ? <BridgeDisclaimer primary /> : <MantecaDisclaimer primary />}
+              </YStack>
+              <Pressable role="button" onPress={() => setDetailsOpen(false)}>
+                <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
+                  {t("Close")}
+                </Text>
+              </Pressable>
+            </YStack>
+          </ScrollView>
+        </SafeView>
+      </ModalSheet>
     </SafeView>
   );
 }
@@ -463,4 +497,10 @@ function depositRows(deposit: DepositCardProperties["deposit"]): { label: string
     default:
       return [];
   }
+}
+
+function fullDetails(deposit: DepositCardProperties["deposit"], t: ReturnType<typeof useTranslation>["t"]): string {
+  return depositRows(deposit)
+    .map(({ label, value }) => `${t(label)}: ${value}`)
+    .join("\n");
 }

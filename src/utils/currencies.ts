@@ -1,13 +1,15 @@
 import { picklist, safeParse } from "valibot";
 
 export const currencies = {
-  ARS: { name: "Argentine Pesos", shortName: "Pesos", emoji: "🇦🇷" },
-  BRL: { name: "Brazilian Real", shortName: "Reals", emoji: "🇧🇷" },
-  EUR: { name: "Euros", shortName: "Euros", emoji: "🇪🇺" },
-  GBP: { name: "British Pounds", shortName: "Pounds", emoji: "🇬🇧" },
-  MXN: { name: "Mexican Pesos", shortName: "Pesos", emoji: "🇲🇽" },
-  USD: { name: "US Dollars", shortName: "Dollars", emoji: "🇺🇸" },
+  ARS: { name: "Argentine Pesos", shortName: "Pesos", emoji: "🇦🇷", symbol: "$" },
+  BRL: { name: "Brazilian Real", shortName: "Reals", emoji: "🇧🇷", symbol: "R$" },
+  EUR: { name: "Euros", shortName: "Euros", emoji: "🇪🇺", symbol: "€" },
+  GBP: { name: "British Pounds", shortName: "Pounds", emoji: "🇬🇧", symbol: "£" },
+  MXN: { name: "Mexican Pesos", shortName: "Pesos", emoji: "🇲🇽", symbol: "MX$" },
+  USD: { name: "US Dollars", shortName: "Dollars", emoji: "🇺🇸", symbol: "$" },
 } as const;
+
+export const bridgeFiatCurrencies = ["BRL", "EUR", "GBP", "MXN", "USD"] as const;
 
 export const bridgeMethods: Partial<Record<Currency, string>> = {
   USD: "ACH or WIRE",
@@ -23,6 +25,10 @@ export const CurrencySchema = picklist(Object.keys(currencies) as [Currency, ...
 
 export function isValidCurrency(value: unknown): value is Currency {
   return safeParse(CurrencySchema, value).success;
+}
+
+export function getSymbol(currency: string): string {
+  return isValidCurrency(currency) ? currencies[currency].symbol : currency;
 }
 
 export const fees = {
@@ -67,3 +73,10 @@ export const fees = {
     },
   },
 };
+
+export function bridgeFee(currency?: string): string {
+  if (currency === "USD") return fees.bridge.ACH.fee;
+  if (!currency || !(currency in bridgeMethods)) return "";
+  const method = bridgeMethods[currency as Currency];
+  return method && method in fees.bridge ? fees.bridge[method as keyof typeof fees.bridge].fee : "";
+}
