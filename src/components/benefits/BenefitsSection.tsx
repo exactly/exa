@@ -9,7 +9,9 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useTheme, View } from "tamagui";
 
-import { isBase } from "@exactly/common/generated/chain";
+import { useQuery } from "@tanstack/react-query";
+
+import { BASE_PRODUCT_ID } from "@exactly/common/panda";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
@@ -19,10 +21,13 @@ import ExaLogo from "../../assets/images/exa-logo.svg";
 import exaPromo from "../../assets/images/exa-promo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import PaxImage from "../../assets/images/pax.webp";
+import VisaBaseImage from "../../assets/images/visa-base.webp";
 import VisaLogo from "../../assets/images/visa.svg";
 import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
 import ThemedSvg from "../shared/ThemedSvg";
+
+import type { CardDetails } from "../../utils/server";
 
 function ExaBackground() {
   return (
@@ -97,7 +102,15 @@ const BENEFITS = [
       "Learn more about all Visa Signature benefits.",
     ],
     logo: VisaLogo,
-    Background: () => <RasterBackground source={VisaImage} />,
+    Background: () => (
+      <RasterBackground
+        source={
+          useQuery<CardDetails>({ queryKey: ["card", "details"] }).data?.productId === BASE_PRODUCT_ID
+            ? VisaBaseImage
+            : VisaImage
+        }
+      />
+    ),
     linkText: "Learn more",
     buttonText: "Go to Visa",
     url: "https://help.exactly.app/{language}/articles/11172343-visa-signature-benefits-with-your-exa-card",
