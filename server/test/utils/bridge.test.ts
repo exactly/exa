@@ -567,6 +567,36 @@ describe("bridge utils", () => {
         });
       });
 
+      it("returns ONBOARDING with kycLink when issues contain place_of_birth_missing nested in an object", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: [{ place_of_birth: ["place_of_birth_missing"] }],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
       it("returns ONBOARDING with kycLink when missing is tax_identification_number string", async () => {
         vi.spyOn(globalThis, "fetch")
           .mockResolvedValueOnce(
@@ -1005,6 +1035,87 @@ describe("bridge utils", () => {
                     pending: [],
                     missing: null,
                     issues: ["government_id_verification_failed"],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when active customer still has missing requirements", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  name: "base",
+                  status: "incomplete",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: {
+                      all_of: [
+                        "sof_individual_primary_purpose",
+                        {
+                          any_of: [
+                            { all_of: ["selfie_document_in_persona", "selfie_verification"] },
+                            "proof_of_address_document",
+                            "gov_id_address_to_residential_address_match",
+                          ],
+                        },
+                      ],
+                    },
+                    issues: ["database_check_failed_on_address", "database_check_failed_on_birth_date"],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+        vi.mocked(captureException).mockClear();
+
+        await expect(
+          bridge.getProvider({
+            credentialId: "cred-1",
+            customerId: "cust-1",
+            redirectURL: "https://app.example.com/callback",
+          }),
+        ).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+        expect(captureException).not.toHaveBeenCalled();
+        const redirect = new URL(new URL(fetchSpy.mock.calls[1]?.[0] as string).searchParams.get("redirect_uri") ?? "");
+        expect(redirect.origin + redirect.pathname).toBe("https://app.example.com/callback");
+        expect(redirect.searchParams.get("provider")).toBe("bridge");
+      });
+
+      it("returns ONBOARDING with kycLink when active customer has database check issues", async () => {
+        vi.spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  name: "base",
+                  status: "incomplete",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: null,
+                    issues: ["database_check_failed_on_birth_date"],
                   },
                 },
               ],

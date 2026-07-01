@@ -18,6 +18,7 @@ import {
   parse,
   picklist,
   pipe,
+  record,
   regex,
   safeParse,
   string,
@@ -617,6 +618,25 @@ export async function getProvider(params: {
           ),
         };
       case "active":
+        if (
+          bridgeUser.endorsements.length > 0 &&
+          bridgeUser.endorsements.every((endorsement) => endorsement.status === "incomplete")
+        ) {
+          return {
+            status: "ONBOARDING" as const,
+            onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base] },
+            offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base] },
+            kycLink: await maybeKYCLink(
+              bridgeUser,
+              (() => {
+                if (!params.redirectURL) return;
+                const redirect = new URL(params.redirectURL);
+                redirect.searchParams.set("provider", "bridge");
+                return String(redirect);
+              })(),
+            ),
+          };
+        }
         break;
     }
 
@@ -1047,8 +1067,21 @@ const PaymentRailByBridgeCurrency: Partial<
   gbp: "faster_payments",
 };
 
-const missing = new Set(["tax_identification_number", "source_of_funds_questionnaire"]);
-const issues = new Set(["government_id_verification_failed"]);
+const missing = new Set([
+  "gov_id_address_to_residential_address_match",
+  "proof_of_address_document",
+  "selfie_document_in_persona",
+  "selfie_verification",
+  "sof_individual_primary_purpose",
+  "source_of_funds_questionnaire",
+  "tax_identification_number",
+]);
+const issues = new Set([
+  "database_check_failed_on_address",
+  "database_check_failed_on_birth_date",
+  "government_id_verification_failed",
+  "place_of_birth_missing",
+]);
 
 function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
   if (bridgeUser.status === "offboarded") return;
@@ -1066,7 +1099,7 @@ function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirect
     bridgeUser.endorsements.some(
       (endorsement) =>
         containsRequirement(endorsement.requirements.missing, missing) ||
-        endorsement.requirements.issues.some((issue) => typeof issue === "string" && issues.has(issue)),
+        endorsement.requirements.issues.some((issue) => hasIssue(issue)),
     )
   ) {
     return getKYCLink(bridgeUser.id, redirectUri).catch((error: unknown): undefined => {
@@ -1099,6 +1132,15 @@ function containsRequirement(node: unknown, targets: Set<string>): boolean {
   if (allOf.success) return allOf.output.all_of.some((child) => containsRequirement(child, targets));
   const anyOf = safeParse(object({ any_of: array(unknown()) }), node);
   if (anyOf.success) return anyOf.output.any_of.some((child) => containsRequirement(child, targets));
+  return false;
+}
+
+function hasIssue(node: unknown): boolean {
+  if (typeof node === "string") return issues.has(node);
+  const list = safeParse(array(unknown()), node);
+  if (list.success) return list.output.some((child) => hasIssue(child));
+  const fields = safeParse(record(string(), unknown()), node);
+  if (fields.success) return Object.values(fields.output).some((child) => hasIssue(child));
   return false;
 }
 
