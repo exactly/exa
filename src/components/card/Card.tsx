@@ -1,5 +1,6 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { Alert, AppState, Platform, Pressable } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -9,12 +10,13 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { literal, object, safeParse, union } from "valibot";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
-import CardDetails from "./CardDetails";
+import CardDetailsSheet from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
 import CardFreezeSheet from "./CardFreezeSheet";
 import CardPIN from "./CardPIN";
@@ -22,16 +24,20 @@ import ExaCard from "./exa-card/ExaCard";
 import SpendingLimits from "./SpendingLimits";
 import TimeoutSheet from "./TimeoutSheet";
 import VerificationFailure from "./VerificationFailure";
+import GoogleWalletButtonEs from "../../assets/images/google-wallet-button-es.svg";
+import GoogleWalletButtonPt from "../../assets/images/google-wallet-button-pt.svg";
+import GoogleWalletButtonEn from "../../assets/images/google-wallet-button.svg";
+import GoogleWalletIcon from "../../assets/images/google-wallet-icon.svg";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
+import reportError, { classifyError } from "../../utils/reportError";
 import {
   APIError,
   createCard,
   setCardStatus,
   type CardActivity,
-  type CardDetails as CardDetailsData,
+  type CardDetails,
   type KYCStatus,
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
@@ -39,6 +45,7 @@ import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
+import { saveCardProvisioningSnapshot } from "../../utils/walletExtensionStorage";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -51,6 +58,48 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
+import type * as MeaWallet from "@meawallet/react-native-mpp";
+
+// cspell:ignore UNTOKENIZED
+
+type Wallet = typeof MeaWallet;
+type WalletEligibility = {
+  apple: boolean;
+  google: "added" | "cta" | "hidden";
+  googleToken: MeaWallet.GooglePayTokenInfo | null;
+};
+const hiddenWallet = { apple: false, google: "hidden", googleToken: null } satisfies WalletEligibility;
+const googleWalletButtons = {
+  en: { Component: GoogleWalletButtonEn, height: 32, width: 116 },
+  es: { Component: GoogleWalletButtonEs, height: 32, width: 139 },
+  pt: { Component: GoogleWalletButtonPt, height: 32, width: 140 },
+} satisfies Record<string, { Component: typeof GoogleWalletButtonEn; height: number; width: number }>;
+
+let walletInitPromise: Promise<Wallet> | undefined;
+const primaryAccountIdentifiers = new Map<string, string>();
+
+function initWallet() {
+  if (Platform.OS === "web") return Promise.reject(new Error("wallet unavailable on web"));
+  walletInitPromise ??= import("@meawallet/react-native-mpp")
+    .then(async (wallet) => {
+      await wallet.default.initialize();
+      return wallet;
+    })
+    .catch((error: unknown) => {
+      walletInitPromise = undefined;
+      throw error;
+    });
+  return walletInitPromise;
+}
+
+async function syncWalletEligibility(lastFour: string | undefined) {
+  if (Platform.OS === "web" || lastFour?.length !== 4) return;
+  try {
+    await queryClient.refetchQueries({ exact: true, queryKey: ["wallet", "eligible", lastFour] });
+  } catch (error) {
+    reportError(error);
+  }
+}
 
 export default function Card() {
   const toast = useToastController();
@@ -60,6 +109,12 @@ export default function Card() {
     t,
     i18n: { language },
   } = useTranslation();
+  const googleWalletButton = language.startsWith("es")
+    ? googleWalletButtons.es
+    : language.startsWith("pt")
+      ? googleWalletButtons.pt
+      : googleWalletButtons.en;
+  const GoogleWalletButton = googleWalletButton.Component;
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
@@ -78,7 +133,18 @@ export default function Card() {
     data: cardDetails,
     refetch: refetchCard,
     isFetching: isFetchingCard,
-  } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
+  } = useQuery<CardDetails>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
+
+  useEffect(() => {
+    if (!cardDetails) return;
+    saveCardProvisioningSnapshot({
+      displayName: cardDetails.displayName,
+      expirationMonth: cardDetails.expirationMonth,
+      expirationYear: cardDetails.expirationYear,
+      lastFour: cardDetails.lastFour,
+      productId: cardDetails.productId,
+    }).catch(reportError);
+  }, [cardDetails]);
 
   const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
   const weeklyPurchases = purchases
@@ -123,6 +189,7 @@ export default function Card() {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       address ? refetchMarkets() : undefined,
       address && credential ? refetchInstalledPlugins() : undefined,
+      syncWalletEligibility(cardDetails?.lastFour),
       queryClient.refetchQueries({ queryKey }),
     ]);
   useTabPress("card", () => {
@@ -266,6 +333,181 @@ export default function Card() {
     },
   });
 
+  const [sdk, setSdk] = useState<null | Wallet>(null);
+  const [provisioning, setProvisioning] = useState(false);
+  const walletInFlightRef = useRef(false);
+  const { data: walletEligible, isPending: isPendingWallet } = useQuery<WalletEligibility>({
+    queryKey: ["wallet", "eligible", cardDetails?.lastFour],
+    enabled: Platform.OS !== "web" && cardDetails?.lastFour.length === 4,
+    queryFn: async () => {
+      const lastFour = cardDetails?.lastFour;
+      if (!lastFour || Platform.OS === "web") return hiddenWallet;
+      const nextWallet = await initWallet();
+      if (Platform.OS === "ios") {
+        try {
+          const [{ cardId, cardSecret }, available, canAdd] = await Promise.all([
+            queryClient.fetchQuery<{ cardId: string; cardSecret: string }>({
+              queryKey: ["card", "provisioning"],
+              staleTime: 0,
+            }),
+            nextWallet.default.ApplePay.isPassLibraryAvailable(),
+            nextWallet.default.ApplePay.canAddPaymentPass(),
+          ]);
+          const cachedPrimaryAccountIdentifier = primaryAccountIdentifiers.get(cardId);
+          if (!available || !canAdd) return hiddenWallet;
+          const response =
+            cachedPrimaryAccountIdentifier === undefined
+              ? await nextWallet.default.ApplePay.initializeOemTokenization(
+                  nextWallet.MppCardDataParameters.withCardSecret(cardId, cardSecret),
+                )
+              : { primaryAccountIdentifier: cachedPrimaryAccountIdentifier };
+          const primaryAccountIdentifier = response.primaryAccountIdentifier;
+          if (primaryAccountIdentifier) {
+            primaryAccountIdentifiers.set(cardId, primaryAccountIdentifier);
+            const secureElementPassExists =
+              await nextWallet.default.ApplePay.secureElementPassExistsWithPrimaryAccountIdentifier(
+                primaryAccountIdentifier,
+              );
+            const [canAddByPrimaryAccountIdentifier, canAddSecureElement] = await Promise.all([
+              nextWallet.default.ApplePay.canAddPaymentPassWithPrimaryAccountIdentifier(primaryAccountIdentifier).catch(
+                () => undefined,
+              ),
+              nextWallet.default.ApplePay.canAddSecureElementPassWithPrimaryAccountIdentifier(
+                primaryAccountIdentifier,
+              ).catch(() => undefined),
+            ]);
+            return {
+              apple:
+                canAddSecureElement === true ||
+                canAddByPrimaryAccountIdentifier === true ||
+                ((canAddSecureElement !== false || canAddByPrimaryAccountIdentifier !== false) &&
+                  !secureElementPassExists),
+              google: "hidden",
+              googleToken: null,
+            };
+          }
+          return { apple: true, google: "hidden", googleToken: null };
+        } catch (error) {
+          reportError(error);
+          return { apple: true, google: "hidden", googleToken: null };
+        }
+      }
+      if (Platform.OS !== "android") return hiddenWallet;
+      return nextWallet.default.GooglePay.isWalletAvailable()
+        .then(async (available) => {
+          if (!available) return hiddenWallet;
+          const tokens = await nextWallet.default.GooglePay.checkWalletForCardSuffix(lastFour).catch(
+            (error: unknown) => {
+              if (
+                safeParse(
+                  union([
+                    object({ code: literal("GOOGLE_PAY_TOKEN_NOT_FOUND") }),
+                    object({ userInfo: object({ code: literal(702) }) }),
+                  ]),
+                  error,
+                ).success
+              )
+                return [];
+              reportError(error);
+            },
+          );
+          if (!tokens) return hiddenWallet;
+          const { GooglePayTokenState } = nextWallet;
+          const googleVerificationToken =
+            tokens.find(
+              ({ tokenState }) => tokenState === GooglePayTokenState.TOKEN_STATE_NEEDS_IDENTITY_VERIFICATION,
+            ) ?? null;
+          const google = tokens.some(({ tokenState }) => tokenState === GooglePayTokenState.TOKEN_STATE_ACTIVE)
+            ? "added"
+            : googleVerificationToken ||
+                tokens.every(
+                  ({ tokenState }) =>
+                    tokenState === GooglePayTokenState.TOKEN_STATE_NOT_FOUND ||
+                    tokenState === GooglePayTokenState.TOKEN_STATE_UNTOKENIZED,
+                )
+              ? "cta"
+              : "hidden";
+          return {
+            apple: false,
+            google,
+            googleToken:
+              google === "cta" && googleVerificationToken
+                ? {
+                    isSelectedAsDefault: String(googleVerificationToken.isDefaultToken),
+                    paymentNetwork: googleVerificationToken.paymentNetwork,
+                    tokenId: googleVerificationToken.issuerTokenId,
+                    tokenState: googleVerificationToken.tokenState,
+                  }
+                : null,
+          } satisfies WalletEligibility;
+        })
+        .catch((error: unknown) => {
+          reportError(error);
+          return hiddenWallet;
+        });
+    },
+  });
+
+  useEffect(() => {
+    if (Platform.OS === "web" || cardDetails?.lastFour.length !== 4) return;
+    const lastFour = cardDetails.lastFour;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      syncWalletEligibility(lastFour).catch(reportError);
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [cardDetails?.lastFour]);
+
+  useEffect(() => {
+    if (Platform.OS === "web" || cardDetails?.lastFour.length !== 4) return;
+    const lastFour = cardDetails.lastFour;
+    let mounted = true;
+    let cleanup: (() => void) | undefined;
+    initWallet()
+      .then((nextWallet) => {
+        if (!mounted) return;
+        setSdk((current) => current ?? nextWallet);
+        if (Platform.OS === "ios") {
+          const subscription = nextWallet.default.ApplePay.registerDataChangedListener(() => {
+            syncWalletEligibility(lastFour).catch(reportError);
+          });
+          cleanup = () => {
+            nextWallet.default.ApplePay.removeDataChangedListener(subscription);
+          };
+          return;
+        }
+        const subscription = nextWallet.default.GooglePay.registerDataChangedListener(() => {
+          syncWalletEligibility(lastFour).catch(reportError);
+        });
+        cleanup = () => nextWallet.default.GooglePay.removeDataChangedListener(subscription);
+      })
+      .catch(reportError);
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
+  }, [cardDetails?.lastFour]);
+
+  const withWalletProvisioning = async <T,>(work: () => Promise<T>) => {
+    if (walletInFlightRef.current) return;
+    walletInFlightRef.current = true;
+    setProvisioning(true);
+    try {
+      return await work();
+    } catch (error) {
+      const classification = classifyError(error);
+      if (classification.walletCancelled) return;
+      reportError(error);
+      throw error;
+    } finally {
+      walletInFlightRef.current = false;
+      setProvisioning(false);
+    }
+  };
+
+  const AddPassButton = Platform.OS === "ios" ? sdk?.default.ApplePay.AddPassButton : undefined;
   const displayStatus = isSettingCardStatus ? optimisticCardStatus : cardDetails?.status;
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -332,6 +574,112 @@ export default function Card() {
                     revealCard().catch(reportError);
                   }}
                 />
+                {Platform.OS !== "web" &&
+                cardDetails &&
+                !isPendingWallet &&
+                walletEligible &&
+                (walletEligible.apple || walletEligible.google !== "hidden") ? (
+                  <XStack alignSelf="center" alignItems="center" justifyContent="center">
+                    {provisioning ? (
+                      <Spinner color="$interactiveTextBrandDefault" />
+                    ) : (
+                      <>
+                        {AddPassButton && walletEligible.apple ? (
+                          <AddPassButton
+                            style={{ height: 44, width: 180 }}
+                            addPassButtonStyle="black"
+                            onPress={() => {
+                              withWalletProvisioning(async () => {
+                                const nextWallet = sdk ?? (await initWallet());
+                                const { cardId, cardSecret } = await queryClient.fetchQuery<{
+                                  cardId: string;
+                                  cardSecret: string;
+                                }>({
+                                  queryKey: ["card", "provisioning"],
+                                  staleTime: 0,
+                                });
+                                const response = await nextWallet.default.ApplePay.initializeOemTokenization(
+                                  nextWallet.MppCardDataParameters.withCardSecret(cardId, cardSecret),
+                                );
+                                const activationState =
+                                  await nextWallet.default.ApplePay.showAddPaymentPassView(response);
+                                await syncWalletEligibility(cardDetails.lastFour);
+                                return activationState === nextWallet.MppPassActivationState.ACTIVATED;
+                              })
+                                .then((added) => {
+                                  if (!added) return;
+                                  Alert.alert(
+                                    t("Card added"),
+                                    t("Your card was added to your wallet. Follow any remaining steps if prompted."),
+                                  );
+                                })
+                                .catch(() => undefined);
+                            }}
+                          />
+                        ) : null}
+                        {walletEligible.google === "cta" ? (
+                          <Pressable
+                            accessibilityLabel={t("Add to Google Wallet")}
+                            accessibilityRole="button"
+                            hitSlop={8}
+                            style={{ height: googleWalletButton.height, width: googleWalletButton.width }}
+                            onPress={() => {
+                              withWalletProvisioning(async () => {
+                                const nextWallet = sdk ?? (await initWallet());
+                                if (walletEligible.googleToken) {
+                                  await nextWallet.default.GooglePay.tokenize(
+                                    walletEligible.googleToken,
+                                    cardDetails.displayName,
+                                  );
+                                  await syncWalletEligibility(cardDetails.lastFour);
+                                  return true;
+                                }
+                                const { cardId, cardSecret } = await queryClient.fetchQuery<{
+                                  cardId: string;
+                                  cardSecret: string;
+                                }>({
+                                  queryKey: ["card", "provisioning"],
+                                  staleTime: 0,
+                                });
+                                await nextWallet.default.GooglePay.push(
+                                  nextWallet.MppCardDataParameters.withCardSecret(cardId, cardSecret),
+                                  cardDetails.displayName,
+                                  {},
+                                );
+                                await syncWalletEligibility(cardDetails.lastFour);
+                                return true;
+                              })
+                                .then((added) => {
+                                  if (!added) return;
+                                  Alert.alert(
+                                    t("Card added"),
+                                    t("Your card was added to your wallet. Follow any remaining steps if prompted."),
+                                  );
+                                })
+                                .catch(() => undefined);
+                            }}
+                          >
+                            <GoogleWalletButton height={googleWalletButton.height} width={googleWalletButton.width} />
+                          </Pressable>
+                        ) : null}
+                        {walletEligible.google === "added" ? (
+                          <XStack
+                            aria-label={t("Added to Google Wallet")}
+                            alignItems="center"
+                            gap="$s3_5"
+                            justifyContent="center"
+                          >
+                            <GoogleWalletIcon height={24} width={24} />
+                            <View width={1} height={24} backgroundColor="$borderNeutralSoft" />
+                            <Text caption color="$uiNeutralPlaceholder">
+                              {t("Added to Google Wallet")}
+                            </Text>
+                          </XStack>
+                        ) : null}
+                      </>
+                    )}
+                  </XStack>
+                ) : null}
                 <YStack
                   borderRadius="$r3"
                   borderWidth={1}
@@ -508,7 +856,7 @@ export default function Card() {
             </View>
           </View>
         </ScrollView>
-        <CardDetails
+        <CardDetailsSheet
           open={cardDetailsOpen ?? false}
           onClose={() => {
             queryClient.setQueryData(["card-details-open"], false);

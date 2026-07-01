@@ -1,0 +1,7 @@
+{
+  "name": "wallet-extension-storage",
+  "version": "1.0.0",
+  "description": "Shared storage for Exa Wallet extensions.",
+  "license": "UNLICENSED",
+  "private": true
+}
