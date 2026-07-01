@@ -1,7 +1,8 @@
-import React, { memo, useMemo, useRef } from "react";
+import React, { memo, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList } from "react-native";
 
+import { Download } from "@tamagui/lucide-icons";
 import { useTheme } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +10,7 @@ import { format } from "date-fns";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
+import StatementSheet from "./StatementSheet";
 import queryClient, { type ActivityItem as ActivityEvent } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
@@ -25,6 +27,7 @@ export default function Activity() {
   const { queryKey } = useAsset();
   const { t } = useTranslation();
   const theme = useTheme();
+  const [statementOpen, setStatementOpen] = useState(false);
 
   const { data, stickyHeaderIndices } = useMemo(() => {
     if (!activity?.length) return { data: [] as ActivityItemType[], stickyHeaderIndices: [] as number[] };
@@ -83,6 +86,17 @@ export default function Activity() {
                   <Text fontSize={20} fontWeight="bold">
                     {t("All Activity")}
                   </Text>
+                  <View
+                    role="button"
+                    aria-label={t("Download account statement")}
+                    cursor="pointer"
+                    hitSlop={16}
+                    onPress={() => {
+                      setStatementOpen(true);
+                    }}
+                  >
+                    <Download size={24} color="$interactiveBaseBrandDefault" />
+                  </View>
                 </View>
               </View>
               <ProposalBanner />
@@ -94,6 +108,12 @@ export default function Activity() {
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           stickyHeaderIndices={stickyHeaderIndices.map((index) => index + 1)}
+        />
+        <StatementSheet
+          open={statementOpen}
+          onClose={() => {
+            setStatementOpen(false);
+          }}
         />
       </View>
     </SafeView>

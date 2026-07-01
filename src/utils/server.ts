@@ -296,6 +296,10 @@ queryClient.setQueryDefaults(["activity", "details"], {
   },
 });
 
+export async function getStatement(maturity: number) {
+  return getActivity({ maturity: String(maturity) }, "application/pdf");
+}
+
 let authenticating: Promise<void> | undefined;
 export async function auth() {
   if (authenticating) return authenticating;
