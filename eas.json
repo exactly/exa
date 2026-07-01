@@ -5,6 +5,7 @@
       "resourceClass": "large",
       "node": "24.14.1",
       "pnpm": "10.33.0",
+      "env": { "npm_config_mpp_env": "prod" },
       "android": { "image": "latest" },
       "ios": { "image": "latest" }
     },
