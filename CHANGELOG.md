@@ -1,5 +1,17 @@
 # @exactly/mobile
 
+## 1.2.15
+
+### Patch Changes
+
+- [#1124](https://github.com/exactly/exa/pull/1124) [`39ce9d6`](https://github.com/exactly/exa/commit/39ce9d68174ece44a3502f15fe6c77cbb203ea26) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ surface crypto on-ramp sunset in add funds
+
+- [#1126](https://github.com/exactly/exa/pull/1126) [`ed5f97f`](https://github.com/exactly/exa/commit/ed5f97f9581dd2f1414ee3725ef5c358248e575e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update auth carousel copy
+
+- [#1126](https://github.com/exactly/exa/pull/1126) [`b9afddc`](https://github.com/exactly/exa/commit/b9afddcc80d9fd0b48ecd03bcff33dd947cc3de9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove qr payments slide from auth carousel
+
+- [#1126](https://github.com/exactly/exa/pull/1126) [`87bb0e3`](https://github.com/exactly/exa/commit/87bb0e303a162df9e0bf30a2c2b35fd409afeffd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 source supported assets from markets
+
 ## 1.2.14
 
 ### Patch Changes
