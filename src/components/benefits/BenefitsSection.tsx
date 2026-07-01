@@ -19,6 +19,7 @@ import ExaLogo from "../../assets/images/exa-logo.svg";
 import exaPromo from "../../assets/images/exa-promo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import PaxImage from "../../assets/images/pax.webp";
+import VisaBaseImage from "../../assets/images/visa-base.webp";
 import VisaLogo from "../../assets/images/visa.svg";
 import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
@@ -97,7 +98,7 @@ const BENEFITS = [
       "Learn more about all Visa Signature benefits.",
     ],
     logo: VisaLogo,
-    Background: () => <RasterBackground source={VisaImage} />,
+    Background: () => <RasterBackground source={isBase ? VisaBaseImage : VisaImage} />,
     linkText: "Learn more",
     buttonText: "Go to Visa",
     url: "https://help.exactly.app/{language}/articles/11172343-visa-signature-benefits-with-your-exa-card",
