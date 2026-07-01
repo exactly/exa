@@ -46,8 +46,6 @@ import ServiceError from "../ServiceError";
 export const name = "bridge" as const;
 
 export const EVMNetwork = ["BASE"] as const;
-export const Network = [...EVMNetwork, "SOLANA", "STELLAR", "TRON"] as const;
-export const OfframpNetwork = ["BASE", "SOLANA", "STELLAR", "TRON"];
 
 if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
 const baseURL = process.env.BRIDGE_API_URL;
@@ -143,35 +141,6 @@ export async function getVirtualAccounts(customerId: string) {
     const page = await request(VirtualAccounts, `${path}?limit=20&starting_after=${last.id}`);
     if (page.data.length === 0) {
       captureException(new Error("bridge virtual accounts empty page"), {
-        level: "warning",
-        contexts: { bridge: { customerId, count: first.count, fetched: all.length } },
-      });
-      break;
-    }
-    all.push(...page.data);
-  }
-  return all;
-}
-
-export async function createLiquidationAddress(customerId: string, data: InferInput<typeof CreateLiquidationAddress>) {
-  return await request(LiquidationAddress, `/customers/${customerId}/liquidation_addresses`, {}, data, "POST");
-}
-
-export async function getLiquidationAddresses(customerId: string) {
-  const path = `/customers/${customerId}/liquidation_addresses` as const;
-  const first = await request(LiquidationAddresses, `${path}?limit=20`);
-  const all = [...first.data];
-  if (first.data.length < first.count)
-    captureException(new Error("bridge liquidation addresses pagination"), {
-      level: "warning",
-      contexts: { bridge: { customerId, count: first.count } },
-    });
-  while (all.length < first.count) {
-    const last = all.at(-1);
-    if (!last) break;
-    const page = await request(LiquidationAddresses, `${path}?limit=20&starting_after=${last.id}`);
-    if (page.data.length === 0) {
-      captureException(new Error("bridge liquidation addresses empty page"), {
         level: "warning",
         contexts: { bridge: { customerId, count: first.count, fetched: all.length } },
       });
@@ -880,48 +849,6 @@ export async function getDepositDetails(
   return getDepositDetailsFromVirtualAccount(virtualAccount, account);
 }
 
-export async function getCryptoDepositDetails(
-  currency: "USDC" | "USDT",
-  network: (typeof Network)[number],
-  account: string,
-  customer: InferOutput<typeof CustomerResponse>,
-) {
-  const supportedChainId = Supported[chain.id];
-  if (!supportedChainId) {
-    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
-    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-  }
-  if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
-
-  const paymentRail = NetworkToCryptoPaymentRail[network];
-  if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
-    throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
-  }
-
-  const liquidationAddresses = await getLiquidationAddresses(customer.id);
-  let liquidationAddress = liquidationAddresses.find(
-    ({ chain: bridgeChain, currency: bridgeCurrency }) =>
-      bridgeChain === paymentRail && CurrencyToBridge[currency] === bridgeCurrency,
-  );
-
-  liquidationAddress ??= await createLiquidationAddress(
-    customer.id,
-    parse(CreateLiquidationAddress, {
-      destination_address: account,
-      destination_currency: "usdc",
-      destination_payment_rail: supportedChainId,
-      currency: CurrencyToBridge[currency],
-      chain: paymentRail,
-    }),
-  );
-
-  return getDepositDetailsFromLiquidationAddress(
-    liquidationAddress,
-    account,
-    paymentRail === "evm" ? parse(picklist(EVMNetwork), network) : undefined,
-  );
-}
-
 export async function getOfframpDepositDetails(
   externalAccountId: string,
   account: string,
@@ -960,60 +887,6 @@ export async function getOfframpDepositDetails(
       external_account_id: externalAccountId,
     },
     features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-  });
-
-  return [
-    {
-      network: "OPTIMISM" as const,
-      displayName: "Optimism" as const,
-      address: parse(Address, transfer.source_deposit_instructions.to_address),
-      fee: "0.0",
-      estimatedProcessingTime: "300",
-    },
-  ];
-}
-
-export async function getCryptoOfframpDepositDetails(
-  currency: "USDC" | "USDT",
-  network: (typeof Network)[number],
-  toAddress: string,
-  account: Address,
-  customer: InferOutput<typeof CustomerResponse>,
-  memo?: string,
-) {
-  if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
-  const supportedChain = Supported[chain.id];
-  if (!supportedChain) {
-    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
-    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-  }
-
-  const paymentRail = parse(picklist(["solana", "stellar", "tron", "base"]), NetworkToOfframpRail[network]);
-  if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
-    throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
-  }
-
-  const transfer = await createTransfer({
-    on_behalf_of: customer.id,
-    client_reference_id: account,
-    source: { currency: "usdc", payment_rail: supportedChain },
-    destination: {
-      currency: CurrencyToBridge[currency],
-      payment_rail: paymentRail,
-      to_address: toAddress,
-      blockchain_memo: memo,
-    },
-    features: { flexible_amount: true, allow_any_from_address: true },
-  }).catch((error: unknown) => {
-    if (
-      error instanceof ServiceError &&
-      typeof error.cause === "string" &&
-      error.cause.includes(BridgeApiErrorCodes.INVALID_PARAMETERS) &&
-      error.cause.includes("to_address")
-    ) {
-      throw new Error(ErrorCodes.INVALID_DEPOSIT_ADDRESS);
-    }
-    throw error;
   });
 
   return [
@@ -1144,30 +1017,7 @@ export const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeo
   spei: ["MXN"],
 };
 
-export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron", "base"] as const;
 export const BridgeChain = ["optimism"] as const;
-
-const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
-  base: ["USDC"],
-  evm: ["USDC"],
-  solana: ["USDC"],
-  stellar: ["USDC"],
-  tron: ["USDT"],
-};
-
-const NetworkToCryptoPaymentRail: Record<(typeof Network)[number], (typeof CryptoPaymentRail)[number]> = {
-  BASE: "evm",
-  SOLANA: "solana",
-  STELLAR: "stellar",
-  TRON: "tron",
-} as const;
-
-const NetworkToOfframpRail: Record<(typeof OfframpNetwork)[number], (typeof CryptoPaymentRail)[number]> = {
-  BASE: "base",
-  SOLANA: "solana",
-  STELLAR: "stellar",
-  TRON: "tron",
-} as const;
 
 const Supported: Record<number, (typeof BridgeChain)[number]> = {
   [optimism.id]: "optimism",
@@ -1507,25 +1357,6 @@ const VirtualAccount = object({
   }),
 });
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
-
-const CreateLiquidationAddress = object({
-  currency: picklist(["usdc", "usdt"]),
-  chain: picklist([...CryptoPaymentRail]),
-  destination_payment_rail: picklist(BridgeChain),
-  destination_currency: picklist(["usdc"]),
-  destination_address: Address,
-});
-
-const LiquidationAddress = object({
-  id: string(),
-  currency: picklist(["usdc", "usdt", "any"]),
-  chain: picklist([...CryptoPaymentRail]),
-  address: string(),
-  destination_address: Address,
-  blockchain_memo: optional(string()),
-});
-
-const LiquidationAddresses = object({ count: number(), data: array(LiquidationAddress) });
 
 const AccountOwnerName = pipe(string(), minLength(1), maxLength(256));
 const BankName = pipe(string(), minLength(1), maxLength(256));
@@ -2105,63 +1936,6 @@ function getDepositDetailsFromVirtualAccount(virtualAccount: InferOutput<typeof 
   }
 }
 
-function getDepositDetailsFromLiquidationAddress(
-  liquidationAddress: InferOutput<typeof LiquidationAddress>,
-  account: string,
-  evmNetwork?: (typeof EVMNetwork)[number],
-) {
-  if (liquidationAddress.destination_address.toLowerCase() !== account.toLowerCase()) {
-    throw new Error(ErrorCodes.INVALID_ACCOUNT);
-  }
-
-  switch (liquidationAddress.chain) {
-    case "evm":
-      if (!evmNetwork) throw new Error(ErrorCodes.NOT_AVAILABLE_EVM_NETWORK);
-      return [
-        {
-          network: evmNetwork,
-          displayName: evmNetwork,
-          address: parse(Address, liquidationAddress.address),
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-        },
-      ];
-    case "tron":
-      return [
-        {
-          network: "TRON" as const,
-          displayName: "TRON" as const,
-          address: liquidationAddress.address,
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-        },
-      ];
-    case "solana":
-      return [
-        {
-          network: "SOLANA" as const,
-          displayName: "SOLANA" as const,
-          address: liquidationAddress.address,
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-        },
-      ];
-    case "stellar":
-      if (!liquidationAddress.blockchain_memo) throw new Error(ErrorCodes.MISSING_STELLAR_MEMO);
-      return [
-        {
-          network: "STELLAR" as const,
-          displayName: "STELLAR" as const,
-          address: liquidationAddress.address,
-          fee: "0.0",
-          estimatedProcessingTime: "300",
-          memo: liquidationAddress.blockchain_memo,
-        },
-      ];
-  }
-  throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
-}
-
 export const ErrorCodes = {
   ALREADY_ONBOARDED: "already onboarded",
   BAD_BRIDGE_ID: "bad bridge id",
@@ -2173,13 +1947,9 @@ export const ErrorCodes = {
   INVALID_ACCOUNT: "invalid destination account",
   INVALID_ADDRESS: "invalid address",
   INVALID_BANK_NAME: "invalid bank name",
-  INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NOT_ACTIVE_CUSTOMER: "not active customer",
   NO_ENDORSEMENT: "no endorsement",
-  NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
   NOT_AVAILABLE_CURRENCY: "not available currency",
-  MISSING_STELLAR_MEMO: "missing stellar memo",
-  NOT_AVAILABLE_EVM_NETWORK: "not available evm network",
   NOT_ENABLED: "not enabled",
   NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",

@@ -39,10 +39,10 @@ const ErrorCodes = {
   EXTERNAL_ACCOUNT_NOT_FOUND: "external account not found",
   EXTERNAL_ACCOUNT_NOT_SUPPORTED: "external account not supported",
   INVALID_BANK_NAME: "invalid bank name",
-  INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NO_CREDENTIAL: "no credential",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
+  NOT_SUPPORTED: "not supported",
   POSTAL_CODE_REQUIRED: "postal code required",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
 };
@@ -123,35 +123,6 @@ export default new Hono()
           provider: literal("bridge"),
         }),
         object({
-          address: Address,
-          currency: literal("USDC"),
-          direction: literal("offramp"),
-          network: literal("BASE"),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: string(),
-          currency: literal("USDC"),
-          direction: literal("offramp"),
-          network: literal("SOLANA"),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: string(),
-          currency: literal("USDC"),
-          direction: literal("offramp"),
-          memo: string(),
-          network: literal("STELLAR"),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: string(),
-          currency: literal("USDT"),
-          direction: literal("offramp"),
-          network: literal("TRON"),
-          provider: literal("bridge"),
-        }),
-        object({
           currency: literal("USDT"),
           direction: optional(literal("onramp")),
           network: literal("TRON"),
@@ -212,29 +183,6 @@ export default new Hono()
           const quote = (await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse;
 
           if (query.direction === "offramp") {
-            if ("network" in query) {
-              try {
-                return c.json(
-                  {
-                    quote,
-                    depositInfo: await bridge.getCryptoOfframpDepositDetails(
-                      query.currency,
-                      query.network,
-                      query.address,
-                      parse(Address, credential.account),
-                      bridgeUser,
-                      query.network === "STELLAR" ? query.memo : undefined,
-                    ),
-                  } satisfies InferOutput<typeof RampResponse>,
-                  200,
-                );
-              } catch (error) {
-                if (error instanceof Error && error.message === bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS) {
-                  return c.json({ code: ErrorCodes.INVALID_DEPOSIT_ADDRESS }, 400);
-                }
-                throw error;
-              }
-            }
             try {
               return c.json(
                 {
@@ -264,22 +212,7 @@ export default new Hono()
               throw error;
             }
           }
-
-          if ("network" in query) {
-            return c.json(
-              {
-                quote,
-                depositInfo: await bridge.getCryptoDepositDetails(
-                  query.currency,
-                  query.network,
-                  credential.account,
-                  bridgeUser,
-                ),
-              } satisfies InferOutput<typeof RampResponse>,
-              200,
-            );
-          }
-
+          if ("network" in query) return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
           return c.json(
             {
               quote,
