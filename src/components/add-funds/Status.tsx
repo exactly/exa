@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Headset, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, YStack } from "tamagui";
 
@@ -18,6 +19,7 @@ import Denied from "../../assets/images/denied.svg";
 import Documents from "../../assets/images/documents.svg";
 import FaceId from "../../assets/images/face-id.svg";
 import { isValidCurrency } from "../../utils/currencies";
+import { newMessage } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getRampProviders } from "../../utils/server";
@@ -65,6 +67,8 @@ export default function Status() {
   const bridge = providers?.bridge;
   const kycLink = bridge && "kycLink" in bridge ? bridge.kycLink : undefined;
   const needsMoreInfo = isOnboarding && typedProvider === "bridge" && !!kycLink;
+  const providerStatus = providers?.[typedProvider].status;
+  const needsSupport = status === "CONTACT_SUPPORT" || providerStatus === "CONTACT_SUPPORT";
   const offrampAvailable =
     !!currency &&
     !!bridge &&
@@ -72,7 +76,7 @@ export default function Status() {
     bridge.offramp.currencies.some((item) => (typeof item === "string" ? item : item.currency) === currency);
 
   useEffect(() => {
-    if ((isOnboarding || isPending) && providers?.[typedProvider].status === "ACTIVE" && currency) {
+    if ((isOnboarding || isPending) && providerStatus === "ACTIVE" && currency) {
       if (offramp) {
         if (!offrampAvailable) return;
         router.replace({ pathname: "/send-funds/recipients", params: { currency, provider: typedProvider } });
@@ -88,7 +92,6 @@ export default function Status() {
   }, [
     isOnboarding,
     isPending,
-    providers,
     currency,
     isCrypto,
     network,
@@ -96,6 +99,7 @@ export default function Status() {
     typedProvider,
     offramp,
     offrampAvailable,
+    providerStatus,
   ]);
 
   const ready = !isPending || (timedOut && !isFetching);
@@ -153,7 +157,7 @@ export default function Status() {
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
                   {needsMoreInfo ? (
                     <Documents width="100%" height="100%" />
-                  ) : isOnboarding ? (
+                  ) : isOnboarding || needsSupport ? (
                     <FaceId width="100%" height="100%" />
                   ) : (
                     <Denied width="100%" height="100%" />
@@ -163,23 +167,31 @@ export default function Status() {
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
                     {needsMoreInfo
                       ? t("Bridge needs more information")
-                      : isOnboarding
-                        ? t("Almost there!")
-                        : t("Verification failed")}
+                      : needsSupport
+                        ? t("We couldn’t complete your verification")
+                        : isOnboarding
+                          ? t("Almost there!")
+                          : t("Verification failed")}
                   </Text>
-                  <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
+                  <Text
+                    color={needsSupport ? "$uiNeutralSecondary" : "$uiNeutralPlaceholder"}
+                    footnote
+                    textAlign="center"
+                  >
                     {needsMoreInfo
                       ? t("Bridge needs a few more details before creating your account.")
-                      : isOnboarding
-                        ? t("We’re verifying your information. You’ll be able to add funds soon.")
-                        : t("There was an error verifying your information.")}
+                      : needsSupport
+                        ? t("Reach out to our support team and we’ll get you back on track.")
+                        : isOnboarding
+                          ? t("We’re verifying your information. You’ll be able to add funds soon.")
+                          : t("There was an error verifying your information.")}
                   </Text>
                 </YStack>
               </YStack>
             </YStack>
           </View>
         </ScrollView>
-        {typedProvider === "bridge" ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
+        {!needsSupport && (typedProvider === "bridge" ? <BridgeDisclaimer /> : <MantecaDisclaimer />)}
         {ready ? (
           needsMoreInfo ? (
             <Button onPress={() => setOpenKYC(true)} primary>
@@ -188,6 +200,26 @@ export default function Status() {
                 <ArrowRight size={24} />
               </Button.Icon>
             </Button>
+          ) : needsSupport ? (
+            <YStack gap="$s4" alignItems="center">
+              <Button
+                width="100%"
+                onPress={() => {
+                  newMessage(t("I need help completing my verification")).catch(reportError);
+                }}
+                primary
+              >
+                <Button.Text>{t("Contact support")}</Button.Text>
+                <Button.Icon>
+                  <Headset size={24} />
+                </Button.Icon>
+              </Button>
+              <Pressable onPress={handleClose}>
+                <Text emphasized footnote color="$interactiveTextBrandDefault">
+                  {t("Close")}
+                </Text>
+              </Pressable>
+            </YStack>
           ) : (
             <Button onPress={handleClose} primary>
               <Button.Text>{t("Close")}</Button.Text>

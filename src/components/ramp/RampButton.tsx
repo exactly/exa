@@ -45,6 +45,12 @@ export default function RampButton({
           params: { ...params, status: "ONBOARDING", direction },
         });
         break;
+      case "CONTACT_SUPPORT":
+        router.push({
+          pathname: offramp ? "/send-funds/status" : "/add-funds/status",
+          params: { ...params, status: "CONTACT_SUPPORT", direction },
+        });
+        break;
       case "ACTIVE":
         router.push({
           pathname: offramp ? "/send-funds/recipients" : isCrypto ? "/add-funds/add-crypto" : "/add-funds/ramp",
