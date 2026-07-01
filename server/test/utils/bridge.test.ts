@@ -77,6 +77,14 @@ describe("bridge utils", () => {
       expect(result).toBeUndefined();
     });
 
+    it("throws when created_at is not a valid date", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({ ...activeCustomer, created_at: "not-a-date" }),
+      );
+
+      await expect(bridge.getCustomer("cust-123")).rejects.toThrow("invalid created_at");
+    });
+
     it("throws on other errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(500, "internal error"));
 
@@ -237,6 +245,25 @@ describe("bridge utils", () => {
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
+          kycLink: undefined,
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "bridge user onboarding" }),
+          expect.objectContaining({ level: "warning" }),
+        );
+      });
+
+      it("returns ONBOARDING without crypto currencies when customer is created after the cutoff", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, created_at: "2026-07-02T00:00:00.000Z", status: "rejected" }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: ["USD"] },
+          offramp: { currencies: ["USD"] },
           kycLink: undefined,
         });
         expect(captureException).toHaveBeenCalledWith(
@@ -1048,6 +1075,23 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
           offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          futureRequirement: undefined,
+        });
+      });
+
+      it("returns ACTIVE without crypto currencies when customer is created after the cutoff", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            created_at: "2026-07-02T00:00:00.000Z",
+            endorsements: [endorsement("base", "approved"), endorsement("sepa", "approved")],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: ["USD", "EUR"] },
+          offramp: { currencies: ["USD", "EUR"] },
           futureRequirement: undefined,
         });
       });
@@ -2360,293 +2404,6 @@ describe("bridge utils", () => {
     });
   });
 
-  describe("getLiquidationAddresses", () => {
-    it("paginates when count exceeds first page", async () => {
-      const page1 = Array.from({ length: 20 }, (_, index) => ({
-        id: `la-${String(index)}`,
-        currency: "usdt" as const,
-        chain: "tron" as const,
-        address: `TAddr${String(index)}`,
-        destination_address: padHex(`0x${(index + 1).toString(16)}`, { size: 20 }),
-      }));
-      const page2 = [
-        {
-          id: "la-20",
-          currency: "usdt" as const,
-          chain: "tron" as const,
-          address: "TAddr20",
-          destination_address: padHex("0x15", { size: 20 }),
-        },
-      ];
-      vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse({ count: 21, data: page1 }))
-        .mockResolvedValueOnce(fetchResponse({ count: 21, data: page2 }));
-
-      const result = await bridge.getLiquidationAddresses("cust-1");
-
-      expect(result).toHaveLength(21);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "bridge liquidation addresses pagination" }),
-        expect.objectContaining({ level: "warning" }),
-      );
-    });
-
-    it("does not paginate when all results fit in first page", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [
-            {
-              id: "la-1",
-              currency: "usdt",
-              chain: "tron",
-              address: "TAddr1",
-              destination_address: padHex("0x1", { size: 20 }),
-            },
-          ],
-        }),
-      );
-
-      const result = await bridge.getLiquidationAddresses("cust-1");
-
-      expect(result).toHaveLength(1);
-      expect(fetchSpy).toHaveBeenCalledOnce();
-    });
-
-    it("stops paginating and warns when a subsequent page returns empty data", async () => {
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(
-          fetchResponse({
-            count: 5,
-            data: [
-              {
-                id: "la-1",
-                currency: "usdt",
-                chain: "tron",
-                address: "TAddr1",
-                destination_address: padHex("0x1", { size: 20 }),
-              },
-            ],
-          }),
-        )
-        .mockResolvedValueOnce(fetchResponse({ count: 5, data: [] }));
-
-      const result = await bridge.getLiquidationAddresses("cust-1");
-
-      expect(result).toHaveLength(1);
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "bridge liquidation addresses empty page" }),
-        { level: "warning", contexts: { bridge: { customerId: "cust-1", count: 5, fetched: 1 } } },
-      );
-    });
-  });
-
-  describe("getCryptoDepositDetails", () => {
-    const account = parse(Address, padHex("0x1", { size: 20 }));
-    const deposit = parse(Address, padHex("0xde9", { size: 20 }));
-
-    it("throws NOT_SUPPORTED_CHAIN_ID for unsupported chain", async () => {
-      chainMock.id = 1;
-
-      await expect(bridge.getCryptoDepositDetails("USDT", "TRON", account, activeCustomer)).rejects.toThrow(
-        bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
-      );
-    });
-
-    it("throws NOT_ACTIVE_CUSTOMER when customer is not active", async () => {
-      await expect(
-        bridge.getCryptoDepositDetails("USDT", "TRON", account, { ...activeCustomer, status: "rejected" }),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_ACTIVE_CUSTOMER);
-    });
-
-    it("throws NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL for invalid combination", async () => {
-      await expect(bridge.getCryptoDepositDetails("USDC", "TRON", account, activeCustomer)).rejects.toThrow(
-        bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL,
-      );
-    });
-
-    it("returns TRON deposit details from existing liquidation address", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [{ id: "la-1", currency: "usdt", chain: "tron", address: "TAddr123", destination_address: account }],
-        }),
-      );
-
-      const result = await bridge.getCryptoDepositDetails("USDT", "TRON", account, activeCustomer);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toStrictEqual({
-        network: "TRON",
-        displayName: "TRON",
-        address: "TAddr123",
-        fee: "0.0",
-        estimatedProcessingTime: "300",
-      });
-    });
-
-    it("returns SOLANA deposit details", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [
-            { id: "la-2", currency: "usdc", chain: "solana", address: "SolAddr456", destination_address: account },
-          ],
-        }),
-      );
-
-      const result = await bridge.getCryptoDepositDetails("USDC", "SOLANA", account, activeCustomer);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toStrictEqual({
-        network: "SOLANA",
-        displayName: "SOLANA",
-        address: "SolAddr456",
-        fee: "0.0",
-        estimatedProcessingTime: "300",
-      });
-    });
-
-    it("returns STELLAR deposit details", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [
-            {
-              id: "la-3",
-              currency: "usdc",
-              chain: "stellar",
-              address: "StellarAddr789",
-              destination_address: account,
-              blockchain_memo: "123456",
-            },
-          ],
-        }),
-      );
-
-      const result = await bridge.getCryptoDepositDetails("USDC", "STELLAR", account, activeCustomer);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toStrictEqual({
-        network: "STELLAR",
-        displayName: "STELLAR",
-        address: "StellarAddr789",
-        fee: "0.0",
-        estimatedProcessingTime: "300",
-        memo: "123456",
-      });
-    });
-
-    it("throws when STELLAR liquidation address has no memo", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [
-            {
-              id: "la-3",
-              currency: "usdc",
-              chain: "stellar",
-              address: "StellarAddr789",
-              destination_address: account,
-            },
-          ],
-        }),
-      );
-
-      await expect(bridge.getCryptoDepositDetails("USDC", "STELLAR", account, activeCustomer)).rejects.toThrow(
-        "missing stellar memo",
-      );
-    });
-
-    it("creates liquidation address when none exists", async () => {
-      vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
-        .mockResolvedValueOnce(
-          fetchResponse({
-            id: "la-new",
-            currency: "usdt",
-            chain: "tron",
-            address: "TNewAddr",
-            destination_address: account,
-          }),
-        );
-
-      const result = await bridge.getCryptoDepositDetails("USDT", "TRON", account, activeCustomer);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toStrictEqual(expect.objectContaining({ address: "TNewAddr" }));
-    });
-
-    it("throws INVALID_ACCOUNT when liquidation address destination does not match", async () => {
-      const wrongAccount = parse(Address, padHex("0x999", { size: 20 }));
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [
-            { id: "la-1", currency: "usdt", chain: "tron", address: "TAddr123", destination_address: wrongAccount },
-          ],
-        }),
-      );
-
-      await expect(bridge.getCryptoDepositDetails("USDT", "TRON", account, activeCustomer)).rejects.toThrow(
-        bridge.ErrorCodes.INVALID_ACCOUNT,
-      );
-    });
-
-    it("returns BASE deposit details from existing evm liquidation address", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          count: 1,
-          data: [{ id: "la-evm", currency: "usdc", chain: "evm", address: deposit, destination_address: account }],
-        }),
-      );
-
-      const result = await bridge.getCryptoDepositDetails("USDC", "BASE", account, activeCustomer);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toStrictEqual({
-        network: "BASE",
-        displayName: "BASE",
-        address: deposit,
-        fee: "0.0",
-        estimatedProcessingTime: "300",
-      });
-    });
-
-    it("creates evm liquidation address when none exists for BASE", async () => {
-      vi.spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
-        .mockResolvedValueOnce(
-          fetchResponse({
-            id: "la-evm-new",
-            currency: "usdc",
-            chain: "evm",
-            address: deposit,
-            destination_address: account,
-          }),
-        );
-
-      const result = await bridge.getCryptoDepositDetails("USDC", "BASE", account, activeCustomer);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toStrictEqual({
-        network: "BASE",
-        displayName: "BASE",
-        address: deposit,
-        fee: "0.0",
-        estimatedProcessingTime: "300",
-      });
-    });
-
-    it("throws NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL for USDT on BASE", async () => {
-      await expect(bridge.getCryptoDepositDetails("USDT", "BASE", account, activeCustomer)).rejects.toThrow(
-        bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL,
-      );
-    });
-  });
-
   describe("getExternalAccount", () => {
     it("returns external account when found", async () => {
       const fetchSpy = vi
@@ -2932,181 +2689,6 @@ describe("bridge utils", () => {
       ]);
       expect(fetchSpy).toHaveBeenCalledTimes(3);
       expect(fetchSpy.mock.calls[2]?.[0] as string).toContain("/transfers");
-    });
-  });
-
-  describe("getCryptoOfframpDepositDetails", () => {
-    const account = parse(Address, padHex("0x1", { size: 20 }));
-    const deposit = parse(Address, padHex("0xde9", { size: 20 }));
-    const tronAddress = "TXYZdestinationTRONAddress";
-
-    it("throws NOT_ACTIVE_CUSTOMER when customer is not active", async () => {
-      await expect(
-        bridge.getCryptoOfframpDepositDetails("USDT", "TRON", tronAddress, account, {
-          ...activeCustomer,
-          status: "under_review",
-        }),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_ACTIVE_CUSTOMER);
-    });
-
-    it("throws NOT_SUPPORTED_CHAIN_ID for unsupported chain", async () => {
-      chainMock.id = 1;
-
-      await expect(
-        bridge.getCryptoOfframpDepositDetails("USDT", "TRON", tronAddress, account, activeCustomer),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "bridge not supported chain id" }),
-        expect.objectContaining({ level: "error" }),
-      );
-    });
-
-    it("throws NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL when currency is not supported on the payment rail", async () => {
-      await expect(
-        bridge.getCryptoOfframpDepositDetails("USDC", "TRON", tronAddress, account, activeCustomer),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
-    });
-
-    it("creates a transfer to the TRON address and returns the Optimism deposit details", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          id: "tr-tron-1",
-          state: "awaiting_funds",
-          on_behalf_of: activeCustomer.id,
-          source: { payment_rail: "optimism", currency: "usdc" },
-          destination: { payment_rail: "tron", currency: "usdt", to_address: tronAddress },
-          source_deposit_instructions: { payment_rail: "optimism", currency: "usdc", to_address: deposit },
-        }),
-      );
-
-      const result = await bridge.getCryptoOfframpDepositDetails("USDT", "TRON", tronAddress, account, activeCustomer);
-
-      expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
-      ]);
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      expect(fetchSpy.mock.calls[0]?.[0] as string).toContain("/transfers");
-      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
-        on_behalf_of: activeCustomer.id,
-        client_reference_id: account,
-        source: { currency: "usdc", payment_rail: "optimism" },
-        destination: { currency: "usdt", payment_rail: "tron", to_address: tronAddress },
-        features: { flexible_amount: true, allow_any_from_address: true },
-      });
-    });
-
-    it("throws on a bad source deposit to_address", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          id: "tr-tron-1",
-          state: "awaiting_funds",
-          on_behalf_of: activeCustomer.id,
-          source: { payment_rail: "optimism", currency: "usdc" },
-          destination: { payment_rail: "tron", currency: "usdt", to_address: tronAddress },
-          source_deposit_instructions: { payment_rail: "optimism", currency: "usdc", to_address: "not-an-address" },
-        }),
-      );
-
-      await expect(
-        bridge.getCryptoOfframpDepositDetails("USDT", "TRON", tronAddress, account, activeCustomer),
-      ).rejects.toThrow("bad address");
-    });
-
-    it("throws INVALID_DEPOSIT_ADDRESS when bridge rejects to_address", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchError(
-          400,
-          '{"code":"invalid_parameters","message":"Please resubmit","source":{"location":"body","key":{"to_address":"blockchain address format not valid for tron"}}}',
-        ),
-      );
-
-      await expect(
-        bridge.getCryptoOfframpDepositDetails("USDT", "TRON", tronAddress, account, activeCustomer),
-      ).rejects.toThrow(bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS);
-    });
-
-    it("rethrows other bridge errors when creating a transfer", async () => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(500, "internal error"));
-
-      await expect(
-        bridge.getCryptoOfframpDepositDetails("USDT", "TRON", tronAddress, account, activeCustomer),
-      ).rejects.toThrow("internal error");
-    });
-
-    it("creates a USDC transfer on BASE", async () => {
-      const baseAddress = parse(Address, padHex("0xba5e", { size: 20 }));
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          id: "tr-base-1",
-          state: "awaiting_funds",
-          on_behalf_of: activeCustomer.id,
-          source: { payment_rail: "optimism", currency: "usdc" },
-          destination: { payment_rail: "base", currency: "usdc", to_address: baseAddress },
-          source_deposit_instructions: { payment_rail: "optimism", currency: "usdc", to_address: deposit },
-        }),
-      );
-
-      const result = await bridge.getCryptoOfframpDepositDetails("USDC", "BASE", baseAddress, account, activeCustomer);
-
-      expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
-      ]);
-      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
-        on_behalf_of: activeCustomer.id,
-        client_reference_id: account,
-        source: { currency: "usdc", payment_rail: "optimism" },
-        destination: { currency: "usdc", payment_rail: "base", to_address: baseAddress },
-        features: { flexible_amount: true, allow_any_from_address: true },
-      });
-    });
-
-    it("creates a USDC transfer on SOLANA", async () => {
-      const solanaAddress = "SoLAnAdestinationAddress11111111111111111111";
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          id: "tr-sol-1",
-          state: "awaiting_funds",
-          on_behalf_of: activeCustomer.id,
-          source: { payment_rail: "optimism", currency: "usdc" },
-          destination: { payment_rail: "solana", currency: "usdc", to_address: solanaAddress },
-          source_deposit_instructions: { payment_rail: "optimism", currency: "usdc", to_address: deposit },
-        }),
-      );
-
-      await bridge.getCryptoOfframpDepositDetails("USDC", "SOLANA", solanaAddress, account, activeCustomer);
-
-      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
-        on_behalf_of: activeCustomer.id,
-        client_reference_id: account,
-        source: { currency: "usdc", payment_rail: "optimism" },
-        destination: { currency: "usdc", payment_rail: "solana", to_address: solanaAddress },
-        features: { flexible_amount: true, allow_any_from_address: true },
-      });
-    });
-
-    it("creates a USDC transfer on STELLAR forwarding the memo as blockchain_memo", async () => {
-      const stellarAddress = "GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION";
-      const memo = "12345";
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-        fetchResponse({
-          id: "tr-stellar-1",
-          state: "awaiting_funds",
-          on_behalf_of: activeCustomer.id,
-          source: { payment_rail: "optimism", currency: "usdc" },
-          destination: { payment_rail: "stellar", currency: "usdc", to_address: stellarAddress },
-          source_deposit_instructions: { payment_rail: "optimism", currency: "usdc", to_address: deposit },
-        }),
-      );
-
-      await bridge.getCryptoOfframpDepositDetails("USDC", "STELLAR", stellarAddress, account, activeCustomer, memo);
-
-      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
-        on_behalf_of: activeCustomer.id,
-        client_reference_id: account,
-        source: { currency: "usdc", payment_rail: "optimism" },
-        destination: { currency: "usdc", payment_rail: "stellar", to_address: stellarAddress, blockchain_memo: memo },
-        features: { flexible_amount: true, allow_any_from_address: true },
-      });
     });
   });
 
@@ -4325,6 +3907,7 @@ const onboardingCurrencies = [...baseCurrencies, "USD"];
 
 const activeCustomer = {
   id: "cust-123",
+  created_at: "2026-07-01T00:00:00.000Z",
   email: "test@example.com",
   status: "active" as const,
   endorsements: [] as ReturnType<typeof endorsement>[],
