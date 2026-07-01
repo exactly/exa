@@ -78,7 +78,11 @@ export default function Swaps() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
   const { markets, queryKey: marketsQueryKey } = useMarkets();
-  const { data: tokens, isLoading: isTokensLoading } = useQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
+  const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
+  const { data: tokens, isLoading: isTokensLoading } = useQuery({
+    queryKey: ["allowTokens", protocolMarkets],
+    queryFn: () => getAllowTokens(protocolMarkets),
+  });
   const {
     data: {
       fromToken,
