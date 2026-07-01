@@ -91,6 +91,7 @@
     "hono": "catalog:",
     "i18n-iso-countries": "^7.14.0",
     "i18next": "catalog:",
+    "iso-3166": "^4.4.0",
     "moti": "^0.30.0",
     "persona": "^5.7.0",
     "react": "catalog:",
