@@ -27,6 +27,7 @@ const usdc = loadDeployment("USDC");
 const weth = loadDeployment("WETH");
 const firewall = loadDeployment("Firewall", false);
 const balancerVault = loadDeployment("Balancer2Vault", false);
+const exa = loadDeployment("EXA", false);
 const flashLoanAdapter = loadDeployment("FlashLoanAdapter", false);
 const [exaPlugin] = loadBroadcast("ExaPlugin").transactions;
 const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
@@ -103,6 +104,7 @@ export default defineConfig([
           }),
           optional: {
             balancerVault: balancerVault?.address,
+            exa: exa?.address,
             flashLoanAdapter: flashLoanAdapter?.address,
             firewall: firewall?.address,
           },
