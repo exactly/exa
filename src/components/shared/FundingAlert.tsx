@@ -39,7 +39,11 @@ export default function FundingAlert() {
     mutationFn: async () => {
       const [largest] = swappable.sort((a, b) => b.usdValue - a.usdValue);
       if (!largest) throw new Error("no swappable asset");
-      const tokens = await queryClient.fetchQuery({ queryKey: ["allowTokens"], queryFn: getAllowTokens });
+      const protocolMarkets = markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [];
+      const tokens = await queryClient.fetchQuery({
+        queryKey: ["allowTokens", protocolMarkets],
+        queryFn: () => getAllowTokens(protocolMarkets),
+      });
       const usdc = tokens.find(({ symbol }) => symbol === "USDC");
       if (!usdc) throw new Error("no usdc");
       queryClient.setQueryData<Swap>(["swap"], {
