@@ -77,6 +77,14 @@ describe("bridge utils", () => {
       expect(result).toBeUndefined();
     });
 
+    it("throws when created_at is not a valid date", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({ ...activeCustomer, created_at: "not-a-date" }),
+      );
+
+      await expect(bridge.getCustomer("cust-123")).rejects.toThrow("invalid created_at");
+    });
+
     it("throws on other errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(500, "internal error"));
 
@@ -237,6 +245,25 @@ describe("bridge utils", () => {
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
+          kycLink: undefined,
+        });
+        expect(captureException).toHaveBeenCalledWith(
+          expect.objectContaining({ message: "bridge user onboarding" }),
+          expect.objectContaining({ level: "warning" }),
+        );
+      });
+
+      it("returns ONBOARDING without crypto currencies when customer is created after the cutoff", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({ ...activeCustomer, created_at: "2026-07-02T00:00:00.000Z", status: "rejected" }),
+        );
+
+        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: ["USD"] },
+          offramp: { currencies: ["USD"] },
           kycLink: undefined,
         });
         expect(captureException).toHaveBeenCalledWith(
@@ -1048,6 +1075,23 @@ describe("bridge utils", () => {
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
           offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          futureRequirement: undefined,
+        });
+      });
+
+      it("returns ACTIVE without crypto currencies when customer is created after the cutoff", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            created_at: "2026-07-02T00:00:00.000Z",
+            endorsements: [endorsement("base", "approved"), endorsement("sepa", "approved")],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: ["USD", "EUR"] },
+          offramp: { currencies: ["USD", "EUR"] },
           futureRequirement: undefined,
         });
       });
@@ -4325,6 +4369,7 @@ const onboardingCurrencies = [...baseCurrencies, "USD"];
 
 const activeCustomer = {
   id: "cust-123",
+  created_at: "2026-07-01T00:00:00.000Z",
   email: "test@example.com",
   status: "active" as const,
   endorsements: [] as ReturnType<typeof endorsement>[],

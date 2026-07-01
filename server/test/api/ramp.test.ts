@@ -1685,6 +1685,7 @@ const mantecaUser = {
 
 const bridgeCustomer = {
   id: "bridge-customer-123",
+  created_at: "2026-07-01T00:00:00.000Z",
   email: "test@example.com",
   status: "active" as const,
   endorsements: [],

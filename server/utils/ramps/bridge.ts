@@ -586,6 +586,10 @@ export async function getProvider(params: {
   if (params.customerId) {
     const bridgeUser = await getCustomer(params.customerId);
     if (!bridgeUser) throw new Error(ErrorCodes.BAD_BRIDGE_ID);
+    if (new Date(bridgeUser.created_at) >= new Date("2026-07-02T00:00:00.000Z")) {
+      currencies.onramp = [];
+      currencies.offramp = [];
+    }
     switch (bridgeUser.status) {
       case "offboarded":
         captureException(new Error("bridge user not available"), { contexts: { bridgeUser }, level: "warning" });
@@ -1345,6 +1349,10 @@ const AgreementLinkResponse = object({ url: string() });
 
 const CustomerResponse = object({
   id: string(),
+  created_at: pipe(
+    string(),
+    check((value) => !Number.isNaN(new Date(value).getTime()), "invalid created_at"),
+  ),
   email: string(),
   status: picklist(CustomerStatus),
   endorsements: array(
