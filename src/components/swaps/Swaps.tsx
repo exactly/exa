@@ -57,7 +57,7 @@ export type Swap = {
   toToken?: { external: boolean; token: Token };
 };
 
-const defaultSwap: Swap = {
+export const defaultSwap: Swap = {
   fromToken: undefined,
   toToken: undefined,
   fromAmount: 0n,
@@ -89,10 +89,7 @@ export default function Swaps() {
       enableSimulations,
       tokenModalOpen,
     } = defaultSwap,
-  } = useQuery<Swap>({
-    queryKey: ["swap"],
-    queryFn: () => defaultSwap,
-  });
+  } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
 
   const isExternal = useCallback(
     (address: string) => {
