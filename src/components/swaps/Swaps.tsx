@@ -57,7 +57,7 @@ export type Swap = {
   toToken?: { external: boolean; token: Token };
 };
 
-const defaultSwap: Swap = {
+export const defaultSwap: Swap = {
   fromToken: undefined,
   toToken: undefined,
   fromAmount: 0n,
