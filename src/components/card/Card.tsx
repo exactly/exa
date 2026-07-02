@@ -139,7 +139,7 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
-      if (usdBalance === 0n) {
+      if (usdBalance === 0n && !cardDetails) {
         router.push("/(main)/getting-started");
         return;
       }
@@ -304,7 +304,7 @@ export default function Card() {
                     />
                   </View>
                 </XStack>
-                {!isPendingKYC && (usdBalance === 0n || !isKYCApproved) && (
+                {!isPendingKYC && !cardDetails && (usdBalance === 0n || !isKYCApproved) && (
                   <InfoAlert
                     title={t("Your card is awaiting activation. Follow the steps to enable it.")}
                     actionText={t("Get started")}
