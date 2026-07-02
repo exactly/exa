@@ -292,7 +292,7 @@ export default function Bridge() {
   });
 
   const quote = bridgeQuote && !bridgeQuoteError ? bridgeQuote : undefined;
-  const toAmount = quote ? BigInt(quote.estimate.toAmount) : sourceAmount;
+  const toAmount = quote ? BigInt(quote.estimate.toAmount) : sourceAmount === 0n ? 0n : undefined;
   const approvalTokenAddress = source?.address && isAddress(source.address) ? source.address : undefined;
   const approvalSpenderAddress = quote?.estimate.approvalAddress;
   const approvalChainId = quote?.chainId;
@@ -1039,11 +1039,16 @@ export default function Bridge() {
                                   width="100%"
                                   color="$uiNeutralSecondary"
                                 >
-                                  {Number(formatUnits(toAmount, destinationToken.decimals)).toLocaleString(language, {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: destinationToken.decimals,
-                                    useGrouping: false,
-                                  })}
+                                  {toAmount === undefined
+                                    ? "—"
+                                    : Number(formatUnits(toAmount, destinationToken.decimals)).toLocaleString(
+                                        language,
+                                        {
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: destinationToken.decimals,
+                                          useGrouping: false,
+                                        },
+                                      )}
                                 </Text>
                               )}
                               <XStack justifyContent="space-between" alignItems="center" flex={1}>
@@ -1051,16 +1056,18 @@ export default function Bridge() {
                                   <Skeleton height={16} width={100} />
                                 ) : (
                                   <Text callout color="$uiNeutralPlaceholder">
-                                    {`≈$${Number(
-                                      formatUnits(
-                                        (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
-                                        destinationToken.decimals,
-                                      ),
-                                    ).toLocaleString(language, {
-                                      style: "decimal",
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2,
-                                    })}`}
+                                    {toAmount === undefined
+                                      ? "—"
+                                      : `≈$${Number(
+                                          formatUnits(
+                                            (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
+                                            destinationToken.decimals,
+                                          ),
+                                        ).toLocaleString(language, {
+                                          style: "decimal",
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}`}
                                   </Text>
                                 )}
                                 <Text footnote color="$uiNeutralSecondary" textAlign="right">
