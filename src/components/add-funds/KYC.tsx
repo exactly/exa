@@ -10,7 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
-import FaceId from "../../assets/images/face-id.svg";
+import faceId from "../../assets/images/face-id.svg";
 import completeOnboarding from "../../utils/completeOnboarding";
 import { isValidCurrency } from "../../utils/currencies";
 import { startAddressKYC, startMantecaKYC } from "../../utils/persona";
@@ -20,6 +20,7 @@ import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function KYC() {
@@ -100,7 +101,7 @@ export default function KYC() {
             <YStack flex={1} padding="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
-                  <FaceId width="100%" height="100%" />
+                  <ThemedSvg xml={faceId} width="100%" height="100%" />
                 </View>
                 <YStack gap="$s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">

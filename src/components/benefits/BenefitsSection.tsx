@@ -11,20 +11,23 @@ import { useTheme, View } from "tamagui";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
+import { isBase } from "../../../tamagui.config";
 import AiraloLogo from "../../assets/images/airalo.svg";
 import AiraloImage from "../../assets/images/airalo.webp";
 import ExaLogo from "../../assets/images/exa-logo.svg";
-import ExaPromoSvg from "../../assets/images/exa-promo.svg";
+import exaPromo from "../../assets/images/exa-promo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
 import PaxImage from "../../assets/images/pax.webp";
+import VisaBaseImage from "../../assets/images/visa-base.webp";
 import VisaLogo from "../../assets/images/visa.svg";
 import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
+import ThemedSvg from "../shared/ThemedSvg";
 
 function ExaBackground() {
   return (
     <View style={StyleSheet.absoluteFill} backgroundColor="$backgroundBrand">
-      <ExaPromoSvg width="100%" height="100%" preserveAspectRatio="xMaxYMid meet" />
+      <ThemedSvg xml={exaPromo} width="100%" height="100%" preserveAspectRatio="xMaxYMid meet" />
     </View>
   );
 }
@@ -93,7 +96,7 @@ const BENEFITS = [
       "Learn more about all Visa Signature benefits.",
     ],
     logo: VisaLogo,
-    Background: () => <RasterBackground source={VisaImage} />,
+    Background: () => <RasterBackground source={isBase ? VisaBaseImage : VisaImage} />,
     linkText: "Learn more",
     buttonText: "Go to Visa",
     url: "https://help.exactly.app/{language}/articles/11172343-visa-signature-benefits-with-your-exa-card",

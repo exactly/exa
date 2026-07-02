@@ -15,7 +15,7 @@ import Market from "@exactly/protocol/deployments/base/MarketWETH.json" with { t
 import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with { type: "json" };
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
-const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
+const chainId = Number(env.CHAIN_ID || (env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id)); // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
 
 const auditor = loadDeployment("Auditor");
 const marketUSDC = loadDeployment("MarketUSDC");

@@ -4,9 +4,26 @@ import { createAnimations } from "@tamagui/animations-moti";
 import { config } from "@tamagui/config/v3";
 import { createFont, createTamagui, createTokens } from "tamagui";
 
+import { base, baseSepolia } from "viem/chains";
+
+import chain from "@exactly/common/generated/chain";
+
+export const isBase = chain.id === base.id || chain.id === baseSepolia.id;
+
 const tokens = createTokens({
   color: {
-    cardBackground: "#1A181A",
+    baseBlue: "#0000FF",
+    baseBlueStrong: "#0010BF",
+    baseCerulean: "#3C8AFF",
+    baseGray0: "#FFFFFF",
+    baseGray10: "#EEF0F3",
+    baseGray100: "#0A0B0D",
+    baseGray15: "#DEE1E7",
+    baseGray30: "#B1B7C3",
+    baseGray50: "#717886",
+    baseGray80: "#32353D",
+    cardBackground: "#1A211E",
+    cardPreviewBackground: "#1A181A",
     creditDark1: "#18111B",
     creditDark5: "#48295C",
     creditDark9: "#8E4EC6",
@@ -216,6 +233,57 @@ const tokens = createTokens({
   zIndex: config.tokens.zIndex,
 });
 
+const baseLight = {
+  backgroundSoft: tokens.color.baseGray0,
+  backgroundMild: tokens.color.baseGray10,
+  backgroundStrong: tokens.color.baseGray15,
+  backgroundBrand: tokens.color.baseBlue,
+  backgroundBrandSoft: tokens.color.baseGray0,
+  backgroundBrandMild: tokens.color.baseGray10,
+  backgroundBanner: tokens.color.baseBlue,
+  uiNeutralPrimary: tokens.color.baseGray100,
+  uiNeutralSecondary: tokens.color.baseGray80,
+  uiNeutralTertiary: tokens.color.baseGray15,
+  uiNeutralPlaceholder: tokens.color.baseGray30,
+  uiNeutralInversePrimary: tokens.color.baseGray0,
+  uiNeutralInverseSecondary: tokens.color.baseGray15,
+  uiBrandPrimary: tokens.color.baseBlueStrong,
+  uiBrandSecondary: tokens.color.baseBlue,
+  uiBrandTertiary: tokens.color.baseCerulean,
+  interactiveBaseBrandDefault: tokens.color.baseBlue,
+  interactiveBaseBrandHover: tokens.color.baseBlueStrong,
+  interactiveBaseBrandPressed: tokens.color.baseBlue,
+  interactiveBaseBrandSoftDefault: tokens.color.baseGray10,
+  interactiveBaseBrandSoftHover: tokens.color.baseGray15,
+  interactiveBaseBrandSoftPressed: tokens.color.baseGray10,
+  interactiveOnBaseBrandDefault: tokens.color.baseGray0,
+  interactiveOnBaseBrandSoft: tokens.color.baseGray100,
+  interactiveTextBrandDefault: tokens.color.baseBlue,
+  interactiveTextBrandHover: tokens.color.baseBlueStrong,
+  interactiveTextBrandPressed: tokens.color.baseBlue,
+  interactiveDisabled: tokens.color.baseGray30,
+  interactiveOnDisabled: tokens.color.baseGray50,
+  borderNeutralSoft: tokens.color.baseGray15,
+  borderNeutralMild: tokens.color.baseGray30,
+  borderNeutralStrong: tokens.color.baseGray50,
+  borderNeutralSeparator: tokens.color.baseGray15,
+  borderNeutralDisabled: tokens.color.baseGray30,
+  borderBrandSoft: tokens.color.baseCerulean,
+  borderBrandMild: tokens.color.baseBlue,
+  borderBrandStrong: tokens.color.baseBlueStrong,
+  iconPrimary: tokens.color.baseGray100,
+  iconSecondary: tokens.color.baseGray80,
+  iconInversePrimary: tokens.color.baseGray0,
+  iconInverseSecondary: tokens.color.baseGray10,
+  iconBrandDefault: tokens.color.baseBlue,
+  iconBrandHover: tokens.color.baseBlueStrong,
+  iconBrandPressed: tokens.color.baseBlue,
+  iconBrandSoftDefault: tokens.color.baseGray10,
+  iconBrandSoftHover: tokens.color.baseGray15,
+  iconBrandSoftPressed: tokens.color.baseGray30,
+  iconDisabled: tokens.color.baseGray50,
+};
+
 const sizes = config.fonts.body.size;
 const body = createFont({
   family: "SplineSans-Regular",
@@ -259,6 +327,7 @@ const tamagui = createTamagui({
   themes: {
     light: {
       cardBackground: tokens.color.cardBackground,
+      cardPreviewBackground: tokens.color.cardPreviewBackground,
       cardDebitBackground: tokens.color.debitLight1,
       cardDebitInteractive: tokens.color.debitLight9,
       cardDebitText: tokens.color.debitLight12,
@@ -274,6 +343,7 @@ const tamagui = createTamagui({
       backgroundBrand: tokens.color.primaryLight9,
       backgroundBrandSoft: tokens.color.primaryLight2,
       backgroundBrandMild: tokens.color.primaryLight3,
+      backgroundBanner: tokens.color.grayscaleLight12,
       uiNeutralPrimary: tokens.color.grayscaleLight12,
       uiNeutralSecondary: tokens.color.grayscaleLight11,
       uiNeutralTertiary: tokens.color.grayscaleLight3,
@@ -401,9 +471,11 @@ const tamagui = createTamagui({
       borderColorFocus: "transparent",
       borderColorPress: "transparent",
       outlineColor: "",
+      ...(isBase && baseLight),
     },
     dark: {
       cardBackground: tokens.color.cardBackground,
+      cardPreviewBackground: tokens.color.cardPreviewBackground,
       cardDebitBackground: tokens.color.debitDark1,
       cardDebitInteractive: tokens.color.debitDark9,
       cardDebitText: tokens.color.debitLight12,
@@ -419,6 +491,7 @@ const tamagui = createTamagui({
       backgroundBrand: tokens.color.primaryDark9,
       backgroundBrandSoft: tokens.color.primaryDark2,
       backgroundBrandMild: tokens.color.primaryDark3,
+      backgroundBanner: tokens.color.grayscaleLight12,
       uiNeutralPrimary: tokens.color.grayscaleDark12,
       uiNeutralSecondary: tokens.color.grayscaleDark11,
       uiNeutralTertiary: tokens.color.grayscaleDark3,

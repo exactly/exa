@@ -10,8 +10,9 @@ import * as Sentry from "@sentry/react-native";
 import SafeView from "./SafeView";
 import Button from "./StyledButton";
 import Text from "./Text";
+import ThemedSvg from "./ThemedSvg";
 import View from "./View";
-import ErrorImage from "../../assets/images/error.svg";
+import errorImage from "../../assets/images/error.svg";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 
@@ -23,7 +24,7 @@ export default function Error({ resetError }: { resetError: () => void }) {
         <YStack flex={1} justifyContent="center" gap="$s3_5">
           <View width="100%" aspectRatio={1.2} justifyContent="center" alignItems="center">
             <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-              <ErrorImage width="100%" height="100%" />
+              <ThemedSvg xml={errorImage} width="100%" height="100%" />
             </View>
           </View>
           <YStack gap="$s5">
