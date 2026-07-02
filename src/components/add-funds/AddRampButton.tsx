@@ -22,7 +22,7 @@ export default function AddRampButton({
   currency: string;
   network?: string;
   provider: "bridge" | "manteca";
-  status: "ACTIVE" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
+  status: "ACTIVE" | "CONTACT_SUPPORT" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
 }) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -38,6 +38,9 @@ export default function AddRampButton({
         break;
       case "ONBOARDING":
         router.push({ pathname: "/add-funds/status", params: { ...params, status: "ONBOARDING" } });
+        break;
+      case "CONTACT_SUPPORT":
+        router.push({ pathname: "/add-funds/status", params: { ...params, status: "CONTACT_SUPPORT" } });
         break;
       case "ACTIVE":
         router.push({ pathname: isCrypto ? "/add-funds/add-crypto" : "/add-funds/ramp", params });
