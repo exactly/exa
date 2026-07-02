@@ -62,7 +62,6 @@ const Payload = variant("event", [
       object({
         updatedTasks: array(string()),
         user: object({
-          email: string(),
           id: string(),
           numberId: string(),
           externalId: string(),
@@ -96,7 +95,6 @@ const Payload = variant("event", [
       assetAmount: string(),
       effectivePrice: string(),
       exchange: string(),
-      feeInfo: object({ companyProfit: string(), custodyFee: string(), platformFee: string(), totalFee: string() }),
       status: picklist(OrderStatus),
       userExternalId: string(),
       userNumberId: string(),
