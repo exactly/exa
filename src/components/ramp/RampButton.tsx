@@ -24,7 +24,7 @@ export default function RampButton({
   direction: "offramp" | "onramp";
   network?: string;
   provider: "bridge" | "manteca";
-  status: "ACTIVE" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
+  status: "ACTIVE" | "CONTACT_SUPPORT" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
 }) {
   const { t } = useTranslation();
   const router = useRouter();

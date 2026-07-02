@@ -369,6 +369,54 @@ describe("manteca utils", () => {
       expect(result.status).toBe("NOT_STARTED");
     });
 
+    it("returns CONTACT_SUPPORT when user has failed required tasks", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({
+          ...mockOnboardingUser,
+          onboarding: {
+            EMAIL_VALIDATION: { required: true, status: "COMPLETED" },
+            IDENTITY_VALIDATION: { required: true, status: "FAILED", rejectionReason: "document unreadable" },
+          },
+        }),
+      );
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("CONTACT_SUPPORT");
+    });
+
+    it("prioritizes CONTACT_SUPPORT over pending required tasks", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({
+          ...mockOnboardingUser,
+          onboarding: {
+            EMAIL_VALIDATION: { required: true, status: "PENDING" },
+            IDENTITY_VALIDATION: { required: true, status: "FAILED" },
+          },
+        }),
+      );
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("CONTACT_SUPPORT");
+    });
+
+    it("ignores failed tasks that are not required", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({
+          ...mockOnboardingUser,
+          onboarding: {
+            EMAIL_VALIDATION: { required: true, status: "COMPLETED" },
+            IDENTITY_VALIDATION: { required: false, status: "FAILED" },
+          },
+        }),
+      );
+
+      const result = await manteca.getProvider(account, "AR");
+
+      expect(result.status).toBe("ONBOARDING");
+    });
+
     it("returns ONBOARDING when user has no pending required tasks", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         mockFetchResponse({

@@ -181,6 +181,7 @@ export default new Hono()
         case "manteca": {
           const mantecaUser = await manteca.getUser(account);
           if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+          if (mantecaUser.status !== "ACTIVE") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
           try {
             const depositInfo: InferOutput<typeof RampResponse>["depositInfo"] = manteca.getDepositDetails(
               query.currency,
@@ -614,7 +615,7 @@ const RampResponse = object({
   ),
 });
 
-const ProviderStatus = picklist(["ACTIVE", "NOT_AVAILABLE", "NOT_STARTED", "ONBOARDING"]);
+const ProviderStatus = picklist(["ACTIVE", "CONTACT_SUPPORT", "NOT_AVAILABLE", "NOT_STARTED", "ONBOARDING"]);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ProviderInfo = variant("provider", [
