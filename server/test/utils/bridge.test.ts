@@ -2775,6 +2775,13 @@ describe("bridge utils", () => {
         source: { currency: "usdc", payment_rail: "optimism" },
         destination: { currency: "usd", payment_rail: "ach", external_account_id: "ext-acc-1" },
         features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+        travel_rule_data: {
+          originator: {
+            is_self: true,
+            wallet_type: "self_custodied", // cspell:ignore custodied
+            wallet_attested_ownership_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) as unknown,
+          },
+        },
       });
     });
 
@@ -2795,6 +2802,13 @@ describe("bridge utils", () => {
         source: { currency: "usdc", payment_rail: "optimism" },
         destination: { currency: "eur", payment_rail: "sepa", external_account_id: "ext-acc-1" },
         features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+        travel_rule_data: {
+          originator: {
+            is_self: true,
+            wallet_type: "self_custodied", // cspell:ignore custodied
+            wallet_attested_ownership_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) as unknown,
+          },
+        },
       });
     });
 
