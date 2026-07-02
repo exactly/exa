@@ -180,7 +180,6 @@ export default function AddCrypto() {
                       setStringAsync(memo)
                         .then(() => {
                           toast.show(t("Memo copied!"), {
-                            native: true,
                             duration: 1000,
                             burntOptions: { haptic: "success" },
                           });

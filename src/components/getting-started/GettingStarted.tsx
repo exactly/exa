@@ -158,7 +158,6 @@ function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: bool
           },
           onError(error) {
             toast.show(t("Error verifying identity"), {
-              native: true,
               duration: 1000,
               burntOptions: { haptic: "error", preset: "error" },
             });

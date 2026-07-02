@@ -217,7 +217,7 @@ export default wrap(function RootLayout() {
   return (
     <WagmiProvider config={exaConfig}>
       <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-        <ToastProvider>
+        <ToastProvider native="mobile">
           <SafeAreaProvider>
             <ThemeProvider>
               <ErrorBoundary

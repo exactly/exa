@@ -98,14 +98,13 @@ export default function UpgradeAccount() {
       if (status === "failure") throw new Error("failed to upgrade account");
     },
     onSuccess: async () => {
-      toast.show(t("Account upgraded!"), { native: true, duration: 1000, burntOptions: { haptic: "success" } });
+      toast.show(t("Account upgraded!"), { duration: 1000, burntOptions: { haptic: "success" } });
       queryClient.setQueryData(["card-upgrade"], 2);
       await refetchInstalledPlugins();
     },
     onError(error) {
       if (!reportError(error).authKnown)
         toast.show(t("Error upgrading account"), {
-          native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
         });

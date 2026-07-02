@@ -126,9 +126,8 @@ export default function Ramp() {
           onError={() => {
             setVerifying(false);
             toast.show(t("Something went wrong. Please try again."), {
-              native: true,
               duration: 1000,
-              burntOptions: { haptic: "error" },
+              burntOptions: { haptic: "error", preset: "error" },
             });
           }}
         />
@@ -149,7 +148,7 @@ export default function Ramp() {
   function copyToClipboard(text: string) {
     setStringAsync(text)
       .then(() => {
-        toast.show(t("Copied!"), { native: true, duration: 1000, burntOptions: { haptic: "success" } });
+        toast.show(t("Copied!"), { duration: 1000, burntOptions: { haptic: "success" } });
       })
       .catch(reportError);
   }

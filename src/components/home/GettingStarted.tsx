@@ -30,7 +30,6 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
         beginKYC(undefined, {
           onError(error) {
             toast.show(t("Error verifying identity"), {
-              native: true,
               duration: 1000,
               burntOptions: { haptic: "error", preset: "error" },
             });

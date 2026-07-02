@@ -59,7 +59,6 @@ function handleError(
     if (!auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
-      native: true,
       duration: 3000,
       burntOptions: { haptic: "error", preset: "error" },
     });
@@ -71,7 +70,6 @@ function handleError(
     if (!cancelled && !auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
     toast.show(t("Authentication cancelled"), {
-      native: true,
       duration: 1000,
       burntOptions: { haptic: "error", preset: "error" },
     });
@@ -80,7 +78,6 @@ function handleError(
   if (error instanceof APIError && error.text === "backup eligibility required") {
     reportError(error, { level: "warning" });
     toast.show(t("Your password manager does not support passkey backups. Please try a different one"), {
-      native: true,
       duration: 1000,
       burntOptions: { haptic: "error", preset: "error" },
     });

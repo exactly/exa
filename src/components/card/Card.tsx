@@ -169,7 +169,6 @@ export default function Card() {
         if (text !== "not started" && text !== "no kyc") {
           reportError(error);
           toast.show(t("An error occurred. Please try again later."), {
-            native: true,
             duration: 1000,
             burntOptions: { haptic: "error", preset: "error" },
           });
@@ -188,7 +187,6 @@ export default function Card() {
             return;
           }
           toast.show(t("An error occurred. Please try again later."), {
-            native: true,
             duration: 1000,
             burntOptions: { haptic: "error", preset: "error" },
           });
@@ -208,7 +206,6 @@ export default function Card() {
     onError: (error) => {
       reportError(error);
       toast.show(t("An error occurred. Please try again later."), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });
@@ -233,7 +230,6 @@ export default function Card() {
     },
     onSuccess: async () => {
       toast.show(t("Card activated!"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
       });
@@ -245,7 +241,6 @@ export default function Card() {
       if (!(error instanceof APIError)) {
         reportError(error);
         toast.show(t("Error activating card"), {
-          native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
         });
@@ -259,7 +254,6 @@ export default function Card() {
       }
       reportError(error);
       toast.show(t("Error activating card"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

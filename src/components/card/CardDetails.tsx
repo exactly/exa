@@ -115,7 +115,6 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                         setStringAsync(details.pan)
                           .then(() => {
                             toast.show(t("Card number copied!"), {
-                              native: true,
                               duration: 1000,
                               burntOptions: { haptic: "success" },
                             });

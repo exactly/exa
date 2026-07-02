@@ -49,7 +49,6 @@ export default function Receiver() {
         router.push("/loan/review");
       } catch {
         toast.show(t("Invalid address"), {
-          native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
         });

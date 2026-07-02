@@ -69,7 +69,6 @@ export default function CardStatus({
     onError: (error) => {
       reportError(error);
       toast.show(t("An error occurred. Please try again later."), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

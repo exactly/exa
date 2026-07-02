@@ -5,5 +5,5 @@ import { ToastViewport } from "@tamagui/toast";
 
 export default function SafeToastViewport() {
   const { left, top, right } = useSafeAreaInsets();
-  return <ToastViewport top={top} left={left} right={right} />;
+  return <ToastViewport top={top || "$s4"} left={left} right={right} />;
 }

@@ -173,7 +173,6 @@ export default function Pay() {
                       if (rolloverIntroShown) {
                         if (!isLatestPlugin) {
                           toast.show(t("Upgrade account to rollover"), {
-                            native: true,
                             duration: 1000,
                             burntOptions: { haptic: "error", preset: "error" },
                           });

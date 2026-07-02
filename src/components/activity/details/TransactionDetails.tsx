@@ -70,7 +70,6 @@ export default function TransactionDetails({
                 setStringAsync(item.receiver)
                   .then(() => {
                     toast.show(t("Address copied!"), {
-                      native: true,
                       duration: 1000,
                       burntOptions: { haptic: "success" },
                     });
@@ -132,7 +131,6 @@ export default function TransactionDetails({
                   setStringAsync(`${explorerUrl}/tx/${item.transactionHash}`)
                     .then(() => {
                       toast.show(t("Link copied!"), {
-                        native: true,
                         duration: 1000,
                         burntOptions: { haptic: "success" },
                       });

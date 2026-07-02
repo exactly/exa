@@ -53,7 +53,6 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
   const navigate = useCallback(() => {
     if (!isLatestPlugin) {
       toast.show(t("Upgrade account to rollover"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

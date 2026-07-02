@@ -39,7 +39,6 @@ export default function ActivateCard() {
     mutationFn: createCard,
     onSuccess: async () => {
       toast.show(t("Card activated!"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
       });
@@ -54,7 +53,6 @@ export default function ActivateCard() {
       if (!(error instanceof APIError)) {
         reportError(error);
         toast.show(t("Error activating card"), {
-          native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
         });
@@ -71,7 +69,6 @@ export default function ActivateCard() {
       }
       reportError(error);
       toast.show(t("Error activating card"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

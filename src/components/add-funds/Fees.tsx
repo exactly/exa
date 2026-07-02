@@ -105,9 +105,8 @@ export default function Fees() {
       } catch {} // eslint-disable-line no-empty
       if (!signedAgreementId) {
         toast.show(t("Something went wrong. Please try again."), {
-          native: true,
           duration: 1000,
-          burntOptions: { haptic: "error" },
+          burntOptions: { haptic: "error", preset: "error" },
         });
         return;
       }
@@ -143,9 +142,8 @@ export default function Fees() {
           onError={() => {
             setTOSLink(undefined);
             toast.show(t("Something went wrong. Please try again."), {
-              native: true,
               duration: 1000,
-              burntOptions: { haptic: "error" },
+              burntOptions: { haptic: "error", preset: "error" },
             });
           }}
         />

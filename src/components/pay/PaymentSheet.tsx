@@ -122,7 +122,6 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     }
     if (!isLatestPlugin) {
       toast.show(t("Upgrade account to rollover"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

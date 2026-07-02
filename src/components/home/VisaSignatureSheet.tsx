@@ -43,14 +43,12 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
     onSuccess: async () => {
       await queryClient.resetQueries({ queryKey: ["card", "details"] });
       toast.show(t("Card upgraded successfully"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "success" },
       });
     },
     onError: () => {
       toast.show(t("Error upgrading card"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

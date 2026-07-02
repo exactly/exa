@@ -179,7 +179,6 @@ export default function AddFunds() {
                         },
                         onError(error) {
                           toast.show(t("Error verifying identity"), {
-                            native: true,
                             duration: 1000,
                             burntOptions: { haptic: "error", preset: "error" },
                           });
@@ -214,7 +213,6 @@ export default function AddFunds() {
                       beginKYC.mutate(undefined, {
                         onError(error) {
                           toast.show(t("Error verifying identity"), {
-                            native: true,
                             duration: 1000,
                             burntOptions: { haptic: "error", preset: "error" },
                           });

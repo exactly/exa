@@ -629,7 +629,6 @@ export default function Bridge() {
       toast.show(
         bridgePreview?.operation === "swap" ? t("Swap transaction submitted") : t("Bridge transaction submitted"),
         {
-          native: true,
           duration: 1000,
           burntOptions: { haptic: "success", preset: "done" },
         },
@@ -661,7 +660,7 @@ export default function Bridge() {
         bridgePreview?.operation === "swap"
           ? t("Swap failed. Please try again.")
           : t("Bridge failed. Please try again."),
-        { native: true, duration: 1000, burntOptions: { haptic: "error", preset: "error" } },
+        { duration: 1000, burntOptions: { haptic: "error", preset: "error" } },
       );
     },
     onSettled: () => {
@@ -700,7 +699,6 @@ export default function Bridge() {
     },
     onSuccess: async () => {
       toast.show(t("Transfer transaction submitted"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
       });
@@ -716,7 +714,6 @@ export default function Bridge() {
         return;
       }
       toast.show(t("Transfer failed. Please try again."), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
       });

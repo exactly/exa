@@ -118,7 +118,6 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
                   setStringAsync(item.id)
                     .then(() => {
                       toast.show(t("Operation ID copied!"), {
-                        native: true,
                         duration: 1000,
                         burntOptions: { haptic: "success" },
                       });

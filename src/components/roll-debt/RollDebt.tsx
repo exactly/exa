@@ -284,7 +284,6 @@ function RolloverButton({
     },
     onSuccess() {
       toast.show(t("Processing rollover"), {
-        native: true,
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
       });
@@ -295,7 +294,6 @@ function RolloverButton({
       if (reportError(error).authKnown) resetProposeRollDebt();
       else
         toast.show(t("Rollover failed"), {
-          native: true,
           duration: 1000,
           burntOptions: { haptic: "error", preset: "error" },
         });

@@ -47,7 +47,6 @@ export default function VerifyIdentity() {
               },
               onError(error) {
                 toast.show(t("Error verifying identity"), {
-                  native: true,
                   duration: 1000,
                   burntOptions: { haptic: "error", preset: "error" },
                 });

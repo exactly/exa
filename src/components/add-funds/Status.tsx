@@ -101,9 +101,8 @@ export default function Status() {
           onError={() => {
             setOpenKYC(false);
             toast.show(t("Something went wrong. Please try again."), {
-              native: true,
               duration: 1000,
-              burntOptions: { haptic: "error" },
+              burntOptions: { haptic: "error", preset: "error" },
             });
           }}
         />
