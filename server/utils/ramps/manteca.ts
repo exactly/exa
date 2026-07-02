@@ -252,6 +252,23 @@ export async function getProvider(account: Address, countryCode?: string) {
   if (mantecaUser.status === "INACTIVE") {
     return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
+  const hasFailedTasks = Object.values(mantecaUser.onboarding).some(
+    (task) => task.required && task.status === "FAILED",
+  );
+  if (hasFailedTasks) {
+    withScope((scope) => {
+      scope.addEventProcessor((event) => {
+        if (event.exception?.values?.[0]) event.exception.values[0].type = "has failed tasks";
+        return event;
+      });
+      captureException(new Error("has failed tasks"), {
+        level: "warning",
+        fingerprint: ["{{ default }}", "has failed tasks"],
+        contexts: { onboarding: mantecaUser.onboarding },
+      });
+    });
+    return { onramp: { currencies }, status: "CONTACT_SUPPORT" as const };
+  }
   const hasPendingTasks = Object.values(mantecaUser.onboarding).some(
     (task) => task.required && task.status === "PENDING",
   );
@@ -264,7 +281,7 @@ export async function getProvider(account: Address, countryCode?: string) {
       captureException(new Error("has pending tasks"), {
         level: "warning",
         fingerprint: ["{{ default }}", "has pending tasks"],
-        contexts: { mantecaUser },
+        contexts: { onboarding: mantecaUser.onboarding },
       });
     });
     return { onramp: { currencies }, status: "NOT_STARTED" as const };
@@ -468,7 +485,7 @@ export const BalancesResponse = object({
   updatedAt: string(),
 });
 
-const onboardingTaskStatus = ["PENDING", "COMPLETED", "IN_PROGRESS"] as const;
+const onboardingTaskStatus = ["PENDING", "COMPLETED", "FAILED", "IN_PROGRESS"] as const;
 const OnboardingTaskInfo = optional(
   object({
     required: boolean(),
