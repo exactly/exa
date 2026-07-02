@@ -339,7 +339,6 @@ describe("manteca hook", () => {
           assetAmount: "100",
           effectivePrice: "1000",
           exchange: "ARGENTINA",
-          feeInfo: { companyProfit: "0", custodyFee: "0", platformFee: "0", totalFee: "0" },
           status: "CANCELLED",
           userExternalId,
           userNumberId: "456",
@@ -367,7 +366,6 @@ describe("manteca hook", () => {
           assetAmount: "100",
           effectivePrice: "1000",
           exchange: "ARGENTINA",
-          feeInfo: { companyProfit: "0", custodyFee: "0", platformFee: "0", totalFee: "0" },
           status: "COMPLETED",
           userExternalId,
           userNumberId: "456",
@@ -398,7 +396,6 @@ describe("manteca hook", () => {
           assetAmount: "100",
           effectivePrice: "1000",
           exchange: "ARGENTINA",
-          feeInfo: { companyProfit: "0", custodyFee: "0", platformFee: "0", totalFee: "0" },
           status: "PENDING",
           userExternalId,
           userNumberId: "456",
@@ -493,7 +490,6 @@ describe("manteca hook", () => {
         data: {
           updatedTasks: ["IDENTITY_VALIDATION"],
           user: {
-            email: "test@example.com",
             id: "user123",
             numberId: "456",
             externalId: userExternalId,
@@ -531,7 +527,6 @@ describe("manteca hook", () => {
         data: {
           updatedTasks: ["IDENTITY_VALIDATION"],
           user: {
-            email: "test@example.com",
             id: "user123",
             numberId: "456",
             externalId: userExternalId,
@@ -561,7 +556,6 @@ describe("manteca hook", () => {
         data: {
           updatedTasks: ["EMAIL_VALIDATION"],
           user: {
-            email: "test@example.com",
             id: "user123",
             numberId: "456",
             externalId: userExternalId,
@@ -590,7 +584,6 @@ describe("manteca hook", () => {
         data: {
           updatedTasks: ["IDENTITY_VALIDATION"],
           user: {
-            email: "test@example.com",
             id: "user123",
             numberId: "456",
             externalId: userExternalId,
@@ -619,7 +612,6 @@ describe("manteca hook", () => {
         data: {
           updatedTasks: ["IDENTITY_VALIDATION"],
           user: {
-            email: "test@example.com",
             id: "user123",
             numberId: "456",
             externalId: userExternalId,
@@ -648,7 +640,6 @@ describe("manteca hook", () => {
         data: {
           updatedTasks: ["IDENTITY_VALIDATION"],
           user: {
-            email: "test@example.com",
             id: "user123",
             numberId: "456",
             externalId: userExternalId,
