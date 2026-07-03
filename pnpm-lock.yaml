@@ -567,8 +567,8 @@ importers:
         specifier: workspace:^1.1.0
         version: link:../contracts
       '@exactly/protocol':
-        specifier: ^0.2.22
-        version: 0.2.22
+        specifier: ^0.2.24
+        version: 0.2.24
       '@nx/eslint-plugin':
         specifier: ^22.6.2
         version: 22.6.2(@babel/traverse@7.29.0)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@22.6.2)(typescript@5.9.3)
@@ -667,8 +667,8 @@ importers:
         version: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: ^0.2.23
-        version: 0.2.23
+        specifier: ^0.2.24
+        version: 0.2.24
       '@hyperlane-xyz/core':
         specifier: ^11.0.0
         version: 11.3.1(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
@@ -3043,12 +3043,8 @@ packages:
     resolution: {integrity: sha512-nfG/SPwGyO5VFgPQHJml8HAPwU2rrpnlRWzWuiEK0dslKLB3vKmab9GvCyWDiSbNsxsuB273dKcBLL5o45ZJsg==}
     engines: {node: '>=20'}
 
-  '@exactly/protocol@0.2.22':
-    resolution: {integrity: sha512-QqQTWoWSc+pZ830YpQ0KtAcagDuC65Ez2dDZBhkHy8Hks2VmHih5QjXnvHXS42Bytp+2p6wkPAXfkUewfsFPdQ==}
-    engines: {node: '>=18'}
-
-  '@exactly/protocol@0.2.23':
-    resolution: {integrity: sha512-gvI3LI39uYyJO0O/KBI8tZOxEFk5RMPEEMMbxriaCBMTWjAl6IZtmXuu8CdwN94++jEDFgQLhHK9P2foyHrVEQ==}
+  '@exactly/protocol@0.2.24':
+    resolution: {integrity: sha512-8Pz8E0C78CxqE7FXzILnOAHcchKttbgo0rtiWCgrqzzIo0b/OgVT7kgiIg4tucSLYLk7rgnmQyn9bPC4GmQxfQ==}
     engines: {node: '>=18'}
 
   '@expo-google-fonts/material-symbols@0.4.27':
@@ -16383,16 +16379,7 @@ snapshots:
 
   '@exactly/lib@0.1.0': {}
 
-  '@exactly/protocol@0.2.22':
-    dependencies:
-      '@openzeppelin/contracts': 5.6.1
-      '@openzeppelin/contracts-upgradeable': 5.6.1(@openzeppelin/contracts@5.6.1)
-      '@openzeppelin/contracts-upgradeable-v4': '@openzeppelin/contracts-upgradeable@4.9.6'
-      '@openzeppelin/contracts-v4': '@openzeppelin/contracts@4.9.6'
-      solady: 0.1.26
-      solmate: '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc'
-
-  '@exactly/protocol@0.2.23':
+  '@exactly/protocol@0.2.24':
     dependencies:
       '@openzeppelin/contracts': 5.6.1
       '@openzeppelin/contracts-upgradeable': 5.6.1(@openzeppelin/contracts@5.6.1)
