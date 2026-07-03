@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.101
+
+### Patch Changes
+
+- [`9d7b0b6`](https://github.com/exactly/exa/commit/9d7b0b60aea1057777789329e0fea7459accc1f9) Thanks [@mainqueg](https://github.com/mainqueg)! - 🚑 remove unused manteca webhook fields
+
+- [#1125](https://github.com/exactly/exa/pull/1125) [`3802a96`](https://github.com/exactly/exa/commit/3802a961c7b71996374d2f97a9913aae2e612a4f) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ handle incomplete bridge endorsements
+
 ## 0.2.100
 
 ### Patch Changes

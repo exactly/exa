@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.2.15
+
+### Patch Changes
+
+- [#1135](https://github.com/exactly/exa/pull/1135) [`109b4db`](https://github.com/exactly/exa/commit/109b4db8515d21318b0de38ead8f9d6a11a69294) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix bridge amount fallback display
+
+- [#1135](https://github.com/exactly/exa/pull/1135) [`03dda16`](https://github.com/exactly/exa/commit/03dda167e0c5b80549b7e62182859f0409b09027) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 skip card activation prompts when card exists
+
+- [#1124](https://github.com/exactly/exa/pull/1124) [`39ce9d6`](https://github.com/exactly/exa/commit/39ce9d68174ece44a3502f15fe6c77cbb203ea26) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ surface crypto on-ramp sunset in add funds
+
+- [#1126](https://github.com/exactly/exa/pull/1126) [`ed5f97f`](https://github.com/exactly/exa/commit/ed5f97f9581dd2f1414ee3725ef5c358248e575e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update auth carousel copy
+
+- [#1135](https://github.com/exactly/exa/pull/1135) [`f39c178`](https://github.com/exactly/exa/commit/f39c17889661e372a6f506f8b39e04a12ed6dc29) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 render toasts on web
+
+- [#1126](https://github.com/exactly/exa/pull/1126) [`b9afddc`](https://github.com/exactly/exa/commit/b9afddcc80d9fd0b48ecd03bcff33dd947cc3de9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove qr payments slide from auth carousel
+
+- [#1126](https://github.com/exactly/exa/pull/1126) [`87bb0e3`](https://github.com/exactly/exa/commit/87bb0e303a162df9e0bf30a2c2b35fd409afeffd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 source supported assets from markets
+
+- Updated dependencies [[`9d7b0b6`](https://github.com/exactly/exa/commit/9d7b0b60aea1057777789329e0fea7459accc1f9), [`3802a96`](https://github.com/exactly/exa/commit/3802a961c7b71996374d2f97a9913aae2e612a4f)]:
+  - @exactly/server@0.2.101
+
 ## 1.2.14
 
 ### Patch Changes
