@@ -20,7 +20,7 @@ import { encodeFunctionData, formatUnits, getAddress, type Address } from "viem"
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
+import chain, { exaAddress, mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import publicClient from "./publicClient";
@@ -58,11 +58,18 @@ export const lifiTokensOptions = queryOptions({
     if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
       throw new Error("missing destination tokens");
     }
-    if (chain.id !== infra.optimism.id) return allTokens;
-    const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B").catch((error: unknown) => {
+    if (!exaAddress) return allTokens;
+    const exa = await getToken(chain.id, exaAddress).catch((error: unknown) => {
       reportError(error);
     });
-    return exa ? [exa, ...allTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())] : allTokens;
+    return exa
+      ? [
+          exa,
+          ...allTokens.filter(
+            (t) => t.chainId !== exa.chainId || t.address.toLowerCase() !== exa.address.toLowerCase(),
+          ),
+        ]
+      : allTokens;
   },
 });
 
@@ -84,8 +91,8 @@ export function balancesOptions(account: Address | undefined, nonce?: number) {
           reportError(error);
           return [] as Token[];
         }),
-        chain.id === infra.optimism.id
-          ? getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B")
+        exaAddress
+          ? getToken(chain.id, exaAddress)
               .then((token) => getTokenBalancesByChain(account, { [chain.id]: [token] }))
               .then((result) => result[chain.id]?.[0])
               .catch((error: unknown) => {
@@ -264,8 +271,9 @@ export async function getAllowTokens() {
   if (chain.testnet || chain.id === anvil.id) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
   const allowTokens = tokens[chain.id]?.filter((token) => allowList.has(token.address)) ?? [];
+  if (!exaAddress) return allowTokens;
   try {
-    const exa = await getToken(chain.id, "0x1e925De1c68ef83bD98eE3E130eF14a50309C01B");
+    const exa = await getToken(chain.id, exaAddress);
     return [exa, ...allowTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())];
   } catch {
     return allowTokens;
