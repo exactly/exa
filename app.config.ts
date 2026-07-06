@@ -476,7 +476,28 @@ function getWalletExtensionPodfilePatch() {
       end
     end
 
+    patchReactCorePrivacyBundles = lambda do
+      target = installer.pods_project.targets.find { |candidate| candidate.name == "React-Core.common-React-Core_privacy" }
+      if target
+        target.product_name = "React-Core-common-privacy"
+        target.product_reference.path = "React-Core-common-privacy.bundle"
+        target.build_configurations.each do |buildConfiguration|
+          buildConfiguration.build_settings["PRODUCT_NAME"] = "React-Core-common-privacy"
+        end
+      end
+
+      Dir.glob("#{installer.sandbox.root}/Target Support Files/Pods-ExaWalletExtension/Pods-ExaWalletExtension-resources.sh").each do |script|
+        contents = File.read(script)
+        updated = contents.gsub(
+          "React-Core.common/React-Core_privacy.bundle",
+          "React-Core.common/React-Core-common-privacy.bundle",
+        )
+        File.write(script, updated) if updated != contents
+      end
+    end
+
     patchMeaWalletAppDelegateModulemap.call
     patchWalletExtensionSwiftCompatibility.call
+    patchReactCorePrivacyBundles.call
   `;
 }
