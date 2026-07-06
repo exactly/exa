@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.16
+
+### Patch Changes
+
+- [#1132](https://github.com/exactly/exa/pull/1132) [`08df89b`](https://github.com/exactly/exa/commit/08df89b5dfa2f743ff84e7fd73e931d7211ee6ce) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ implement failed onramp ui
+
+- [#1115](https://github.com/exactly/exa/pull/1115) [`6f8e110`](https://github.com/exactly/exa/commit/6f8e1107ab4a96bf087ed2dc2630d596be79bb92) Thanks [@franm91](https://github.com/franm91)! - ✨ implement bridge offramp
+
+- Updated dependencies [[`852799e`](https://github.com/exactly/exa/commit/852799e376a95af2ed90fb9b234aebdbb62050f8)]:
+  - @exactly/server@0.2.102
+
 ## 1.2.15
 
 ### Patch Changes

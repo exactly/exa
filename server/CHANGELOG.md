@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.102
+
+### Patch Changes
+
+- [#1130](https://github.com/exactly/exa/pull/1130) [`852799e`](https://github.com/exactly/exa/commit/852799e376a95af2ed90fb9b234aebdbb62050f8) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ handle failed manteca onboarding tasks
+
 ## 0.2.101
 
 ### Patch Changes
