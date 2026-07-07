@@ -142,6 +142,7 @@ extracting a value into a variable and extracting logic into a function are the 
   - `contracts`: the solidity smart contracts (`@exactly/plugin`).
   - `common`: shared utilities (`@exactly/common`).
   - `docs`: astro-based documentation (`@exactly/docs`).
+  - `infra`: pulumi gcp infrastructure (`@exactly/infra`).
   - `substreams`: rust blockchain indexer (`@exactly/substreams`).
   - `.maestro`: end-to-end test scripts (`@exactly/e2e`).
 - **running tasks**: always use `pnpm nx` — never bare `nx`, `npx`, or `pnpm --filter`.
