@@ -1,0 +1,37 @@
+{
+  "name": "@exactly/infra",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "preview": "PULUMI_CONFIG_PASSPHRASE= pulumi preview",
+    "up": "PULUMI_CONFIG_PASSPHRASE= pulumi up",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "test": "nx test infra"
+  },
+  "engines": {
+    "node": "^24.14.1"
+  },
+  "dependencies": {
+    "@pulumi/gcp": "^9.31.0",
+    "@pulumi/pulumi": "^3.254.0"
+  },
+  "devDependencies": {
+    "@exactly/common": "workspace:^0.0.15",
+    "@types/node": "^25.5.0",
+    "eslint": "catalog:",
+    "eslint-config-universe": "^15.0.3",
+    "typescript": "catalog:"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
+      }
+    }
+  }
+}
