@@ -40,6 +40,7 @@ packages:
   - common
   - contracts
   - docs
+  - infra
   - server
   - substreams
   - .maestro
