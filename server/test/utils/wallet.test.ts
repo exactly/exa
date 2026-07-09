@@ -5,18 +5,24 @@ import { nonceSource, walletClient } from "../mocks/wallet";
 import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
 import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, RawContractError } from "viem";
-import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import { dataSuffix } from "@exactly/common/attribution";
 import { auditorAbi } from "@exactly/common/generated/chain";
 
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
-import keeper from "../../utils/wallet";
+import { getWallet } from "../../utils/wallet";
 
 import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
+
+let keeper: Awaited<ReturnType<typeof getWallet>>;
+
+beforeAll(async () => {
+  keeper = await getWallet("keeper");
+});
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {

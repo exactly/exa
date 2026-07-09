@@ -55,14 +55,17 @@ import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
-import keeper from "../../utils/wallet";
+import { getWallet } from "../../utils/wallet";
 import anvilClient from "../anvilClient";
+
+let keeper: Awaited<ReturnType<typeof getWallet>>;
 
 const appClient = testClient(app);
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
 
 beforeAll(async () => {
+  keeper = await getWallet("keeper");
   await Promise.all([
     database.transaction(async (tx) => {
       await tx
