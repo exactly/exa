@@ -1,9 +1,9 @@
 import "../mocks/deployments";
-import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/sardine";
 import "../mocks/sentry";
+import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -49,13 +49,13 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, sources, transactions } from "../../database";
 import app from "../../hooks/panda";
 import t, { f } from "../../i18n";
-import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
+import keeper from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);

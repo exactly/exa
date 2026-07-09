@@ -1,8 +1,8 @@
 import { createWebhook as createWebhookMock, findWebhook as findWebhookMock } from "../mocks/alchemy";
 import "../mocks/deployments";
-import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/sentry";
+import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
@@ -32,11 +32,11 @@ import app from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
 import * as decodePublicKey from "../../utils/decodePublicKey";
-import keeper, * as keeperUtilities from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import keeper, * as keeperUtilities from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);

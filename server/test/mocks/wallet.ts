@@ -7,15 +7,15 @@ import { expect, vi } from "vitest";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 
-import type * as keeper from "../../utils/keeper";
 import type * as nonceManager from "../../utils/nonceManager";
+import type * as wallet from "../../utils/wallet";
 
-export let keeperClient: ReturnType<
+export let walletClient: ReturnType<
   typeof createWalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>
 >;
 
-vi.mock("../../utils/keeper", async (importOriginal) => {
-  const original = await importOriginal<typeof keeper>();
+vi.mock("../../utils/wallet", async (importOriginal) => {
+  const original = await importOriginal<typeof wallet>();
   return {
     ...original,
     default: createWalletClient({
@@ -26,7 +26,7 @@ vi.mock("../../utils/keeper", async (importOriginal) => {
         { nonceManager: original.default.account.nonceManager },
       ),
     }).extend((closureClient) => {
-      keeperClient = closureClient;
+      walletClient = closureClient;
       return original.extender(closureClient);
     }),
   };
