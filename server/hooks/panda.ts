@@ -74,9 +74,12 @@ import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
-import keeper from "../utils/wallet";
+import createWallet, { legacy } from "../utils/wallet";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+
+const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const keeper = createWallet(legacy("keeper")); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -557,7 +560,7 @@ export default new Hono().post(
           const timestamp = // TODO use update timestamp when provided
             Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
             Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
-          const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
+          const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }, issuer); // TODO replace with payload signature
           if (payload.body.spend.signature) {
             await startSpan(
               {
@@ -572,12 +575,15 @@ export default new Hono().post(
               (span) => {
                 if (!payload.body.spend.signature) throw new Error("signature not found");
                 if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-                return verifyPandaSignature({
-                  account,
-                  amount: -refundAmount,
-                  timestamp: payload.body.spend.timestamp,
-                  signature: payload.body.spend.signature,
-                }).then((valid) => {
+                return verifyPandaSignature(
+                  {
+                    account,
+                    amount: -refundAmount,
+                    timestamp: payload.body.spend.timestamp,
+                    signature: payload.body.spend.signature,
+                  },
+                  issuer,
+                ).then((valid) => {
                   span.setAttribute("signature.valid", valid);
                   if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
                 });
@@ -1210,7 +1216,7 @@ async function prepareCollection(
     const timestamp = Math.floor(
       (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
     );
-    const signature = await signIssuerOp({ account, amount, timestamp }); // TODO replace with payload signature
+    const signature = await signIssuerOp({ account, amount, timestamp }, issuer); // TODO replace with payload signature
     if (payload.body.spend.signature) {
       await startSpan(
         {
@@ -1225,12 +1231,15 @@ async function prepareCollection(
         (span) => {
           if (!payload.body.spend.signature) throw new Error("signature not found");
           if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-          return verifyPandaSignature({
-            account,
-            amount,
-            timestamp: payload.body.spend.timestamp,
-            signature: payload.body.spend.signature,
-          }).then((valid) => {
+          return verifyPandaSignature(
+            {
+              account,
+              amount,
+              timestamp: payload.body.spend.timestamp,
+              signature: payload.body.spend.signature,
+            },
+            issuer,
+          ).then((valid) => {
             span.setAttribute("signature.valid", valid);
             if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
           });

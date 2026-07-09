@@ -55,7 +55,9 @@ import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
-import keeper from "../utils/wallet";
+import createWallet, { legacy } from "../utils/wallet";
+
+const keeper = createWallet(legacy("keeper")); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
 
 const debug = createDebug("exa:block");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -254,7 +256,7 @@ function scheduleMessage(message: string) {
         proposalType: ProposalType[proposalType],
         retryCount,
       });
-      const skipNonce = () =>
+      const skipNonce = async () =>
         keeper.exaSend(
           { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
           {
