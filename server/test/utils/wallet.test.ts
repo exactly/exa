@@ -5,20 +5,95 @@ import { nonceSource, walletClient } from "../mocks/wallet";
 
 import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
-import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, RawContractError } from "viem";
-import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, padHex, RawContractError } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import { dataSuffix } from "@exactly/common/attribution";
-import { auditorAbi } from "@exactly/common/generated/chain";
+import chain, { auditorAbi } from "@exactly/common/generated/chain";
 
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
-import keeper from "../../utils/wallet";
+import wallet from "../../utils/wallet";
 
 import type * as tracing from "../../utils/traceClient";
+import type * as Wallet from "../../utils/wallet";
 import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
+
+const kms = vi.hoisted(() => ({
+  clients: [] as object[],
+  close: vi.fn<() => Promise<void>>(),
+  gcpHsmToAccount: vi.fn(),
+  getProjectId: vi.fn<() => Promise<string>>(),
+}));
+
+let keeper: Awaited<ReturnType<typeof wallet>>;
+let source: typeof Wallet;
+
+beforeAll(async () => {
+  source = await vi.importActual<typeof Wallet>("../../utils/wallet");
+  keeper = wallet(privateKeyToAccount(padHex("0x69")));
+});
+
+beforeEach(() => {
+  kms.clients.length = 0;
+  kms.close.mockReset().mockResolvedValue();
+  kms.gcpHsmToAccount.mockReset();
+  kms.getProjectId.mockReset().mockResolvedValue("exa-test");
+});
+
+describe("wallet", () => {
+  it("uses accounts", () => {
+    const owner = privateKeyToAccount(padHex("0x1234"));
+
+    expect(source.default(owner).account).toBe(owner);
+    expect(source.default(owner, chain).account).toBe(owner);
+  });
+});
+
+describe("legacy", () => {
+  it.each([
+    ["issuer", "0x420"],
+    ["keeper", "0x69"],
+  ] as const)("loads the %s private key", (name, key) => {
+    const account = source.legacy(name); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy coverage
+
+    expect(account.address).toBe(privateKeyToAccount(padHex(key)).address);
+    expect(account.nonceManager).toBe(nonceManager);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["invalid", "invalid"],
+  ] as const)("rejects %s private keys", (_, privateKey) => {
+    vi.stubEnv("KEEPER_PRIVATE_KEY", privateKey);
+
+    expect(() => source.legacy("keeper")).toThrow("invalid keeper private key"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy coverage
+  });
+});
+
+describe("signer", () => {
+  it.each([
+    ["configured", "42", "42"],
+    ["empty", "", "1"],
+    ["default", undefined, "1"],
+  ] as const)("uses the %s kms version", async (_, version, expected) => {
+    const error = Object.assign(new Error("kms key version not found"), { code: 5 });
+    kms.gcpHsmToAccount.mockRejectedValueOnce(error);
+    vi.stubEnv("GCP_KMS_KEY_VERSION_ALLOWER", version);
+    vi.stubEnv("GCP_KMS_LOCATION", "us-west1");
+
+    await expect(source.signer("allower")).rejects.toBe(error);
+
+    expect(kms.gcpHsmToAccount).toHaveBeenCalledExactlyOnceWith({
+      hsmKeyVersion: `projects/exa-test/locations/us-west1/keyRings/sandbox-signers/cryptoKeys/sandbox-allower/cryptoKeyVersions/${expected}`,
+      kmsClient: kms.clients[0],
+    });
+    expect(kms.close).not.toHaveBeenCalled();
+  });
+});
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
@@ -378,13 +453,27 @@ describe("level option", () => {
 });
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@google-cloud/kms", () => ({
+  KeyManagementServiceClient: class {
+    constructor() {
+      kms.clients.push(this);
+    }
+
+    close = kms.close;
+    getProjectId = kms.getProjectId;
+  },
+}));
+vi.mock("@valora/viem-account-hsm-gcp", () => ({ gcpHsmToAccount: kms.gcpHsmToAccount }));
 vi.mock("@exactly/common/attribution", () => ({ dataSuffix: "0xdeadbeef" }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
   return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(150, ...arguments_.slice(1)) };
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 function enterMarket() {
   return keeper.exaSend(
