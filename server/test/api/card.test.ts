@@ -1,10 +1,10 @@
 import "../mocks/auth";
 import "../mocks/deployments";
-import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sardine";
+import "../mocks/wallet";
 
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -30,11 +30,11 @@ import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
 import auth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
-import keeper from "../../utils/keeper";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
+import keeper from "../../utils/wallet";
 import { walletExtension } from "../../utils/walletExtension";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";

@@ -50,12 +50,12 @@ import t, { f } from "../i18n";
 import { createWebhook, findWebhook, headers, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
-import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
+import keeper from "../utils/wallet";
 
 const debug = createDebug("exa:block");
 Object.assign(debug, { inspectOpts: { depth: undefined } });

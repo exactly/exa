@@ -1,11 +1,11 @@
 /// <reference types="vite/client" />
 import "./mocks/alchemy";
 import "./mocks/deployments";
-import "./mocks/keeper";
 import "./mocks/onesignal";
 import "./mocks/pax";
 import "./mocks/sardine";
 import "./mocks/sentry";
+import "./mocks/wallet";
 
 import { cors } from "hono/cors";
 import crypto from "node:crypto";
