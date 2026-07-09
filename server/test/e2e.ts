@@ -11,7 +11,11 @@ import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import process, { env } from "node:process";
+import { padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
+
+import refundWorker from "../workers/refund/worker";
 
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
@@ -24,7 +28,15 @@ describe("e2e", () => {
       const { default: app, close } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
-      const workers = [] as { close: () => Promise<void>; ready: Promise<unknown> }[];
+      const workers = [
+        refundWorker({
+          issuer: privateKeyToAccount(padHex("0x420")),
+          pandaKey: "panda",
+          pandaUrl: "https://panda.test",
+          redisUrl: env.REDIS_URL,
+          refunder: privateKeyToAccount(padHex("0xfee")),
+        }),
+      ];
 
       await expect(
         new Promise((resolve, reject) => {

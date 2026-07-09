@@ -59,8 +59,13 @@ import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
+import type createRefund from "../../workers/refund/queue";
 import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
+const refund = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
+}));
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const panda = createPanda(pandaConfig);
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
@@ -71,6 +76,7 @@ const hook = createHook({
   pandaKey: pandaConfig.key,
   pandaUrl: pandaConfig.url,
   postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
   sardineKey: sardineConfig.key,
   sardineUrl: sardineConfig.url,
   segmentKey: "segment",
@@ -78,6 +84,9 @@ const hook = createHook({
 });
 const app = hook.app;
 
+vi.mock("../../workers/refund/queue", () => ({
+  default: () => ({ close: () => Promise.resolve(refund.close()), enqueue: refund.enqueue }),
+}));
 vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
   const original = await importOriginal<{ drizzle: typeof Drizzle }>();
   let instance: ReturnType<typeof original.drizzle> | undefined;
@@ -1179,6 +1188,54 @@ describe("card operations", () => {
 
       afterEach(() => vi.restoreAllMocks());
 
+      beforeEach(() => {
+        refund.enqueue.mockClear().mockResolvedValue();
+      });
+
+      it("retries refunds that cannot be queued", async () => {
+        const cardId = "refund-queue-failure";
+        const error = new Error("queue error");
+        const createdAt = new Date().toISOString();
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "4054" }]);
+        refund.enqueue.mockRejectedValueOnce(error);
+        const exaSend = vi.spyOn(keeper, "exaSend");
+        const track = vi.spyOn(segment, "track");
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            id: "refund-queue-failure",
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: -3000,
+                localAmount: -3000,
+                authorizedAmount: -3000,
+                authorizedAt: createdAt,
+                postedAt: createdAt,
+                status: "completed",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        await expect(response.json()).resolves.toStrictEqual({ code: "queue error" });
+        expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith("refund-queue-failure");
+        expect(exaSend).not.toHaveBeenCalled();
+        expect(track).not.toHaveBeenCalled();
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+          level: "error",
+          tags: { queue: "refund", job: "refund" },
+          extra: { id: "refund-queue-failure" },
+        });
+      });
+
       it("handles reversal", async () => {
         const sendPushNotification = sendPushNotificationMock;
         const amount = 2073;
@@ -1237,6 +1294,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(refund.enqueue).toHaveBeenCalledWith("abcdef-123456");
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
         expect(sendPushNotification).toHaveBeenCalledWith({
@@ -1645,6 +1703,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(refund.enqueue).toHaveBeenCalledWith("abcdef-123456");
         expect(transaction?.payload).toMatchObject({
           bodies: [
             { action: "created", createdAt },
@@ -1701,6 +1760,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
+        expect(refund.enqueue).toHaveBeenCalledWith("abcdef-123456");
         expect(transaction?.payload).toMatchObject({
           bodies: [{ action: "completed", createdAt }],
         });

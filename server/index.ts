@@ -92,6 +92,7 @@ const panda = createPanda({
   pandaKey: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
   pandaUrl: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
   postgresUrl: parse(pipe(string("postgres"), nonEmpty("postgres")), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string("redis"), nonEmpty("redis")), env.REDIS_URL),
   sardineKey: parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   sardineUrl: parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
   segmentKey: parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY),
