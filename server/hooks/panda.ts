@@ -73,9 +73,11 @@ import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
-import keeper from "../utils/wallet";
+import { getWallet } from "../utils/wallet";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+
+let keeper: Awaited<ReturnType<typeof getWallet>> | undefined;
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -584,7 +586,7 @@ export default new Hono().post(
             ).catch((error: unknown) => captureException(error, { level: "error" }));
           }
           try {
-            await keeper.exaSend(
+            await (keeper ??= await getWallet("keeper")).exaSend(
               { name: "exa.refund", op: "exa.refund", attributes: { account } },
               {
                 address: v.parse(Address, refunderAddress),
@@ -813,7 +815,7 @@ export default new Hono().post(
             return c.json({ code: "ok" });
           }
           try {
-            await keeper.exaSend(
+            await (keeper ??= await getWallet("keeper")).exaSend(
               { name: "collect credit", op: "exa.collect", attributes: { account } },
               {
                 address: account,
@@ -1275,7 +1277,7 @@ async function prepareCollection(
     amount,
     call,
     transaction: {
-      from: keeper.account.address,
+      from: (keeper ??= await getWallet("keeper")).account.address,
       to: account,
       data: encodeFunctionData({ abi: exaPluginAbi, ...call }),
     } as const,
