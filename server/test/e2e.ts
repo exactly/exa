@@ -12,6 +12,8 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import refundWorker from "../workers/refund/worker";
+
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
 import type * as sentry from "@sentry/node";
@@ -26,7 +28,7 @@ describe("e2e", () => {
 
       await expect(
         new Promise((resolve, reject) => {
-          const workers = [] as { close: () => Promise<void>; ready: Promise<unknown> }[];
+          const workers = [refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl })];
           let closing: Promise<unknown> | undefined;
           const teardown = () => {
             closing ??= Promise.allSettled([close(), ...workers.map((worker) => worker.close())]).then(resolve, reject);
