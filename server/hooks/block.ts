@@ -55,7 +55,9 @@ import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
-import keeper from "../utils/wallet";
+import { getWallet } from "../utils/wallet";
+
+let keeper: Awaited<ReturnType<typeof getWallet>> | undefined;
 
 const debug = createDebug("exa:block");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -254,8 +256,8 @@ function scheduleMessage(message: string) {
         proposalType: ProposalType[proposalType],
         retryCount,
       });
-      const skipNonce = () =>
-        keeper.exaSend(
+      const skipNonce = async () =>
+        (keeper ??= await getWallet("keeper")).exaSend(
           { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
           {
             address: account,
@@ -291,7 +293,7 @@ function scheduleMessage(message: string) {
           async () => {
             await (proposalType === ProposalType.None
               ? skipNonce()
-              : keeper.exaSend(
+              : (keeper ??= await getWallet("keeper")).exaSend(
                   { name: "exa.execute", op: "exa.execute", attributes: { account } },
                   {
                     address: account,
@@ -507,7 +509,7 @@ function scheduleWithdraw(message: string) {
             },
           },
           async () => {
-            const receipt = await keeper.exaSend(
+            const receipt = await (keeper ??= await getWallet("keeper")).exaSend(
               { name: "exa.execute", op: "exa.execute", attributes: { account } },
               {
                 address: account,
