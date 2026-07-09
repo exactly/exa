@@ -22,6 +22,7 @@ import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
+import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -321,7 +322,16 @@ const server = serve(app);
 export async function close() {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      Promise.allSettled([closeSentry(), closeSegment(), database.$client.end(), closeSubscribe().finally(closeRedis)])
+      Promise.allSettled([
+        closeSentry(),
+        closeSegment(),
+        database.$client.end(),
+        Promise.allSettled([closeRefund(), closeSubscribe()])
+          .then((results) => {
+            if (results.some((result) => result.status === "rejected")) throw new Error("closing queues failed");
+          })
+          .finally(closeRedis),
+      ])
         .then((results) => {
           if (error) reject(error);
           else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
