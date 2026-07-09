@@ -6,7 +6,6 @@ import "../mocks/wallet";
 
 import { captureException, setUser, startSpan } from "@sentry/node";
 import { testClient } from "hono/testing";
-import * as viem from "viem";
 import {
   BaseError,
   bytesToHex,
@@ -20,6 +19,7 @@ import {
   zeroHash,
   type Address,
   type PrivateKeyAccount,
+  type withRetry,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
@@ -36,17 +36,20 @@ import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
-import keeper, * as keeperUtilities from "../../utils/wallet";
+import * as keeperUtilities from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);
 const waitForReceipt = publicClient.waitForTransactionReceipt;
+let keeper: ReturnType<typeof keeperUtilities.default>;
 
 describe("address activity", { timeout: 66_666 }, () => {
   let owner: PrivateKeyAccount;
   let account: Address;
 
   beforeEach(async () => {
+    keeper = keeperUtilities.default(privateKeyToAccount(padHex("0x69")));
+    vi.mocked(keeperUtilities.default).mockReset().mockReturnValue(keeper);
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
@@ -102,9 +105,11 @@ describe("address activity", { timeout: 66_666 }, () => {
   it("fails with unexpected error", async () => {
     const chain = NETWORKS.get("ANVIL");
     if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const getCode = vi.spyOn(client, "getCode").mockRejectedValueOnce(new Error("Unexpected"));
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
+    const wallet = keeperUtilities.default(privateKeyToAccount(padHex("0x69")), chain);
+    const getCode = vi.fn<typeof wallet.getCode>().mockRejectedValueOnce(new Error("Unexpected"));
+    const createWallet = vi.mocked(keeperUtilities.default);
+    createWallet.mockClear();
+    createWallet.mockReturnValueOnce({ ...wallet, getCode });
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -133,10 +138,20 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fails with transaction timeout", async () => {
-    vi.spyOn(publicClient, "sendRawTransaction").mockResolvedValue(zeroHash);
-    const waitForTransactionReceipt = vi
-      .spyOn(publicClient, "waitForTransactionReceipt")
+    const { sendRawTransaction } = publicClient;
+    const waitForPokeReceipt = vi
+      .fn<typeof publicClient.waitForTransactionReceipt>()
       .mockRejectedValue(new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }));
+    let deployed = false;
+    vi.spyOn(publicClient, "sendRawTransaction").mockImplementation((parameters) =>
+      deployed ? Promise.resolve(zeroHash) : sendRawTransaction(parameters),
+    );
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation(async (parameters) => {
+      if (deployed) return waitForPokeReceipt(parameters);
+      const receipt = await waitForReceipt({ ...parameters, pollingInterval: 10 });
+      deployed = true;
+      return receipt;
+    });
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -154,7 +169,7 @@ describe("address activity", { timeout: 66_666 }, () => {
 
     await waitForActivity();
 
-    expect(waitForTransactionReceipt).toHaveBeenCalledTimes(6);
+    expect(waitForPokeReceipt).toHaveBeenCalledTimes(6);
     expect(
       vi
         .mocked(captureException)
@@ -176,9 +191,8 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints poke revert by error name", async () => {
-    const simulateContract = vi.spyOn(publicClient, "simulateContract");
     const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
-    simulateContract.mockRejectedValueOnce(
+    failPoke(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({
           abi: revertAbi,
@@ -216,8 +230,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints poke revert by reason", async () => {
-    const simulateContract = vi.spyOn(publicClient, "simulateContract");
-    simulateContract.mockRejectedValueOnce(
+    failPoke(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke", message: "custom reason" }),
       }),
@@ -251,10 +264,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints poke revert as unknown", async () => {
-    const simulateContract = vi.spyOn(publicClient, "simulateContract");
-    simulateContract.mockRejectedValueOnce(
-      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke" }) }),
-    );
+    failPoke(new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke" }) }));
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -284,8 +294,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints poke revert by signature", async () => {
-    const simulateContract = vi.spyOn(publicClient, "simulateContract");
-    simulateContract.mockRejectedValueOnce(
+    failPoke(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({
           abi: [],
@@ -324,7 +333,7 @@ describe("address activity", { timeout: 66_666 }, () => {
 
   it("fingerprints shouldRetry by error name", async () => {
     const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
-    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+    failPoke(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({
           abi: revertAbi,
@@ -362,7 +371,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints shouldRetry by reason", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+    failPoke(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
       }),
@@ -396,7 +405,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints shouldRetry by signature", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
+    failPoke(
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
       }),
@@ -430,9 +439,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints shouldRetry as unknown revert", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(
-      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
-    );
+    failPoke(new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }));
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -462,7 +469,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("fingerprints shouldRetry as unknown", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
+    failPoke(new Error("unexpected"));
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -819,13 +826,14 @@ describe("address activity", { timeout: 66_666 }, () => {
 
   it("deploys on the event network without claiming yield", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const chain = NETWORKS.get("ANVIL");
-    if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const eventGetCode = vi.spyOn(client, "getCode");
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
-    const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
-    vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
+    const chain = NETWORKS.get("ETH_MAINNET");
+    if (!chain) throw new Error("missing mainnet");
+    const wallet = keeperUtilities.default(privateKeyToAccount(padHex("0x69")), chain);
+    const getCode = vi.fn<typeof wallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
+    const eventExaSend = vi.fn<typeof wallet.exaSend>().mockResolvedValue(null);
+    const createWallet = vi.mocked(keeperUtilities.default);
+    createWallet.mockClear();
+    createWallet.mockReturnValueOnce({ ...wallet, getCode, exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
@@ -849,7 +857,8 @@ describe("address activity", { timeout: 66_666 }, () => {
 
     await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
 
-    expect(eventGetCode).toHaveBeenCalledWith({ address: account });
+    expect(getCode).toHaveBeenCalledWith({ address: account });
+    expect(createWallet).toHaveBeenCalledWith(expect.anything(), chain);
     expect(eventExaSend).toHaveBeenCalledWith(
       expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
       expect.objectContaining({
@@ -871,13 +880,14 @@ describe("address activity", { timeout: 66_666 }, () => {
 
   it("omits the formatted amount when value is 0", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const chain = NETWORKS.get("ANVIL");
-    if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const eventGetCode = vi.spyOn(client, "getCode");
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
-    const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
-    vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
+    const chain = NETWORKS.get("ETH_MAINNET");
+    if (!chain) throw new Error("missing mainnet");
+    const wallet = keeperUtilities.default(privateKeyToAccount(padHex("0x69")), chain);
+    const getCode = vi.fn<typeof wallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
+    const eventExaSend = vi.fn<typeof wallet.exaSend>().mockResolvedValue(null);
+    const createWallet = vi.mocked(keeperUtilities.default);
+    createWallet.mockClear();
+    createWallet.mockReturnValueOnce({ ...wallet, getCode, exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
@@ -902,7 +912,8 @@ describe("address activity", { timeout: 66_666 }, () => {
 
     await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
 
-    expect(eventGetCode).toHaveBeenCalledWith({ address: account });
+    expect(getCode).toHaveBeenCalledWith({ address: account });
+    expect(createWallet).toHaveBeenCalledWith(expect.anything(), chain);
     expect(eventExaSend).toHaveBeenCalledWith(
       expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
       expect.objectContaining({
@@ -1347,6 +1358,16 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 });
 
+function failPoke(error: Error) {
+  const { simulateContract } = publicClient;
+  let failed = false;
+  vi.spyOn(publicClient, "simulateContract").mockImplementation((parameters) => {
+    if (failed || parameters.functionName !== "pokeETH") return simulateContract(parameters);
+    failed = true;
+    throw error;
+  });
+}
+
 async function getWETHMarket(account: Address) {
   const exactly = await publicClient.readContract({
     address: inject("Previewer"),
@@ -1461,10 +1482,9 @@ const activityPayload = {
 vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
 vi.mock("viem", async (importOriginal) => {
-  const original = await importOriginal<typeof viem>();
+  const original = await importOriginal<{ withRetry: typeof withRetry }>();
   return {
     ...original,
-    createPublicClient: vi.fn(original.createPublicClient),
     withRetry: (
       callback: Parameters<typeof original.withRetry>[0],
       options: Parameters<typeof original.withRetry>[1],
