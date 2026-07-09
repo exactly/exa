@@ -29,6 +29,8 @@ const mock = vi.hoisted(() => {
         current().getProcessorDetails(...parameters),
       getSecrets: (...parameters: Parameters<Panda["getSecrets"]>) => current().getSecrets(...parameters),
       getUser: (...parameters: Parameters<Panda["getUser"]>) => current().getUser(...parameters),
+      getWebhook: (...parameters: Parameters<Panda["getWebhook"]>) => current().getWebhook(...parameters),
+      getWithdrawal: (...parameters: Parameters<Panda["getWithdrawal"]>) => current().getWithdrawal(...parameters),
       setPIN: (...parameters: Parameters<Panda["setPIN"]>) => current().setPIN(...parameters),
       submitApplication: (...parameters: Parameters<Panda["submitApplication"]>) =>
         current().submitApplication(...parameters),

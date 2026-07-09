@@ -14,6 +14,7 @@ import createDebug from "debug";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
+import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
 import * as v from "valibot";
 import {
@@ -76,6 +77,8 @@ import createSegment from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import createWallet from "../utils/wallet";
+import { name as refundName } from "../workers/refund/job";
+import createRefund from "../workers/refund/queue";
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -92,6 +95,7 @@ export default function hook({
   pandaKey,
   pandaUrl,
   postgresUrl,
+  redisUrl,
   sardineKey,
   sardineUrl,
   segmentKey,
@@ -102,6 +106,7 @@ export default function hook({
   pandaKey: string;
   pandaUrl: string;
   postgresUrl: string;
+  redisUrl: string;
   sardineKey: string;
   sardineUrl: string;
   segmentKey: string;
@@ -110,6 +115,8 @@ export default function hook({
   const wallet = createWallet(settler);
   const database = drizzle(postgresUrl, { schema });
   const onesignal = createOnesignal(onesignalKey);
+  const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
+  const refund = createRefund(bullmq);
   const panda = createPanda({ key: pandaKey, url: pandaUrl });
   const sardine = createSardine(sardineKey, sardineUrl);
   const segment = createSegment(segmentKey);
@@ -468,6 +475,19 @@ export default function hook({
                   if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
                 },
               ).catch((error: unknown) => captureException(error, { level: "error" }));
+            }
+            try {
+              await refund.enqueue(payload.id);
+            } catch (error: unknown) {
+              captureException(error, {
+                level: "error",
+                tags: { queue: refundName, job: refundName },
+                extra: { id: payload.id },
+              });
+              return c.json(
+                { code: error instanceof Error ? error.message : String(error) },
+                569 as UnofficialStatusCode,
+              );
             }
             try {
               await wallet.exaSend(
@@ -966,7 +986,8 @@ export default function hook({
   let closing: Promise<unknown> | undefined;
   return {
     app,
-    close: () => (closing ??= Promise.all([database.$client.end(), segment.close()])),
+    close: () =>
+      (closing ??= Promise.all([database.$client.end(), segment.close(), refund.close().finally(() => bullmq.quit())])),
     ready: Promise.resolve(),
   };
 }

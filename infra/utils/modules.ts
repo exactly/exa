@@ -1,6 +1,9 @@
 export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
+  workers: {
+    refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
+  },
 });
 
 function define<
