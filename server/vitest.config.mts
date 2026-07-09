@@ -1,4 +1,5 @@
 import { env } from "node:process";
+import { fileURLToPath } from "node:url";
 import { padHex } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { defineConfig } from "vitest/config";
@@ -8,7 +9,7 @@ export default defineConfig({
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
     coverage: { enabled: true, reporter: ["lcov"] },
     reporters: ["default", "junit"],
-    outputFile: { junit: "coverage/junit.xml" },
+    outputFile: { junit: fileURLToPath(new URL("coverage/junit.xml", import.meta.url)) },
     testTimeout: 36_666,
     hookTimeout: 36_666,
     env: {
