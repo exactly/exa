@@ -1,7 +1,7 @@
 import "../mocks/deployments";
-import { keeperClient, nonceSource } from "../mocks/keeper";
 import "../mocks/sentry";
 import { enableTracing } from "../mocks/traceClient";
+import { nonceSource, walletClient } from "../mocks/wallet";
 
 import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
@@ -11,9 +11,9 @@ import { afterEach, describe, expect, inject, it, vi } from "vitest";
 import { dataSuffix } from "@exactly/common/attribution";
 import { auditorAbi } from "@exactly/common/generated/chain";
 
-import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
+import keeper from "../../utils/wallet";
 
 import type * as tracing from "../../utils/traceClient";
 import type * as sentry from "@sentry/node";
@@ -97,9 +97,9 @@ describe("fault tolerance", () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
     const hardReset = vi.spyOn(nonceManager, "hardReset");
     const currentNonce = await nonceSource.get({
-      address: keeperClient.account.address,
-      chainId: keeperClient.chain.id,
-      client: keeperClient,
+      address: walletClient.account.address,
+      chainId: walletClient.chain.id,
+      client: walletClient,
     });
     const getNonce = vi.spyOn(nonceSource, "get");
     getNonce
@@ -156,9 +156,9 @@ describe("fault tolerance", () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
     const hardReset = vi.spyOn(nonceManager, "hardReset");
     const currentNonce = await nonceSource.get({
-      address: keeperClient.account.address,
-      chainId: keeperClient.chain.id,
-      client: keeperClient,
+      address: walletClient.account.address,
+      chainId: walletClient.chain.id,
+      client: walletClient,
     });
 
     const getNonce = vi.spyOn(nonceSource, "get");
@@ -217,9 +217,9 @@ describe("fault tolerance", () => {
     await vi.waitUntil(
       async () =>
         (await nonceSource.get({
-          address: keeperClient.account.address,
-          chainId: keeperClient.chain.id,
-          client: keeperClient,
+          address: walletClient.account.address,
+          chainId: walletClient.chain.id,
+          client: walletClient,
         })) ===
         currentNonce + 102,
     );
