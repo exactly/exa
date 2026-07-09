@@ -1,9 +1,12 @@
+import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
+import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
 import { setTimeout } from "node:timers/promises";
-import { parse, safeParse } from "valibot";
+import { parse, pipe, regex, safeParse, string } from "valibot";
 import {
   concatHex,
+  createPublicClient,
   createWalletClient,
   encodeFunctionData,
   getContractError,
@@ -11,12 +14,13 @@ import {
   InvalidInputRpcError,
   keccak256,
   RawContractError,
+  rpcSchema,
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type Chain,
+  type LocalAccount,
   type MaybePromise,
   type Prettify,
-  type PrivateKeyAccount,
   type PublicActions,
   type TransactionReceipt,
   type Transport,
@@ -32,30 +36,33 @@ import revertReason from "@exactly/common/revertReason";
 import { Address, Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
-import defaultPublicClient, { captureRequests, Requests } from "./publicClient";
+import defaultPublicClient, { captureRequests, Request, Requests } from "./publicClient";
 import revertFingerprint from "./revertFingerprint";
-import defaultTraceClient from "./traceClient";
+import defaultTraceClient, { trace as traceActions, type RpcSchema } from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export default createWalletClient({
-  chain,
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-    batch: true,
+export async function getWallet(name: string, network: Chain = chain) {
+  const url = network.rpcUrls.alchemy?.http[0];
+  if (!url) throw new Error("missing alchemy rpc url");
+  const transport = http(`${url}/${alchemyAPIKey}`, {
+    ...(network.id === chain.id && { batch: true }),
     async onFetchRequest(request) {
-      captureRequests(parse(Requests, await request.json()));
+      const body: unknown = await request.clone().json();
+      captureRequests(Array.isArray(body) ? parse(Requests, body) : [parse(Request, body)]);
     },
-  }),
-  account: privateKeyToAccount(
-    parse(Hash, process.env.KEEPER_PRIVATE_KEY, {
-      message: "invalid keeper private key",
-    }),
-    { nonceManager },
-  ),
-}).extend(extender);
+  });
+  const client = createPublicClient({ chain: network, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(
+    traceActions,
+  );
+  return createWalletClient({ chain: network, transport, account: await getAccount(name) }).extend((wallet) => ({
+    ...extender(wallet, { publicClient: client, traceClient: client }),
+    getCode: client.getCode,
+  }));
+}
 
 export function extender(
-  keeper: WalletClient<Transport, Chain, PrivateKeyAccount>,
+  keeper: WalletClient<Transport, Chain, LocalAccount>,
   {
     publicClient = defaultPublicClient,
     traceClient = defaultTraceClient,
@@ -221,4 +228,45 @@ export function extender(
         }),
       ),
   };
+}
+
+export async function getAccount(name: string): Promise<LocalAccount> {
+  const privateKey = process.env[`${name.toUpperCase()}_PRIVATE_KEY`];
+  if (privateKey)
+    return privateKeyToAccount(parse(Hash, privateKey, { message: `invalid ${name} private key` }), { nonceManager });
+  const kmsClient = new KeyManagementServiceClient();
+  const signer = await withRetry(
+    async () =>
+      gcpHsmToAccount({
+        hsmKeyVersion: `projects/${parse(
+          pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)),
+          await kmsClient.getProjectId(),
+          { message: "invalid gcp project id" },
+        )}/locations/${parse(string(), process.env.GCP_KMS_LOCATION, {
+          message: "invalid GCP_KMS_LOCATION",
+        })}/keyRings/${parse(string(), process.env.GCP_KMS_KEY_RING, {
+          message: "invalid GCP_KMS_KEY_RING",
+        })}/cryptoKeys/${name}/cryptoKeyVersions/${parse(
+          pipe(string(), regex(/^\d+$/)),
+          process.env.GCP_KMS_KEY_VERSION,
+          { message: "invalid GCP_KMS_KEY_VERSION" },
+        )}`,
+        kmsClient,
+      }),
+    {
+      delay: 2000,
+      retryCount: 3,
+      shouldRetry: ({ error }) =>
+        error instanceof Error &&
+        (("code" in error &&
+          ([4, 8, 13, 14].includes(Number(error.code)) ||
+            ["DEADLINE_EXCEEDED", "INTERNAL", "RESOURCE_EXHAUSTED", "UNAVAILABLE"].includes(String(error.code)))) ||
+          ["internal error", "network", "timeout", "unavailable"].some((value) =>
+            error.message.toLowerCase().includes(value),
+          ) ||
+          ["NetworkError", "TimeoutError"].includes(error.name)),
+    },
+  );
+  signer.nonceManager = nonceManager;
+  return signer;
 }
