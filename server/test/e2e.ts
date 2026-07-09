@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import { close as closeRefundWorker, start as startRefundWorker } from "../workers/refund/worker";
 import { close as closeSubscribeWorker, start as startSubscribeWorker } from "../workers/subscribe/worker";
 
 import type * as panda from "../utils/panda";
@@ -29,7 +30,7 @@ describe("e2e", () => {
       await expect(
         new Promise((resolve, reject) => {
           const teardown = () => {
-            Promise.allSettled([closeSubscribeWorker()])
+            Promise.allSettled([closeRefundWorker(), closeSubscribeWorker()])
               .then(close)
               .then(() => resolve(null), reject);
           };
@@ -46,7 +47,14 @@ describe("e2e", () => {
           });
           process.once("SIGTERM", teardown);
 
-          startSubscribeWorker({ alchemyKey: "webhooks", redisUrl }).waitUntilReady().catch(reject);
+          Promise.all([
+            startRefundWorker({
+              pandaKey: "panda",
+              pandaUrl: "https://panda.test",
+              redisUrl,
+            }).waitUntilReady(),
+            startSubscribeWorker({ alchemyKey: "webhooks", redisUrl }).waitUntilReady(),
+          ]).catch(reject);
         }),
       ).resolves.toBeNull();
     },
