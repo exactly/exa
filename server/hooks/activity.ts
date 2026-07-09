@@ -16,10 +16,9 @@ import createDebug from "debug";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
-import { bytesToBigInt, createPublicClient, createWalletClient, hexToBigInt, http, rpcSchema, withRetry } from "viem";
+import { bytesToBigInt, hexToBigInt, withRetry } from "viem";
 import { anvil } from "viem/chains";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import exaChain, {
   auditorAbi,
   exaAccountFactoryAbi,
@@ -40,13 +39,12 @@ import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit } from "../utils/panda";
-import publicClient, { captureRequests, Request } from "../utils/publicClient";
+import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
-import { trace, type RpcSchema } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
-import keeper, { extender } from "../utils/wallet";
+import { getWallet } from "../utils/wallet";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -172,12 +170,7 @@ export default new Hono().post(
       }
     }
     const { "sentry-trace": sentryTrace, baggage } = getTraceData();
-    const transport = http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-      async onFetchRequest(request) {
-        captureRequests([v.parse(Request, await request.json())]);
-      },
-    });
-    const client = createPublicClient({ chain, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(trace);
+    const wallet = await getWallet("keeper", chain);
     Promise.allSettled(
       [...pokes].map(([account, { publicKey, factory, source, assets }]) =>
         continueTrace({ sentryTrace, baggage }, () =>
@@ -186,22 +179,20 @@ export default new Hono().post(
               { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
               async (span) => {
                 scope.setUser({ id: account });
-                const isDeployed = !!(await client.getCode({ address: account }));
+                const isDeployed = !!(await wallet.getCode({ address: account }));
                 scope.setTag("exa.new", !isDeployed);
                 if (!isDeployed) {
                   try {
-                    await createWalletClient({ chain, transport, account: keeper.account })
-                      .extend((wallet) => extender(wallet, { publicClient: client, traceClient: client }))
-                      .exaSend(
-                        { name: "create account", op: "exa.account", attributes: { account } },
-                        {
-                          address: factory,
-                          functionName: "createAccount",
-                          args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
-                          abi: exaAccountFactoryAbi,
-                        },
-                        chain.id === exaChain.id ? undefined : { fees: "auto" },
-                      );
+                    await wallet.exaSend(
+                      { name: "create account", op: "exa.account", attributes: { account } },
+                      {
+                        address: factory,
+                        functionName: "createAccount",
+                        args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
+                        abi: exaAccountFactoryAbi,
+                      },
+                      chain.id === exaChain.id ? undefined : { fees: "auto" },
+                    );
                     track({ event: "AccountFunded", userId: account, properties: { source } });
                   } catch (error: unknown) {
                     span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
@@ -219,7 +210,7 @@ export default new Hono().post(
                     .map(async (asset) =>
                       withRetry(
                         () =>
-                          keeper
+                          wallet
                             .exaSend(
                               { name: "poke account", op: "exa.poke", attributes: { account, asset } },
                               {

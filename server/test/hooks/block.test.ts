@@ -2,6 +2,7 @@ import "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/sentry";
+import "../mocks/wallet";
 
 import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
@@ -32,7 +33,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -54,10 +55,12 @@ import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
-import keeper from "../../utils/wallet";
+import { getWallet } from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 import type * as sentry from "@sentry/node";
+
+let keeper: Awaited<ReturnType<typeof getWallet>>;
 
 const bob = createWalletClient({
   chain,
@@ -66,6 +69,10 @@ const bob = createWalletClient({
 });
 const bobAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob.account.address), y: zeroHash });
 const appClient = testClient(app);
+
+beforeAll(async () => {
+  keeper = await getWallet("keeper");
+});
 
 describe("validation", () => {
   it("accepts valid request", async () => {

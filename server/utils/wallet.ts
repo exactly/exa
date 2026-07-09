@@ -6,6 +6,7 @@ import { setTimeout } from "node:timers/promises";
 import { parse, pipe, regex, safeParse, string } from "valibot";
 import {
   concatHex,
+  createPublicClient,
   createWalletClient,
   encodeFunctionData,
   getContractError,
@@ -13,6 +14,7 @@ import {
   InvalidInputRpcError,
   keccak256,
   RawContractError,
+  rpcSchema,
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type Chain,
@@ -34,27 +36,22 @@ import revertReason from "@exactly/common/revertReason";
 import { Address, Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
-import defaultPublicClient, { captureRequests, Requests } from "./publicClient";
+import defaultPublicClient, { captureRequests, Request, Requests } from "./publicClient";
 import revertFingerprint from "./revertFingerprint";
-import defaultTraceClient from "./traceClient";
+import defaultTraceClient, { trace as traceActions, type RpcSchema } from "./traceClient";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export default createWalletClient({
-  chain,
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-    batch: true,
-    async onFetchRequest(request) {
-      captureRequests(parse(Requests, await request.json()));
-    },
-  }),
-  account: privateKeyToAccount(
-    parse(Hash, process.env.KEEPER_PRIVATE_KEY, {
-      message: "invalid keeper private key",
-    }),
-    { nonceManager },
-  ),
-}).extend(extender);
+export async function getWallet(name: string, network: Chain = chain) {
+  const transport = getTransport(network);
+  const client = createPublicClient({ chain: network, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(
+    traceActions,
+  );
+  return createWalletClient({ chain: network, transport, account: await getAccount(name) }).extend((wallet) => ({
+    ...extender(wallet, { publicClient: client, traceClient: client }),
+    getCode: client.getCode,
+  }));
+}
 
 export function extender(
   keeper: WalletClient<Transport, Chain, LocalAccount>,
@@ -264,4 +261,16 @@ export async function getAccount(name: string): Promise<LocalAccount> {
   );
   signer.nonceManager = nonceManager;
   return signer;
+}
+
+function getTransport(network: Chain = chain) {
+  const url = network.rpcUrls.alchemy?.http[0];
+  if (!url) throw new Error("missing alchemy rpc url");
+  return http(`${url}/${alchemyAPIKey}`, {
+    ...(network.id === chain.id && { batch: true }),
+    async onFetchRequest(request) {
+      const body: unknown = await request.clone().json();
+      captureRequests(Array.isArray(body) ? parse(Requests, body) : [parse(Request, body)]);
+    },
+  });
 }
