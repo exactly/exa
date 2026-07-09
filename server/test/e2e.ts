@@ -11,8 +11,16 @@ import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import process, { env } from "node:process";
+import { padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
+import database from "../database";
+import createOnesignal from "../utils/onesignal";
+import createPanda from "../utils/panda";
+import createSardine from "../utils/sardine";
+import createSegment from "../utils/segment";
+import refundWorker from "../workers/refund/worker";
 import { connect } from "../workers/worker";
 
 import type * as panda from "../utils/panda";
@@ -27,16 +35,34 @@ describe("e2e", () => {
       if (!env.REDIS_URL) throw new Error("missing redis url");
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
       const bullmq = connect(env.REDIS_URL);
-      const workers = [] as { close: () => Promise<void>; ready: Promise<unknown> }[];
+      const onesignal = createOnesignal("onesignal");
+      const panda = createPanda({ key: "panda", url: "https://panda.test" });
+      const sardine = createSardine("sardine", "https://sardine.test");
+      const segment = createSegment("segment");
+      const close = () => Promise.resolve();
+      const workers = [
+        refundWorker({
+          bullmq,
+          database,
+          onesignal,
+          panda,
+          refunder: privateKeyToAccount(padHex("0xfee")),
+          sardine,
+          segment,
+          close,
+        }),
+      ];
 
       await expect(
         new Promise((resolve, reject) => {
           let closing: Promise<unknown> | undefined;
           const teardown = () => {
-            closing ??= Promise.allSettled([bullmq.quit(), stop(), ...workers.map((worker) => worker.close())]).then(
-              resolve,
-              reject,
-            );
+            closing ??= Promise.allSettled([
+              bullmq.quit(),
+              segment.close(),
+              stop(),
+              ...workers.map((worker) => worker.close()),
+            ]).then(resolve, reject);
           };
 
           app.use("/e2e/*", cors());

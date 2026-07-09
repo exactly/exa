@@ -1,12 +1,35 @@
-import { afterEach, beforeEach, describe, it, vi } from "vitest";
+import { padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type secret from "../../utils/secret";
-import type { signer } from "../../utils/wallet";
-
+const refunder = privateKeyToAccount(padHex("0xfee"));
+const database = { $client: { end: vi.fn<() => Promise<void>>() } };
+const onesignal = {};
+const panda = {};
+const sardine = {};
+const segment = { close: vi.fn<() => Promise<void>>() };
 const mocks = {
   close: vi.fn<() => Promise<void>>(),
-  secret: vi.fn<typeof secret>(),
-  signer: vi.fn<typeof signer>(),
+  drizzle: vi.fn<() => typeof database>(),
+  onesignal: vi.fn<(key: string) => object>(),
+  panda: vi.fn<(config: { key: string; url: string }) => object>(),
+  refund:
+    vi.fn<
+      (config: {
+        bullmq: object;
+        close: () => Promise<unknown>;
+        database: typeof database;
+        onesignal: object;
+        panda: object;
+        refunder: typeof refunder;
+        sardine: object;
+        segment: typeof segment;
+      }) => Handle
+    >(),
+  secret: vi.fn<(name: string, secrets: object) => Promise<string>>(),
+  segment: vi.fn<(key: string) => typeof segment>(),
+  signer: vi.fn<(name: string) => Promise<typeof refunder>>(),
+  sardine: vi.fn<(key: string, url: string) => object>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
 };
 
@@ -17,16 +40,81 @@ afterEach(() => {
 beforeEach(() => {
   vi.resetModules();
   mocks.close.mockReset().mockResolvedValue();
+  mocks.drizzle.mockReset().mockReturnValue(database);
+  mocks.onesignal.mockReset().mockReturnValue(onesignal);
+  mocks.panda.mockReset().mockReturnValue(panda);
+  mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
+  mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
-  mocks.signer.mockReset();
+  mocks.segment.mockReset().mockReturnValue(segment);
+  mocks.signer.mockReset().mockResolvedValue(refunder);
   mocks.supervise.mockReset();
+  vi.doMock("drizzle-orm/node-postgres", () => ({ drizzle: mocks.drizzle }));
+  vi.doMock("ioredis", () => ({
+    Redis: class {
+      constructor(
+        readonly redisUrl: string,
+        readonly options: { maxRetriesPerRequest: null },
+      ) {}
+    },
+  }));
   vi.doMock("../../supervise", () => ({ default: mocks.supervise }));
+  vi.doMock("../../utils/onesignal", () => ({ default: mocks.onesignal }));
+  vi.doMock("../../utils/panda", () => ({ default: mocks.panda }));
+  vi.doMock("../../utils/sardine", () => ({ default: mocks.sardine }));
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
+  vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
 });
 
 describe("bin", () => {
-  it.todo("constructs and supervises workers with private config");
+  it("resolves refund private config before constructing and supervising its worker", async () => {
+    await import("../../workers/refund/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("refund", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "redis-url",
+      "refund-postgres-url",
+      "refund-onesignal-api-key",
+      "refund-panda-api-key",
+      "panda-api-url",
+      "refund-sardine-api-key",
+      "sardine-api-url",
+      "refund-segment-write-key",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["refunder"]);
+    expect(mocks.panda).toHaveBeenCalledExactlyOnceWith({ key: "refund-panda-api-key", url: "panda-api-url" });
+    expect(mocks.refund).toHaveBeenCalledExactlyOnceWith({
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      close: expect.any(Function) as () => Promise<unknown>,
+      database,
+      onesignal,
+      panda,
+      refunder,
+      sardine,
+      segment,
+    });
+  });
+
+  it("fails before constructing the refund worker without its refunder account", async () => {
+    const error = new Error("missing refunder");
+    mocks.signer.mockRejectedValue(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/refund/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.refund).not.toHaveBeenCalled();
+  });
 });
 
 type Handle = {

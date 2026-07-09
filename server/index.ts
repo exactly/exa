@@ -31,11 +31,12 @@ import createPax from "./utils/pax";
 import createPersona from "./utils/persona";
 import createBridge from "./utils/ramps/bridge";
 import createManteca from "./utils/ramps/manteca";
-import redis, { close as closeRedis } from "./utils/redis";
+import redis, { bullmq, close as closeRedis } from "./utils/redis";
 import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createRefund from "./workers/refund/queue";
 
 const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
 const bridge = createBridge(
@@ -63,6 +64,7 @@ const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
+const refund = createRefund(bullmq);
 const sardine = createSardine(
   parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
@@ -124,6 +126,7 @@ const pandaHook = createPandaHook({
   issuer,
   onesignal,
   panda,
+  refund,
   sardine,
   segment,
   settler: keeper,
@@ -411,7 +414,11 @@ export const close = supervise(
       const services = await Promise.allSettled([
         database.$client.end(),
         segment.close(),
-        closeMaturity().finally(closeRedis),
+        Promise.allSettled([closeMaturity(), refund.close()])
+          .then((queues) => {
+            if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
+          })
+          .finally(closeRedis),
       ]);
       if (services.some((service) => service.status === "rejected")) throw new Error("closing services failed");
     },
