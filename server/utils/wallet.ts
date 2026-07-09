@@ -1,7 +1,9 @@
+import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
+import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
 import { setTimeout } from "node:timers/promises";
-import { parse, safeParse } from "valibot";
+import { parse, pipe, regex, safeParse, string } from "valibot";
 import {
   concatHex,
   createWalletClient,
@@ -14,9 +16,9 @@ import {
   WaitForTransactionReceiptTimeoutError,
   withRetry,
   type Chain,
+  type LocalAccount,
   type MaybePromise,
   type Prettify,
-  type PrivateKeyAccount,
   type PublicActions,
   type TransactionReceipt,
   type Transport,
@@ -55,7 +57,7 @@ export default createWalletClient({
 }).extend(extender);
 
 export function extender(
-  keeper: WalletClient<Transport, Chain, PrivateKeyAccount>,
+  keeper: WalletClient<Transport, Chain, LocalAccount>,
   {
     publicClient = defaultPublicClient,
     traceClient = defaultTraceClient,
@@ -221,4 +223,45 @@ export function extender(
         }),
       ),
   };
+}
+
+export async function getAccount(name: string): Promise<LocalAccount> {
+  const privateKey = process.env[`${name.toUpperCase()}_PRIVATE_KEY`];
+  if (privateKey)
+    return privateKeyToAccount(parse(Hash, privateKey, { message: `invalid ${name} private key` }), { nonceManager });
+  const kmsClient = new KeyManagementServiceClient();
+  const signer = await withRetry(
+    async () =>
+      gcpHsmToAccount({
+        hsmKeyVersion: `projects/${parse(
+          pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)),
+          await kmsClient.getProjectId(),
+          { message: "invalid gcp project id" },
+        )}/locations/${parse(string(), process.env.GCP_KMS_LOCATION, {
+          message: "invalid GCP_KMS_LOCATION",
+        })}/keyRings/${parse(string(), process.env.GCP_KMS_KEY_RING, {
+          message: "invalid GCP_KMS_KEY_RING",
+        })}/cryptoKeys/${name}/cryptoKeyVersions/${parse(
+          pipe(string(), regex(/^\d+$/)),
+          process.env.GCP_KMS_KEY_VERSION,
+          { message: "invalid GCP_KMS_KEY_VERSION" },
+        )}`,
+        kmsClient,
+      }),
+    {
+      delay: 2000,
+      retryCount: 3,
+      shouldRetry: ({ error }) =>
+        error instanceof Error &&
+        (("code" in error &&
+          ([4, 8, 13, 14].includes(Number(error.code)) ||
+            ["DEADLINE_EXCEEDED", "INTERNAL", "RESOURCE_EXHAUSTED", "UNAVAILABLE"].includes(String(error.code)))) ||
+          ["internal error", "network", "timeout", "unavailable"].some((value) =>
+            error.message.toLowerCase().includes(value),
+          ) ||
+          ["NetworkError", "TimeoutError"].includes(error.name)),
+    },
+  );
+  signer.nonceManager = nonceManager;
+  return signer;
 }
