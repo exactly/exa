@@ -50,11 +50,11 @@ import deploy from "@exactly/plugin/deploy.json";
 import app from "../../hooks/block";
 import t, { f } from "../../i18n";
 import ensClient from "../../utils/ensClient";
-import keeper from "../../utils/keeper";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
+import keeper from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 import type * as sentry from "@sentry/node";
