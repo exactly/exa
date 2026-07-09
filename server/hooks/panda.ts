@@ -56,7 +56,6 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
 import t, { f } from "../i18n";
-import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   collectors,
@@ -74,6 +73,7 @@ import risk, { feedback } from "../utils/sardine";
 import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
+import keeper from "../utils/wallet";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 

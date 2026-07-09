@@ -37,7 +37,6 @@ import t, { f } from "../i18n";
 import { createWebhook, findWebhook, headerValidator, NETWORKS } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
-import keeper, { extender } from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import { autoCredit } from "../utils/panda";
 import publicClient, { captureRequests, Request } from "../utils/publicClient";
@@ -46,6 +45,7 @@ import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
 import { trace, type RpcSchema } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
+import keeper, { extender } from "../utils/wallet";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
