@@ -1,20 +1,14 @@
 const { consoleLoggingIntegration, extraErrorDataIntegration, init } = require("@sentry/node");
 const { nodeProfilingIntegration } = require("@sentry/profiling-node");
 
-const domain = require("@exactly/common/domain");
+const stack = require("@exactly/common/stack");
 
-const development = !process.env.APP_DOMAIN || process.env.APP_DOMAIN === "localhost";
+const development = stack === "localhost";
 
 init({
   dsn: process.env.SENTRY_DSN,
   release: require("./generated/release"),
-  environment:
-    {
-      "web.exactly.app": "production",
-      "sandbox.exactly.app": "sandbox",
-      "base.exactly.app": "base",
-      "base-sepolia.exactly.app": "base-sepolia",
-    }[domain] ?? domain,
+  environment: stack,
   tracesSampleRate: 1,
   profilesSampleRate: 1,
   attachStacktrace: true,
