@@ -170,6 +170,7 @@
     "overrides": {
       "@hono/node-server": "catalog:",
       "@opentelemetry/core@2": "^2.8.0",
+      "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": "^6.0.0",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
       "axios@1.16.1": "^1.18.0",
