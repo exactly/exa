@@ -32,6 +32,7 @@
   "dependencies": {
     "@account-kit/infra": "catalog:",
     "@exactly/lib": "^0.1.0",
+    "@google-cloud/secret-manager": "^6.3.0",
     "@hono/node-server": "catalog:",
     "@hono/sentry": "^1.2.2",
     "@hono/valibot-validator": "^0.5.3",
