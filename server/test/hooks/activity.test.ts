@@ -6,7 +6,6 @@ import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
-import * as viem from "viem";
 import {
   BaseError,
   bytesToHex,
@@ -36,16 +35,19 @@ import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
-import keeper, * as keeperUtilities from "../../utils/wallet";
+import * as keeperUtilities from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);
+let keeper: Awaited<ReturnType<typeof keeperUtilities.getWallet>>;
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
   let account: Address;
 
   beforeEach(async () => {
+    keeper = await keeperUtilities.getWallet("keeper");
+    vi.mocked(keeperUtilities.getWallet).mockResolvedValue(keeper);
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
@@ -101,9 +103,11 @@ describe("address activity", () => {
   it("fails with unexpected error", async () => {
     const chain = NETWORKS.get("ANVIL");
     if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const getCode = vi.spyOn(client, "getCode").mockRejectedValueOnce(new Error("Unexpected"));
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
+    const wallet = await keeperUtilities.getWallet("keeper", chain);
+    const getCode = vi.fn<typeof wallet.getCode>().mockRejectedValueOnce(new Error("Unexpected"));
+    const getWallet = vi.mocked(keeperUtilities.getWallet);
+    getWallet.mockClear();
+    getWallet.mockResolvedValueOnce({ ...wallet, getCode });
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -786,13 +790,14 @@ describe("address activity", () => {
 
   it("deploys on the event network without claiming yield", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const chain = NETWORKS.get("ANVIL");
-    if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const eventGetCode = vi.spyOn(client, "getCode");
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
-    const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
-    vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
+    const chain = NETWORKS.get("ETH_MAINNET");
+    if (!chain) throw new Error("missing mainnet");
+    const wallet = await keeperUtilities.getWallet("keeper", chain);
+    const getCode = vi.fn<typeof wallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
+    const eventExaSend = vi.fn<typeof wallet.exaSend>().mockResolvedValue(null);
+    const getWallet = vi.mocked(keeperUtilities.getWallet);
+    getWallet.mockClear();
+    getWallet.mockResolvedValueOnce({ ...wallet, getCode, exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
@@ -816,7 +821,8 @@ describe("address activity", () => {
 
     await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
 
-    expect(eventGetCode).toHaveBeenCalledWith({ address: account });
+    expect(getCode).toHaveBeenCalledWith({ address: account });
+    expect(getWallet).toHaveBeenCalledWith("keeper", chain);
     expect(eventExaSend).toHaveBeenCalledWith(
       expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
       expect.objectContaining({
@@ -838,13 +844,14 @@ describe("address activity", () => {
 
   it("omits the formatted amount when value is 0", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const chain = NETWORKS.get("ANVIL");
-    if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const eventGetCode = vi.spyOn(client, "getCode");
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
-    const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
-    vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
+    const chain = NETWORKS.get("ETH_MAINNET");
+    if (!chain) throw new Error("missing mainnet");
+    const wallet = await keeperUtilities.getWallet("keeper", chain);
+    const getCode = vi.fn<typeof wallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
+    const eventExaSend = vi.fn<typeof wallet.exaSend>().mockResolvedValue(null);
+    const getWallet = vi.mocked(keeperUtilities.getWallet);
+    getWallet.mockClear();
+    getWallet.mockResolvedValueOnce({ ...wallet, getCode, exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
@@ -869,7 +876,8 @@ describe("address activity", () => {
 
     await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
 
-    expect(eventGetCode).toHaveBeenCalledWith({ address: account });
+    expect(getCode).toHaveBeenCalledWith({ address: account });
+    expect(getWallet).toHaveBeenCalledWith("keeper", chain);
     expect(eventExaSend).toHaveBeenCalledWith(
       expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
       expect.objectContaining({
@@ -1358,11 +1366,6 @@ const activityPayload = {
 
 vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
-vi.mock("viem", async (importOriginal) => {
-  const original = await importOriginal<typeof viem>();
-  return { ...original, createPublicClient: vi.fn(original.createPublicClient) };
-});
-
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
