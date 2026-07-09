@@ -51,13 +51,13 @@ import {
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import revertReason from "@exactly/common/revertReason";
-import { Address, Hex, type Hash } from "@exactly/common/validation";
+import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
 import t, { f } from "../i18n";
 import { sendPushNotification } from "../utils/onesignal";
-import createPanda, { collectors, issuer as createIssuer } from "../utils/panda";
+import createPanda, { collectors, issuer as createIssuer, Payload } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import risk, { feedback } from "../utils/sardine";
@@ -65,7 +65,9 @@ import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import { getWallet } from "../utils/wallet";
+import { enqueue as enqueueRefund } from "../workers/refund/queue";
 
+import type { Transaction } from "../utils/panda";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const panda = createPanda();
@@ -78,173 +80,6 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 const debugWebhook = createDebug("exa:webhook");
 Object.assign(debugWebhook, { inspectOpts: { depth: undefined } });
-
-const BaseTransaction = v.object({
-  id: v.string(),
-  type: v.literal("spend"),
-  spend: v.object({
-    amount: v.number(),
-    currency: v.literal("usd"),
-    cardId: v.string(),
-    cardType: v.literal("virtual"),
-    localAmount: v.number(),
-    localCurrency: v.pipe(v.string(), v.length(3)),
-    merchantCity: v.nullish(v.string()),
-    merchantCountry: v.pipe(v.string(), v.length(2)),
-    merchantCategory: v.nullish(v.string()),
-    merchantCategoryCode: v.string(),
-    merchantName: v.string(),
-    merchantId: v.nullish(v.string()),
-    authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
-    authorizedAmount: v.nullish(v.number()),
-    authorizationMethod: v.optional(v.string()),
-    userId: v.string(),
-    signature: v.optional(Hex),
-    timestamp: v.optional(v.number()),
-  }),
-});
-
-const Transaction = v.variant("action", [
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("created"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        status: v.picklist(["pending", "declined"]),
-        declinedReason: v.optional(v.string()),
-        exchangeRate: v.optional(v.number()),
-      }),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("updated"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        authorizationUpdateAmount: v.number(),
-        authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
-        status: v.picklist(["declined", "pending", "reversed"]),
-        declinedReason: v.nullish(v.string()),
-        enrichedMerchantIcon: v.nullish(v.string()),
-        enrichedMerchantName: v.nullish(v.string()),
-        enrichedMerchantCategory: v.nullish(v.string()),
-      }),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("requested"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      id: v.optional(v.string()),
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        authorizedAmount: v.number(),
-        status: v.literal("pending"),
-      }),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("completed"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
-        postedAt: v.pipe(v.string(), v.isoTimestamp()),
-        status: v.literal("completed"),
-        enrichedMerchantIcon: v.nullish(v.string()),
-        enrichedMerchantName: v.nullish(v.string()),
-        enrichedMerchantCategory: v.nullish(v.string()),
-        exchangeRate: v.optional(v.number()),
-      }),
-    }),
-  }),
-]);
-
-const Card = v.variant("action", [
-  v.object({
-    id: v.string(),
-    resource: v.literal("card"),
-    action: v.literal("updated"),
-    body: v.object({
-      expirationMonth: v.pipe(v.string(), v.minLength(1), v.maxLength(2)),
-      expirationYear: v.pipe(v.string(), v.length(4)),
-      id: v.string(),
-      last4: v.pipe(v.string(), v.length(4)),
-      limit: v.object({
-        amount: v.number(),
-        frequency: v.picklist([
-          "per24HourPeriod",
-          "per7DayPeriod",
-          "per30DayPeriod",
-          "perYearPeriod",
-          "allTime",
-          "perAuthorization",
-        ]),
-      }),
-      status: v.picklist(["notActivated", "active", "locked", "canceled"]),
-      tokenWallets: v.optional(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
-      type: v.literal("virtual"),
-      userId: v.string(),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("card"),
-    action: v.literal("notification"),
-    body: v.object({
-      id: v.string(),
-      card: v.object({ id: v.string(), userId: v.nullable(v.string()) }),
-      tokenWallet: v.string(),
-      reasonCode: v.literal("PROVISIONING_DECLINED"),
-      decisionReason: v.optional(v.object({ code: v.string(), description: v.optional(v.string()) })),
-    }),
-  }),
-]);
-
-const Payload = v.variant("resource", [
-  Transaction,
-  Card,
-  v.object({
-    resource: v.literal("dispute"),
-    action: v.string(),
-    body: v.looseObject({ id: v.string() }),
-    id: v.string(),
-  }),
-  v.object({
-    resource: v.literal("user"),
-    action: v.literal("updated"),
-    body: v.object({
-      applicationReason: v.string(),
-      applicationStatus: v.picklist([
-        "approved",
-        "pending",
-        "needsInformation",
-        "needsVerification",
-        "manualReview",
-        "denied",
-        "locked",
-        "canceled",
-      ]),
-      firstName: v.string(),
-      id: v.string(),
-      isActive: v.boolean(),
-      isTermsOfServiceAccepted: v.boolean(),
-      lastName: v.string(),
-    }),
-    id: v.string(),
-  }),
-]);
 
 export default new Hono().post(
   "/",
@@ -582,10 +417,11 @@ export default new Hono().post(
             ).catch((error: unknown) => captureException(error, { level: "error" }));
           }
           try {
+            await enqueueRefund(payload.id);
             await (keeper ??= await getWallet("keeper")).exaSend(
               { name: "exa.refund", op: "exa.refund", attributes: { account } },
               {
-                address: v.parse(Address, refunderAddress),
+                address: refunderAddress,
                 functionName: "refund",
                 args: [account, refundAmount, timestamp, signature],
                 abi: [

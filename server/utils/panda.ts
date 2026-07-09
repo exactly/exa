@@ -4,15 +4,19 @@ import {
   array,
   boolean,
   check,
+  digits,
   email,
   ipv4,
   ipv6,
+  isoTimestamp,
   length,
   literal,
+  looseObject,
   maxLength,
   metadata,
   minLength,
   nullable,
+  nullish,
   number,
   object,
   omit,
@@ -24,7 +28,9 @@ import {
   regex,
   string,
   transform,
+  tuple,
   union,
+  variant,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
@@ -38,16 +44,15 @@ import chain, {
   marketUSDCAddress,
   previewerAbi,
   previewerAddress,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash } from "@exactly/common/validation";
+import { Address, Hash, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 import publicClient from "../utils/publicClient";
-
-import type { Hex } from "@exactly/common/validation";
 
 export default function panda(key = process.env.PANDA_API_KEY, baseURL = process.env.PANDA_API_URL) {
   if (!key) throw new Error("missing panda api key");
@@ -71,6 +76,8 @@ export default function panda(key = process.env.PANDA_API_KEY, baseURL = process
     setPIN,
     getNonce,
     verify,
+    getWebhook,
+    getWithdrawal,
     autoCredit,
     submitApplication,
     getApplicationStatus,
@@ -231,6 +238,25 @@ export default function panda(key = process.env.PANDA_API_KEY, baseURL = process
       | { authType: "siwe"; message: string; signature: string },
   ) {
     return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
+  }
+
+  async function getWebhook(id: string) {
+    return await request(
+      object({
+        id: string(),
+        requestBody: Payload,
+        requestSentAt: pipe(string(), isoTimestamp()),
+        responseReceivedAt: optional(pipe(string(), isoTimestamp())),
+      }),
+      `/issuing/webhooks/${id}`,
+    );
+  }
+
+  async function getWithdrawal(amount: bigint, recipient: Address, admin: Address) {
+    return await request(
+      Withdrawal,
+      `/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${amount}&recipientAddress=${recipient}&adminAddress=${admin}&chainId=${chain.id}`,
+    );
   }
 
   async function autoCredit(account: Address) {
@@ -418,6 +444,176 @@ export function issuer(key = process.env.ISSUER_PRIVATE_KEY, issuerAddress = pro
 const PANResponse = object({
   encryptedPan: object({ iv: string(), data: string() }),
   encryptedCvc: object({ iv: string(), data: string() }),
+});
+
+const BaseTransaction = object({
+  id: string(),
+  type: literal("spend"),
+  spend: object({
+    amount: number(),
+    currency: literal("usd"),
+    cardId: string(),
+    cardType: literal("virtual"),
+    localAmount: number(),
+    localCurrency: pipe(string(), length(3)),
+    merchantCity: nullish(string()),
+    merchantCountry: pipe(string(), length(2)),
+    merchantCategory: nullish(string()),
+    merchantCategoryCode: string(),
+    merchantName: string(),
+    merchantId: nullish(string()),
+    authorizedAt: optional(pipe(string(), isoTimestamp())),
+    authorizedAmount: nullish(number()),
+    authorizationMethod: optional(string()),
+    userId: string(),
+    signature: optional(Hex),
+    timestamp: optional(number()),
+  }),
+});
+
+export const Transaction = variant("action", [
+  object({
+    id: string(),
+    resource: literal("transaction"),
+    action: literal("created"),
+    body: object({
+      ...BaseTransaction.entries,
+      spend: object({
+        ...BaseTransaction.entries.spend.entries,
+        status: picklist(["pending", "declined"]),
+        declinedReason: optional(string()),
+        exchangeRate: optional(number()),
+      }),
+    }),
+  }),
+  object({
+    id: string(),
+    resource: literal("transaction"),
+    action: literal("updated"),
+    body: object({
+      ...BaseTransaction.entries,
+      spend: object({
+        ...BaseTransaction.entries.spend.entries,
+        authorizationUpdateAmount: number(),
+        authorizedAt: pipe(string(), isoTimestamp()),
+        status: picklist(["declined", "pending", "reversed"]),
+        declinedReason: nullish(string()),
+        enrichedMerchantIcon: nullish(string()),
+        enrichedMerchantName: nullish(string()),
+        enrichedMerchantCategory: nullish(string()),
+      }),
+    }),
+  }),
+  object({
+    id: string(),
+    resource: literal("transaction"),
+    action: literal("requested"),
+    body: object({
+      ...BaseTransaction.entries,
+      id: optional(string()),
+      spend: object({
+        ...BaseTransaction.entries.spend.entries,
+        authorizedAmount: number(),
+        status: literal("pending"),
+      }),
+    }),
+  }),
+  object({
+    id: string(),
+    resource: literal("transaction"),
+    action: literal("completed"),
+    body: object({
+      ...BaseTransaction.entries,
+      spend: object({
+        ...BaseTransaction.entries.spend.entries,
+        authorizedAt: pipe(string(), isoTimestamp()),
+        postedAt: pipe(string(), isoTimestamp()),
+        status: literal("completed"),
+        enrichedMerchantIcon: nullish(string()),
+        enrichedMerchantName: nullish(string()),
+        enrichedMerchantCategory: nullish(string()),
+        exchangeRate: optional(number()),
+      }),
+    }),
+  }),
+]);
+
+const Card = variant("action", [
+  object({
+    id: string(),
+    resource: literal("card"),
+    action: literal("updated"),
+    body: object({
+      expirationMonth: pipe(string(), minLength(1), maxLength(2)),
+      expirationYear: pipe(string(), length(4)),
+      id: string(),
+      last4: pipe(string(), length(4)),
+      limit: object({
+        amount: number(),
+        frequency: picklist([
+          "per24HourPeriod",
+          "per7DayPeriod",
+          "per30DayPeriod",
+          "perYearPeriod",
+          "allTime",
+          "perAuthorization",
+        ]),
+      }),
+      status: picklist(["notActivated", "active", "locked", "canceled"]),
+      tokenWallets: optional(union([array(literal("Apple")), array(literal("Google Pay"))])),
+      type: literal("virtual"),
+      userId: string(),
+    }),
+  }),
+  object({
+    id: string(),
+    resource: literal("card"),
+    action: literal("notification"),
+    body: object({
+      id: string(),
+      card: object({ id: string(), userId: nullable(string()) }),
+      tokenWallet: string(),
+      reasonCode: literal("PROVISIONING_DECLINED"),
+      decisionReason: optional(object({ code: string(), description: optional(string()) })),
+    }),
+  }),
+]);
+
+export const Payload = variant("resource", [
+  Transaction,
+  Card,
+  object({
+    resource: literal("dispute"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
+  object({
+    resource: literal("user"),
+    action: literal("updated"),
+    body: object({
+      applicationReason: string(),
+      applicationStatus: picklist([
+        "approved",
+        "pending",
+        "needsInformation",
+        "needsVerification",
+        "manualReview",
+        "denied",
+        "locked",
+        "canceled",
+      ]),
+      firstName: string(),
+      id: string(),
+      isActive: boolean(),
+      lastName: string(),
+    }),
+    id: string(),
+  }),
+]);
+
+const Withdrawal = object({
+  parameters: tuple([Address, Address, pipe(string(), digits()), Address, number(), array(number()), Hex]),
 });
 
 export const PINResponse = pipe(

@@ -5,13 +5,14 @@ import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
+import { usdcAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
 
 import createPanda, { issuer } from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
-const chainMock = vi.hoisted(() => ({ id: 0 }));
+const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
 const panda = createPanda();
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
@@ -212,6 +213,41 @@ describe("panda factory", () => {
 
   it("requires an api url", () => {
     expect(() => createPanda("panda", "")).toThrow("missing panda api url");
+  });
+});
+
+describe("withdrawals", () => {
+  const account = parse(Address, padHex("0xb0b", { size: 20 }));
+
+  it("requests testnet withdrawals", async () => {
+    chainMock.id = baseSepolia.id;
+    chainMock.testnet = true;
+    const parameters = [account, account, "100", account, 1, [1, 2], "0x1234"];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ parameters }));
+
+    await expect(panda.getWithdrawal(100n, account, account)).resolves.toStrictEqual({ parameters });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/issuing/tenants/signatures/withdrawals?token=0x29684075a3C86ea11D9964BcAf0F956e801396bD&amount=100&recipientAddress=${account}&adminAddress=${account}&chainId=${baseSepolia.id}`,
+      ),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("requests mainnet withdrawals", async () => {
+    chainMock.id = base.id;
+    chainMock.testnet = false;
+    const parameters = [account, account, "100", account, 1, [1, 2], "0x1234"];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ parameters }));
+
+    await expect(panda.getWithdrawal(100n, account, account)).resolves.toStrictEqual({ parameters });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/issuing/tenants/signatures/withdrawals?token=${parse(Address, usdcAddress)}&amount=100`,
+      ),
+      expect.objectContaining({ method: "GET" }),
+    );
+    chainMock.testnet = true;
   });
 });
 
