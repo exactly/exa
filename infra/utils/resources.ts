@@ -4,6 +4,7 @@ const common = ["redis-url", "sentry-dsn"] as const;
 export default {
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
+    refund: worker("refund", { secrets: [scoped("panda-api-key"), shared("panda-api-url")], signer: "refunder" }),
   },
 } as const;
 
