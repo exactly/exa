@@ -781,6 +781,9 @@ importers:
       '@exactly/lib':
         specifier: ^0.1.0
         version: 0.1.0
+      '@google-cloud/kms':
+        specifier: ^5.7.0
+        version: 5.7.0
       '@google-cloud/secret-manager':
         specifier: ^6.3.0
         version: 6.3.0
@@ -820,6 +823,9 @@ importers:
       '@valibot/to-json-schema':
         specifier: ^1.6.0
         version: 1.6.0(valibot@1.3.1(typescript@5.9.3))
+      '@valora/viem-account-hsm-gcp':
+        specifier: ^1.2.19
+        version: 1.2.19(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))
       async-mutex:
         specifier: ^0.5.0
         version: 0.5.0
@@ -3337,6 +3343,10 @@ packages:
   '@gar/promise-retry@1.0.3':
     resolution: {integrity: sha512-GmzA9ckNokPypTg10pgpeHNQe7ph+iIKKmhKu3Ob9ANkswreCx7R3cKmY781K8QK3AqVL3xVh9A42JvIAbkkSA==}
     engines: {node: ^20.17.0 || >=22.9.0}
+
+  '@google-cloud/kms@5.7.0':
+    resolution: {integrity: sha512-bxsauk8eUHfFEY9kLIbEfjHYhT0/7K+gDAsSzoR1ob7WK2vO0PuXYqn0kIFxTC38+0wYXp5qYfZL1+xSPBxfnw==}
+    engines: {node: '>=18'}
 
   '@google-cloud/secret-manager@6.3.0':
     resolution: {integrity: sha512-TUuzu8CchbCd2cXd0pYJSXvDBsEVX3wpZu4iOpdLrXLbYbvCDKhdjDyOyC7vo14qQRE9J6Z0AL2hfX08H+fh3A==}
@@ -6760,6 +6770,12 @@ packages:
     peerDependencies:
       valibot: ^1.3.0
 
+  '@valora/viem-account-hsm-gcp@1.2.19':
+    resolution: {integrity: sha512-8Mp4c5hpEIurbjblDKPtty9MFq56rY44wmN1ZCburK/O5OUObb9+3wxy0n6EjpEZlc9OPE9zddEuUx7N7Pu/Ng==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      viem: ^2.9.20
+
   '@vitest/coverage-v8@4.1.2':
     resolution: {integrity: sha512-sPK//PHO+kAkScb8XITeB1bf7fsk85Km7+rt4eeuRR3VS1/crD47cmV5wicisJmjNdfeokTZwjMk4Mj2d58Mgg==}
     peerDependencies:
@@ -7087,6 +7103,10 @@ packages:
 
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
+
+  asn1js@3.0.10:
+    resolution: {integrity: sha512-S2s3aOytiKdFRdulw2qPE51MzjzVOisppcVv7jVFR+Kw0kxwvFrDcYA0h7Ndqbmj0HkMIXYWaoj7fli8kgx1eg==}
+    engines: {node: '>=12.0.0'}
 
   asn1js@3.0.7:
     resolution: {integrity: sha512-uLvq6KJu04qoQM6gvBfKFjlh6Gl0vOKQuR5cJMDHQkmwfMOQeN3F3SHCv9SNYSL+CRoHvOGFfllDlVz03GQjvQ==}
@@ -17576,6 +17596,12 @@ snapshots:
 
   '@gar/promise-retry@1.0.3': {}
 
+  '@google-cloud/kms@5.7.0':
+    dependencies:
+      google-gax: 5.0.7
+    transitivePeerDependencies:
+      - supports-color
+
   '@google-cloud/secret-manager@6.3.0':
     dependencies:
       google-gax: 5.0.7
@@ -22100,6 +22126,15 @@ snapshots:
     dependencies:
       valibot: 1.3.1(typescript@5.9.3)
 
+  '@valora/viem-account-hsm-gcp@1.2.19(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))':
+    dependencies:
+      '@google-cloud/kms': 5.7.0
+      '@noble/curves': 1.9.7
+      asn1js: 3.0.10
+      viem: 2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6)
+    transitivePeerDependencies:
+      - supports-color
+
   '@vitest/coverage-v8@4.1.2(vitest@4.1.2)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
@@ -22511,6 +22546,12 @@ snapshots:
       is-array-buffer: 3.0.5
 
   asap@2.0.6: {}
+
+  asn1js@3.0.10:
+    dependencies:
+      pvtsutils: 1.3.6
+      pvutils: 1.1.5
+      tslib: 2.8.1
 
   asn1js@3.0.7:
     dependencies:
