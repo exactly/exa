@@ -34,16 +34,22 @@ import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
-import keeper from "../../utils/wallet";
+import wallet from "../../utils/wallet";
 import { walletExtension } from "../../utils/walletExtension";
 
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
+let keeper: ReturnType<typeof wallet>;
+
 const appClient = testClient(app);
 const { WALLET_EXTENSION_SECRET } = process.env;
 if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
+
+beforeAll(() => {
+  keeper = wallet(privateKeyToAccount(padHex("0x69")));
+});
 
 describe("authenticated", () => {
   beforeAll(async () => {

@@ -30,8 +30,7 @@ import {
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
@@ -44,7 +43,7 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash } from "@exactly/common/validation";
+import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
@@ -438,8 +437,10 @@ export function declineMessage(reason?: null | string) {
 }
 
 // TODO remove code below
-const issuer = privateKeyToAccount(parse(Hash, process.env.ISSUER_PRIVATE_KEY, { message: "invalid private key" }));
-export function signIssuerOp({ account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number }) {
+export function signIssuerOp(
+  { account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number },
+  issuer: LocalAccount,
+) {
   return issuer.signTypedData({
     domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
     types: {
@@ -459,18 +460,21 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
   });
 }
 
-export function verifyPandaSignature({
-  account,
-  amount,
-  timestamp,
-  signature,
-}: {
-  account: Address;
-  amount: bigint;
-  signature: Hex;
-  timestamp: number;
-}) {
-  return recoverTypedDataAddress({
+export async function verifyPandaSignature(
+  {
+    account,
+    amount,
+    timestamp,
+    signature,
+  }: {
+    account: Address;
+    amount: bigint;
+    signature: Hex;
+    timestamp: number;
+  },
+  issuer: LocalAccount,
+) {
+  const recovered = await recoverTypedDataAddress({
     domain: {
       chainId: chain.id,
       name: "IssuerChecker",
@@ -492,11 +496,8 @@ export function verifyPandaSignature({
     primaryType: amount < 0n ? "Refund" : "Collection",
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
     signature,
-  }).then(
-    (recovered) =>
-      parse(Address, recovered) ===
-      parse(Address, process.env.ISSUER_ADDRESS ?? "0xB9771269312B32676B77C9db2242c8d1836F1a85"),
-  );
+  });
+  return parse(Address, recovered) === issuer.address;
 }
 
 const mutexes = new Map<Address, MutexInterface>();
