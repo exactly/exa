@@ -1,6 +1,13 @@
 export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
+  workers: {
+    refund: {
+      secrets: ["panda-api-key", "onesignal-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
+      shared: ["panda-api-url", "sardine-api-url"],
+      signers: ["refunder"],
+    },
+  },
 });
 
 function define<

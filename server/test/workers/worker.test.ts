@@ -26,6 +26,10 @@ beforeAll(() => {
 });
 
 describe("worker", () => {
+  it("discovers workers", () => {
+    expect(workers.length).toBeGreaterThan(0);
+  });
+
   it.each(workers)("%s loads without environment variables", async (_, load) => {
     await expect(load().then(({ default: loaded }) => loaded)).resolves.toBeTypeOf("function");
   });

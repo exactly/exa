@@ -4,6 +4,7 @@ import {
   array,
   boolean,
   check,
+  digits,
   email,
   ipv4,
   ipv6,
@@ -27,6 +28,7 @@ import {
   regex,
   string,
   transform,
+  tuple,
   union,
   variant,
   type BaseIssue,
@@ -41,6 +43,7 @@ import chain, {
   marketUSDCAddress,
   previewerAbi,
   previewerAddress,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
@@ -62,6 +65,8 @@ export default function panda({ key, url }: { key: string; url: string }) {
     getProcessorDetails,
     getSecrets,
     getUser,
+    getWebhook,
+    getWithdrawal,
     headerValidator: headerValidator(),
     setPIN,
     submitApplication,
@@ -177,6 +182,23 @@ export default function panda({ key, url }: { key: string; url: string }) {
   }
   async function getUser(userId: string) {
     return await request(UserResponse, `/issuing/users/${userId}`, {}, undefined, "GET", 10_000);
+  }
+  async function getWebhook(id: string) {
+    return await request(
+      object({
+        id: string(),
+        requestBody: Payload,
+        requestSentAt: pipe(string(), isoTimestamp()),
+        responseReceivedAt: optional(pipe(string(), isoTimestamp())),
+      }),
+      `/issuing/webhooks/${id}`,
+    );
+  }
+  async function getWithdrawal(amount: number, recipient: Address, admin: Address) {
+    return await request(
+      Withdrawal,
+      `/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${amount}&recipientAddress=${recipient}&adminAddress=${admin}&chainId=${chain.id}`,
+    );
   }
   function headerValidator() {
     return vValidator("header", object({ signature: string() }), async (r, c) => {
@@ -549,6 +571,15 @@ export const Payload = variant("resource", [
     id: string(),
   }),
 ]);
+
+export const TransactionPayload = object(
+  { bodies: array(looseObject({ action: string() }), "invalid transaction payload") },
+  "invalid transaction payload",
+);
+
+const Withdrawal = object({
+  parameters: tuple([Address, Address, pipe(string(), digits()), Address, number(), array(number()), Hex]),
+});
 
 export const PINResponse = pipe(
   object({

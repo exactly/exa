@@ -32,7 +32,6 @@ import {
   withRetry,
   zeroHash,
   type LocalAccount,
-  type TransactionReceipt,
 } from "viem";
 
 import domain from "@exactly/common/domain";
@@ -45,8 +44,6 @@ import {
   issuerCheckerAbi,
   marketAbi,
   proposalManagerAbi,
-  refunderAbi,
-  refunderAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
@@ -64,6 +61,7 @@ import {
   getMutex,
   Payload,
   signIssuerOp,
+  TransactionPayload,
   type Transaction,
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -71,12 +69,14 @@ import revertFingerprint from "../utils/revertFingerprint";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import createWallet from "../utils/wallet";
+import { name as refundName } from "../workers/refund/job";
 
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createPanda from "../utils/panda";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
+import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -91,6 +91,7 @@ export default function hook({
   issuer,
   onesignal,
   panda,
+  refund,
   sardine,
   segment,
   settler,
@@ -99,6 +100,7 @@ export default function hook({
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
   settler: LocalAccount;
@@ -408,30 +410,28 @@ export default function hook({
                 getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.partial");
                 return payload.body.spend.authorizedAmount - payload.body.spend.amount;
               })() / 100;
-            const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
-            const [card, user] = await Promise.all([
-              database.query.cards.findFirst({
-                columns: { mode: true },
-                where: eq(cards.id, payload.body.spend.cardId),
-                with: { credential: { columns: { account: true, id: true, source: true } } },
-              }),
-              panda.getUser(payload.body.spend.userId),
-            ]);
+            const refundAmount = Math.round(refundAmountUsd * 1e6);
+            const card = await database.query.cards.findFirst({
+              columns: { mode: true },
+              where: eq(cards.id, payload.body.spend.cardId),
+              with: { credential: { columns: { account: true } } },
+            });
             if (!card) throw new Error("card not found");
             const account = v.parse(Address, card.credential.account);
             setUser({ id: account });
-            if (!user.isActive) throw new Error("user is not active");
-
-            const tx = await database.query.transactions.findFirst({
-              where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-            });
-            if (!tx && payload.body.spend.status === "reversed") {
+            if (
+              payload.body.spend.status === "reversed" &&
+              !(await database.query.transactions.findFirst({
+                columns: { id: true },
+                where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+              }))
+            ) {
               return c.json({ code: "transaction not found" }, 553 as UnofficialStatusCode);
             }
             const timestamp = // TODO use update timestamp when provided
               Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
               Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
-            const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }, issuer); // TODO replace with payload signature
+
             if (payload.body.spend.signature) {
               await startSpan(
                 {
@@ -449,7 +449,7 @@ export default function hook({
                   const valid = await panda.verifyPandaSignature(
                     {
                       account,
-                      amount: -refundAmount,
+                      amount: -BigInt(refundAmount),
                       timestamp: payload.body.spend.timestamp,
                       signature: payload.body.spend.signature,
                     },
@@ -460,149 +460,29 @@ export default function hook({
                 },
               ).catch((error: unknown) => captureException(error, { level: "error" }));
             }
+
             try {
-              await wallet.exaSend(
-                { name: "exa.refund", op: "exa.refund", attributes: { account } },
+              await refund.enqueue(
                 {
-                  address: refunderAddress,
-                  functionName: "refund",
-                  args: [account, refundAmount, timestamp, signature],
-                  abi: [
-                    ...auditorAbi,
-                    ...exaPluginAbi,
-                    ...issuerCheckerAbi,
-                    ...marketAbi,
-                    ...refunderAbi,
-                    ...upgradeableModularAccountAbi,
-                  ],
+                  account,
+                  amount: refundAmount,
+                  signature: await signIssuerOp({ account, amount: -BigInt(refundAmount), timestamp }, issuer), // TODO replace with payload signature
+                  timestamp,
                 },
-                {
-                  async onHash(hash) {
-                    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-                    await (tx
-                      ? database
-                          .update(transactions)
-                          .set({
-                            hashes: [...tx.hashes, hash],
-                            payload: {
-                              ...(tx.payload as object),
-                              bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
-                            },
-                          })
-                          .where(
-                            and(
-                              eq(transactions.id, payload.body.id),
-                              eq(transactions.cardId, payload.body.spend.cardId),
-                            ),
-                          )
-                      : database.insert(transactions).values([
-                          {
-                            id: payload.body.id,
-                            cardId: payload.body.spend.cardId,
-                            hashes: [hash],
-                            payload: {
-                              bodies: [{ ...jsonBody, createdAt }],
-                              type: "panda",
-                            },
-                          },
-                        ]));
-                  },
-                  onReceipt: (receipt) =>
-                    startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () =>
-                      publish(payload, database, receipt),
-                    ).catch((error: unknown) => captureException(error, { level: "error" })),
-                },
+                payload.id,
               );
-              onesignal
-                .sendPushNotification({
-                  userId: account,
-                  headings: t("Refund processed"),
-                  contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
-                    refundAmount: f(refundAmountUsd),
-                    merchantName: payload.body.spend.merchantName.trim(),
-                  }),
-                })
-                .catch((error: unknown) => captureException(error));
-              trackRefund(account, refundAmountUsd, payload, card.credential.source, segment);
-              if (payload.action === "completed") {
-                if (payload.body.spend.amount < 0) {
-                  sardine
-                    .feedback({
-                      kind: "issuing",
-                      customer: { id: card.credential.id },
-                      transaction: { id: payload.body.id },
-                      feedback: { type: "settlement", status: "refund" },
-                    })
-                    .catch((error: unknown) => captureException(error, { level: "error" }));
-                } else {
-                  sardine
-                    .feedback({
-                      kind: "issuing",
-                      customer: { id: card.credential.id },
-                      transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
-                      feedback: { type: "settlement", status: "settled" },
-                    })
-                    .catch((error: unknown) => captureException(error, { level: "error" }));
-                }
-              }
-              return c.json({ code: "ok" });
             } catch (error: unknown) {
-              if (
-                error instanceof BaseError &&
-                error.cause instanceof ContractFunctionRevertedError &&
-                error.cause.data?.errorName === "Replay"
-              ) {
-                getActiveSpan()?.setAttributes({ "panda.replay": true });
-                return c.json({ code: "ok" });
-              }
-              const reason = revertReason(error, { fallback: "message" });
-              const reasonName = revertReason(error, { fallback: "name" });
-              segment.track({
-                userId: account,
-                event: "TransactionRejected",
-                properties: {
-                  cardMode: card.mode,
-                  declinedReason: `refund:${reason}`,
-                  id: payload.body.id,
-                  reasonName,
-                  source: card.credential.source,
-                  updated: payload.action === "updated",
-                  usdAmount: payload.body.spend.amount / 100,
-                  merchant: {
-                    name: payload.body.spend.merchantName,
-                    category: payload.body.spend.merchantCategory,
-                    city: payload.body.spend.merchantCity,
-                    country: payload.body.spend.merchantCountry,
-                  },
-                },
-              });
               captureException(error, {
-                level: "fatal",
-                fingerprint: ["{{ default }}", "panda.refund", ...revertFingerprint(error).slice(1)],
-                tags: {
-                  unhandled: true,
-                  "panda.failure": "refund",
-                  "panda.reason": reason,
-                  "panda.reasonName": reasonName,
-                },
-                contexts: {
-                  pandaRefund: {
-                    action: payload.action,
-                    amount: payload.body.spend.amount,
-                    authorizedAmount: payload.body.spend.authorizedAmount ?? null,
-                    cardId: payload.body.spend.cardId,
-                    refundAmount: String(refundAmount),
-                    refundAmountUsd,
-                    transactionId: payload.body.id,
-                    webhookId: payload.id,
-                  },
-                },
+                level: "error",
+                tags: { queue: refundName, job: refundName },
+                extra: { id: payload.id },
               });
               return c.json(
                 { code: error instanceof Error ? error.message : String(error) },
                 569 as UnofficialStatusCode,
               );
             }
+            return c.json({ code: "ok" });
           }
         // falls through
         case "created": {
@@ -1039,36 +919,6 @@ function trackRejected(
   });
 }
 
-function trackRefund(
-  account: Address,
-  refundAmountUsd: number,
-  payload: v.InferOutput<typeof Transaction>,
-  source: null | string,
-  segment: ReturnType<typeof createSegment>,
-): void {
-  if (payload.action === "requested") {
-    captureException(new Error("unsupported transaction type"), { contexts: { payload } });
-    return;
-  }
-  segment.track({
-    userId: account,
-    event: "TransactionRefund",
-    properties: {
-      id: payload.body.id,
-      type:
-        payload.body.spend.status === "reversed" ? "reversal" : payload.body.spend.amount < 0 ? "refund" : "partial",
-      source,
-      usdAmount: refundAmountUsd,
-      merchant: {
-        name: payload.body.spend.merchantName,
-        category: payload.body.spend.merchantCategory,
-        city: payload.body.spend.merchantCity,
-        country: payload.body.spend.merchantCountry,
-      },
-    },
-  });
-}
-
 function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | undefined {
   switch (payload.action) {
     case "completed":
@@ -1249,11 +1099,6 @@ class PandaError extends Error {
   }
 }
 
-const TransactionPayload = v.object(
-  { bodies: v.array(v.looseObject({ action: v.string() }), "invalid transaction payload") },
-  "invalid transaction payload",
-);
-
 async function getRequestedDeclineReason(transactionId: string, cardId: string, database: Database) {
   const transaction = await database.query.transactions.findFirst({
     columns: { payload: true },
@@ -1348,7 +1193,11 @@ async function reject(
     });
 }
 
-async function publish(payload: v.InferOutput<typeof Payload>, database: Database, receipt?: TransactionReceipt) {
+async function publish(
+  payload: v.InferOutput<typeof Payload>,
+  database: Database,
+  receipt?: { blockNumber: bigint; status: "reverted" | "success"; transactionHash: Hash },
+) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
   if (receipt?.status === "reverted") return;
   if (payload.resource === "dispute") return;
