@@ -182,13 +182,18 @@ describe("card operations", () => {
 
       it("fails with frozen card", async () => {
         const cardId = "rc-frozen";
+        const transactionId = crypto.randomUUID();
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0001", status: "FROZEN" }]);
 
         const response = await appClient.index.$post({
           ...authorization,
           json: {
             ...authorization.json,
-            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId } },
+            body: {
+              ...authorization.json.body,
+              id: transactionId,
+              spend: { ...authorization.json.body.spend, cardId },
+            },
           },
         });
 
@@ -197,6 +202,14 @@ describe("card operations", () => {
           code: "frozen card",
           rejectionCode: "NOT_PERMITTED",
         });
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, transactionId) });
+        expect(transaction).toMatchObject({
+          payload: {
+            type: "panda",
+            bodies: [{ action: "requested", status: "declined", body: { spend: { declinedReason: "frozenCard" } } }],
+          },
+        });
+        expect(transaction).not.toHaveProperty("payload.bodies[0].reason");
       });
 
       it("fails with inactive card", async () => {
@@ -2691,12 +2704,61 @@ describe("concurrency", () => {
           {
             action: "created",
             status: "declined",
-            reason: "insufficient funds",
-            body: { spend: { status: "declined" } },
+            body: { spend: { status: "declined", declinedReason: "insufficient_funds" } },
           },
         ],
       },
     });
+  });
+
+  it.each([
+    ["block atm (mcc 6011) transaction exceeding 250.00 usd"],
+    ["blocked mcc"],
+    ["blocked merchant"],
+    ["card not activated"],
+    ["card canceled"],
+    ["frozencard"], // cspell:ignore frozencard
+    ["cvv2 match fail"],
+    ["expiry mismatch"],
+    ["insufficientaccountliquidity"], // cspell:ignore insufficientaccountliquidity
+    ["insufficient_funds"],
+    ["invalid pin"],
+    ["invalid pin attempt limit exceeded"],
+    ["triggers for transactions from mcc 6050 and 6051"],
+    ["unknown provider decline"],
+  ])("stores raw decline reason %s", async (declinedReason) => {
+    const txId = crypto.randomUUID();
+
+    expect(
+      await appClient.index
+        .$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: txId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: 500,
+                cardId: `${account2}-card`,
+                status: "declined",
+                declinedReason,
+              },
+            },
+          },
+        })
+        .then(({ status }) => status),
+    ).toBe(200);
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
+    expect(transaction).toMatchObject({
+      payload: {
+        type: "panda",
+        bodies: [{ action: "created", status: "declined", body: { spend: { declinedReason } } }],
+      },
+    });
+    expect(transaction).not.toHaveProperty("payload.bodies[0].reason");
   });
 
   it("appends body to existing transaction when declined", async () => {
@@ -2746,7 +2808,11 @@ describe("concurrency", () => {
       type: "panda",
       bodies: [
         { action: "created" },
-        { action: "updated", status: "declined", reason: "merchant blocked", body: { spend: { status: "declined" } } },
+        {
+          action: "updated",
+          status: "declined",
+          body: { spend: { status: "declined", declinedReason: "merchant_blocked" } },
+        },
       ],
     });
   });
@@ -2788,8 +2854,18 @@ describe("concurrency", () => {
     expect(bodies).toHaveLength(4);
     expect(bodies[0]).toMatchObject({ action: "created" });
     expect(bodies[1]).toMatchObject({ action: "updated" });
-    expect(bodies[2]).toMatchObject({ action: "updated", reason: "insufficient funds", status: "declined" });
-    expect(bodies[3]).toMatchObject({ action: "updated", reason: "merchant blocked", status: "declined" });
+    expect(bodies[2]).toMatchObject({
+      action: "updated",
+      status: "declined",
+      body: { spend: { declinedReason: "insufficient_funds" } },
+    });
+    expect(bodies[3]).toMatchObject({
+      action: "updated",
+      status: "declined",
+      body: { spend: { declinedReason: "merchant_blocked" } },
+    });
+    expect(bodies[2]).not.toHaveProperty("reason");
+    expect(bodies[3]).not.toHaveProperty("reason");
     expect(bodies[0]).not.toHaveProperty("status");
     expect(bodies[0]).not.toHaveProperty("reason");
     expect(bodies[1]).not.toHaveProperty("status");
@@ -2824,7 +2900,7 @@ describe("concurrency", () => {
     expect(response.status).toBe(200);
     expect(transaction?.payload).toMatchObject({
       type: "panda",
-      bodies: [{ action: "created", status: "declined", reason: "merchant blocked" }],
+      bodies: [{ action: "created", status: "declined", body: { spend: { declinedReason: "merchant_blocked" } } }],
     });
   });
 
@@ -2849,6 +2925,7 @@ describe("concurrency", () => {
       ...authorization,
       json: {
         ...authorization.json,
+        id: "decline-created-merge-declined-event",
         action: "created",
         body: {
           ...authorization.json.body,
@@ -2869,7 +2946,10 @@ describe("concurrency", () => {
     expect(response.status).toBe(200);
     expect(transaction?.payload).toMatchObject({
       type: "panda",
-      bodies: [{ action: "created" }, { action: "created", status: "declined", reason: "insufficient funds" }],
+      bodies: [
+        { action: "created" },
+        { action: "created", status: "declined", body: { spend: { declinedReason: "insufficient_funds" } } },
+      ],
     });
   });
 
@@ -2931,7 +3011,7 @@ describe("concurrency", () => {
   });
 
   describe("push notifications", () => {
-    it("sends notification when transaction request fails with InsufficientAccountLiquidity", async () => {
+    it("sends notification when the declined transaction is created", async () => {
       const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
       const txId = "insufficient-liquidity-notification-test";
 
@@ -2955,6 +3035,27 @@ describe("concurrency", () => {
       });
 
       expect(response.status).toBe(557);
+      expect(sendPushNotificationSpy).not.toHaveBeenCalled();
+
+      await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: "created-insufficient-liquidity-notification-test",
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: txId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              status: "declined",
+              declinedReason: "webhook declined",
+            },
+          },
+        },
+      });
+
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
       const call = sendPushNotificationSpy.mock.calls[0]?.[0];
       expect(call).toMatchObject({
@@ -2968,72 +3069,125 @@ describe("concurrency", () => {
       });
     });
 
-    it("sends notification when declined transaction is completed", async () => {
+    it("recovers a local decline reason and ignores duplicate created events", async () => {
       const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
-
       const cardId = `${account2}-card`;
-      const txId = "declined-notification-test";
-
-      const response = await appClient.index.$post({
-        ...authorization,
-        json: {
-          ...authorization.json,
-          action: "created",
-          body: {
-            ...authorization.json.body,
-            id: txId,
-            spend: {
-              ...authorization.json.body.spend,
-              amount: 700,
-              cardId,
-              status: "declined",
-              declinedReason: "merchant_blocked",
-            },
+      const txId = "local-decline-reason-notification-test";
+      const createdEvent = {
+        ...authorization.json,
+        id: "created-local-decline-reason-notification-test",
+        action: "created" as const,
+        body: {
+          ...authorization.json.body,
+          id: txId,
+          spend: {
+            ...authorization.json.body.spend,
+            cardId,
+            status: "declined" as const,
+            declinedReason: "webhook declined",
           },
         },
+      };
+
+      await database.update(cards).set({ status: "FROZEN" }).where(eq(cards.id, cardId));
+      expect(
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            id: "requested-local-decline-reason-notification-test",
+            body: { ...authorization.json.body, id: txId, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        }),
+      ).toMatchObject({ status: 403 });
+      expect(sendPushNotificationSpy).not.toHaveBeenCalled();
+
+      expect(await appClient.index.$post({ ...authorization, json: createdEvent })).toMatchObject({ status: 200 });
+      await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalledTimes(1));
+      expect(sendPushNotificationSpy.mock.calls[0]?.[0]).toMatchObject({
+        contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
+          amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
+          merchantName: authorization.json.body.spend.merchantName,
+          reason: t("frozen card"),
+        }),
       });
 
-      expect(response.status).toBe(200);
-      expect(sendPushNotificationSpy).toHaveBeenCalled();
-      const call = sendPushNotificationSpy.mock.calls[0]?.[0];
-      expect(call).toMatchObject({
+      await appClient.index.$post({ ...authorization, json: createdEvent });
+      expect(sendPushNotificationSpy).toHaveBeenCalledTimes(1);
+      expect(await database.query.transactions.findFirst({ where: eq(transactions.id, txId) })).toMatchObject({
+        payload: {
+          bodies: [
+            { action: "requested", body: { spend: { declinedReason: "frozenCard" } } },
+            { action: "created", body: { spend: { declinedReason: "webhook declined" } } },
+          ],
+        },
+      });
+    });
+
+    it.each([
+      [
+        "block atm (mcc 6011) transaction exceeding 250.00 usd",
+        "atm limit reached. max 3 transactions every 24 hours.",
+      ],
+      ["merchant_blocked", "this merchant is not accepted"],
+      ["blocked mcc", "this merchant is not accepted"],
+      ["blocked merchant", "this merchant is not accepted"],
+      ["card not activated", "card not active"],
+      ["card canceled", "card canceled"],
+      ["frozencard", "frozen card"], // cspell:ignore frozencard
+      ["account credit limit exceeded", "transaction declined"],
+      ["cvv mismatch", "transaction declined"],
+      ["cvv2 match fail", "transaction declined"],
+      ["expiry mismatch", "transaction declined"],
+      ["insufficientaccountliquidity", "insufficient funds"], // cspell:ignore insufficientaccountliquidity
+      ["insufficient_funds", "insufficient funds"],
+      ["invalid pin", "invalid pin"],
+      ["invalid pin attempt limit exceeded", "transaction declined"],
+      ["triggers for transactions from mcc 6050 and 6051", "this merchant is not accepted"],
+      ["webhook declined", "transaction declined"],
+      ["unknown provider decline", "transaction declined"],
+    ])("stores raw %s and notifies with %s", async (declinedReason, notificationReason) => {
+      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const txId = crypto.randomUUID();
+
+      expect(
+        await appClient.index
+          .$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: txId,
+                spend: {
+                  ...authorization.json.body.spend,
+                  amount: 700,
+                  cardId: `${account2}-card`,
+                  status: "declined",
+                  declinedReason,
+                },
+              },
+            },
+          })
+          .then(({ status }) => status),
+      ).toBe(200);
+      expect(await database.query.transactions.findFirst({ where: eq(transactions.id, txId) })).toMatchObject({
+        payload: {
+          type: "panda",
+          bodies: [{ action: "created", status: "declined", body: { spend: { declinedReason } } }],
+        },
+      });
+      await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
+      expect(sendPushNotificationSpy.mock.calls[0]?.[0]).toMatchObject({
         userId: account2,
         headings: t("Exa Card purchase rejected"),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,
-          reason: t("merchant blocked"),
+          reason: t(notificationReason),
         }),
       });
-    });
-
-    it("does not send notification for unrecognized decline reason", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
-
-      const cardId = `${account2}-card`;
-      const txId = "unrecognized-decline-notification-test";
-
-      const response = await appClient.index.$post({
-        ...authorization,
-        json: {
-          ...authorization.json,
-          action: "created",
-          body: {
-            ...authorization.json.body,
-            id: txId,
-            spend: {
-              ...authorization.json.body.spend,
-              amount: 700,
-              cardId,
-              status: "declined",
-              declinedReason: "account credit limit exceeded",
-            },
-          },
-        },
-      });
-
-      expect(response.status).toBe(200);
-      expect(sendPushNotificationSpy).not.toHaveBeenCalled();
     });
 
     it("does not send duplicate notifications for concurrent declined transactions", async () => {
@@ -3077,6 +3231,7 @@ describe("concurrency", () => {
           ...authorization.json,
           body: {
             ...authorization.json.body,
+            id: crypto.randomUUID(),
             spend: { ...authorization.json.body.spend, cardId: "card", amount: 100 },
           },
         },
@@ -3088,6 +3243,29 @@ describe("concurrency", () => {
         rejectionCode: "UNKNOWN",
       });
       expect(sendPushNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not add a reason when a created decline has no raw reason", async () => {
+      const txId = "created-decline-without-reason";
+      await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: "created-decline-without-reason-event",
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: txId,
+            spend: { ...authorization.json.body.spend, cardId: `${account2}-card`, status: "declined" },
+          },
+        },
+      });
+
+      const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
+      expect(transaction?.payload).toMatchObject({
+        bodies: [{ action: "created", body: { spend: { status: "declined" } } }],
+      });
+      expect(transaction).not.toHaveProperty("payload.bodies[0].body.spend.declinedReason");
     });
   });
 });
@@ -3355,7 +3533,14 @@ describe("webhooks", () => {
     });
   });
 
-  it("forwards declined transaction webhook", async () => {
+  it.each([
+    "webhook declined",
+    "blocked mcc",
+    "insufficientaccountliquidity", // cspell:ignore insufficientaccountliquidity
+    "frozencard", // cspell:ignore frozencard
+    "invalid pin",
+    "card canceled",
+  ])("forwards raw %s transaction webhook", async (declinedReason) => {
     const cardId = `${webhookAccount}-card`;
     const fetch = globalThis.fetch;
     let publish = false;
@@ -3374,13 +3559,13 @@ describe("webhooks", () => {
         action: "created",
         body: {
           ...authorization.json.body,
-          id: "declined-webhook-tx",
+          id: `declined-webhook-${crypto.randomUUID()}`,
           spend: {
             ...authorization.json.body.spend,
             cardId,
             userId: webhookAccount,
             status: "declined",
-            declinedReason: "webhook declined",
+            declinedReason,
           },
         },
       },
@@ -3394,9 +3579,57 @@ describe("webhooks", () => {
     expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
       resource: "transaction",
       action: "created",
-      body: { spend: { status: "declined", declinedReason: "webhook declined" } },
+      body: { spend: { status: "declined", declinedReason } },
     });
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("forwards the saved local reason when Rain sends webhook declined", async () => {
+    const cardId = `${webhookAccount}-card`;
+    const txId = `local-reason-webhook-${crypto.randomUUID()}`;
+    const fetch = globalThis.fetch;
+    let publishedBody: unknown;
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (url === "https://exa.test") {
+        if (typeof init?.body !== "string") throw new Error("expected a string webhook body");
+        publishedBody = JSON.parse(init.body) as unknown;
+        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
+      }
+      return fetch(url, init);
+    });
+
+    await database.update(cards).set({ status: "FROZEN" }).where(eq(cards.id, cardId));
+    await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        id: `requested-${txId}`,
+        body: { ...authorization.json.body, id: txId, spend: { ...authorization.json.body.spend, cardId } },
+      },
+    });
+    await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        id: `created-${txId}`,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: txId,
+          spend: {
+            ...authorization.json.body.spend,
+            cardId,
+            userId: webhookAccount,
+            status: "declined",
+            declinedReason: "webhook declined",
+          },
+        },
+      },
+    });
+
+    await vi.waitUntil(() => publishedBody !== undefined, 60_000);
+    expect(publishedBody).toMatchObject({ body: { spend: { declinedReason: "frozenCard" } } });
+    expect(mockFetch).toHaveBeenCalled();
   });
 
   it("forwards card updated active", async () => {

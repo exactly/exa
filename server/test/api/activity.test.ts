@@ -714,6 +714,118 @@ describe.concurrent("authenticated", () => {
       });
     });
 
+    it.each([
+      ["blocked mcc", "transaction declined", "this merchant is not accepted"],
+      [
+        "block atm (mcc 6011) transaction exceeding 250.00 usd",
+        "transaction declined",
+        "atm limit reached. max 3 transactions every 24 hours.",
+      ],
+      ["invalid pin attempt limit exceeded", "too many invalid pin attempts", "transaction declined"],
+      ["webhook declined", "webhook declined", "transaction declined"],
+    ])("maps raw %s over stored reason %s", (declinedReason, storedReason, reason) => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "created",
+            createdAt: "2024-01-15T10:30:00.000Z",
+            status: "declined",
+            reason: storedReason,
+            body: {
+              id: "declined-tx-raw-reason",
+              spend: { ...spendTemplate, declinedReason },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe(reason);
+    });
+
+    it("uses a generic reason for an unknown raw decline", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "created",
+            createdAt: "2024-01-15T10:30:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-unknown-reason",
+              spend: { ...spendTemplate, declinedReason: "unknown provider decline" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("transaction declined");
+    });
+
+    it("hides a legacy webhook decline without a requested operation", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "created",
+            createdAt: "2024-01-15T10:30:00.000Z",
+            status: "declined",
+            reason: "webhook declined",
+            body: {
+              id: "declined-tx-legacy-webhook",
+              spend: { ...spendTemplate },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("transaction declined");
+    });
+
+    it("uses the requested raw reason for a webhook-declined created operation", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:59:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-local-reason",
+              spend: { ...spendTemplate, declinedReason: "frozenCard" },
+            },
+          },
+          {
+            action: "created",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-local-reason",
+              spend: { ...spendTemplate, declinedReason: "webhook declined" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("frozen card");
+    });
+
     it("parses declined transaction with requested action alongside created", () => {
       const result = safeParse(PandaActivity, {
         type: "panda",

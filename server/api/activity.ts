@@ -56,7 +56,7 @@ import { effectiveRate, WAD } from "@exactly/lib";
 import database, { cards, credentials, transactions } from "../database";
 import auth from "../middleware/auth";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
-import { collectors as pandaCollectors } from "../utils/panda";
+import { getDeclineReason, collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
@@ -499,20 +499,39 @@ const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
 export const PandaActivity = pipe(
   object({
-    bodies: array(looseObject({ action: picklist(["completed", "created", "requested", "updated"]) })),
+    bodies: array(
+      looseObject({
+        action: picklist(["completed", "created", "requested", "updated"]),
+        body: looseObject({
+          spend: looseObject({ declinedReason: nullish(string()) }),
+        }),
+        reason: optional(string()),
+        status: optional(string()),
+      }),
+    ),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
     type: literal("panda"),
   }),
   transform(({ bodies, borrows, hashes, type }) => {
+    const requestedBody = bodies.findLast((body) => body.action === "requested" && body.status === "declined");
+    const requestedReason = requestedBody?.body.spend.declinedReason ?? requestedBody?.reason;
     const operations = hashes
       .map((hash, index) => {
         const borrow = borrows[index];
+        const body = bodies[index];
+        const declinedReason =
+          body?.body.spend.declinedReason?.toLowerCase() === "webhook declined"
+            ? (requestedReason ?? body.body.spend.declinedReason)
+            : body?.body.spend.declinedReason;
         const validation = safeParse(
           { 0: DebitActivity, 1: CreditActivity }[borrow?.events.length ?? 0] ?? InstallmentsActivity,
           {
-            ...bodies[index],
-            forceCapture: bodies[index]?.action === "completed" && !bodies.some((b) => b.action === "created"),
+            ...body,
+            ...(body?.status === "declined" && {
+              reason: getDeclineReason(declinedReason) ?? body.reason ?? "transaction declined",
+            }),
+            forceCapture: body?.action === "completed" && !bodies.some((b) => b.action === "created"),
             type,
             hash,
             events: borrow?.events,
@@ -529,7 +548,9 @@ export const PandaActivity = pipe(
       if (operation) {
         if (operation.reason === "webhook declined") {
           const requested = operations.findLast((b) => b.action === "requested");
-          return requested ? { ...operation, reason: requested.reason } : operation;
+          return requested
+            ? { ...operation, reason: requested.reason }
+            : { ...operation, reason: "transaction declined" };
         }
         return operation;
       }
