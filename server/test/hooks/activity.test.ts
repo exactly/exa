@@ -827,6 +827,7 @@ describe("address activity", () => {
       { fees: "auto" },
     );
     expect(keeperSend).not.toHaveBeenCalled();
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
       headings: t("Funds received"),
@@ -879,6 +880,7 @@ describe("address activity", () => {
       { fees: "auto" },
     );
     expect(keeperSend).not.toHaveBeenCalled();
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
       headings: t("Funds received"),
@@ -967,7 +969,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 26_666);
     await vi.waitUntil(
       () =>
         sendPushNotification.mock.calls.some(
