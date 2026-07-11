@@ -2,26 +2,70 @@ name: server/deploy
 on:
   workflow_call:
     inputs:
-      environment:
-        required: true
-        type: string
+      stack: { required: true, type: string }
+      domain: { type: string }
     secrets:
       DIGITALOCEAN_TOKEN:
+      SENTRY_AUTH_TOKEN:
 jobs:
   digitalocean:
     runs-on: ubuntu-latest
-    environment: { name: "${{ inputs.environment }}", url: "https://${{ vars.APP_DOMAIN }}" }
+    environment: { name: "${{ inputs.stack }}", url: "https://${{ vars.APP_DOMAIN }}" }
+    permissions: { contents: read, packages: read }
     concurrency:
-      group: server-deploy-${{ inputs.environment }}
+      group: server-deploy-${{ inputs.stack }}
       cancel-in-progress: true
     env:
+      APP_DOMAIN: ${{ inputs.domain || format('{0}.exactly.app', inputs.stack) }}
       CHAIN_ID: ${{ vars.CHAIN_ID }}
-      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+      IMAGE: ghcr.io/${{ github.repository }}-${{ inputs.stack }}
     steps:
       - uses: digitalocean/app_action/deploy@v2
         env: { IMAGE_TAG_SERVER: "sha-${{ github.sha }}" }
         with:
-          app_name: ${{ inputs.environment }}
+          app_name: ${{ inputs.stack }}
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           print_build_logs: true
           print_deploy_logs: true
+      - uses: actions/checkout@v6
+        if: inputs.stack == 'production'
+        with: { fetch-depth: 0, fetch-tags: true, persist-credentials: false }
+      - uses: docker/login-action@v4
+        if: inputs.stack == 'production'
+        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - run: |
+          docker pull "$IMAGE:sha-$GITHUB_SHA"
+          docker create --name extract "$IMAGE:sha-$GITHUB_SHA"
+          docker cp extract:/prod/server/dist ./server/dist
+          mkdir -p ./server/generated
+          docker cp extract:/prod/server/generated/release.js ./server/generated/release.js
+          docker rm extract
+          echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
+        id: extract
+        if: inputs.stack == 'production'
+      - id: commits
+        if: inputs.stack == 'production'
+        run: |
+          currentTag="$GITHUB_REF_NAME"
+          previousTag=$(git for-each-ref 'refs/tags/@exactly/server@*' --sort=-version:refname --format='%(refname:short)' | while read -r tag; do [ "$tag" = "$currentTag" ] && continue; git merge-base --is-ancestor "$tag" "$GITHUB_SHA" && { echo "$tag"; break; }; done)
+          if [ -n "$previousTag" ]; then
+            echo "mode=manual" >> "$GITHUB_OUTPUT"
+            echo "repo=$GITHUB_REPOSITORY" >> "$GITHUB_OUTPUT"
+            echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "previous_commit=$(git rev-list -n 1 "$previousTag")" >> "$GITHUB_OUTPUT"
+            echo "previous_tag=$previousTag" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=auto" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: getsentry/action-release@v3 # cspell:ignore getsentry
+        if: inputs.stack == 'production'
+        env: { SENTRY_ORG: exactly, SENTRY_PROJECT: server, SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}" }
+        with:
+          commit: ${{ steps.commits.outputs.commit }}
+          environment: ${{ inputs.stack }}
+          previous_commit: ${{ steps.commits.outputs.previous_commit }}
+          repo: ${{ steps.commits.outputs.repo }}
+          release: ${{ steps.extract.outputs.release }}
+          set_commits: ${{ steps.commits.outputs.mode }}
+          sourcemaps: server/dist
+          inject: false
