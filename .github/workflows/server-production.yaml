@@ -4,10 +4,9 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
-    secrets: inherit
-    with: { environment: production }
+    with: { stack: production, chain: 10, domain: web.exactly.app }
   deploy:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
-    with: { environment: production }
+    with: { stack: production, domain: web.exactly.app }

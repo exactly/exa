@@ -4,10 +4,9 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
-    secrets: inherit
-    with: { environment: sandbox }
+    with: { stack: sandbox, chain: 11155420, devtools: true }
   deploy:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
-    with: { environment: sandbox }
+    with: { stack: sandbox }

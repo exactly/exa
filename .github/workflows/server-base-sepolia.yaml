@@ -4,10 +4,9 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
-    secrets: inherit
-    with: { environment: base-sepolia }
+    with: { stack: base-sepolia, chain: 84532, devtools: true }
   deploy:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
     secrets: inherit
-    with: { environment: base-sepolia }
+    with: { stack: base-sepolia }
