@@ -14,10 +14,11 @@ export default function queue(bullmq: Redis) {
       factory,
       origin,
       publicKey,
+      salt,
       source,
     }: Omit<Job, "sentryBaggage" | "sentryTrace">) {
       await instance.enqueue(
-        { account, assets, chainId, factory, origin, publicKey, source },
+        { account, assets, chainId, factory, origin, publicKey, salt, source },
         [chainId, account, ...(assets ?? [])].join("-"),
       );
     },
