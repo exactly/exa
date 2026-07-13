@@ -48,6 +48,7 @@ export default function worker({ allower, bullmq }: { allower: LocalAccount; bul
           factory: job.data.factory,
           origin: "allow",
           publicKey: job.data.publicKey,
+          salt: job.data.salt,
           source: job.data.source,
         });
       },
