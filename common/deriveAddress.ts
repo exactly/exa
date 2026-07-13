@@ -1,5 +1,13 @@
 import { parse } from "valibot";
-import { encodeAbiParameters, encodePacked, keccak256, slice, type Hash, type Address as ViemAddress } from "viem";
+import {
+  encodeAbiParameters,
+  encodePacked,
+  keccak256,
+  slice,
+  zeroAddress,
+  type Hash,
+  type Address as ViemAddress,
+} from "viem";
 
 import { Address } from "./validation";
 
@@ -15,7 +23,10 @@ const initCodeHashERC1967 = keccak256(
   ),
 );
 
-export default function deriveAddress(factory: ViemAddress, { x, y }: { x: Hash; y: Hash }) {
+export default function deriveAddress(
+  factory: ViemAddress,
+  { salt = zeroAddress, x, y }: { salt?: string; x: Hash; y: Hash },
+) {
   return parse(
     Address,
     slice(
@@ -29,7 +40,7 @@ export default function deriveAddress(factory: ViemAddress, { x, y }: { x: Hash;
               encodeAbiParameters(
                 [{ type: "uint256" }, { type: "bytes" }],
                 [
-                  0n,
+                  BigInt(salt),
                   encodeAbiParameters(
                     [
                       {
