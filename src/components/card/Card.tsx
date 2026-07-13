@@ -9,6 +9,7 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -93,6 +94,15 @@ export default function Card() {
 
   const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
+  const {
+    data: bytecode,
+    isSuccess: isBytecodeFetched,
+    refetch: refetchBytecode,
+  } = useBytecode({
+    address,
+    chainId: chain.id,
+    query: { enabled: !!address },
+  });
   const { data: kycStatus, isPending: isPendingKYC } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const isKYCApproved = Boolean(
     kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
@@ -105,16 +115,7 @@ export default function Card() {
     query: { enabled: !!address && !!credential },
   });
 
-  const { markets, refetch: refetchMarkets } = useMarkets();
-
-  let usdBalance = 0n;
-  if (markets) {
-    for (const market of markets) {
-      if (market.floatingDepositAssets > 0n) {
-        usdBalance += (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals);
-      }
-    }
-  }
+  const { refetch: refetchMarkets } = useMarkets();
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () =>
@@ -122,6 +123,7 @@ export default function Card() {
       refetchCard(),
       queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      address ? refetchBytecode() : undefined,
       address ? refetchMarkets() : undefined,
       address && credential ? refetchInstalledPlugins() : undefined,
       queryClient.refetchQueries({ queryKey }),
@@ -140,9 +142,19 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
-      if (usdBalance === 0n && !cardDetails) {
-        router.push("/(main)/getting-started");
-        return;
+      if (!cardDetails) {
+        const { data: code, isSuccess } = await refetchBytecode();
+        if (!code) {
+          if (isSuccess) {
+            router.push("/(main)/getting-started");
+          } else {
+            toast.show(t("An error occurred. Please try again later."), {
+              duration: 1000,
+              burntOptions: { haptic: "error", preset: "error" },
+            });
+          }
+          return;
+        }
       }
       if (isRevealing || beginKYC.isPending) return;
       try {
@@ -299,7 +311,7 @@ export default function Card() {
                     />
                   </View>
                 </XStack>
-                {!isPendingKYC && !cardDetails && (usdBalance === 0n || !isKYCApproved) && (
+                {!isPendingKYC && !cardDetails && ((isBytecodeFetched && !bytecode) || !isKYCApproved) && (
                   <InfoAlert
                     title={t("Your card is awaiting activation. Follow the steps to enable it.")}
                     actionText={t("Get started")}
