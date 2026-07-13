@@ -120,14 +120,17 @@ export default function hook({
       );
       const accounts = await database.query.credentials
         .findMany({
-          columns: { account: true, publicKey: true, factory: true, source: true },
+          columns: { account: true, publicKey: true, factory: true, salt: true, source: true },
           where: inArray(credentials.account, [...new Set(transfers.map(({ toAddress }) => toAddress))]),
         })
         .then((result) =>
           Object.fromEntries(
             result.map(
-              ({ account, publicKey, factory, source }) =>
-                [v.parse(Address, account), { publicKey, factory: v.parse(Address, factory), source }] as const,
+              ({ account, publicKey, factory, salt, source }) =>
+                [
+                  v.parse(Address, account),
+                  { publicKey, factory: v.parse(Address, factory), salt: v.parse(Address, salt), source },
+                ] as const,
             ),
           ),
         );
@@ -144,7 +147,13 @@ export default function hook({
       const markets = new Set(marketsByAsset.values());
       const pokes = new Map<
         Address,
-        { assets: Set<Address>; factory: Address; publicKey: Uint8Array<ArrayBuffer>; source: null | string }
+        {
+          assets: Set<Address>;
+          factory: Address;
+          publicKey: Uint8Array<ArrayBuffer>;
+          salt: Address;
+          source: null | string;
+        }
       >();
       for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
         if (!accounts[account]) continue;
@@ -180,12 +189,12 @@ export default function hook({
         if (pokes.has(account)) {
           pokes.get(account)?.assets.add(asset);
         } else {
-          const { publicKey, factory, source } = accounts[account];
-          pokes.set(account, { publicKey, factory, source, assets: new Set([asset]) });
+          const { publicKey, factory, salt, source } = accounts[account];
+          pokes.set(account, { publicKey, factory, salt, source, assets: new Set([asset]) });
         }
       }
       await Promise.all(
-        [...pokes].map(([account, { assets, factory, publicKey, source }]) =>
+        [...pokes].map(([account, { assets, factory, publicKey, salt, source }]) =>
           poke.enqueue({
             account,
             assets: [...assets],
@@ -193,6 +202,7 @@ export default function hook({
             factory,
             origin: "activity",
             publicKey: bytesToHex(publicKey),
+            salt,
             source,
           }),
         ),

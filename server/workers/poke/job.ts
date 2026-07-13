@@ -10,6 +10,7 @@ export type Job = {
   factory: Address;
   origin: "activity" | "allow";
   publicKey: Hex;
+  salt: Address;
   sentryBaggage?: string;
   sentryTrace?: string;
   source: null | string;
