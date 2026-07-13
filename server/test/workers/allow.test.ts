@@ -22,7 +22,8 @@ import type * as sentry from "@sentry/node";
 const factory = inject("ExaAccountFactory");
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const firewall = inject("Firewall");
-const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
+const salt = parse(Address, padHex("0x0", { size: 20 }));
+const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, salt, source: null };
 const allower = privateKeyToAccount(padHex("0xa11"));
 const allow = createAllow(bullmq);
 const mocks = vi.hoisted(() => ({
