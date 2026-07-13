@@ -17,7 +17,7 @@ import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
+import { checksumAddress, hexToBigInt, padHex, parseEther, zeroAddress, zeroHash } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
@@ -2018,6 +2018,7 @@ describe("authenticated", () => {
           },
           assertion,
           factory,
+          salt: zeroAddress,
           statement,
         });
       });
@@ -2050,6 +2051,7 @@ describe("authenticated", () => {
           credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null },
           assertion,
           factory,
+          salt: zeroAddress,
           statement,
         });
       });
@@ -2106,6 +2108,7 @@ describe("authenticated", () => {
           credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"] },
           assertion,
           factory,
+          salt: zeroAddress,
           statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 4141 for my user (webauthn-panda-401-panda)`,
         });
       });
@@ -2139,6 +2142,7 @@ describe("authenticated", () => {
           credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"] },
           assertion,
           factory,
+          salt: zeroAddress,
           statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 5151 for my user (webauthn-panda-503-panda)`,
         });
       });

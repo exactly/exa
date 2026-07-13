@@ -8,7 +8,7 @@ import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -130,6 +130,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
@@ -160,6 +161,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(response.status).toBe(200);
@@ -186,6 +188,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(response.status).toBe(200);
@@ -208,6 +211,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(response.status).toBe(200);
@@ -239,6 +243,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(response.status).toBe(200);
@@ -303,6 +308,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(mocks.enqueuePoke).toHaveBeenNthCalledWith(2, {
@@ -312,6 +318,7 @@ describe("address activity", () => {
       factory: inject("ExaAccountFactory"),
       origin: "activity",
       publicKey: secondOwner.address.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(setUser).not.toHaveBeenCalled();

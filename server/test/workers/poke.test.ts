@@ -35,12 +35,14 @@ const token = parse(Address, "0x9876543210987654321098765432109876543210");
 const token2 = parse(Address, "0x2222222222222222222222222222222222222222");
 const unknownAsset = parse(Address, "0x3333333333333333333333333333333333333333");
 const weth = parse(Address, wethAddress);
+const salt = parse(Address, padHex("0x0", { size: 20 }));
 const request = {
   account,
   chainId: chain.id,
   factory,
   origin: "allow",
   publicKey: "0x1234",
+  salt,
   source: null,
 } as const;
 const poker = privateKeyToAccount(padHex("0xb0b"));

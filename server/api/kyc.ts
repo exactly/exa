@@ -89,7 +89,7 @@ export default function route({
 
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true },
+          columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true, salt: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -151,7 +151,7 @@ export default function route({
           return c.json({ code: "ok", legacy: "ok" }, 200);
         }
 
-        if (await isLegacy(credentialId, account, credential.factory, credential.publicKey, persona)) {
+        if (await isLegacy(credentialId, account, credential.factory, credential.publicKey, credential.salt, persona)) {
           return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
         }
 
@@ -709,6 +709,7 @@ async function isLegacy(
   account: Address,
   factory: string,
   publicKey: Uint8Array<ArrayBuffer>,
+  salt: string,
   persona: ReturnType<typeof createPersona>,
 ): Promise<boolean> {
   if (factory === exaAccountFactoryAddress) return false;
@@ -718,7 +719,7 @@ async function isLegacy(
       functionName: "getInstalledPlugins",
       abi: upgradeableModularAccountAbi,
       factory: getAddress(factory),
-      factoryData: accountInit(decodePublicKey(publicKey)),
+      factoryData: accountInit({ ...decodePublicKey(publicKey), salt }),
     });
     if (installedPlugin.length === 0) return false;
     if (installedPlugin.includes(exaPluginAddress)) return false;

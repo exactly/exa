@@ -366,7 +366,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         if (!sessionId) return c.json({ code: "bad session" }, 400);
         const [credential, challenge] = await Promise.all([
           database.query.credentials.findFirst({
-            columns: { publicKey: true, account: true, factory: true, transports: true },
+            columns: { publicKey: true, account: true, factory: true, salt: true, transports: true },
             where: eq(credentials.id, assertion.id),
           }),
           redis.getdel(sessionId),
@@ -392,7 +392,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               source: c.req.header("Client-Fid"),
               ip: headers?.["do-connecting-ip"],
             });
-            const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+            const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
             const intercomToken = await intercom(account, result.auth);
             return c.json(
               {
@@ -467,6 +467,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             credentialId: assertion.id,
             factory: parse(Address, credential.factory),
             ...decodePublicKey(credential.publicKey),
+            salt: parse(Address, credential.salt),
             auth: expires.getTime(),
             expires: expires.getTime(),
             intercomToken,

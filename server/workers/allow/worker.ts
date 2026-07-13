@@ -47,6 +47,7 @@ export default function worker({ allower, redisUrl }: { allower: LocalAccount; r
         factory: job.data.factory,
         origin: "allow",
         publicKey: job.data.publicKey,
+        salt: job.data.salt,
         source: job.data.source,
       });
     },

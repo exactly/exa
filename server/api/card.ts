@@ -842,7 +842,15 @@ async function encryptPIN(pin: string) {
         return mutex
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
-              columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true, transports: true },
+              columns: {
+                account: true,
+                factory: true,
+                pandaId: true,
+                publicKey: true,
+                salt: true,
+                source: true,
+                transports: true,
+              },
               where: eq(credentials.id, credentialId),
               with: {
                 cards: {
@@ -947,6 +955,7 @@ async function encryptPIN(pin: string) {
                         },
                         assertion: patch.assertion,
                         factory: credential.factory,
+                        salt: parse(Address, credential.salt),
                         statement,
                       });
                     } catch (error) {
