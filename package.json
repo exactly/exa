@@ -327,6 +327,7 @@
       "prepare": {
         "dependsOn": [
           "generate:expo",
+          "generate:card-art",
           "generate:release",
           "generate:version"
         ],
@@ -338,6 +339,15 @@
         ],
         "outputs": [
           "{projectRoot}/expo-env.d.ts"
+        ]
+      },
+      "generate:card-art": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec sharp --density 216 -i src/assets/images/card-signature.svg -o src/assets/images/card-signature.png"
+        },
+        "outputs": [
+          "{projectRoot}/src/assets/images/card-signature.png"
         ]
       },
       "generate:release": {
