@@ -70,7 +70,10 @@ export default function worker({
             {
               address: job.data.factory,
               functionName: "createAccount",
-              args: [0n, [decodePublicKey(new Uint8Array(hexToBytes(job.data.publicKey)), bytesToBigInt)]],
+              args: [
+                BigInt(job.data.salt),
+                [decodePublicKey(new Uint8Array(hexToBytes(job.data.publicKey)), bytesToBigInt)],
+              ],
               abi: exaAccountFactoryAbi,
             },
             chain.id === exaChain.id ? {} : { fees: "auto" },
