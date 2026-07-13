@@ -1,4 +1,16 @@
-import { brand, check, custom, object, pipe, regex, string, title, transform, type InferOutput } from "valibot";
+import {
+  brand,
+  check,
+  custom,
+  object,
+  optional,
+  pipe,
+  regex,
+  string,
+  title,
+  transform,
+  type InferOutput,
+} from "valibot";
 import {
   checksumAddress,
   isAddress,
@@ -28,6 +40,7 @@ export const Credential = pipe(
     factory: pipe(Address, title("Account factory address")),
     x: pipe(Hash, title("Credential public key x coordinate")),
     y: pipe(Hash, title("Credential public key y coordinate")),
+    salt: optional(pipe(Address, title("Credential salt"))),
   }),
   title("WebAuthn passkey metadata"),
 );
