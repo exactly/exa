@@ -1,8 +1,9 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
   char,
+  check,
   customType,
   index,
   integer,
@@ -16,6 +17,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { zeroAddress } from "viem";
 
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
@@ -35,8 +37,16 @@ export const credentials = pgTable(
     pandaId: text("panda_id"),
     bridgeId: text("bridge_id"),
     source: text("source"),
+    salt: text("salt").notNull().default(zeroAddress),
   },
-  ({ account, bridgeId }) => [uniqueIndex("account_index").on(account), uniqueIndex("bridge_id_index").on(bridgeId)],
+  ({ account, bridgeId, salt }) => [
+    uniqueIndex("account_index").on(account),
+    uniqueIndex("bridge_id_index").on(bridgeId),
+    uniqueIndex("salt_index")
+      .on(sql`lower(${salt})`)
+      .where(sql`${salt} <> ${sql.raw(`'${zeroAddress}'`)}`),
+    check("credentials_salt_hex_check", sql`${salt} ~ '^0x[0-9a-fA-F]{40}$'`),
+  ],
 );
 
 export const cards = pgTable(
