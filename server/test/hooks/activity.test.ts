@@ -5,6 +5,7 @@ import "../mocks/onesignal";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import * as viem from "viem";
 import {
@@ -12,6 +13,7 @@ import {
   bytesToHex,
   ContractFunctionRevertedError,
   encodeErrorResult,
+  getAddress,
   hexToBigInt,
   hexToBytes,
   padHex,
@@ -785,55 +787,74 @@ describe("address activity", () => {
   });
 
   it("deploys on the event network without claiming yield", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const chain = NETWORKS.get("ANVIL");
-    if (!chain) throw new Error("missing anvil");
-    const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
-    const eventGetCode = vi.spyOn(client, "getCode");
-    vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
-    const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
-    vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
-    const keeperSend = vi.spyOn(keeper, "exaSend");
-    mockLifiTokens({ 1: [{ address: inject("WETH") }] });
+    const salt = getAddress(padHex("0x5678", { size: 20 }));
+    const saltedAccount = deriveAddress(inject("ExaAccountFactory"), {
+      x: padHex(owner.address),
+      y: zeroHash,
+      salt,
+    });
+    await database.insert(credentials).values({
+      id: saltedAccount,
+      publicKey: new Uint8Array(hexToBytes(owner.address)),
+      account: saltedAccount,
+      factory: inject("ExaAccountFactory"),
+      salt,
+    });
 
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          network: "ETH_MAINNET",
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
-            },
-          ],
+    try {
+      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const chain = NETWORKS.get("ANVIL");
+      if (!chain) throw new Error("missing anvil");
+      const client = viem.createPublicClient({ chain, transport: viem.http(chain.rpcUrls.alchemy.http[0]) });
+      const eventGetCode = vi.spyOn(client, "getCode");
+      vi.mocked(viem.createPublicClient).mockReturnValueOnce(client);
+      const eventExaSend = vi.fn<typeof keeper.exaSend>().mockResolvedValue(null);
+      vi.spyOn(keeperUtilities, "extender").mockReturnValueOnce({ exaSend: eventExaSend });
+      const keeperSend = vi.spyOn(keeper, "exaSend");
+      mockLifiTokens({ 1: [{ address: inject("WETH") }] });
+
+      const response = await appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            network: "ETH_MAINNET",
+            activity: [
+              {
+                ...activityPayload.json.event.activity[1],
+                toAddress: saltedAccount,
+                rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
+              },
+            ],
+          },
         },
-      },
-    });
+      });
 
-    await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
+      await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
 
-    expect(eventGetCode).toHaveBeenCalledWith({ address: account });
-    expect(eventExaSend).toHaveBeenCalledWith(
-      expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
-      expect.objectContaining({
-        abi: exaAccountFactoryAbi,
-        address: inject("ExaAccountFactory") as Address,
-        functionName: "createAccount",
-      }),
-      { fees: "auto" },
-    );
-    expect(keeperSend.mock.calls.some(([options]) => options.attributes?.account === account)).toBe(false);
-    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Funds received"),
-      contents: t("{{amount}} received", { amount: { en: "99.973 WETH", es: "99,973 WETH", pt: "99,973 WETH" } }),
-    });
-    expect(response.status).toBe(200);
+      expect(eventGetCode).toHaveBeenCalledWith({ address: saltedAccount });
+      expect(eventExaSend).toHaveBeenCalledWith(
+        expect.objectContaining({ attributes: { account: saltedAccount }, name: "create account", op: "exa.account" }),
+        expect.objectContaining({
+          abi: exaAccountFactoryAbi,
+          address: inject("ExaAccountFactory") as Address,
+          functionName: "createAccount",
+          args: [hexToBigInt(salt), [{ x: padHex(owner.address.toLowerCase() as Address), y: zeroHash }]],
+        }),
+        { fees: "auto" },
+      );
+      expect(keeperSend.mock.calls.some(([options]) => options.attributes?.account === saltedAccount)).toBe(false);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+      expect(sendPushNotification).toHaveBeenCalledWith({
+        userId: saltedAccount,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received", { amount: { en: "99.973 WETH", es: "99,973 WETH", pt: "99,973 WETH" } }),
+      });
+      expect(response.status).toBe(200);
+    } finally {
+      await database.delete(credentials).where(eq(credentials.id, saltedAccount));
+    }
   });
 
   it("omits the formatted amount when value is 0", async () => {
