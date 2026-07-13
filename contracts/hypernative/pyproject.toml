@@ -1,0 +1,9 @@
+[project]
+name = "hypernative"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = ["invariantive"]
+
+[[tool.uv.index]]
+name = "invariantive"
+url = "https://hypernative-409532272347.d.codeartifact.us-east-1.amazonaws.com/pypi/invariantive-sdk/simple/"
