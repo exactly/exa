@@ -212,6 +212,7 @@ export function verify(
           transports: null | string[];
         };
         factory: string;
+        salt: string;
         statement: string;
       }
     | { authType: "siwe"; message: string; signature: string },

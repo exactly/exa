@@ -109,14 +109,17 @@ export default new Hono().post(
     );
     const accounts = await database.query.credentials
       .findMany({
-        columns: { account: true, publicKey: true, factory: true, source: true },
+        columns: { account: true, publicKey: true, factory: true, source: true, salt: true },
         where: inArray(credentials.account, [...new Set(transfers.map(({ toAddress }) => toAddress))]),
       })
       .then((result) =>
         Object.fromEntries(
           result.map(
-            ({ account, publicKey, factory, source }) =>
-              [v.parse(Address, account), { publicKey, factory: v.parse(Address, factory), source }] as const,
+            ({ account, publicKey, factory, source, salt }) =>
+              [
+                v.parse(Address, account),
+                { publicKey, factory: v.parse(Address, factory), salt: v.parse(Address, salt), source },
+              ] as const,
           ),
         ),
       );
@@ -133,7 +136,13 @@ export default new Hono().post(
     const markets = new Set(marketsByAsset.values());
     const pokes = new Map<
       Address,
-      { assets: Set<Address>; factory: Address; publicKey: Uint8Array<ArrayBuffer>; source: null | string }
+      {
+        assets: Set<Address>;
+        factory: Address;
+        publicKey: Uint8Array<ArrayBuffer>;
+        salt: Address;
+        source: null | string;
+      }
     >();
     for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
       if (!accounts[account]) continue;
@@ -167,8 +176,8 @@ export default new Hono().post(
       if (pokes.has(account)) {
         pokes.get(account)?.assets.add(asset);
       } else {
-        const { publicKey, factory, source } = accounts[account];
-        pokes.set(account, { publicKey, factory, source, assets: new Set([asset]) });
+        const { publicKey, factory, salt, source } = accounts[account];
+        pokes.set(account, { publicKey, factory, salt, source, assets: new Set([asset]) });
       }
     }
     const { "sentry-trace": sentryTrace, baggage } = getTraceData();
@@ -179,7 +188,7 @@ export default new Hono().post(
     });
     const client = createPublicClient({ chain, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(trace);
     Promise.allSettled(
-      [...pokes].map(([account, { publicKey, factory, source, assets }]) =>
+      [...pokes].map(([account, { publicKey, factory, salt, source, assets }]) =>
         continueTrace({ sentryTrace, baggage }, () =>
           withScope((scope) =>
             startSpan(
@@ -197,7 +206,7 @@ export default new Hono().post(
                         {
                           address: factory,
                           functionName: "createAccount",
-                          args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
+                          args: [hexToBigInt(salt), [decodePublicKey(publicKey, bytesToBigInt)]],
                           abi: exaAccountFactoryAbi,
                         },
                         chain.id === exaChain.id ? undefined : { fees: "auto" },

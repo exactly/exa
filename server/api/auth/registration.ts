@@ -388,7 +388,7 @@ export default new Hono()
           webauthn,
           source: c.req.header("Client-Fid"),
         });
-        const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+        const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
         const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
         return c.json(
           {

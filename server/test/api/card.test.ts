@@ -14,7 +14,7 @@ import { serializeSigned } from "hono/utils/cookie";
 import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
 import { parse } from "valibot";
-import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
+import { checksumAddress, hexToBigInt, padHex, parseEther, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
@@ -1895,12 +1895,14 @@ describe("authenticated", () => {
         const credentialId = "webauthn-verify-ok";
         const account = padHex("0xbbe1", { size: 20 });
         const factory = inject("ExaAccountFactory");
+        const salt = parse(Address, padHex("0x9abc", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
           publicKey: new Uint8Array([1, 2, 3]),
           account,
           factory,
           pandaId: "webauthn-verify-panda",
+          salt,
           transports: ["internal"],
         });
         await database.insert(cards).values({ id: "webauthn-verify-card", credentialId, lastFour: "3377" });
@@ -1923,6 +1925,7 @@ describe("authenticated", () => {
           },
           assertion,
           factory,
+          salt,
           statement,
         });
       });
@@ -1955,6 +1958,7 @@ describe("authenticated", () => {
           credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null },
           assertion,
           factory,
+          salt: zeroAddress,
           statement,
         });
       });
@@ -2011,6 +2015,7 @@ describe("authenticated", () => {
           credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"] },
           assertion,
           factory,
+          salt: zeroAddress,
           statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 4141 for my user (webauthn-panda-401-panda)`,
         });
       });
@@ -2044,6 +2049,7 @@ describe("authenticated", () => {
           credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"] },
           assertion,
           factory,
+          salt: zeroAddress,
           statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 5151 for my user (webauthn-panda-503-panda)`,
         });
       });
