@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, useColorScheme } from "react-native";
+import { Platform, Pressable, useColorScheme } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
@@ -29,14 +29,14 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { CardDetails as CardDetailsData } from "../../utils/server";
+import type { CardDetails as Card } from "../../utils/server";
 
 export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
   const theme = useColorScheme();
   const toast = useToastController();
   const { t } = useTranslation();
+  const { data: card, isPending } = useQuery<Card>({ queryKey: ["card", "details"] });
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
     if (card?.encryptedPan && card.encryptedCvc) {
@@ -173,7 +173,8 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   </YStack>
                 </YStack>
               ) : null}
-              {card && alertShown ? (
+
+              {Platform.OS === "web" && card && alertShown ? (
                 <DismissableAlert
                   text={t("Manually add your card to Apple Pay & Google Pay to make contactless payments.")}
                   onDismiss={() => {
@@ -181,6 +182,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   }}
                 />
               ) : null}
+
               <XStack alignSelf="center">
                 <Pressable onPress={onClose} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">

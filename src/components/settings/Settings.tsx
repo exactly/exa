@@ -17,6 +17,7 @@ import { logout as logoutOnesignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import { clearWalletExtensionStorage } from "../../utils/walletExtensionStorage";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -71,7 +72,11 @@ export default function Settings() {
               <Pressable
                 onPress={() => {
                   if (!connector) return;
-                  Promise.all([queryClient.cancelQueries(), logoutIntercom()])
+                  Promise.all([
+                    queryClient.cancelQueries(),
+                    logoutIntercom(),
+                    clearWalletExtensionStorage().catch(reportError),
+                  ])
                     .then(() => {
                       logoutOnesignal();
                       queryClient.clear();
