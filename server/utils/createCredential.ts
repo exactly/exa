@@ -1,7 +1,7 @@
 import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
-import { hexToBytes, isAddress } from "viem";
+import { hexToBytes, isAddress, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -38,7 +38,7 @@ export default function createCredential({
   return async function credential<C extends string>(
     c: Context,
     credentialId: C,
-    options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
+    options?: { factory?: Address; ip?: IpAddress; salt?: Address; source?: string; webauthn?: WebAuthnCredential },
   ) {
     if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
     const factory = options?.factory ?? exaAccountFactoryAddress;
@@ -46,7 +46,8 @@ export default function createCredential({
       options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
     if (!publicKey) throw new Error("bad credential");
     const { x, y } = decodePublicKey(publicKey);
-    const account = deriveAddress(factory, { x, y });
+    const salt = parse(Address, options?.salt ?? zeroAddress);
+    const account = deriveAddress(factory, { x, y, salt });
 
     setUser({ id: account });
     const expires = new Date(Date.now() + AUTH_EXPIRY);
@@ -56,6 +57,7 @@ export default function createCredential({
         id: credentialId,
         publicKey,
         factory,
+        salt,
         transports: options?.webauthn?.transports,
         source: options?.source,
       },
@@ -87,6 +89,6 @@ export default function createCredential({
     await subscribe.enqueue(account).catch(() => undefined);
 
     segment.identify({ userId: account });
-    return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
+    return { credentialId, factory: parse(Address, factory), x, y, salt, auth: expires.getTime() };
   };
 }
