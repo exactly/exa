@@ -5,11 +5,9 @@ import { withXcodeProjectBeta } from "@bacons/apple-targets/build/with-bacons-xc
 import { PBXFileReference, PBXNativeTarget, PBXShellScriptBuildPhase } from "@bacons/xcode";
 import {
   AndroidConfig,
-  IOSConfig,
   withAndroidManifest,
   withAppBuildGradle,
   withDangerousMod,
-  withXcodeProject,
   type ConfigPlugin,
 } from "expo/config-plugins";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -91,67 +89,6 @@ export default {
   },
   web: { output: "static", favicon: "src/assets/favicon.png" },
   plugins: [
-    // @ts-expect-error inline plugin
-    ((config) =>
-      withXcodeProject(config, (c) => {
-        const project = c.modResults;
-        const objects = project.hash.project.objects;
-        const targetDependencies = objects.PBXTargetDependency;
-        const containerItemProxies = objects.PBXContainerItemProxy;
-        if (!targetDependencies && !containerItemProxies) return c;
-        const dependencies: NonNullable<typeof objects.PBXTargetDependency> = {};
-        const proxies: NonNullable<typeof objects.PBXContainerItemProxy> = {};
-        for (const { fallback, section } of [
-          { fallback: dependencies, section: targetDependencies },
-          { fallback: proxies, section: containerItemProxies },
-        ]) {
-          if (!section) continue;
-          for (const [key, value] of Object.entries(section)) {
-            const isa = typeof value === "object" ? value.isa : value;
-            (isa === "PBXContainerItemProxy" ? proxies : isa === "PBXTargetDependency" ? dependencies : fallback)[key] =
-              value;
-          }
-        }
-        const nativeTargets = objects.PBXNativeTarget ?? {};
-        for (const [key, value] of Object.entries(dependencies)) {
-          if (!value || typeof value !== "object") continue;
-          if (value.isa !== "PBXTargetDependency") continue;
-          if (typeof value.target !== "string" || typeof value.targetProxy !== "string") continue;
-          if (proxies[value.targetProxy]) continue;
-          const nativeTarget = nativeTargets[value.target];
-          proxies[value.targetProxy] = {
-            isa: "PBXContainerItemProxy",
-            containerPortal: project.hash.project.rootObject,
-            containerPortal_comment: project.hash.project.rootObject_comment,
-            proxyType: 1,
-            remoteGlobalIDString: value.target,
-            remoteInfo:
-              nativeTarget && typeof nativeTarget === "object" && typeof nativeTarget.name === "string"
-                ? nativeTarget.name
-                : value.target,
-          };
-          proxies[`${value.targetProxy}_comment`] = "PBXContainerItemProxy";
-          dependencies[`${key}_comment`] ??= "PBXTargetDependency";
-        }
-        objects.PBXTargetDependency = dependencies;
-        objects.PBXContainerItemProxy = proxies;
-        const removeUndefinedValues = (value: unknown) => {
-          if (!value || typeof value !== "object") return;
-          if (Array.isArray(value)) {
-            for (const item of value) removeUndefinedValues(item);
-            return;
-          }
-          for (const [key, entry] of Object.entries(value)) {
-            if (entry === undefined) {
-              Reflect.deleteProperty(value, key);
-            } else {
-              removeUndefinedValues(entry);
-            }
-          }
-        };
-        removeUndefinedValues(objects);
-        return c;
-      })) satisfies ConfigPlugin,
     [
       "expo-build-properties",
       {
@@ -223,18 +160,7 @@ export default {
           return c;
         },
       ]);
-      return withXcodeProject(withAndroid, (c) => {
-        const projectName = c.modRequest.projectName ?? "";
-        const destination = path.join(c.modRequest.projectRoot, "ios", projectName, "mea_config");
-        copyMeaConfig(c.modRequest.projectRoot, destination);
-        IOSConfig.XcodeUtils.addResourceFileToGroup({
-          filepath: `${projectName}/mea_config`,
-          groupName: projectName,
-          project: c.modResults,
-          isBuildFile: true,
-        });
-        return c;
-      });
+      return withAndroid;
     }) satisfies ConfigPlugin,
     // @ts-expect-error inline plugin
     ((config) =>
@@ -260,27 +186,77 @@ export default {
         ]),
         (c) => {
           const project = c.modResults;
-          const target = project.rootObject.props.targets.find(
+          const projectRoot = c.modRequest.projectRoot;
+          const projectName = c.modRequest.projectName ?? "";
+          const sourcePath = path.join(projectRoot, "src/assets/mea_config");
+          const appPath = path.join(projectRoot, "ios", projectName, "mea_config");
+          copyMeaConfig(projectRoot, appPath);
+
+          const appTarget = project.rootObject.props.targets.find(
+            (candidate): candidate is PBXNativeTarget =>
+              PBXNativeTarget.is(candidate) && candidate.props.name === projectName,
+          );
+          if (!appTarget) throw new Error(`wallet extension: ${projectName} target was not generated`);
+          const mainGroup = project.rootObject.props.mainGroup;
+          const appGroup = mainGroup.getChildGroups().find((group) => group.getDisplayName() === projectName);
+          if (!appGroup) throw new Error(`wallet extension: ${projectName} group was not generated`);
+          const appReferencePath = path.relative(project.getProjectRoot(), appPath);
+          const appReference = project.getReferenceForPath(appPath) ?? appGroup.createFile({ path: appReferencePath });
+          if (
+            appReference.props.path !== appReferencePath ||
+            appReference.props.sourceTree !== "<group>" ||
+            appReference.getRealPath() !== appPath ||
+            !appGroup.props.children.includes(appReference)
+          ) {
+            throw new Error("wallet extension: invalid app mea_config reference");
+          }
+          const appResources = appTarget.getResourcesBuildPhase();
+          appResources.ensureFile({ fileRef: appReference });
+          if (
+            appResources.getFileReferences().filter((reference) => reference.uuid === appReference.uuid).length !== 1
+          ) {
+            throw new Error("wallet extension: duplicate app mea_config resource");
+          }
+
+          const walletTarget = project.rootObject.props.targets.find(
             (candidate): candidate is PBXNativeTarget =>
               PBXNativeTarget.is(candidate) && candidate.props.name === walletExtensionTarget,
           );
-          if (!target) throw new Error(`wallet extension: ${walletExtensionTarget} target was not generated`);
-          const meaConfigPath = path.join(c.modRequest.projectRoot, "src/assets/mea_config");
-          if (!existsSync(meaConfigPath)) throw new Error("wallet extension: missing src/assets/mea_config");
-          let meaConfigReference = project.getReferenceForPath(meaConfigPath);
-          if (!meaConfigReference) {
-            meaConfigReference = PBXFileReference.create(project, { path: "../src/assets/mea_config" });
-            project.rootObject.props.mainGroup.props.children.push(meaConfigReference);
+          if (!walletTarget) throw new Error(`wallet extension: ${walletExtensionTarget} target was not generated`);
+          const walletReferencePath = "../src/assets/mea_config";
+          const existingWalletReference = project.getReferenceForPath(sourcePath);
+          const walletReference =
+            existingWalletReference ?? PBXFileReference.create(project, { path: walletReferencePath });
+          if (existingWalletReference && !mainGroup.props.children.includes(existingWalletReference)) {
+            throw new Error("wallet extension: wallet mea_config reference is in the wrong group");
           }
-          target.getResourcesBuildPhase().ensureFile({ fileRef: meaConfigReference });
-          const bundlePhase = target.props.buildPhases.find(
+          if (!existingWalletReference) {
+            mainGroup.props.children.push(walletReference);
+          }
+          if (
+            walletReference.props.path !== walletReferencePath ||
+            walletReference.props.sourceTree !== "<group>" ||
+            walletReference.getRealPath() !== sourcePath ||
+            !mainGroup.props.children.includes(walletReference)
+          ) {
+            throw new Error("wallet extension: invalid wallet mea_config reference");
+          }
+          const walletResources = walletTarget.getResourcesBuildPhase();
+          walletResources.ensureFile({ fileRef: walletReference });
+          if (
+            walletResources.getFileReferences().filter((reference) => reference.uuid === walletReference.uuid)
+              .length !== 1
+          ) {
+            throw new Error("wallet extension: duplicate wallet mea_config resource");
+          }
+          const bundlePhase = walletTarget.props.buildPhases.find(
             (phase): phase is PBXShellScriptBuildPhase =>
               PBXShellScriptBuildPhase.is(phase) && phase.props.name === walletExtensionBundleScript,
           );
           if (bundlePhase) {
             bundlePhase.props.outputPaths = [];
           } else {
-            target.createBuildPhase(PBXShellScriptBuildPhase, {
+            walletTarget.createBuildPhase(PBXShellScriptBuildPhase, {
               name: walletExtensionBundleScript,
               inputPaths: ['"$(SRCROOT)/.xcode.env"', '"$(SRCROOT)/.xcode.env.local"'],
               outputPaths: [],
@@ -309,7 +285,7 @@ REACT_NATIVE_XCODE="$SRCROOT/../node_modules/react-native/scripts/react-native-x
 /bin/sh -c "$WITH_ENVIRONMENT $REACT_NATIVE_XCODE"`,
             });
           }
-          for (const buildConfiguration of target.props.buildConfigurationList.props.buildConfigurations) {
+          for (const buildConfiguration of walletTarget.props.buildConfigurationList.props.buildConfigurations) {
             const buildSettings = buildConfiguration.props.buildSettings;
             Reflect.set(buildSettings, "APPLICATION_EXTENSION_API_ONLY", "YES");
             Reflect.set(buildSettings, "DEFINES_MODULE", "YES");
@@ -321,7 +297,6 @@ REACT_NATIVE_XCODE="$SRCROOT/../node_modules/react-native/scripts/react-native-x
           return c;
         },
       )) satisfies ConfigPlugin,
-    ["@bacons/apple-targets/app.plugin", { appleTeamId }],
     // @ts-expect-error inline plugin
     ((config) =>
       withDangerousMod(config, [
@@ -339,6 +314,7 @@ REACT_NATIVE_XCODE="$SRCROOT/../node_modules/react-native/scripts/react-native-x
           return c;
         },
       ])) satisfies ConfigPlugin,
+    ["@bacons/apple-targets/app.plugin", { appleTeamId }],
     // @ts-expect-error inline plugin
     ((config) =>
       withAndroidManifest(
