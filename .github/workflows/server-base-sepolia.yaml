@@ -1,6 +1,6 @@
 name: server/base-sepolia
 on:
-  push: { branches: [sandbox] }
+  push: { branches: [infra] }
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
