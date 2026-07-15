@@ -294,7 +294,7 @@ export default new Hono().get(
     const pdf = accept === "application/pdf";
 
     const response = [
-      ...purchases.flatMap(({ transactions: txs }) =>
+      ...purchases.flatMap(({ id: cardId, lastFour, transactions: txs }) =>
         txs.map(({ hashes, payload }) => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
@@ -312,7 +312,7 @@ export default new Hono().get(
             }),
           });
           if (panda.success) {
-            if (maturity === undefined || pdf) return panda.output;
+            if (maturity === undefined || pdf) return { ...panda.output, cardId, lastFour };
             const operations: typeof panda.output.operations = [];
             for (const operation of panda.output.operations) {
               if (!("borrow" in operation)) continue;
@@ -352,6 +352,8 @@ export default new Hono().get(
             return {
               ...panda.output,
               amount: operations.reduce((sum, { amount }) => sum + amount, 0),
+              cardId,
+              lastFour,
               operations,
               usdAmount: operations.reduce((sum, { usdAmount }) => sum + usdAmount, 0),
             };
@@ -376,11 +378,11 @@ export default new Hono().get(
             },
           );
           if (cryptomate.success) {
-            if (maturity === undefined || pdf) return cryptomate.output;
+            if (maturity === undefined || pdf) return { ...cryptomate.output, cardId, lastFour };
             if (!borrow) return;
-            if (borrow.events.length <= 1) return cryptomate.output;
+            if (borrow.events.length <= 1) return { ...cryptomate.output, cardId, lastFour };
             if (!("borrow" in cryptomate.output) || !("installments" in cryptomate.output.borrow))
-              return cryptomate.output;
+              return { ...cryptomate.output, cardId, lastFour };
             const { borrow: outputBorrow } = cryptomate.output;
             const sortedEvents = borrow.events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
             const installments = sortedEvents.flatMap((event, n) => {
@@ -404,6 +406,8 @@ export default new Hono().get(
                 rate: installments.reduce((sum, { rate }) => sum + rate, 0) / installments.length,
                 installments,
               },
+              cardId,
+              lastFour,
               usdAmount,
             };
           }
@@ -430,93 +434,35 @@ export default new Hono().get(
       .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
 
     if (maturity !== undefined && pdf) {
-      const cardLookup = new Map(
-        purchases.flatMap(({ id, transactions: txs }) =>
-          txs.flatMap(({ hashes }) => hashes.map((hash) => [hash, id] as const)),
-        ),
-      );
       const purchasesByCard = Map.groupBy(
         response.flatMap((item) => {
-          if (item.type === "panda") {
-            const cardId = item.operations[0] && cardLookup.get(item.operations[0].transactionHash);
-            if (!cardId) return [];
-            const installments = item.operations
-              .reduce((accumulator, operation) => {
-                if ("borrow" in operation) {
-                  if ("installments" in operation.borrow) {
-                    const events = borrows?.get(operation.transactionHash)?.events;
-                    if (!events) return accumulator;
-                    const sortedInstallments = events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
-                    for (const [n, installment] of sortedInstallments.entries()) {
-                      if (Number(installment.maturity) !== maturity) continue;
-                      const progress = `${n + 1}/${sortedInstallments.length}`;
-                      const status = accumulator.get(progress) ?? {
-                        current: n + 1,
-                        total: sortedInstallments.length,
-                        amount: 0,
-                      };
-                      status.amount += Number(installment.assets + installment.fee) / 1e6;
-                      accumulator.set(progress, status);
-                    }
-                  } else {
-                    const installment = borrows?.get(operation.transactionHash)?.events[0];
-                    if (!installment || Number(installment.maturity) !== maturity) return accumulator;
-                    const status = accumulator.get("1/1") ?? { current: 1, total: 1, amount: 0 };
-                    status.amount += Number(installment.assets + installment.fee) / 1e6;
-                    accumulator.set("1/1", status);
-                  }
-                }
-                return accumulator;
-              }, new Map<string, { amount: number; current: number; total: number }>())
-              .values()
-              .toArray();
-            if (installments.length === 0) return [];
-            return [
-              {
-                cardId,
-                id: item.id,
-                timestamp: item.timestamp,
-                description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
-                installments,
-              },
-            ];
-          }
-          if (item.type === "card" && "borrow" in item) {
-            const cardId = cardLookup.get(item.transactionHash);
-            if (!cardId) return [];
-            if ("installments" in item.borrow) {
-              const events = borrows?.get(item.transactionHash)?.events;
-              if (!events) return [];
-              const sortedEvents = events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
-              const installments = sortedEvents.flatMap((borrow, n, all) =>
-                Number(borrow.maturity) === maturity
-                  ? [{ amount: Number(borrow.assets + borrow.fee) / 1e6, current: n + 1, total: all.length }]
-                  : [],
-              );
-              if (installments.length === 0) return [];
-              return [
-                {
-                  cardId,
-                  id: item.id,
-                  timestamp: item.timestamp,
-                  description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
-                  installments,
-                },
-              ];
-            }
-            const borrow = borrows?.get(item.transactionHash)?.events[0];
-            if (!borrow || Number(borrow.maturity) !== maturity) return [];
-            return [
-              {
-                cardId,
-                id: item.id,
-                timestamp: item.timestamp,
-                description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
-                installments: [{ amount: Number(borrow.assets + borrow.fee) / 1e6, current: 1, total: 1 }],
-              },
-            ];
-          }
-          return [];
+          if (item.type !== "panda" && (item.type !== "card" || !("borrow" in item))) return [];
+          const installments = (item.type === "panda" ? item.operations : [item])
+            .reduce((accumulator, operation) => {
+              if (!("borrow" in operation)) return accumulator;
+              const { borrow } = operation;
+              for (const { amount, current, total } of "installments" in borrow
+                ? borrow.installments.flatMap((installment) =>
+                    installment.maturity === maturity ? [{ ...installment, total: borrow.installments.length }] : [],
+                  )
+                : [{ amount: borrow.amount, current: 1, total: 1 }]) {
+                const status = accumulator.get(`${current}/${total}`) ?? { current, total, amount: 0 };
+                status.amount += amount;
+                accumulator.set(`${current}/${total}`, status);
+              }
+              return accumulator;
+            }, new Map<string, { amount: number; current: number; total: number }>())
+            .values()
+            .toArray();
+          return [
+            {
+              cardId: item.cardId,
+              id: item.id,
+              timestamp: item.timestamp,
+              description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
+              installments,
+            },
+          ];
         }),
         ({ cardId }) => cardId,
       );
@@ -712,6 +658,7 @@ const CardActivity = pipe(
 
 function transformBorrow(borrow: InferOutput<typeof Borrow>, timestamp: bigint) {
   return {
+    amount: Number(borrow.assets + borrow.fee) / 1e6,
     maturity: Number(borrow.maturity),
     fee: Number(borrow.fee) / 1e6,
     rate: Number(fixedRate(borrow.maturity, borrow.assets, borrow.fee, timestamp)) / 1e18,
@@ -810,7 +757,7 @@ export const InstallmentsActivity = pipe(
               Number(timestamp),
             ),
           ) / 1e18,
-        installments: events.map((borrow) => transformBorrow(borrow, timestamp)),
+        installments: events.map((borrow, n) => ({ ...transformBorrow(borrow, timestamp), current: n + 1 })),
       },
     };
   }),

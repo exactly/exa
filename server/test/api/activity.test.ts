@@ -19,7 +19,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import { marketAbi } from "@exactly/common/generated/chain";
 
 import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
-import database, { cards, transactions } from "../../database";
+import database, { cards, credentials, transactions } from "../../database";
 import anvilClient from "../anvilClient";
 
 function httpSerialize<T>(object: T): T {
@@ -82,9 +82,11 @@ describe.concurrent("validation", () => {
 
 describe.concurrent("authenticated", () => {
   describe.sequential("card", () => {
-    let activity: InferOutput<
+    type CardActivity = InferOutput<
       typeof CreditActivity | typeof DebitActivity | typeof InstallmentsActivity | typeof PandaActivity
-    >[];
+    > & { cardId: string; lastFour: string };
+    let activity: CardActivity[];
+    let installment: { hash: Hash; maturity: string };
     let maturity: string;
 
     beforeAll(async () => {
@@ -171,6 +173,7 @@ describe.concurrent("authenticated", () => {
           return {
             id: String(index),
             cardId: index === 0 ? "first-activity-card" : "second-activity-card",
+            lastFour: index === 0 ? "1234" : "6789",
             hashes,
             payload,
             hash,
@@ -183,6 +186,7 @@ describe.concurrent("authenticated", () => {
         {
           id: "transaction-declined",
           cardId: "first-activity-card",
+          lastFour: "1234",
           hashes: [zeroHash],
           hash: zeroHash,
           blockNumber: 0n,
@@ -228,7 +232,7 @@ describe.concurrent("authenticated", () => {
         .values(txs.map(({ id, cardId, hashes, payload }) => ({ id, cardId, hashes, payload })));
 
       activity = txs
-        .map(({ hashes, payload, hash, blockNumber, eventName, events, blockTimestamp }) => {
+        .map(({ cardId, lastFour, hashes, payload, hash, blockNumber, eventName, events, blockTimestamp }) => {
           const panda = safeParse(PandaActivity, {
             ...(payload as object),
             hashes,
@@ -239,7 +243,7 @@ describe.concurrent("authenticated", () => {
                     currentHash === hash && events.length > 0 ? { timestamp: blockTimestamp, events } : null,
                   ),
           });
-          if (panda.success) return panda.output;
+          if (panda.success) return { ...panda.output, cardId, lastFour };
           const eventCount = eventName === "Withdraw" ? 0 : events.length;
           const cryptomate = safeParse({ 0: DebitActivity, 1: CreditActivity }[eventCount] ?? InstallmentsActivity, {
             ...(payload as object),
@@ -247,10 +251,17 @@ describe.concurrent("authenticated", () => {
             events: eventCount > 0 ? events : undefined,
             blockTimestamp: eventCount > 0 ? blockTimestamp : undefined,
           });
-          if (cryptomate.success) return cryptomate.output;
+          if (cryptomate.success) return { ...cryptomate.output, cardId, lastFour };
           throw new Error("bad test setup");
         })
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+      const operation = activity
+        .flatMap((item) => ("operations" in item ? item.operations : []))
+        .find((item) => "borrow" in item && "installments" in item.borrow);
+      assert.ok(operation && "borrow" in operation && "installments" in operation.borrow, "expected installments");
+      const second = operation.borrow.installments[1];
+      assert.ok(second, "expected second installment");
+      installment = { hash: operation.transactionHash, maturity: String(second.maturity) };
     }, 66_666);
 
     it("returns the card transaction", async () => {
@@ -336,6 +347,82 @@ describe.concurrent("authenticated", () => {
       expect(json.every((item) => !item.borrow || item.borrow.maturity === Number(maturity))).toBe(true);
     });
 
+    it("returns installment position when filtering by maturity", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: "card", maturity: installment.maturity } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as CardActivity[];
+      expect(json.map(({ cardId, lastFour }) => ({ cardId, lastFour }))).toStrictEqual([
+        { cardId: "second-activity-card", lastFour: "6789" },
+        { cardId: "second-activity-card", lastFour: "6789" },
+      ]);
+      const installments = json.flatMap((item) =>
+        "operations" in item
+          ? item.operations.flatMap((operation) =>
+              "borrow" in operation && "installments" in operation.borrow ? operation.borrow.installments : [],
+            )
+          : [],
+      );
+      expect(installments).toStrictEqual([
+        {
+          amount: expect.any(Number) as unknown,
+          current: 2,
+          fee: expect.any(Number) as unknown,
+          maturity: Number(installment.maturity),
+          rate: expect.any(Number) as unknown,
+        },
+      ]);
+    });
+
+    it("returns cryptomate installment position when filtering by maturity", async () => {
+      try {
+        await database.insert(transactions).values([
+          {
+            id: "cryptomate-installments",
+            cardId: "first-activity-card",
+            hashes: [installment.hash],
+            payload: {
+              operation_id: "cryptomate-installments",
+              type: "cryptomate",
+              data: {
+                created_at: new Date(0).toISOString(),
+                bill_amount: 0.46,
+                transaction_amount: 552,
+                transaction_currency_code: "ARS",
+                merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
+              },
+            },
+          },
+        ]);
+        const response = await appClient.index.$get(
+          { query: { include: "card", maturity: installment.maturity } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as CardActivity[];
+        const item = json.find(({ id }) => id === "cryptomate-installments");
+        assert.ok(item, "expected cryptomate installments transaction");
+        expect(item.cardId).toBe("first-activity-card");
+        expect(item.lastFour).toBe("1234");
+        assert.ok("borrow" in item && "installments" in item.borrow, "expected installments borrow");
+        expect(item.borrow.installments).toStrictEqual([
+          {
+            amount: expect.any(Number) as unknown,
+            current: 2,
+            fee: expect.any(Number) as unknown,
+            maturity: Number(installment.maturity),
+            rate: expect.any(Number) as unknown,
+          },
+        ]);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "cryptomate-installments"));
+      }
+    });
+
     it("returns empty card activity for unmatched maturity", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
@@ -361,6 +448,45 @@ describe.concurrent("authenticated", () => {
       const directory = path.join("node_modules/@exactly/.runtime");
       await mkdir(directory, { recursive: true });
       await writeFile(path.join(directory, `statement-${Date.now()}.pdf`), new Uint8Array(body)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact path includes timestamp
+    });
+
+    it("returns statement pdf with mixed borrow operations", async () => {
+      const hash = activity
+        .flatMap((item) => ("operations" in item ? item.operations : []))
+        .find((operation) => "borrow" in operation && "installments" in operation.borrow)?.transactionHash;
+      assert.ok(hash, "expected installments transaction hash");
+      try {
+        await database.insert(transactions).values([
+          {
+            id: "panda-mixed-operations",
+            cardId: "first-activity-card",
+            hashes: [hash, padHex("0xdeb17", { size: 32 })],
+            payload: {
+              type: "panda",
+              bodies: ["created", "completed"].map((action) => ({
+                action,
+                resource: "transaction",
+                createdAt: new Date(0).toISOString(),
+                body: {
+                  id: "panda-mixed-operations",
+                  spend: { ...spendTemplate, merchantCity: null, amount: 100, localAmount: 100, localCurrency: "usd" },
+                },
+              })),
+            },
+          },
+        ]);
+        const response = await appClient.index.$get(
+          { query: { maturity } },
+          { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/pdf");
+        const body = await response.arrayBuffer();
+        expect(body.byteLength).toBeGreaterThan(0);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "panda-mixed-operations"));
+      }
     });
 
     it("returns statement pdf for combined accept header", async () => {
@@ -390,12 +516,10 @@ describe.concurrent("authenticated", () => {
 
     it("scopes maturity transaction lookup to user cards", async () => {
       expect.hasAssertions();
-      const [before, credentials] = await Promise.all([
-        appClient.index.$get({ query: { include: "card", maturity } }, { headers: { "test-credential-id": "bob" } }),
-        database.query.credentials.findMany({ columns: { id: true } }),
-      ]);
-      const otherCredential = credentials.find(({ id }) => id !== "bob");
-      assert.ok(otherCredential, "expected another credential");
+      const before = await appClient.index.$get(
+        { query: { include: "card", maturity } },
+        { headers: { "test-credential-id": "bob" } },
+      );
       const borrows = await anvilClient.getContractEvents({
         abi: marketAbi,
         eventName: "BorrowAtMaturity",
@@ -418,10 +542,17 @@ describe.concurrent("authenticated", () => {
 
       const leak = {
         cardId: `leak-card-${Date.now()}`,
+        credentialId: `leak-credential-${Date.now()}`,
         transactionId: `leak-transaction-${Date.now()}`,
       };
       try {
-        await database.insert(cards).values([{ id: leak.cardId, credentialId: otherCredential.id, lastFour: "0000" }]);
+        await database.insert(credentials).values({
+          id: leak.credentialId,
+          publicKey: new Uint8Array(),
+          account: padHex("0xac71", { size: 20 }),
+          factory: inject("ExaAccountFactory"),
+        });
+        await database.insert(cards).values([{ id: leak.cardId, credentialId: leak.credentialId, lastFour: "0000" }]);
         await database
           .insert(transactions)
           .values([{ id: leak.transactionId, cardId: leak.cardId, hashes: source.hashes, payload: source.payload }]);
@@ -434,6 +565,7 @@ describe.concurrent("authenticated", () => {
       } finally {
         await database.delete(transactions).where(eq(transactions.id, leak.transactionId));
         await database.delete(cards).where(eq(cards.id, leak.cardId));
+        await database.delete(credentials).where(eq(credentials.id, leak.credentialId));
       }
     });
   });
