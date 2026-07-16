@@ -32,6 +32,20 @@ module.exports = function config(api) {
           logTimings: true,
         },
       ],
+      () => {
+        let expo = Object.getOwnPropertyDescriptor(globalThis, "expo");
+        return {
+          pre() {
+            expo = Object.getOwnPropertyDescriptor(globalThis, "expo");
+          },
+          visitor: {
+            Program() {
+              if (expo) Object.defineProperty(globalThis, "expo", expo);
+              else Reflect.deleteProperty(globalThis, "expo");
+            },
+          },
+        };
+      },
       "react-native-reanimated/plugin",
     ],
   };
