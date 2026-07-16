@@ -10,7 +10,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "build": "EXPO_NO_TELEMETRY=1 expo export --platform web --no-minify --source-maps",
+    "build": "EXPO_NO_TELEMETRY=1 expo export --platform web --no-minify --source-maps && test -s dist/index.html",
     "prepare": "nx prepare mobile",
     "prepare:generated": "mkdir -p src/generated",
     "generate:expo": "expo customize tsconfig.json",
@@ -22,7 +22,7 @@
     "test": "nx test mobile",
     "test:spell": "cspell --gitignore '**' '.agents/**' '.changeset/**' '.do/**' '.eas/**' '.github/**' '.maestro/**'",
     "test:deps": "pnpm dlx pnpm@latest --pm-on-fail=ignore audit",
-    "test:build": "EXPO_NO_TELEMETRY=1 expo export --platform web",
+    "test:build": "EXPO_NO_TELEMETRY=1 expo export --platform web && test -s dist/index.html",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:markdown": "markdownlint '**/*.md' '**/*.mdx' '.agents/**/*.md' '.changeset/**/*.md' -i '**/node_modules/**' -i ios/Pods",
     "test:changeset": "changeset status --since origin/main"
