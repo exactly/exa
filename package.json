@@ -21,7 +21,7 @@
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
     "test": "nx test mobile",
     "test:spell": "cspell --gitignore '**' '.agents/**' '.changeset/**' '.do/**' '.eas/**' '.github/**' '.maestro/**'",
-    "test:deps": "pnpm audit",
+    "test:deps": "pnpm dlx pnpm@latest --pm-on-fail=ignore audit",
     "test:build": "EXPO_NO_TELEMETRY=1 expo export --platform web",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:markdown": "markdownlint '**/*.md' '**/*.mdx' '.agents/**/*.md' '.changeset/**/*.md' -i '**/node_modules/**' -i ios/Pods",
@@ -262,14 +262,6 @@
         "hono-openapi>zod": "4",
         "rollup-plugin-import-trace>vite": "8"
       }
-    },
-    "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-4x5r-pxfx-6jf8",
-        "GHSA-h67p-54hq-rp68",
-        "GHSA-w5hq-g745-h8pq",
-        "GHSA-848j-6mx2-7j84"
-      ]
     }
   },
   "expo": {
