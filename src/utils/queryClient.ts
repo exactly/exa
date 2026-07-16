@@ -18,6 +18,7 @@ import type { PersistedClient } from "@tanstack/query-persist-client-core";
 import type { Address } from "viem";
 
 const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "pax"]);
+export const isServer = typeof window === "undefined";
 
 export function triage(error: unknown) {
   if (!(error instanceof APIError)) return;

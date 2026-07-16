@@ -13,7 +13,7 @@ import { Credential } from "@exactly/common/validation";
 
 import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
-import queryClient, { APIError, triage, type AuthMethod } from "./queryClient";
+import queryClient, { APIError, isServer, triage, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
@@ -23,7 +23,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
   enabled: false,
   staleTime: AUTH_EXPIRY,
-  gcTime: AUTH_EXPIRY,
+  gcTime: isServer ? Infinity : AUTH_EXPIRY,
   queryFn: async () => {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
     const owner =
@@ -203,7 +203,7 @@ export async function getKYCStatus(
 
 queryClient.setQueryDefaults(["kyc", "status"], {
   staleTime: 5 * 60_000,
-  gcTime: 60 * 60_000,
+  gcTime: isServer ? Infinity : 60 * 60_000,
   retry: (count, error) => count < 3 && triage(error) === undefined,
   meta: { warnError: (error) => triage(error) === "warn" },
   queryFn: () => getKYCStatus("basic", true),
@@ -281,7 +281,11 @@ async function getActivity(
   if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
   return activity;
 }
-queryClient.setQueryDefaults(["activity"], { staleTime: 60_000, gcTime: 60 * 60_000, queryFn: () => getActivity() });
+queryClient.setQueryDefaults(["activity"], {
+  staleTime: 60_000,
+  gcTime: isServer ? Infinity : 60 * 60_000,
+  queryFn: () => getActivity(),
+});
 queryClient.setQueryDefaults(["activity", "card"], {
   queryFn: async () => {
     const activity = await getActivity({ include: "card" });

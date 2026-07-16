@@ -24,7 +24,7 @@ import chain, { mockSwapperAbi, swapperAddress } from "@exactly/common/generated
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import publicClient from "./publicClient";
-import queryClient from "./queryClient";
+import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";
 
 export const lifiChainsOptions = queryOptions({
@@ -70,7 +70,7 @@ export function balancesOptions(account: Address | undefined, nonce?: number) {
   return queryOptions({
     queryKey: nonce === undefined ? ["lifi", "balances", account] : ["lifi", "balances", account, nonce],
     staleTime: 30_000,
-    gcTime: 60_000,
+    gcTime: isServer ? Infinity : 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
     queryFn: async () => {
       if (!account) return {} as Record<number, TokenAmount[]>;

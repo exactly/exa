@@ -43,7 +43,7 @@ import esAR from "../i18n/es-AR.json";
 import es from "../i18n/es.json";
 import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
-import queryClient, { persistOptions } from "../utils/queryClient";
+import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig from "../utils/wagmi/owner";
@@ -161,9 +161,9 @@ init({
   },
   spotlight: __DEV__ || !!e2e,
 });
-const useServerFonts = typeof window === "undefined" ? useFonts : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
-const useServerAssets = typeof window === "undefined" ? useAssets : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
-const useLayoutEffect = typeof window === "undefined" ? () => undefined : useClientLayoutEffect; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
+const useServerFonts = isServer ? useFonts : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
+const useServerAssets = isServer ? useAssets : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
+const useLayoutEffect = isServer ? () => undefined : useClientLayoutEffect; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
 const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platform.OS === "web" && __DEV__));
 
 export default wrap(function RootLayout() {
