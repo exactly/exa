@@ -5,6 +5,7 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -719,8 +720,21 @@ describe("card limit case", () => {
       data: { attributes: { "reference-id": referenceId } },
     });
     vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
-    vi.spyOn(panda, "updateCard").mockRejectedValueOnce(new Error("panda api error"));
-    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+    const error = new Error("panda api error");
+    vi.spyOn(panda, "updateCard").mockRejectedValueOnce(error);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
+
+    const response = await client.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      // @ts-expect-error hono client can't discriminate nested union for case payloads
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
 
     expect(response.status).toBe(500);
     expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
@@ -728,15 +742,18 @@ describe("card limit case", () => {
       id: "case-card",
       limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
     });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "panda api error" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          cardLimitDrift: { referenceId, limitUsd: 20_000, pandaId: "pandaId", cardId: "case-card" },
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [
+        error,
+        {
+          level: "error",
+          contexts: {
+            cardLimitDrift: { referenceId, limitUsd: 20_000, pandaId: "pandaId", cardId: "case-card" },
+          },
         },
-      }),
-    );
+      ],
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   it("returns 500 when updateCardLimit fails before updateCard", async () => {
@@ -745,21 +762,37 @@ describe("card limit case", () => {
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
-    vi.spyOn(persona, "updateCardLimit").mockRejectedValueOnce(new Error("persona api error"));
-    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+    const error = new Error("persona api error");
+    vi.spyOn(persona, "updateCardLimit").mockRejectedValueOnce(error);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
+
+    const response = await client.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      // @ts-expect-error hono client can't discriminate nested union for case payloads
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
 
     expect(response.status).toBe(500);
     expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "persona api error" }),
-      {
-        level: "error",
-        contexts: {
-          cardLimitDrift: { referenceId, limitUsd: 20_000, pandaId: "pandaId", cardId: "case-card" },
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [
+        error,
+        {
+          level: "error",
+          contexts: {
+            cardLimitDrift: { referenceId, limitUsd: 20_000, pandaId: "pandaId", cardId: "case-card" },
+          },
         },
-      },
-    );
+      ],
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   it("returns ok without updating card when declined", async () => {
@@ -860,13 +893,29 @@ describe("card limit case", () => {
   });
 
   it("returns 500 when getInquiryById fails", async () => {
-    vi.spyOn(persona, "getInquiryById").mockRejectedValueOnce(new Error("persona api error"));
+    const error = new Error("persona api error");
+    vi.spyOn(persona, "getInquiryById").mockRejectedValueOnce(error);
     const updateCardLimit = vi.spyOn(persona, "updateCardLimit");
-    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
+
+    const response = await client.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      // @ts-expect-error hono client can't discriminate nested union for case payloads
+      json: casePayload({ status: "Approved", cardLimitUsd: 20_000 }),
+    });
 
     expect(response.status).toBe(500);
     expect(updateCardLimit).not.toHaveBeenCalled();
     expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 });
 
