@@ -6,6 +6,8 @@ import "../mocks/manteca";
 import "../mocks/persona";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/node";
+import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { env } from "node:process";
@@ -806,9 +808,17 @@ describe("ramp api", () => {
         it("returns 500 when bridge util throws an unexpected error", async () => {
           vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
           vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
-          vi.spyOn(bridge, "getOfframpDepositDetails").mockRejectedValue(new Error("unexpected"));
+          const error = new Error("unexpected");
+          vi.spyOn(bridge, "getOfframpDepositDetails").mockRejectedValue(error);
+          const server = new Hono().route("/", app);
+          server.onError((caught, c) => {
+            captureException(caught, { level: "error", tags: { unhandled: true } });
+            return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+          });
+          const client = testClient(server);
+          const calls = vi.mocked(captureException).mock.calls.length;
 
-          const response = await appClient.quote.$get(
+          const response = await client.quote.$get(
             {
               query: {
                 provider: "bridge",
@@ -821,6 +831,9 @@ describe("ramp api", () => {
           );
 
           expect(response.status).toBe(500);
+          expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+            [error, { level: "error", tags: { unhandled: true } }],
+          ]);
         });
 
         it("returns quote and deposit info for USD offramp", async () => {
@@ -898,9 +911,17 @@ describe("ramp api", () => {
 
         it("returns 500 when crypto offramp util throws an unexpected error", async () => {
           vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(new Error("unexpected"));
+          const error = new Error("unexpected");
+          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(error);
+          const server = new Hono().route("/", app);
+          server.onError((caught, c) => {
+            captureException(caught, { level: "error", tags: { unhandled: true } });
+            return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+          });
+          const client = testClient(server);
+          const calls = vi.mocked(captureException).mock.calls.length;
 
-          const response = await appClient.quote.$get(
+          const response = await client.quote.$get(
             {
               query: {
                 provider: "bridge",
@@ -914,6 +935,9 @@ describe("ramp api", () => {
           );
 
           expect(response.status).toBe(500);
+          expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+            [error, { level: "error", tags: { unhandled: true } }],
+          ]);
         });
 
         it("returns 400 when STELLAR offramp is missing the memo", async () => {
@@ -1421,14 +1445,25 @@ describe("ramp api", () => {
 
     it("returns 500 when bridge util throws an unexpected error", async () => {
       vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(new Error("unexpected"));
+      const error = new Error("unexpected");
+      vi.spyOn(bridge, "createExternalAccount").mockRejectedValue(error);
+      const server = new Hono().route("/", app);
+      server.onError((caught, c) => {
+        captureException(caught, { level: "error", tags: { unhandled: true } });
+        return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+      });
+      const client = testClient(server);
+      const calls = vi.mocked(captureException).mock.calls.length;
 
-      const response = await appClient["external-account"].$post(
+      const response = await client["external-account"].$post(
         { json: input },
         { headers: { "test-credential-id": "ramp-bridge" } },
       );
 
       expect(response.status).toBe(500);
+      expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+        [error, { level: "error", tags: { unhandled: true } }],
+      ]);
     });
 
     it("creates the external account and its offramp transfer, then returns the external account", async () => {
@@ -1674,14 +1709,25 @@ describe("ramp api", () => {
 
     it("returns 500 when bridge util throws an unexpected error", async () => {
       vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-      vi.spyOn(bridge, "updateExternalAccount").mockRejectedValue(new Error("unexpected"));
+      const error = new Error("unexpected");
+      vi.spyOn(bridge, "updateExternalAccount").mockRejectedValue(error);
+      const server = new Hono().route("/", app);
+      server.onError((caught, c) => {
+        captureException(caught, { level: "error", tags: { unhandled: true } });
+        return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+      });
+      const client = testClient(server);
+      const calls = vi.mocked(captureException).mock.calls.length;
 
-      const response = await appClient["external-account"][":id"].$patch(
+      const response = await client["external-account"][":id"].$patch(
         { param: { id: "ext-acc-1" }, json: { currency: "USD", address } },
         { headers: { "test-credential-id": "ramp-bridge" } },
       );
 
       expect(response.status).toBe(500);
+      expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+        [error, { level: "error", tags: { unhandled: true } }],
+      ]);
     });
 
     it("delegates to updateExternalAccount and returns the external account", async () => {
@@ -1809,14 +1855,25 @@ describe("ramp api", () => {
 
     it("returns 500 when bridge util throws an unexpected error", async () => {
       vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-      vi.spyOn(bridge, "removeExternalAccount").mockRejectedValue(new Error("unexpected"));
+      const error = new Error("unexpected");
+      vi.spyOn(bridge, "removeExternalAccount").mockRejectedValue(error);
+      const server = new Hono().route("/", app);
+      server.onError((caught, c) => {
+        captureException(caught, { level: "error", tags: { unhandled: true } });
+        return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+      });
+      const client = testClient(server);
+      const calls = vi.mocked(captureException).mock.calls.length;
 
-      const response = await appClient["external-account"][":id"].$delete(
+      const response = await client["external-account"][":id"].$delete(
         { param: { id: "ext-acc-1" } },
         { headers: { "test-credential-id": "ramp-bridge" } },
       );
 
       expect(response.status).toBe(500);
+      expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+        [error, { level: "error", tags: { unhandled: true } }],
+      ]);
     });
 
     it("delegates to removeExternalAccount and returns ok", async () => {

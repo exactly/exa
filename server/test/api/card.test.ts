@@ -878,17 +878,28 @@ describe("authenticated", () => {
     });
 
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    const createCard = vi
-      .spyOn(panda, "createCard")
-      .mockRejectedValueOnce(
-        new ServiceError("Panda", 400, '{"message":"Invalid request","error":"BadRequestError","statusCode":400}'),
-      );
+    const error = new ServiceError(
+      "Panda",
+      400,
+      '{"message":"Invalid request","error":"BadRequestError","statusCode":400}',
+    );
+    const createCard = vi.spyOn(panda, "createCard").mockRejectedValueOnce(error);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await client.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
 
     expect(response.status).toBe(500);
     expect(createCard).toHaveBeenCalledOnce();
-    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("adopts an existing active panda card instead of creating a duplicate", async () => {
@@ -1071,14 +1082,24 @@ describe("authenticated", () => {
     });
 
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    vi.spyOn(panda, "getCards").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
+    const error = new ServiceError("Panda", 500, "internal error");
+    vi.spyOn(panda, "getCards").mockRejectedValueOnce(error);
     const createCard = vi.spyOn(panda, "createCard");
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await client.index.$post({ header: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
     const persisted = await database.query.cards.findFirst({ where: eq(cards.credentialId, credentialId) });
     expect(persisted).toBeUndefined();
   });
@@ -1161,14 +1182,24 @@ describe("authenticated", () => {
       pandaId: credentialId,
     });
 
-    vi.spyOn(panda, "getApplicationStatus").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
+    const error = new ServiceError("Panda", 500, "internal error");
+    vi.spyOn(panda, "getApplicationStatus").mockRejectedValueOnce(error);
     const createCard = vi.spyOn(panda, "createCard");
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await client.index.$post({ header: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   it("returns 400 already created without checking kyc when user has an active card", async () => {
@@ -1683,15 +1714,25 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
-    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(new ServiceError("Panda", 404, "not found"));
+    const error = new ServiceError("Panda", 404, "not found");
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(error);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$get(
+    const response = await client.index.$get(
       { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
       { headers: { "test-credential-id": "default" } },
     );
 
     expect(response.status).toBe(500);
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   it("bubbles provisioning errors through parent onError", async () => {
@@ -1728,13 +1769,38 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(forbidden);
     vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(stale);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$get(
+    const response = await client.index.$get(
       { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
       { headers: { "test-credential-id": "default" } },
     );
 
     expect(response.status).toBe(500);
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [
+        forbidden,
+        {
+          level: "warning",
+          fingerprint: ["{{ default }}", "PandaForbidden"],
+          extra: {
+            cardId: "543c1771-beae-4f26-b662-44ea48b40dc6",
+            credentialId: "default",
+            pandaId: "default",
+            status: "ACTIVE",
+            shouldCapture: true,
+            userIssue: "PandaForbidden",
+          },
+        },
+      ],
+      [stale, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   it("propagates unapproved user provisioning errors", async () => {
@@ -1742,23 +1808,31 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
-    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(
-      new ServiceError(
-        "Panda",
-        403,
-        '{"message":"User exists but is not approved yet","error":"ForbiddenError","statusCode":403}',
-        "ForbiddenError",
-        "User exists but is not approved yet",
-      ),
+    const error = new ServiceError(
+      "Panda",
+      403,
+      '{"message":"User exists but is not approved yet","error":"ForbiddenError","statusCode":403}',
+      "ForbiddenError",
+      "User exists but is not approved yet",
     );
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(error);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$get(
+    const response = await client.index.$get(
       { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
       { headers: { "test-credential-id": "default" } },
     );
 
     expect(response.status).toBe(500);
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   it("returns 500 when provisioning reports unexpected error", async () => {
@@ -1766,16 +1840,26 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
     vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
     vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
-    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
+    const error = new ServiceError("Panda", 500, "internal error");
+    vi.spyOn(panda, "getProcessorDetails").mockRejectedValueOnce(error);
+    const server = new Hono().route("/", app);
+    server.onError((caught, c) => {
+      captureException(caught, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
 
-    const response = await appClient.index.$get(
+    const response = await client.index.$get(
       { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
       { headers: { "test-credential-id": "default" } },
     );
 
     expect(response.status).toBe(500);
     expect(panda.getProcessorDetails).toHaveBeenCalledWith("543c1771-beae-4f26-b662-44ea48b40dc6");
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [error, { level: "error", tags: { unhandled: true } }],
+    ]);
   });
 
   describe("signature", () => {
@@ -1861,18 +1945,28 @@ describe("authenticated", () => {
           pandaId: "siwe-nonce-fail-panda",
         });
         await database.insert(cards).values({ id: "siwe-nonce-fail-card", credentialId, lastFour: "6666" });
-        const nonceSpy = vi.spyOn(panda, "getNonce").mockRejectedValueOnce(new Error("nonce unreachable"));
+        const error = new Error("nonce unreachable");
+        const nonceSpy = vi.spyOn(panda, "getNonce").mockRejectedValueOnce(error);
         vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, last4: "6666" });
         vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+        const server = new Hono().route("/", app);
+        server.onError((caught, c) => {
+          captureException(caught, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+        });
+        const client = testClient(server);
+        const calls = vi.mocked(captureException).mock.calls.length;
 
-        const response = await appClient.index.$get(
+        const response = await client.index.$get(
           { header: {}, query: { scope: "siwe" } },
           { headers: { "test-credential-id": credentialId } },
         );
 
         expect(response.status).toBe(500);
         expect(nonceSpy).toHaveBeenCalledWith("siwe-nonce-fail-panda");
-        expect(captureException).not.toHaveBeenCalled();
+        expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+          [error, { level: "error", tags: { unhandled: true } }],
+        ]);
       });
 
       it("verifies the signed message", async () => {
@@ -2134,9 +2228,8 @@ describe("authenticated", () => {
           pandaId: "siwe-panda-503-panda",
         });
         await database.insert(cards).values({ id: "siwe-panda-503-card", credentialId, lastFour: "5050" });
-        const verifySpy = vi
-          .spyOn(panda, "verify")
-          .mockRejectedValueOnce(new ServiceError("Panda", 503, "service unavailable"));
+        const error = new ServiceError("Panda", 503, "service unavailable");
+        const verifySpy = vi.spyOn(panda, "verify").mockRejectedValueOnce(error);
         const message = createSiweMessage({
           domain,
           address: credentialId,
@@ -2148,7 +2241,15 @@ describe("authenticated", () => {
         });
         const signature = await owner.signMessage({ message });
 
-        const response = await appClient.index.$patch({
+        const server = new Hono().route("/", app);
+        server.onError((caught, c) => {
+          captureException(caught, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+        });
+        const client = testClient(server);
+        const calls = vi.mocked(captureException).mock.calls.length;
+
+        const response = await client.index.$patch({
           // @ts-expect-error - bad hono patch type
           header: { "test-credential-id": credentialId },
           json: { method: "siwe", message, signature },
@@ -2156,6 +2257,9 @@ describe("authenticated", () => {
 
         expect(response.status).toBe(500);
         expect(verifySpy).toHaveBeenCalledWith("siwe-panda-503-panda", { message, signature, authType: "siwe" });
+        expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+          [error, { level: "error", tags: { unhandled: true } }],
+        ]);
       });
     });
 
@@ -2372,17 +2476,26 @@ describe("authenticated", () => {
           transports: ["internal"],
         });
         await database.insert(cards).values({ id: "webauthn-panda-503-card", credentialId, lastFour: "5151" });
-        const verifySpy = vi
-          .spyOn(panda, "verify")
-          .mockRejectedValueOnce(new ServiceError("Panda", 503, "service unavailable"));
+        const error = new ServiceError("Panda", 503, "service unavailable");
+        const verifySpy = vi.spyOn(panda, "verify").mockRejectedValueOnce(error);
+        const server = new Hono().route("/", app);
+        server.onError((caught, c) => {
+          captureException(caught, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+        });
+        const client = testClient(server);
+        const calls = vi.mocked(captureException).mock.calls.length;
 
-        const response = await appClient.index.$patch({
+        const response = await client.index.$patch({
           // @ts-expect-error - bad hono patch type
           header: { "test-credential-id": credentialId },
           json: { method: "webauthn", assertion },
         });
 
         expect(response.status).toBe(500);
+        expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+          [error, { level: "error", tags: { unhandled: true } }],
+        ]);
         expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-503-panda", {
           authType: "webauthn",
           credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"] },

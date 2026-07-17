@@ -6,6 +6,7 @@ import "../mocks/sentry";
 
 import { captureEvent, captureException } from "@sentry/core";
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
 import { env } from "node:process";
@@ -336,14 +337,25 @@ describe("bridge hook", () => {
       ...statusTransitioned,
       event_object: { ...statusTransitioned.event_object, id: "conflict-bridge-id" },
     };
-    const response = await appClient.index.$post({
+    const server = new Hono().route("/", app);
+    server.onError((error, c) => {
+      captureException(error, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
+
+    const response = await client.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
       json: payload as never,
     });
 
     expect(response.status).toBe(500);
     expect(captureEvent).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    const captures = vi.mocked(captureException).mock.calls.slice(calls);
+    expect(captures).toHaveLength(1);
+    expect(captures[0]?.[0]).toEqual(expect.objectContaining({ message: "no match found when pairing bridge id" }));
+    expect(captures[0]?.[1]).toStrictEqual({ level: "error", tags: { unhandled: true } });
   });
 
   it("returns credential not found when multiple persona accounts found on status_transitioned fallback", async () => {
@@ -413,14 +425,27 @@ describe("bridge hook", () => {
       ...statusTransitioned,
       event_object: { ...statusTransitioned.event_object, id: "orphan-bridge-id" },
     };
-    const response = await appClient.index.$post({
+    const server = new Hono().route("/", app);
+    server.onError((error, c) => {
+      captureException(error, { level: "error", tags: { unhandled: true } });
+      return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+    });
+    const client = testClient(server);
+    const calls = vi.mocked(captureException).mock.calls.length;
+
+    const response = await client.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
       json: payload as never,
     });
 
     expect(response.status).toBe(500);
     expect(captureEvent).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+      [
+        expect.objectContaining({ message: "no match found when pairing bridge id" }),
+        { level: "error", tags: { unhandled: true } },
+      ],
+    ]);
   });
 
   it("tracks RampAccount and sends notification on status_transitioned to active", async () => {
