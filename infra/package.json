@@ -2,6 +2,7 @@
   "name": "@exactly/infra",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "preview": "PULUMI_CONFIG_PASSPHRASE= pulumi preview",
     "up": "PULUMI_CONFIG_PASSPHRASE= pulumi up",
