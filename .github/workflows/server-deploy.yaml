@@ -7,14 +7,40 @@ on:
     secrets:
       DIGITALOCEAN_TOKEN:
       SENTRY_AUTH_TOKEN:
+concurrency:
+  group: server-deploy-${{ inputs.stack }}
+  cancel-in-progress: false
 jobs:
+  infra:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.stack }}
+    permissions: { contents: read, id-token: write }
+    env:
+      PULUMI_CONFIG_PASSPHRASE: ""
+      STACK: ${{ inputs.stack }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - id: account
+        run: echo "email=github-$STACK@$(yq -er '.config."gcp:project"' "infra/Pulumi.$STACK.yaml").iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ steps.account.outputs.email }}
+      - uses: actions/setup-node@v6
+        with: { node-version: 24, check-latest: true, package-manager-cache: false }
+      - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.5.1 }
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - uses: pulumi/actions@v7
+      - run: pulumi login "gs://exa-pulumi-state/$STACK"
+      - run: pulumi stack select "$STACK" --create --cwd infra
+      - run: pulumi up --stack "$STACK" --cwd infra --refresh --yes --config "exa:serverImage=sha-$GITHUB_SHA"
   digitalocean:
     runs-on: ubuntu-latest
     environment: { name: "${{ inputs.stack }}", url: "https://${{ vars.APP_DOMAIN }}" }
     permissions: { contents: read, packages: read }
-    concurrency:
-      group: server-deploy-${{ inputs.stack }}
-      cancel-in-progress: true
     env:
       APP_DOMAIN: ${{ inputs.domain || format('{0}.exactly.app', inputs.stack) }}
       CHAIN_ID: ${{ vars.CHAIN_ID }}

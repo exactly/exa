@@ -6,6 +6,7 @@
   "scripts": {
     "preview": "PULUMI_CONFIG_PASSPHRASE= pulumi preview",
     "up": "PULUMI_CONFIG_PASSPHRASE= pulumi up",
+    "meta": "PULUMI_CONFIG_PASSPHRASE= node meta.ts",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test": "nx test infra"
   },
