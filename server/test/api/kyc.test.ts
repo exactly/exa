@@ -7,6 +7,7 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import canonicalize from "canonicalize";
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
 import { env } from "node:process";
@@ -2327,9 +2328,8 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
           });
 
           it("propagates panda errors with unexpected status to global handler", async () => {
-            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(
-              new ServiceError("Panda", 500, '{"message":"server error"}', undefined, "server error"),
-            );
+            const error = new ServiceError("Panda", 500, '{"message":"server error"}', undefined, "server error");
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(error);
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, account),
             });
@@ -2349,16 +2349,28 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
             await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
 
-            const response = await appClient.application.$post(
+            const server = new Hono().route("/", app);
+            server.onError((caught, c) => {
+              captureException(caught, { level: "error", tags: { unhandled: true } });
+              return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+            });
+            const client = testClient(server);
+            const calls = vi.mocked(captureException).mock.calls.length;
+
+            const response = await client.application.$post(
               { json: { ...applicationPayload, verify } },
               { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
             );
 
             expect(response.status).toBe(500);
+            expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+              [error, { level: "error", tags: { unhandled: true } }],
+            ]);
           });
 
           it("propagates non-panda errors to global handler", async () => {
-            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(new Error("network failure"));
+            const error = new Error("network failure");
+            vi.spyOn(panda, "submitApplication").mockRejectedValueOnce(error);
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, account),
             });
@@ -2378,12 +2390,23 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
             await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
 
-            const response = await appClient.application.$post(
+            const server = new Hono().route("/", app);
+            server.onError((caught, c) => {
+              captureException(caught, { level: "error", tags: { unhandled: true } });
+              return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+            });
+            const client = testClient(server);
+            const calls = vi.mocked(captureException).mock.calls.length;
+
+            const response = await client.application.$post(
               { json: { ...applicationPayload, verify } },
               { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
             );
 
             expect(response.status).toBe(500);
+            expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+              [error, { level: "error", tags: { unhandled: true } }],
+            ]);
           });
         });
       });
@@ -2501,28 +2524,50 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
         it("propagates panda errors with unexpected status to global handler", async () => {
           await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
-          vi.spyOn(panda, "updateApplication").mockRejectedValueOnce(
-            new ServiceError("Panda", 500, '{"message":"server error"}'),
-          );
+          const error = new ServiceError("Panda", 500, '{"message":"server error"}');
+          vi.spyOn(panda, "updateApplication").mockRejectedValueOnce(error);
 
-          const response = await appClient.application.$patch(
+          const server = new Hono().route("/", app);
+          server.onError((caught, c) => {
+            captureException(caught, { level: "error", tags: { unhandled: true } });
+            return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+          });
+          const client = testClient(server);
+          const calls = vi.mocked(captureException).mock.calls.length;
+
+          const response = await client.application.$patch(
             { json: { firstName: "john-updated" } },
             { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
           );
 
           expect(response.status).toBe(500);
+          expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+            [error, { level: "error", tags: { unhandled: true } }],
+          ]);
         });
 
         it("propagates non-panda errors to global handler", async () => {
           await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
-          vi.spyOn(panda, "updateApplication").mockRejectedValueOnce(new Error("network failure"));
+          const error = new Error("network failure");
+          vi.spyOn(panda, "updateApplication").mockRejectedValueOnce(error);
 
-          const response = await appClient.application.$patch(
+          const server = new Hono().route("/", app);
+          server.onError((caught, c) => {
+            captureException(caught, { level: "error", tags: { unhandled: true } });
+            return c.json({ code: "unexpected error", legacy: "unexpected error" }, 500);
+          });
+          const client = testClient(server);
+          const calls = vi.mocked(captureException).mock.calls.length;
+
+          const response = await client.application.$patch(
             { json: { firstName: "john-updated" } },
             { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
           );
 
           expect(response.status).toBe(500);
+          expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
+            [error, { level: "error", tags: { unhandled: true } }],
+          ]);
         });
       });
     });
