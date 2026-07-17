@@ -1,25 +1,23 @@
 import { artifactregistry, cloudrunv2, kms, projects, secretmanager, serviceaccount } from "@pulumi/gcp";
-import { Config, getStack, interpolate } from "@pulumi/pulumi";
+import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
+
+import rejectSecrets from "./utils/rejectSecrets.ts";
 
 const stack = getStack();
+await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: import.meta.dirname }));
 const config = new Config();
 const location = config.get("location") ?? "us-west1";
-const iam = new projects.Service("iam", { service: "iam.googleapis.com" });
 const run = new projects.Service("run", { service: "run.googleapis.com" });
 const cloudKms = new projects.Service("cloudkms", { service: "cloudkms.googleapis.com" });
 const registry = new projects.Service("artifactregistry", { service: "artifactregistry.googleapis.com" });
 const secretManager = new projects.Service("secretmanager", { service: "secretmanager.googleapis.com" });
 
 const keyRing = new kms.KeyRing("signers", { location, name: `${stack}-signers` }, { dependsOn: cloudKms });
-const allow = new serviceaccount.Account("allow-worker", { accountId: `${stack}-allower` }, { dependsOn: iam });
-const credit = new serviceaccount.Account("credit-worker", { accountId: `${stack}-credit` }, { dependsOn: iam });
-const poke = new serviceaccount.Account("poke-worker", { accountId: `${stack}-poke` }, { dependsOn: iam });
-const refund = new serviceaccount.Account("refund-worker", { accountId: `${stack}-refund` }, { dependsOn: iam });
-const subscribe = new serviceaccount.Account(
-  "subscribe-worker",
-  { accountId: `${stack}-subscribe` },
-  { dependsOn: iam },
-);
+const allow = serviceaccount.getAccountOutput({ accountId: `${stack}-allow` });
+const credit = serviceaccount.getAccountOutput({ accountId: `${stack}-credit` });
+const poke = serviceaccount.getAccountOutput({ accountId: `${stack}-poke` });
+const refund = serviceaccount.getAccountOutput({ accountId: `${stack}-refund` });
+const subscribe = serviceaccount.getAccountOutput({ accountId: `${stack}-subscribe` });
 const secrets = (<const S extends readonly string[]>(names: S) =>
   Object.fromEntries(
     names.map((secret) => [

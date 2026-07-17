@@ -8,5 +8,6 @@ jobs:
   deploy:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
-    secrets: inherit
+    secrets:
+      DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
     with: { stack: base-sepolia }
