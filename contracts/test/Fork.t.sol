@@ -61,8 +61,29 @@ abstract contract ForkTest is Test {
   function acct(string memory name) internal returns (address addr) {
     addr = address(uint160(uint256(vm.load(msg.sender, keccak256(abi.encode(name))))));
     if (addr == address(0)) addr = vm.envOr(string.concat(name.upper(), "_ADDRESS"), address(0));
-    if (addr == address(0)) addr = vm.readFile("deploy.json").readChainAddress(string.concat(".accounts.", name));
+    if (addr == address(0)) {
+      uint256 free = mute();
+      addr = vm.readFile("deploy.json").readChainAddress(string.concat(".accounts.", name));
+      unmute(free);
+    }
     _label(addr, name);
+  }
+
+  function mute() internal returns (uint256 free) {
+    vm.pauseGasMetering();
+    // solhint-disable-next-line no-inline-assembly
+    assembly {
+      free := mload(0x40)
+      mstore(add(free, 0x100000), 0)
+    }
+  }
+
+  function unmute(uint256 free) internal {
+    // solhint-disable-next-line no-inline-assembly
+    assembly {
+      mstore(0x40, free)
+    }
+    vm.resumeGasMetering();
   }
 
   function protocol(string memory name) internal returns (address addr) {

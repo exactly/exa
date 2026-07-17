@@ -305,14 +305,23 @@ contract Redeployer is BaseScript {
   }
 
   function _allowlist() internal returns (address[] memory targets) {
+    uint256 free = mute();
     string memory deploy = vm.readFile("deploy.json"); // forge-lint: disable-line(unsafe-cheatcode)
     string memory key = string.concat(".proposalManager.allowlist.", vm.toString(block.chainid));
     string[] memory keys = vm.keyExistsJson(deploy, key) ? vm.parseJsonKeys(deploy, key) : new string[](0);
     targets = new address[](keys.length + 1);
-    targets[0] = acct("swapper");
     for (uint256 i = 0; i < keys.length; ++i) {
       targets[i + 1] = vm.parseAddress(keys[i]);
     }
+    // solhint-disable-next-line no-inline-assembly
+    assembly {
+      let size := add(mul(mload(targets), 0x20), 0x20)
+      mcopy(free, targets, size)
+      targets := free
+      free := add(free, size)
+    }
+    unmute(free);
+    targets[0] = acct("swapper");
   }
 }
 
