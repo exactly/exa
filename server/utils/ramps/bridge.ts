@@ -938,6 +938,32 @@ export async function getCryptoDepositDetails(
   );
 }
 
+export async function createOfframpTransfer(
+  customerId: string,
+  account: string,
+  externalAccountId: string,
+  currency: (typeof SupportedCurrency)[number],
+) {
+  const supportedChain = Supported[chain.id];
+  if (!supportedChain) {
+    captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+    throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+  }
+  const paymentRail = PaymentRailByBridgeCurrency[CurrencyToBridge[currency]];
+  if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
+  return await createTransfer({
+    on_behalf_of: customerId,
+    client_reference_id: account,
+    source: { currency: "usdc", payment_rail: supportedChain },
+    destination: {
+      currency: CurrencyToBridge[currency],
+      payment_rail: paymentRail,
+      external_account_id: externalAccountId,
+    },
+    features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+  });
+}
+
 export async function getOfframpDepositDetails(
   externalAccountId: string,
   account: string,
@@ -959,24 +985,14 @@ export async function getOfframpDepositDetails(
   const paymentRail = PaymentRailByBridgeCurrency[externalAccount.currency];
   if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
   const templates = await getStaticTemplates(customer.id);
-  let transfer = templates.find(
+  const transfer = templates.find(
     ({ destination, source, state }) =>
       destination.external_account_id === externalAccountId &&
       source.payment_rail === supportedChain &&
       source.currency === "usdc" &&
       state !== "canceled",
   );
-  transfer ??= await createTransfer({
-    on_behalf_of: customer.id,
-    client_reference_id: account,
-    source: { currency: "usdc", payment_rail: supportedChain },
-    destination: {
-      currency: externalAccount.currency,
-      payment_rail: paymentRail,
-      external_account_id: externalAccountId,
-    },
-    features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-  });
+  if (!transfer) throw new Error(ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND);
 
   return [
     {
@@ -2208,20 +2224,21 @@ export const ErrorCodes = {
   INVALID_ADDRESS: "invalid address",
   INVALID_BANK_NAME: "invalid bank name",
   INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
-  NOT_ACTIVE_CUSTOMER: "not active customer",
+  MISSING_STELLAR_MEMO: "missing stellar memo",
+  NO_COUNTRY_ALPHA3: "no country alpha3",
+  NO_DOCUMENT: "no document",
+  NO_DOCUMENT_FILE: "no document file",
   NO_ENDORSEMENT: "no endorsement",
+  NO_PERSONA_ACCOUNT: "no persona account",
+  NO_SOCIAL_SECURITY_NUMBER: "no social security number",
+  NOT_ACTIVE_CUSTOMER: "not active customer",
   NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL: "not available crypto payment rail",
   NOT_AVAILABLE_CURRENCY: "not available currency",
-  MISSING_STELLAR_MEMO: "missing stellar memo",
   NOT_AVAILABLE_EVM_NETWORK: "not available evm network",
   NOT_ENABLED: "not enabled",
   NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
-  NO_COUNTRY_ALPHA3: "no country alpha3",
-  NO_DOCUMENT: "no document",
-  NO_DOCUMENT_FILE: "no document file",
-  NO_PERSONA_ACCOUNT: "no persona account",
-  NO_SOCIAL_SECURITY_NUMBER: "no social security number",
+  OFFRAMP_TRANSFER_NOT_FOUND: "offramp transfer not found",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_IN_USE: "transfer in use",
 };

@@ -44,6 +44,7 @@ const ErrorCodes = {
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
   POSTAL_CODE_REQUIRED: "postal code required",
+  TRANSFER_NOT_FOUND: "transfer not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
 };
 
@@ -259,6 +260,9 @@ export default new Hono()
               if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH) {
                 return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH }, 400);
               }
+              if (error instanceof Error && error.message === bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND) {
+                return c.json({ code: ErrorCodes.TRANSFER_NOT_FOUND }, 400);
+              }
               if (error instanceof Error && error.message === bridge.ErrorCodes.TRANSFER_IN_USE) {
                 return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
               }
@@ -379,7 +383,14 @@ export default new Hono()
     if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
 
     try {
-      return c.json(await bridge.createExternalAccount(bridgeUser, c.req.valid("json")), 200);
+      const externalAccount = await bridge.createExternalAccount(bridgeUser, c.req.valid("json"));
+      await bridge.createOfframpTransfer(
+        bridgeUser.id,
+        credential.account,
+        externalAccount.id,
+        externalAccount.currency,
+      );
+      return c.json(externalAccount, 200);
     } catch (error) {
       if (error instanceof Error && error.message === bridge.ErrorCodes.NO_ENDORSEMENT) {
         return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
