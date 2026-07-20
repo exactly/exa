@@ -81,6 +81,7 @@ const BENEFITS = [
     Background: () => <RasterBackground source={PaxImage} />,
     buttonText: "Go to Pax Assistance",
     url: "https://www.paxassistance.com/exacard",
+    external: true,
   },
   {
     id: "visa",

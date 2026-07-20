@@ -73,8 +73,9 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               minHeight={64}
               padding="$s4"
               onPress={() => {
-                if (!benefit.url) return;
-                openBrowser(benefit.url.replace("{language}", language.split("-")[0] ?? "en")).catch(reportError);
+                const { url, external } = benefit;
+                if (!url) return;
+                openBrowser(url.replace("{language}", language.split("-")[0] ?? "en"), { external }).catch(reportError);
               }}
             >
               <Button.Text emphasized subHeadline color="$interactiveOnBaseBrandDefault">
