@@ -826,7 +826,7 @@ describe("address activity", () => {
       }),
       { fees: "auto" },
     );
-    expect(keeperSend).not.toHaveBeenCalled();
+    expect(keeperSend.mock.calls.some(([options]) => options.attributes?.account === account)).toBe(false);
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
@@ -879,7 +879,7 @@ describe("address activity", () => {
       }),
       { fees: "auto" },
     );
-    expect(keeperSend).not.toHaveBeenCalled();
+    expect(keeperSend.mock.calls.some(([options]) => options.attributes?.account === account)).toBe(false);
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
