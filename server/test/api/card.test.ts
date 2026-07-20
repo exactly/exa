@@ -252,6 +252,35 @@ describe("authenticated", () => {
     expect(processorDetails).toHaveBeenCalledExactlyOnceWith("543c1771-beae-4f26-b662-44ea48b40dc6");
   });
 
+  it("returns panda card provisioning without encrypted card data", async () => {
+    const getSecrets = vi.spyOn(panda, "getSecrets").mockRejectedValue(new Error("unexpected secrets request"));
+    const getPIN = vi.spyOn(panda, "getPIN").mockRejectedValue(new Error("unexpected PIN request"));
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    const processorDetails = vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-default",
+      timeBasedSecret: "secret-default",
+    });
+
+    const response = await appClient.index.$get(
+      { header: {}, query: { scope: "provisioning" } },
+      { headers: { "test-credential-id": "default" } },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json).toMatchObject({
+      cardId: "543c1771-beae-4f26-b662-44ea48b40dc6",
+      provisioning: { id: "proc-default", secret: "secret-default" },
+    });
+    expect(json).not.toHaveProperty("encryptedPan");
+    expect(json).not.toHaveProperty("encryptedCvc");
+    expect(json).not.toHaveProperty("pin");
+    expect(getSecrets).not.toHaveBeenCalled();
+    expect(getPIN).not.toHaveBeenCalled();
+    expect(processorDetails).toHaveBeenCalledExactlyOnceWith("543c1771-beae-4f26-b662-44ea48b40dc6");
+  });
+
   it("returns panda card with signature product id", async () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
     vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
