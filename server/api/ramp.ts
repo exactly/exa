@@ -382,13 +382,16 @@ export default new Hono()
     if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
     if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
 
+    const payload = c.req.valid("json");
     try {
-      const externalAccount = await bridge.createExternalAccount(bridgeUser, c.req.valid("json"));
+      const externalAccount = await bridge.createExternalAccount(bridgeUser, payload);
       await bridge.createOfframpTransfer(
         bridgeUser.id,
         credential.account,
         externalAccount.id,
         externalAccount.currency,
+        payload.currency === "USD" ? payload.rail : undefined,
+        payload.reference,
       );
       return c.json(externalAccount, 200);
     } catch (error) {
@@ -588,6 +591,7 @@ const RampResponse = object({
         address: Address,
         fee: string(),
         estimatedProcessingTime: string(),
+        reference: optional(string()),
       }),
       object({
         network: literal("TRON"),

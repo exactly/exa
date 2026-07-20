@@ -942,14 +942,16 @@ export async function createOfframpTransfer(
   customerId: string,
   account: string,
   externalAccountId: string,
-  currency: (typeof SupportedCurrency)[number],
+  currency: (typeof FiatCurrency)[number],
+  rail?: "ach" | "wire",
+  reference?: string,
 ) {
   const supportedChain = Supported[chain.id];
   if (!supportedChain) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
-  const paymentRail = PaymentRailByBridgeCurrency[CurrencyToBridge[currency]];
+  const paymentRail = rail ?? PaymentRailByBridgeCurrency[CurrencyToBridge[currency]];
   if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
   return await createTransfer({
     on_behalf_of: customerId,
@@ -959,6 +961,11 @@ export async function createOfframpTransfer(
       currency: CurrencyToBridge[currency],
       payment_rail: paymentRail,
       external_account_id: externalAccountId,
+      ach_reference: paymentRail === "ach" ? reference : undefined,
+      wire_message: paymentRail === "wire" ? reference : undefined,
+      sepa_reference: paymentRail === "sepa" ? reference : undefined,
+      spei_reference: paymentRail === "spei" ? reference : undefined,
+      reference: paymentRail === "pix" || paymentRail === "faster_payments" ? reference : undefined,
     },
     features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
   });
@@ -1001,6 +1008,13 @@ export async function getOfframpDepositDetails(
       address: parse(Address, transfer.source_deposit_instructions.to_address),
       fee: "0.0",
       estimatedProcessingTime: "300",
+      reference:
+        transfer.destination.ach_reference ??
+        transfer.destination.wire_message ??
+        transfer.destination.sepa_reference ??
+        transfer.destination.spei_reference ??
+        transfer.destination.reference ??
+        undefined,
     },
   ];
 }
@@ -1582,6 +1596,13 @@ const BankName = pipe(string(), minLength(1), maxLength(256));
 const RoutingNumber = pipe(string(), regex(/^\d{9}$/, "9 digits"));
 const DocumentNumber = pipe(string(), regex(/^\d+$/, "digits only"));
 const CountryCode = pipe(string(), length(3, "3-letter iso 3166-1 code"));
+const SepaReference = pipe(
+  string(),
+  minLength(6, "6-140 characters"),
+  maxLength(140, "6-140 characters"),
+  regex(/^[\dA-Z &./-]+$/i, "letters, digits, spaces and & - . /"),
+);
+const FasterPaymentsReference = pipe(string(), minLength(1), maxLength(18, "1-18 characters"));
 
 const AddressInput = object({
   streetLine1: pipe(string(), minLength(4), maxLength(35)),
@@ -1592,18 +1613,45 @@ const AddressInput = object({
   country: CountryCode,
 });
 
+const UsdAccount = object({
+  currency: literal("USD"),
+  accountOwnerName: AccountOwnerName,
+  accountNumber: pipe(string(), minLength(1)),
+  routingNumber: RoutingNumber,
+  checkingOrSavings: optional(picklist(["checking", "savings"])),
+  bankName: optional(BankName),
+  address: object({
+    ...AddressInput.entries,
+    state: pipe(string(), minLength(1), maxLength(3, "1-3 character iso 3166-2 code")),
+  }),
+});
+
 export const ExternalAccountInput = variant("currency", [
   object({
-    currency: literal("USD"),
-    accountOwnerName: AccountOwnerName,
-    accountNumber: pipe(string(), minLength(1)),
-    routingNumber: RoutingNumber,
-    checkingOrSavings: optional(picklist(["checking", "savings"])),
-    bankName: optional(BankName),
-    address: object({
-      ...AddressInput.entries,
-      state: pipe(string(), minLength(1), maxLength(3, "1-3 character iso 3166-2 code")),
-    }),
+    ...UsdAccount.entries,
+    rail: literal("wire"),
+    reference: optional(
+      pipe(
+        string(),
+        minLength(1),
+        check(
+          (value) => value.split("\n").every((line, index) => index < 4 && line.length <= 35),
+          "up to 4 lines of 35 characters",
+        ),
+      ),
+    ),
+  }),
+  object({
+    ...UsdAccount.entries,
+    rail: optional(literal("ach")),
+    reference: optional(
+      pipe(
+        string(),
+        minLength(1),
+        maxLength(10, "1-10 characters"),
+        regex(/^[\dA-Z ]+$/i, "letters, digits and spaces"),
+      ),
+    ),
   }),
   object({
     currency: literal("EUR"),
@@ -1616,6 +1664,7 @@ export const ExternalAccountInput = variant("currency", [
     bic: optional(pipe(string(), minLength(1))),
     country: CountryCode,
     bankName: optional(BankName),
+    reference: optional(SepaReference),
   }),
   object({
     currency: literal("EUR"),
@@ -1627,6 +1676,7 @@ export const ExternalAccountInput = variant("currency", [
     bic: optional(pipe(string(), minLength(1))),
     country: CountryCode,
     bankName: optional(BankName),
+    reference: optional(SepaReference),
   }),
   object({
     currency: literal("MXN"),
@@ -1634,6 +1684,14 @@ export const ExternalAccountInput = variant("currency", [
     accountOwnerName: AccountOwnerName,
     clabe: pipe(string(), regex(/^\d{18}$/, "18 digits")),
     bankName: optional(BankName),
+    reference: optional(
+      pipe(
+        string(),
+        minLength(1),
+        maxLength(40, "1-40 characters"),
+        regex(/^[\dA-Z ]+$/i, "letters, digits and spaces"),
+      ),
+    ),
   }),
   object({
     currency: literal("BRL"),
@@ -1644,6 +1702,7 @@ export const ExternalAccountInput = variant("currency", [
       object({ brCode: pipe(string(), minLength(1)), documentNumber: optional(DocumentNumber) }),
     ]),
     bankName: optional(BankName),
+    reference: optional(pipe(string(), minLength(1), maxLength(100, "1-100 characters"))),
   }),
   object({
     currency: literal("GBP"),
@@ -1655,6 +1714,7 @@ export const ExternalAccountInput = variant("currency", [
     accountNumber: pipe(string(), regex(/^\d{8}$/, "8 digits")),
     sortCode: pipe(string(), regex(/^\d{6}$/, "6 digits, no hyphens")),
     bankName: optional(BankName),
+    reference: optional(FasterPaymentsReference),
   }),
   object({
     currency: literal("GBP"),
@@ -1665,6 +1725,7 @@ export const ExternalAccountInput = variant("currency", [
     accountNumber: pipe(string(), regex(/^\d{8}$/, "8 digits")),
     sortCode: pipe(string(), regex(/^\d{6}$/, "6 digits, no hyphens")),
     bankName: optional(BankName),
+    reference: optional(FasterPaymentsReference),
   }),
   object({
     currency: literal("GBP"),
@@ -1673,6 +1734,7 @@ export const ExternalAccountInput = variant("currency", [
     accountNumber: pipe(string(), regex(/^\d{8}$/, "8 digits")),
     sortCode: pipe(string(), regex(/^\d{6}$/, "6 digits, no hyphens")),
     bankName: optional(BankName),
+    reference: optional(FasterPaymentsReference),
   }),
 ]);
 
@@ -1988,6 +2050,7 @@ const CreateTransfer = object({
     swift_reference: optional(string()),
     spei_reference: optional(string()),
     ach_reference: optional(string()),
+    reference: optional(string()),
     blockchain_memo: optional(string()),
     swift_charges: optional(picklist(["ben", "our", "sha"])),
   }),
@@ -2008,11 +2071,16 @@ const Transfer = object({
     from_address: nullish(string()),
   }),
   destination: object({
+    ach_reference: nullish(string()),
     blockchain_memo: nullish(string()),
     currency: picklist(TransferCurrency),
     external_account_id: nullish(string()),
     payment_rail: picklist(TransferPaymentRail),
+    reference: nullish(string()),
+    sepa_reference: nullish(string()),
+    spei_reference: nullish(string()),
     to_address: nullish(string()),
+    wire_message: nullish(string()),
   }),
   source_deposit_instructions: object({
     payment_rail: picklist(TransferPaymentRail),
