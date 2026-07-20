@@ -8,7 +8,10 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - runFlow: { file: scrollTo.yaml, env: { element: Accept and enable card } }
       - tapOn: Accept and enable card
-- assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
+- runFlow:
+    when: { platform: web }
+    commands:
+      - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
 - tapOn: Close
 - tapOn: Freeze card
 - tapOn: { text: Freeze card, below: "Freeze your card?" }
