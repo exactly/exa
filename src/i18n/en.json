@@ -5,6 +5,8 @@
   "{{count}} installments_other": "{{count}} installments",
   "{{count}} step remaining_one": "{{count}} step remaining",
   "{{count}} step remaining_other": "{{count}} steps remaining",
+  "Add to Google Wallet": "Add to Google Wallet",
+  "Added to Google Wallet": "Added to Google Wallet",
   "Available for {{count}} installments or less_one": "Available for {{count}} installment",
   "Available for {{count}} installments or less_other": "Available for {{count}} installments or less",
   "in {{count}} payments_one": "in {{count}} payment",

@@ -16,6 +16,7 @@ import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, isServer, triage, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
+import { saveToken } from "./walletExtensionStorage";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 
@@ -55,7 +56,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
     );
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-    const { expires, intercomToken, credentialId, factory, x, y } = await post.json();
+    const { expires, intercomToken, credentialId, factory, x, y, walletExtension } = await post.json();
+    if (walletExtension) await saveToken(walletExtension.token, walletExtension.expire).catch(reportError);
     queryClient.setQueryData(["credential"], { credentialId, factory, x, y });
     await logoutIntercom();
     await loginIntercom(deriveAddress(factory, { x, y }), intercomToken);
@@ -100,6 +102,21 @@ async function getCard() {
 }
 queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
 export type CardDetails = Awaited<ReturnType<typeof getCard>>;
+
+queryClient.setQueryDefaults(["card", "provisioning"], {
+  gcTime: 0,
+  queryFn: async () => {
+    await auth();
+    const response = await api.card.$get({ header: {}, query: { scope: "provisioning" } });
+    if (!response.ok) {
+      const { code } = await response.json();
+      throw new APIError(response.status, code);
+    }
+    const card = await parseResponse(response);
+    if (!card.provisioning) throw new Error("bad card provisioning response");
+    return { cardId: card.provisioning.id, cardSecret: card.provisioning.secret };
+  },
+});
 
 async function getPIN() {
   const result = await getCard();
@@ -246,7 +263,8 @@ export async function createCredential() {
     sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
   );
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
-  const { auth: expires, intercomToken, ...credential } = await post.json();
+  const { auth: expires, intercomToken, walletExtension, ...credential } = await post.json();
+  if (walletExtension) await saveToken(walletExtension.token, walletExtension.expire).catch(reportError);
   await loginIntercom(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), intercomToken);
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
   return parse(Credential, credential);
