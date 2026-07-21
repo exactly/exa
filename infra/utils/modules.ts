@@ -2,6 +2,7 @@ export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
+    credit: { secrets: ["onesignal-api-key", "postgres-url"] },
     refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
     subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },
   },

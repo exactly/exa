@@ -13,7 +13,7 @@ import {
   withScope,
 } from "@sentry/node";
 import createDebug from "debug";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { Redis } from "ioredis";
@@ -34,19 +34,20 @@ import exaChain, {
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import * as schema from "../database/schema";
-import { cards, credentials } from "../database/schema";
+import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { setWebhookId } from "../utils/activityWebhook";
 import createAlchemy, { headerValidator, NETWORKS } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
 import createOnesignal from "../utils/onesignal";
-import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import createSegment from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 import createWallet from "../utils/wallet";
+import createCredit from "../workers/credit/queue";
+import { connect } from "../workers/worker";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -72,6 +73,8 @@ export default function hook({
   segmentKey: string;
 }) {
   const database = drizzle(postgresUrl, { schema });
+  const bullmq = connect(redisUrl);
+  const credit = createCredit(bullmq);
   const onesignal = createOnesignal(onesignalKey);
   const redis = new Redis(redisUrl);
   const segment = createSegment(segmentKey);
@@ -267,7 +270,10 @@ export default function hook({
                       ),
                   );
                   for (const result of results) {
-                    if (result.status === "fulfilled") continue;
+                    if (result.status === "fulfilled") {
+                      await credit.enqueue(account);
+                      continue;
+                    }
                     if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
                       withScope((captureScope) => {
                         captureScope.setUser({ id: account });
@@ -285,35 +291,6 @@ export default function hook({
                     span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                     throw result.reason;
                   }
-                  autoCredit(account)
-                    .then(async (auto) => {
-                      span.setAttribute("exa.autoCredit", auto);
-                      if (!auto) return;
-                      const credential = await database.query.credentials.findFirst({
-                        where: eq(credentials.account, account),
-                        columns: {},
-                        with: {
-                          cards: {
-                            columns: { id: true, mode: true },
-                            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
-                          },
-                        },
-                      });
-                      const card = credential?.cards[0];
-                      if (!card) return;
-                      span.setAttribute("exa.card", card.id);
-                      if (card.mode !== 0) return;
-                      await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
-                      span.setAttribute("exa.mode", 1);
-                      onesignal
-                        .sendPushNotification({
-                          userId: account,
-                          headings: t("Card mode changed"),
-                          contents: t("Credit mode activated"),
-                        })
-                        .catch((error: unknown) => captureException(error));
-                    })
-                    .catch((error: unknown) => captureException(error));
                   span.setStatus({ code: SPAN_STATUS_OK });
                 },
               ),
@@ -342,7 +319,13 @@ export default function hook({
   let closing: Promise<unknown> | undefined;
   return {
     app,
-    close: () => (closing ??= Promise.all([database.$client.end(), redis.quit(), segment.close()])),
+    close: () =>
+      (closing ??= Promise.all([
+        credit.close().finally(() => bullmq.quit()),
+        database.$client.end(),
+        redis.quit(),
+        segment.close(),
+      ])),
     ready: alchemy
       .findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVITY" && webhook_url === url)
       .then(async (currentHook) => {
