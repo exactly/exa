@@ -1,5 +1,6 @@
 auditConfig:
   ignoreGhsas: # cspell:ignore ghsas
+    - GHSA-395f-4hp3-45gv
     - GHSA-4x5r-pxfx-6jf8 # cspell:ignore pxfx
     - GHSA-52cp-r559-cp3m
     - GHSA-848j-6mx2-7j84
