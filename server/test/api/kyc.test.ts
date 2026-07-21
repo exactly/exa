@@ -33,7 +33,10 @@ vi.mock("@sentry/node", { spy: true });
 
 describe("authenticated", () => {
   beforeEach(async () => {
-    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+    await database
+      .update(credentials)
+      .set({ pandaId: null, pandaCompanyId: null, salt: zeroAddress })
+      .where(eq(credentials.id, "bob"));
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -1851,6 +1854,102 @@ describe("authenticated", () => {
           );
           expect(JSON.parse(body as string)).toStrictEqual(applicationPayload);
           await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+        });
+
+        it("submits a business application through the shared endpoint", async () => {
+          const address = {
+            line1: "1 Main St",
+            city: "New York",
+            region: "NY",
+            postalCode: "10001",
+            countryCode: "US",
+          };
+          const businessPayload = {
+            initialUser: {
+              firstName: "Jane",
+              lastName: "Doe",
+              birthDate: "1990-01-01",
+              nationalId: "123456789",
+              countryOfIssue: "US",
+              email: "jane@example.com",
+              address,
+              ipAddress: "127.0.0.1",
+              isTermsOfServiceAccepted: true,
+              walletAddress: zeroAddress,
+            },
+            name: "Acme",
+            address,
+            entity: {
+              name: "Acme Inc",
+              description: "Software",
+              industry: "541511",
+              registrationNumber: "123",
+              taxId: "456",
+              type: "corporation",
+              expectedSpend: "1000",
+            },
+            representatives: [],
+            ultimateBeneficialOwners: [],
+          } satisfies v.InferInput<typeof panda.CreateCompanyApplicationRequest>;
+          const application = {
+            id: "company-id",
+            name: "Acme",
+            address,
+            applicationStatus: "pending",
+          } satisfies v.InferOutput<typeof panda.CompanyApplicationResponse>;
+
+          await database
+            .update(credentials)
+            .set({ pandaCompanyId: null, pandaId: null, salt: padHex("0x42", { size: 20 }) })
+            .where(eq(credentials.id, account));
+          const createCompanyApplication = vi
+            .spyOn(panda, "createCompanyApplication")
+            .mockResolvedValueOnce(application);
+          const createCompanyUser = vi.spyOn(panda, "createCompanyUser").mockResolvedValue({
+            id: "company-user-id",
+            firstName: "Jane",
+            lastName: "Doe",
+            email: "jane@example.com",
+            isActive: true,
+            applicationStatus: "pending",
+            companyId: "company-id",
+          });
+
+          const response = await appClient.application.$post(
+            { query: { type: "business" }, json: businessPayload },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, account) });
+          expect(response.status).toBe(200);
+          expect(credential?.pandaCompanyId).toBe("company-id");
+          expect(credential?.pandaId).toBe("company-user-id");
+          await expect(response.json()).resolves.toStrictEqual(application);
+
+          await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+          vi.spyOn(panda, "getCompanyApplicationStatus").mockResolvedValueOnce({
+            id: "company-id",
+            applicationStatus: "pending",
+          });
+
+          const retry = await appClient.application.$post(
+            { query: { type: "business" }, json: businessPayload },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(retry.status).toBe(200);
+          expect(createCompanyApplication).toHaveBeenCalledOnce();
+          expect(createCompanyUser).toHaveBeenCalledTimes(2);
+          await expect(retry.json()).resolves.toStrictEqual({ id: "company-id", applicationStatus: "pending" });
+
+          const alreadyStarted = await appClient.application.$post(
+            { query: { type: "business" }, json: businessPayload },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(alreadyStarted.status).toBe(409);
+          expect(createCompanyApplication).toHaveBeenCalledOnce();
+          expect(createCompanyUser).toHaveBeenCalledTimes(2);
         });
 
         it("accepts postal codes with hyphens and spaces", async () => {

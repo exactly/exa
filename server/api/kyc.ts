@@ -19,11 +19,19 @@ import { Address, Hex } from "@exactly/common/validation";
 
 import database, { credentials, walletAddresses } from "../database/index";
 import auth from "../middleware/auth";
+import { isBusinessSalt } from "../utils/credentialContext";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
   Application,
   UpdateApplicationRequest as ApplicationUpdate,
+  CompanyApplicationResponse,
+  createCompanyApplication,
+  CreateCompanyApplicationRequest,
+  createCompanyUser,
+  createMutex,
   getApplicationStatus,
+  getCompanyApplicationStatus,
+  getMutex,
   submitApplication,
   updateApplication,
 } from "../utils/panda";
@@ -410,7 +418,14 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           description: "KYC application submitted successfully",
           content: {
             "application/json": {
-              schema: resolver(object({ status: string() }), { errorMode: "ignore" }),
+              schema: resolver(
+                union([
+                  object({ status: string() }),
+                  object({ id: string(), applicationStatus: string() }),
+                  CompanyApplicationResponse,
+                ]),
+                { errorMode: "ignore" },
+              ),
             },
           },
         },
@@ -477,6 +492,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       },
       validateResponse: true,
     }),
+    vValidator("query", optional(object({ type: optional(literal("business")) })), validatorHook({ debug })),
     vValidator(
       "json",
       union([
@@ -491,11 +507,57 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           tag: string(),
           verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
         }),
+        CreateCompanyApplicationRequest,
       ]),
       validatorHook({ debug }),
     ),
     async (c) => {
       const payload = c.req.valid("json");
+      if (c.req.valid("query")?.type === "business") {
+        if ("verify" in payload) {
+          return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
+        }
+
+        const { credentialId } = c.req.valid("cookie");
+        const accountCredential = await database.query.credentials.findFirst({
+          columns: { account: true },
+          where: eq(credentials.id, credentialId),
+        });
+        if (!accountCredential) return c.json({ code: "no credential" }, 500);
+        const account = parse(Address, accountCredential.account);
+        const mutex = getMutex(account) ?? createMutex(account);
+        return mutex.runExclusive(async () => {
+          const credential = await database.query.credentials.findFirst({
+            columns: { account: true, pandaCompanyId: true, pandaId: true, salt: true },
+            where: eq(credentials.id, credentialId),
+          });
+          if (!credential) return c.json({ code: "no credential" }, 500);
+          if (!isBusinessSalt(parse(Address, credential.salt))) return c.json({ code: "not business" }, 403);
+
+          const application = credential.pandaCompanyId ? undefined : await createCompanyApplication(payload);
+          const companyId = credential.pandaCompanyId ?? application?.id;
+          if (!companyId) throw new Error("missing company id");
+          if (application)
+            await database
+              .update(credentials)
+              .set({ pandaCompanyId: application.id })
+              .where(eq(credentials.id, credentialId));
+          if (credential.pandaCompanyId && credential.pandaId)
+            return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+          if (!credential.pandaId) {
+            const { id } = await createCompanyUser(companyId, payload.initialUser);
+            await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, credentialId));
+          }
+          setUser({ id: account });
+          if (application) return c.json(application, 200);
+          const { applicationStatus } = await getCompanyApplicationStatus(companyId);
+          return c.json({ id: companyId, applicationStatus }, 200);
+        });
+      }
+      if (!("verify" in payload)) {
+        return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
+      }
+
       const { message, signature, walletAddress: address } = payload.verify;
 
       if (!(await verifyMessage({ address, message, signature }))) {
