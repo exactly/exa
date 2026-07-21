@@ -46,6 +46,7 @@ import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredential from "../../utils/createCredential";
+import { credentialSalt } from "../../utils/credentialContext";
 import decodePublicKey from "../../utils/decodePublicKey";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
@@ -359,7 +360,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
           }
           if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-          const result = await createCredential(c, assertion.id, { factory, source: c.req.header("Client-Fid") });
+          const result = await createCredential(c, assertion.id, {
+            factory,
+            salt: credentialSalt(c.req.header("Client-Fid")),
+            source: c.req.header("Client-Fid"),
+          });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
           const intercomToken = await getIntercomToken(account, result.auth);
           return c.json(

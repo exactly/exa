@@ -26,6 +26,7 @@ import {
   string,
   transform,
   union,
+  unknown,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
@@ -64,12 +65,19 @@ const key = process.env.PANDA_API_KEY;
 
 export default key;
 
-export async function createCard(
+function requireSubtenant() {
+  if (!process.env.PANDA_SUBTENANT_ID) throw new Error("missing panda subtenant id");
+  return process.env.PANDA_SUBTENANT_ID;
+}
+
+export function createCard(
   userId: string,
   productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
   amount = 1_000_000,
+  subtenantId?: string,
+  virtualCardArt?: null | string,
 ) {
-  return await request(
+  return request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
     {},
@@ -79,17 +87,24 @@ export async function createCard(
       limit: { amount, frequency: "per7DayPeriod" },
       configuration: {
         productId,
-        virtualCardArt:
-          chain.id === baseSepolia.id || chain.id === optimismSepolia.id
-            ? "0c515d7eb0a140fa8f938f8242b0780a"
-            : {
-                [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-                [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-                [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-              }[productId],
+        ...(virtualCardArt === null
+          ? {}
+          : {
+              virtualCardArt:
+                virtualCardArt ??
+                (chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+                  ? "0c515d7eb0a140fa8f938f8242b0780a"
+                  : {
+                      [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                      [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                      [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                    }[productId]),
+            }),
       },
     }),
     "POST",
+    10_000,
+    subtenantId,
   );
 }
 
@@ -103,6 +118,77 @@ export async function createUser(user: {
   personaShareToken: string;
 }) {
   return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
+}
+
+export function createCompanyApplication(
+  application: InferInput<typeof CreateCompanyApplicationRequest>,
+  subtenantId = requireSubtenant(),
+) {
+  return request(
+    CompanyApplicationResponse,
+    "/issuing/applications/company",
+    {},
+    parse(CreateCompanyApplicationRequest, application),
+    "POST",
+    10_000,
+    subtenantId,
+  );
+}
+
+export function createCompanyUser(companyId: string, user: unknown, subtenantId = requireSubtenant()) {
+  return request(
+    object({
+      id: string(),
+      firstName: string(),
+      lastName: string(),
+      email: string(),
+      isActive: boolean(),
+      applicationStatus: picklist(kycStatus),
+      companyId: optional(string()),
+      externalId: optional(string()),
+      applicationReason: optional(string()),
+      applicationCompletionLink: optional(ApplicationLink),
+      applicationExternalVerificationLink: optional(ApplicationLink),
+    }),
+    `/issuing/companies/${companyId}/users`,
+    {},
+    parse(
+      object({
+        firstName: pipe(string(), maxLength(50)),
+        lastName: pipe(string(), maxLength(50)),
+        email: pipe(string(), email()),
+        birthDate: optional(pipe(string(), regex(/^\d{4}-\d{2}-\d{2}$/))),
+        walletAddress: optional(pipe(string(), regex(/^0x[0-9a-fA-F]{40}$/))),
+        solanaAddress: optional(pipe(string(), regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/))),
+        address: optional(AddressSchema),
+        phoneCountryCode: optional(pipe(string(), minLength(1), maxLength(3), regex(/^\d+$/))),
+        phoneNumber: optional(pipe(string(), minLength(1), maxLength(15), regex(/^\d{1,15}$/))),
+        externalId: optional(pipe(string(), minLength(1), maxLength(255))),
+      }),
+      user,
+    ),
+    "POST",
+    10_000,
+    subtenantId,
+  );
+}
+
+export function getCompanyApplicationStatus(companyId: string, subtenantId = requireSubtenant()) {
+  return request(
+    object({
+      id: string(),
+      applicationStatus: picklist(kycStatus),
+      applicationReason: optional(string()),
+      applicationCompletionLink: optional(ApplicationLink),
+      applicationExternalVerificationLink: optional(ApplicationLink),
+    }),
+    `/issuing/applications/company/${companyId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    subtenantId,
+  );
 }
 
 export async function updateUser(user: {
@@ -134,8 +220,8 @@ export async function getCard(cardId: string) {
   return await request(CardResponse, `/issuing/cards/${cardId}`);
 }
 
-export async function getCards(userId: string) {
-  return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`);
+export function getCards(userId: string, subtenantId?: string) {
+  return request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`, {}, undefined, "GET", 10_000, subtenantId);
 }
 
 export function getProcessorDetails(cardId: string) {
@@ -227,12 +313,14 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  subtenantId?: string,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
     method,
     headers: {
       ...headers,
       "Api-Key": key,
+      ...(subtenantId && { "Sub-Tenant-Id": subtenantId }),
       accept: "application/json",
       "content-type": "application/json",
     },
@@ -296,7 +384,7 @@ const CreateCardRequest = object({
   }),
   configuration: object({
     productId: picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    virtualCardArt: string(),
+    virtualCardArt: optional(string()),
   }),
 });
 
@@ -517,6 +605,53 @@ const AddressSchema = object({
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
 });
 
+const CorporatePerson = object({
+  firstName: pipe(string(), maxLength(50)),
+  lastName: pipe(string(), maxLength(50)),
+  birthDate: pipe(
+    string(),
+    regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD format"),
+    check((value) => !Number.isNaN(new Date(value).getTime()), "must be a valid date"),
+  ),
+  nationalId: pipe(string(), maxLength(50)),
+  countryOfIssue: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+  email: pipe(string(), email()),
+  address: AddressSchema,
+  id: optional(string()),
+  phoneCountryCode: optional(pipe(string(), minLength(1), maxLength(3), regex(/^\d+$/))),
+  phoneNumber: optional(pipe(string(), minLength(1), maxLength(15), regex(/^\d{1,15}$/))),
+});
+
+export const CreateCompanyApplicationRequest = object({
+  initialUser: object({
+    ...CorporatePerson.entries,
+    ipAddress: union([pipe(string(), maxLength(50), ipv4()), pipe(string(), maxLength(50), ipv6())]),
+    isTermsOfServiceAccepted: pipe(boolean(), literal(true)),
+    role: optional(pipe(string(), maxLength(50))),
+    walletAddress: pipe(string(), regex(/^0x[0-9a-fA-F]{40}$/)),
+    solanaAddress: optional(pipe(string(), regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/))),
+    stellarAddress: optional(pipe(string(), maxLength(255))),
+  }),
+  name: pipe(string(), minLength(1), maxLength(100)),
+  address: AddressSchema,
+  entity: object({
+    name: pipe(string(), minLength(1), maxLength(100)),
+    description: pipe(string(), minLength(1), maxLength(500)),
+    industry: pipe(string(), regex(/^\d{6}$/)),
+    registrationNumber: pipe(string(), minLength(1), maxLength(100)),
+    taxId: pipe(string(), minLength(1), maxLength(100)),
+    website: optional(pipe(string(), minLength(1), maxLength(255))),
+    type: pipe(string(), minLength(1), maxLength(100)),
+    expectedSpend: pipe(string(), minLength(1), maxLength(100)),
+  }),
+  representatives: array(CorporatePerson),
+  ultimateBeneficialOwners: array(CorporatePerson),
+  chainId: optional(pipe(string(), minLength(1), maxLength(50))),
+  contractAddress: optional(pipe(string(), regex(/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/))),
+  sourceKey: optional(pipe(string(), minLength(1), maxLength(24))),
+  externalId: optional(pipe(string(), minLength(1), maxLength(255))),
+});
+
 export const Application = object({
   email: pipe(
     string(),
@@ -597,6 +732,30 @@ export const kycStatus = [
   "denied",
   "locked",
 ] as const;
+
+const ApplicationLink = object({ url: string(), params: unknown() });
+
+export const CompanyApplicationResponse = object({
+  id: string(),
+  name: string(),
+  address: AddressSchema,
+  applicationStatus: picklist(kycStatus),
+  ultimateBeneficialOwners: optional(
+    array(
+      object({
+        id: string(),
+        applicationReason: optional(string()),
+        applicationCompletionLink: optional(ApplicationLink),
+        applicationExternalVerificationLink: optional(ApplicationLink),
+      }),
+    ),
+  ),
+  externalId: optional(string()),
+  sourceKey: optional(string()),
+  applicationReason: optional(string()),
+  applicationCompletionLink: optional(ApplicationLink),
+  applicationExternalVerificationLink: optional(ApplicationLink),
+});
 
 const ApplicationStatusResponse = object({
   id: string(),

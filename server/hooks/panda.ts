@@ -50,17 +50,22 @@ import {
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import revertReason from "@exactly/common/revertReason";
 import { Address, Hex, type Hash } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
 import t, { f } from "../i18n";
+import { isBusinessSalt } from "../utils/credentialContext";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   collectors,
+  createCard,
   createMutex,
+  getCards,
+  getCompanyApplicationStatus,
   getMutex,
   getUser,
   headerValidator,
@@ -220,6 +225,18 @@ const Payload = v.variant("resource", [
   Transaction,
   Card,
   v.object({
+    resource: v.literal("company"),
+    action: v.string(),
+    body: v.looseObject({ id: v.string() }),
+    id: v.string(),
+  }),
+  v.object({
+    resource: v.literal("application"),
+    action: v.string(),
+    body: v.looseObject({ id: v.string() }),
+    id: v.string(),
+  }),
+  v.object({
     resource: v.literal("dispute"),
     action: v.string(),
     body: v.looseObject({ id: v.string() }),
@@ -264,6 +281,37 @@ export default new Hono().post(
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
     if (payload.resource !== "transaction") {
+      if (payload.resource === "company" || payload.resource === "application") {
+        const credential = await database.query.credentials.findFirst({
+          columns: { account: true, id: true, pandaId: true, salt: true },
+          where: eq(credentials.pandaCompanyId, payload.body.id),
+        });
+        if (credential && isBusinessSalt(v.parse(Address, credential.salt))) {
+          const { applicationStatus } = await getCompanyApplicationStatus(payload.body.id);
+          if (applicationStatus === "approved") {
+            const subtenantId = process.env.PANDA_SUBTENANT_ID;
+            if (!subtenantId) throw new Error("missing panda subtenant id");
+
+            const userId = credential.pandaId;
+            if (userId) {
+              const account = v.parse(Address, credential.account);
+              setUser({ id: account });
+              const mutex = getMutex(account) ?? createMutex(account);
+              await mutex.runExclusive(async () => {
+                const available = await getCards(userId, subtenantId);
+                const card =
+                  available.find(({ status: cardStatus }) => cardStatus === "active") ??
+                  (await createCard(userId, SIGNATURE_PRODUCT_ID, undefined, subtenantId, null));
+                await database
+                  .insert(cards)
+                  .values({ id: card.id, lastFour: card.last4, credentialId: credential.id })
+                  .onConflictDoNothing();
+              });
+            }
+          }
+        }
+        return c.json({ code: "ok" });
+      }
       if (payload.resource === "dispute") return c.json({ code: "ok" });
       const pandaId =
         payload.resource === "card"
@@ -1392,7 +1440,10 @@ async function reject(
     });
 }
 
-async function publish(payload: v.InferOutput<typeof Payload>, receipt?: TransactionReceipt) {
+async function publish(
+  payload: Exclude<v.InferOutput<typeof Payload>, { resource: "application" | "company" }>,
+  receipt?: TransactionReceipt,
+) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
   if (receipt?.status === "reverted") return;
   if (payload.resource === "dispute") return;
