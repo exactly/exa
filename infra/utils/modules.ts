@@ -12,6 +12,7 @@ export default define({
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["anthropic-api-key", "whatsapp-access-token"],
     },
+    credit: { secrets: ["onesignal-api-key", "postgres-url"] },
     hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url"] },
     refund: {
       secrets: ["panda-api-key", "onesignal-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
