@@ -40,10 +40,10 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
-import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
+import { name as creditName } from "../workers/credit/job";
 
 import type db from "../database";
 import type { Auth } from "../middleware/auth";
@@ -53,6 +53,7 @@ import type createPersona from "../utils/persona";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
+import type createCredit from "../workers/credit/queue";
 
 const CardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
@@ -149,6 +150,7 @@ const Scopes = picklist(["provisioning", "siwe", "webauthn"]);
 
 export default function route({
   auth,
+  credit,
   database,
   panda,
   pax,
@@ -158,6 +160,7 @@ export default function route({
   walletExtension,
 }: {
   auth: Auth;
+  credit: ReturnType<typeof createCredit>;
   database: typeof db;
   panda: ReturnType<typeof createPanda>;
   pax: ReturnType<typeof createPax>;
@@ -643,15 +646,14 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   }
                 });
 
-              let mode = 0;
-              try {
-                if (await autoCredit(account)) mode = 1;
-              } catch (error) {
-                captureException(error);
-              }
-              await database
-                .insert(cards)
-                .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId }]);
+              await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
+              await credit.enqueue(account).catch((error: unknown) =>
+                captureException(error, {
+                  level: "error",
+                  tags: { queue: creditName, job: creditName },
+                  extra: { account },
+                }),
+              );
               segment.track({
                 event: "CardIssued",
                 userId: account,
