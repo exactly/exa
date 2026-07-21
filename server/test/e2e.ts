@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import creditWorker from "../workers/credit/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 
@@ -30,6 +31,7 @@ describe("e2e", () => {
       await expect(
         new Promise((resolve, reject) => {
           const workers = [
+            creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
             refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
             subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
           ];
@@ -66,7 +68,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const cards = new Map<string, Card>();
   return {
     ...original,
-    autoCredit: vi.fn().mockResolvedValue(false),
     createCard: vi.fn().mockImplementation((userId: string) => {
       const id = crypto.randomUUID();
       const card: Card = {
