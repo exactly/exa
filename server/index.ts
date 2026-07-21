@@ -36,6 +36,7 @@ import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createRefund from "./workers/refund/queue";
@@ -67,6 +68,7 @@ const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
+const credit = createCredit(redis);
 const refund = createRefund(redis);
 const webhook = createHook(redis);
 const sardine = createSardine(
@@ -82,6 +84,7 @@ setupMaturity(onesignal);
 const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
+  credit,
   database,
   intercom,
   manteca,
@@ -97,6 +100,7 @@ const api = createApi({
 
 const activityHook = createActivityHook({
   alchemy,
+  credit,
   database,
   executor: keeper,
   onesignal,
@@ -416,6 +420,7 @@ export const close = supervise(
           ]),
         },
         closeMaturity,
+        () => credit.close(),
         () => hookWorker.close(),
         () => refund.close(),
         () => segment.close(),

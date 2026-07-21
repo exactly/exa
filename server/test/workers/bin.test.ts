@@ -16,6 +16,7 @@ const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
   chat: vi.fn<(config: { anthropicKey: string; bullmq: object; whatsapp: object }) => Handle>(),
   close: vi.fn<() => Promise<void>>(),
+  credit: vi.fn<(config: { bullmq: object; database: typeof database; onesignal: object }) => Handle>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<(config: { bullmq: object; database: typeof database; panda: object }) => Handle>(),
   onesignal: vi.fn<(key: string) => object>(),
@@ -49,6 +50,7 @@ beforeEach(() => {
   vi.resetModules();
   mocks.alchemy.mockReset().mockReturnValue(alchemy);
   mocks.close.mockReset().mockResolvedValue();
+  mocks.credit.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.drizzle.mockReset().mockReturnValue(database);
   mocks.hook.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.onesignal.mockReset().mockReturnValue(onesignal);
@@ -84,6 +86,7 @@ beforeEach(() => {
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
   vi.doMock("../../utils/whatsapp", () => ({ default: mocks.whatsapp }));
   vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
+  vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
@@ -111,6 +114,27 @@ describe("bin", () => {
     expect(mocks.whatsapp).toHaveBeenCalledExactlyOnceWith({
       from: "whatsapp",
       token: "chat-whatsapp-access-token",
+    });
+  });
+
+  it("resolves credit private config before constructing and supervising its worker", async () => {
+    await import("../../workers/credit/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("credit", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "redis-url",
+      "credit-postgres-url",
+      "credit-onesignal-api-key",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("credit-onesignal-api-key");
+    expect(mocks.credit).toHaveBeenCalledExactlyOnceWith({
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
+      onesignal,
     });
   });
 
