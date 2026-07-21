@@ -8,6 +8,7 @@ const signers = {
 };
 const mocks = {
   close: vi.fn<() => Promise<void>>(),
+  credit: vi.fn<(config: { onesignalKey: string; postgresUrl: string; redisUrl: string }) => Handle>(),
   refund:
     vi.fn<
       (config: {
@@ -31,6 +32,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.resetModules();
   mocks.close.mockReset().mockResolvedValue();
+  mocks.credit.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(signers[name]));
@@ -39,11 +41,31 @@ beforeEach(() => {
   vi.doMock("../../supervise", () => ({ default: mocks.supervise }));
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
 
 describe("bin", () => {
+  it("resolves credit private config before constructing and supervising its worker", async () => {
+    await import("../../workers/credit/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("credit", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "credit-onesignal-api-key",
+      "credit-postgres-url",
+      "redis-url",
+    ]);
+    expect(mocks.credit).toHaveBeenCalledExactlyOnceWith({
+      onesignalKey: "credit-onesignal-api-key",
+      postgresUrl: "credit-postgres-url",
+      redisUrl: "redis-url",
+    });
+  });
+
   it("resolves refund private config before constructing and supervising its worker", async () => {
     await import("../../workers/refund/bin");
 
