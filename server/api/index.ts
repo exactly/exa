@@ -27,6 +27,7 @@ import type createManteca from "../utils/ramps/manteca";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
+import type createCredit from "../workers/credit/queue";
 import type createSubscribe from "../workers/subscribe/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
@@ -34,6 +35,7 @@ import type { Redis } from "ioredis";
 export default function api({
   authSecret,
   bridge,
+  credit,
   database,
   intercom,
   manteca,
@@ -48,6 +50,7 @@ export default function api({
 }: {
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
+  credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
   manteca: ReturnType<typeof createManteca>;
@@ -77,7 +80,7 @@ export default function api({
       authentication({ authSecret, createCredential: credential, database, intercom, redis, walletExtension }),
     )
     .route("/activity", activity({ auth, database }))
-    .route("/card", card({ auth, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
     .route("/kyc", kyc({ auth, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
