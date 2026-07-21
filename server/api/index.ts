@@ -29,6 +29,7 @@ import createManteca from "../utils/ramps/manteca";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import createWalletExtension from "../utils/walletExtension";
+import createCredit from "../workers/credit/queue";
 import createSubscribe from "../workers/subscribe/queue";
 
 export default function api({
@@ -81,6 +82,7 @@ export default function api({
   const auth = createAuth(authSecret);
   const org = createOrg(betterAuth);
   const bridge = createBridge(bridgeKey, bridgeUrl);
+  const credit = createCredit(bullmq);
   const intercom = createIntercom(intercomKey);
   const manteca = createManteca(mantecaKey, mantecaUrl);
   const panda = createPanda({ key: pandaKey, url: pandaUrl });
@@ -104,7 +106,7 @@ export default function api({
       authentication({ authSecret, createCredential: credential, database, intercom, redis, walletExtension }),
     )
     .route("/activity", activity({ auth, database }))
-    .route("/card", card({ auth, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
     .route("/kyc", kyc({ auth, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
@@ -119,7 +121,7 @@ export default function api({
         database.$client.end(),
         redis.quit(),
         segment.close(),
-        subscribe.close().finally(() => bullmq.quit()),
+        Promise.all([credit.close(), subscribe.close()]).finally(() => bullmq.quit()),
       ])),
     ready: Promise.resolve(),
   };

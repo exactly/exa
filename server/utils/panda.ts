@@ -38,18 +38,11 @@ import {
 import { recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-import chain, {
-  issuerCheckerAddress,
-  marketUSDCAddress,
-  previewerAbi,
-  previewerAddress,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
+import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
-import publicClient from "./publicClient";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
@@ -341,23 +334,6 @@ export default function panda({ key, url }: { key: string; url: string }) {
   ) {
     return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT", 10_000);
   }
-}
-
-export async function autoCredit(account: Address) {
-  const markets = await publicClient.readContract({
-    address: previewerAddress,
-    functionName: "exactly",
-    abi: previewerAbi,
-    args: [account],
-  });
-  let hasCollateral = false;
-  for (const { floatingDepositAssets, market } of markets) {
-    if (floatingDepositAssets > 0n) {
-      if (market === marketUSDCAddress) return false;
-      hasCollateral = true;
-    }
-  }
-  return hasCollateral;
 }
 
 async function verifyPandaSignature(
