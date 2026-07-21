@@ -25,15 +25,15 @@ import type { Context } from "hono";
 export default async function createCredential<C extends string>(
   c: Context,
   credentialId: C,
-  options?: { factory?: Address; source?: string; webauthn?: WebAuthnCredential },
+  options?: { factory?: Address; salt?: Address; source?: string; webauthn?: WebAuthnCredential },
 ) {
   if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
   const factory = options?.factory ?? exaAccountFactoryAddress;
+  const salt = options?.salt ?? parse(Address, zeroAddress);
   const publicKey =
     options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
   if (!publicKey) throw new Error("bad credential");
   const { x, y } = decodePublicKey(publicKey);
-  const salt = parse(Address, zeroAddress);
   const account = deriveAddress(factory, { x, y, salt });
 
   setUser({ id: account });

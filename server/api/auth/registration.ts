@@ -42,6 +42,7 @@ import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import createCredential from "../../utils/createCredential";
+import { credentialSalt } from "../../utils/credentialContext";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
@@ -386,6 +387,7 @@ export default new Hono()
         const result = await createCredential(c, attestation.id, {
           factory,
           webauthn,
+          salt: credentialSalt(c.req.header("Client-Fid")),
           source: c.req.header("Client-Fid"),
         });
         const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });

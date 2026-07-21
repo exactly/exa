@@ -8,6 +8,8 @@ import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda
 import * as panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
+import type { InferInput } from "valibot";
+
 const chainMock = vi.hoisted(() => ({ id: 0 }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
@@ -198,5 +200,75 @@ describe("siwe", () => {
       expect.stringContaining("/issuing/users/e5cd86bb-a19e-4a66-9728-9e6c5d97e616/signatures/verify"),
       expect.objectContaining({ method: "PUT", body: JSON.stringify(payload) }),
     );
+  });
+});
+
+describe("corporate applications", () => {
+  const address = { line1: "1 Main St", city: "New York", region: "NY", postalCode: "10001", countryCode: "US" };
+  const person = {
+    firstName: "Jane",
+    lastName: "Doe",
+    birthDate: "1990-01-01",
+    nationalId: "123456789",
+    countryOfIssue: "US",
+    email: "jane@example.com",
+    address,
+  };
+
+  it("creates a company application in the configured subtenant", async () => {
+    const response = { id: "company_123", name: "Acme", address, applicationStatus: "pending" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(response));
+    const application = {
+      initialUser: {
+        ...person,
+        ipAddress: "127.0.0.1",
+        isTermsOfServiceAccepted: true,
+        walletAddress: "0x0000000000000000000000000000000000000001",
+      },
+      name: "Acme",
+      address,
+      entity: {
+        name: "Acme Inc",
+        description: "Software",
+        industry: "541511",
+        registrationNumber: "123",
+        taxId: "456",
+        type: "corporation",
+        expectedSpend: "1000",
+      },
+      representatives: [person],
+      ultimateBeneficialOwners: [person],
+    } satisfies InferInput<typeof panda.CreateCompanyApplicationRequest>;
+
+    await expect(panda.createCompanyApplication(application, "subtenant_123")).resolves.toStrictEqual(response);
+    const [url, options] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe("https://panda.test/issuing/applications/company");
+    expect(options?.method).toBe("POST");
+    expect(new Headers(options?.headers).get("Sub-Tenant-Id")).toBe("subtenant_123");
+    expect(options?.body).toBe(JSON.stringify(application));
+  });
+
+  it("creates a company user in the configured subtenant", async () => {
+    const response = {
+      id: "user_123",
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "jane@example.com",
+      isActive: true,
+      applicationStatus: "approved",
+      companyId: "company_123",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(response));
+
+    await expect(
+      panda.createCompanyUser(
+        "company_123",
+        { firstName: "Jane", lastName: "Doe", email: "jane@example.com" },
+        "subtenant_123",
+      ),
+    ).resolves.toStrictEqual(response);
+    const [url, options] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe("https://panda.test/issuing/companies/company_123/users");
+    expect(new Headers(options?.headers).get("Sub-Tenant-Id")).toBe("subtenant_123");
   });
 });
