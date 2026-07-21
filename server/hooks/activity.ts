@@ -13,7 +13,7 @@ import {
   withScope,
 } from "@sentry/node";
 import createDebug from "debug";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import * as v from "valibot";
@@ -32,11 +32,10 @@ import exaChain, {
 } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
-import { cards, credentials } from "../database/schema";
+import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { activityNetworks, activityUrl, NETWORKS } from "../utils/alchemy";
 import decodePublicKey from "../utils/decodePublicKey";
-import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
@@ -47,6 +46,7 @@ import type * as schema from "../database/schema";
 import type createAlchemy from "../utils/alchemy";
 import type createOnesignal from "../utils/onesignal";
 import type createSegment from "../utils/segment";
+import type createCredit from "../workers/credit/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
@@ -58,6 +58,7 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default function hook({
   alchemy,
+  credit,
   database,
   executor,
   onesignal,
@@ -65,6 +66,7 @@ export default function hook({
   segment,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
+  credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   executor: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
@@ -280,7 +282,10 @@ export default function hook({
                       ),
                   );
                   for (const result of results) {
-                    if (result.status === "fulfilled") continue;
+                    if (result.status === "fulfilled") {
+                      await credit.enqueue(account);
+                      continue;
+                    }
                     if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
                       withScope((captureScope) => {
                         captureScope.setUser({ id: account });
@@ -298,35 +303,6 @@ export default function hook({
                     span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                     throw result.reason;
                   }
-                  autoCredit(account)
-                    .then(async (auto) => {
-                      span.setAttribute("exa.autoCredit", auto);
-                      if (!auto) return;
-                      const credential = await database.query.credentials.findFirst({
-                        where: eq(credentials.account, account),
-                        columns: {},
-                        with: {
-                          cards: {
-                            columns: { id: true, mode: true },
-                            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
-                          },
-                        },
-                      });
-                      const card = credential?.cards[0];
-                      if (!card) return;
-                      span.setAttribute("exa.card", card.id);
-                      if (card.mode !== 0) return;
-                      await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
-                      span.setAttribute("exa.mode", 1);
-                      onesignal
-                        .sendPushNotification({
-                          userId: account,
-                          headings: t("Card mode changed"),
-                          contents: t("Credit mode activated"),
-                        })
-                        .catch((error: unknown) => captureException(error));
-                    })
-                    .catch((error: unknown) => captureException(error));
                   span.setStatus({ code: SPAN_STATUS_OK });
                 },
               ),
