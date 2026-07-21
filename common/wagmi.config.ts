@@ -35,6 +35,9 @@ const [proposalManager] = loadBroadcast("ProposalManager").transactions;
 const [refunder] = loadBroadcast("Refunder").transactions;
 const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
 const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default;
+const allowlist = Object.keys(
+  (deploy.proposalManager.allowlist as Record<string, Record<string, string>>)[chainId] ?? {},
+).map((address) => getAddress(address));
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
@@ -110,6 +113,7 @@ export default defineConfig([
           },
         },
       ),
+      { name: "Allowlist", run: () => ({ content: `export const allowlist = ${JSON.stringify(allowlist)} as const` }) },
       foundry({
         forge: { build: false },
         project: "../contracts",
