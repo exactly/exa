@@ -5,15 +5,18 @@ import appId from "@exactly/common/onesignalAppId.web";
 const client = new DefaultApi(createConfiguration({ restApiKey: process.env.ONESIGNAL_API_KEY }));
 
 // eslint-disable-next-line import/prefer-default-export -- library module
-export async function sendPushNotification({
-  userId,
-  headings,
-  contents,
-}: {
-  contents: NonNullable<Notification["contents"]>;
-  headings: NonNullable<Notification["headings"]>;
-  userId: string;
-}) {
+export async function sendPushNotification(
+  {
+    userId,
+    headings,
+    contents,
+  }: {
+    contents: NonNullable<Notification["contents"]>;
+    headings: NonNullable<Notification["headings"]>;
+    userId: string;
+  },
+  api = client,
+) {
   if (!appId) return;
 
   const notification = new Notification();
@@ -22,5 +25,5 @@ export async function sendPushNotification({
   notification.include_aliases = { external_id: [userId] };
   notification.headings = headings;
   notification.contents = contents;
-  return client.createNotification(notification);
+  return api.createNotification(notification);
 }

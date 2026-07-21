@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import { close as closeCreditWorker, start as startCreditWorker } from "../workers/credit/worker";
 import { close as closeRefundWorker, start as startRefundWorker } from "../workers/refund/worker";
 import { close as closeSubscribeWorker, start as startSubscribeWorker } from "../workers/subscribe/worker";
 
@@ -30,7 +31,7 @@ describe("e2e", () => {
       await expect(
         new Promise((resolve, reject) => {
           const teardown = () => {
-            Promise.allSettled([closeRefundWorker(), closeSubscribeWorker()])
+            Promise.allSettled([closeCreditWorker(), closeRefundWorker(), closeSubscribeWorker()])
               .then(close)
               .then(() => resolve(null), reject);
           };
@@ -48,6 +49,11 @@ describe("e2e", () => {
           process.once("SIGTERM", teardown);
 
           Promise.all([
+            startCreditWorker({
+              onesignalKey: "onesignal",
+              postgresUrl: process.env.POSTGRES_URL ?? "postgres",
+              redisUrl,
+            }).waitUntilReady(),
             startRefundWorker({
               pandaKey: "panda",
               pandaUrl: "https://panda.test",
@@ -70,7 +76,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const cards = new Map<string, Card>();
   return {
     ...original,
-    autoCredit: vi.fn().mockResolvedValue(false),
     createCard: vi.fn().mockImplementation((userId: string) => {
       const id = crypto.randomUUID();
       const card: Card = {

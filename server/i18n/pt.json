@@ -1,9 +1,6 @@
 {
-  "Card mode": "Modo de pagamento",
-  "Card mode changed": "Modo de pagamento atualizado",
   "Card purchase": "Compra no cartão",
   "Credit mode activated": "Modo crédito ativado",
-  "Credit mode is active": "O modo crédito está ativo",
   "Deposited funds": "Fundos depositados",
   "Exa Card purchase rejected": "Compra com Exa Card recusada",
   "Fiat onramp activated": "Conta fiat ativada",
@@ -12,6 +9,7 @@
   "Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}": "Transação em {{merchantName}} de {{amount}} recusada: {{reason}}",
   "Withdraw completed": "Saque concluído",
   "Withdrawal in progress": "Saque em andamento",
+  "Your card is now in credit mode": "Seu cartão agora está no modo crédito",
   "Your fiat onramp account has been activated": "Sua conta para depositar dinheiro fiat foi ativada",
   "Your funds are on the way to your bank": "Seus fundos estão a caminho do seu banco",
   "frozen card": "cartão bloqueado",

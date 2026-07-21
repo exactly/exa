@@ -38,9 +38,6 @@ import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
   issuerCheckerAddress,
-  marketUSDCAddress,
-  previewerAbi,
-  previewerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
@@ -370,23 +367,6 @@ export async function isPanda(account: Address) {
     }
     throw error;
   }
-}
-
-export async function autoCredit(account: Address) {
-  const markets = await publicClient.readContract({
-    address: previewerAddress,
-    functionName: "exactly",
-    abi: previewerAbi,
-    args: [account],
-  });
-  let hasCollateral = false;
-  for (const { floatingDepositAssets, market } of markets) {
-    if (floatingDepositAssets > 0n) {
-      if (market === marketUSDCAddress) return false;
-      hasCollateral = true;
-    }
-  }
-  return hasCollateral;
 }
 
 export function headerValidator() {
