@@ -13,7 +13,7 @@ import {
   withScope,
 } from "@sentry/node";
 import createDebug from "debug";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import { bytesToBigInt, hexToBigInt, withRetry } from "viem";
@@ -31,20 +31,20 @@ import exaChain, {
 } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
-import database, { cards, credentials } from "../database";
+import database, { credentials } from "../database";
 import t, { f } from "../i18n";
 import { webhookId as currentWebhookId, setWebhookId } from "../utils/activityWebhook";
 import { createWebhook, findWebhook, headerValidator, NETWORKS } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 import { getWallet } from "../utils/wallet";
+import { enqueue } from "../workers/credit/queue";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -245,7 +245,10 @@ export default new Hono().post(
                     ),
                 );
                 for (const result of results) {
-                  if (result.status === "fulfilled") continue;
+                  if (result.status === "fulfilled") {
+                    await enqueue(account);
+                    continue;
+                  }
                   if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
                     withScope((captureScope) => {
                       captureScope.setUser({ id: account });
@@ -263,33 +266,6 @@ export default new Hono().post(
                   span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                   throw result.reason;
                 }
-                autoCredit(account)
-                  .then(async (auto) => {
-                    span.setAttribute("exa.autoCredit", auto);
-                    if (!auto) return;
-                    const credential = await database.query.credentials.findFirst({
-                      where: eq(credentials.account, account),
-                      columns: {},
-                      with: {
-                        cards: {
-                          columns: { id: true, mode: true },
-                          where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
-                        },
-                      },
-                    });
-                    if (!credential || credential.cards.length === 0) return;
-                    const card = credential.cards[0];
-                    span.setAttribute("exa.card", card?.id);
-                    if (card?.mode !== 0) return;
-                    await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
-                    span.setAttribute("exa.mode", 1);
-                    sendPushNotification({
-                      userId: account,
-                      headings: t("Card mode changed"),
-                      contents: t("Credit mode activated"),
-                    }).catch((error: unknown) => captureException(error));
-                  })
-                  .catch((error: unknown) => captureException(error));
                 span.setStatus({ code: SPAN_STATUS_OK });
               },
             ),

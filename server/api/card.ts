@@ -40,11 +40,8 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database";
-import t from "../i18n";
 import auth from "../middleware/auth";
-import { sendPushNotification } from "../utils/onesignal";
 import {
-  autoCredit,
   createCard,
   getApplicationStatus,
   getCard,
@@ -66,6 +63,7 @@ import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 import { verifyToken } from "../utils/walletExtension";
+import { enqueue } from "../workers/credit/queue";
 
 const mutexes = new Map<string, Mutex>();
 function createMutex(credentialId: string) {
@@ -637,13 +635,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 }
               });
 
-            let mode = 0;
-            try {
-              if (await autoCredit(account)) mode = 1;
-            } catch (error) {
-              captureException(error);
-            }
-            await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId }]);
+            await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
+            await enqueue(account);
             track({
               event: "CardIssued",
               userId: account,
@@ -669,13 +662,6 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               },
             }).catch((error: unknown) => captureException(error, { level: "error" }));
 
-            if (mode) {
-              sendPushNotification({
-                userId: account,
-                headings: t("Card mode"),
-                contents: t("Credit mode is active"),
-              }).catch((error: unknown) => captureException(error));
-            }
             return c.json(
               {
                 lastFour: card.last4,
