@@ -15,6 +15,7 @@ import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
+import creditWorker from "../workers/credit/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 
@@ -30,6 +31,7 @@ describe("e2e", () => {
       if (!env.REDIS_URL) throw new Error("missing redis url");
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
       const workers = [
+        creditWorker({ onesignalKey: "onesignal", postgresUrl: env.POSTGRES_URL, redisUrl: env.REDIS_URL }),
         refundWorker({
           issuer: privateKeyToAccount(padHex("0x420")),
           pandaKey: "panda",
@@ -76,7 +78,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const cards = new Map<string, Card>();
   return {
     ...original,
-    autoCredit: vi.fn().mockResolvedValue(false),
     signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
     default: (...parameters: Parameters<typeof original.default>) => ({
       ...original.default(...parameters),

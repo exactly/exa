@@ -29,17 +29,25 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, i
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
 
-import database, { cards, credentials } from "../../database";
+import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import { setWebhookId, webhookId } from "../../utils/activityWebhook";
 import { NETWORKS } from "../../utils/alchemy";
 import appOrigin from "../../utils/appOrigin";
-import * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
+
+const mocks = vi.hoisted(() => ({
+  closeCredit: vi.fn<() => Promise<void>>().mockResolvedValue(),
+  enqueueCredit: vi.fn<(account: Address) => Promise<void>>().mockResolvedValue(),
+}));
+
+vi.mock("../../workers/credit/queue", () => ({
+  default: vi.fn(() => ({ close: mocks.closeCredit, enqueue: mocks.enqueueCredit })),
+}));
 
 const executor = privateKeyToAccount(padHex("0x69"));
 const waitForReceipt = publicClient.waitForTransactionReceipt;
@@ -48,7 +56,10 @@ const hook = createHook("activity");
 const appClient = testClient(hook.app);
 
 beforeAll(() => hook.ready);
-afterAll(() => hook.close());
+afterAll(() => {
+  mocks.closeCredit.mockReset().mockResolvedValue();
+  return hook.close();
+});
 
 describe("address activity", { timeout: 66_666 }, () => {
   let keeper: ReturnType<typeof wallet>;
@@ -56,9 +67,10 @@ describe("address activity", { timeout: 66_666 }, () => {
   let account: Address;
 
   beforeEach(async () => {
+    mocks.closeCredit.mockReset().mockResolvedValue();
+    mocks.enqueueCredit.mockReset().mockResolvedValue();
     keeper = wallet(executor);
     vi.mocked(wallet).mockReset().mockReturnValue(keeper);
-    vi.spyOn(Panda, "autoCredit").mockResolvedValue(false);
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
@@ -552,7 +564,7 @@ describe("address activity", { timeout: 66_666 }, () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
-  it("pokes eth", async () => {
+  it("pokes eth and queues credit", async () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
@@ -567,9 +579,11 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
     const market = await waitForWETHMarket(account, deposit);
+    await vi.waitUntil(() => mocks.enqueueCredit.mock.calls.some(([queued]) => queued === account));
 
     expect(market.floatingDepositAssets).toBe(deposit);
     expect(market.isCollateral).toBe(true);
+    expect(mocks.enqueueCredit.mock.calls.filter(([queued]) => queued === account)).toStrictEqual([[account]]);
     expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
@@ -1030,136 +1044,6 @@ describe("address activity", { timeout: 66_666 }, () => {
     expect(response.status).toBe(200);
   });
 
-  it("activates credit mode and sends translated notification when auto credit applies", async () => {
-    vi.mocked(Panda.autoCredit).mockResolvedValue(true);
-    const { sendPushNotification, sent } = mockCredit();
-    await database.insert(cards).values([{ id: "auto-credit", credentialId: account, lastFour: "1234", mode: 0 }]);
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await sent;
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Card mode changed"),
-      contents: t("Credit mode activated"),
-    });
-    expect(vi.mocked(captureException).mock.calls.some(([error, hint]) => isNoBalance(error, hint, "warning"))).toBe(
-      false,
-    );
-    expect(response.status).toBe(200);
-  });
-
-  it("captures auto credit notification errors", async () => {
-    const error = new Error("push failed");
-    vi.mocked(Panda.autoCredit).mockResolvedValue(true);
-    const notification = Promise.withResolvers<Awaited<ReturnType<typeof sendPushNotificationMock>>>();
-    const { sendPushNotification, sent } = mockCredit(notification.promise);
-    await database
-      .insert(cards)
-      .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await sent;
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Card mode changed"),
-      contents: t("Credit mode activated"),
-    });
-    notification.reject(error);
-    await notification.promise.catch(() => undefined);
-    expect(captureException).toHaveBeenCalledWith(error);
-    expect(
-      vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
-    ).toBe(false);
-    expect(response.status).toBe(200);
-  });
-
-  it("captures auto credit errors", async () => {
-    const error = new Error("auto credit");
-    const autoCredit = vi.mocked(Panda.autoCredit).mockRejectedValue(error);
-    await database
-      .insert(cards)
-      .values([{ id: "auto-credit-error", credentialId: account, lastFour: "4321", mode: 0 }]);
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await waitForActivity();
-
-    expect(autoCredit).toHaveBeenCalledWith(account);
-    expect(captureException).toHaveBeenCalledWith(error);
-    expect(
-      vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
-    ).toBe(false);
-    expect(response.status).toBe(200);
-  });
-
   it("doesn't send a notification for market shares", async () => {
     const sendPushNotification = sendPushNotificationMock;
 
@@ -1434,22 +1318,6 @@ function mockLifiTokens(response: Error | Record<string, { address: string }[]> 
   });
 }
 
-function mockCredit(response?: ReturnType<typeof sendPushNotificationMock>) {
-  const sent = Promise.withResolvers<true>();
-  const send = sendPushNotificationMock.getMockImplementation();
-  if (!send) throw new Error("missing onesignal mock");
-  const sendPushNotification = sendPushNotificationMock.mockImplementation((input) => {
-    if (
-      JSON.stringify(input.headings) !== JSON.stringify(t("Card mode changed")) ||
-      JSON.stringify(input.contents) !== JSON.stringify(t("Credit mode activated"))
-    )
-      return send(input);
-    sent.resolve(true);
-    return response ?? send(input);
-  });
-  return { sendPushNotification, sent: sent.promise };
-}
-
 const mockERC20Abi = [
   {
     type: "function",
@@ -1529,6 +1397,8 @@ afterEach(async () => {
 
 describe("webhook initialization", () => {
   beforeEach(() => {
+    mocks.closeCredit.mockReset().mockResolvedValue();
+    mocks.enqueueCredit.mockReset().mockResolvedValue();
     setWebhookId("activity");
   });
 
@@ -1548,7 +1418,10 @@ describe("webhook initialization", () => {
 
     expect(createWebhookMock).not.toHaveBeenCalled();
     expect(webhookId).toBe("existing-hook-id");
-    await current.close();
+    const closing = current.close();
+    expect(current.close()).toBe(closing);
+    await closing;
+    expect(mocks.closeCredit).toHaveBeenCalledOnce();
   });
 
   it("sets a newly created webhook id", async () => {
