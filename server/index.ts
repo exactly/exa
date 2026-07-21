@@ -21,10 +21,13 @@ import supervise from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
-import { close as closeRedis } from "./utils/redis";
+import { bullmq, close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
+import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
 import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
+
+startCredit(bullmq);
 
 const app = new Hono();
 app.use(trimTrailingSlash());
@@ -291,7 +294,7 @@ export const close = supervise(
       const services = await Promise.allSettled([
         closeSegment(),
         database.$client.end(),
-        Promise.allSettled([closeMaturity(), closeRefund(), closeSubscribe()])
+        Promise.allSettled([closeCredit(), closeMaturity(), closeRefund(), closeSubscribe()])
           .then((queues) => {
             if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
           })

@@ -26,17 +26,21 @@ import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest"
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
 
-import database, { cards, credentials } from "../../database";
+import database, { credentials } from "../../database";
 import app from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
 import * as decodePublicKey from "../../utils/decodePublicKey";
 import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import * as keeperUtilities from "../../utils/wallet";
+import { enqueue } from "../../workers/credit/queue";
 import anvilClient from "../anvilClient";
+
+vi.mock("../../workers/credit/queue", () => ({
+  enqueue: vi.fn<typeof enqueue>(),
+}));
 
 const appClient = testClient(app);
 let keeper: Awaited<ReturnType<typeof keeperUtilities.getWallet>>;
@@ -50,6 +54,7 @@ describe("address activity", () => {
     vi.mocked(keeperUtilities.getWallet).mockResolvedValue(keeper);
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
+    vi.mocked(enqueue).mockResolvedValue();
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
 
     await database.insert(credentials).values([
@@ -955,109 +960,28 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
   });
 
-  it("activates credit mode and sends translated notification when auto credit applies", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockResolvedValue(true);
-    await database.insert(cards).values([{ id: "auto-credit", credentialId: account, lastFour: "1234", mode: 0 }]);
+  it("queues credit after a successful poke", async () => {
+    vi.spyOn(keeper, "exaSend").mockResolvedValue({
+      status: "success",
+      transactionHash: zeroHash,
+    } as never);
+    const transfer = {
+      ...activityPayload.json.event.activity[1],
+      toAddress: account,
+      rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+    };
 
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
         ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
+        event: { ...activityPayload.json.event, activity: [transfer] },
       },
     });
 
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 26_666);
-    await vi.waitUntil(
-      () =>
-        sendPushNotification.mock.calls.some(
-          ([notification]) =>
-            JSON.stringify(notification.headings) === JSON.stringify(t("Card mode changed")) &&
-            JSON.stringify(notification.contents) === JSON.stringify(t("Credit mode activated")),
-        ),
-      15_000,
-    );
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Card mode changed"),
-      contents: t("Credit mode activated"),
-    });
-    expect(response.status).toBe(200);
-  });
+    await vi.waitUntil(() => vi.mocked(enqueue).mock.calls.some(([queued]) => queued === account), 26_666);
 
-  it("captures auto credit notification errors", async () => {
-    const error = new Error("push failed");
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    sendPushNotification
-      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>)
-      .mockRejectedValueOnce(error);
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockResolvedValue(true);
-    await database
-      .insert(cards)
-      .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 15_000);
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
-
-    expect(captureException).toHaveBeenCalledWith(error);
-    expect(response.status).toBe(200);
-  });
-
-  it("captures auto credit errors", async () => {
-    const error = new Error("auto credit");
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockRejectedValue(error);
-    await database
-      .insert(cards)
-      .values([{ id: "auto-credit-error", credentialId: account, lastFour: "4321", mode: 0 }]);
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 15_000);
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
-
-    expect(captureException).toHaveBeenCalledWith(error);
+    expect(vi.mocked(enqueue).mock.calls.filter(([queued]) => queued === account)).toStrictEqual([[account]]);
     expect(response.status).toBe(200);
   });
 

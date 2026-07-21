@@ -36,11 +36,14 @@ import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
 import { getWallet } from "../../utils/wallet";
 import { walletExtension } from "../../utils/walletExtension";
+import * as credit from "../../workers/credit/queue";
 
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 let keeper: Awaited<ReturnType<typeof getWallet>>;
+
+vi.mock("../../workers/credit/queue", () => ({ enqueue: vi.fn<typeof credit.enqueue>() }));
 
 const appClient = testClient(app);
 const { WALLET_EXTENSION_SECRET } = process.env;
@@ -150,6 +153,7 @@ describe("authenticated", () => {
 
   afterEach(() => vi.resetAllMocks());
   beforeEach(() => {
+    vi.mocked(credit.enqueue).mockResolvedValue();
     vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(panda, "getCards").mockResolvedValue([]);
   });
@@ -668,12 +672,13 @@ describe("authenticated", () => {
 
   it("adopts only the first active card when panda has multiple orphans", async () => {
     const credentialId = "orphan-multi";
+    const account = padHex("0x4053", { size: 20 });
     const first = "00000000-0000-4000-8000-0000000000c1";
     const second = "00000000-0000-4000-8000-0000000000c2";
     await database.insert(credentials).values({
       id: credentialId,
       publicKey: new Uint8Array(),
-      account: padHex("0x4053", { size: 20 }),
+      account,
       factory: inject("ExaAccountFactory"),
       pandaId: credentialId,
     });
@@ -691,8 +696,6 @@ describe("authenticated", () => {
       },
     ]);
     const createCard = vi.spyOn(panda, "createCard");
-    const error = new Error("preview failure");
-    vi.spyOn(panda, "autoCredit").mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
@@ -709,7 +712,7 @@ describe("authenticated", () => {
       where: eq(cards.credentialId, credentialId),
     });
     expect(persisted).toStrictEqual([{ id: first }]);
-    expect(captureException).toHaveBeenCalledWith(error);
+    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(account);
     expect(
       vi
         .mocked(captureException)
@@ -925,13 +928,6 @@ describe("authenticated", () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id });
     vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    const sigCredential = await database.query.credentials.findFirst({
-      columns: { account: true },
-      where: eq(credentials.id, "sig"),
-    });
-    expect(sigCredential).toBeDefined();
-    if (!sigCredential) throw new Error("missing sig credential");
-    expect(await panda.autoCredit(parse(Address, sigCredential.account))).toBe(false);
 
     const response = await appClient.index.$post({ header: { "test-credential-id": "debit" } });
     const json = await response.json();
@@ -944,6 +940,7 @@ describe("authenticated", () => {
     });
 
     expect(created?.mode).toBe(0);
+    expect(credit.enqueue).toHaveBeenCalledWith(padHex("0x4", { size: 20 }));
     expect(json).toStrictEqual({
       status: "ACTIVE",
       lastFour: "7394",
@@ -952,22 +949,13 @@ describe("authenticated", () => {
     });
   });
 
-  it("creates a panda credit card with signature product id", async () => {
+  it("queues credit after creating a panda card", async () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({
       ...cardTemplate,
       id: "123e4567-e89b-12d3-a456-426655440001",
       last4: "1224",
     });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    const ethCredential = await database.query.credentials.findFirst({
-      columns: { account: true },
-      where: eq(credentials.id, "eth"),
-    });
-    expect(ethCredential).toBeDefined();
-    if (!ethCredential) throw new Error("missing eth credential");
-    const account = parse(Address, ethCredential.account);
-    await vi.waitUntil(async () => await panda.autoCredit(account).catch(() => false), 26_666);
-
     const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
     const json = await response.json();
     expect(response.status).toBe(200);
@@ -977,7 +965,13 @@ describe("authenticated", () => {
       where: eq(cards.credentialId, "eth"),
     });
 
-    expect(created?.mode).toBe(1);
+    expect(created?.mode).toBe(0);
+    expect(credit.enqueue).toHaveBeenCalledWith(
+      deriveAddress(inject("ExaAccountFactory"), {
+        x: padHex(privateKeyToAddress(padHex("0xbeef"))),
+        y: zeroHash,
+      }),
+    );
     expect(captureException).not.toHaveBeenCalled();
     expect(json).toStrictEqual({
       status: "ACTIVE",
@@ -1025,7 +1019,6 @@ describe("authenticated", () => {
 
     it("issues a base product card on base", async () => {
       chain.id = base.id;
-      vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
       vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
         id: "base-default-panda",
         applicationStatus: "approved",
@@ -1053,7 +1046,6 @@ describe("authenticated", () => {
 
     it("issues a signature product card on base for the override source", async () => {
       chain.id = base.id;
-      vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
       vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
         id: "base-signature-panda",
         applicationStatus: "approved",
@@ -1081,7 +1073,6 @@ describe("authenticated", () => {
 
     it("issues a signature product card on optimism", async () => {
       chain.id = optimism.id;
-      vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
       vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
         id: "optimism-panda",
         applicationStatus: "approved",
