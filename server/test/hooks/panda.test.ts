@@ -3482,11 +3482,7 @@ describe("webhooks", () => {
   });
 
   it("logs text on webhook ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: () => Promise.resolve("OK"),
-    } as unknown as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("OK"));
 
     await appClient.index.$post({
       ...cardUpdated,
@@ -3500,16 +3496,15 @@ describe("webhooks", () => {
       },
     });
 
-    await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
-    expect(webhookLogger).toHaveBeenCalledWith("%j", expect.objectContaining({ response: "OK" }));
+    const payload: unknown = expect.objectContaining({ id: cardUpdated.json.id });
+    await vi.waitFor(
+      () => expect(webhookLogger).toHaveBeenCalledWith("%j", expect.objectContaining({ payload, response: "OK" })),
+      { timeout: 10_000 },
+    );
   });
 
   it("logs json on webhook ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: () => Promise.resolve(JSON.stringify({ status: 200, message: "OK" })),
-    } as unknown as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ status: 200, message: "OK" }));
 
     await appClient.index.$post({
       ...cardUpdated,
@@ -3523,10 +3518,17 @@ describe("webhooks", () => {
       },
     });
 
-    await vi.waitUntil(() => webhookLogger.mock.calls.length > 0, 10_000);
-    expect(webhookLogger).toHaveBeenCalledWith(
-      "%j",
-      expect.objectContaining({ response: { status: 200, message: "OK" } }),
+    const payload: unknown = expect.objectContaining({ id: cardUpdated.json.id });
+    await vi.waitFor(
+      () =>
+        expect(webhookLogger).toHaveBeenCalledWith(
+          "%j",
+          expect.objectContaining({
+            payload,
+            response: { status: 200, message: "OK" },
+          }),
+        ),
+      { timeout: 10_000 },
     );
   });
 
