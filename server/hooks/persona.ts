@@ -16,6 +16,7 @@ import {
   number,
   object,
   optional,
+  parse,
   picklist,
   pipe,
   safeParse,
@@ -23,7 +24,9 @@ import {
   transform,
   union,
 } from "valibot";
+import { bytesToHex } from "viem";
 
+import chain, { firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database/index";
@@ -44,8 +47,10 @@ import {
 } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
+import { enqueue } from "../workers/allow/queue";
 
 import type { InferOutput } from "valibot";
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -318,7 +323,7 @@ export default new Hono().post(
     const { referenceId, fields } = attributes;
 
     const credential = await database.query.credentials.findFirst({
-      columns: { account: true, pandaId: true },
+      columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true },
       where: eq(credentials.id, referenceId),
     });
     if (!credential) {
@@ -329,7 +334,16 @@ export default new Hono().post(
     setUser({ id: credential.account });
     getActiveSpan()?.setAttribute("exa.inquiryId", personaShareToken);
 
+    const account = safeParse(Address, credential.account);
     if (credential.pandaId) {
+      if (account.success && firewallAddress)
+        await enqueue({
+          account: account.output,
+          chainId: chain.id,
+          factory: parse(Address, credential.factory),
+          publicKey: bytesToHex(credential.publicKey),
+          source: credential.source,
+        });
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.already-created");
       return c.json({ code: "already created" }, 200);
     }
@@ -386,6 +400,15 @@ export default new Hono().post(
       if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
     }
 
+    if (account.success && firewallAddress)
+      await enqueue({
+        account: account.output,
+        chainId: chain.id,
+        factory: parse(Address, credential.factory),
+        publicKey: bytesToHex(credential.publicKey),
+        source: credential.source,
+      });
+
     // TODO implement error handling to return 200 if event should not be retried
     const { id } = await createUser({
       accountPurpose: fields.accountPurpose.value,
@@ -402,7 +425,6 @@ export default new Hono().post(
     getActiveSpan()?.setAttributes({ "exa.pandaId": id });
     setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
-    const account = safeParse(Address, credential.account);
     if (account.success) {
       addCapita({
         birthdate: fields.birthdate.value,

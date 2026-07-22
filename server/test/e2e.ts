@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import { close as closeAllowWorker, start as startAllowWorker } from "../workers/allow/worker";
 import { close as closeCreditWorker, start as startCreditWorker } from "../workers/credit/worker";
 import { close as closePokeWorker, start as startPokeWorker } from "../workers/poke/worker";
 import { close as closeRefundWorker, start as startRefundWorker } from "../workers/refund/worker";
@@ -32,7 +33,13 @@ describe("e2e", () => {
       await expect(
         new Promise((resolve, reject) => {
           const teardown = () => {
-            Promise.allSettled([closeCreditWorker(), closePokeWorker(), closeRefundWorker(), closeSubscribeWorker()])
+            Promise.allSettled([
+              closeAllowWorker(),
+              closeCreditWorker(),
+              closePokeWorker(),
+              closeRefundWorker(),
+              closeSubscribeWorker(),
+            ])
               .then(close)
               .then(() => resolve(null), reject);
           };
@@ -50,6 +57,7 @@ describe("e2e", () => {
           process.once("SIGTERM", teardown);
 
           Promise.all([
+            startAllowWorker({ redisUrl }).waitUntilReady(),
             startCreditWorker({
               onesignalKey: "onesignal",
               postgresUrl: process.env.POSTGRES_URL ?? "postgres",
