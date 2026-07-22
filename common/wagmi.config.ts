@@ -139,6 +139,7 @@ function addresses(
       if (scripts) {
         for (const [key, script] of Object.entries(scripts)) {
           const output = execSync(`forge script -s 'getAddress()' script/${script}.s.sol --chain ${chainId}`, {
+            env: { ...env, FOUNDRY_PROFILE: "tooling" },
             cwd: "../contracts",
             encoding: "utf8",
           });

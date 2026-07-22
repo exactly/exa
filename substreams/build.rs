@@ -19,12 +19,12 @@ fn main() -> Result<(), Error> {
 
   let contracts = [("account", "UpgradeableModularAccount"), ("factory", "ExaAccountFactory")];
   for (_, contract) in &contracts {
-    println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/out/{contract}.sol/{contract}.json");
+    println!("cargo::rerun-if-changed=node_modules/@exactly/plugin/out/build/{contract}.sol/{contract}.json");
   }
 
   create_dir_all("abi")?;
   contracts.iter().try_for_each(|(mod_name, contract)| -> Result<()> {
-    let path = format!("node_modules/@exactly/plugin/out/{contract}.sol/{contract}.json");
+    let path = format!("node_modules/@exactly/plugin/out/build/{contract}.sol/{contract}.json");
     to_writer(
       File::create(format!("abi/{mod_name}.json"))?,
       &from_reader::<_, Value>(File::open(&path).with_context(|| format!("opening {path}"))?)?["abi"],

@@ -1,4 +1,6 @@
 [profile.default]
+cache_path = "cache/build"
+out = "out/build"
 solc_version = "0.8.29"
 evm_version = "cancun"
 optimizer = true
@@ -35,8 +37,26 @@ ignore = ["**/*.t.sol", "**/mocks/**/*.sol"]
 [profile.production.fuzz]
 runs = 66_666
 
+[profile.coverage]
+cache_path = "cache/coverage"
+out = "out/coverage"
+
+[profile.sizes]
+cache_path = "cache/sizes"
+out = "out/sizes"
+
+[profile.slither]
+cache_path = "cache/slither"
+out = "out/slither"
+
 [profile.snapshot]
 bytecode_hash = "none"
+cache_path = "cache/snapshot"
+out = "out/snapshot"
+
+[profile.tooling]
+cache_path = "cache/tooling"
+out = "out/tooling"
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"

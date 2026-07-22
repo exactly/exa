@@ -24,21 +24,28 @@
           "^build"
         ],
         "inputs": [
+          "{projectRoot}/.cargo/config.toml",
           "{projectRoot}/build.rs",
+          "{projectRoot}/buf.gen.yaml",
           "{projectRoot}/Cargo.lock",
           "{projectRoot}/Cargo.toml",
           "{projectRoot}/proto/**",
           "{projectRoot}/rust-toolchain.toml",
+          "{projectRoot}/rustfmt.toml",
           "{projectRoot}/src/**",
+          "!{projectRoot}/src/contracts/**",
+          "!{projectRoot}/src/proto/**",
           "{projectRoot}/substreams.yaml",
           {
-            "env": "CHAIN_ID"
+            "dependentTasksOutputFiles": "contracts/out/build/ExaAccountFactory.sol/ExaAccountFactory.json"
           },
           {
-            "dependentTasksOutputFiles": "contracts/out/**/*.json"
+            "dependentTasksOutputFiles": "contracts/out/build/UpgradeableModularAccount.sol/UpgradeableModularAccount.json"
           }
         ],
         "outputs": [
+          "{projectRoot}/src/contracts",
+          "{projectRoot}/src/proto",
           "{projectRoot}/target/wasm32-unknown-unknown/release/substreams.wasm"
         ]
       },

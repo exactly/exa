@@ -96,6 +96,14 @@
   },
   "nx": {
     "projectType": "application",
+    "namedInputs": {
+      "anvil": [
+        "{projectRoot}/test/anvil.ts",
+        "{projectRoot}/test/anvilClient.ts",
+        "{workspaceRoot}/contracts/test/Fork.t.sol",
+        "{workspaceRoot}/contracts/test/mocks/**/*"
+      ]
+    },
     "targets": {
       "prepare": {
         "dependsOn": [
@@ -139,20 +147,11 @@
         ]
       },
       "generate:broadcasts": {
-        "dependsOn": [
-          {
-            "projects": "@exactly/plugin",
-            "target": "build"
-          }
-        ],
         "inputs": [
-          "{projectRoot}/test/anvil.ts",
+          "anvil",
           "^production",
           {
             "env": "CHAIN_ID"
-          },
-          {
-            "dependentTasksOutputFiles": "contracts/out/**/*.json"
           }
         ],
         "outputs": [
@@ -196,6 +195,7 @@
         ],
         "inputs": [
           "default",
+          "anvil",
           "^production"
         ],
         "outputs": [
@@ -210,6 +210,7 @@
         ],
         "inputs": [
           "default",
+          "anvil",
           "^production"
         ],
         "outputs": [

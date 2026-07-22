@@ -68,6 +68,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   const shell = {
     cwd: "node_modules/@exactly/plugin",
     env: {
+      FOUNDRY_PROFILE: "tooling",
       OPTIMISM_ETHERSCAN_KEY: "",
       ISSUER_ADDRESS: privateKeyToAddress(padHex("0x420")),
       KEEPER_ADDRESS: keeper.address,

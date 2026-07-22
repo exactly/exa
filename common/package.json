@@ -80,7 +80,7 @@
             "env": "EAS_BUILD_RUNNER"
           },
           {
-            "dependentTasksOutputFiles": "contracts/out/**/*.json"
+            "dependentTasksOutputFiles": "contracts/out/build/**/*.json"
           },
           {
             "dependentTasksOutputFiles": "contracts/broadcast/*/31337/*.json"
