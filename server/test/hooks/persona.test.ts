@@ -1,3 +1,4 @@
+import "../mocks/deployments";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sentry";
@@ -7,9 +8,10 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import chain from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import app from "../../hooks/persona";
@@ -17,10 +19,16 @@ import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
+import { enqueue } from "../../workers/allow/queue";
 
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../workers/allow/queue", () => ({ enqueue: vi.fn<typeof enqueue>() }));
+
+beforeEach(() => {
+  vi.mocked(enqueue).mockReset().mockResolvedValue();
+});
 
 describe("with reference", () => {
   const referenceId = "hook-persona";
@@ -34,6 +42,7 @@ describe("with reference", () => {
   });
 
   afterEach(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
     vi.resetAllMocks();
     await database.delete(cards).where(eq(cards.credentialId, referenceId));
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
@@ -73,6 +82,13 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
+    expect(enqueue).toHaveBeenCalledWith({
+      account,
+      chainId: chain.id,
+      factory,
+      publicKey: owner.toLowerCase(),
+      source: null,
+    });
     expect(response.status).toBe(200);
   });
 
@@ -199,6 +215,7 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ account }));
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -397,16 +414,24 @@ describe("persona hook", () => {
     });
   });
 
-  afterEach(() => vi.resetAllMocks());
-
-  it("creates panda and pax user on valid inquiry", async () => {
+  beforeEach(() => {
     vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
     vi.spyOn(pax, "addCapita").mockResolvedValue({});
-    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+  });
 
+  afterEach(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    vi.restoreAllMocks();
+  });
+
+  it("creates panda and pax user on valid inquiry", async () => {
     const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
       json: {
         ...validPayload,
         data: {
@@ -423,6 +448,14 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account: deriveAddress(inject("ExaAccountFactory"), {
+          x: padHex(privateKeyToAddress(padHex("0x420"))),
+          y: zeroHash,
+        }),
+      }),
+    );
     expect(panda.createUser).toHaveBeenCalledWith({
       accountPurpose: "business",
       annualSalary: "100000",
@@ -445,25 +478,72 @@ describe("persona hook", () => {
       product: "travel insurance",
     });
   });
-});
 
-describe("manteca template", () => {
-  const referenceId = "manteca-ref";
-  beforeAll(async () => {
-    await database.insert(credentials).values({
-      id: referenceId,
-      publicKey: new Uint8Array(),
-      factory: inject("ExaAccountFactory"),
-      account: deriveAddress(inject("ExaAccountFactory"), {
-        x: padHex(privateKeyToAddress(padHex("0x789"))),
-        y: zeroHash,
-      }),
-      pandaId: null,
+  it("does not allow very high risk accounts", async () => {
+    vi.mocked(sardine.customer).mockReset().mockResolvedValueOnce({
+      sessionKey: "test",
+      status: "Success",
+      level: "very_high",
     });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+
+  it("fails before panda creation when allow cannot be queued", async () => {
+    const error = new Error("redis unavailable");
+    const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(enqueue).mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorConsole).toHaveBeenCalledWith(error);
+    expect(enqueue).toHaveBeenCalledOnce();
+    expect(panda.createUser).not.toHaveBeenCalled();
   });
 
   it("handles manteca template and adds document", async () => {
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_manteca" } });
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "should-not-be-called" });
 
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },
@@ -472,7 +552,7 @@ describe("manteca template", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+    expect(persona.addDocument).toHaveBeenCalledWith("manteca-ref", {
       id_class: { value: "dl" },
       id_number: { value: "ID12345" },
       id_issuing_country: { value: "AR" },
@@ -483,9 +563,12 @@ describe("manteca template", () => {
 });
 
 describe("ignored template", () => {
-  beforeAll(() => {
-    vi.resetAllMocks();
+  beforeEach(() => {
+    vi.spyOn(panda, "createUser");
+    vi.spyOn(persona, "addDocument");
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("returns ok for address template", async () => {
     const response = await appClient.index.$post({
@@ -788,7 +871,12 @@ describe("card limit case", () => {
 });
 
 describe("ignored card limit inquiry template", () => {
-  beforeAll(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.spyOn(panda, "createUser");
+    vi.spyOn(persona, "addDocument");
+  });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("returns ok for card limit inquiry template", async () => {
     const response = await appClient.index.$post({
