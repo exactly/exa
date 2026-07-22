@@ -11,6 +11,7 @@ const registry = new projects.Service("artifactregistry", { service: "artifactre
 const secretManager = new projects.Service("secretmanager", { service: "secretmanager.googleapis.com" });
 
 const keyRing = new kms.KeyRing("signers", { location, name: `${stack}-signers` }, { dependsOn: cloudKms });
+const allow = new serviceaccount.Account("allow-worker", { accountId: `${stack}-allower` }, { dependsOn: iam });
 const credit = new serviceaccount.Account("credit-worker", { accountId: `${stack}-credit` }, { dependsOn: iam });
 const poke = new serviceaccount.Account("poke-worker", { accountId: `${stack}-poke` }, { dependsOn: iam });
 const refund = new serviceaccount.Account("refund-worker", { accountId: `${stack}-refund` }, { dependsOn: iam });
@@ -55,6 +56,61 @@ const serverImage = interpolate`${
     { dependsOn: registry },
   ).registryUri
 }/exactly/exa-${stack}:${config.require("serverImage")}`;
+
+new cloudrunv2.WorkerPool(
+  "allow",
+  {
+    location,
+    name: `${stack}-allow`,
+    scaling: { manualInstanceCount: config.getNumber("allowWorkers") ?? 1 },
+    template: {
+      serviceAccount: allow.email,
+      containers: [
+        {
+          image: serverImage,
+          resources: config.getObject("allowResources"),
+          args: ["dist/workers/allow/worker.cjs"],
+          envs: [
+            { name: "APP_STACK", value: stack },
+            { name: "DEBUG", value: "exa:*" },
+            { name: "GCP_KMS_KEY_RING", value: keyRing.name },
+            { name: "GCP_KMS_KEY_VERSION", value: config.get("allowerVersion") ?? "1" },
+            { name: "GCP_KMS_LOCATION", value: location },
+            { name: "NODE_ENV", value: "production" },
+            { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    dependsOn: [
+      run,
+      new kms.CryptoKeyIAMMember("allow-signer", {
+        cryptoKeyId: new kms.CryptoKey(
+          "allower",
+          {
+            name: `${stack}-allower`,
+            purpose: "ASYMMETRIC_SIGN",
+            versionTemplate: { algorithm: "EC_SIGN_SECP256K1_SHA256", protectionLevel: "HSM" },
+            keyRing: keyRing.id,
+          },
+          { protect: true, retainOnDelete: true },
+        ).id,
+        member: interpolate`serviceAccount:${allow.email}`,
+        role: "roles/cloudkms.signerVerifier",
+      }),
+      ...(["redis-url", "sentry-dsn"] as const).map(
+        (secret) =>
+          new secretmanager.SecretIamMember(`allow-${secret}-access`, {
+            member: interpolate`serviceAccount:${allow.email}`,
+            role: "roles/secretmanager.secretAccessor",
+            secretId: secrets[secret].id,
+          }),
+      ),
+    ],
+  },
+);
 
 new cloudrunv2.WorkerPool(
   "credit",
