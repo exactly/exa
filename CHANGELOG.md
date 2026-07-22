@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.17
+
+### Patch Changes
+
+- [#1149](https://github.com/exactly/exa/pull/1149) [`3876753`](https://github.com/exactly/exa/commit/3876753ae5343c54f27ef198129f2b84be23e809) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ surface funding banner on home and card
+
+- [#1167](https://github.com/exactly/exa/pull/1167) [`13d7bfa`](https://github.com/exactly/exa/commit/13d7bfa088eff8b9b31fea4ef285251ec82bc643) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 open pax link in external browser
+
+- [#1149](https://github.com/exactly/exa/pull/1149) [`b457e5d`](https://github.com/exactly/exa/commit/b457e5deedc415d04b933e7836e36f3fd938a5e4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 👔 allow card activation without deposits
+
+- Updated dependencies [[`76a9dc4`](https://github.com/exactly/exa/commit/76a9dc4203b8550c857c8ff1d85849c478c3ecc2)]:
+  - @exactly/server@0.2.103
+
 ## 1.2.16
 
 ### Patch Changes

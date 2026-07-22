@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.103
+
+### Patch Changes
+
+- [#1154](https://github.com/exactly/exa/pull/1154) [`76a9dc4`](https://github.com/exactly/exa/commit/76a9dc4203b8550c857c8ff1d85849c478c3ecc2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add card and installment position to activity
+
 ## 0.2.102
 
 ### Patch Changes
