@@ -13,6 +13,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import creditWorker from "../workers/credit/worker";
+import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 
@@ -32,6 +33,7 @@ describe("e2e", () => {
         new Promise((resolve, reject) => {
           const workers = [
             creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
+            pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
             refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
             subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
           ];
