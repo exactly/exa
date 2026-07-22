@@ -16,6 +16,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import creditWorker from "../workers/credit/worker";
+import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 
@@ -32,6 +33,12 @@ describe("e2e", () => {
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
       const workers = [
         creditWorker({ onesignalKey: "onesignal", postgresUrl: env.POSTGRES_URL, redisUrl: env.REDIS_URL }),
+        pokeWorker({
+          onesignalKey: "onesignal",
+          poker: privateKeyToAccount(padHex("0xb0b")),
+          redisUrl: env.REDIS_URL,
+          segmentKey: "segment",
+        }),
         refundWorker({
           issuer: privateKeyToAccount(padHex("0x420")),
           pandaKey: "panda",
