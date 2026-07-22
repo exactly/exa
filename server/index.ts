@@ -55,11 +55,9 @@ const api = createApi({
 const activity = createActivity({
   alchemyKey: parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY),
   activityKey: env.ALCHEMY_ACTIVITY_KEY,
-  executor: keeper,
   onesignalKey: parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY),
   postgresUrl: parse(pipe(string("postgres"), nonEmpty("postgres")), env.POSTGRES_URL),
   redisUrl: parse(pipe(string("redis"), nonEmpty("redis")), env.REDIS_URL),
-  segmentKey: parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY),
 });
 const block = createBlock({
   alchemyKey: parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY),

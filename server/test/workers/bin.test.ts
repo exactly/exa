@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const signers = {
   issuer: privateKeyToAccount(padHex("0x420")),
+  poker: privateKeyToAccount(padHex("0xb0b")),
   refunder: privateKeyToAccount(padHex("0xfee")),
 };
 const mocks = {
   close: vi.fn<() => Promise<void>>(),
   credit: vi.fn<(config: { onesignalKey: string; postgresUrl: string; redisUrl: string }) => Handle>(),
+  poke: vi.fn<
+    (config: { onesignalKey: string; poker: typeof signers.poker; redisUrl: string; segmentKey: string }) => Handle
+  >(),
   refund:
     vi.fn<
       (config: {
@@ -33,6 +37,7 @@ beforeEach(() => {
   vi.resetModules();
   mocks.close.mockReset().mockResolvedValue();
   mocks.credit.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
+  mocks.poke.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(signers[name]));
@@ -42,6 +47,7 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
+  vi.doMock("../../workers/poke/worker", () => ({ default: mocks.poke }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
@@ -64,6 +70,43 @@ describe("bin", () => {
       postgresUrl: "credit-postgres-url",
       redisUrl: "redis-url",
     });
+  });
+
+  it("resolves poke private config before constructing and supervising its worker", async () => {
+    await import("../../workers/poke/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("poke", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "poke-onesignal-api-key",
+      "redis-url",
+      "poke-segment-write-key",
+    ]);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
+    expect(mocks.poke).toHaveBeenCalledExactlyOnceWith({
+      onesignalKey: "poke-onesignal-api-key",
+      poker: signers.poker,
+      redisUrl: "redis-url",
+      segmentKey: "poke-segment-write-key",
+    });
+  });
+
+  it("fails before constructing the poke worker without its poker account", async () => {
+    const error = new Error("missing poker");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/poke/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
+    expect(mocks.poke).not.toHaveBeenCalled();
   });
 
   it("resolves refund private config before constructing and supervising its worker", async () => {

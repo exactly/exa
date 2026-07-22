@@ -3,6 +3,7 @@ export default define({
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
+    poke: { secrets: ["onesignal-api-key", "segment-write-key"], signers: ["poker"] },
     refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
     subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },
   },
