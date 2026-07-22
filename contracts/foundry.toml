@@ -32,7 +32,7 @@ exclude_lints = [
   "mixed-case-variable",
   "pascal-case-struct",
 ]
-ignore = ["**/*.t.sol", "**/mocks/**/*.sol"]
+ignore = ["test/**/*.t.sol", "test/mocks/**/*.sol"]
 
 [profile.production.fuzz]
 runs = 66_666
