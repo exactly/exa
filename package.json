@@ -340,7 +340,7 @@
         ],
         "inputs": [],
         "outputs": [
-          "{projectRoot}/generated/release.js"
+          "{projectRoot}/src/generated/release.js"
         ],
         "cache": false
       },
@@ -354,7 +354,7 @@
         ],
         "inputs": [],
         "outputs": [
-          "{projectRoot}/generated/versionCode.js"
+          "{projectRoot}/src/generated/versionCode.js"
         ],
         "cache": false
       },
