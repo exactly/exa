@@ -5,6 +5,7 @@ export default {
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
     credit: worker("credit", { secrets: [scoped("onesignal-api-key"), scoped("postgres-url")] }),
+    poke: worker("poke", { secrets: [scoped("onesignal-api-key"), scoped("segment-write-key")], signer: "poker" }),
     refund: worker("refund", { secrets: [scoped("panda-api-key"), shared("panda-api-url")], signer: "refunder" }),
     subscribe: worker("subscribe", {
       env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" },
