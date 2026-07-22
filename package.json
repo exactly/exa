@@ -162,7 +162,7 @@
     "prettier": "^3.8.1",
     "react-native-svg-transformer": "^1.5.3",
     "sharp-cli": "^5.2.0",
-    "svgo": "^4.0.1",
+    "svgo": "^4.0.2",
     "typescript": "catalog:"
   },
   "packageManager": "pnpm@10.33.0",
