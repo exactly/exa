@@ -168,6 +168,7 @@
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
+      "@hono/node-server": "catalog:",
       "@opentelemetry/core@2": "^2.8.0",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
