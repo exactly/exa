@@ -23,6 +23,7 @@ import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
+import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 import { connect } from "../workers/worker";
@@ -45,6 +46,7 @@ describe("e2e", () => {
       const segment = createSegment("segment");
       const workers = [
         creditWorker({ bullmq, database, onesignal }),
+        pokeWorker({ bullmq, onesignal, poker: privateKeyToAccount(padHex("0xb0b")), segment }),
         refundWorker({
           bullmq,
           database,

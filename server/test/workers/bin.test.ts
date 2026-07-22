@@ -9,6 +9,7 @@ const refunder = privateKeyToAccount(padHex("0xfee"));
 const database = { $client: { end: vi.fn<() => Promise<void>>() } };
 const onesignal = {};
 const panda = {};
+const poker = privateKeyToAccount(padHex("0xb0b"));
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
 const whatsapp = {};
@@ -21,6 +22,9 @@ const mocks = {
   hook: vi.fn<(config: { bullmq: object; database: typeof database; panda: object }) => Handle>(),
   onesignal: vi.fn<(key: string) => object>(),
   panda: vi.fn<(config: { key: string; url: string }) => object>(),
+  poke: vi.fn<
+    (config: { bullmq: object; onesignal: object; poker: typeof poker; segment: typeof segment }) => Handle
+  >(),
   refund:
     vi.fn<
       (config: {
@@ -55,12 +59,13 @@ beforeEach(() => {
   mocks.hook.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.onesignal.mockReset().mockReturnValue(onesignal);
   mocks.panda.mockReset().mockReturnValue(panda);
+  mocks.poke.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.chat.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.segment.mockReset().mockReturnValue(segment);
-  mocks.signer.mockReset().mockResolvedValue(refunder);
+  mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(name === "poker" ? poker : refunder));
   mocks.subscribe.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.supervise.mockReset();
   mocks.whatsapp.mockReset().mockReturnValue(whatsapp);
@@ -88,6 +93,7 @@ beforeEach(() => {
   vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
+  vi.doMock("../../workers/poke/worker", () => ({ default: mocks.poke }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
@@ -136,6 +142,46 @@ describe("bin", () => {
       database,
       onesignal,
     });
+  });
+
+  it("resolves poke private config before constructing and supervising its worker", async () => {
+    await import("../../workers/poke/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("poke", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "redis-url",
+      "poke-onesignal-api-key",
+      "poke-segment-write-key",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("poke-onesignal-api-key");
+    expect(mocks.segment).toHaveBeenCalledExactlyOnceWith("poke-segment-write-key");
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
+    expect(mocks.poke).toHaveBeenCalledExactlyOnceWith({
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      onesignal,
+      poker,
+      segment,
+    });
+  });
+
+  it("fails before constructing the poke worker without its poker account", async () => {
+    const error = new Error("missing poker");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/poke/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
+    expect(mocks.poke).not.toHaveBeenCalled();
   });
 
   it("resolves refund private config before constructing and supervising its worker", async () => {
