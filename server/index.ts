@@ -39,6 +39,7 @@ import createWalletExtension from "./utils/walletExtension";
 import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
+import createPoke from "./workers/poke/queue";
 import createRefund from "./workers/refund/queue";
 import createSubscribe from "./workers/subscribe/queue";
 
@@ -69,6 +70,7 @@ const persona = createPersona(
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
 const credit = createCredit(bullmq);
+const poke = createPoke(bullmq);
 const refund = createRefund(bullmq);
 const webhook = createHook(bullmq);
 const sardine = createSardine(
@@ -100,12 +102,10 @@ const api = createApi({
 
 const activityHook = createActivityHook({
   alchemy,
-  credit,
   database,
-  executor: keeper,
   onesignal,
+  poke,
   redis,
-  segment,
 });
 const blockHook = createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis });
 const bridgeHook = createBridgeHook({
@@ -422,6 +422,7 @@ export const close = supervise(
         closeMaturity,
         () => credit.close(),
         () => hookWorker.close(),
+        () => poke.close(),
         () => refund.close(),
         () => segment.close(),
         () => subscribe.close(),
