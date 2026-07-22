@@ -21,6 +21,7 @@ import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
+import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
 import pokeWorker from "../workers/poke/worker";
@@ -45,6 +46,7 @@ describe("e2e", () => {
       const sardine = createSardine("sardine", "https://sardine.test");
       const segment = createSegment("segment");
       const workers = [
+        allowWorker({ allower: privateKeyToAccount(padHex("0xa11")), bullmq }),
         creditWorker({ bullmq, database, onesignal }),
         pokeWorker({ bullmq, onesignal, poker: privateKeyToAccount(padHex("0xb0b")), segment }),
         refundWorker({

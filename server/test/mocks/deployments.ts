@@ -1,6 +1,16 @@
 import { foundry } from "viem/chains";
 import { inject, vi } from "vitest";
 
+import type { Address } from "@exactly/common/validation";
+
+let firewall: Address | undefined = inject("Firewall");
+
+export default {
+  setFirewall(address: Address | undefined) {
+    firewall = address;
+  },
+};
+
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   ...(await importOriginal()),
   default: { ...foundry, rpcUrls: { ...foundry.rpcUrls, alchemy: foundry.rpcUrls.default } },
@@ -9,7 +19,9 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   exaAccountFactoryAddress: inject("ExaAccountFactory"),
   exaPluginAddress: inject("ExaPlugin"),
   exaPreviewerAddress: inject("ExaPreviewer"),
-  firewallAddress: inject("Firewall"),
+  get firewallAddress() {
+    return firewall;
+  },
   issuerCheckerAddress: inject("IssuerChecker"),
   marketUSDCAddress: inject("MarketUSDC"),
   marketWETHAddress: inject("MarketWETH"),
