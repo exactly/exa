@@ -15,7 +15,7 @@
     "test": "nx test server",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:vi": "vitest run",
-    "test:openapi": "nx generate:openapi server",
+    "test:openapi": "nx test:openapi server",
     "spotlight:replay": "for f in node_modules/@exactly/.spotlight/*; do curl --data-binary @$f -H content-type:application/x-sentry-envelope http://localhost:8969/stream; done",
     "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
   },
@@ -184,6 +184,12 @@
           "test:ts",
           "test:vi",
           "test:openapi"
+        ],
+        "executor": "nx:noop"
+      },
+      "test:openapi": {
+        "dependsOn": [
+          "generate:openapi"
         ],
         "executor": "nx:noop"
       },

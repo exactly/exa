@@ -3,7 +3,7 @@
   "version": "0.1.5",
   "private": true,
   "scripts": {
-    "prepare": "nx generate:astro docs",
+    "prepare": "nx prepare docs",
     "generate:astro": "astro sync",
     "test": "nx test docs",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
@@ -32,6 +32,12 @@
   "nx": {
     "projectType": "application",
     "targets": {
+      "prepare": {
+        "dependsOn": [
+          "generate:astro"
+        ],
+        "executor": "nx:noop"
+      },
       "generate:astro": {
         "outputs": [
           "{projectRoot}/.astro"

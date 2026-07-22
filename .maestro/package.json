@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "prepare": "nx build e2e",
+    "prepare": "nx prepare e2e",
     "test": "nx test e2e",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "dev": "nx dev e2e"
@@ -24,6 +24,12 @@
   "nx": {
     "projectType": "library",
     "targets": {
+      "prepare": {
+        "dependsOn": [
+          "build"
+        ],
+        "executor": "nx:noop"
+      },
       "build": {
         "executor": "@nx/esbuild:esbuild",
         "inputs": [
