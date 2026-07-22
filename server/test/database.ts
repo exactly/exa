@@ -13,6 +13,7 @@ import waitOn from "wait-on";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
+import anvilClient from "./anvilClient";
 import * as schema from "../database/schema";
 
 export default async function setup() {
@@ -76,6 +77,7 @@ export default async function setup() {
   let substreamsExited: Promise<void> = Promise.resolve();
   let substreamsOutputFlushed: Promise<void> = Promise.resolve();
   try {
+    const { hash, parentHash } = await anvilClient.getBlock({ blockNumber: 0n });
     const warmupController = new AbortController();
     const warmupLog = `${startupLogs}/firehose-warmup.log`;
     const warmupOutput = createWriteStream(warmupLog);
@@ -83,20 +85,22 @@ export default async function setup() {
       cancelSignal: warmupController.signal,
       forceKillAfterDelay: 33_333,
       env: { ETH_RPC_SHORT_BLOCK_NUMBER_NOTATION: "true" },
-    })`fireeth start reader-node,merger --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=bash --reader-node-arguments=${'-c "\
+    })`fireeth start reader-node --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=bash --reader-node-arguments=${'-c "\
       fireeth tools poll-rpc-blocks http://localhost:8545 0 | tsx script/firehose.ts"'}`;
     const warmupLogWatcher = watchProcessOutput(warmup, warmupOutput, warmupController);
     try {
       await Promise.race([
         waitOn({
-          resources: ["node_modules/@exactly/.firehose/storage/merged-blocks/0000000000.dbin.zst"], // cspell:ignore dbin
+          resources: [
+            `node_modules/@exactly/.firehose/storage/one-blocks/0000000000-${hash.slice(-16)}-${parentHash.slice(-16)}-0-default.dbin.zst`, // cspell:ignore dbin
+          ],
           timeout: 120_000,
         }),
         postgresExited.then(() => {
           throw new Error("postgres exited waiting fireeth warmup");
         }),
         warmupLogWatcher.exit.then(() => {
-          throw new Error("warmup exited before merged blocks");
+          throw new Error("warmup exited before block zero");
         }),
         warmupLogWatcher.outputError,
       ]);
