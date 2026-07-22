@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
+import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
@@ -32,6 +33,7 @@ describe("e2e", () => {
       await expect(
         new Promise((resolve, reject) => {
           const workers = [
+            allowWorker({ redisUrl }),
             creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
             pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
             refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
