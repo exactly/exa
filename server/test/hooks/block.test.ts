@@ -2110,9 +2110,11 @@ describe("legacy withdraw", () => {
     );
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-    const captureExceptionFingerprints = captureExceptionCalls.flatMap(([, hint]) =>
-      typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-    );
+    const captureExceptionFingerprints = captureExceptionCalls
+      .filter(([error]) => error instanceof ContractFunctionExecutionError && error.functionName === "withdraw")
+      .flatMap(([, hint]) =>
+        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
+      );
 
     expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
     expect(captureException).toHaveBeenCalledWith(
