@@ -36,6 +36,7 @@ import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createAllow from "./workers/allow/queue";
 import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
@@ -69,6 +70,7 @@ const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
+const allow = createAllow(redis);
 const credit = createCredit(redis);
 const poke = createPoke(redis);
 const refund = createRefund(redis);
@@ -135,6 +137,7 @@ const pandaHook = createPandaHook({
   webhook,
 });
 const personaHook = createPersonaHook({
+  allow,
   database,
   panda,
   pax,
@@ -419,6 +422,7 @@ export const close = supervise(
             reminders().catch(reminders),
           ]),
         },
+        () => allow.close(),
         closeMaturity,
         () => credit.close(),
         () => hookWorker.close(),

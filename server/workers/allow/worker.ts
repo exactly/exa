@@ -1,0 +1,57 @@
+import { captureException, withScope } from "@sentry/node";
+import { parse } from "valibot";
+
+import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
+
+import { attempts, name, type Job } from "./job";
+import { own } from "../../supervise";
+import wallet from "../../utils/wallet";
+import createPoke from "../poke/queue";
+import createWorker from "../worker";
+
+import type { Redis } from "ioredis";
+import type { LocalAccount } from "viem";
+
+export default function worker({ allower, bullmq }: { allower: LocalAccount; bullmq: Redis }) {
+  const poke = createPoke(bullmq);
+  return own(
+    createWorker<Job>({
+      attempts,
+      bullmq,
+      failed(job, error) {
+        withScope((scope) => {
+          if (job) scope.setUser({ id: job.data.account });
+          captureException(error, {
+            extra: { account: job?.data.account, attempts: job?.attemptsMade, id: job?.id },
+            level: "error",
+            tags: { queue: name, job: job?.name },
+          });
+        });
+      },
+      name,
+      async process(job) {
+        await wallet(allower).exaSend(
+          { name: "firewall.allow", op: "exa.firewall", attributes: { account: job.data.account } },
+          {
+            address: parse(Address, firewallAddress),
+            functionName: "allow",
+            args: [job.data.account, true],
+            abi: firewallAbi,
+          },
+          { ignore: [`AlreadyAllowed(${job.data.account})`] },
+        );
+        await poke.enqueue({
+          account: job.data.account,
+          assets: job.data.assets,
+          chainId: job.data.chainId,
+          factory: job.data.factory,
+          origin: "allow",
+          publicKey: job.data.publicKey,
+          source: job.data.source,
+        });
+      },
+    }),
+    () => poke.close(),
+  );
+}
