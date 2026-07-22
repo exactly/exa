@@ -10569,8 +10569,8 @@ packages:
     resolution: {integrity: sha512-cNOjgCnLB+FnvWWtyRTzmB3POJ+cXxTA81LoW7u8JdmhfXzriropYwpjShnz1QLLWsQwY7nIxoDmcPTwphDK9w==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  linkify-it@5.0.1:
-    resolution: {integrity: sha512-wVoTjP4Q6R0NW5hiZkVJaFZPWgtXfoGF+6LucL3/FtiNjmcHhYjEr5f1Kqjirc1nBW07J/ZuRFumqr2oqccEWg==}
+  linkify-it@5.0.2:
+    resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
 
   load-tsconfig@0.2.5:
     resolution: {integrity: sha512-IXO6OCs9yg8tMKzfPZ1YmheJbZCiEsnBdcB03l0OcfK9prKnJb96siuHCr5Fl37/yo9DnKU+TLpxzTUspw9shg==}
@@ -25937,7 +25937,7 @@ snapshots:
 
   lines-and-columns@2.0.3: {}
 
-  linkify-it@5.0.1:
+  linkify-it@5.0.2:
     dependencies:
       uc.micro: 2.1.0
 
@@ -26079,7 +26079,7 @@ snapshots:
     dependencies:
       argparse: 2.0.1
       entities: 4.5.0
-      linkify-it: 5.0.1
+      linkify-it: 5.0.2
       mdurl: 2.0.0
       punycode.js: 2.3.1
       uc.micro: 2.1.0
