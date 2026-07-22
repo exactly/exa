@@ -23,6 +23,7 @@ import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
 import { bullmq, close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
+import { close as closeAllow } from "./workers/allow/queue";
 import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
 import { close as closePoke } from "./workers/poke/queue";
 import { close as closeRefund } from "./workers/refund/queue";
@@ -295,7 +296,7 @@ export const close = supervise(
       const services = await Promise.allSettled([
         closeSegment(),
         database.$client.end(),
-        Promise.allSettled([closeCredit(), closeMaturity(), closePoke(), closeRefund(), closeSubscribe()])
+        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closePoke(), closeRefund(), closeSubscribe()])
           .then((queues) => {
             if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
           })
