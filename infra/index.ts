@@ -11,6 +11,7 @@ const registry = new projects.Service("artifactregistry", { service: "artifactre
 const secretManager = new projects.Service("secretmanager", { service: "secretmanager.googleapis.com" });
 
 const keyRing = new kms.KeyRing("signers", { location, name: `${stack}-signers` }, { dependsOn: cloudKms });
+const credit = new serviceaccount.Account("credit-worker", { accountId: `${stack}-credit` }, { dependsOn: iam });
 const refund = new serviceaccount.Account("refund-worker", { accountId: `${stack}-refund` }, { dependsOn: iam });
 const subscribe = new serviceaccount.Account(
   "subscribe-worker",
@@ -29,6 +30,8 @@ const secrets = (<const S extends readonly string[]>(names: S) =>
     ]),
   ) as Record<S[number], secretmanager.Secret>)([
   "account-alchemy-webhooks-key",
+  "credit-onesignal-api-key",
+  "credit-postgres-url",
   "panda-api-url",
   "refund-panda-api-key",
   "redis-url",
@@ -49,6 +52,44 @@ const serverImage = interpolate`${
     { dependsOn: registry },
   ).registryUri
 }/exactly/exa-${stack}:${config.require("serverImage")}`;
+
+new cloudrunv2.WorkerPool(
+  "credit",
+  {
+    location,
+    name: `${stack}-credit`,
+    scaling: { manualInstanceCount: config.getNumber("creditWorkers") ?? 1 },
+    template: {
+      serviceAccount: credit.email,
+      containers: [
+        {
+          image: serverImage,
+          resources: config.getObject("creditResources"),
+          args: ["dist/workers/credit/worker.cjs"],
+          envs: [
+            { name: "APP_STACK", value: stack },
+            { name: "DEBUG", value: "exa:*" },
+            { name: "NODE_ENV", value: "production" },
+            { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    dependsOn: [
+      run,
+      ...(["credit-onesignal-api-key", "credit-postgres-url", "redis-url", "sentry-dsn"] as const).map(
+        (secret) =>
+          new secretmanager.SecretIamMember(`credit-${secret}-access`, {
+            member: interpolate`serviceAccount:${credit.email}`,
+            role: "roles/secretmanager.secretAccessor",
+            secretId: secrets[secret].id,
+          }),
+      ),
+    ],
+  },
+);
 
 new cloudrunv2.WorkerPool(
   "refund",
