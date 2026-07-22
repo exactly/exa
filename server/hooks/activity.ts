@@ -1,52 +1,34 @@
 import { vValidator } from "@hono/valibot-validator";
-import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import {
   captureException,
-  continueTrace,
   getActiveSpan,
-  getTraceData,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
   setTag,
   setUser,
-  startSpan,
-  withScope,
 } from "@sentry/node";
 import createDebug from "debug";
 import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import * as v from "valibot";
-import { bytesToBigInt, hexToBigInt, withRetry, type LocalAccount } from "viem";
+import { bytesToHex, hexToBigInt } from "viem";
 import { anvil } from "viem/chains";
 
-import exaChain, {
-  auditorAbi,
-  exaAccountFactoryAbi,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketAbi,
-  upgradeableModularAccountAbi,
-  wethAddress,
-} from "@exactly/common/generated/chain";
+import exaChain, { exaPreviewerAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { activityNetworks, activityUrl, NETWORKS } from "../utils/alchemy";
-import decodePublicKey from "../utils/decodePublicKey";
 import publicClient from "../utils/publicClient";
-import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
-import createWallet from "../utils/wallet";
 
 import type * as schema from "../database/schema";
 import type createAlchemy from "../utils/alchemy";
 import type createOnesignal from "../utils/onesignal";
-import type createSegment from "../utils/segment";
-import type createCredit from "../workers/credit/queue";
+import type createPoke from "../workers/poke/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
@@ -58,20 +40,16 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default function hook({
   alchemy,
-  credit,
   database,
-  executor,
   onesignal,
+  poke,
   redis,
-  segment,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
-  credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
-  executor: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
+  poke: ReturnType<typeof createPoke>;
   redis: Redis;
-  segment: ReturnType<typeof createSegment>;
 }) {
   const networks = activityNetworks();
   let entries = new Map<string, { network: string; signingKey: string }>();
@@ -206,124 +184,19 @@ export default function hook({
           pokes.set(account, { publicKey, factory, source, assets: new Set([asset]) });
         }
       }
-      const { "sentry-trace": sentryTrace, baggage } = getTraceData();
-      const wallet = createWallet(executor, chain);
-      Promise.allSettled(
-        [...pokes].map(([account, { publicKey, factory, source, assets }]) =>
-          continueTrace({ sentryTrace, baggage }, () =>
-            withScope((scope) =>
-              startSpan(
-                { name: "account activity", op: "exa.activity", attributes: { account }, forceTransaction: true },
-                async (span) => {
-                  scope.setUser({ id: account });
-                  const isDeployed = !!(await wallet.getCode({ address: account }));
-                  scope.setTag("exa.new", !isDeployed);
-                  if (!isDeployed) {
-                    try {
-                      await wallet.exaSend(
-                        { name: "create account", op: "exa.account", attributes: { account } },
-                        {
-                          address: factory,
-                          functionName: "createAccount",
-                          args: [0n, [decodePublicKey(publicKey, bytesToBigInt)]],
-                          abi: exaAccountFactoryAbi,
-                        },
-                        chain.id === exaChain.id ? undefined : { fees: "auto" },
-                      );
-                      segment.track({ event: "AccountFunded", userId: account, properties: { source } });
-                    } catch (error: unknown) {
-                      span.setStatus({ code: SPAN_STATUS_ERROR, message: "account_failed" });
-                      throw error;
-                    }
-                  }
-                  if (chain.id !== exaChain.id) {
-                    span.setStatus({ code: SPAN_STATUS_OK });
-                    return;
-                  }
-                  if (assets.has(ETH)) assets.delete(WETH);
-                  const results = await Promise.allSettled(
-                    [...assets]
-                      .filter((asset) => marketsByAsset.has(asset) || asset === ETH)
-                      .map(async (asset) =>
-                        withRetry(
-                          () =>
-                            wallet
-                              .exaSend(
-                                { name: "poke account", op: "exa.poke", attributes: { account, asset } },
-                                {
-                                  address: account,
-                                  abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
-                                  ...(asset === ETH
-                                    ? { functionName: "pokeETH" }
-                                    : {
-                                        functionName: "poke",
-                                        args: [marketsByAsset.get(asset)!], // eslint-disable-line @typescript-eslint/no-non-null-assertion
-                                      }),
-                                },
-                                { ignore: ["NoBalance()"] },
-                              )
-                              .then((receipt) => {
-                                if (receipt) return receipt;
-                                throw new Error("NoBalance()");
-                              }),
-                          {
-                            delay: 2000,
-                            retryCount: 5,
-                            shouldRetry: ({ error }) => {
-                              if (error instanceof Error && error.message === "NoBalance()") return true;
-                              withScope((captureScope) => {
-                                captureScope.setUser({ id: account });
-                                captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
-                              });
-                              return true;
-                            },
-                          },
-                        ),
-                      ),
-                  );
-                  for (const result of results) {
-                    if (result.status === "fulfilled") {
-                      await credit.enqueue(account);
-                      continue;
-                    }
-                    if (result.reason instanceof Error && result.reason.message === "NoBalance()") {
-                      withScope((captureScope) => {
-                        captureScope.setUser({ id: account });
-                        captureScope.addEventProcessor((event) => {
-                          if (event.exception?.values?.[0]) event.exception.values[0].type = "NoBalance";
-                          return event;
-                        });
-                        captureException(result.reason, {
-                          level: "warning",
-                          fingerprint: ["{{ default }}", "NoBalance"],
-                        });
-                      });
-                      continue;
-                    }
-                    span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
-                    throw result.reason;
-                  }
-                  span.setStatus({ code: SPAN_STATUS_OK });
-                },
-              ),
-            ),
-          ).catch((error: unknown) => {
-            withScope((scope) => {
-              scope.setUser({ id: account });
-              captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
-            });
-            throw error;
+      await Promise.all(
+        [...pokes].map(([account, { assets, factory, publicKey, source }]) =>
+          poke.enqueue({
+            account,
+            assets: [...assets],
+            chainId: chain.id,
+            factory,
+            origin: "activity",
+            publicKey: bytesToHex(publicKey),
+            source,
           }),
         ),
-      )
-        .then((results) => {
-          getActiveSpan()?.setStatus(
-            results.every((result) => result.status === "fulfilled")
-              ? { code: SPAN_STATUS_OK }
-              : { code: SPAN_STATUS_ERROR, message: "activity_failed" },
-          );
-        })
-        .catch((error: unknown) => captureException(error));
+      );
       return c.json({});
     },
   );
