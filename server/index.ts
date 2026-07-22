@@ -106,6 +106,7 @@ const persona = createPersona({
   personaUrl: parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
   personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
   postgresUrl: parse(pipe(string("postgres"), nonEmpty("postgres")), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string("redis"), nonEmpty("redis")), env.REDIS_URL),
   sardineKey: parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   sardineUrl: parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
 });

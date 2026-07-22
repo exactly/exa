@@ -2,6 +2,7 @@ export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
+    allow: { signers: ["allower"] },
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
     poke: { secrets: ["onesignal-api-key", "segment-write-key"], signers: ["poker"] },
     refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
