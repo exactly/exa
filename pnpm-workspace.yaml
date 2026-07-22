@@ -34,7 +34,6 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
-minimumReleaseAgeExclude: ["@exactly/protocol"]
 packages:
   - "."
   - common
