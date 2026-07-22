@@ -132,7 +132,7 @@ beforeEach(async () => {
     waitForReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10 }),
   );
   vi.clearAllMocks();
-  await queue.drain(true);
+  await Promise.all([credits.drain(true), queue.drain(true)]);
   await queue.clean(0, 1000, "completed");
   await queue.clean(0, 1000, "failed");
 });
@@ -261,10 +261,11 @@ describe("poke worker", () => {
     const setAttribute = await spySpanSetAttribute();
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    await jobFinished(request);
+    const job = await jobFinished(request);
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    await expect(credits.getJob(`poke-${job.id}-1`)).resolves.toMatchObject({ data: { account } });
     expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, NETWORKS.get("ANVIL"));
     expect(mocks.track).toHaveBeenCalledWith({ event: "AccountFunded", userId: account, properties: { source: null } });
     expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
@@ -389,14 +390,14 @@ describe("poke worker", () => {
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
   });
 
-  it("queues credit after activity pokes", async () => {
+  it("queues credit after pokes", async () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
     const job = await jobFinished({ ...request, assets: [eth], origin: "activity" });
 
-    const credit = await credits.getJob(`poke-${job.id}`);
+    const credit = await credits.getJob(`poke-${job.id}-1`);
     if (!credit) throw new Error("credit job not found");
-    expect(credit.id).toBe(`poke-${job.id}`);
+    expect(credit.id).toBe(`poke-${job.id}-1`);
     expect(credit.name).toBe("credit");
     expect(credit.data).toStrictEqual({
       account,
@@ -406,38 +407,36 @@ describe("poke worker", () => {
     expect(credit.opts).toStrictEqual({
       attempts: 10,
       backoff: { type: "exponential", delay: 1000 },
-      jobId: `poke-${job.id}`,
-      removeOnComplete: { count: 100 },
+      jobId: `poke-${job.id}-1`,
+      removeOnComplete: true,
       removeOnFail: true,
     });
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
     await credit.remove();
   });
 
-  it("retries activity when credit cannot be queued", async () => {
-    const error = new Error("credit unavailable");
+  it("drops credit when it cannot be queued", async () => {
     const deposit = parseEther("5");
     const add = queue.add.bind(queue);
     await anvilClient.setBalance({ address: account, value: deposit });
-    vi.spyOn(Queue.prototype, "add").mockImplementation((jobName: string, data: unknown, options?: JobsOptions) => {
-      if (jobName === "credit") return Promise.reject(error);
-      return add(jobName as "poke", data as Poke, options);
-    });
+    const spy = vi
+      .spyOn(Queue.prototype, "add")
+      .mockImplementation((jobName: string, data: unknown, options?: JobsOptions) => {
+        if (jobName === "credit") return Promise.reject(new Error("credit unavailable"));
+        return add(jobName as "poke", data as Poke, options);
+      });
 
-    await expect(
-      jobFinished(
-        { ...request, assets: [eth], origin: "activity" },
-        { attempts: 2, backoff: { type: "fixed", delay: 1 } },
-      ),
-    ).rejects.toThrow("credit unavailable");
+    const job = await jobFinished(
+      { ...request, assets: [eth], origin: "activity" },
+      { attempts: 2, backoff: { type: "fixed", delay: 1 } },
+    );
 
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-      extra: { account, attempts: 2, id: `${request.chainId}-${account}-${eth}` },
-      fingerprint: ["{{ default }}", "unknown"],
-      level: "error",
-      tags: { queue: "poke", job: "poke" },
-    });
+    expect(spy.mock.calls.filter(([jobName]) => jobName === "credit")).toStrictEqual([
+      ["credit", expect.objectContaining({ account }), expect.objectContaining({ jobId: `poke-${job.id}-1` })],
+    ]);
+    await expect(credits.getJob(`poke-${job.id}-2`)).resolves.toBeUndefined();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("treats empty balances as an idempotent success", async () => {
@@ -495,6 +494,34 @@ describe("poke worker", () => {
     });
   });
 
+  it("queues credit after each partial activity poke", async () => {
+    const readContract = publicClient.readContract;
+    let hidden = true;
+    await mint(token, account, parseEther("2"));
+    vi.spyOn(publicClient, "readContract").mockImplementation(async (parameters) => {
+      if (hidden && parameters.functionName === "balanceOf" && parameters.address === token2) {
+        hidden = false;
+        await mint(token2, account, 2_000_000n);
+        return 0n as never;
+      }
+      return readContract(parameters as never);
+    });
+
+    const job = await jobFinished(
+      { ...request, assets: [token, token2], origin: "activity" },
+      { attempts: 2, backoff: { type: "fixed", delay: 1 } },
+    );
+
+    const partial = await credits.getJob(`poke-${job.id}-1`);
+    const retried = await credits.getJob(`poke-${job.id}-2`);
+    if (!partial || !retried) throw new Error("credit job not found");
+    expect(partial.data.account).toBe(account);
+    expect(retried.data.account).toBe(account);
+    expect(await getMarket(account, token)).toMatchObject({ isCollateral: true });
+    expect(await getMarket(account, token2)).toMatchObject({ isCollateral: true });
+    await Promise.all([partial.remove(), retried.remove()]);
+  });
+
   it("captures exhausted activity as a no balance warning", async () => {
     const setUser = await spyScopeSetUser();
     const id = `${request.chainId}-${account}-${token}`;
@@ -539,15 +566,12 @@ describe("poke worker", () => {
     expect(readContract).not.toHaveBeenCalled();
   });
 
-  it("deploys activity accounts funded with unsupported assets", async () => {
+  it("deploys activity accounts funded with unsupported assets without queuing credit", async () => {
     const job = await jobFinished({ ...request, assets: [unknownAsset], origin: "activity" });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(mocks.track).toHaveBeenCalledWith({ event: "AccountFunded", userId: account, properties: { source: null } });
-    const credit = await credits.getJob(`poke-${job.id}`);
-    if (!credit) throw new Error("credit job not found");
-    expect(credit.data.account).toBe(account);
-    await credit.remove();
+    await expect(credits.getJob(`poke-${job.id}-1`)).resolves.toBeUndefined();
   });
 
   it("retries rpc failures", async () => {

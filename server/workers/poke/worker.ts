@@ -40,7 +40,7 @@ export default function worker({
   poker: LocalAccount;
   segment: ReturnType<typeof createSegment>;
 }) {
-  const credit = createCredit(bullmq, { count: 100 });
+  const credit = createCredit(bullmq);
   return own(
     createWorker<Job>({
       attempts,
@@ -145,6 +145,9 @@ export default function worker({
               });
             }
           }
+          if (poked) {
+            await credit.enqueue(job.data.account, `poke-${job.id}-${job.attemptsStarted}`);
+          }
           if (job.data.origin === "activity" && pending.length > 0) {
             await job.updateData({ ...job.data, assets: pending });
             throw new Error(NO_BALANCE);
@@ -157,9 +160,6 @@ export default function worker({
                 contents: t("Your funds are ready to use"),
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
-          }
-          if (job.data.origin === "activity") {
-            await credit.enqueue(job.data.account, `poke-${job.id}`);
           }
         }
       },
