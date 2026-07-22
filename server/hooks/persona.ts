@@ -3,6 +3,7 @@ import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setConte
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
+import { Redis } from "ioredis";
 import {
   array,
   check,
@@ -17,6 +18,7 @@ import {
   number,
   object,
   optional,
+  parse,
   picklist,
   pipe,
   safeParse,
@@ -24,7 +26,9 @@ import {
   transform,
   union,
 } from "valibot";
+import { bytesToHex } from "viem";
 
+import chain, { firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import * as schema from "../database/schema";
@@ -43,6 +47,7 @@ import createPersona, {
 } from "../utils/persona";
 import createSardine from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
+import createAllow from "../workers/allow/queue";
 
 import type { InferOutput } from "valibot";
 
@@ -72,6 +77,7 @@ export default function hook({
   personaUrl,
   personaWebhookSecret,
   postgresUrl,
+  redisUrl,
   sardineKey,
   sardineUrl,
 }: {
@@ -84,10 +90,13 @@ export default function hook({
   personaUrl: string;
   personaWebhookSecret: string;
   postgresUrl: string;
+  redisUrl: string;
   sardineKey: string;
   sardineUrl: string;
 }) {
   const database = drizzle(postgresUrl, { schema });
+  const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
+  const allow = createAllow(bullmq);
   const persona = createPersona(personaKey, personaUrl);
   const panda = createPanda({ key: pandaKey, url: pandaUrl });
   const pax = createPax({ associateKey: paxAssociateKey, key: paxKey, url: paxUrl });
@@ -350,7 +359,7 @@ export default function hook({
       const { referenceId, fields } = attributes;
 
       const credential = await database.query.credentials.findFirst({
-        columns: { account: true, pandaId: true },
+        columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true },
         where: eq(credentials.id, referenceId),
       });
       if (!credential) {
@@ -362,7 +371,18 @@ export default function hook({
       getActiveSpan()?.setAttribute("exa.inquiryId", personaShareToken);
 
       const account = safeParse(Address, credential.account);
+      async function enqueueAllow(current: NonNullable<typeof credential>) {
+        if (account.success && firewallAddress)
+          await allow.enqueue({
+            account: account.output,
+            chainId: chain.id,
+            factory: parse(Address, current.factory),
+            publicKey: bytesToHex(current.publicKey),
+            source: current.source,
+          });
+      }
       if (credential.pandaId) {
+        await enqueueAllow(credential);
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.already-created");
         return c.json({ code: "already created" }, 200);
       }
@@ -421,6 +441,8 @@ export default function hook({
         if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
       }
 
+      await enqueueAllow(credential);
+
       // TODO implement error handling to return 200 if event should not be retried
       const { id } = await panda.createUser({
         accountPurpose: fields.accountPurpose.value,
@@ -475,7 +497,7 @@ export default function hook({
   let closing: Promise<unknown> | undefined;
   return {
     app,
-    close: () => (closing ??= database.$client.end()),
+    close: () => (closing ??= Promise.all([database.$client.end(), allow.close().finally(() => bullmq.quit())])),
     ready: Promise.resolve(),
   };
 }
