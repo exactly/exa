@@ -8,6 +8,7 @@ export default define({
     },
   },
   workers: {
+    allow: { signers: ["allower"] },
     chat: {
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["anthropic-api-key", "whatsapp-access-token"],

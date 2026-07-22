@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as Supervise from "../../supervise";
 
 const alchemy = {};
+const allower = privateKeyToAccount(padHex("0xa11"));
 const refunder = privateKeyToAccount(padHex("0xfee"));
 const database = { $client: { end: vi.fn<() => Promise<void>>() } };
 const onesignal = {};
@@ -15,6 +16,7 @@ const segment = { close: vi.fn<() => Promise<void>>() };
 const whatsapp = {};
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
+  allow: vi.fn<(config: { allower: typeof allower; bullmq: object }) => Handle>(),
   chat: vi.fn<(config: { anthropicKey: string; bullmq: object; whatsapp: object }) => Handle>(),
   close: vi.fn<() => Promise<void>>(),
   credit: vi.fn<(config: { bullmq: object; database: typeof database; onesignal: object }) => Handle>(),
@@ -53,6 +55,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.resetModules();
   mocks.alchemy.mockReset().mockReturnValue(alchemy);
+  mocks.allow.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.close.mockReset().mockResolvedValue();
   mocks.credit.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.drizzle.mockReset().mockReturnValue(database);
@@ -65,7 +68,9 @@ beforeEach(() => {
   mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.segment.mockReset().mockReturnValue(segment);
-  mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(name === "poker" ? poker : refunder));
+  mocks.signer
+    .mockReset()
+    .mockImplementation((name) => Promise.resolve(name === "allower" ? allower : name === "poker" ? poker : refunder));
   mocks.subscribe.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.supervise.mockReset();
   mocks.whatsapp.mockReset().mockReturnValue(whatsapp);
@@ -90,6 +95,7 @@ beforeEach(() => {
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
   vi.doMock("../../utils/whatsapp", () => ({ default: mocks.whatsapp }));
+  vi.doMock("../../workers/allow/worker", () => ({ default: mocks.allow }));
   vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
@@ -99,6 +105,38 @@ beforeEach(() => {
 });
 
 describe("bin", () => {
+  it("resolves allow private config before constructing and supervising its worker", async () => {
+    await import("../../workers/allow/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("allow", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url"]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["allower"]);
+    expect(mocks.allow).toHaveBeenCalledExactlyOnceWith({
+      allower,
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+    });
+  });
+
+  it("fails before constructing the allow worker without its allower account", async () => {
+    const error = new Error("missing allower");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/allow/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["allower"]);
+    expect(mocks.allow).not.toHaveBeenCalled();
+  });
+
   it("resolves chat config before constructing and supervising its worker", async () => {
     await import("../../workers/chat/bin");
 
