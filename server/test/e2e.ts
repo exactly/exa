@@ -13,6 +13,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import { close as closeCreditWorker, start as startCreditWorker } from "../workers/credit/worker";
+import { close as closePokeWorker, start as startPokeWorker } from "../workers/poke/worker";
 import { close as closeRefundWorker, start as startRefundWorker } from "../workers/refund/worker";
 import { close as closeSubscribeWorker, start as startSubscribeWorker } from "../workers/subscribe/worker";
 
@@ -31,7 +32,7 @@ describe("e2e", () => {
       await expect(
         new Promise((resolve, reject) => {
           const teardown = () => {
-            Promise.allSettled([closeCreditWorker(), closeRefundWorker(), closeSubscribeWorker()])
+            Promise.allSettled([closeCreditWorker(), closePokeWorker(), closeRefundWorker(), closeSubscribeWorker()])
               .then(close)
               .then(() => resolve(null), reject);
           };
@@ -53,6 +54,11 @@ describe("e2e", () => {
               onesignalKey: "onesignal",
               postgresUrl: process.env.POSTGRES_URL ?? "postgres",
               redisUrl,
+            }).waitUntilReady(),
+            startPokeWorker({
+              onesignalKey: "onesignal",
+              redisUrl,
+              segmentKey: "segment",
             }).waitUntilReady(),
             startRefundWorker({
               pandaKey: "panda",

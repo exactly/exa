@@ -23,6 +23,7 @@ import appOrigin from "./utils/appOrigin";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 import { close as closeCredit } from "./workers/credit/queue";
+import { close as closePoke } from "./workers/poke/queue";
 import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
 
@@ -327,7 +328,7 @@ export async function close() {
         closeSentry(),
         closeSegment(),
         database.$client.end(),
-        Promise.allSettled([closeCredit(), closeRefund(), closeSubscribe()])
+        Promise.allSettled([closeCredit(), closePoke(), closeRefund(), closeSubscribe()])
           .then((results) => {
             if (results.some((result) => result.status === "rejected")) throw new Error("closing queues failed");
           })

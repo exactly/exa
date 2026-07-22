@@ -1,4 +1,5 @@
 {
+  "Account assets updated": "Ativos da conta atualizados",
   "Card purchase": "Compra no cartão",
   "Credit mode activated": "Modo crédito ativado",
   "Deposited funds": "Fundos depositados",
@@ -12,6 +13,7 @@
   "Your card is now in credit mode": "Seu cartão agora está no modo crédito",
   "Your fiat onramp account has been activated": "Sua conta para depositar dinheiro fiat foi ativada",
   "Your funds are on the way to your bank": "Seus fundos estão a caminho do seu banco",
+  "Your funds are ready to use": "Seus fundos estão prontos para usar",
   "frozen card": "cartão bloqueado",
   "insufficient funds": "fundos insuficientes",
   "merchant blocked": "estabelecimento bloqueado",
