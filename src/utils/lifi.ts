@@ -20,7 +20,7 @@ import { encodeFunctionData, formatUnits, getAddress, type Address } from "viem"
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, { allowlist, exaAddress, mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
+import chain, { allowlists, exaAddress, mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import publicClient from "./publicClient";
@@ -229,7 +229,9 @@ export async function getAllowTokens(markets: readonly { asset: string; symbol: 
   if (chain.testnet || chain.id === anvil.id) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
   const protocolAssets = markets.filter((m) => m.symbol.slice(3) !== "USDC.e").map((m) => m.asset);
-  const allowed = new Set([...allowlist, ...protocolAssets].map((address) => address.toLowerCase()));
+  const allowed = new Set(
+    [...(allowlists[String(chain.id)] ?? []), ...protocolAssets].map((address) => address.toLowerCase()),
+  );
   const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
   if (!exaAddress) return allowTokens;
   try {
