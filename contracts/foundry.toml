@@ -35,8 +35,11 @@ exclude_lints = [
 ignore = ["test/**/*.t.sol", "test/mocks/**/*.sol"]
 
 [profile.build]
-script = "test/support/Build.sol"
+skip = ["script/**"]
 test = "test/support/Build.sol"
+
+[profile.production]
+skip = ["script/**"]
 
 [profile.production.fuzz]
 runs = 66_666
@@ -44,10 +47,12 @@ runs = 66_666
 [profile.coverage]
 cache_path = "cache/coverage"
 out = "out/coverage"
+skip = ["script/**"]
 
 [profile.sizes]
 cache_path = "cache/sizes"
 out = "out/sizes"
+skip = ["script/**", "test/**"]
 
 [profile.slither]
 cache_path = "cache/slither"
@@ -57,10 +62,12 @@ out = "out/slither"
 bytecode_hash = "none"
 cache_path = "cache/snapshot"
 out = "out/snapshot"
+skip = ["script/**"]
 
 [profile.tooling]
 cache_path = "cache/tooling"
 out = "out/tooling"
+test = "test/mocks"
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"

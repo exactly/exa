@@ -12,7 +12,7 @@
     "test:solhint": "solhint --max-warnings 0 '**/*.sol'",
     "test:slither": "FOUNDRY_PROFILE=slither slither --foundry-out-directory out/slither . --skip-clean",
     "test:coverage": "FOUNDRY_PROFILE=coverage forge coverage --report lcov",
-    "test:sizes": "FOUNDRY_PROFILE=sizes forge build --sizes --skip test --skip script"
+    "test:sizes": "FOUNDRY_PROFILE=sizes forge build --sizes"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.6.1",
