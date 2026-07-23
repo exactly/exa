@@ -9,7 +9,8 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
-import { base } from "viem/chains";
+import { base, mainnet } from "viem/chains";
+import { useEnsName } from "wagmi";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -23,6 +24,7 @@ import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useMarkets from "../../utils/useMarkets";
+import ownerConfig from "../../utils/wagmi/owner";
 import RampButton from "../ramp/RampButton";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
@@ -42,6 +44,12 @@ export default function AddFunds() {
   const { t } = useTranslation();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
+  const { data: ensName } = useEnsName({
+    config: ownerConfig,
+    chainId: mainnet.id,
+    address: ownerAccount,
+    query: { staleTime: 86_400_000, retry: false, meta: { dropError: () => true } },
+  });
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { supportedAssets } = useMarkets();
@@ -116,8 +124,11 @@ export default function AddFunds() {
                     icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
                     title={t("With connected wallet")}
                     subtitle={
-                      // TODO add support for ens resolution
-                      ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
+                      ownerAccount
+                        ? ensName
+                          ? `${ensName} | ${shortenHex(ownerAccount, 4, 6)}`
+                          : shortenHex(ownerAccount, 4, 6)
+                        : ""
                     }
                     onPress={() => {
                       router.push("/add-funds/bridge");
