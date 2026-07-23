@@ -23,8 +23,7 @@ contract DeployExaAccountFactory is BaseScript {
       payable(CREATE3_FACTORY.deploy(
           _salt(IPlugin(exaPlugin)),
           abi.encodePacked(
-            vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
-            abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
+            type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
           )
         ))
     );

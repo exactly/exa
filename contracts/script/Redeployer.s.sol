@@ -15,11 +15,13 @@ import {
 import { IPlugin, PluginMetadata } from "modular-account-libs/interfaces/IPlugin.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
+import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import {
+  ExaPlugin,
   IAuditor,
   IDebtManager,
   IFlashLoaner,
@@ -67,31 +69,28 @@ contract Redeployer is BaseScript {
     if (admin == acct("redeployer")) revert AdminIsDeployer();
     vm.startBroadcast(admin);
     if (address(dummy).code.length == 0) {
-      dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), vm.getCode("Redeployer.s.sol:Dummy")));
+      dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), type(Dummy).creationCode));
     }
     if (address(proxyAdmin).code.length == 0) {
       proxyAdmin = ProxyAdmin(
         CREATE3_FACTORY.deploy(
-          keccak256(abi.encode("ProxyAdmin")),
-          abi.encodePacked(vm.getCode("ProxyAdmin.sol:ProxyAdmin"), abi.encode(admin))
+          keccak256(abi.encode("ProxyAdmin")), abi.encodePacked(type(ProxyAdmin).creationCode, abi.encode(admin))
         )
       );
     }
     if (address(auditor).code.length == 0) {
-      auditor = IAuditor(
-        CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAuditor")), vm.getCode("Redeployer.s.sol:StubAuditor"))
-      );
+      auditor = IAuditor(CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAuditor")), type(StubAuditor).creationCode));
     }
     if (address(marketUSDC).code.length == 0 || address(marketWETH).code.length == 0) {
       address stubAsset = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("StubAsset")));
       if (stubAsset.code.length == 0) {
-        stubAsset = CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAsset")), vm.getCode("Redeployer.s.sol:StubAsset"));
+        stubAsset = CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAsset")), type(StubAsset).creationCode);
       }
       if (address(marketUSDC).code.length == 0) {
         marketUSDC = IMarket(
           CREATE3_FACTORY.deploy(
             keccak256(abi.encode("StubMarketUSDC")),
-            abi.encodePacked(vm.getCode("Redeployer.s.sol:StubMarket"), abi.encode(stubAsset))
+            abi.encodePacked(type(StubMarket).creationCode, abi.encode(stubAsset))
           )
         );
       }
@@ -99,16 +98,14 @@ contract Redeployer is BaseScript {
         marketWETH = IMarket(
           CREATE3_FACTORY.deploy(
             keccak256(abi.encode("StubMarketWETH")),
-            abi.encodePacked(vm.getCode("Redeployer.s.sol:StubMarket"), abi.encode(stubAsset))
+            abi.encodePacked(type(StubMarket).creationCode, abi.encode(stubAsset))
           )
         );
       }
     }
     if (address(ownerPlugin).code.length == 0) {
       ownerPlugin = IPlugin(
-        CREATE3_FACTORY.deploy(
-          keccak256(abi.encode("WebauthnOwnerPlugin")), vm.getCode("WebauthnOwnerPlugin.sol:WebauthnOwnerPlugin")
-        )
+        CREATE3_FACTORY.deploy(keccak256(abi.encode("WebauthnOwnerPlugin")), type(WebauthnOwnerPlugin).creationCode)
       );
     }
     address proposalManagerAddr = _broadcastOrCreate3("broadcast/ProposalManager", "ProposalManager");
@@ -116,7 +113,7 @@ contract Redeployer is BaseScript {
       proposalManagerAddr = CREATE3_FACTORY.deploy(
         keccak256(abi.encode("ProposalManager")),
         abi.encodePacked(
-          vm.getCode("ProposalManager.sol:ProposalManager"),
+          type(ProposalManager).creationCode,
           abi.encode(admin, auditor, IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, _allowlist(), 1)
         )
       );
@@ -126,7 +123,7 @@ contract Redeployer is BaseScript {
         CREATE3_FACTORY.deploy(
           keccak256(abi.encode("ExaPlugin")),
           abi.encodePacked(
-            vm.getCode("ExaPlugin.sol:ExaPlugin"),
+            type(ExaPlugin).creationCode,
             abi.encode(
               Parameters({
                 owner: admin,
@@ -155,8 +152,7 @@ contract Redeployer is BaseScript {
         payable(CREATE3_FACTORY.deploy(
             keccak256(abi.encode("ExaAccountFactory")),
             abi.encodePacked(
-              vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
-              abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
+              type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
             )
           ))
       );
@@ -196,14 +192,13 @@ contract Redeployer is BaseScript {
 
     exa = EXA(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("EXA"))));
     if (address(exa).code.length == 0) {
-      exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
+      exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), type(EXA).creationCode));
     }
 
     address proxyTransferer = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyTransferer")));
     if (proxyTransferer.code.length == 0) {
-      proxyTransferer = CREATE3_FACTORY.deploy(
-        keccak256(abi.encode("ProxyTransferer")), vm.getCode("Redeployer.s.sol:ProxyTransferer")
-      );
+      proxyTransferer =
+        CREATE3_FACTORY.deploy(keccak256(abi.encode("ProxyTransferer")), type(ProxyTransferer).creationCode);
     }
 
     proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(proxy), address(exa), abi.encodeCall(EXA.initialize, ()));
@@ -227,7 +222,7 @@ contract Redeployer is BaseScript {
     exa = EXA(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("EXA"))));
     if (address(exa).code.length != 0) return;
     vm.broadcast(admin);
-    exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), vm.getCode("EXA.sol:EXA")));
+    exa = EXA(CREATE3_FACTORY.deploy(keccak256(abi.encode("EXA")), type(EXA).creationCode));
   }
 
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
@@ -251,8 +246,7 @@ contract Redeployer is BaseScript {
       payable(CREATE3_FACTORY.deploy(
           salt,
           abi.encodePacked(
-            vm.getCode("ExaAccountFactory.sol:ExaAccountFactory"),
-            abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
+            type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
           )
         ))
     );
