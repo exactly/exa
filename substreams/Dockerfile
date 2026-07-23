@@ -14,6 +14,7 @@ RUN curl -L "$(curl -s https://api.github.com/repos/streamingfast/substreams/rel
 WORKDIR /usr/src/app
 COPY . .
 ENV NX_DAEMON=false
+ENV REDISMS_DISABLE_POSTINSTALL=true
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm nx build substreams
 
