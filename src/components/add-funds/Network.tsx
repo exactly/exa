@@ -12,9 +12,11 @@ import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
+import BridgeNeededSheet from "./BridgeNeededSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions } from "../../utils/lifi";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
@@ -27,8 +29,10 @@ export default function Network() {
   const { t } = useTranslation();
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
+  const [pendingChainId, setPendingChainId] = useState<number>();
   const { data: lifiChains } = useQuery(lifiChainsOptions);
   const { data: tokens } = useQuery(lifiTokensOptions);
+  const { data: bridgeAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-needed-shown"] });
   const sorted = useMemo(() => {
     const available = new Set<number>(
       (tokens ?? []).filter((token) => token.symbol === asset).map((token) => token.chainId),
@@ -48,11 +52,18 @@ export default function Network() {
     ];
   }, [tokens, lifiChains, asset]);
   if (!asset) return <Redirect href="/add-funds/assets" />;
-  function selectNetwork(chainId: number) {
+  function navigate(chainId: number) {
     router.push({
       pathname: "/add-funds/add-crypto",
       params: chainId === chain.id ? { asset } : { asset, chainId: String(chainId) },
     });
+  }
+  function selectNetwork(chainId: number) {
+    if (chainId !== chain.id && !bridgeAcknowledged) {
+      setPendingChainId(chainId);
+      return;
+    }
+    navigate(chainId);
   }
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
@@ -113,6 +124,18 @@ export default function Network() {
             )}
           </YStack>
         </ScrollView>
+        <BridgeNeededSheet
+          open={pendingChainId !== undefined}
+          asset={asset}
+          chainId={pendingChainId}
+          network={sorted.find((c) => c.id === pendingChainId)?.name ?? ""}
+          onClose={() => setPendingChainId(undefined)}
+          onContinue={(hide) => {
+            if (hide) queryClient.setQueryData(["settings", "bridge-needed-shown"], true);
+            if (pendingChainId !== undefined) navigate(pendingChainId);
+            setPendingChainId(undefined);
+          }}
+        />
       </View>
     </SafeView>
   );
