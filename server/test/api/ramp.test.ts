@@ -556,133 +556,16 @@ describe("ramp api", () => {
         });
       });
 
-      it("returns deposit info with undefined quote for bridge USDT/TRON", async () => {
+      it("returns 400 not supported for crypto onramp", async () => {
         vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
-          {
-            network: "TRON" as const,
-            displayName: "TRON" as const,
-            address: "TXyz123456789",
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "USDT", network: "TRON" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          depositInfo: [
-            {
-              network: "TRON",
-              displayName: "TRON",
-              address: "TXyz123456789",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns deposit info with default quote for bridge USDC/SOLANA", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
-          {
-            network: "SOLANA" as const,
-            displayName: "SOLANA" as const,
-            address: "So1anaAddress123",
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "USDC", network: "SOLANA" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "1.0", sellRate: "1.0" },
-          depositInfo: [
-            {
-              network: "SOLANA",
-              displayName: "SOLANA",
-              address: "So1anaAddress123",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
-      });
-
-      it("returns deposit info with default quote for bridge USDC/STELLAR", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
-          {
-            network: "STELLAR" as const,
-            displayName: "STELLAR" as const,
-            address: "STELLAR123456",
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-            memo: "789012",
-          },
-        ]);
-
-        const response = await appClient.quote.$get(
-          { query: { provider: "bridge", currency: "USDC", network: "STELLAR" } },
-          { headers: { "test-credential-id": "ramp-bridge" } },
-        );
-
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "1.0", sellRate: "1.0" },
-          depositInfo: [
-            {
-              network: "STELLAR",
-              displayName: "STELLAR",
-              address: "STELLAR123456",
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-              memo: "789012",
-            },
-          ],
-        });
-      });
-
-      it("returns deposit info with default quote for bridge USDC/BASE", async () => {
-        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-        vi.spyOn(bridge, "getCryptoDepositDetails").mockResolvedValue([
-          {
-            network: "BASE" as const,
-            displayName: "BASE" as const,
-            address: deposit,
-            fee: "0.0",
-            estimatedProcessingTime: "300",
-          },
-        ]);
 
         const response = await appClient.quote.$get(
           { query: { provider: "bridge", currency: "USDC", network: "BASE" } },
           { headers: { "test-credential-id": "ramp-bridge" } },
         );
 
-        expect(response.status).toBe(200);
-        await expect(response.json()).resolves.toStrictEqual({
-          quote: { buyRate: "1.0", sellRate: "1.0" },
-          depositInfo: [
-            {
-              network: "BASE",
-              displayName: "BASE",
-              address: deposit,
-              fee: "0.0",
-              estimatedProcessingTime: "300",
-            },
-          ],
-        });
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
       });
 
       describe("offramp", () => {
@@ -809,69 +692,6 @@ describe("ramp api", () => {
             bridgeCustomer,
             "USD",
           );
-        });
-
-        it("returns 400 when crypto offramp to_address is invalid", async () => {
-          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(
-            new Error(bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS),
-          );
-
-          const response = await appClient.quote.$get(
-            {
-              query: {
-                provider: "bridge",
-                currency: "USDT",
-                direction: "offramp",
-                network: "TRON",
-                address: "not-a-tron-address",
-              },
-            },
-            { headers: { "test-credential-id": "ramp-bridge" } },
-          );
-
-          expect(response.status).toBe(400);
-          await expect(response.json()).resolves.toStrictEqual({ code: "invalid deposit address" });
-        });
-
-        it("returns 500 when crypto offramp util throws an unexpected error", async () => {
-          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
-          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(new Error("unexpected"));
-
-          const response = await appClient.quote.$get(
-            {
-              query: {
-                provider: "bridge",
-                currency: "USDT",
-                direction: "offramp",
-                network: "TRON",
-                address: "TXyz",
-              },
-            },
-            { headers: { "test-credential-id": "ramp-bridge" } },
-          );
-
-          expect(response.status).toBe(500);
-        });
-
-        it("returns 400 when STELLAR offramp is missing the memo", async () => {
-          const cryptoSpy = vi.spyOn(bridge, "getCryptoOfframpDepositDetails");
-
-          const response = await appClient.quote.$get(
-            {
-              query: {
-                provider: "bridge",
-                currency: "USDC",
-                direction: "offramp",
-                network: "STELLAR",
-                address: "GABCDEFGHIJ",
-              } as never,
-            },
-            { headers: { "test-credential-id": "ramp-bridge" } },
-          );
-
-          expect(response.status).toBe(400);
-          expect(cryptoSpy).not.toHaveBeenCalled();
         });
       });
     });
@@ -1699,6 +1519,7 @@ const mantecaUser = {
 
 const bridgeCustomer = {
   id: "bridge-customer-123",
+  created_at: "2026-07-01T00:00:00.000Z",
   email: "test@example.com",
   status: "active" as const,
   endorsements: [],

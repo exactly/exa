@@ -259,6 +259,7 @@ describe("bridge hook", () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "fallback-bridge-id",
       email: "fallback@example.com",
+      created_at: "2026-07-01T00:00:00.000Z",
       status: "active",
       endorsements: [],
     });
@@ -307,6 +308,7 @@ describe("bridge hook", () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "conflict-bridge-id",
       email: "conflict@example.com",
+      created_at: "2026-07-01T00:00:00.000Z",
       status: "active",
       endorsements: [],
     });
@@ -329,6 +331,7 @@ describe("bridge hook", () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "multi-bridge-id",
       email: "multi@example.com",
+      created_at: "2026-07-01T00:00:00.000Z",
       status: "active",
       endorsements: [],
     });
@@ -357,6 +360,7 @@ describe("bridge hook", () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "empty-bridge-id",
       email: "empty@example.com",
+      created_at: "2026-07-01T00:00:00.000Z",
       status: "active",
       endorsements: [],
     });
@@ -382,6 +386,7 @@ describe("bridge hook", () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "orphan-bridge-id",
       email: "orphan@example.com",
+      created_at: "2026-07-01T00:00:00.000Z",
       status: "active",
       endorsements: [],
     });
