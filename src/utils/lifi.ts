@@ -497,6 +497,9 @@ export const tokenCorrelation = {
   WETH: "ETH",
   "WETH.e": "ETH",
 
+  USDT0: "USDT",
+  "USD₮0": "USDT",
+
   // #region liquid staked ETH
   cbETH: "wstETH",
   ETHx: "wstETH",
