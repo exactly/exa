@@ -58,10 +58,12 @@ export default function AddCrypto() {
     network: networkParameter,
     asset: assetParameter,
     chainId: chainIdParameter,
+    symbol: symbolParameter,
   } = useLocalSearchParams();
   const currency = typeof currencyParameter === "string" ? currencyParameter : "";
   const network = typeof networkParameter === "string" ? networkParameter : "";
   const asset = typeof assetParameter === "string" ? assetParameter : "";
+  const symbol = typeof symbolParameter === "string" && symbolParameter ? symbolParameter : asset;
   const parsed = Number(chainIdParameter);
   const receiveChainId =
     typeof chainIdParameter === "string" && Number.isInteger(parsed) && parsed > 0 && parsed !== chain.id
@@ -95,7 +97,7 @@ export default function AddCrypto() {
     : receiveChainId
       ? (receiveChain?.name ?? alchemyChainById.get(receiveChainId)?.name ?? `#${receiveChainId}`)
       : chain.name;
-  const assets = isBridge ? [currency] : asset ? [asset] : supportedAssets;
+  const assets = isBridge ? [currency] : asset ? [symbol] : supportedAssets;
   const other = !!asset && !isPending && !supportedAssets.includes(asset);
   const bridgeLogoURI = isBridge && network in networkLogos ? networkLogos[network] : undefined;
 
@@ -294,7 +296,7 @@ export default function AddCrypto() {
                 icon={<AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />}
               >
                 <Text caption2 color="$uiWarningSecondary">
-                  <SendWarning asset={isBridge ? currency : asset || undefined} network={networkName} />
+                  <SendWarning asset={isBridge ? currency : asset ? symbol : undefined} network={networkName} />
                   <Text
                     cursor="pointer"
                     caption2
@@ -316,7 +318,7 @@ export default function AddCrypto() {
               }}
               address={isBridge ? depositAddress : undefined}
               network={isBridge ? network : receiveChainId ? networkName : undefined}
-              asset={isBridge ? currency : asset || undefined}
+              asset={isBridge ? currency : symbol || undefined}
             />
             {!isBridge && !asset && (
               <EducationSheet
