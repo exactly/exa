@@ -30,6 +30,7 @@ jobs:
           restore-keys: nx-${{ runner.os }}-
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+        env: { REDISMS_DISABLE_POSTINSTALL: "true" }
       - run: pnpm nx build docs
       - uses: actions/upload-pages-artifact@v4
         with:
