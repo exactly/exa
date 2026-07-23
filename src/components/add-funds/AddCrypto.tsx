@@ -7,7 +7,7 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { AlertTriangle, ArrowLeft, Copy, QrCode, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
+import { AlertTriangle, ArrowLeft, Copy, Hash, QrCode, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -31,7 +31,6 @@ import CopyAddressSheet from "../shared/CopyAddressSheet";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
 import InfoAlert from "../shared/InfoAlert";
-import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import SendWarning from "../shared/SendWarning";
 import Skeleton from "../shared/Skeleton";
@@ -89,6 +88,7 @@ export default function AddCrypto() {
       ? (receiveChain?.name ?? alchemyChainById.get(receiveChainId)?.name ?? `#${receiveChainId}`)
       : chain.name;
   const assets = isBridge ? [currency] : asset ? [asset] : supportedAssets;
+  const bridgeLogoURI = isBridge && network in networkLogos ? networkLogos[network] : undefined;
 
   const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
@@ -147,11 +147,7 @@ export default function AddCrypto() {
                   isPending={!isBridge && !asset && isPending}
                   onPress={isBridge || asset ? undefined : () => setSupportedAssetsShown(true)}
                 />
-                <NetworkChip
-                  name={networkName}
-                  chainId={receiveChainId}
-                  logoURI={isBridge && network in networkLogos ? networkLogos[network] : undefined}
-                />
+                <NetworkChip name={networkName} chainId={receiveChainId} logoURI={bridgeLogoURI} />
               </XStack>
               <YStack
                 backgroundColor="$backgroundSoft"
@@ -165,26 +161,66 @@ export default function AddCrypto() {
                 <Text footnote secondary centered>
                   {t("Wallet address")}
                 </Text>
-                <Pressable hitSlop={15} onPress={copy} disabled={!address}>
-                  {address ? (
-                    <Text mono title3 centered>
-                      {address}
-                    </Text>
-                  ) : isBridge && isError && !isFetching ? (
-                    <Text color="$uiErrorSecondary" centered>
-                      {t("Failed to load deposit address.")}
-                    </Text>
-                  ) : (
-                    <Skeleton width="100%" height={54} />
-                  )}
-                </Pressable>
+                {qrShown && address ? (
+                  <View alignSelf="center" position="relative">
+                    <QRCode
+                      data={address}
+                      size={204}
+                      pieceBorderRadius={2}
+                      innerEyesOptions={{ borderRadius: 2 }}
+                      isPiecesGlued
+                      outerEyesOptions={{ borderRadius: 2 }}
+                    />
+                    <View
+                      position="absolute"
+                      top={0}
+                      right={0}
+                      bottom={0}
+                      left={0}
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      <View backgroundColor="$backgroundSoft" borderRadius="$r_0" padding="$s2">
+                        {bridgeLogoURI ? (
+                          <Image
+                            source={{ uri: bridgeLogoURI }}
+                            width={32}
+                            height={32}
+                            borderRadius="$r_0"
+                            overflow="hidden"
+                          />
+                        ) : (
+                          <ChainLogo chainId={receiveChainId} size={32} />
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable hitSlop={15} onPress={copy} disabled={!address}>
+                    {address ? (
+                      <Text mono title3 centered>
+                        {address}
+                      </Text>
+                    ) : isBridge && isError && !isFetching ? (
+                      <Text color="$uiErrorSecondary" centered>
+                        {t("Failed to load deposit address.")}
+                      </Text>
+                    ) : (
+                      <Skeleton width="100%" height={54} />
+                    )}
+                  </Pressable>
+                )}
                 {!!address && !memo && (
-                  <Pressable role="button" onPress={() => setQRShown(true)}>
+                  <Pressable role="button" onPress={() => setQRShown(!qrShown)}>
                     <XStack alignItems="center" justifyContent="center" gap="$s2">
                       <Text emphasized footnote color="$uiBrandSecondary">
-                        {t("Show QR")}
+                        {qrShown ? t("Show wallet address") : t("Show QR")}
                       </Text>
-                      <QrCode size={16} color="$uiBrandSecondary" />
+                      {qrShown ? (
+                        <Hash size={16} color="$uiBrandSecondary" />
+                      ) : (
+                        <QrCode size={16} color="$uiBrandSecondary" />
+                      )}
                     </XStack>
                   </Pressable>
                 )}
@@ -220,43 +256,6 @@ export default function AddCrypto() {
                   {t("The memo is required. Deposits sent without it may be permanently lost.")}
                 </Text>
               </YStack>
-            )}
-            {!!address && !memo && (
-              <ModalSheet
-                open={qrShown}
-                onClose={() => {
-                  setQRShown(false);
-                }}
-              >
-                <SafeView borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-                  <YStack gap="$s4" alignItems="center" padding="$s5">
-                    <Text emphasized headline color="$uiNeutralPrimary">
-                      {isBridge
-                        ? t("{{network}} deposit address", { network: networkName })
-                        : t("Your {{chain}} address", { chain: networkName })}
-                    </Text>
-                    <YStack padding="$s3" borderRadius="$r4" backgroundColor="white" overflow="hidden">
-                      <QRCode
-                        data={address}
-                        size={200}
-                        pieceBorderRadius={2}
-                        innerEyesOptions={{ borderRadius: 2 }}
-                        isPiecesGlued
-                        outerEyesOptions={{ borderRadius: 2 }}
-                      />
-                    </YStack>
-                    <Pressable
-                      onPress={() => {
-                        setQRShown(false);
-                      }}
-                    >
-                      <Text emphasized footnote color="$uiBrandSecondary">
-                        {t("Close")}
-                      </Text>
-                    </Pressable>
-                  </YStack>
-                </SafeView>
-              </ModalSheet>
             )}
             <CopyAddressSheet
               open={copyAddressShown}
