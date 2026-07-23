@@ -5,7 +5,7 @@ import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 import CardContents from "./CardContents";
 import View from "../../shared/View";
@@ -29,8 +29,20 @@ export default function ExaCard({
       <Pressable onPress={onPress}>
         <View
           zIndex={3}
-          backgroundColor={card?.productId === PLATINUM_PRODUCT_ID ? "black" : "$grayscaleLight12"}
-          borderColor={card?.productId === PLATINUM_PRODUCT_ID ? "black" : "$grayscaleLight12"}
+          backgroundColor={
+            card?.productId === PLATINUM_PRODUCT_ID
+              ? "black"
+              : card?.productId === BASE_PRODUCT_ID
+                ? "$baseBlue"
+                : "$cardBackground"
+          }
+          borderColor={
+            card?.productId === PLATINUM_PRODUCT_ID
+              ? "black"
+              : card?.productId === BASE_PRODUCT_ID
+                ? "$baseBlue"
+                : "$cardBackground"
+          }
           borderRadius="$r4"
           borderWidth={1}
           overflow="hidden"

@@ -1,7 +1,7 @@
 import React from "react";
 
 import ARS from "../../assets/images/ars.svg";
-import Background from "../../assets/images/background.svg";
+import background from "../../assets/images/background.svg";
 import Base from "../../assets/images/base.svg";
 import BRL from "../../assets/images/brl.svg";
 import EUR from "../../assets/images/euro.svg";
@@ -13,6 +13,7 @@ import Tron from "../../assets/images/tron.svg";
 import USD from "../../assets/images/usd.svg";
 import USDC from "../../assets/images/usdc.svg";
 import USDT from "../../assets/images/usdt.svg";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 type SvgComponent = React.FC<{ height: string; viewBox?: string; width: string }>;
@@ -40,9 +41,11 @@ export default function AssetHero({
   const offramp = direction === "offramp";
   return (
     <View width="100%" aspectRatio={1}>
+      <View position="absolute" width="100%" height="100%">
+        <ThemedSvg xml={background} width="100%" height="100%" />
+      </View>
       {(
         [
-          { Svg: Background },
           currency
             ? isCrypto
               ? crypto[currency] && { Svg: crypto[currency] }
