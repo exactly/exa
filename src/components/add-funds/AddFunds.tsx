@@ -18,7 +18,6 @@ import shortenHex from "@exactly/common/shortenHex";
 
 import AddFundsOption from "./AddFundsOption";
 import { presentArticle } from "../../utils/intercom";
-import openBrowser from "../../utils/openBrowser";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
@@ -26,9 +25,7 @@ import useBeginKYC from "../../utils/useBeginKYC";
 import useMarkets from "../../utils/useMarkets";
 import ownerConfig from "../../utils/wagmi/owner";
 import RampButton from "../ramp/RampButton";
-import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
-import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -78,11 +75,6 @@ export default function AddFunds() {
 
   const hasFiat =
     providers && Object.values(providers).some((p) => p.onramp.currencies.some((item) => typeof item === "string"));
-  const hasCrypto =
-    providers &&
-    Object.values(providers).some((p) =>
-      p.onramp.currencies.some((item) => typeof item === "object" && "network" in item),
-    );
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View gap="$s6" fullScreen padded>
@@ -92,7 +84,7 @@ export default function AddFunds() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                if (type === "crypto" || type === "fiat") {
+                if (type === "fiat") {
                   if (router.canGoBack()) {
                     router.back();
                   } else {
@@ -104,7 +96,7 @@ export default function AddFunds() {
               }}
             />
             <Text emphasized subHeadline primary>
-              {t(type === "crypto" ? "Cryptocurrencies" : type === "fiat" ? "Bank transfers" : "Add Funds")}
+              {t(type === "fiat" ? "Bank transfers" : "Add Funds")}
             </Text>
             <IconButton
               icon={CircleHelp}
@@ -144,7 +136,7 @@ export default function AddFunds() {
                       : ""
                   }
                   onPress={() => {
-                    router.push({ pathname: "/add-funds", params: { type: "crypto" } });
+                    router.push("/add-funds/assets");
                   }}
                 />
                 {hasFiat !== false && chain.id !== base.id && (
@@ -182,27 +174,6 @@ export default function AddFunds() {
                     }}
                   />
                 )}
-              </>
-            )}
-            {type === "crypto" && (
-              <>
-                {hasCrypto && (
-                  <InfoAlert
-                    title={t("Crypto on-ramps are no longer available as of July 1st.")}
-                    actionText={t("Learn more")}
-                    onPress={() => {
-                      openBrowser("https://x.com/exa_app/status/2071690658339770622").catch(reportError);
-                    }}
-                  />
-                )}
-                <AddFundsOption
-                  icon={<ChainLogo size={24} borderRadius="$r3" />}
-                  title={t("From another wallet")}
-                  subtitle={t("On {{chain}}", { chain: chain.name })}
-                  onPress={() => {
-                    router.push("/add-funds/add-crypto");
-                  }}
-                />
               </>
             )}
             {type === "fiat" && countryCode && isPending && (

@@ -41,9 +41,15 @@ export default function AddCrypto() {
   const { address: accountAddress } = useAccount();
   const { supportedAssets, isPending } = useMarkets();
   const { t } = useTranslation();
-  const { provider, currency: currencyParameter, network: networkParameter } = useLocalSearchParams();
+  const {
+    provider,
+    currency: currencyParameter,
+    network: networkParameter,
+    asset: assetParameter,
+  } = useLocalSearchParams();
   const currency = typeof currencyParameter === "string" ? currencyParameter : "";
   const network = typeof networkParameter === "string" ? networkParameter : "";
+  const asset = typeof assetParameter === "string" ? assetParameter : "";
   const isBridge = provider === "bridge" && !!currency && !!network;
 
   const { data, isError, isFetching, refetch } = useQuery({
@@ -62,7 +68,7 @@ export default function AddCrypto() {
 
   const address = isBridge ? depositAddress : accountAddress;
   const networkName = isBridge && typeof network === "string" ? network : chain.name;
-  const assets = isBridge && typeof currency === "string" ? [currency] : supportedAssets;
+  const assets = isBridge ? [currency] : asset ? [asset] : supportedAssets;
 
   const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
@@ -118,8 +124,8 @@ export default function AddCrypto() {
               <XStack gap="$s2">
                 <AssetChip
                   assets={assets}
-                  isPending={!isBridge && isPending}
-                  onPress={isBridge ? undefined : () => setSupportedAssetsShown(true)}
+                  isPending={!isBridge && !asset && isPending}
+                  onPress={isBridge || asset ? undefined : () => setSupportedAssetsShown(true)}
                 />
                 <NetworkChip
                   name={networkName}
@@ -239,9 +245,9 @@ export default function AddCrypto() {
               address={isBridge ? depositAddress : undefined}
               network={isBridge && typeof network === "string" ? network : undefined}
               networkLogo={isBridge && typeof network === "string" ? networkLogos[network] : undefined}
-              assets={isBridge ? assets : undefined}
+              assets={isBridge || asset ? assets : undefined}
             />
-            {!isBridge && (
+            {!isBridge && !asset && (
               <SupportedAssetsSheet
                 open={supportedAssetsShown}
                 onClose={() => {
@@ -266,10 +272,10 @@ export default function AddCrypto() {
             </View>
             <XStack flex={1}>
               <Text caption2 color="$uiWarningSecondary">
-                {isBridge
+                {isBridge || asset
                   ? t(
                       "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
-                      { crypto: currency, network: networkName },
+                      { crypto: isBridge ? currency : asset, network: networkName },
                     )
                   : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
                       chain: networkName,
