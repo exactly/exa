@@ -24,7 +24,7 @@
     "test:deps": "pnpm dlx pnpm@latest --pm-on-fail=ignore audit",
     "test:build": "EXPO_NO_TELEMETRY=1 expo export --platform web && test -s dist/index.html",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
-    "test:markdown": "markdownlint '**/*.md' '**/*.mdx' '.agents/**/*.md' '.changeset/**/*.md' -i '**/node_modules/**' -i ios/Pods",
+    "test:markdown": "markdownlint-cli2 --config package.json --configPointer /markdownlint-cli2",
     "test:changeset": "changeset status --since origin/main"
   },
   "engines": {
@@ -155,7 +155,7 @@
     "expo-doctor": "^1.18.14",
     "gitmojis": "^3.15.0",
     "hono-rate-limiter": "^0.5.3",
-    "markdownlint-cli": "^0.48.0",
+    "markdownlint-cli2": "^0.23.1",
     "metro-config": "^0.81.0",
     "nx": "^22.6.2",
     "onesignal-expo-plugin": "^2.4.0",
@@ -278,6 +278,16 @@
         "@sentry/react-native"
       ]
     }
+  },
+  "markdownlint-cli2": {
+    "gitignore": true,
+    "globs": [
+      "**/*.{md,mdx}"
+    ],
+    "ignores": [
+      ".claude/**",
+      ".cursor/**"
+    ]
   },
   "nx": {
     "projectType": "application",
