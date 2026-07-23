@@ -18,6 +18,7 @@ export default defineConfig({
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
       AUTH_SECRET: "auth",
+      CHAT_IDENTITY_KEY: "chat",
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",
