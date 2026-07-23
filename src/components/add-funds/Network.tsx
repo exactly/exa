@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp, Info } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { queryOptions, skipToken, useQueries, useQuery } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
+import EducationSheet from "./EducationSheet";
 import ReceiveGuideSheet from "./ReceiveGuideSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
@@ -34,6 +36,8 @@ export default function Network() {
   const { t } = useTranslation();
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
+  const [nativeShown, setNativeShown] = useState(false);
+  const [othersShown, setOthersShown] = useState(false);
   const [pending, setPending] = useState<{
     chainId: number;
     symbol: string;
@@ -136,9 +140,19 @@ export default function Network() {
           <YStack gap="$s7">
             {receivable && (
               <YStack gap="$s4">
-                <Text emphasized primary headline>
-                  {t("Native network")}
-                </Text>
+                <XStack gap="$s2" alignItems="center">
+                  <Text emphasized primary headline>
+                    {t("Native network")}
+                  </Text>
+                  <Pressable
+                    role="button"
+                    aria-label={t("Native network")}
+                    hitSlop={15}
+                    onPress={() => setNativeShown(true)}
+                  >
+                    <Info size={16} color="$uiBrandSecondary" />
+                  </Pressable>
+                </XStack>
                 <AddFundsOption
                   icon={<ChainLogo chainId={chain.id} size={24} />}
                   title={chain.id === optimism.id ? "Optimism" : chain.name}
@@ -150,9 +164,19 @@ export default function Network() {
             )}
             {deployable.length > 0 && (
               <YStack gap="$s4">
-                <Text emphasized primary headline>
-                  {t("Other networks")}
-                </Text>
+                <XStack gap="$s2" alignItems="center">
+                  <Text emphasized primary headline>
+                    {t("Other networks")}
+                  </Text>
+                  <Pressable
+                    role="button"
+                    aria-label={t("Other networks")}
+                    hitSlop={15}
+                    onPress={() => setOthersShown(true)}
+                  >
+                    <Info size={16} color="$uiBrandSecondary" />
+                  </Pressable>
+                </XStack>
                 <YStack gap="$s3_5">
                   {deployable.map((c) => (
                     <AddFundsOption
@@ -167,6 +191,50 @@ export default function Network() {
             )}
           </YStack>
         </ScrollView>
+        <EducationSheet
+          open={nativeShown}
+          onClose={() => {
+            setNativeShown(false);
+          }}
+          title={t("Native network")}
+          article="8950801"
+        >
+          <XStack
+            backgroundColor="$backgroundStrong"
+            borderRadius="$r3"
+            paddingVertical="$s5"
+            paddingHorizontal="$s3_5"
+            justifyContent="center"
+            alignItems="center"
+            gap="$s3"
+          >
+            <ChainLogo size={40} />
+            <Text emphasized title2 primary>
+              {chain.name}
+            </Text>
+          </XStack>
+          <Text subHeadline secondary>
+            {t(
+              "{{chain}} is Exa App's native network. Supported assets received here generate yield and increase your Exa Card credit limit immediately. Other assets need to be swapped to a supported asset first.",
+              { chain: chain.name },
+            )}
+          </Text>
+        </EducationSheet>
+        <EducationSheet
+          open={othersShown}
+          onClose={() => {
+            setOthersShown(false);
+          }}
+          title={t("Other networks")}
+          article="8950801"
+        >
+          <Text subHeadline secondary>
+            {t(
+              "Assets from these networks need to be bridged to {{chain}}. Some may also require a swap to a supported asset to generate yield and increase your Exa Card credit limit. You can do both from your Portfolio.",
+              { chain: chain.name },
+            )}
+          </Text>
+        </EducationSheet>
         <ReceiveGuideSheet
           open={pending !== undefined}
           variant={pending?.variant ?? "bridge"}
