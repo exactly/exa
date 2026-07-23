@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NX_DAEMON: false
+      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
       BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
       ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
       OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
@@ -41,6 +42,7 @@ jobs:
           done
           for pid in $streamingfast; do wait "$pid" || exit 1; done
       - run: echo ::add-matcher::.github/matcher.json
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm nx run-many -t test
@@ -70,6 +72,7 @@ jobs:
     timeout-minutes: 30
     env:
       NX_DAEMON: false
+      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
       CHAIN_ID: "31337"
       EXPO_PUBLIC_E2E_MNEMONIC: ${{ secrets.EXPO_PUBLIC_E2E_MNEMONIC }}
     steps:
@@ -105,6 +108,7 @@ jobs:
             sleep 2
           done
       - run: echo ::add-matcher::.github/matcher.json
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: |
