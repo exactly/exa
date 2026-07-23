@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ChevronRight, CircleHelp, Search } from "@tamagui/lucide-icons";
+import { ArrowLeft, ChevronRight, CircleHelp, Info, Search } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +12,8 @@ import { arbitrum, base, mainnet } from "viem/chains";
 
 import chain, { allowlists } from "@exactly/common/generated/chain";
 
+import NativeNetworkSheet from "./NativeNetworkSheet";
+import OtherNetworksSheet from "./OtherNetworksSheet";
 import ReceiveGuideSheet from "./ReceiveGuideSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
@@ -30,6 +33,8 @@ export default function Network() {
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
   const [expanded, setExpanded] = useState(false);
+  const [nativeShown, setNativeShown] = useState(false);
+  const [othersShown, setOthersShown] = useState(false);
   const [pending, setPending] = useState<{
     chainId: number;
     symbol: string;
@@ -126,9 +131,14 @@ export default function Network() {
           <YStack gap="$s7">
             {receivable && (
               <YStack gap="$s4">
-                <Text emphasized primary headline>
-                  {t("Native network")}
-                </Text>
+                <XStack gap="$s2" alignItems="center">
+                  <Text emphasized primary headline>
+                    {t("Native network")}
+                  </Text>
+                  <Pressable hitSlop={15} onPress={() => setNativeShown(true)}>
+                    <Info size={16} color="$uiBrandSecondary" />
+                  </Pressable>
+                </XStack>
                 <NetworkRow
                   chainId={chain.id}
                   name={native?.name ?? chain.name}
@@ -140,9 +150,14 @@ export default function Network() {
             )}
             {sorted.length > 0 && (
               <YStack gap="$s4">
-                <Text emphasized primary headline>
-                  {t("Other networks")}
-                </Text>
+                <XStack gap="$s2" alignItems="center">
+                  <Text emphasized primary headline>
+                    {t("Other networks")}
+                  </Text>
+                  <Pressable hitSlop={15} onPress={() => setOthersShown(true)}>
+                    <Info size={16} color="$uiBrandSecondary" />
+                  </Pressable>
+                </XStack>
                 <YStack gap="$s3_5">
                   {visible.map((c) => (
                     <NetworkRow key={c.id} chainId={c.id} name={c.name} onPress={() => selectNetwork(c.id)} />
@@ -159,6 +174,18 @@ export default function Network() {
             )}
           </YStack>
         </ScrollView>
+        <NativeNetworkSheet
+          open={nativeShown}
+          onClose={() => {
+            setNativeShown(false);
+          }}
+        />
+        <OtherNetworksSheet
+          open={othersShown}
+          onClose={() => {
+            setOthersShown(false);
+          }}
+        />
         <ReceiveGuideSheet
           open={pending !== undefined}
           variant={pending?.variant ?? "bridge"}
