@@ -9,12 +9,12 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { arbitrum, base, mainnet } from "viem/chains";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import ReceiveGuideSheet from "./ReceiveGuideSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
-import { lifiChainsOptions, lifiTokensOptions } from "../../utils/lifi";
+import { lifiChainsOptions, lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
@@ -30,22 +30,35 @@ export default function Network() {
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
   const [expanded, setExpanded] = useState(false);
-  const [pending, setPending] = useState<{ chainId: number; variant: "bridge" | "bridgeSwap" | "swap" }>();
+  const [pending, setPending] = useState<{
+    chainId: number;
+    symbol: string;
+    variant: "bridge" | "bridgeSwap" | "swap";
+  }>();
   const { data: lifiChains } = useQuery(lifiChainsOptions);
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { data: bridgeAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-needed-shown"] });
   const { data: swapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "swap-needed-shown"] });
   const { data: bridgeSwapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-swap-needed-shown"] });
   const { supportedAssets, isPending } = useMarkets();
+  const symbols = useMemo(() => {
+    const matched = new Map<number, string>();
+    for (const token of tokens ?? []) {
+      const correlated =
+        token.symbol in tokenCorrelation ? tokenCorrelation[token.symbol as keyof typeof tokenCorrelation] : undefined;
+      if (token.symbol !== asset && correlated !== asset) continue;
+      const allowed = allowlists[String(token.chainId)];
+      if (!allowed?.some((address) => address.toLowerCase() === token.address.toLowerCase())) continue;
+      if (token.symbol === asset || !matched.has(token.chainId)) matched.set(token.chainId, token.symbol);
+    }
+    return matched;
+  }, [tokens, asset]);
   const sorted = useMemo(() => {
-    const available = new Set<number>(
-      (tokens ?? []).filter((token) => token.symbol === asset).map((token) => token.chainId),
-    );
     const others = (lifiChains ?? []).filter(
       (c) =>
         c.id !== chain.id &&
         c.mainnet &&
-        available.has(c.id) &&
+        symbols.has(c.id) &&
         alchemyChainById.has(c.id) &&
         !alchemyChainById.get(c.id)?.testnet,
     );
@@ -54,18 +67,20 @@ export default function Network() {
       ...pinned.flatMap((id) => others.find((c) => c.id === id) ?? []),
       ...others.filter((c) => !pinned.includes(c.id)).sort((a, b) => a.name.localeCompare(b.name)),
     ];
-  }, [tokens, lifiChains, asset]);
+  }, [lifiChains, symbols]);
   if (!asset) return <Redirect href="/add-funds/assets" />;
   const native = lifiChains?.find((c) => c.id === chain.id);
+  const receivable = isPending || !tokens || supportedAssets.includes(asset) || symbols.has(chain.id);
   const visible = expanded ? sorted : sorted.slice(0, 3);
-  function navigate(chainId: number) {
+  function navigate(chainId: number, symbol: string) {
     router.push({
       pathname: "/add-funds/add-crypto",
-      params: chainId === chain.id ? { asset } : { asset, chainId: String(chainId) },
+      params: chainId === chain.id ? { asset, symbol } : { asset, chainId: String(chainId), symbol },
     });
   }
   function selectNetwork(chainId: number) {
     const supported = isPending || supportedAssets.includes(asset);
+    const symbol = chainId === chain.id && supported ? asset : (symbols.get(chainId) ?? asset);
     const variant =
       chainId === chain.id
         ? supported
@@ -76,10 +91,10 @@ export default function Network() {
           : ("bridgeSwap" as const);
     const acknowledged = { bridge: bridgeAcknowledged, bridgeSwap: bridgeSwapAcknowledged, swap: swapAcknowledged };
     if (variant && !acknowledged[variant]) {
-      setPending({ chainId, variant });
+      setPending({ chainId, symbol, variant });
       return;
     }
-    navigate(chainId);
+    navigate(chainId, symbol);
   }
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
@@ -109,18 +124,20 @@ export default function Network() {
         </XStack>
         <ScrollView flex={1} showsVerticalScrollIndicator={false}>
           <YStack gap="$s7">
-            <YStack gap="$s4">
-              <Text emphasized primary headline>
-                {t("Native network")}
-              </Text>
-              <NetworkRow
-                chainId={chain.id}
-                name={native?.name ?? chain.name}
-                subtitle={chain.name}
-                badge={t("Recommended")}
-                onPress={() => selectNetwork(chain.id)}
-              />
-            </YStack>
+            {receivable && (
+              <YStack gap="$s4">
+                <Text emphasized primary headline>
+                  {t("Native network")}
+                </Text>
+                <NetworkRow
+                  chainId={chain.id}
+                  name={native?.name ?? chain.name}
+                  subtitle={chain.name}
+                  badge={t("Recommended")}
+                  onPress={() => selectNetwork(chain.id)}
+                />
+              </YStack>
+            )}
             {sorted.length > 0 && (
               <YStack gap="$s4">
                 <Text emphasized primary headline>
@@ -146,6 +163,7 @@ export default function Network() {
           open={pending !== undefined}
           variant={pending?.variant ?? "bridge"}
           asset={asset}
+          symbol={pending?.symbol ?? asset}
           chainId={pending && pending.chainId !== chain.id ? pending.chainId : undefined}
           network={
             pending?.chainId === chain.id
@@ -155,9 +173,9 @@ export default function Network() {
           onClose={() => setPending(undefined)}
           onContinue={(hide) => {
             if (pending && hide) queryClient.setQueryData(["settings", settingsKeys[pending.variant]], true);
-            const target = pending?.chainId;
+            const target = pending;
             setPending(undefined);
-            if (target !== undefined) navigate(target);
+            if (target) navigate(target.chainId, target.symbol);
           }}
         />
       </View>

@@ -57,10 +57,12 @@ export default function AddCrypto() {
     network: networkParameter,
     asset: assetParameter,
     chainId: chainIdParameter,
+    symbol: symbolParameter,
   } = useLocalSearchParams();
   const currency = typeof currencyParameter === "string" ? currencyParameter : "";
   const network = typeof networkParameter === "string" ? networkParameter : "";
   const asset = typeof assetParameter === "string" ? assetParameter : "";
+  const symbol = typeof symbolParameter === "string" && symbolParameter ? symbolParameter : asset;
   const receiveChainId =
     typeof chainIdParameter === "string" &&
     Number.isInteger(Number(chainIdParameter)) &&
@@ -95,7 +97,7 @@ export default function AddCrypto() {
     : receiveChainId
       ? (receiveChain?.name ?? alchemyChainById.get(receiveChainId)?.name ?? "")
       : chain.name;
-  const assets = isBridge ? [currency] : asset ? [asset] : supportedAssets;
+  const assets = isBridge ? [currency] : asset ? [symbol] : supportedAssets;
   const other = !!asset && !isPending && !supportedAssets.includes(asset);
 
   const toast = useToastController();
@@ -297,7 +299,7 @@ export default function AddCrypto() {
                   {isBridge || asset
                     ? t(
                         "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
-                        { crypto: isBridge ? currency : asset, network: networkName },
+                        { crypto: isBridge ? currency : symbol, network: networkName },
                       )
                     : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
                         chain: networkName,
@@ -323,7 +325,7 @@ export default function AddCrypto() {
               }}
               address={isBridge ? depositAddress : undefined}
               network={isBridge ? network : receiveChainId ? networkName : undefined}
-              asset={isBridge ? currency : asset || undefined}
+              asset={isBridge ? currency : symbol || undefined}
             />
             {!isBridge && !asset && (
               <SupportedAssetsSheet

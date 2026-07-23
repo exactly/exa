@@ -1,7 +1,6 @@
 {
   "{{amount}} left": "{{amount}} restante",
   "{{asset}} on {{chain}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to swap it to a supported asset.<learn> Learn more.</learn>": "{{asset}} em {{chain}} não é um ativo de colateral suportado. Para gerar rendimento e aumentar o limite de crédito do seu Exa Card, você precisará fazer swap para um ativo suportado.<learn> Saiba mais.</learn>",
-  "{{asset}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{asset}} on {{chain}}.<learn> Learn more.</learn>": "{{asset}} em {{network}} não é um ativo de colateral suportado. Para gerar rendimento e aumentar o limite de crédito do seu Exa Card, você precisará fazer bridge para {{asset}} em {{chain}}.<learn> Saiba mais.</learn>",
   "{{asset}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{chain}} and swap it to a supported asset.<learn> Learn more.</learn>": "{{asset}} em {{network}} não é um ativo de colateral suportado. Para gerar rendimento e aumentar o limite de crédito do seu Exa Card, você precisará fazer bridge para {{chain}} e fazer swap para um ativo suportado.<learn> Saiba mais.</learn>",
   "{{assets}} and more": "{{assets}} e mais",
   "{{count}} installments of_one": "{{count}} parcela de",
@@ -19,6 +18,7 @@
   "{{rate}} APR": "{{rate}} APR",
   "{{source}} on {{network}} matches {{destination}} on {{chain}}. You can swap and bridge between these assets or just select another supported asset.": "{{source}} na {{network}} corresponde a {{destination}} na {{chain}}. Você pode fazer swap e bridge entre esses ativos ou simplesmente selecionar outro ativo suportado.",
   "{{rate}} FIXED APR": "{{rate}} APR FIXA",
+  "{{symbol}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{asset}} on {{chain}}.<learn> Learn more.</learn>": "{{symbol}} em {{network}} não é um ativo de colateral suportado. Para gerar rendimento e aumentar o limite de crédito do seu Exa Card, você precisará fazer bridge para {{asset}} em {{chain}}.<learn> Saiba mais.</learn>",
   "{{symbol}}, {{balance}} available": "{{symbol}}, {{balance}} disponível",
   "{{time}} past due": "{{time}} de atraso",
   "*0% interest promo through {{month}}": "*Promo 0% de juros até {{month}}",

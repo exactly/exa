@@ -9,13 +9,13 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain, { allowlist } from "@exactly/common/generated/chain";
+import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
 import CollateralSheet from "./CollateralSheet";
 import OtherAssetsSheet from "./OtherAssetsSheet";
 import { presentArticle } from "../../utils/intercom";
-import { lifiTokensOptions } from "../../utils/lifi";
+import { lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
@@ -28,7 +28,7 @@ import View from "../shared/View";
 export default function Assets() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { markets, isPending } = useMarkets();
+  const { markets, supportedAssets, isPending } = useMarkets();
   const { data: tokens } = useQuery(lifiTokensOptions);
   const [collateralShown, setCollateralShown] = useState(false);
   const [otherShown, setOtherShown] = useState(false);
@@ -46,15 +46,25 @@ export default function Assets() {
   }, [markets]);
   const others = useMemo(() => {
     if (!tokens || !markets) return [];
-    const allowed = new Set<string>(allowlist.map((address) => address.toLowerCase()));
     const underlying = new Set(markets.map((market) => market.asset.toLowerCase()));
-    return tokens.filter(
-      (token) =>
-        token.chainId === (chain.id as (typeof token)["chainId"]) &&
-        allowed.has(token.address.toLowerCase()) &&
-        !underlying.has(token.address.toLowerCase()),
-    );
-  }, [tokens, markets]);
+    const excluded = new Set(supportedAssets);
+    const bySymbol = new Map<string, (typeof tokens)[number]>();
+    for (const home of [true, false]) {
+      for (const token of tokens) {
+        if ((token.chainId === (chain.id as (typeof token)["chainId"])) !== home) continue;
+        const allowed = allowlists[String(token.chainId)];
+        if (!allowed?.some((address) => address.toLowerCase() === token.address.toLowerCase())) continue;
+        if (home && underlying.has(token.address.toLowerCase())) continue;
+        const correlated =
+          token.symbol in tokenCorrelation
+            ? tokenCorrelation[token.symbol as keyof typeof tokenCorrelation]
+            : undefined;
+        if (excluded.has(token.symbol) || (correlated && excluded.has(correlated))) continue;
+        if (!bySymbol.has(token.symbol)) bySymbol.set(token.symbol, token);
+      }
+    }
+    return [...bySymbol.values()];
+  }, [tokens, markets, supportedAssets]);
   const visibleOthers = expanded ? others : others.slice(0, 3);
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">

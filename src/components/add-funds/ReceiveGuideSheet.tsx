@@ -25,6 +25,7 @@ export default function ReceiveGuideSheet({
   onClose,
   onContinue,
   open,
+  symbol,
   variant,
 }: {
   asset: string;
@@ -33,6 +34,7 @@ export default function ReceiveGuideSheet({
   onClose: () => void;
   onContinue: (hide: boolean) => void;
   open: boolean;
+  symbol: string;
   variant: "bridge" | "bridgeSwap" | "swap";
 }) {
   const { t } = useTranslation();
@@ -77,7 +79,7 @@ export default function ReceiveGuideSheet({
               gap="$s3_5"
             >
               <View position="relative">
-                <AssetLogo symbol={asset} width={48} height={48} />
+                <AssetLogo symbol={symbol} width={48} height={48} />
                 <View position="absolute" bottom={-4} right={-4}>
                   <ChainLogo chainId={chainId} size={24} borderRadius="$r_0" />
                 </View>
@@ -88,9 +90,13 @@ export default function ReceiveGuideSheet({
                   <AssetLogo symbol={asset} width={48} height={48} />
                 ) : (
                   <XStack>
-                    {supportedAssets.map((symbol, index) => (
-                      <XStack key={symbol} marginRight={index < supportedAssets.length - 1 ? -16 : 0} zIndex={index}>
-                        <AssetLogo symbol={symbol} width={48} height={48} />
+                    {supportedAssets.map((collateral, index) => (
+                      <XStack
+                        key={collateral}
+                        marginRight={index < supportedAssets.length - 1 ? -16 : 0}
+                        zIndex={index}
+                      >
+                        <AssetLogo symbol={collateral} width={48} height={48} />
                       </XStack>
                     ))}
                   </XStack>
@@ -102,7 +108,7 @@ export default function ReceiveGuideSheet({
             </XStack>
             <YStack gap="$s4_5">
               <Step index={1} text={t("Once received, go to your Portfolio.")} />
-              <Step index={2} text={t("Find {{asset}} on {{network}} and select it.", { asset, network })} />
+              <Step index={2} text={t("Find {{asset}} on {{network}} and select it.", { asset: symbol, network })} />
               <Step
                 index={3}
                 text={
@@ -122,20 +128,20 @@ export default function ReceiveGuideSheet({
               <Text caption2 color="$uiNeutralPlaceholder" flex={1}>
                 {variant === "bridge" ? (
                   <Trans
-                    i18nKey="{{asset}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{asset}} on {{chain}}.<learn> Learn more.</learn>"
-                    values={{ asset, network, chain: chain.name }}
+                    i18nKey="{{symbol}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{asset}} on {{chain}}.<learn> Learn more.</learn>"
+                    values={{ symbol, asset, network, chain: chain.name }}
                     components={{ learn }}
                   />
                 ) : variant === "swap" ? (
                   <Trans
                     i18nKey="{{asset}} on {{chain}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to swap it to a supported asset.<learn> Learn more.</learn>"
-                    values={{ asset, chain: chain.name }}
+                    values={{ asset: symbol, chain: chain.name }}
                     components={{ learn }}
                   />
                 ) : (
                   <Trans
                     i18nKey="{{asset}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{chain}} and swap it to a supported asset.<learn> Learn more.</learn>"
-                    values={{ asset, network, chain: chain.name }}
+                    values={{ asset: symbol, network, chain: chain.name }}
                     components={{ learn }}
                   />
                 )}
