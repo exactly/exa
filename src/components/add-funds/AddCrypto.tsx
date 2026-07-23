@@ -17,7 +17,9 @@ import chain from "@exactly/common/generated/chain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import SupportedAssetsSheet from "./SupportedAssetsSheet";
+import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
+import { lifiChainsOptions } from "../../utils/lifi";
 import networkLogos from "../../utils/networkLogos";
 import reportError from "../../utils/reportError";
 import { getRampQuote } from "../../utils/server";
@@ -28,6 +30,7 @@ import ChainLogo from "../shared/ChainLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
+import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -46,10 +49,17 @@ export default function AddCrypto() {
     currency: currencyParameter,
     network: networkParameter,
     asset: assetParameter,
+    chainId: chainIdParameter,
   } = useLocalSearchParams();
   const currency = typeof currencyParameter === "string" ? currencyParameter : "";
   const network = typeof networkParameter === "string" ? networkParameter : "";
   const asset = typeof assetParameter === "string" ? assetParameter : "";
+  const receiveChainId =
+    typeof chainIdParameter === "string" &&
+    Number.isInteger(Number(chainIdParameter)) &&
+    Number(chainIdParameter) !== chain.id
+      ? Number(chainIdParameter)
+      : undefined;
   const isBridge = provider === "bridge" && !!currency && !!network;
 
   const { data, isError, isFetching, refetch } = useQuery({
@@ -66,8 +76,18 @@ export default function AddCrypto() {
   const depositAddress = deposit && "address" in deposit ? deposit.address : undefined;
   const memo = deposit && "memo" in deposit ? deposit.memo : undefined;
 
+  const { data: receiveChain } = useQuery({
+    ...lifiChainsOptions,
+    enabled: !!receiveChainId,
+    select: (chains) => chains.find((c) => c.id === receiveChainId),
+  });
+
   const address = isBridge ? depositAddress : accountAddress;
-  const networkName = isBridge && typeof network === "string" ? network : chain.name;
+  const networkName = isBridge
+    ? network
+    : receiveChainId
+      ? (receiveChain?.name ?? alchemyChainById.get(receiveChainId)?.name ?? "")
+      : chain.name;
   const assets = isBridge ? [currency] : asset ? [asset] : supportedAssets;
 
   const toast = useToastController();
@@ -129,6 +149,7 @@ export default function AddCrypto() {
                 />
                 <NetworkChip
                   name={networkName}
+                  chainId={receiveChainId}
                   logoURI={isBridge && network in networkLogos ? networkLogos[network] : undefined}
                 />
               </XStack>
@@ -243,8 +264,8 @@ export default function AddCrypto() {
                 setCopyAddressShown(false);
               }}
               address={isBridge ? depositAddress : undefined}
-              network={isBridge && typeof network === "string" ? network : undefined}
-              networkLogo={isBridge && typeof network === "string" ? networkLogos[network] : undefined}
+              network={isBridge ? network : receiveChainId ? networkName : undefined}
+              networkLogo={isBridge ? networkLogos[network] : receiveChain?.logoURI}
               assets={isBridge || asset ? assets : undefined}
             />
             {!isBridge && !asset && (
@@ -259,6 +280,11 @@ export default function AddCrypto() {
         </ScrollView>
         <YStack gap="$s3_5" padding="$s2" paddingTop="$s3">
           {isBridge && <BridgeDisclaimer />}
+          {!!receiveChainId && !!asset && (
+            <InfoAlert
+              title={t("Once received, you'll need to bridge to {{asset}} on {{chain}}.", { asset, chain: chain.name })}
+            />
+          )}
           <XStack
             backgroundColor="$interactiveBaseWarningSoftDefault"
             borderRadius="$r5"
@@ -375,7 +401,7 @@ function AssetChip({ assets, isPending, onPress }: { assets: string[]; isPending
   );
 }
 
-function NetworkChip({ logoURI, name }: { logoURI?: string; name: string }) {
+function NetworkChip({ chainId, logoURI, name }: { chainId?: number; logoURI?: string; name: string }) {
   const { t } = useTranslation();
   return (
     <YStack
@@ -395,7 +421,7 @@ function NetworkChip({ logoURI, name }: { logoURI?: string; name: string }) {
         {logoURI ? (
           <Image source={{ uri: logoURI }} width={24} height={24} borderRadius="$r_0" overflow="hidden" />
         ) : (
-          <ChainLogo size={24} />
+          <ChainLogo chainId={chainId} size={24} />
         )}
         <Text emphasized title3 numberOfLines={1}>
           {name}
