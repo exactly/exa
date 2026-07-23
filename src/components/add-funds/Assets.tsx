@@ -9,7 +9,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain, { allowlist } from "@exactly/common/generated/chain";
+import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
 import EducationSheet from "./EducationSheet";
@@ -51,7 +51,7 @@ export default function Assets() {
   }, [markets]);
   const others = useMemo(() => {
     if (!tokens || !markets) return [];
-    const allowed = new Set<string>(allowlist.map((address) => address.toLowerCase()));
+    const allowed = new Set(allowlists[String(chain.id)]?.map((address) => address.toLowerCase()));
     const underlying = new Set(markets.map((market) => market.asset.toLowerCase()));
     return tokens.filter(
       (token) =>
