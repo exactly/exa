@@ -8,7 +8,7 @@
     "test": "nx test substreams",
     "test:clippy": "cargo clippy --quiet -- --deny warnings",
     "test:fmt": "cargo fmt --check",
-    "test:protolint": "protolint ."
+    "test:protolint": "protolint proto"
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.66.1",
