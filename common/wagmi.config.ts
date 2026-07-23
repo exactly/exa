@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from "@wagmi/cli";
-import { foundry, foundryDefaultExcludes, react } from "@wagmi/cli/plugins";
+import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { env } from "node:process";
@@ -111,13 +111,11 @@ export default defineConfig([
       foundry({
         forge: { build: false },
         project: "../contracts",
-        exclude: foundryDefaultExcludes.filter((exclude) => exclude !== "MockERC20.sol/**"),
         include: [
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
           "IssuerChecker.sol/IssuerChecker.json",
-          "MockERC20.sol/MockERC20.json",
           "MockSwapper.sol/MockSwapper.json",
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",

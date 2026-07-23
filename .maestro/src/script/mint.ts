@@ -1,7 +1,7 @@
 import { ethAddress } from "viem";
 import { isHex, parseUnits } from "viem/utils";
 
-import { exaPreviewerAbi, exaPreviewerAddress, mockErc20Abi } from "@exactly/common/generated/chain";
+import { exaPreviewerAbi, exaPreviewerAddress } from "@exactly/common/generated/chain";
 
 import anvil, { readContract, writeContract } from "../anvil";
 import { activity } from "../server";
@@ -33,7 +33,18 @@ if (asset === "ETH") {
     writeContract({
       address: market.asset,
       functionName: "mint",
-      abi: mockErc20Abi,
+      abi: [
+        {
+          type: "function",
+          name: "mint",
+          inputs: [
+            { name: "to", type: "address" },
+            { name: "value", type: "uint256" },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+      ],
       args: [to, parseUnits(amount, market.decimals)],
     }),
   );
