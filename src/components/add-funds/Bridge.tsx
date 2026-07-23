@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Check, CircleHelp, Clock, Repeat, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, CircleHelp, Clock, Repeat, Wallet, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
@@ -22,7 +22,15 @@ import {
   zeroAddress,
   type Hex,
 } from "viem";
-import { useReadContract, useSendCalls, useSendTransaction, useSimulateContract, useWriteContract } from "wagmi";
+import { mainnet } from "viem/chains";
+import {
+  useEnsName,
+  useReadContract,
+  useSendCalls,
+  useSendTransaction,
+  useSimulateContract,
+  useWriteContract,
+} from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
@@ -34,6 +42,7 @@ import AssetSelectSheet from "./AssetSelectSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import {
   balancesOptions,
+  bridgeSlippage,
   bridgeSourcesOptions,
   getRouteFrom,
   lifiTokensOptions,
@@ -101,6 +110,12 @@ export default function Bridge() {
   const isExaSender = params.sender === "exa";
   const senderConfig = isExaSender ? exaConfig : ownerConfig;
   const { address: senderAddress } = useAccount({ config: senderConfig });
+  const { data: senderEnsName } = useEnsName({
+    config: ownerConfig,
+    chainId: mainnet.id,
+    address: isExaSender ? undefined : senderAddress,
+    query: { staleTime: 86_400_000, retry: false, meta: { dropError: () => true } },
+  });
   const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
   const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
   const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
@@ -318,6 +333,10 @@ export default function Bridge() {
   });
 
   const approvalRequired = canReadAllowance && (allowanceData ?? 0n) < sourceAmount;
+  const lifiFeeUSD = (quote?.estimate.feeCosts ?? []).reduce((sum, { amountUSD }) => sum + Number(amountUSD), 0);
+  const transactionFeeUSD = (quote?.estimate.gasCosts ?? [])
+    .filter(({ type }) => type !== "APPROVE" || approvalRequired)
+    .reduce((sum, { amountUSD }) => sum + Number(amountUSD), 0);
 
   const nativeGasReserve = useMemo(() => {
     if (!quote?.estimate.gasCosts || !nativeAddress) return 0n;
@@ -757,9 +776,8 @@ export default function Bridge() {
           : undefined;
 
   if (processing) {
-    const isPending = isBridging || isTransferring;
-    const isSuccess = isBridgeSuccess || isTransferSuccess;
-    const isError = isBridgeError || isTransferError;
+    const status =
+      isBridgeError || isTransferError ? "error" : isBridgeSuccess || isTransferSuccess ? "success" : "pending";
     const labels = {
       bridge: {
         error: t("Bridge failed"),
@@ -782,83 +800,28 @@ export default function Bridge() {
     const price = Number(bridgePreview.sourceToken.priceUSD);
     const usdValue = Number.isNaN(amount) || Number.isNaN(price) ? 0 : amount * price;
     return (
-      <GradientScrollView variant={isError ? "error" : isSuccess ? "success" : "neutral"}>
-        <View flex={1}>
-          <YStack gap="$s7" paddingBottom="$s9">
-            <IconButton
-              alignSelf="flex-start"
-              icon={X}
-              aria-label={t("Close")}
-              onPress={() => {
-                if (!isPending) {
-                  setSourceAmount(0n);
-                  setBridgePreview(undefined);
-                  resetBridgeMutation();
-                  resetTransferMutation();
-                }
-                router.dismissTo("/activity");
-              }}
-            />
-            <YStack gap="$s4_5" justifyContent="center" alignItems="center">
-              <Square
-                size={80}
-                borderRadius="$r4"
-                backgroundColor={
-                  isError
-                    ? "$interactiveBaseErrorSoftDefault"
-                    : isSuccess
-                      ? "$interactiveBaseSuccessSoftDefault"
-                      : "$backgroundStrong"
-                }
-              >
-                {isPending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
-                {isSuccess && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-                {isError && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
-              </Square>
-              <YStack gap="$s3" justifyContent="center" alignItems="center">
-                <Text secondary body>
-                  {isError ? labels.error : isSuccess ? labels.success : labels.processing}
-                </Text>
-              </YStack>
-              <XStack gap="$s3" alignItems="center">
-                <AssetLogo
-                  symbol={bridgePreview.sourceToken.symbol}
-                  uri={bridgePreview.sourceToken.logoURI}
-                  width={32}
-                  height={32}
-                />
-                <Text title primary color="$uiNeutralPrimary">
-                  {`${Number(
-                    formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals),
-                  ).toLocaleString(language, {
-                    maximumFractionDigits: Math.min(6, bridgePreview.sourceToken.decimals),
-                  })} ${bridgePreview.sourceToken.symbol}`}
-                </Text>
-              </XStack>
-              <Text emphasized secondary body textAlign="center">
-                {`$${usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              </Text>
-            </YStack>
-          </YStack>
-        </View>
-        {!isPending && (
-          <YStack flex={2} justifyContent="flex-end" gap="$s5" alignItems="center" paddingBottom="$s6">
-            <Pressable
-              onPress={() => {
-                setSourceAmount(0n);
-                setBridgePreview(undefined);
-                resetBridgeMutation();
-                resetTransferMutation();
-                router.dismissTo("/activity");
-              }}
-            >
-              <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
-                {t("Close")}
-              </Text>
-            </Pressable>
-          </YStack>
-        )}
-      </GradientScrollView>
+      <ProcessingScreen
+        status={status}
+        title={status === "error" ? labels.error : status === "success" ? labels.success : labels.processing}
+        symbol={bridgePreview.sourceToken.symbol}
+        logoURI={bridgePreview.sourceToken.logoURI}
+        amount={`${Number(formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals)).toLocaleString(
+          language,
+          {
+            maximumFractionDigits: Math.min(6, bridgePreview.sourceToken.decimals),
+          },
+        )} ${bridgePreview.sourceToken.symbol}`}
+        usdValue={`$${usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+        onClose={() => {
+          if (status !== "pending") {
+            setSourceAmount(0n);
+            setBridgePreview(undefined);
+            resetBridgeMutation();
+            resetTransferMutation();
+          }
+          router.dismissTo("/activity");
+        }}
+      />
     );
   }
 
@@ -938,7 +901,11 @@ export default function Bridge() {
               {assetGroups.length > 0 && (
                 <TokenInput
                   label={t("Send from")}
-                  subLabel={shortenHex(senderAddress ?? zeroAddress, 4, 6)}
+                  subLabel={
+                    senderEnsName
+                      ? `${senderEnsName} | ${shortenHex(senderAddress ?? zeroAddress, 4, 6)}`
+                      : shortenHex(senderAddress ?? zeroAddress, 4, 6)
+                  }
                   token={sourceToken}
                   amount={sourceAmount}
                   balance={sourceBalance}
@@ -978,7 +945,7 @@ export default function Bridge() {
                 <YStack
                   borderWidth={1}
                   borderColor={destinationModalOpen ? "$borderBrandStrong" : "$borderNeutralSoft"}
-                  backgroundColor="$backgroundMild"
+                  backgroundColor="$backgroundSoft"
                   borderRadius="$r3"
                   padding="$s4_5"
                   gap="$s3"
@@ -986,7 +953,7 @@ export default function Bridge() {
                   <XStack alignItems="center" justifyContent="space-between">
                     <YStack gap="$s1">
                       <Text emphasized subHeadline color="$uiNeutralPrimary">
-                        {isTransfer ? t("Destination") : t("Destination asset")}
+                        {t("Receive on")}
                       </Text>
                       <Text footnote color="$uiNeutralSecondary">
                         {t("Exa Account")} | {shortenHex(account ?? zeroAddress, 4, 6)}
@@ -1099,110 +1066,27 @@ export default function Bridge() {
                 sourceAmount > 0n &&
                 !insufficientBalance && (
                   <YStack gap="$s3_5">
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        {t("You send")}
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {`${Number(formatUnits(sourceAmount, sourceToken.decimals)).toLocaleString(language, {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: sourceToken.decimals,
-                          useGrouping: false,
-                        })} ${sourceToken.symbol}`}
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        {t("Source network")}
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {selectedGroup?.chain.name ?? (source?.chain ? t("Chain {{id}}", { id: source.chain }) : "—")}
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        {t("Estimated arrival")}
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {quote.estimate.toAmount
-                          ? `≈${Number(
-                              formatUnits(BigInt(quote.estimate.toAmount), destinationToken.decimals),
-                            ).toLocaleString(language, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: destinationToken.decimals,
-                              useGrouping: false,
-                            })} ${destinationToken.symbol}`
-                          : "—"}
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        {t("Destination network")}
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        {chain.name}
-                      </Text>
-                    </XStack>
                     {quote.estimate.toAmountMin && (
-                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                        <Text caption color="$uiNeutralSecondary">
-                          {t("Minimum received")}
-                        </Text>
-                        <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                          {`${Number(
-                            formatUnits(BigInt(quote.estimate.toAmountMin), destinationToken.decimals),
-                          ).toLocaleString(language, {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: destinationToken.decimals,
-                            useGrouping: false,
-                          })} ${destinationToken.symbol}`}
-                        </Text>
-                      </XStack>
+                      <QuoteRow
+                        label={t("Minimum received")}
+                        value={`1 ${sourceToken.symbol} = ${(
+                          Number(formatUnits(BigInt(quote.estimate.toAmountMin), destinationToken.decimals)) /
+                          Number(formatUnits(sourceAmount, sourceToken.decimals))
+                        ).toLocaleString(language, { maximumSignificantDigits: 6 })} ${destinationToken.symbol}`}
+                      />
                     )}
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        {t("Fees")}
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        0.25%
-                      </Text>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                      <Text caption color="$uiNeutralSecondary">
-                        {t("Slippage")}
-                      </Text>
-                      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                        2%
-                      </Text>
-                    </XStack>
-                    {quote.estimate.executionDuration ? (
-                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                        <Text caption color="$uiNeutralSecondary">
-                          {t("Estimated time")}
-                        </Text>
-                        <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
-                          {t("~{{minutes}} min", {
-                            minutes: Math.max(1, Math.round(quote.estimate.executionDuration / 60)),
-                          })}
-                        </Text>
-                      </XStack>
-                    ) : null}
+                    <QuoteRow
+                      label={t("LI.FI fee")}
+                      value={`US$ ${lifiFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    />
+                    <QuoteRow
+                      label={t("Transaction fee")}
+                      value={`US$ ${transactionFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    />
                     {(quote.tool ?? quote.estimate.tool) && (
-                      <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-                        <Text caption color="$uiNeutralSecondary">
-                          {t("Exchange")}
-                        </Text>
-                        <Text
-                          caption
-                          color="$uiNeutralPrimary"
-                          textAlign="right"
-                          flexShrink={1}
-                          textTransform="uppercase"
-                        >
-                          {quote.tool ?? quote.estimate.tool}
-                        </Text>
-                      </XStack>
+                      <QuoteRow label={t("Bridge and swap via")} value={quote.tool ?? quote.estimate.tool} />
                     )}
+                    <QuoteRow label={t("Max slippage")} value={`${bridgeSlippage * 100}%`} />
                   </YStack>
                 )}
               {statusMessage && (
@@ -1251,6 +1135,18 @@ export default function Bridge() {
                 </XStack>
               </YStack>
             )}
+            {!isExaSender && (isTransfer || !!quote) && (
+              <XStack gap="$s4" alignItems="flex-start">
+                <View>
+                  <Wallet size={16} width={16} height={16} color="$uiInfoSecondary" />
+                </View>
+                <XStack flex={1}>
+                  <Text caption2 color="$uiNeutralPlaceholder">
+                    {t("You must confirm the transactions on your external wallet.")}
+                  </Text>
+                </XStack>
+              </XStack>
+            )}
             <Button
               primary
               width="100%"
@@ -1273,7 +1169,7 @@ export default function Bridge() {
                     : isSwap
                       ? t("Swap {{symbol}}", { symbol: sourceToken.symbol })
                       : t("Bridge {{symbol}}", { symbol: sourceToken.symbol })
-                  : t("Select source asset")}
+                  : t("Select token")}
               </Button.Text>
               <Button.Icon>
                 <Repeat />
@@ -1310,6 +1206,89 @@ export default function Bridge() {
         />
       </View>
     </SafeView>
+  );
+}
+
+function QuoteRow({ label, value }: { label: string; value: string }) {
+  return (
+    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
+      <Text caption color="$uiNeutralSecondary">
+        {label}
+      </Text>
+      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+        {value}
+      </Text>
+    </XStack>
+  );
+}
+
+function ProcessingScreen({
+  amount,
+  logoURI,
+  onClose,
+  status,
+  symbol,
+  title,
+  usdValue,
+}: {
+  amount: string;
+  logoURI?: string;
+  onClose: () => void;
+  status: "error" | "pending" | "success";
+  symbol: string;
+  title: string;
+  usdValue: string;
+}) {
+  const { t } = useTranslation();
+  const pending = status === "pending";
+  return (
+    <GradientScrollView variant={status === "error" ? "error" : status === "success" ? "success" : "neutral"}>
+      <View flex={1}>
+        <YStack gap="$s7" paddingBottom="$s9">
+          <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
+          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+            <Square
+              size={80}
+              borderRadius="$r4"
+              backgroundColor={
+                status === "error"
+                  ? "$interactiveBaseErrorSoftDefault"
+                  : status === "success"
+                    ? "$interactiveBaseSuccessSoftDefault"
+                    : "$backgroundStrong"
+              }
+            >
+              {pending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
+              {status === "success" && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
+              {status === "error" && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+            </Square>
+            <YStack gap="$s3" justifyContent="center" alignItems="center">
+              <Text secondary body>
+                {title}
+              </Text>
+            </YStack>
+            <XStack gap="$s3" alignItems="center">
+              <AssetLogo symbol={symbol} uri={logoURI} width={32} height={32} />
+              <Text title primary color="$uiNeutralPrimary">
+                {amount}
+              </Text>
+            </XStack>
+            <Text emphasized secondary body textAlign="center">
+              {usdValue}
+            </Text>
+          </YStack>
+        </YStack>
+      </View>
+      {!pending && (
+        <YStack flex={2} justifyContent="flex-end" gap="$s5" alignItems="center" paddingBottom="$s6">
+          <Pressable onPress={onClose}>
+            <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
+              {t("Close")}
+            </Text>
+          </Pressable>
+        </YStack>
+      )}
+    </GradientScrollView>
   );
 }
 

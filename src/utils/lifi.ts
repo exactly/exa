@@ -254,6 +254,8 @@ export type RouteFrom = {
   value: bigint;
 };
 
+export const bridgeSlippage = 0.02;
+
 export async function getRouteFrom({
   fromChainId,
   toChainId,
@@ -307,7 +309,7 @@ export async function getRouteFrom({
   config.set({ integrator: "exa_app", userId: fromAddress });
   const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
-    slippage: 0.02,
+    slippage: bridgeSlippage,
     integrator: "exa_app",
     fromChain: fromChainId ?? chain.id,
     toChain: toChainId ?? chain.id,
