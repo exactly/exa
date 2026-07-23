@@ -27,6 +27,7 @@ const usdc = loadDeployment("USDC");
 const weth = loadDeployment("WETH");
 const firewall = loadDeployment("Firewall", false);
 const balancerVault = loadDeployment("Balancer2Vault", false);
+const exa = loadDeployment("EXA", false);
 const flashLoanAdapter = loadDeployment("FlashLoanAdapter", false);
 const [exaPlugin] = loadBroadcast("ExaPlugin").transactions;
 const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
@@ -34,6 +35,9 @@ const [proposalManager] = loadBroadcast("ProposalManager").transactions;
 const [refunder] = loadBroadcast("Refunder").transactions;
 const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
 const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default;
+const allowlist = Object.keys(
+  (deploy.proposalManager.allowlist as Record<string, Record<string, string>>)[chainId] ?? {},
+).map((address) => getAddress(address));
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
@@ -103,11 +107,13 @@ export default defineConfig([
           }),
           optional: {
             balancerVault: balancerVault?.address,
+            exa: exa?.address,
             flashLoanAdapter: flashLoanAdapter?.address,
             firewall: firewall?.address,
           },
         },
       ),
+      { name: "Allowlist", run: () => ({ content: `export const allowlist = ${JSON.stringify(allowlist)} as const` }) },
       foundry({
         forge: { build: false },
         project: "../contracts",
