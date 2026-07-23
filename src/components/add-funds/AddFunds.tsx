@@ -22,6 +22,7 @@ import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useMarkets from "../../utils/useMarkets";
 import RampButton from "../ramp/RampButton";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
@@ -43,6 +44,7 @@ export default function AddFunds() {
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
+  const { supportedAssets } = useMarkets();
   const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const beginKYC = useBeginKYC();
   const isKYCApproved =
@@ -109,10 +111,27 @@ export default function AddFunds() {
           <YStack flex={1} gap="$s3_5">
             {type !== "crypto" && type !== "fiat" && (
               <>
+                {method === "siwe" && (
+                  <AddFundsOption
+                    icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
+                    title={t("With connected wallet")}
+                    subtitle={
+                      // TODO add support for ens resolution
+                      ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
+                    }
+                    onPress={() => {
+                      router.push("/add-funds/bridge");
+                    }}
+                  />
+                )}
                 <AddFundsOption
                   icon={<Blocks size={24} color="$iconBrandDefault" />}
                   title={t("Cryptocurrencies")}
-                  subtitle={t("Multiple networks and wallets")}
+                  subtitle={
+                    supportedAssets.length > 0
+                      ? t("{{assets}} and more", { assets: supportedAssets.slice(0, 3).join(", ") })
+                      : ""
+                  }
                   onPress={() => {
                     router.push({ pathname: "/add-funds", params: { type: "crypto" } });
                   }}
@@ -121,7 +140,7 @@ export default function AddFunds() {
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
-                    subtitle={t("From a bank account")}
+                    subtitle={t("Pesos, dollars, or euros")}
                     disabled={(isKYCApproved && !hasFiat) || beginKYC.isPending}
                     loading={beginKYC.isPending}
                     onPress={() => {
@@ -162,19 +181,6 @@ export default function AddFunds() {
                     actionText={t("Learn more")}
                     onPress={() => {
                       openBrowser("https://x.com/exa_app/status/2071690658339770622").catch(reportError);
-                    }}
-                  />
-                )}
-                {method === "siwe" && (
-                  <AddFundsOption
-                    icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
-                    title={t("From connected wallet")}
-                    subtitle={
-                      // TODO add support for ens resolution
-                      ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
-                    }
-                    onPress={() => {
-                      router.push("/add-funds/bridge");
                     }}
                   />
                 )}
