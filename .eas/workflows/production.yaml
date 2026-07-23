@@ -35,7 +35,7 @@ jobs:
     environment: development
     runs_on: macos-large
     image: latest
-    env: { CHAIN_ID: "10" }
+    env: { CHAIN_ID: "10", REDISMS_DISABLE_POSTINSTALL: "true" }
     steps:
       - uses: eas/checkout
       - uses: eas/install_node_modules
