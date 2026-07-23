@@ -12,7 +12,7 @@ import { arbitrum, base, bsc, mainnet, polygon } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
-import BridgeNeededSheet from "./BridgeNeededSheet";
+import ReceiveGuideSheet from "./ReceiveGuideSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions } from "../../utils/lifi";
@@ -31,10 +31,12 @@ export default function Network() {
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
   const [expanded, setExpanded] = useState(false);
-  const [pendingChainId, setPendingChainId] = useState<number>();
+  const [pending, setPending] = useState<{ chainId: number; variant: "bridge" | "bridgeSwap" | "swap" }>();
   const { data: lifiChains } = useQuery(lifiChainsOptions);
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { data: bridgeAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-needed-shown"] });
+  const { data: swapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "swap-needed-shown"] });
+  const { data: bridgeSwapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-swap-needed-shown"] });
   const { supportedAssets, isPending } = useMarkets();
   const sorted = useMemo(() => {
     const available = new Set<number>(
@@ -55,9 +57,6 @@ export default function Network() {
     ];
   }, [tokens, lifiChains, asset]);
   if (!asset) return <Redirect href="/add-funds/assets" />;
-  if (!isPending && !supportedAssets.includes(asset)) {
-    return <Redirect href={{ pathname: "/add-funds/add-crypto", params: { asset } }} />;
-  }
   const native = lifiChains?.find((c) => c.id === chain.id);
   const visible = expanded ? sorted : sorted.slice(0, 3);
   function navigate(chainId: number) {
@@ -67,8 +66,11 @@ export default function Network() {
     });
   }
   function selectNetwork(chainId: number) {
-    if (chainId !== chain.id && !bridgeAcknowledged) {
-      setPendingChainId(chainId);
+    const supported = isPending || supportedAssets.includes(asset);
+    const variant = chainId === chain.id ? (supported ? undefined : "swap") : supported ? "bridge" : "bridgeSwap";
+    const acknowledged = { bridge: bridgeAcknowledged, bridgeSwap: bridgeSwapAcknowledged, swap: swapAcknowledged };
+    if (variant && !acknowledged[variant]) {
+      setPending({ chainId, variant });
       return;
     }
     navigate(chainId);
@@ -139,19 +141,32 @@ export default function Network() {
             )}
           </YStack>
         </ScrollView>
-        <BridgeNeededSheet
-          open={pendingChainId !== undefined}
+        <ReceiveGuideSheet
+          open={pending !== undefined}
+          variant={pending?.variant ?? "bridge"}
           asset={asset}
-          chainId={pendingChainId}
-          network={sorted.find((c) => c.id === pendingChainId)?.name ?? ""}
-          onClose={() => setPendingChainId(undefined)}
+          chainId={pending && pending.chainId !== chain.id ? pending.chainId : undefined}
+          network={
+            pending?.chainId === chain.id
+              ? (native?.name ?? chain.name)
+              : (sorted.find((c) => c.id === pending?.chainId)?.name ?? "")
+          }
+          onClose={() => setPending(undefined)}
           onContinue={(hide) => {
-            if (hide) queryClient.setQueryData(["settings", "bridge-needed-shown"], true);
-            if (pendingChainId !== undefined) navigate(pendingChainId);
-            setPendingChainId(undefined);
+            if (pending) {
+              if (hide) queryClient.setQueryData(["settings", settingsKeys[pending.variant]], true);
+              navigate(pending.chainId);
+            }
+            setPending(undefined);
           }}
         />
       </View>
     </SafeView>
   );
 }
+
+const settingsKeys = {
+  bridge: "bridge-needed-shown",
+  bridgeSwap: "bridge-swap-needed-shown",
+  swap: "swap-needed-shown",
+};
