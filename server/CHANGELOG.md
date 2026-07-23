@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.104
+
+### Patch Changes
+
+- [#1168](https://github.com/exactly/exa/pull/1168) [`c1c19dc`](https://github.com/exactly/exa/commit/c1c19dcd1e01d531d12da466abe56c9f60747638) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑 disable siwe registration on optimism
+
 ## 0.2.103
 
 ### Patch Changes
