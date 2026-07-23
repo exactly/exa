@@ -38,6 +38,12 @@ const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? 
 const allowlist = Object.keys(
   (deploy.proposalManager.allowlist as Record<string, Record<string, string>>)[chainId] ?? {},
 ).map((address) => getAddress(address));
+const allowlists = Object.fromEntries(
+  Object.entries(deploy.proposalManager.allowlist as Record<string, Record<string, string>>).map(([id, tokens]) => [
+    id,
+    Object.keys(tokens).map((address) => getAddress(address)),
+  ]),
+);
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
@@ -113,7 +119,13 @@ export default defineConfig([
           },
         },
       ),
-      { name: "Allowlist", run: () => ({ content: `export const allowlist = ${JSON.stringify(allowlist)} as const` }) },
+      {
+        name: "Allowlist",
+        run: () => ({
+          content: `export const allowlist = ${JSON.stringify(allowlist)} as const
+export const allowlists: Record<string, readonly string[] | undefined> = ${JSON.stringify(allowlists)}`,
+        }),
+      },
       foundry({
         forge: { build: false },
         project: "../contracts",
