@@ -38,6 +38,7 @@ import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 
+import AssetMatchSheet from "./AssetMatchSheet";
 import AssetSelectSheet from "./AssetSelectSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import {
@@ -88,6 +89,7 @@ export default function Bridge() {
   } = useTranslation();
 
   const [assetSheetOpen, setAssetSheetOpen] = useState(false);
+  const [assetMatch, setAssetMatch] = useState<{ chainId: number; destinationSymbol: string; token: Token }>();
   const [destinationModalOpen, setDestinationModalOpen] = useState(false);
 
   const { address: account } = useAccount();
@@ -1186,8 +1188,39 @@ export default function Bridge() {
           groups={assetGroups}
           selected={source}
           onSelect={(chainId, token) => {
+            const correlatedSymbol =
+              token.symbol in tokenCorrelation
+                ? tokenCorrelation[token.symbol as keyof typeof tokenCorrelation]
+                : undefined;
+            const correlatedToken =
+              correlatedSymbol && correlatedSymbol !== token.symbol && (isExaSender || chainId !== chain.id)
+                ? destinationTokens.find((destination) => destination.symbol === correlatedSymbol)
+                : undefined;
+            if (correlatedToken) {
+              setAssetMatch({ chainId, destinationSymbol: correlatedToken.symbol, token });
+              return;
+            }
             setSourceAmount(0n);
             setSelectedSource({ chain: chainId, address: token.address.toLowerCase() });
+          }}
+        />
+        <AssetMatchSheet
+          open={assetMatch !== undefined}
+          sourceSymbol={assetMatch?.token.symbol ?? ""}
+          sourceLogoURI={assetMatch?.token.logoURI}
+          sourceChainId={assetMatch?.chainId}
+          sourceNetwork={assetGroups.find((group) => group.chain.id === assetMatch?.chainId)?.chain.name ?? ""}
+          destinationSymbol={assetMatch?.destinationSymbol ?? ""}
+          onClose={() => setAssetMatch(undefined)}
+          onConfirm={() => {
+            if (!assetMatch) return;
+            setSourceAmount(0n);
+            setSelectedSource({ chain: assetMatch.chainId, address: assetMatch.token.address.toLowerCase() });
+            setAssetMatch(undefined);
+          }}
+          onSelectAnother={() => {
+            setAssetMatch(undefined);
+            setAssetSheetOpen(true);
           }}
         />
         <AssetSelectSheet
