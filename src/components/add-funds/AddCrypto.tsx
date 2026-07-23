@@ -7,9 +7,18 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { AlertTriangle, ArrowLeft, Copy, Hash, QrCode, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Copy,
+  Hash,
+  Info,
+  QrCode,
+  RefreshCw,
+  Share as ShareIcon,
+} from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -30,7 +39,6 @@ import ChainLogo from "../shared/ChainLogo";
 import CopyAddressSheet from "../shared/CopyAddressSheet";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
-import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import SendWarning from "../shared/SendWarning";
 import Skeleton from "../shared/Skeleton";
@@ -88,6 +96,7 @@ export default function AddCrypto() {
       ? (receiveChain?.name ?? alchemyChainById.get(receiveChainId)?.name ?? `#${receiveChainId}`)
       : chain.name;
   const assets = isBridge ? [currency] : asset ? [asset] : supportedAssets;
+  const other = !!asset && !isPending && !supportedAssets.includes(asset);
   const bridgeLogoURI = isBridge && network in networkLogos ? networkLogos[network] : undefined;
 
   const toast = useToastController();
@@ -115,8 +124,8 @@ export default function AddCrypto() {
 
   return (
     <SafeView fullScreen>
-      <View gap="$s5" fullScreen padded>
-        <View gap="$s5">
+      <View gap="$s3_5" fullScreen padded>
+        <View gap="$s5" paddingBottom="$s3">
           <XStack gap="$s3" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <IconButton
@@ -138,8 +147,8 @@ export default function AddCrypto() {
             </View>
           </XStack>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} flex={1}>
-          <YStack gap="$s5">
+        <ScrollView showsVerticalScrollIndicator={false} flex={1} contentContainerStyle={{ flexGrow: 1 }}>
+          <YStack gap="$s5" flexGrow={1}>
             <YStack gap="$s2">
               <XStack gap="$s2">
                 <AssetChip
@@ -257,6 +266,49 @@ export default function AddCrypto() {
                 </Text>
               </YStack>
             )}
+            <View flexGrow={1} />
+            <YStack gap="$s3_5">
+              {isBridge && <BridgeDisclaimer />}
+              {!!asset && (other || !!receiveChainId) && (
+                <Callout
+                  background="$interactiveBaseInformationSoftDefault"
+                  icon={<Info size={16} width={16} height={16} color="$uiInfoSecondary" />}
+                >
+                  <Text caption2 color="$uiInfoSecondary">
+                    {other
+                      ? receiveChainId
+                        ? t(
+                            "Once received, you'll need to bridge and swap {{asset}} to a supported asset on {{chain}}.",
+                            { asset, chain: chain.name },
+                          )
+                        : t("Once received, you'll need to swap {{asset}} to a supported asset.", { asset })
+                      : t("Once received, you'll need to bridge to {{asset}} on {{chain}}.", {
+                          asset,
+                          chain: chain.name,
+                        })}
+                  </Text>
+                </Callout>
+              )}
+              <Callout
+                background="$interactiveBaseWarningSoftDefault"
+                icon={<AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />}
+              >
+                <Text caption2 color="$uiWarningSecondary">
+                  <SendWarning asset={isBridge ? currency : asset || undefined} network={networkName} />
+                  <Text
+                    cursor="pointer"
+                    caption2
+                    primary
+                    onPress={() => {
+                      presentArticle("8950801").catch(reportError);
+                    }}
+                  >
+                    {" "}
+                    {t("Learn more about adding funds.")}
+                  </Text>
+                </Text>
+              </Callout>
+            </YStack>
             <CopyAddressSheet
               open={copyAddressShown}
               onClose={() => {
@@ -301,41 +353,7 @@ export default function AddCrypto() {
             )}
           </YStack>
         </ScrollView>
-        <YStack gap="$s3_5" padding="$s2" paddingTop="$s3">
-          {isBridge && <BridgeDisclaimer />}
-          {!!receiveChainId && !!asset && (
-            <InfoAlert
-              title={t("Once received, you'll need to bridge to {{asset}} on {{chain}}.", { asset, chain: chain.name })}
-            />
-          )}
-          <XStack
-            backgroundColor="$interactiveBaseWarningSoftDefault"
-            borderRadius="$r5"
-            paddingHorizontal="$s4"
-            paddingVertical="$s3_5"
-            gap="$s4"
-            alignItems="flex-start"
-          >
-            <View>
-              <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
-            </View>
-            <XStack flex={1}>
-              <Text caption2 color="$uiWarningSecondary">
-                <SendWarning asset={isBridge ? currency : asset || undefined} network={networkName} />
-                <Text
-                  cursor="pointer"
-                  caption2
-                  primary
-                  onPress={() => {
-                    presentArticle("8950801").catch(reportError);
-                  }}
-                >
-                  {" "}
-                  {t("Learn more about adding funds.")}
-                </Text>
-              </Text>
-            </XStack>
-          </XStack>
+        <YStack gap="$s3_5">
           {isBridge && isError && !isFetching ? (
             <Button
               secondary
@@ -416,6 +434,30 @@ function AssetChip({ assets, isPending, onPress }: { assets: string[]; isPending
         )}
       </XStack>
     </YStack>
+  );
+}
+
+function Callout({
+  background,
+  children,
+  icon,
+}: {
+  background: ColorTokens;
+  children: React.ReactNode;
+  icon: React.ReactElement;
+}) {
+  return (
+    <XStack
+      backgroundColor={background}
+      borderRadius="$r5"
+      paddingHorizontal="$s4"
+      paddingVertical="$s3_5"
+      gap="$s4"
+      alignItems="flex-start"
+    >
+      <View>{icon}</View>
+      <XStack flex={1}>{children}</XStack>
+    </XStack>
   );
 }
 
