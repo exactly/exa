@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -8,7 +8,6 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { isAfter, parseISO } from "date-fns";
 import { isAddress } from "viem";
 import { base } from "viem/chains";
 
@@ -74,42 +73,6 @@ export default function AddFunds() {
     Object.values(providers).some((p) =>
       p.onramp.currencies.some((item) => typeof item === "object" && "network" in item),
     );
-  const past = useMemo(() => isAfter(new Date(), parseISO("2026-07-01")), []);
-
-  function renderProviders(filter: "crypto" | "fiat") {
-    if (countryCode && isPending) {
-      return (
-        <View justifyContent="center" alignItems="center">
-          <Skeleton width="100%" height={82} />
-        </View>
-      );
-    }
-    if (!providers) return null;
-    return (
-      <YStack gap="$s3_5">
-        {Object.entries(providers).flatMap(([providerKey, provider]) =>
-          provider.onramp.currencies
-            .filter((item) => (filter === "crypto") === (typeof item === "object"))
-            .map((item) => {
-              const isCrypto = typeof item === "object";
-              const currency = isCrypto ? item.currency : item;
-              const network = isCrypto ? item.network : undefined;
-              return (
-                <RampButton
-                  key={`${providerKey}-${currency}-${network ?? "fiat"}`}
-                  currency={currency}
-                  direction="onramp"
-                  network={network}
-                  provider={providerKey as "bridge" | "manteca"}
-                  status={provider.status}
-                />
-              );
-            }),
-        )}
-      </YStack>
-    );
-  }
-
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View gap="$s6" fullScreen padded>
@@ -195,33 +158,11 @@ export default function AddFunds() {
               <>
                 {hasCrypto && (
                   <InfoAlert
-                    title={
-                      past
-                        ? t("Crypto on-ramps are no longer available as of July 1st.")
-                        : t("Crypto on-ramps will no longer be available from July 1st.")
-                    }
+                    title={t("Crypto on-ramps are no longer available as of July 1st.")}
                     actionText={t("Learn more")}
                     onPress={() => {
                       openBrowser("https://x.com/exa_app/status/2071690658339770622").catch(reportError);
                     }}
-                  />
-                )}
-                {!past && !isKYCApproved && chain.id !== base.id && (
-                  <InfoAlert
-                    title={t("Complete a quick identity check to access more networks.")}
-                    actionText={t("Get verified")}
-                    onPress={() => {
-                      beginKYC.mutate(undefined, {
-                        onError(error) {
-                          toast.show(t("Error verifying identity"), {
-                            duration: 1000,
-                            burntOptions: { haptic: "error", preset: "error" },
-                          });
-                          reportError(error);
-                        },
-                      });
-                    }}
-                    loading={beginKYC.isPending}
                   />
                 )}
                 {method === "siwe" && (
@@ -245,8 +186,6 @@ export default function AddFunds() {
                     router.push("/add-funds/add-crypto");
                   }}
                 />
-
-                {!past && renderProviders("crypto")}
               </>
             )}
             {type === "fiat" && countryCode && isPending && (
