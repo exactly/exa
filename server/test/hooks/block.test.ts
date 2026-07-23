@@ -363,10 +363,10 @@ describe("proposal", () => {
       const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const timelockedAbi = [{ type: "error", name: "Timelocked", inputs: [] }] as const;
       const { simulateContract } = publicClient;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      const zadd = vi.spyOn(redis, "zadd");
+      const add: (key: string, score: number, member: string) => Promise<number> = redis.zadd.bind(redis);
+      const zadd = vi.spyOn<{ zadd: typeof add }, "zadd">(redis, "zadd");
       const zrem = vi.spyOn(redis, "zrem");
       if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
       const exaSend = keeper.exaSend.bind(keeper);
@@ -375,10 +375,14 @@ describe("proposal", () => {
         .mockImplementation((span, call, options) => exaSend(span, call, options));
       vi.spyOn(publicClient, "simulateContract").mockImplementation((params) => {
         if (params.functionName !== "executeProposal") return simulateContract(params);
+        zadd.mockImplementationOnce(async (...args) => {
+          await add(...args);
+          return add(...args);
+        });
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
         throw getContractError(
-          new RawContractError({ data: encodeErrorResult({ abi: timelockedAbi, errorName: "Timelocked" }) }),
-          { abi: timelockedAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
+          new RawContractError({ data: encodeErrorResult({ abi: proposalManagerAbi, errorName: "Timelocked" }) }),
+          { ...params, abi: proposalManagerAbi, args: [proposal.args.nonce] },
         );
       });
 
@@ -399,8 +403,10 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zadd.mock.calls.some(([key]) => key === "proposals"), 26_666);
       await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+      const result = zrem.mock.results[zrem.mock.calls.findIndex((call) => match.zrem(call))];
+      if (result?.type !== "return") throw new Error("missing removed proposal");
+      await result.value;
       const queued = zadd.mock.calls.find(([key, , message]) => {
         if (key !== "proposals" || typeof message !== "string") return false;
         const proposalPayload = deserialize(message);
@@ -424,6 +430,7 @@ describe("proposal", () => {
       ) {
         throw new Error("missing requeued proposal");
       }
+      expect(await redis.zrem("proposals", queued[2])).toBe(1);
       expect(payload.unlock).toBeGreaterThanOrEqual(proposal.args.unlock);
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
