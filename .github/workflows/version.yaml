@@ -16,6 +16,7 @@ jobs:
         with: { version: v1.5.1, cache: false }
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+        env: { REDISMS_DISABLE_POSTINSTALL: "true" }
       - id: title
         run: |
           pnpm changeset status --output=status.json 2>/dev/null || echo '{"releases":[]}' > status.json
