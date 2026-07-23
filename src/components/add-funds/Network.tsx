@@ -18,6 +18,7 @@ import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useMarkets from "../../utils/useMarkets";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -33,6 +34,7 @@ export default function Network() {
   const { data: lifiChains } = useQuery(lifiChainsOptions);
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { data: bridgeAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-needed-shown"] });
+  const { supportedAssets, isPending } = useMarkets();
   const sorted = useMemo(() => {
     const available = new Set<number>(
       (tokens ?? []).filter((token) => token.symbol === asset).map((token) => token.chainId),
@@ -52,6 +54,9 @@ export default function Network() {
     ];
   }, [tokens, lifiChains, asset]);
   if (!asset) return <Redirect href="/add-funds/assets" />;
+  if (!isPending && !supportedAssets.includes(asset)) {
+    return <Redirect href={{ pathname: "/add-funds/add-crypto", params: { asset } }} />;
+  }
   function navigate(chainId: number) {
     router.push({
       pathname: "/add-funds/add-crypto",
