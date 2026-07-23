@@ -1,44 +1,39 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { CheckCircle, X } from "@tamagui/lucide-icons";
+import { AlertTriangle, CheckCircle, X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
-import AssetLogo from "./AssetLogo";
-import ChainLogo from "./ChainLogo";
-import Image from "./Image";
 import ModalSheet from "./ModalSheet";
-import Skeleton from "./Skeleton";
+import { presentArticle } from "../../utils/intercom";
+import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useMarkets from "../../utils/useMarkets";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import View from "../shared/View";
 
 export default function CopyAddressSheet({
   open,
   onClose,
   address: overrideAddress,
+  asset,
   network,
-  networkLogo,
-  assets,
 }: {
   address?: string;
-  assets?: string[];
+  asset?: string;
   network?: string;
-  networkLogo?: string;
   onClose: () => void;
   open: boolean;
 }) {
   const { address: accountAddress } = useAccount();
-  const { supportedAssets, isPending } = useMarkets();
-  const displayAssets = assets ?? supportedAssets;
   const { t } = useTranslation();
+  const networkName = network ?? chain.name;
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+      <ScrollView showsVerticalScrollIndicator={false} $platform-web={{ maxHeight: "100vh" }}>
         <SafeView
           borderTopLeftRadius="$r4"
           borderTopRightRadius="$r4"
@@ -51,65 +46,53 @@ export default function CopyAddressSheet({
             <YStack gap="$s5">
               <XStack gap="$s3" alignItems="center">
                 <CheckCircle size={24} color="$uiSuccessSecondary" />
-                <Text emphasized primary headline color="$uiSuccessSecondary">
+                <Text emphasized headline color="$uiSuccessSecondary">
                   {t("Address copied")}
                 </Text>
               </XStack>
-              <Text emphasized secondary subHeadline>
+              <Text secondary subHeadline>
                 {t("Double-check your address before sending funds to avoid losing them.")}
               </Text>
             </YStack>
-            <Text primary title2 mono textAlign="center">
+            <Text primary title2 textAlign="center">
               {overrideAddress ?? accountAddress}
             </Text>
-            <YStack
-              gap="$s5"
+            <XStack
+              gap="$s4"
               alignItems="flex-start"
               borderTopWidth={1}
               borderTopColor="$borderNeutralSoft"
-              paddingTop="$s5"
+              paddingTop="$s4_5"
             >
-              <XStack justifyContent="space-between" alignItems="center" width="100%">
-                <Text emphasized footnote color="$uiNeutralSecondary" textAlign="left">
-                  {t("Network")}
-                </Text>
-                <Text emphasized footnote color="$uiNeutralSecondary" textAlign="right">
-                  {displayAssets.length === 1 ? t("Asset") : t("Supported Assets")}
-                </Text>
-              </XStack>
-              <XStack gap="$s5" justifyContent="space-between" alignItems="center" width="100%">
-                <XStack alignItems="center" gap="$s3" flex={1}>
-                  {networkLogo ? (
-                    <Image source={{ uri: networkLogo }} width={32} height={32} borderRadius="$r_0" overflow="hidden" />
-                  ) : (
-                    <ChainLogo size={32} />
-                  )}
-                  <Text emphasized primary headline>
-                    {network ?? chain.name}
+              <View>
+                <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
+              </View>
+              <XStack flex={1}>
+                <Text caption2 color="$uiNeutralPlaceholder">
+                  {asset
+                    ? t(
+                        "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
+                        { crypto: asset, network: networkName },
+                      )
+                    : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+                        chain: networkName,
+                      })}
+                  <Text
+                    cursor="pointer"
+                    emphasized
+                    caption2
+                    color="$uiBrandSecondary"
+                    onPress={() => {
+                      presentArticle("8950801").catch(reportError);
+                    }}
+                  >
+                    {" "}
+                    {t("Learn more about adding funds.")}
                   </Text>
-                </XStack>
-                <XStack
-                  borderWidth={1}
-                  borderColor="$borderNeutralSoft"
-                  borderRadius="$r_0"
-                  padding="$s3_5"
-                  alignSelf="flex-end"
-                >
-                  {!assets && isPending
-                    ? Array.from({ length: 5 }, (_, index) => (
-                        <XStack key={index} marginRight={index < 4 ? -12 : 0} zIndex={index}>
-                          <Skeleton width={32} height={32} radius="round" />
-                        </XStack>
-                      ))
-                    : displayAssets.map((symbol, index) => (
-                        <XStack key={symbol} marginRight={index < displayAssets.length - 1 ? -12 : 0} zIndex={index}>
-                          <AssetLogo symbol={symbol} width={32} height={32} />
-                        </XStack>
-                      ))}
-                </XStack>
+                </Text>
               </XStack>
-            </YStack>
-            <Button primary width="100%" onPress={onClose}>
+            </XStack>
+            <Button secondary width="100%" onPress={onClose}>
               <Button.Text>{t("Close")}</Button.Text>
               <Button.Icon>
                 <X />

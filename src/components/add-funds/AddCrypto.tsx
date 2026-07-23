@@ -264,8 +264,7 @@ export default function AddCrypto() {
               }}
               address={isBridge ? depositAddress : undefined}
               network={isBridge ? network : receiveChainId ? networkName : undefined}
-              networkLogo={isBridge ? networkLogos[network] : receiveChain?.logoURI}
-              assets={isBridge || asset ? assets : undefined}
+              asset={isBridge ? currency : asset || undefined}
             />
             {!isBridge && !asset && (
               <SupportedAssetsSheet
