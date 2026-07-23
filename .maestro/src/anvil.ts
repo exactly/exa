@@ -40,7 +40,9 @@ export function writeContract<
   functionName extends ContractFunctionName<abi, "nonpayable" | "payable">,
   args extends ContractFunctionArgs<abi, "nonpayable" | "payable", functionName>,
 >(
-  parameters: Pick<WriteContractParameters<abi, functionName, args>, "abi" | "address" | "args" | "functionName">,
+  parameters: Pick<WriteContractParameters<abi, functionName, args>, "address" | "args" | "functionName"> & {
+    abi: abi;
+  },
 ): WriteContractReturnType {
   const { address, functionName, abi, args } = parameters as Pick<
     WriteContractParameters,
