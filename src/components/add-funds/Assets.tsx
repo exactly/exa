@@ -127,7 +127,7 @@ export default function Assets() {
                       title={token.symbol}
                       subtitle={token.name}
                       onPress={() => {
-                        router.push({ pathname: "/add-funds/add-crypto", params: { asset: token.symbol } });
+                        router.push({ pathname: "/add-funds/network", params: { asset: token.symbol } });
                       }}
                     />
                   ))}

@@ -234,6 +234,20 @@ queryClient.setQueryDefaults(["settings", "bridge-needed-shown"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "bridge-needed-shown"]),
 });
+queryClient.setQueryDefaults(["settings", "bridge-swap-needed-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "bridge-swap-needed-shown"]),
+});
+queryClient.setQueryDefaults(["settings", "swap-needed-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "swap-needed-shown"]),
+});
 queryClient.setQueryDefaults(["defi", "usdc-funding-connected"], {
   initialData: false,
   retry: false,
