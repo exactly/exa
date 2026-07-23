@@ -18,7 +18,7 @@ export default function AddFundsOption({
   icon: React.ReactElement;
   loading?: boolean;
   onPress: () => void;
-  subtitle: string;
+  subtitle?: string;
   title: string;
 }) {
   return (
@@ -50,9 +50,11 @@ export default function AddFundsOption({
             <Text emphasized headline primary>
               {title}
             </Text>
-            <Text footnote secondary>
-              {subtitle}
-            </Text>
+            {!!subtitle && (
+              <Text footnote secondary>
+                {subtitle}
+              </Text>
+            )}
           </YStack>
         </XStack>
         <View>
