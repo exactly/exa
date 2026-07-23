@@ -35,11 +35,13 @@ const StyledImage = styled(Image, {
 });
 
 export default function AssetLogo({
+  chainId = chain.id,
   height,
   symbol,
   uri: defaultUri,
   width,
 }: {
+  chainId?: number;
   height: number;
   symbol?: string;
   uri?: string;
@@ -50,7 +52,7 @@ export default function AssetLogo({
     defaultUri ??
     (symbol
       ? getTokenLogoURI(
-          tokens.filter((token) => token.chainId === (chain.id as typeof token.chainId)),
+          tokens.filter((token) => token.chainId === (chainId as typeof token.chainId)),
           symbol,
         )
       : undefined);
