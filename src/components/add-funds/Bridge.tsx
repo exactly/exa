@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Check, CircleHelp, Clock, Repeat, Wallet, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Clock, Repeat, Wallet, X } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
@@ -780,22 +780,10 @@ export default function Bridge() {
   if (processing) {
     const status =
       isBridgeError || isTransferError ? "error" : isBridgeSuccess || isTransferSuccess ? "success" : "pending";
-    const labels = {
-      bridge: {
-        error: t("Bridge failed"),
-        success: t("Bridge transaction submitted"),
-        processing: t("Processing bridge"),
-      },
-      swap: {
-        error: t("Swap failed"),
-        success: t("Swap transaction submitted"),
-        processing: t("Processing swap"),
-      },
-      transfer: {
-        error: t("Transfer failed"),
-        success: t("Transfer transaction submitted"),
-        processing: t("Processing transfer"),
-      },
+    const errorTitle = {
+      bridge: t("Bridge failed"),
+      swap: t("Swap failed"),
+      transfer: t("Transfer failed"),
     }[bridgePreview.operation];
 
     const amount = Number(formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals));
@@ -804,7 +792,13 @@ export default function Bridge() {
     return (
       <ProcessingScreen
         status={status}
-        title={status === "error" ? labels.error : status === "success" ? labels.success : labels.processing}
+        title={
+          status === "error"
+            ? errorTitle
+            : status === "success"
+              ? t("Add funds request sent")
+              : t("Processing add funds request")
+        }
         symbol={bridgePreview.sourceToken.symbol}
         logoURI={bridgePreview.sourceToken.logoURI}
         amount={`${Number(formatUnits(bridgePreview.sourceAmount, bridgePreview.sourceToken.decimals)).toLocaleString(
@@ -1314,6 +1308,14 @@ function ProcessingScreen({
       </View>
       {!pending && (
         <YStack flex={2} justifyContent="flex-end" gap="$s5" alignItems="center" paddingBottom="$s6">
+          {status === "success" && (
+            <Button primary width="100%" onPress={onClose}>
+              <Button.Text>{t("View requests")}</Button.Text>
+              <Button.Icon>
+                <ArrowRight />
+              </Button.Icon>
+            </Button>
+          )}
           <Pressable onPress={onClose}>
             <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
               {t("Close")}
