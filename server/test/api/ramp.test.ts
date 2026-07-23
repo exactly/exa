@@ -745,6 +745,29 @@ describe("ramp api", () => {
           await expect(response.json()).resolves.toStrictEqual({ code: "external account not found" });
         });
 
+        it("returns 400 when the offramp transfer is not found", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+          vi.spyOn(bridge, "getOfframpDepositDetails").mockRejectedValue(
+            new Error(bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND),
+          );
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USD",
+                direction: "offramp",
+                externalAccountId: "ext-acc-1",
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "transfer not found" });
+        });
+
         it("returns 500 when bridge util throws an unexpected error", async () => {
           vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
           vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
@@ -775,6 +798,7 @@ describe("ramp api", () => {
               address: deposit,
               fee: "0.0",
               estimatedProcessingTime: "300",
+              reference: "invoice 4021",
             },
           ]);
 
@@ -800,6 +824,7 @@ describe("ramp api", () => {
                 address: deposit,
                 fee: "0.0",
                 estimatedProcessingTime: "300",
+                reference: "invoice 4021",
               },
             ],
           });
@@ -1369,9 +1394,10 @@ describe("ramp api", () => {
       expect(response.status).toBe(500);
     });
 
-    it("delegates to createExternalAccount and returns the external account", async () => {
+    it("creates the external account and its offramp transfer, then returns the external account", async () => {
       vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
       const createSpy = vi.spyOn(bridge, "createExternalAccount").mockResolvedValue(externalAccount);
+      const transferSpy = vi.spyOn(bridge, "createOfframpTransfer").mockResolvedValue(undefined as never);
 
       const response = await appClient["external-account"].$post(
         { json: input },
@@ -1381,6 +1407,92 @@ describe("ramp api", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual(externalAccount);
       expect(createSpy).toHaveBeenCalledWith(bridgeCustomer, input);
+      expect(transferSpy).toHaveBeenCalledWith(
+        bridgeCustomer.id,
+        deriveAddress(factory, { x: padHex(privateKeyToAddress(padHex("0xbee"))), y: zeroHash }),
+        externalAccount.id,
+        externalAccount.currency,
+        undefined,
+        undefined,
+      );
+    });
+
+    it("forwards the wire rail and reference to the offramp transfer", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockResolvedValue(externalAccount);
+      const transferSpy = vi.spyOn(bridge, "createOfframpTransfer").mockResolvedValue(undefined as never);
+
+      const response = await appClient["external-account"].$post(
+        { json: { ...input, rail: "wire", reference: "invoice 4021" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(transferSpy).toHaveBeenCalledWith(
+        bridgeCustomer.id,
+        deriveAddress(factory, { x: padHex(privateKeyToAddress(padHex("0xbee"))), y: zeroHash }),
+        externalAccount.id,
+        externalAccount.currency,
+        "wire",
+        "invoice 4021",
+      );
+    });
+
+    it("omits the rail but forwards the reference for a non-usd account", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockResolvedValue({ ...externalAccount, currency: "EUR" });
+      const transferSpy = vi.spyOn(bridge, "createOfframpTransfer").mockResolvedValue(undefined as never);
+
+      const response = await appClient["external-account"].$post(
+        {
+          json: {
+            currency: "EUR",
+            accountOwnerName: "Jane Doe",
+            accountOwnerType: "individual",
+            firstName: "Jane",
+            lastName: "Doe",
+            accountNumber: "DE89370400440532013000",
+            country: "DEU",
+            reference: "invoice 4021",
+          },
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(transferSpy).toHaveBeenCalledWith(
+        bridgeCustomer.id,
+        deriveAddress(factory, { x: padHex(privateKeyToAddress(padHex("0xbee"))), y: zeroHash }),
+        externalAccount.id,
+        "EUR",
+        undefined,
+        "invoice 4021",
+      );
+    });
+
+    it("rejects a reference that exceeds the ach length", async () => {
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        { json: { ...input, reference: "way too long reference" } },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 when the offramp transfer fails", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      vi.spyOn(bridge, "createExternalAccount").mockResolvedValue(externalAccount);
+      vi.spyOn(bridge, "createOfframpTransfer").mockRejectedValue(new Error("boom"));
+
+      const response = await appClient["external-account"].$post(
+        { json: input },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(500);
     });
   });
 

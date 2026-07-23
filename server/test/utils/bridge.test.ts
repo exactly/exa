@@ -2840,9 +2840,99 @@ describe("bridge utils", () => {
       const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
 
       expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
+        {
+          network: "OPTIMISM",
+          displayName: "Optimism",
+          address: deposit,
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+          reference: undefined,
+        },
       ]);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      {
+        name: "ach_reference from a usd account",
+        accountCurrency: "usd" as const,
+        currency: "USD" as const,
+        template: staticTemplate({
+          externalAccountId: "ext-acc-1",
+          currency: "usd",
+          toAddress: deposit,
+          reference: "rent 04",
+        }),
+        reference: "rent 04",
+      },
+      {
+        name: "wire_message from a usd wire account",
+        accountCurrency: "usd" as const,
+        currency: "USD" as const,
+        template: {
+          ...staticTemplate({ externalAccountId: "ext-acc-1", currency: "usd", toAddress: deposit }),
+          destination: {
+            payment_rail: "wire",
+            currency: "usd",
+            external_account_id: "ext-acc-1",
+            wire_message: "invoice 4021",
+          },
+        },
+        reference: "invoice 4021",
+      },
+      {
+        name: "sepa_reference from a eur account",
+        accountCurrency: "eur" as const,
+        currency: "EUR" as const,
+        template: staticTemplate({
+          externalAccountId: "ext-acc-1",
+          currency: "eur",
+          toAddress: deposit,
+          reference: "invoice 4021",
+        }),
+        reference: "invoice 4021",
+      },
+      {
+        name: "spei_reference from a mxn account",
+        accountCurrency: "mxn" as const,
+        currency: "MXN" as const,
+        template: staticTemplate({
+          externalAccountId: "ext-acc-1",
+          currency: "mxn",
+          toAddress: deposit,
+          reference: "order 04",
+        }),
+        reference: "order 04",
+      },
+      {
+        name: "generic reference from a brl account",
+        accountCurrency: "brl" as const,
+        currency: "BRL" as const,
+        template: staticTemplate({
+          externalAccountId: "ext-acc-1",
+          currency: "brl",
+          toAddress: deposit,
+          reference: "order 05",
+        }),
+        reference: "order 05",
+      },
+    ])("returns the stored $name", async ({ accountCurrency, currency, template, reference }) => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse(externalAccountResponse(accountCurrency)))
+        .mockResolvedValueOnce(fetchResponse({ count: 1, data: [template] }));
+
+      const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, currency);
+
+      expect(result).toStrictEqual([
+        {
+          network: "OPTIMISM",
+          displayName: "Optimism",
+          address: deposit,
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+          reference,
+        },
+      ]);
     });
 
     it("matches static template on optimism for optimism sepolia chain", async () => {
@@ -2859,54 +2949,28 @@ describe("bridge utils", () => {
       const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "EUR");
 
       expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
+        {
+          network: "OPTIMISM",
+          displayName: "Optimism",
+          address: deposit,
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+          reference: undefined,
+        },
       ]);
     });
 
-    it("creates a transfer when no matching static template exists", async () => {
+    it("throws OFFRAMP_TRANSFER_NOT_FOUND when no matching static template exists", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")))
-        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
-        .mockResolvedValueOnce(
-          fetchResponse(staticTemplate({ externalAccountId: "ext-acc-1", currency: "usd", toAddress: deposit })),
-        );
+        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }));
 
-      const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
-
-      expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
-      ]);
-      expect(fetchSpy).toHaveBeenCalledTimes(3);
-      const transferCall = fetchSpy.mock.calls[2];
-      expect(transferCall?.[0]).toContain("/transfers");
-      expect(JSON.parse(transferCall?.[1]?.body as string)).toStrictEqual({
-        on_behalf_of: activeCustomer.id,
-        client_reference_id: account,
-        source: { currency: "usdc", payment_rail: "optimism" },
-        destination: { currency: "usd", payment_rail: "ach", external_account_id: "ext-acc-1" },
-        features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-      });
-    });
-
-    it("creates a transfer with the eur payment rail for an eur external account", async () => {
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("eur")))
-        .mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }))
-        .mockResolvedValueOnce(
-          fetchResponse(staticTemplate({ externalAccountId: "ext-acc-1", currency: "eur", toAddress: deposit })),
-        );
-
-      await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "EUR");
-
-      expect(JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string)).toStrictEqual({
-        on_behalf_of: activeCustomer.id,
-        client_reference_id: account,
-        source: { currency: "usdc", payment_rail: "optimism" },
-        destination: { currency: "eur", payment_rail: "sepa", external_account_id: "ext-acc-1" },
-        features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-      });
+      await expect(bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD")).rejects.toThrow(
+        bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy.mock.calls.every((call) => call[1]?.method !== "POST")).toBe(true);
     });
 
     it("ignores static templates with mismatched source payment rail", async () => {
@@ -2925,14 +2989,12 @@ describe("bridge utils", () => {
               }),
             ],
           }),
-        )
-        .mockResolvedValueOnce(
-          fetchResponse(staticTemplate({ externalAccountId: "ext-acc-1", currency: "usd", toAddress: deposit })),
         );
 
-      await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
-
-      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await expect(bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD")).rejects.toThrow(
+        bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
     it("ignores static templates for a different external account", async () => {
@@ -2944,14 +3006,12 @@ describe("bridge utils", () => {
             count: 1,
             data: [staticTemplate({ externalAccountId: "ext-acc-other", currency: "usd", toAddress: deposit })],
           }),
-        )
-        .mockResolvedValueOnce(
-          fetchResponse(staticTemplate({ externalAccountId: "ext-acc-1", currency: "usd", toAddress: deposit })),
         );
 
-      await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
-
-      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      await expect(bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD")).rejects.toThrow(
+        bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
     it("throws on an invalid to_address", async () => {
@@ -3011,13 +3071,20 @@ describe("bridge utils", () => {
       const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
 
       expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
+        {
+          network: "OPTIMISM",
+          displayName: "Optimism",
+          address: deposit,
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+          reference: undefined,
+        },
       ]);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       expect(fetchSpy.mock.calls.every((call) => call[1]?.method !== "POST")).toBe(true);
     });
 
-    it("ignores canceled templates and creates a new transfer", async () => {
+    it("ignores canceled templates", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")))
@@ -3031,18 +3098,154 @@ describe("bridge utils", () => {
               },
             ],
           }),
-        )
-        .mockResolvedValueOnce(
-          fetchResponse(staticTemplate({ externalAccountId: "ext-acc-1", currency: "usd", toAddress: deposit })),
         );
 
-      const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD");
+      await expect(bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD")).rejects.toThrow(
+        bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+  });
 
-      expect(result).toStrictEqual([
-        { network: "OPTIMISM", displayName: "Optimism", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
-      ]);
-      expect(fetchSpy).toHaveBeenCalledTimes(3);
-      expect(fetchSpy.mock.calls[2]?.[0] as string).toContain("/transfers");
+  describe("createOfframpTransfer", () => {
+    const account = parse(Address, padHex("0x1", { size: 20 }));
+    const deposit = parse(Address, padHex("0xde9", { size: 20 }));
+
+    it("throws NOT_SUPPORTED_CHAIN_ID for unsupported chain", async () => {
+      chainMock.id = 1;
+
+      await expect(bridge.createOfframpTransfer(activeCustomer.id, account, "ext-acc-1", "USD")).rejects.toThrow(
+        bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
+      );
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge not supported chain id" }),
+        expect.objectContaining({ level: "error" }),
+      );
+    });
+
+    it("throws NOT_AVAILABLE_CURRENCY when currency has no payment rail mapping", async () => {
+      await expect(
+        bridge.createOfframpTransfer(activeCustomer.id, account, "ext-acc-usdc", "USDC" as never),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_AVAILABLE_CURRENCY);
+    });
+
+    it.each([
+      {
+        name: "uses the ach rail for a usd account",
+        currency: "USD",
+        rail: undefined,
+        reference: undefined,
+        destination: { currency: "usd", payment_rail: "ach", external_account_id: "ext-acc-1" },
+      },
+      {
+        name: "uses the sepa rail for a eur account",
+        currency: "EUR",
+        rail: undefined,
+        reference: undefined,
+        destination: { currency: "eur", payment_rail: "sepa", external_account_id: "ext-acc-1" },
+      },
+      {
+        name: "sends the ach reference for a usd account",
+        currency: "USD",
+        rail: "ach",
+        reference: "rent 04",
+        destination: {
+          currency: "usd",
+          payment_rail: "ach",
+          external_account_id: "ext-acc-1",
+          ach_reference: "rent 04",
+        },
+      },
+      {
+        name: "sends the wire message for a usd wire account",
+        currency: "USD",
+        rail: "wire",
+        reference: "invoice 4021",
+        destination: {
+          currency: "usd",
+          payment_rail: "wire",
+          external_account_id: "ext-acc-1",
+          wire_message: "invoice 4021",
+        },
+      },
+      {
+        name: "sends the spei reference for a mxn account",
+        currency: "MXN",
+        rail: undefined,
+        reference: "order 04",
+        destination: {
+          currency: "mxn",
+          payment_rail: "spei",
+          external_account_id: "ext-acc-1",
+          spei_reference: "order 04",
+        },
+      },
+      {
+        name: "sends the generic reference for a brl pix account",
+        currency: "BRL",
+        rail: undefined,
+        reference: "order 05",
+        destination: { currency: "brl", payment_rail: "pix", external_account_id: "ext-acc-1", reference: "order 05" },
+      },
+      {
+        name: "sends the sepa reference for a eur account",
+        currency: "EUR",
+        rail: undefined,
+        reference: "invoice 4021",
+        destination: {
+          currency: "eur",
+          payment_rail: "sepa",
+          external_account_id: "ext-acc-1",
+          sepa_reference: "invoice 4021",
+        },
+      },
+      {
+        name: "sends the generic reference for a gbp faster payments account",
+        currency: "GBP",
+        rail: undefined,
+        reference: "fp memo 4021",
+        destination: {
+          currency: "gbp",
+          payment_rail: "faster_payments",
+          external_account_id: "ext-acc-1",
+          reference: "fp memo 4021",
+        },
+      },
+      {
+        name: "omits the reference when none is provided",
+        currency: "GBP",
+        rail: undefined,
+        reference: undefined,
+        destination: { currency: "gbp", payment_rail: "faster_payments", external_account_id: "ext-acc-1" },
+      },
+    ] as const)("$name", async ({ currency, rail, reference, destination }) => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(
+          fetchResponse(
+            staticTemplate({ externalAccountId: "ext-acc-1", currency: destination.currency, toAddress: deposit }),
+          ),
+        );
+
+      const result = await bridge.createOfframpTransfer(
+        activeCustomer.id,
+        account,
+        "ext-acc-1",
+        currency,
+        rail,
+        reference,
+      );
+
+      expect(result.source_deposit_instructions.to_address).toBe(deposit);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.mock.calls[0]?.[0]).toContain("/transfers");
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        on_behalf_of: activeCustomer.id,
+        client_reference_id: account,
+        source: { currency: "usdc", payment_rail: "optimism" },
+        destination,
+        features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+      });
     });
   });
 
@@ -3261,6 +3464,149 @@ describe("bridge utils", () => {
         lastName: "Doe",
         accountNumber: "DE89370400440532013000",
         country: "DEU",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts legacy USD input without rail or reference", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts USD wire input with a reference", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        rail: "wire",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+        reference: "invoice 4021",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects a wire message with a line over 35 characters", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        rail: "wire",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+        reference: "this single wire line is way too long to pass",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts a wire message spread over four lines", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        rail: "wire",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+        reference: "line one\nline two\nline three\nline four",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects a wire message with more than four lines", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        rail: "wire",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+        reference: "line one\nline two\nline three\nline four\nline five",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts USD ach input with a short reference", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+        reference: "rent 04",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects a USD ach reference longer than 10 characters", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "USD",
+        accountOwnerName: "John Doe",
+        accountNumber: "1210002481111",
+        routingNumber: "121000248",
+        address: usdAddress,
+        reference: "way too long reference",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts a non-USD reference", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "GBP",
+        accountOwnerName: "Jane Doe",
+        accountNumber: "12345678",
+        sortCode: "123456",
+        reference: "fp memo 4021",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects a faster payments reference longer than 18 characters", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "GBP",
+        accountOwnerName: "Jane Doe",
+        accountNumber: "12345678",
+        sortCode: "123456",
+        reference: "this reference is definitely too long",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects a sepa reference shorter than 6 characters", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "EUR",
+        accountOwnerName: "Jane Doe",
+        accountOwnerType: "individual",
+        firstName: "Jane",
+        lastName: "Doe",
+        accountNumber: "DE89370400440532013000",
+        country: "DEU",
+        reference: "abc",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts a pix reference longer than 18 characters", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "BRL",
+        accountOwnerName: "John Doe",
+        account: { pixKey: "john@example.com" },
+        reference: "payment for july rent invoice 4021",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts a spei reference longer than 18 characters", () => {
+      const result = safeParse(bridge.ExternalAccountInput, {
+        currency: "MXN",
+        accountOwnerName: "John Doe",
+        clabe: "012345678901234567",
+        reference: "monthly rent payment 07",
       });
       expect(result.success).toBe(true);
     });
@@ -4340,19 +4686,33 @@ function staticTemplate({
   currency,
   toAddress,
   sourcePaymentRail = "optimism",
+  reference,
 }: {
   currency: "brl" | "eur" | "gbp" | "mxn" | "usd";
   externalAccountId: string;
+  reference?: string;
   sourcePaymentRail?: "base" | "optimism";
   toAddress: null | string;
 }) {
   const destinationPaymentRail = { brl: "pix", eur: "sepa", gbp: "faster_payments", mxn: "spei", usd: "ach" }[currency];
+  const referenceField = {
+    brl: "reference",
+    eur: "sepa_reference",
+    gbp: "reference",
+    mxn: "spei_reference",
+    usd: "ach_reference",
+  }[currency];
   return {
     id: `tr-${externalAccountId}-${currency}`,
     state: "awaiting_funds" as const,
     on_behalf_of: "cust-123",
     source: { payment_rail: sourcePaymentRail, currency: "usdc" },
-    destination: { payment_rail: destinationPaymentRail, currency, external_account_id: externalAccountId },
+    destination: {
+      payment_rail: destinationPaymentRail,
+      currency,
+      external_account_id: externalAccountId,
+      ...(reference && { [referenceField]: reference }),
+    },
     source_deposit_instructions: { payment_rail: sourcePaymentRail, currency: "usdc", to_address: toAddress },
   };
 }
