@@ -597,12 +597,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             if (kyc.applicationStatus !== "approved") {
               return c.json({ code: "kyc not approved" }, 403);
             }
-            const productId =
-              chain.id === base.id
-                ? credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG" // cspell:ignore azbh
-                  ? SIGNATURE_PRODUCT_ID
-                  : BASE_PRODUCT_ID
-                : SIGNATURE_PRODUCT_ID;
+            const isCardArtOverride = credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG"; // cspell:ignore azbh
+            const productId = chain.id === base.id && !isCardArtOverride ? BASE_PRODUCT_ID : SIGNATURE_PRODUCT_ID;
             const card = await getCards(pandaId)
               .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
               .then(async (orphan) => {
@@ -633,6 +629,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                           contexts: { details: { credentialId, scope: "cardLimit" } },
                         });
                       }),
+                    isCardArtOverride ? "c4c03256d6764a8390f41b60561d27af" : undefined,
                   );
                 }
               });

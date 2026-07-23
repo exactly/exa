@@ -68,6 +68,7 @@ export async function createCard(
   userId: string,
   productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
   amount = 1_000_000,
+  virtualCardArt?: string,
 ) {
   return await request(
     CardResponse,
@@ -80,13 +81,14 @@ export async function createCard(
       configuration: {
         productId,
         virtualCardArt:
-          chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+          virtualCardArt ??
+          (chain.id === baseSepolia.id || chain.id === optimismSepolia.id
             ? "0c515d7eb0a140fa8f938f8242b0780a"
             : {
                 [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
                 [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
                 [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-              }[productId],
+              }[productId]),
       },
     }),
     "POST",
