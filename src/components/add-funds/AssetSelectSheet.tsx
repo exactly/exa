@@ -2,12 +2,13 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { Search } from "@tamagui/lucide-icons";
+import { Check, ChevronDown, Network, Search } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
 import AssetLogo from "../shared/AssetLogo";
+import ChainLogo from "../shared/ChainLogo";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -41,11 +42,14 @@ export default function AssetSelectSheet({
     i18n: { language },
   } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [chainFilter, setChainFilter] = useState<number>();
+  const [filterOpen, setFilterOpen] = useState(false);
   const displayLabel = label ?? t("Select asset");
 
   const filteredGroups = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     return groups
+      .filter((group) => chainFilter === undefined || group.chain.id === chainFilter)
       .map((group) => {
         if (!normalizedQuery) return group;
         const assets = group.assets.filter(({ token }) => {
@@ -59,10 +63,12 @@ export default function AssetSelectSheet({
         return { ...group, assets };
       })
       .filter((group) => group.assets.length > 0);
-  }, [groups, searchQuery]);
+  }, [groups, searchQuery, chainFilter]);
 
   const handleClose = useCallback(() => {
     setSearchQuery("");
+    setChainFilter(undefined);
+    setFilterOpen(false);
     onClose();
   }, [onClose]);
 
@@ -73,35 +79,87 @@ export default function AssetSelectSheet({
           <Text fontSize={15} fontWeight="bold" textAlign="center">
             {displayLabel}
           </Text>
-          <XStack
-            borderColor="$uiNeutralTertiary"
-            width="100%"
-            borderWidth={1}
-            borderRadius="$r3"
-            backgroundColor="$backgroundSoft"
-            overflow="hidden"
-            alignItems="center"
-          >
-            <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
-              <Search size={18} color="$uiNeutralSecondary" />
-              <Input
-                placeholder={t("Search tokens")}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholderTextColor="$uiNeutralPlaceholder"
-                autoCapitalize="none"
-                flex={1}
-                borderWidth={0}
-                borderColor="transparent"
-                backgroundColor="transparent"
-                padding={0}
-                minHeight={44}
-                color="$uiNeutralPrimary"
-                focusStyle={{ borderColor: "transparent", backgroundColor: "transparent" }}
-                focusVisibleStyle={{ outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" }}
-              />
+          <View position="relative" zIndex={10}>
+            <XStack
+              borderColor="$uiNeutralTertiary"
+              width="100%"
+              borderWidth={1}
+              borderRadius="$r3"
+              backgroundColor="$backgroundSoft"
+              overflow="hidden"
+              alignItems="center"
+            >
+              <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
+                <Search size={18} color="$uiNeutralSecondary" />
+                <Input
+                  placeholder={t("Search tokens")}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholderTextColor="$uiNeutralPlaceholder"
+                  autoCapitalize="none"
+                  flex={1}
+                  borderWidth={0}
+                  borderColor="transparent"
+                  backgroundColor="transparent"
+                  padding={0}
+                  minHeight={44}
+                  color="$uiNeutralPrimary"
+                  focusStyle={{ borderColor: "transparent", backgroundColor: "transparent" }}
+                  focusVisibleStyle={{ outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" }}
+                />
+              </XStack>
+              {groups.length > 1 && (
+                <Pressable onPress={() => setFilterOpen(!filterOpen)}>
+                  <XStack alignItems="center" gap="$s2" paddingHorizontal="$s3">
+                    {chainFilter === undefined ? (
+                      <Network size={20} color="$uiNeutralSecondary" />
+                    ) : (
+                      <ChainLogo chainId={chainFilter} size={20} />
+                    )}
+                    <ChevronDown size={16} color="$uiNeutralSecondary" />
+                  </XStack>
+                </Pressable>
+              )}
             </XStack>
-          </XStack>
+            {filterOpen && (
+              <YStack
+                position="absolute"
+                top="100%"
+                left={0}
+                right={0}
+                marginTop="$s2"
+                backgroundColor="$backgroundSoft"
+                borderRadius="$r3"
+                borderWidth={1}
+                borderColor="$borderNeutralSoft"
+                overflow="hidden"
+              >
+                <ScrollView maxHeight={360} showsVerticalScrollIndicator={false}>
+                  <FilterRow
+                    active={chainFilter === undefined}
+                    icon={<Network size={24} color="$uiNeutralPrimary" />}
+                    label={t("All networks")}
+                    onPress={() => {
+                      setChainFilter(undefined);
+                      setFilterOpen(false);
+                    }}
+                  />
+                  {groups.map((group) => (
+                    <FilterRow
+                      key={group.chain.id}
+                      active={chainFilter === group.chain.id}
+                      icon={<ChainLogo chainId={group.chain.id} size={24} />}
+                      label={group.chain.name}
+                      onPress={() => {
+                        setChainFilter(group.chain.id);
+                        setFilterOpen(false);
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+              </YStack>
+            )}
+          </View>
           <ScrollView flex={1} showsVerticalScrollIndicator={false}>
             <YStack paddingBottom="$s6" gap="$s4">
               {filteredGroups.map((group) => (
@@ -171,7 +229,7 @@ export default function AssetSelectSheet({
               {filteredGroups.length === 0 && (
                 <View alignItems="center" paddingVertical="$s8">
                   <Text footnote color="$uiNeutralSecondary">
-                    {searchQuery
+                    {searchQuery || chainFilter !== undefined
                       ? t("No assets match your filters.")
                       : t("No assets with balance available to bridge.")}
                   </Text>
@@ -182,5 +240,34 @@ export default function AssetSelectSheet({
         </View>
       </SafeView>
     </ModalSheet>
+  );
+}
+
+function FilterRow({
+  active,
+  icon,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  icon: React.ReactElement;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress}>
+      <XStack
+        padding="$s3_5"
+        alignItems="center"
+        gap="$s3_5"
+        backgroundColor={active ? "$interactiveBaseBrandSoftDefault" : "transparent"}
+      >
+        {icon}
+        <Text emphasized subHeadline color="$uiNeutralPrimary" flex={1}>
+          {label}
+        </Text>
+        {active && <Check size={16} color="$uiBrandSecondary" />}
+      </XStack>
+    </Pressable>
   );
 }
