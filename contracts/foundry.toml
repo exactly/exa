@@ -34,6 +34,10 @@ exclude_lints = [
 ]
 ignore = ["test/**/*.t.sol", "test/mocks/**/*.sol"]
 
+[profile.build]
+script = "test/support/Build.sol"
+test = "test/support/Build.sol"
+
 [profile.production.fuzz]
 runs = 66_666
 
