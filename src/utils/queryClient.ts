@@ -227,6 +227,13 @@ queryClient.setQueryDefaults(["settings", "defi-intro-shown"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "defi-intro-shown"]),
 });
+queryClient.setQueryDefaults(["settings", "bridge-needed-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "bridge-needed-shown"]),
+});
 queryClient.setQueryDefaults(["defi", "usdc-funding-connected"], {
   initialData: false,
   retry: false,
