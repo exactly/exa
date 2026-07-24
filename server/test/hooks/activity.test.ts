@@ -1,35 +1,55 @@
-import { createWebhook as createWebhookMock, findWebhook as findWebhookMock } from "../mocks/alchemy";
+import {
+  createAlchemy as createAlchemyMock,
+  createWebhook as createWebhookMock,
+  findWebhook as findWebhookMock,
+  headerValidator as headerValidatorMock,
+} from "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
+import { DefaultApi } from "@onesignal/node-onesignal";
 import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
+import { Redis } from "ioredis";
+import { parse, string } from "valibot";
 import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
-import app from "../../hooks/activity";
+import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
+import appOrigin from "../../utils/appOrigin";
 import * as onesignal from "../../utils/onesignal";
 import redis from "../../utils/redis";
-import { enqueue } from "../../workers/poke/queue";
+import * as poke from "../../workers/poke/queue";
 
-const appClient = testClient(app);
+const mocks = vi.hoisted(() => ({
+  closePoke: vi.fn<() => Promise<void>>().mockResolvedValue(),
+  enqueuePoke: vi.fn<() => Promise<void>>().mockResolvedValue(),
+}));
+vi.mock("../../workers/poke/queue", () => ({
+  default: () => ({ close: mocks.closePoke, enqueue: mocks.enqueuePoke }),
+  enqueue: mocks.enqueuePoke,
+}));
 
-vi.mock("../../workers/poke/queue", () => ({ enqueue: vi.fn<typeof enqueue>() }));
+const hook = createHook("activity");
+const appClient = testClient(hook.app);
+
+beforeAll(() => hook.ready);
+afterAll(() => hook.close());
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
   let account: Address;
 
   beforeEach(async () => {
-    vi.mocked(enqueue).mockReset().mockResolvedValue();
+    vi.mocked(poke.enqueue).mockReset().mockResolvedValue();
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
 
@@ -41,6 +61,39 @@ describe("address activity", () => {
         factory: inject("ExaAccountFactory"),
       },
     ]);
+  });
+
+  it("fails when a supported network disappears before handling", async () => {
+    const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(NETWORKS, "get").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- unreachable branch
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [...activityPayload.json.event.activity] },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported activity network" }));
+    expect(poke.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("ignores transfers to unknown accounts", async () => {
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [...activityPayload.json.event.activity] },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
   afterEach(async () => {
@@ -73,7 +126,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: [inject("WETH")],
       chainId: chain.id,
@@ -83,11 +136,14 @@ describe("address activity", () => {
       source: null,
     });
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Funds received"),
-      contents: t("{{amount}} received", { amount: "WETH" }),
-    });
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      {
+        userId: account,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received", { amount: "WETH" }),
+      },
+      expect.any(DefaultApi),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -103,7 +159,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -129,7 +185,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -151,7 +207,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -182,7 +238,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: [inject("WETH")],
       chainId: 31_337,
@@ -207,7 +263,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).not.toHaveBeenCalled();
+    expect(poke.enqueue).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -245,8 +301,8 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledTimes(2);
-    expect(enqueue).toHaveBeenNthCalledWith(1, {
+    expect(poke.enqueue).toHaveBeenCalledTimes(2);
+    expect(poke.enqueue).toHaveBeenNthCalledWith(1, {
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", inject("WETH")],
       chainId: 31_337,
@@ -255,7 +311,7 @@ describe("address activity", () => {
       publicKey: owner.address.toLowerCase(),
       source: null,
     });
-    expect(enqueue).toHaveBeenNthCalledWith(2, {
+    expect(poke.enqueue).toHaveBeenNthCalledWith(2, {
       account: secondAccount,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -271,7 +327,7 @@ describe("address activity", () => {
   it("fails the webhook when poke cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.mocked(enqueue).mockRejectedValueOnce(error);
+    vi.mocked(poke.enqueue).mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -286,7 +342,7 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(enqueue).toHaveBeenCalledOnce();
+    expect(poke.enqueue).toHaveBeenCalledOnce();
   });
 
   it("sends translated notification without symbol when asset is missing", async () => {
@@ -312,11 +368,41 @@ describe("address activity", () => {
 
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
 
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Funds received"),
-      contents: t("{{amount}} received and instantly started earning yield", { amount: f("99.973") }),
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      {
+        userId: account,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received and instantly started earning yield", { amount: f("99.973") }),
+      },
+      expect.any(DefaultApi),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("sends notifications for unknown anvil tokens", async () => {
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[2], toAddress: account }],
+        },
+      },
     });
+
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
+
+    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+      {
+        userId: account,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+      },
+      expect.any(DefaultApi),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -412,11 +498,14 @@ describe("address activity", () => {
         `https://li.quest/v1/tokens?chains=${optMainnet.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
 
@@ -430,11 +519,14 @@ describe("address activity", () => {
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("li.quest"), expect.anything());
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
 
@@ -459,11 +551,14 @@ describe("address activity", () => {
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(captureException).toHaveBeenCalledWith(fetchError, { level: "error" });
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
 
@@ -478,17 +573,20 @@ describe("address activity", () => {
       expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "lifi tokens 503" }), {
         level: "error",
       });
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
 
     it("fails open and captures exception when redis errors", async () => {
       const redisError = new Error("redis connection refused");
-      vi.spyOn(redis, "pipeline").mockImplementationOnce(() => {
+      vi.spyOn(Redis.prototype, "pipeline").mockImplementationOnce(() => {
         throw redisError;
       });
       const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
@@ -498,11 +596,14 @@ describe("address activity", () => {
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(captureException).toHaveBeenCalledWith(redisError, { level: "error" });
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
 
@@ -514,11 +615,14 @@ describe("address activity", () => {
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
 
@@ -539,11 +643,14 @@ describe("address activity", () => {
         `https://li.quest/v1/tokens?chains=${optMainnet.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-      });
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+        {
+          userId: account,
+          headings: t("Funds received"),
+          contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        },
+        expect.any(DefaultApi),
+      );
       expect(response.status).toBe(200);
     });
   });
@@ -619,42 +726,64 @@ afterEach(() => {
 });
 
 describe("webhook initialization", () => {
-  beforeEach(() => vi.resetModules());
-
-  it("sets webhookId when existing hook is found", async () => {
+  it("initializes an existing hook with explicit alchemy keys", async () => {
     vi.mocked(findWebhookMock).mockResolvedValueOnce({ id: "existing-hook-id", signing_key: "existing-signing-key" });
-    const activity = await import("../../hooks/activity");
-    await vi.waitUntil(() => activity.webhookId === "existing-hook-id", 5000);
-    expect(activity.webhookId).toBe("existing-hook-id");
+    const current = createHook("bootstrap-signing-key");
+
+    await current.ready;
+
+    expect(createAlchemyMock).toHaveBeenCalledWith("webhooks");
+    expect(findWebhookMock).toHaveBeenCalledWith(expect.any(Function));
+    const predicate = findWebhookMock.mock.calls[0]?.[0] as
+      | ((hook: { webhook_type: "ADDRESS_ACTIVITY" | "GRAPHQL"; webhook_url: string }) => unknown)
+      | undefined;
+    if (!predicate) throw new Error("missing activity hook predicate");
+    expect(predicate({ webhook_type: "ADDRESS_ACTIVITY", webhook_url: `${appOrigin}/hooks/activity` })).toBe(true);
+    expect(predicate({ webhook_type: "ADDRESS_ACTIVITY", webhook_url: "https://example.com/hooks/activity" })).toBe(
+      false,
+    );
+    expect(predicate({ webhook_type: "GRAPHQL", webhook_url: `${appOrigin}/hooks/activity` })).toBe(false);
+    expect(createWebhookMock).not.toHaveBeenCalled();
+    expect(headerValidatorMock).toHaveBeenCalledExactlyOnceWith(
+      new Set(["bootstrap-signing-key", "existing-signing-key"]),
+    );
+    const closing = current.close();
+    expect(current.close()).toBe(closing);
+    await closing;
   });
 
-  it("sets webhookId when a hook is created", async () => {
+  it("creates a hook before serving when none exists", async () => {
     vi.mocked(findWebhookMock).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
-    const activity = await import("../../hooks/activity");
-    await vi.waitUntil(() => activity.webhookId === "mock-webhook-id", 5000);
-    expect(createWebhookMock).toHaveBeenCalledOnce();
-    expect(activity.webhookId).toBe("mock-webhook-id");
+    const current = createHook();
+
+    await current.ready;
+
+    expect(createAlchemyMock).toHaveBeenCalledWith("webhooks");
+    expect(createWebhookMock).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ addresses: [], webhook_type: "ADDRESS_ACTIVITY" }),
+    );
+    expect(headerValidatorMock).toHaveBeenCalledExactlyOnceWith(new Set(["mock-signing-key"]));
+    await current.close();
   });
 
-  it("reads webhookId from env", async () => {
-    const previous = process.env.ALCHEMY_ACTIVITY_ID;
-    try {
-      process.env.ALCHEMY_ACTIVITY_ID = "hook-a";
-      vi.mocked(findWebhookMock).mockRejectedValueOnce(new Error("alchemy error"));
-      const activity = await import("../../hooks/activity");
-      expect(activity.webhookId).toBe("hook-a");
-    } finally {
-      if (previous === undefined) delete process.env.ALCHEMY_ACTIVITY_ID;
-      else process.env.ALCHEMY_ACTIVITY_ID = previous;
-    }
-  });
-
-  it("captures exception when webhook initialization fails", async () => {
+  it("rejects readiness when webhook initialization fails", async () => {
     const error = new Error("alchemy error");
     vi.mocked(findWebhookMock).mockRejectedValueOnce(error);
-    const { captureException: ce } = await import("@sentry/node");
-    await import("../../hooks/activity");
-    await vi.waitUntil(() => vi.mocked(ce).mock.calls.some(([error_]) => error_ === error), 5000);
-    expect(ce).toHaveBeenCalledWith(error, { level: "error" });
+    const current = createHook("activity");
+
+    await expect(current.ready).rejects.toBe(error);
+
+    expect(createWebhookMock).not.toHaveBeenCalled();
+    await current.close();
   });
 });
+
+function createHook(activityKey?: string) {
+  return activity({
+    alchemyKey: "webhooks",
+    activityKey,
+    onesignalKey: "onesignal",
+    postgresUrl: parse(string(), process.env.POSTGRES_URL),
+    redisUrl: parse(string(), process.env.REDIS_URL),
+  });
+}

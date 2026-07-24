@@ -15,7 +15,7 @@ import { close as closeAllow, enqueue as enqueueAllow } from "../../workers/allo
 import allowWorker from "../../workers/allow/worker";
 
 import type { Job as Allow } from "../../workers/allow/job";
-import type { enqueue as enqueuePoke } from "../../workers/poke/queue";
+import type { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type { Job, JobsOptions } from "bullmq";
 
@@ -25,14 +25,20 @@ const redisUrl = parse(string(), process.env.REDIS_URL);
 const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
 const mocks = vi.hoisted(() => ({
+  closePoke: vi.fn<typeof closePoke>(),
   enqueuePoke: vi.fn<typeof enqueuePoke>(),
   exaSend: vi.fn(),
   firewall: vi.fn<() => Address | undefined>(),
   getWallet: vi.fn(),
+  startPoke: vi.fn<typeof startPoke>(),
 }));
 
 vi.mock("../../utils/wallet", () => ({ getWallet: mocks.getWallet }));
-vi.mock("../../workers/poke/queue", () => ({ enqueue: mocks.enqueuePoke }));
+vi.mock("../../workers/poke/queue", () => ({
+  close: mocks.closePoke,
+  enqueue: mocks.enqueuePoke,
+  start: mocks.startPoke,
+}));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
@@ -118,10 +124,12 @@ afterAll(async () => {
 
 beforeEach(async () => {
   vi.restoreAllMocks();
+  mocks.closePoke.mockReset().mockResolvedValue();
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
   mocks.firewall.mockReset().mockReturnValue(firewall);
   mocks.getWallet.mockReset().mockResolvedValue({ exaSend: mocks.exaSend });
+  mocks.startPoke.mockReset();
   vi.clearAllMocks();
   await queue.drain(true);
   await queue.clean(0, 1000, "completed");
@@ -213,6 +221,24 @@ describe("allow worker", () => {
 
     expect(queuedBefore).toBe(0);
     expect(mocks.enqueuePoke).toHaveBeenCalledOnce();
+  });
+
+  it("closes the poke queue after active jobs settle", async () => {
+    const deferred = Promise.withResolvers<object>();
+    mocks.exaSend.mockReturnValueOnce(deferred.promise);
+
+    const processing = allowDone(account);
+    await vi.waitUntil(() => mocks.exaSend.mock.calls.length === 1);
+    const closeWorker = vi.spyOn(worker.queue, "close");
+    const closing = worker.close();
+    await vi.waitUntil(() => closeWorker.mock.calls.length === 1);
+
+    expect(mocks.closePoke).not.toHaveBeenCalled();
+
+    deferred.resolve({});
+    await processing;
+    await closing;
+    expect(mocks.closePoke).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("retries allow failures", async () => {

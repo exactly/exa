@@ -17,8 +17,8 @@ import t from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
-import { bullmq as connection } from "../../utils/redis";
-import { close as closeQueue, enqueue } from "../../workers/poke/queue";
+import { bullmq } from "../../utils/redis";
+import pokeQueue, { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../../workers/poke/queue";
 import pokeWorker from "../../workers/poke/worker";
 
 import type { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../../workers/credit/queue";
@@ -43,6 +43,8 @@ const request = {
   publicKey: "0x1234",
   source: null,
 } as const;
+startPoke(bullmq);
+startPoke(bullmq);
 const mocks = vi.hoisted(() => ({
   closeCredit: vi.fn<typeof closeCredit>(),
   closeSegment: vi.fn(),
@@ -71,11 +73,11 @@ vi.mock("../../workers/credit/queue", () => ({
   start: mocks.startCredit,
 }));
 
-const producer = new Queue<Poke, void, "poke">("poke", { connection });
+const queue = new Queue<Poke, void, "poke">("poke", { connection: bullmq });
 let worker: ReturnType<typeof pokeWorker>;
 
 function done(
-  poke: Parameters<typeof enqueue>[0],
+  poke: Parameters<typeof enqueuePoke>[0],
   options?: JobsOptions,
   trace?: { sentryBaggage?: string; sentryTrace?: string },
 ) {
@@ -97,7 +99,7 @@ function done(
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    producer
+    queue
       .add("poke", { ...poke, ...trace }, { attempts: 1, removeOnComplete: true, removeOnFail: true, ...options })
       .catch((error: unknown) => {
         cleanup();
@@ -106,7 +108,7 @@ function done(
   });
 }
 
-function queued(poke: Parameters<typeof enqueue>[0]) {
+function queued(poke: Parameters<typeof enqueuePoke>[0]) {
   return new Promise<void>((resolve, reject) => {
     const completed = (job: Job<Poke>) => {
       if (job.data.account !== poke.account) return;
@@ -124,7 +126,7 @@ function queued(poke: Parameters<typeof enqueue>[0]) {
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    enqueue(poke).catch((error: unknown) => {
+    enqueuePoke(poke).catch((error: unknown) => {
       cleanup();
       reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
     });
@@ -147,24 +149,26 @@ beforeEach(async () => {
   vi.spyOn(publicClient, "getBalance").mockResolvedValue(0n);
   vi.spyOn(publicClient, "readContract").mockResolvedValue([] as never);
   vi.clearAllMocks();
-  await producer.drain(true);
-  await producer.clean(0, 1000, "completed");
-  await producer.clean(0, 1000, "failed");
+  await queue.drain(true);
+  await queue.clean(0, 1000, "completed");
+  await queue.clean(0, 1000, "failed");
 });
 afterAll(async () => {
-  await Promise.all([producer.close(), closeQueue()]);
+  await Promise.all([queue.close(), closePoke()]);
+  await closePoke();
 });
 
 describe("poke queue", () => {
   it("publishes account poke jobs", async () => {
+    const instance = pokeQueue(bullmq);
     const pending = Symbol("pending");
-    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof producer.add>>>();
+    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueue(request);
+    const result = instance.enqueue(request);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
-    deferred.resolve({ id: account, data: request } as unknown as Awaited<ReturnType<typeof producer.add>>);
+    deferred.resolve({ id: account, data: request } as unknown as Awaited<ReturnType<typeof queue.add>>);
 
     await expect(result).resolves.toBeUndefined();
     expect(add).toHaveBeenCalledExactlyOnceWith(
@@ -181,14 +185,15 @@ describe("poke queue", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+    await instance.close();
   });
 
   it("includes assets in job ids", async () => {
     const add = vi
       .spyOn(Queue.prototype, "add")
-      .mockResolvedValueOnce({ id: account, data: request } as unknown as Awaited<ReturnType<typeof producer.add>>);
+      .mockResolvedValueOnce({ id: account, data: request } as unknown as Awaited<ReturnType<typeof queue.add>>);
 
-    await enqueue({ ...request, assets: [token] });
+    await enqueuePoke({ ...request, assets: [token] });
 
     expect(add).toHaveBeenCalledExactlyOnceWith(
       "poke",
@@ -204,13 +209,21 @@ describe("poke queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueue(request)).rejects.toThrow(error);
+    await expect(enqueuePoke(request)).rejects.toThrow(error);
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "poke", job: "poke" },
       extra: { account },
     });
+  });
+
+  it("requires the monolith queue to be started", async () => {
+    await closePoke();
+
+    await expect(enqueuePoke(request)).rejects.toThrow("poke queue is not started");
+
+    startPoke(bullmq);
   });
 });
 
@@ -477,7 +490,7 @@ describe("poke worker", () => {
 
     worker.queue.emit(
       "failed",
-      { attemptsMade: 9, data: request, name: "poke", opts: {} } as unknown as Awaited<ReturnType<typeof producer.add>>,
+      { attemptsMade: 9, data: request, name: "poke", opts: {} } as unknown as Awaited<ReturnType<typeof queue.add>>,
       error,
       "active",
     );
