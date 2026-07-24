@@ -10,7 +10,10 @@ import "./mocks/wallet";
 import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import process, { env } from "node:process";
 import { describe, expect, it, vi } from "vitest";
+
+import { connect } from "../workers/worker";
 
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
@@ -20,25 +23,37 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
-      const { default: app, close } = await import("../index");
-
-      app.use("/e2e/*", cors());
-      app.post("/e2e/coverage", async (c) => {
-        await mkdir("coverage", { recursive: true });
-        await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
-        return c.json({ code: "ok" });
-      });
+      const { default: app, close: stop } = await import("../index");
+      if (!env.REDIS_URL) throw new Error("missing redis url");
+      if (!env.POSTGRES_URL) throw new Error("missing postgres url");
+      const bullmq = connect(env.REDIS_URL);
+      const workers = [] as { close: () => Promise<void>; ready: Promise<unknown> }[];
 
       await expect(
-        new Promise((resolve) => {
-          const teardown = () => void close().finally(() => resolve(null)); // eslint-disable-line no-void
+        new Promise((resolve, reject) => {
+          let closing: Promise<unknown> | undefined;
+          const teardown = () => {
+            closing ??= Promise.allSettled([bullmq.quit(), stop(), ...workers.map((worker) => worker.close())]).then(
+              resolve,
+              reject,
+            );
+          };
+
+          app.use("/e2e/*", cors());
+          app.post("/e2e/coverage", async (c) => {
+            await mkdir("coverage", { recursive: true });
+            await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
+            return c.json({ code: "ok" });
+          });
           app.post("/e2e/shutdown", (c) => {
             teardown();
             return c.json({ code: "ok" });
           });
           process.once("SIGTERM", teardown);
+
+          Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
-      ).resolves.toBeNull();
+      ).resolves.toBeDefined();
     },
     Infinity,
   );
@@ -93,7 +108,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         Promise.resolve({ processorCardId: `proc_${cardId}`, timeBasedSecret: `secret_${cardId}` }),
       ),
     getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
-      const privateKey = process.env.PANDA_E2E_PRIVATE_KEY;
+      const privateKey = env.PANDA_E2E_PRIVATE_KEY;
       if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");
       const encryptedSecret = Buffer.from(sessionId, "base64");
       const secretKeyBase64 = crypto.privateDecrypt(

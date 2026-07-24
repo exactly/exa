@@ -1,6 +1,5 @@
-import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { captureException, close as closeSentry, setExtra } from "@sentry/node";
+import { setExtra } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
@@ -18,13 +17,12 @@ import bridge from "./hooks/bridge";
 import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
+import supervise, { own } from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
-import { closeQueue, reminders } from "./utils/maturity";
+import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
 import { close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
-
-import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const app = new Hono();
 app.use(trimTrailingSlash());
@@ -280,71 +278,15 @@ frontend.use(
 );
 app.route("/", frontend);
 
-app.onError((error, c) => {
-  let fingerprint: string[] | undefined;
-  if (error instanceof Error) {
-    const message = error.message
-      .split("Error:")
-      .reduce((result, part) => (result ? `${result}Error:${part}` : part.trimStart()), "");
-    const status = message.slice(0, 3);
-    const hasStatus = /^\d{3}$/.test(status);
-    const hasBodyFormat = message.length === 3 || message[3] === " ";
-    const body = hasBodyFormat && message.length > 3 ? message.slice(4).trim() : undefined;
-    if (hasStatus && hasBodyFormat) fingerprint = ["{{ default }}", status];
-    if (hasStatus && hasBodyFormat && body) {
-      try {
-        const json = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
-        fingerprint = [
-          "{{ default }}",
-          status,
-          ...("code" in json
-            ? [String(json.code)]
-            : typeof json.message === "string"
-              ? [json.message]
-              : typeof json.error === "string"
-                ? [json.error]
-                : [body]),
-        ];
-      } catch {
-        fingerprint = ["{{ default }}", status, body];
-      }
-    }
-  }
-  captureException(error, { level: "error", tags: { unhandled: true }, fingerprint });
-  return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
-});
-
 export default app;
 
-const server = serve(app);
-
-export async function close() {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end(), closeQueue()])
-        .then((results) => {
-          if (error) reject(error);
-          else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
-          else resolve(null);
-        })
-        .catch(reject);
-    });
-  });
-}
-
-reminders()
-  .catch(reminders)
-  .catch((error: unknown) => {
-    captureException(error, { level: "error", tags: { unhandled: true } });
-    throw error;
-  });
-
-if (!process.env.VITEST) {
-  ["SIGINT", "SIGTERM"].map((code) => {
-    process.on(code, () => {
-      close()
-        .then(() => process.exit(0)) // eslint-disable-line n/no-process-exit
-        .catch(() => process.exit(1)); // eslint-disable-line n/no-process-exit
-    });
-  });
-}
+export const close = supervise(
+  "server",
+  Promise.resolve(
+    own(
+      own({ app, ready: reminders().catch(reminders) }, closeMaturity, closeSegment),
+      () => database.$client.end(),
+      closeRedis,
+    ),
+  ),
+);
