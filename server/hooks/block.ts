@@ -47,7 +47,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import t, { f } from "../i18n";
-import { headers as alchemyHeaders, createWebhook, findWebhook, headerValidator } from "../utils/alchemy";
+import { createWebhook, findWebhook, headers, headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import keeper from "../utils/keeper";
@@ -599,7 +599,7 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
 
       const queryResponse = await fetch(
         `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-        { headers: alchemyHeaders },
+        { headers: headers() },
       );
       if (!queryResponse.ok) throw new Error(`${queryResponse.status} ${await queryResponse.text()}`);
       const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
@@ -668,7 +668,7 @@ findWebhook(({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && web
     if (currentHook) {
       const deleteResponse = await fetch(
         `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
-        { headers: alchemyHeaders, method: "DELETE" },
+        { headers: headers(), method: "DELETE" },
       );
       if (!deleteResponse.ok) throw new Error(`${deleteResponse.status} ${await deleteResponse.text()}`);
       await setTimeout(5000);
