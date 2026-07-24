@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
-import { parse, type InferOutput } from "valibot";
+import { parse } from "valibot";
 import { getAddress, padHex, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
@@ -34,6 +34,7 @@ import type * as ViemSiwe from "viem/siwe";
 const appClient = testClient(app);
 const registrationAppClient = testClient(registrationApp);
 const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
+const credentialSalt = getAddress(padHex("0x1", { size: 20 }));
 
 vi.mock("@sentry/node", { spy: true });
 
@@ -52,6 +53,7 @@ describe("authentication", () => {
         account: zeroAddress,
         factory: parse(Address, inject("ExaAccountFactory")),
         transports: [],
+        salt: credentialSalt,
       },
     ]);
   });
@@ -85,6 +87,7 @@ describe("authentication", () => {
     const authResponse = parse(Authentication, await response.json());
 
     assert.ok(authResponse.intercomToken);
+    expect(authResponse.salt).toBe(credentialSalt);
 
     const payload = decodeJwt(authResponse.intercomToken);
     const nowInSeconds = Math.floor(Date.now() / 1000);
@@ -466,6 +469,8 @@ describe("authentication", () => {
         customer: { id, tags: [{ name: "source", value: "EXA", type: "string" }] },
       }),
     );
+    const authResponse = parse(Authentication, await response.json());
+    expect(authResponse.salt).toBe(zeroAddress);
 
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, id),
@@ -561,8 +566,9 @@ describe("authentication", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = (await response.json()) as InferOutput<typeof Authentication>;
-    expect(json.factory).toBe(factory);
+    const authResponse = parse(Authentication, await response.json());
+    expect(authResponse.factory).toBe(factory);
+    expect(authResponse.salt).toBe(credentialSalt);
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
@@ -707,6 +713,8 @@ describe("registration", () => {
         customer: { id, tags: [{ name: "source", value: "EXA", type: "string" }] },
       }),
     );
+    const authResponse = parse(Authentication, await response.json());
+    expect(authResponse.salt).toBe(zeroAddress);
 
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, id),

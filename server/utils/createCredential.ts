@@ -1,7 +1,7 @@
 import { captureException, setUser } from "@sentry/core";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
-import { hexToBytes, isAddress } from "viem";
+import { hexToBytes, isAddress, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -33,7 +33,8 @@ export default async function createCredential<C extends string>(
     options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
   if (!publicKey) throw new Error("bad credential");
   const { x, y } = decodePublicKey(publicKey);
-  const account = deriveAddress(factory, { x, y });
+  const salt = parse(Address, zeroAddress);
+  const account = deriveAddress(factory, { x, y, salt });
 
   setUser({ id: account });
   const expires = new Date(Date.now() + AUTH_EXPIRY);
@@ -43,6 +44,7 @@ export default async function createCredential<C extends string>(
       id: credentialId,
       publicKey,
       factory,
+      salt,
       transports: options?.webauthn?.transports,
       source: options?.source,
     },
@@ -55,7 +57,7 @@ export default async function createCredential<C extends string>(
         ? { sameSite: "lax", secure: false }
         : { domain, sameSite: "none", secure: true, partitioned: true }),
     }),
-    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
+    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error, { level: "error" })),
     customer({
       flow: { name: "signup", type: "signup" },
       customer: {
@@ -65,5 +67,5 @@ export default async function createCredential<C extends string>(
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
   identify({ userId: account });
-  return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
+  return { credentialId, factory: parse(Address, factory), x, y, salt, auth: expires.getTime() };
 }

@@ -7,11 +7,12 @@ import canonicalize from "canonicalize";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
-import { getAddress, sha256 } from "viem";
-import { mnemonicToAccount } from "viem/accounts";
+import { getAddress, padHex, sha256, zeroAddress, zeroHash } from "viem";
+import { mnemonicToAccount, privateKeyToAddress } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
+import accountInit from "@exactly/common/accountInit";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
@@ -518,7 +519,7 @@ describe("authenticated", () => {
     const legacyPlugin = "0x0000000000000000000000000000000000005678";
 
     beforeEach(async () => {
-      await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+      await database.update(credentials).set({ pandaId: null, salt: zeroAddress }).where(eq(credentials.id, "bob"));
     });
 
     afterEach(() => vi.restoreAllMocks());
@@ -543,9 +544,10 @@ describe("authenticated", () => {
     });
 
     it("returns not legacy when no plugins installed", async () => {
+      const salt = getAddress(padHex("0x1234", { size: 20 }));
       await database
         .update(credentials)
-        .set({ pandaId: null, factory: legacyFactory })
+        .set({ pandaId: null, factory: legacyFactory, salt })
         .where(eq(credentials.id, "bob"));
       const readContract = vi.spyOn(publicClient, "readContract").mockResolvedValueOnce([]);
       const getPendingInquiryTemplate = vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -555,7 +557,11 @@ describe("authenticated", () => {
         { headers: { "test-credential-id": "bob" } },
       );
 
-      expect(readContract).toHaveBeenCalledOnce();
+      expect(readContract).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          factoryData: accountInit({ x: padHex(privateKeyToAddress(padHex("0xb0b"))), y: zeroHash, salt }),
+        }),
+      );
       expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
       await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
       expect(response.status).toBe(200);

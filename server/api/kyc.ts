@@ -87,7 +87,7 @@ export default new Hono()
 
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true },
+        columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true, salt: true },
         where: eq(credentials.id, credentialId),
       });
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -149,7 +149,7 @@ export default new Hono()
         return c.json({ code: "ok", legacy: "ok" }, 200);
       }
 
-      if (await isLegacy(credentialId, account, credential.factory, credential.publicKey)) {
+      if (await isLegacy(credentialId, account, credential.factory, credential.publicKey, credential.salt)) {
         return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
       }
 
@@ -703,6 +703,7 @@ async function isLegacy(
   account: Address,
   factory: string,
   publicKey: Uint8Array<ArrayBuffer>,
+  salt: string,
 ): Promise<boolean> {
   if (factory === exaAccountFactoryAddress) return false;
   return await startSpan({ name: "exa.kyc", op: "isLegacy" }, async () => {
@@ -711,7 +712,7 @@ async function isLegacy(
       functionName: "getInstalledPlugins",
       abi: upgradeableModularAccountAbi,
       factory: getAddress(factory),
-      factoryData: accountInit(decodePublicKey(publicKey)),
+      factoryData: accountInit({ ...decodePublicKey(publicKey), salt }),
     });
     if (installedPlugin.length === 0) return false;
     if (installedPlugin.includes(exaPluginAddress)) return false;
