@@ -61,6 +61,7 @@ import { sendPushNotification } from "../utils/onesignal";
 import {
   collectors,
   createMutex,
+  getDeclineReason,
   getMutex,
   getUser,
   headerValidator,
@@ -304,7 +305,7 @@ export default new Hono().post(
         if (card.status === "FROZEN") {
           trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card");
 
-          await reject(account, payload, jsonBody, "frozenCard");
+          await reject(payload, jsonBody, "frozenCard");
 
           return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
         }
@@ -499,7 +500,7 @@ export default new Hono().post(
             }
 
             if (error.message !== "Replay" && error.message !== "tx reverted") {
-              await reject(account, payload, jsonBody, error.message);
+              await reject(payload, jsonBody, error.message);
             }
 
             return c.json(
@@ -510,7 +511,7 @@ export default new Hono().post(
           trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unexpected-error");
           captureException(error, { level: "error", tags: { unhandled: true } });
 
-          await reject(account, payload, jsonBody, error instanceof Error ? error.message : "unexpected error");
+          await reject(payload, jsonBody, error instanceof Error ? error.message : "unexpected error");
 
           return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
         }
@@ -739,7 +740,18 @@ export default new Hono().post(
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
 
-          await reject(account, payload, jsonBody, payload.body.spend.declinedReason ?? "transaction declined");
+          const requestedReason =
+            payload.body.spend.declinedReason?.toLowerCase() === "webhook declined"
+              ? await getRequestedDeclineReason(payload.body.id, payload.body.spend.cardId)
+              : undefined;
+          const rawDeclineReason = requestedReason ?? payload.body.spend.declinedReason;
+          if (await reject(payload, jsonBody, rawDeclineReason ?? "transaction declined")) {
+            sendDeclinedNotification(
+              account,
+              payload.body.spend,
+              getDeclineReason(rawDeclineReason) ?? "transaction declined",
+            ).catch((error: unknown) => captureException(error, { level: "error" }));
+          }
 
           trackRejected(account, payload, card.mode, card.credential.source);
           feedback({
@@ -752,6 +764,7 @@ export default new Hono().post(
               reason: payload.body.spend.declinedReason ?? "unknown",
             },
           }).catch((error: unknown) => captureException(error, { level: "error" }));
+          if (requestedReason) payload.body.spend.declinedReason = requestedReason;
           startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () => publish(payload)).catch(
             (error: unknown) => captureException(error, { level: "error" }),
           );
@@ -1321,6 +1334,30 @@ const TransactionPayload = v.object(
   "invalid transaction payload",
 );
 
+async function getRequestedDeclineReason(transactionId: string, cardId: string) {
+  const transaction = await database.query.transactions.findFirst({
+    columns: { payload: true },
+    where: and(eq(transactions.id, transactionId), eq(transactions.cardId, cardId)),
+  });
+  if (!transaction) return;
+
+  const payload = v.safeParse(
+    v.object({
+      bodies: v.array(
+        v.looseObject({
+          action: v.string(),
+          body: v.looseObject({ spend: v.looseObject({ declinedReason: v.nullish(v.string()) }) }),
+          reason: v.optional(v.string()),
+        }),
+      ),
+    }),
+    transaction.payload,
+  );
+  if (!payload.success) return;
+  const requested = payload.output.bodies.findLast(({ action }) => action === "requested");
+  return requested?.body.spend.declinedReason ?? requested?.reason;
+}
+
 async function sendDeclinedNotification(
   account: Address,
   spend: v.InferOutput<typeof Transaction>["body"]["spend"],
@@ -1337,28 +1374,20 @@ async function sendDeclinedNotification(
   });
 }
 
-const declineReasons: Record<string, { notify: boolean; reason: string }> = {
-  InsufficientAccountLiquidity: { reason: "insufficient funds" as const, notify: true },
-  insufficient_funds: { reason: "insufficient funds" as const, notify: true },
-  merchant_blocked: { reason: "merchant blocked" as const, notify: true },
-  frozenCard: { reason: "frozen card" as const, notify: true },
-  "webhook declined": { reason: "webhook declined" as const, notify: false },
-} as const;
-
-async function reject(
-  account: Address,
-  payload: v.InferOutput<typeof Transaction>,
-  jsonBody: unknown,
-  declineReason: string,
-) {
+async function reject(payload: v.InferOutput<typeof Transaction>, jsonBody: unknown, declineReason: string) {
   const { spend } = payload.body;
   const transactionId = payload.body.id ?? payload.id;
 
-  const { reason, notify } =
-    declineReasons[declineReason] ?? ({ reason: "transaction declined", notify: false } as const);
-
+  const rawBody = v.parse(v.looseObject({ body: v.looseObject({ spend: v.looseObject({}) }) }), jsonBody);
   const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-  const declinedBody = { ...(jsonBody as object), createdAt, status: "declined" as const, reason };
+  const declinedBody = {
+    ...rawBody,
+    ...(payload.action === "requested" && {
+      body: { ...rawBody.body, spend: { ...rawBody.body.spend, declinedReason: declineReason } },
+    }),
+    createdAt,
+    status: "declined",
+  };
 
   return database
     .insert(transactions)
@@ -1378,15 +1407,16 @@ async function reject(
             COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([declinedBody])}::jsonb
           )`,
       },
+      ...(payload.action === "created" && {
+        setWhere: sql`NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb)) AS body
+          WHERE body->>'id' = ${payload.id}
+        )`,
+      }),
     })
-    .returning({ isNew: sql<boolean>`xmax = 0` })
-    .then((result) => {
-      if (result[0]?.isNew && notify) {
-        sendDeclinedNotification(account, spend, reason).catch((error: unknown) => {
-          captureException(error, { level: "error" });
-        });
-      }
-    })
+    .returning({ changed: sql<boolean>`true` })
+    .then((result) => result.length > 0)
     .catch((error: unknown) => {
       captureException(error, { level: "error" });
     });

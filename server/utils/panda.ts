@@ -405,6 +405,31 @@ export const collectors: Address[] = (
   }[chain.id] ?? ["0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"]
 ).map((address) => parse(Address, address));
 
+export function getDeclineReason(reason?: null | string) {
+  return reason
+    ? {
+        "account credit limit exceeded": "transaction declined",
+        "block atm (mcc 6011) transaction exceeding 250.00 usd":
+          "atm limit reached. max 3 transactions every 24 hours.",
+        "blocked merchant": "this merchant is not accepted",
+        "blocked mcc": "this merchant is not accepted",
+        "card canceled": "card canceled",
+        "card not activated": "card not active",
+        "cvv mismatch": "transaction declined",
+        "cvv2 match fail": "transaction declined",
+        "expiry mismatch": "transaction declined",
+        frozencard: "frozen card", // cspell:ignore frozencard
+        insufficientaccountliquidity: "insufficient funds", // cspell:ignore insufficientaccountliquidity
+        insufficient_funds: "insufficient funds",
+        "invalid pin": "invalid pin",
+        "invalid pin attempt limit exceeded": "transaction declined",
+        merchant_blocked: "this merchant is not accepted",
+        "triggers for transactions from mcc 6050 and 6051": "this merchant is not accepted",
+        "webhook declined": "transaction declined",
+      }[reason.toLowerCase()]
+    : undefined;
+}
+
 // TODO remove code below
 const issuer = privateKeyToAccount(parse(Hash, process.env.ISSUER_PRIVATE_KEY, { message: "invalid private key" }));
 export function signIssuerOp({ account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number }) {
