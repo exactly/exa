@@ -4,13 +4,14 @@ import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
 import { parse } from "valibot";
 import { padHex } from "viem";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
-import { close as closeRedis, bullmq as connection } from "../../utils/redis";
-import { close as closeQueue, enqueue, name } from "../../workers/subscribe/queue";
-import { close, start } from "../../workers/subscribe/worker";
+import { bullmq, close as closeRedis } from "../../utils/redis";
+import { name } from "../../workers/subscribe/job";
+import { close as closeSubscribe, enqueue as enqueueSubscribe } from "../../workers/subscribe/queue";
+import subscribeWorker from "../../workers/subscribe/worker";
 
 import type { Job as Subscribe } from "../../workers/subscribe/job";
 import type { Job, JobsOptions } from "bullmq";
@@ -24,8 +25,8 @@ vi.mock("../../utils/activityWebhook", () => ({
 }));
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
-const producer = new Queue<Subscribe, void, typeof name>(name, { connection });
-let worker: Awaited<ReturnType<typeof start>>;
+const queue = new Queue<Subscribe, void, typeof name>(name, { connection: bullmq });
+let worker: ReturnType<typeof subscribeWorker>;
 
 function jobDone(
   current: Address,
@@ -49,12 +50,12 @@ function jobDone(
       reject(error);
     };
     const cleanup = () => {
-      worker.off("completed", completed);
-      worker.off("failed", failed);
+      worker.queue.off("completed", completed);
+      worker.queue.off("failed", failed);
     };
-    worker.on("completed", completed);
-    worker.on("failed", failed);
-    producer
+    worker.queue.on("completed", completed);
+    worker.queue.on("failed", failed);
+    queue
       .add(
         name,
         { account: current, ...trace },
@@ -75,9 +76,8 @@ function bodies() {
 }
 
 afterAll(async () => {
-  await producer.close();
-  await closeQueue();
-  await close();
+  await queue.close();
+  await closeSubscribe();
   await closeRedis();
 });
 
@@ -95,7 +95,7 @@ describe("subscribe queue", () => {
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Job<Subscribe, void, typeof name>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueue(account);
+    const result = enqueueSubscribe(account);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -124,7 +124,7 @@ describe("subscribe queue", () => {
     const pending = Symbol("pending");
     const fallback = Promise.withResolvers<Response>();
     vi.spyOn(globalThis, "fetch").mockReturnValue(fallback.promise);
-    const result = enqueue(account);
+    const result = enqueueSubscribe(account);
 
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -145,7 +145,7 @@ describe("subscribe queue", () => {
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(fallback);
 
-    await expect(enqueue(account)).resolves.toBeUndefined();
+    await expect(enqueueSubscribe(account)).resolves.toBeUndefined();
 
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(expect.any(AggregateError), {
       level: "error",
@@ -159,16 +159,24 @@ describe("subscribe queue", () => {
 });
 
 describe("subscribe worker", () => {
-  beforeEach(async () => {
+  beforeAll(async () => {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) throw new Error("missing redis url");
-    worker = start({ alchemyKey: "worker", redisUrl });
+    worker = subscribeWorker({ alchemyKey: "worker", redisUrl });
+    await worker.ready;
+  });
+
+  afterAll(async () => {
+    await worker.close();
+  });
+
+  beforeEach(async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
     vi.clearAllMocks();
     mocks.webhookId = "hook-a";
-    await producer.drain(true);
-    await producer.clean(0, 1000, "completed");
-    await producer.clean(0, 1000, "failed");
+    await queue.drain(true);
+    await queue.clean(0, 1000, "completed");
+    await queue.clean(0, 1000, "failed");
   });
 
   it("subscribes an account to active webhooks", async () => {
@@ -264,7 +272,7 @@ describe("subscribe worker", () => {
   it("captures worker errors", () => {
     const error = new Error("worker error");
 
-    worker.emit("error", error);
+    worker.queue.emit("error", error);
 
     expect(vi.mocked(captureException)).toHaveBeenCalledWith(error, { level: "error", tags: { queue: "subscribe" } });
   });
@@ -272,7 +280,7 @@ describe("subscribe worker", () => {
   it("captures failed events without a job", () => {
     const error = new Error("failed event error");
 
-    worker.emit("failed", undefined, error, "active");
+    worker.queue.emit("failed", undefined, error, "active");
 
     expect(vi.mocked(captureException)).toHaveBeenCalledWith(error, {
       level: "error",
@@ -284,7 +292,7 @@ describe("subscribe worker", () => {
   it("skips intermediate failed events with default attempts", () => {
     const error = new Error("failed event error");
 
-    worker.emit(
+    worker.queue.emit(
       "failed",
       { attemptsMade: 9, data: { account }, name: "subscribe", opts: {} } as Job<Subscribe, void, typeof name>,
       error,

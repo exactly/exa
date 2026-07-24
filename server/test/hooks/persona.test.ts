@@ -19,15 +19,15 @@ import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
-import { enqueue } from "../../workers/allow/queue";
+import { enqueue as enqueueAllow } from "../../workers/allow/queue";
 
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
-vi.mock("../../workers/allow/queue", () => ({ enqueue: vi.fn<typeof enqueue>() }));
+vi.mock("../../workers/allow/queue", () => ({ enqueue: vi.fn<typeof enqueueAllow>() }));
 
 beforeEach(() => {
-  vi.mocked(enqueue).mockReset().mockResolvedValue();
+  vi.mocked(enqueueAllow).mockReset().mockResolvedValue();
 });
 
 describe("with reference", () => {
@@ -82,7 +82,7 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(enqueue).toHaveBeenCalledWith({
+    expect(enqueueAllow).toHaveBeenCalledWith({
       account,
       chainId: chain.id,
       factory,
@@ -215,7 +215,7 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ account }));
+    expect(enqueueAllow).toHaveBeenCalledWith(expect.objectContaining({ account }));
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -448,7 +448,7 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(enqueue).toHaveBeenCalledWith(
+    expect(enqueueAllow).toHaveBeenCalledWith(
       expect.objectContaining({
         account: deriveAddress(inject("ExaAccountFactory"), {
           x: padHex(privateKeyToAddress(padHex("0x420"))),
@@ -507,14 +507,14 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
-    expect(enqueue).not.toHaveBeenCalled();
+    expect(enqueueAllow).not.toHaveBeenCalled();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.mocked(enqueue).mockRejectedValueOnce(error);
+    vi.mocked(enqueueAllow).mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       header: {
@@ -537,7 +537,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(enqueue).toHaveBeenCalledOnce();
+    expect(enqueueAllow).toHaveBeenCalledOnce();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 

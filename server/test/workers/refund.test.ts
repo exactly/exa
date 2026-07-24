@@ -4,23 +4,23 @@ import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
 import { parse } from "valibot";
 import { padHex, toHex } from "viem";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { refunderAddress } from "@exactly/common/generated/chain";
 import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
-import { queue as connection } from "../../utils/redis";
-import { close as closeQueue, enqueue } from "../../workers/refund/queue";
-import { close, start } from "../../workers/refund/worker";
+import { bullmq } from "../../utils/redis";
+import { close as closeRefund, enqueue as enqueueRefund } from "../../workers/refund/queue";
+import refundWorker from "../../workers/refund/worker";
 
 import type { Job as Refund } from "../../workers/refund/job";
 import type * as C from "@exactly/common/generated/chain";
 import type { Job, JobsOptions } from "bullmq";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
-const producer = new Queue<Refund, void, "refund">("refund", { connection });
-let worker: Awaited<ReturnType<typeof start>>;
+const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
+let worker: ReturnType<typeof refundWorker>;
 
 function jobDone(
   amount: bigint,
@@ -44,12 +44,12 @@ function jobDone(
       reject(error);
     };
     const cleanup = () => {
-      worker.off("completed", completed);
-      worker.off("failed", failed);
+      worker.queue.off("completed", completed);
+      worker.queue.off("failed", failed);
     };
-    worker.on("completed", completed);
-    worker.on("failed", failed);
-    producer
+    worker.queue.on("completed", completed);
+    worker.queue.on("failed", failed);
+    queue
       .add(
         "refund",
         { amount: String(amount) as `${bigint}`, ...trace },
@@ -63,7 +63,7 @@ function jobDone(
 }
 
 afterAll(async () => {
-  await Promise.all([producer.close(), closeQueue(), close()]);
+  await Promise.all([queue.close(), closeRefund()]);
 });
 
 describe("refund queue", () => {
@@ -76,7 +76,7 @@ describe("refund queue", () => {
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Job<Refund, void, "refund">>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueue(1_000_000n, "refund");
+    const result = enqueueRefund(1_000_000n, "refund");
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -103,7 +103,7 @@ describe("refund queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueue(2_000_000n, "refund")).resolves.toBeUndefined();
+    await expect(enqueueRefund(2_000_000n, "refund")).resolves.toBeUndefined();
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
@@ -114,11 +114,19 @@ describe("refund queue", () => {
 });
 
 describe("refund worker", () => {
-  beforeEach(async () => {
-    vi.restoreAllMocks();
+  beforeAll(async () => {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) throw new Error("missing redis url");
-    worker = start({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl });
+    worker = refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl });
+    await worker.ready;
+  });
+
+  afterAll(async () => {
+    await worker.close();
+  });
+
+  beforeEach(async () => {
+    vi.restoreAllMocks();
     mocks.exaSend.mockReset().mockResolvedValue({});
     mocks.getWallet.mockReset().mockResolvedValue({ account: { address: account }, exaSend: mocks.exaSend });
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
@@ -129,9 +137,9 @@ describe("refund worker", () => {
       ),
     );
     vi.clearAllMocks();
-    await producer.drain(true);
-    await producer.clean(0, 1000, "completed");
-    await producer.clean(0, 1000, "failed");
+    await queue.drain(true);
+    await queue.clean(0, 1000, "completed");
+    await queue.clean(0, 1000, "failed");
   });
 
   it("withdraws from panda for the refund wallet", async () => {
@@ -208,7 +216,7 @@ describe("refund worker", () => {
   it("captures worker errors", () => {
     const error = new Error("worker error");
 
-    worker.emit("error", error);
+    worker.queue.emit("error", error);
 
     expect(vi.mocked(captureException)).toHaveBeenCalledWith(error, { level: "error", tags: { queue: "refund" } });
   });
@@ -216,7 +224,7 @@ describe("refund worker", () => {
   it("captures failed events without a job", () => {
     const error = new Error("failed event error");
 
-    worker.emit("failed", undefined, error, "active");
+    worker.queue.emit("failed", undefined, error, "active");
 
     expect(vi.mocked(captureException)).toHaveBeenCalledWith(error, {
       level: "error",
@@ -228,7 +236,7 @@ describe("refund worker", () => {
   it("skips intermediate failed events with default attempts", () => {
     const error = new Error("failed event error");
 
-    worker.emit(
+    worker.queue.emit(
       "failed",
       {
         attemptsMade: 9,

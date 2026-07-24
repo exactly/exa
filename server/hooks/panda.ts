@@ -74,7 +74,7 @@ import { track } from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import { getWallet } from "../utils/wallet";
-import { enqueue } from "../workers/refund/queue";
+import { enqueue as enqueueRefund } from "../workers/refund/queue";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -587,7 +587,7 @@ export default new Hono().post(
             ).catch((error: unknown) => captureException(error, { level: "error" }));
           }
           try {
-            await enqueue(refundAmount, payload.id);
+            await enqueueRefund(refundAmount, payload.id);
             await (keeper ??= await getWallet("keeper")).exaSend(
               { name: "exa.refund", op: "exa.refund", attributes: { account } },
               {

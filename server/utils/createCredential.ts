@@ -16,7 +16,7 @@ import { customer } from "./sardine";
 import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
-import { enqueue } from "../workers/subscribe/queue";
+import { enqueue as enqueueSubscribe } from "../workers/subscribe/queue";
 
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
@@ -64,7 +64,7 @@ export default async function createCredential<C extends string>(
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
 
-  await enqueue(account);
+  await enqueueSubscribe(account);
 
   identify({ userId: account });
   return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };

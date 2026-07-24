@@ -1,22 +1,14 @@
-import { captureException, spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue } from "bullmq";
+import { captureException } from "@sentry/node";
 
 import { attempts, name, type Job } from "./job";
-import { queue as connection } from "../../utils/redis";
+import createQueue from "../queue";
 
-import type { Address } from "@exactly/common/validation";
+import type { Redis } from "ioredis";
 
-export async function enqueue(account: Address) {
+export async function enqueue(account: Job["account"]) {
+  if (!singleton) throw new Error("credit queue is not started");
   try {
-    await startSpan({ name, op: "queue.publish", attributes: { "messaging.destination.name": name } }, async (span) => {
-      const job = await queue.add(
-        name,
-        { account, sentryBaggage: spanToBaggageHeader(span), sentryTrace: spanToTraceHeader(span) },
-        { jobId: account },
-      );
-      span.setAttribute("messaging.message.id", job.id);
-      span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
-    });
+    await singleton.enqueue({ account }, account);
   } catch (error) {
     captureException(error, {
       level: "error",
@@ -26,16 +18,16 @@ export async function enqueue(account: Address) {
   }
 }
 
-export async function close() {
-  await queue.close();
+export function start(bullmq: Redis) {
+  singleton ??= createQueue<Job>(name, attempts, bullmq);
 }
 
-const queue = new Queue<Job, void, typeof name>(name, {
-  connection,
-  defaultJobOptions: {
-    attempts,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: true,
-    removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
-  },
-});
+export async function close() {
+  try {
+    await singleton?.close();
+  } finally {
+    singleton = undefined;
+  }
+}
+
+let singleton: ReturnType<typeof createQueue<Job>> | undefined;

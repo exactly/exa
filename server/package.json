@@ -27,7 +27,7 @@
     "./api/*": {
       "types": "./api/*.ts"
     },
-    "./workers/*/worker": "./dist/workers/*/worker.cjs"
+    "./workers/*": "./dist/workers/*/bin.cjs"
   },
   "files": [
     "app",

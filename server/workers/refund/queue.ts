@@ -1,24 +1,12 @@
-import { captureException, spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue } from "bullmq";
+import { captureException } from "@sentry/node";
 
 import { attempts, name, type Job } from "./job";
-import { queue as connection } from "../../utils/redis";
+import { bullmq } from "../../utils/redis";
+import createQueue from "../queue";
 
 export async function enqueue(amount: bigint, id: string) {
   try {
-    await startSpan({ name, op: "queue.publish", attributes: { "messaging.destination.name": name } }, async (span) => {
-      const job = await queue.add(
-        name,
-        {
-          amount: String(amount) as `${bigint}`,
-          sentryBaggage: spanToBaggageHeader(span),
-          sentryTrace: spanToTraceHeader(span),
-        },
-        { jobId: id },
-      );
-      span.setAttribute("messaging.message.id", job.id);
-      span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
-    });
+    await queue.enqueue({ amount: String(amount) as `${bigint}` }, id);
   } catch (error) {
     captureException(error, {
       level: "error",
@@ -32,12 +20,4 @@ export async function close() {
   await queue.close();
 }
 
-const queue = new Queue<Job, void, typeof name>(name, {
-  connection,
-  defaultJobOptions: {
-    attempts,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: true,
-    removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
-  },
-});
+const queue = createQueue<Job>(name, attempts, bullmq);

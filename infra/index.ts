@@ -67,7 +67,7 @@ new cloudrunv2.WorkerPool(
         {
           image: serverImage,
           resources: config.getObject("allowResources"),
-          args: ["dist/workers/allow/worker.cjs"],
+          args: ["dist/workers/allow/bin.cjs"],
           envs: [
             { name: "APP_STACK", value: stack },
             { name: "DEBUG", value: "exa:*" },
@@ -122,7 +122,7 @@ new cloudrunv2.WorkerPool(
         {
           image: serverImage,
           resources: config.getObject("creditResources"),
-          args: ["dist/workers/credit/worker.cjs"],
+          args: ["dist/workers/credit/bin.cjs"],
           envs: [
             { name: "APP_STACK", value: stack },
             { name: "DEBUG", value: "exa:*" },
@@ -160,7 +160,7 @@ new cloudrunv2.WorkerPool(
         {
           image: serverImage,
           resources: config.getObject("pokeResources"),
-          args: ["dist/workers/poke/worker.cjs"],
+          args: ["dist/workers/poke/bin.cjs"],
           envs: [
             { name: "APP_STACK", value: stack },
             { name: "DEBUG", value: "exa:*" },
@@ -215,7 +215,7 @@ new cloudrunv2.WorkerPool(
         {
           image: serverImage,
           resources: config.getObject("refundResources"),
-          args: ["dist/workers/refund/worker.cjs"],
+          args: ["dist/workers/refund/bin.cjs"],
           envs: [
             { name: "APP_STACK", value: stack },
             { name: "DEBUG", value: "exa:*" },
@@ -270,7 +270,7 @@ new cloudrunv2.WorkerPool(
         {
           image: serverImage,
           resources: config.getObject("subscribeResources"),
-          args: ["dist/workers/subscribe/worker.cjs"],
+          args: ["dist/workers/subscribe/bin.cjs"],
           envs: [
             { name: "ALCHEMY_ACTIVITY_ID", value: config.require("alchemyActivityId") },
             { name: "APP_STACK", value: stack },

@@ -1,50 +1,17 @@
-import { captureException, spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue } from "bullmq";
+import { captureException } from "@sentry/node";
 
 import { attempts, name, type Job } from "./job";
-import { queue as connection } from "../../utils/redis";
+import createQueue from "../queue";
 
-import type { Address, Hex } from "@exactly/common/validation";
+import type { Redis } from "ioredis";
 
-export async function enqueue({
-  account,
-  assets,
-  chainId,
-  factory,
-  origin,
-  publicKey,
-  source,
-}: {
-  account: Address;
-  assets?: Address[];
-  chainId: number;
-  factory: Address;
-  origin: "activity" | "allow";
-  publicKey: Hex;
-  source: null | string;
-}) {
+export async function enqueue({ account, assets, chainId, factory, origin, publicKey, source }: Request) {
+  if (!singleton) throw new Error("poke queue is not started");
   try {
-    await startSpan(
-      { name: "account poke", op: "queue.publish", attributes: { "messaging.destination.name": name } },
-      async (span) => {
-        const job = await queue.add(
-          name,
-          {
-            account,
-            assets,
-            chainId,
-            factory,
-            origin,
-            publicKey,
-            sentryBaggage: spanToBaggageHeader(span),
-            sentryTrace: spanToTraceHeader(span),
-            source,
-          },
-          { jobId: [account, ...(assets ?? [])].join("-") },
-        );
-        span.setAttribute("messaging.message.id", job.id);
-        span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
-      },
+    await singleton.enqueue(
+      { account, assets, chainId, factory, origin, publicKey, source },
+      [account, ...(assets ?? [])].join("-"),
+      "account poke",
     );
   } catch (error) {
     captureException(error, {
@@ -56,16 +23,18 @@ export async function enqueue({
   }
 }
 
-export async function close() {
-  await queue.close();
+export function start(bullmq: Redis) {
+  singleton ??= createQueue<Job>(name, attempts, bullmq);
 }
 
-const queue = new Queue<Job, void, typeof name>(name, {
-  connection,
-  defaultJobOptions: {
-    attempts,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: true,
-    removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
-  },
-});
+export async function close() {
+  try {
+    await singleton?.close();
+  } finally {
+    singleton = undefined;
+  }
+}
+
+let singleton: ReturnType<typeof createQueue<Job>> | undefined;
+
+type Request = Omit<Job, "sentryBaggage" | "sentryTrace">;

@@ -1,8 +1,8 @@
-import { captureException, spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue } from "bullmq";
+import { captureException } from "@sentry/node";
 
 import { attempts, name, type Job } from "./job";
-import { queue as connection } from "../../utils/redis";
+import { bullmq } from "../../utils/redis";
+import createQueue from "../queue";
 
 import type { Address, Hex } from "@exactly/common/validation";
 
@@ -22,27 +22,7 @@ export async function enqueue({
   source: null | string;
 }) {
   try {
-    await startSpan(
-      { name: "account allow", op: "queue.publish", attributes: { "messaging.destination.name": name } },
-      async (span) => {
-        const job = await queue.add(
-          name,
-          {
-            account,
-            assets,
-            chainId,
-            factory,
-            publicKey,
-            sentryBaggage: spanToBaggageHeader(span),
-            sentryTrace: spanToTraceHeader(span),
-            source,
-          },
-          { jobId: account },
-        );
-        span.setAttribute("messaging.message.id", job.id);
-        span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
-      },
-    );
+    await queue.enqueue({ account, assets, chainId, factory, publicKey, source }, account, "account allow");
   } catch (error) {
     captureException(error, {
       level: "error",
@@ -57,12 +37,4 @@ export async function close() {
   await queue.close();
 }
 
-const queue = new Queue<Job, void, typeof name>(name, {
-  connection,
-  defaultJobOptions: {
-    attempts,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: true,
-    removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
-  },
-});
+const queue = createQueue<Job>(name, attempts, bullmq);

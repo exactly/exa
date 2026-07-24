@@ -26,7 +26,7 @@ import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import validatorHook from "../utils/validatorHook";
-import { enqueue } from "../workers/poke/queue";
+import { enqueue as enqueuePoke } from "../workers/poke/queue";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -153,7 +153,7 @@ export default new Hono().post(
     }
     await Promise.all(
       [...pokes].map(([account, { assets, factory, publicKey, source }]) =>
-        enqueue({
+        enqueuePoke({
           account,
           assets: [...assets],
           chainId: chain.id,

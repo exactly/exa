@@ -18,18 +18,18 @@ import t, { f } from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
 import * as onesignal from "../../utils/onesignal";
 import redis from "../../utils/redis";
-import { enqueue } from "../../workers/poke/queue";
+import * as poke from "../../workers/poke/queue";
 
 const appClient = testClient(app);
 
-vi.mock("../../workers/poke/queue", () => ({ enqueue: vi.fn<typeof enqueue>() }));
+vi.mock("../../workers/poke/queue", () => ({ enqueue: vi.fn<typeof poke.enqueue>() }));
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
   let account: Address;
 
   beforeEach(async () => {
-    vi.mocked(enqueue).mockReset().mockResolvedValue();
+    vi.mocked(poke.enqueue).mockReset().mockResolvedValue();
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
 
@@ -73,7 +73,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: [inject("WETH")],
       chainId: chain.id,
@@ -103,7 +103,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -129,7 +129,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -151,7 +151,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -182,7 +182,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: [inject("WETH")],
       chainId: 31_337,
@@ -207,7 +207,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).not.toHaveBeenCalled();
+    expect(poke.enqueue).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -245,8 +245,8 @@ describe("address activity", () => {
       },
     });
 
-    expect(enqueue).toHaveBeenCalledTimes(2);
-    expect(enqueue).toHaveBeenNthCalledWith(1, {
+    expect(poke.enqueue).toHaveBeenCalledTimes(2);
+    expect(poke.enqueue).toHaveBeenNthCalledWith(1, {
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", inject("WETH")],
       chainId: 31_337,
@@ -255,7 +255,7 @@ describe("address activity", () => {
       publicKey: owner.address.toLowerCase(),
       source: null,
     });
-    expect(enqueue).toHaveBeenNthCalledWith(2, {
+    expect(poke.enqueue).toHaveBeenNthCalledWith(2, {
       account: secondAccount,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -271,7 +271,7 @@ describe("address activity", () => {
   it("fails the webhook when poke cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.mocked(enqueue).mockRejectedValueOnce(error);
+    vi.mocked(poke.enqueue).mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -286,7 +286,7 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(enqueue).toHaveBeenCalledOnce();
+    expect(poke.enqueue).toHaveBeenCalledOnce();
   });
 
   it("sends translated notification without symbol when asset is missing", async () => {

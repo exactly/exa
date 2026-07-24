@@ -47,7 +47,7 @@ import {
 } from "../utils/persona";
 import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
-import { enqueue } from "../workers/allow/queue";
+import { enqueue as enqueueAllow } from "../workers/allow/queue";
 
 import type { InferOutput } from "valibot";
 
@@ -337,7 +337,7 @@ export default new Hono().post(
     const account = safeParse(Address, credential.account);
     if (credential.pandaId) {
       if (account.success && firewallAddress)
-        await enqueue({
+        await enqueueAllow({
           account: account.output,
           chainId: chain.id,
           factory: parse(Address, credential.factory),
@@ -401,7 +401,7 @@ export default new Hono().post(
     }
 
     if (account.success && firewallAddress)
-      await enqueue({
+      await enqueueAllow({
         account: account.output,
         chainId: chain.id,
         factory: parse(Address, credential.factory),

@@ -11,7 +11,7 @@ import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import createCredential from "../../utils/createCredential";
-import { enqueue } from "../../workers/subscribe/queue";
+import { enqueue as enqueueSubscribe } from "../../workers/subscribe/queue";
 
 const mocks = vi.hoisted(() => ({ domain: "sandbox.exactly.app" }));
 
@@ -57,10 +57,10 @@ describe("createCredential", () => {
   it("creates a credential and enqueues account subscription", async () => {
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<undefined>();
-    vi.mocked(enqueue).mockReturnValueOnce(deferred.promise);
+    vi.mocked(enqueueSubscribe).mockReturnValueOnce(deferred.promise);
     const response = credential();
 
-    await vi.waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(enqueueSubscribe).toHaveBeenCalledOnce());
     expect(await Promise.race([response, Promise.resolve(pending)])).toBe(pending);
     deferred.resolve(undefined); // eslint-disable-line unicorn/no-useless-undefined -- actually required
 
@@ -71,7 +71,7 @@ describe("createCredential", () => {
       columns: { account: true, factory: true, id: true, source: true },
     });
     if (!row) throw new Error("missing credential");
-    expect(enqueue).toHaveBeenCalledExactlyOnceWith(row.account);
+    expect(enqueueSubscribe).toHaveBeenCalledExactlyOnceWith(row.account);
     expect(row).toStrictEqual({
       account: row.account,
       factory: exaAccountFactoryAddress,

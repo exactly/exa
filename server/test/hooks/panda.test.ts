@@ -56,10 +56,10 @@ import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import { getWallet } from "../../utils/wallet";
-import { enqueue } from "../../workers/refund/queue";
+import { enqueue as enqueueRefund } from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
 
-vi.mock("../../workers/refund/queue", () => ({ enqueue: vi.fn<typeof enqueue>() }));
+vi.mock("../../workers/refund/queue", () => ({ enqueue: vi.fn<typeof enqueueRefund>() }));
 
 let keeper: Awaited<ReturnType<typeof getWallet>>;
 
@@ -1129,7 +1129,7 @@ describe("card operations", () => {
       afterEach(() => vi.restoreAllMocks());
 
       beforeEach(() => {
-        vi.mocked(enqueue).mockClear().mockResolvedValue();
+        vi.mocked(enqueueRefund).mockClear().mockResolvedValue();
       });
 
       it("handles reversal", async () => {
@@ -1190,7 +1190,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
-        expect(enqueue).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
+        expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
         expect(sendPushNotification).toHaveBeenCalledWith({
@@ -1593,7 +1593,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
-        expect(enqueue).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
+        expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(transaction?.payload).toMatchObject({
           bodies: [
             { action: "created", createdAt },
@@ -1650,7 +1650,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
-        expect(enqueue).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
+        expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(transaction?.payload).toMatchObject({
           bodies: [{ action: "completed", createdAt }],
         });

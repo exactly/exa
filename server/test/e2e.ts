@@ -12,11 +12,11 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
-import { close as closeAllowWorker, start as startAllowWorker } from "../workers/allow/worker";
-import { close as closeCreditWorker, start as startCreditWorker } from "../workers/credit/worker";
-import { close as closePokeWorker, start as startPokeWorker } from "../workers/poke/worker";
-import { close as closeRefundWorker, start as startRefundWorker } from "../workers/refund/worker";
-import { close as closeSubscribeWorker, start as startSubscribeWorker } from "../workers/subscribe/worker";
+import allowWorker from "../workers/allow/worker";
+import creditWorker from "../workers/credit/worker";
+import pokeWorker from "../workers/poke/worker";
+import refundWorker from "../workers/refund/worker";
+import subscribeWorker from "../workers/subscribe/worker";
 
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
@@ -32,16 +32,16 @@ describe("e2e", () => {
 
       await expect(
         new Promise((resolve, reject) => {
+          const workers = [
+            allowWorker({ redisUrl }),
+            creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
+            pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
+            refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
+            subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
+          ];
+          let closing: Promise<unknown> | undefined;
           const teardown = () => {
-            Promise.allSettled([
-              closeAllowWorker(),
-              closeCreditWorker(),
-              closePokeWorker(),
-              closeRefundWorker(),
-              closeSubscribeWorker(),
-            ])
-              .then(close)
-              .then(() => resolve(null), reject);
+            closing ??= Promise.allSettled([close(), ...workers.map((worker) => worker.close())]).then(resolve, reject);
           };
 
           app.use("/e2e/*", cors());
@@ -56,25 +56,7 @@ describe("e2e", () => {
           });
           process.once("SIGTERM", teardown);
 
-          Promise.all([
-            startAllowWorker({ redisUrl }).waitUntilReady(),
-            startCreditWorker({
-              onesignalKey: "onesignal",
-              postgresUrl: process.env.POSTGRES_URL ?? "postgres",
-              redisUrl,
-            }).waitUntilReady(),
-            startPokeWorker({
-              onesignalKey: "onesignal",
-              redisUrl,
-              segmentKey: "segment",
-            }).waitUntilReady(),
-            startRefundWorker({
-              pandaKey: "panda",
-              pandaUrl: "https://panda.test",
-              redisUrl,
-            }).waitUntilReady(),
-            startSubscribeWorker({ alchemyKey: "webhooks", redisUrl }).waitUntilReady(),
-          ]).catch(reject);
+          Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
       ).resolves.toBeNull();
     },

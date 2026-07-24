@@ -63,7 +63,7 @@ import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 import { verifyToken } from "../utils/walletExtension";
-import { enqueue } from "../workers/credit/queue";
+import { enqueue as enqueueCredit } from "../workers/credit/queue";
 
 const mutexes = new Map<string, Mutex>();
 function createMutex(credentialId: string) {
@@ -636,7 +636,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               });
 
             await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
-            await enqueue(account);
+            await enqueueCredit(account);
             track({
               event: "CardIssued",
               userId: account,

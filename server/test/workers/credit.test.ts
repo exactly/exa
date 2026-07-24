@@ -5,7 +5,7 @@ import { DefaultApi } from "@onesignal/node-onesignal";
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
-import { parse } from "valibot";
+import { parse, string } from "valibot";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -15,9 +15,9 @@ import database, { cards, credentials } from "../../database";
 import t from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
-import { queue as connection } from "../../utils/redis";
-import { close as closeQueue, enqueue } from "../../workers/credit/queue";
-import { close, start } from "../../workers/credit/worker";
+import { bullmq } from "../../utils/redis";
+import { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../../workers/credit/queue";
+import creditWorker from "../../workers/credit/worker";
 
 import type { Job as Credit } from "../../workers/credit/job";
 import type { Job, JobsOptions } from "bullmq";
@@ -25,8 +25,12 @@ import type { Job, JobsOptions } from "bullmq";
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
 const unknown = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
-const producer = new Queue<Credit, void, "credit">("credit", { connection });
-let worker: Awaited<ReturnType<typeof start>>;
+const postgresUrl = parse(string(), process.env.POSTGRES_URL);
+const redisUrl = parse(string(), process.env.REDIS_URL);
+startCredit(bullmq);
+startCredit(bullmq);
+const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
+let worker: ReturnType<typeof creditWorker>;
 
 function done(current: Address, options?: JobsOptions, trace?: Pick<Credit, "sentryBaggage" | "sentryTrace">) {
   return new Promise<void>((resolve, reject) => {
@@ -42,12 +46,12 @@ function done(current: Address, options?: JobsOptions, trace?: Pick<Credit, "sen
       reject(error);
     };
     const cleanup = () => {
-      worker.off("completed", completed);
-      worker.off("failed", failed);
+      worker.queue.off("completed", completed);
+      worker.queue.off("failed", failed);
     };
-    worker.on("completed", completed);
-    worker.on("failed", failed);
-    producer
+    worker.queue.on("completed", completed);
+    worker.queue.on("failed", failed);
+    queue
       .add("credit", { account: current, ...trace }, { attempts: 1, removeOnComplete: true, ...options })
       .catch((error: unknown) => {
         cleanup();
@@ -69,12 +73,12 @@ function queued() {
       reject(error);
     };
     const cleanup = () => {
-      worker.off("completed", completed);
-      worker.off("failed", failed);
+      worker.queue.off("completed", completed);
+      worker.queue.off("failed", failed);
     };
-    worker.on("completed", completed);
-    worker.on("failed", failed);
-    enqueue(account).catch((error: unknown) => {
+    worker.queue.on("completed", completed);
+    worker.queue.on("failed", failed);
+    enqueueCredit(account).catch((error: unknown) => {
       cleanup();
       reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
     });
@@ -93,36 +97,32 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.restoreAllMocks();
-  const postgresUrl = process.env.POSTGRES_URL;
-  if (!postgresUrl) throw new Error("missing postgres url");
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) throw new Error("missing redis url");
-  worker = start({ onesignalKey: "onesignal", postgresUrl, redisUrl });
   vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({} as never);
   vi.spyOn(publicClient, "readContract").mockResolvedValue([] as never);
   vi.clearAllMocks();
   await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.id, "credit-card"));
-  await producer.drain(true);
-  await producer.clean(0, 1000, "completed");
-  await producer.clean(0, 1000, "failed");
+  await queue.drain(true);
+  await queue.clean(0, 1000, "completed");
+  await queue.clean(0, 1000, "failed");
 });
 
 afterAll(async () => {
   await database.delete(cards).where(eq(cards.credentialId, "credit-worker"));
   await database.delete(credentials).where(eq(credentials.id, "credit-worker"));
-  await Promise.all([producer.close(), closeQueue(), close()]);
+  await Promise.all([queue.close(), closeCredit()]);
+  await closeCredit();
 });
 
 describe("credit queue", () => {
   it("publishes automatic credit jobs", async () => {
     const pending = Symbol("pending");
-    const deferred = Promise.withResolvers<QueueJob>();
+    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueue(account);
+    const result = enqueueCredit(account);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
-    deferred.resolve({ id: account, data: { account } } as unknown as QueueJob);
+    deferred.resolve({ id: account, data: { account } } as unknown as Awaited<ReturnType<typeof queue.add>>);
 
     await expect(result).resolves.toBeUndefined();
     expect(add).toHaveBeenCalledExactlyOnceWith(
@@ -145,7 +145,7 @@ describe("credit queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueue(account)).resolves.toBeUndefined();
+    await expect(enqueueCredit(account)).resolves.toBeUndefined();
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
@@ -153,9 +153,26 @@ describe("credit queue", () => {
       extra: { account },
     });
   });
+
+  it("requires the monolith queue to be started", async () => {
+    await closeCredit();
+
+    await expect(enqueueCredit(account)).rejects.toThrow("credit queue is not started");
+
+    startCredit(bullmq);
+  });
 });
 
 describe("credit worker", () => {
+  beforeAll(async () => {
+    worker = creditWorker({ onesignalKey: "onesignal", postgresUrl, redisUrl });
+    await worker.ready;
+  });
+
+  afterAll(async () => {
+    await worker.close();
+  });
+
   it("automatically activates credit mode", async () => {
     vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
 
@@ -287,7 +304,7 @@ describe("credit worker", () => {
   it("captures worker errors", () => {
     const error = new Error("worker error");
 
-    worker.emit("error", error);
+    worker.queue.emit("error", error);
 
     expect(captureException).toHaveBeenCalledWith(error, { level: "error", tags: { queue: "credit" } });
   });
@@ -295,7 +312,7 @@ describe("credit worker", () => {
   it("captures failed events without a job", () => {
     const error = new Error("failed event error");
 
-    worker.emit("failed", undefined, error, "active");
+    worker.queue.emit("failed", undefined, error, "active");
 
     expect(captureException).toHaveBeenCalledWith(error, {
       extra: { account: undefined, attempts: undefined, id: undefined },
@@ -307,9 +324,9 @@ describe("credit worker", () => {
   it("skips intermediate failed events", () => {
     const error = new Error("failed event error");
 
-    worker.emit(
+    worker.queue.emit(
       "failed",
-      { attemptsMade: 9, data: { account }, name: "credit", opts: {} } as QueueJob,
+      { attemptsMade: 9, data: { account }, name: "credit", opts: {} } as Job,
       error,
       "active",
     );
@@ -317,5 +334,3 @@ describe("credit worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 });
-
-type QueueJob = Awaited<ReturnType<Queue<Credit, void, "credit">["add"]>>;

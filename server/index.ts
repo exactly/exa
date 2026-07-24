@@ -21,15 +21,18 @@ import persona from "./hooks/persona";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
-import { close as closeRedis } from "./utils/redis";
+import { bullmq, close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 import { close as closeAllow } from "./workers/allow/queue";
-import { close as closeCredit } from "./workers/credit/queue";
-import { close as closePoke } from "./workers/poke/queue";
+import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
+import { close as closePoke, start as startPoke } from "./workers/poke/queue";
 import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+
+startCredit(bullmq);
+startPoke(bullmq);
 
 const app = new Hono();
 app.use(trimTrailingSlash());

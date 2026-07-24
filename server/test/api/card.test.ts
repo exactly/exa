@@ -36,13 +36,13 @@ import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
 import { getWallet } from "../../utils/wallet";
 import { walletExtension } from "../../utils/walletExtension";
-import { enqueue } from "../../workers/credit/queue";
+import * as credit from "../../workers/credit/queue";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 let keeper: Awaited<ReturnType<typeof getWallet>>;
 
-vi.mock("../../workers/credit/queue", () => ({ enqueue: vi.fn<typeof enqueue>() }));
+vi.mock("../../workers/credit/queue", () => ({ enqueue: vi.fn<typeof credit.enqueue>() }));
 
 const appClient = testClient(app);
 const { WALLET_EXTENSION_SECRET } = process.env;
@@ -152,7 +152,7 @@ describe("authenticated", () => {
 
   afterEach(() => vi.resetAllMocks());
   beforeEach(() => {
-    vi.mocked(enqueue).mockResolvedValue();
+    vi.mocked(credit.enqueue).mockResolvedValue();
     vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(panda, "getCards").mockResolvedValue([]);
   });
@@ -915,7 +915,7 @@ describe("authenticated", () => {
     });
 
     expect(created?.mode).toBe(0);
-    expect(enqueue).toHaveBeenCalledWith(padHex("0x4", { size: 20 }));
+    expect(credit.enqueue).toHaveBeenCalledWith(padHex("0x4", { size: 20 }));
     expect(json).toStrictEqual({
       status: "ACTIVE",
       lastFour: "7394",
@@ -941,7 +941,7 @@ describe("authenticated", () => {
     });
 
     expect(created?.mode).toBe(0);
-    expect(enqueue).toHaveBeenCalledWith(
+    expect(credit.enqueue).toHaveBeenCalledWith(
       deriveAddress(inject("ExaAccountFactory"), {
         x: padHex(privateKeyToAddress(padHex("0xbeef"))),
         y: zeroHash,
