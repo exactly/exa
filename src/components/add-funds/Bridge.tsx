@@ -10,7 +10,7 @@ import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { getAlchemyPaymasterAddress } from "@account-kit/infra";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { switchChain, waitForCallsStatus, waitForTransactionReceipt } from "@wagmi/core";
+import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
 import {
   encodeFunctionData,
   erc20Abi,
@@ -31,6 +31,7 @@ import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 
 import AssetSelectSheet from "./AssetSelectSheet";
+import { callsStatus } from "../../utils/accountClient";
 import alchemyChainById from "../../utils/alchemyChains";
 import {
   balancesOptions,
@@ -584,8 +585,9 @@ export default function Bridge() {
                 },
               },
             });
-            const { status } = await waitForCallsStatus(senderConfig, { id: retry.id });
-            if (status === "failure") throw new Error("failed to submit bridge transaction", { cause: error });
+            if ((await callsStatus(senderConfig, retry.id)) === "failure") {
+              throw new Error("failed to submit bridge transaction", { cause: error });
+            }
             setBridgeStatus(t("Bridge transaction submitted"));
             return;
           }
@@ -595,12 +597,14 @@ export default function Bridge() {
             await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
           }
           const hash = await sendTx({ chainId: source.chain, to: from.to, data: from.data, value: from.value });
-          await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
+          if ((await callsStatus(senderConfig, hash, source.chain)) === "failure") {
+            throw new Error("failed to submit bridge transaction", { cause: error });
+          }
           setBridgeStatus(t("Bridge transaction submitted"));
           return;
         }
         if (!id) throw new Error("missing sendCalls id");
-        let { status } = await waitForCallsStatus(senderConfig, { id });
+        let status = await callsStatus(senderConfig, id);
         if (status === "failure" && paymasterFee && alchemyGasPolicyId) {
           setBridgeStatus(t("Retrying bridge transaction..."));
           const retry = await sendCallsTx({
@@ -617,7 +621,7 @@ export default function Bridge() {
               },
             },
           });
-          ({ status } = await waitForCallsStatus(senderConfig, { id: retry.id }));
+          status = await callsStatus(senderConfig, retry.id);
         }
         if (status === "failure") throw new Error("failed to submit bridge transaction");
         setBridgeStatus(t("Bridge transaction submitted"));
@@ -694,7 +698,9 @@ export default function Bridge() {
         if (!transferSimulation) throw new Error("missing transfer simulation");
         hash = await transfer({ ...transferSimulation.request, chainId: source.chain });
       }
-      await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
+      if ((await callsStatus(senderConfig, hash, source.chain)) === "failure") {
+        throw new Error("failed to submit transfer transaction");
+      }
       setBridgeStatus(t("Transfer transaction submitted"));
     },
     onSuccess: async () => {

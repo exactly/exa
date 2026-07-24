@@ -40,6 +40,8 @@ import {
   sendTransaction,
   signMessage,
   switchChain,
+  waitForCallsStatus,
+  waitForTransactionReceipt,
 } from "@wagmi/core/actions";
 import {
   bytesToBigInt,
@@ -67,6 +69,7 @@ import {
   type TransactionRequest,
   type Transport,
 } from "viem";
+import { getCallsStatus as viemGetCallsStatus } from "viem/actions";
 import { anvil } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
@@ -86,6 +89,7 @@ import reportError, { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
+import type { Config } from "@wagmi/core";
 
 if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
@@ -337,6 +341,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 chainId: uoChainId,
               };
             }
+            if (params[0].endsWith(TX_MAGIC_ID.slice(2)) && isHex(params[0])) {
+              const result = await viemGetCallsStatus(publicClient, { id: params[0] });
+              return { ...result, status: result.statusCode };
+            }
             const result = await getCallsStatus(ownerConfig, { id: params[0] });
             return { ...result, status: result.statusCode };
           }
@@ -487,4 +495,26 @@ function webauthn({
       [{ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }],
     ),
   );
+}
+
+export async function callsStatus(config: Config, id: string, chainId?: number) {
+  try {
+    const bundle =
+      isHex(id) && chainId !== undefined ? concat([id, numberToHex(chainId, { size: 32 }), TX_MAGIC_ID]) : id;
+    if (isHex(bundle) && bundle.endsWith(TX_MAGIC_ID.slice(2))) {
+      let reason: string | undefined;
+      const receipt = await waitForTransactionReceipt(config, {
+        hash: sliceHex(bundle, 0, -64),
+        chainId: hexToNumber(trim(sliceHex(bundle, -64, -32))),
+        onReplaced: (replacement) => (reason = replacement.reason),
+      });
+      if (receipt.status === "reverted" || reason === "cancelled" || reason === "replaced") return "failure";
+      return "success";
+    }
+    const { status } = await waitForCallsStatus(config, { id: bundle });
+    return status;
+  } catch (error) {
+    reportError(error, { level: "warning" });
+    return "unknown";
+  }
 }
