@@ -6,6 +6,7 @@ import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
+import chat from "./chat";
 import kyc from "./kyc";
 import passkey from "./passkey";
 import pax from "./pax";
@@ -25,6 +26,7 @@ const api = new Hono()
   .route("/auth/authentication", authentication)
   .route("/activity", activity)
   .route("/card", card)
+  .route("/chat", chat)
   .route("/kyc", kyc)
   .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
   .route("/pax", pax)
