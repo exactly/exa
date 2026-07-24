@@ -1,5 +1,6 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { Platform, Pressable } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -15,14 +16,19 @@ import accountInit from "@exactly/common/accountInit";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
-import CardDetails from "./CardDetails";
+import CardDetailsSheet from "./CardDetailsSheet";
 import CardDisclaimer from "./CardDisclaimer";
 import CardFreezeSheet from "./CardFreezeSheet";
 import CardPIN from "./CardPIN";
 import ExaCard from "./exa-card/ExaCard";
 import SpendingLimits from "./SpendingLimits";
 import TimeoutSheet from "./TimeoutSheet";
+import useWalletProvisioning from "./useWalletProvisioning";
 import VerificationFailure from "./VerificationFailure";
+import GoogleWalletButtonEs from "../../assets/images/google-wallet-button-es.svg";
+import GoogleWalletButtonPt from "../../assets/images/google-wallet-button-pt.svg";
+import GoogleWalletButtonEn from "../../assets/images/google-wallet-button.svg";
+import GoogleWalletIcon from "../../assets/images/google-wallet-icon.svg";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
@@ -32,7 +38,7 @@ import {
   createCard,
   setCardStatus,
   type CardActivity,
-  type CardDetails as CardDetailsData,
+  type CardDetails,
   type KYCStatus,
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
@@ -40,6 +46,7 @@ import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
+import { saveSnapshot } from "../../utils/walletExtensionStorage";
 import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
@@ -53,6 +60,11 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
+const googleWalletButtons = {
+  en: { Component: GoogleWalletButtonEn, height: 32, width: 116 },
+  es: { Component: GoogleWalletButtonEs, height: 32, width: 139 },
+  pt: { Component: GoogleWalletButtonPt, height: 32, width: 140 },
+} satisfies Record<string, { Component: typeof GoogleWalletButtonEn; height: number; width: number }>;
 
 export default function Card() {
   const toast = useToastController();
@@ -62,6 +74,12 @@ export default function Card() {
     t,
     i18n: { language },
   } = useTranslation();
+  const googleWalletButton = language.startsWith("es")
+    ? googleWalletButtons.es
+    : language.startsWith("pt")
+      ? googleWalletButtons.pt
+      : googleWalletButtons.en;
+  const GoogleWalletButton = googleWalletButton.Component;
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
@@ -80,7 +98,18 @@ export default function Card() {
     data: cardDetails,
     refetch: refetchCard,
     isFetching: isFetchingCard,
-  } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
+  } = useQuery<CardDetails>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
+
+  useEffect(() => {
+    if (!cardDetails) return;
+    saveSnapshot({
+      displayName: cardDetails.displayName,
+      expirationMonth: cardDetails.expirationMonth,
+      expirationYear: cardDetails.expirationYear,
+      lastFour: cardDetails.lastFour,
+      productId: cardDetails.productId,
+    }).catch(reportError);
+  }, [cardDetails]);
 
   const limit = cardDetails?.limit.amount ? cardDetails.limit.amount / 100 : undefined;
   const weeklyPurchases = purchases
@@ -126,6 +155,7 @@ export default function Card() {
       address ? refetchBytecode() : undefined,
       address ? refetchMarkets() : undefined,
       address && credential ? refetchInstalledPlugins() : undefined,
+      syncWalletEligibility(cardDetails?.lastFour, address),
       queryClient.refetchQueries({ queryKey }),
     ]);
   useTabPress("card", () => {
@@ -273,6 +303,15 @@ export default function Card() {
     },
   });
 
+  const {
+    AddPassButton,
+    addToAppleWallet,
+    addToGoogleWallet,
+    isPendingWallet,
+    provisioning,
+    syncWalletEligibility,
+    walletEligible,
+  } = useWalletProvisioning({ address, cardDetails, t });
   const displayStatus = isSettingCardStatus ? optimisticCardStatus : cardDetails?.status;
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -340,6 +379,56 @@ export default function Card() {
                     revealCard().catch(reportError);
                   }}
                 />
+                {Platform.OS !== "web" &&
+                cardDetails &&
+                !isPendingWallet &&
+                walletEligible &&
+                (walletEligible.apple !== "hidden" || walletEligible.google !== "hidden") ? (
+                  <XStack alignSelf="center" alignItems="center" justifyContent="center">
+                    {provisioning ? (
+                      <Spinner color="$interactiveTextBrandDefault" />
+                    ) : (
+                      <>
+                        {AddPassButton && walletEligible.apple === "cta" ? (
+                          <AddPassButton
+                            style={{ height: 44, width: 180 }}
+                            addPassButtonStyle="black"
+                            onPress={() => {
+                              addToAppleWallet().catch(reportError);
+                            }}
+                          />
+                        ) : null}
+                        {walletEligible.google === "cta" ? (
+                          <Pressable
+                            accessibilityLabel={t("Add to Google Wallet")}
+                            accessibilityRole="button"
+                            hitSlop={8}
+                            style={{ height: googleWalletButton.height, width: googleWalletButton.width }}
+                            onPress={() => {
+                              addToGoogleWallet().catch(reportError);
+                            }}
+                          >
+                            <GoogleWalletButton height={googleWalletButton.height} width={googleWalletButton.width} />
+                          </Pressable>
+                        ) : null}
+                        {walletEligible.google === "added" ? (
+                          <XStack
+                            aria-label={t("Added to Google Wallet")}
+                            alignItems="center"
+                            gap="$s3_5"
+                            justifyContent="center"
+                          >
+                            <GoogleWalletIcon height={24} width={24} />
+                            <View width={1} height={24} backgroundColor="$borderNeutralSoft" />
+                            <Text caption color="$uiNeutralPlaceholder">
+                              {t("Added to Google Wallet")}
+                            </Text>
+                          </XStack>
+                        ) : null}
+                      </>
+                    )}
+                  </XStack>
+                ) : null}
                 <YStack
                   borderRadius="$r3"
                   borderWidth={1}
@@ -516,7 +605,7 @@ export default function Card() {
             </View>
           </View>
         </ScrollView>
-        <CardDetails
+        <CardDetailsSheet
           open={cardDetailsOpen ?? false}
           onClose={() => {
             queryClient.setQueryData(["card-details-open"], false);
