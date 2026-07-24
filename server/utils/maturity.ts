@@ -18,7 +18,7 @@ import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import { sendPushNotification } from "./onesignal";
 import publicClient from "./publicClient";
-import { queue as connection } from "./redis";
+import { bullmq as connection } from "./redis";
 import database, { credentials } from "../database";
 import t from "../i18n";
 
