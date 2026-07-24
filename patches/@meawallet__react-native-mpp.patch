@@ -1,0 +1,10 @@
+diff --git a/meawallet-react-native-mpp.podspec b/meawallet-react-native-mpp.podspec
+index 05795f1b..7396ff2b 100644
+--- a/meawallet-react-native-mpp.podspec
++++ b/meawallet-react-native-mpp.podspec
+@@ -21,4 +21,5 @@ Pod::Spec.new do |s|
+   s.xcconfig = { "GCC_PREPROCESSOR_DEFINITIONS" => "REACT_NATIVE_MPP_VERSION=\"@\\\"#{s.version}\\\"\"" }
+ 
+   install_modules_dependencies(s)
++  s.dependency "React-RCTAppDelegate"
+ end
