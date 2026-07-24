@@ -14,7 +14,7 @@ import { MATURITY_INTERVAL } from "@exactly/lib";
 import database, { credentials } from "../../database";
 import { closeQueue, reminders } from "../../utils/maturity";
 import * as onesignal from "../../utils/onesignal";
-import { close as closeRedis, queue as queueRedis } from "../../utils/redis";
+import { bullmq, close as closeRedis } from "../../utils/redis";
 
 import type * as sentry from "@sentry/node";
 
@@ -44,14 +44,14 @@ type SendReminder = { maturity: number; userId: Address; window: Window };
 type Position = readonly [bigint, bigint];
 type AggregateCall = { allowFailure: boolean; callData: `0x${string}`; target: Address };
 
-const queue = new Queue<CheckDebts | ScanChunk>("maturity", { connection: queueRedis });
+const queue = new Queue<CheckDebts | ScanChunk>("maturity", { connection: bullmq });
 const notificationQueue = new Queue<{
   accounts: Address[];
   maturity: number;
   sentryBaggage?: string;
   sentryTrace?: string;
   window: Window;
-}>("maturity-notifications", { connection: queueRedis });
+}>("maturity-notifications", { connection: bullmq });
 const USDC = 1_000_000n;
 
 function insertAccounts(accounts: Address[]) {

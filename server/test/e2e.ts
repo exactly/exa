@@ -21,24 +21,32 @@ describe("e2e", () => {
     "runs server",
     async () => {
       const { default: app, close } = await import("../index");
-
-      app.use("/e2e/*", cors());
-      app.post("/e2e/coverage", async (c) => {
-        await mkdir("coverage", { recursive: true });
-        await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
-        return c.json({ code: "ok" });
-      });
+      const redisUrl = process.env.REDIS_URL;
+      if (!redisUrl) throw new Error("missing redis url");
 
       await expect(
-        new Promise((resolve) => {
-          const teardown = () => void close().finally(() => resolve(null)); // eslint-disable-line no-void
+        new Promise((resolve, reject) => {
+          const workers = [] as { close: () => Promise<void>; ready: Promise<unknown> }[];
+          let closing: Promise<unknown> | undefined;
+          const teardown = () => {
+            closing ??= Promise.allSettled([close(), ...workers.map((worker) => worker.close())]).then(resolve, reject);
+          };
+
+          app.use("/e2e/*", cors());
+          app.post("/e2e/coverage", async (c) => {
+            await mkdir("coverage", { recursive: true });
+            await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
+            return c.json({ code: "ok" });
+          });
           app.post("/e2e/shutdown", (c) => {
             teardown();
             return c.json({ code: "ok" });
           });
           process.once("SIGTERM", teardown);
+
+          Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
-      ).resolves.toBeNull();
+      ).resolves.toBeDefined();
     },
     Infinity,
   );
