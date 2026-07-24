@@ -7,14 +7,16 @@ import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
 import { getWallet } from "../../utils/wallet";
-import { enqueue as enqueuePoke } from "../poke/queue";
+import { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../poke/queue";
 import createWorker, { connect } from "../worker";
 
 export default function worker({ redisUrl }: { redisUrl: string }) {
   const bullmq = connect(redisUrl);
+  startPoke(bullmq);
   return createWorker<Job>({
     attempts,
     bullmq,
+    close: closePoke,
     failed(job, error) {
       withScope((scope) => {
         if (job) scope.setUser({ id: job.data.account });

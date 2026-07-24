@@ -4,6 +4,7 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { parse, string } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
@@ -11,7 +12,7 @@ import chain from "@exactly/common/generated/chain";
 
 import api from "./api";
 import database from "./database";
-import activityHook from "./hooks/activity";
+import createActivity from "./hooks/activity";
 import block from "./hooks/block";
 import bridge from "./hooks/bridge";
 import manteca from "./hooks/manteca";
@@ -25,16 +26,23 @@ import { bullmq, close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 import { close as closeAllow } from "./workers/allow/queue";
 import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
-import { close as closePoke } from "./workers/poke/queue";
 import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
 
 startCredit(bullmq);
 
+const activity = createActivity({
+  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
+  activityKey: process.env.ALCHEMY_ACTIVITY_KEY,
+  onesignalKey: process.env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+});
+
 const app = new Hono();
 app.use(trimTrailingSlash());
 app.route("/api", api);
-app.route("/hooks/activity", activityHook);
+app.route("/hooks/activity", activity.app);
 app.route("/hooks/block", block);
 app.route("/hooks/bridge", bridge);
 app.route("/hooks/manteca", manteca);
@@ -291,12 +299,13 @@ export const close = supervise(
   "server",
   Promise.resolve({
     app,
-    ready: reminders().catch(reminders),
+    ready: Promise.all([activity.ready, reminders().catch(reminders)]),
     async close() {
       const services = await Promise.allSettled([
         closeSegment(),
         database.$client.end(),
-        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closePoke(), closeRefund(), closeSubscribe()])
+        activity.close(),
+        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closeRefund(), closeSubscribe()])
           .then((queues) => {
             if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
           })

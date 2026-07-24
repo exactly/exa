@@ -1,71 +1,46 @@
-import { captureException, spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue } from "bullmq";
+import { captureException } from "@sentry/node";
 
 import { attempts, name, type Job } from "./job";
-import { bullmq as connection } from "../../utils/redis";
+import createQueue from "../queue";
 
-import type { Address, Hex } from "@exactly/common/validation";
+import type { Redis } from "ioredis";
 
-export async function enqueue({
-  account,
-  assets,
-  chainId,
-  factory,
-  origin,
-  publicKey,
-  source,
-}: {
-  account: Address;
-  assets?: Address[];
-  chainId: number;
-  factory: Address;
-  origin: "activity" | "allow";
-  publicKey: Hex;
-  source: null | string;
-}) {
-  try {
-    await startSpan(
-      { name: "account poke", op: "queue.publish", attributes: { "messaging.destination.name": name } },
-      async (span) => {
-        const job = await queue.add(
-          name,
-          {
-            account,
-            assets,
-            chainId,
-            factory,
-            origin,
-            publicKey,
-            sentryBaggage: spanToBaggageHeader(span),
-            sentryTrace: spanToTraceHeader(span),
-            source,
-          },
-          { jobId: [account, ...(assets ?? [])].join("-") },
+export default function queue(bullmq: Redis) {
+  const instance = createQueue<Job>(name, attempts, bullmq);
+  return {
+    close: () => instance.close(),
+    async enqueue({ account, assets, chainId, factory, origin, publicKey, source }: Request) {
+      try {
+        await instance.enqueue(
+          { account, assets, chainId, factory, origin, publicKey, source },
+          [account, ...(assets ?? [])].join("-"),
+          "account poke",
         );
-        span.setAttribute("messaging.message.id", job.id);
-        span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
-      },
-    );
-  } catch (error) {
-    captureException(error, {
-      level: "error",
-      tags: { queue: name, job: name },
-      extra: { account },
-    });
-    throw error;
-  }
+      } catch (error) {
+        captureException(error, { level: "error", tags: { queue: name, job: name }, extra: { account } });
+        throw error;
+      }
+    },
+  };
+}
+
+export async function enqueue(request: Request) {
+  if (!singleton) throw new Error("poke queue is not started");
+  await singleton.enqueue(request);
+}
+
+export function start(bullmq: Redis) {
+  singleton ??= queue(bullmq);
 }
 
 export async function close() {
-  await queue.close();
+  try {
+    await singleton?.close();
+  } finally {
+    singleton = undefined;
+  }
 }
 
-const queue = new Queue<Job, void, typeof name>(name, {
-  connection,
-  defaultJobOptions: {
-    attempts,
-    backoff: { type: "exponential", delay: 1000 },
-    removeOnComplete: true,
-    removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
-  },
-});
+let singleton: ReturnType<typeof queue> | undefined;
+
+type Request = Omit<Job, "sentryBaggage" | "sentryTrace">;
