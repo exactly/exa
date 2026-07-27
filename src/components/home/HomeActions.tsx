@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowUpRight, Repeat } from "@tamagui/lucide-icons";
+import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons";
 import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -30,9 +30,14 @@ export default function HomeActions() {
   const { t } = useTranslation();
   const actions = useMemo(
     () => [
-      { key: "deposit", title: t("Add funds"), Icon: ArrowDownToLine },
-      { key: "send", title: t("Send"), Icon: ArrowUpRight },
-      ...(bytecode ? [{ key: "swap" as const, title: t("Swap"), Icon: Repeat }] : []),
+      { key: "deposit", title: t("Deposit"), Icon: ArrowDownToLine },
+      { key: "send", title: t("Send", { context: "home" }), Icon: ArrowUpRight },
+      ...(bytecode
+        ? [
+            { key: "swap" as const, title: t("Swap", { context: "home" }), Icon: Repeat },
+            { key: "borrow" as const, title: t("Borrow", { context: "home" }), Icon: HandCoins },
+          ]
+        : []),
     ],
     [bytecode, t],
   );
@@ -97,6 +102,9 @@ export default function HomeActions() {
                   break;
                 case "swap":
                   router.push("/swaps");
+                  break;
+                case "borrow":
+                  router.push("/loan");
                   break;
               }
             };
