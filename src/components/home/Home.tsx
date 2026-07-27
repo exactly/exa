@@ -41,6 +41,7 @@ import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
+import usePendingOperations from "../../utils/usePendingOperations";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
@@ -129,7 +130,8 @@ export default function Home() {
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
   const { data: activity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
-  const { markets, refetch: refetchMarkets } = useMarkets();
+  const { isProcessing } = usePendingOperations();
+  const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
   const { data: kycStatus, isFetched: isKYCFetched } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const needsMigration = Boolean(kycStatus && "code" in kycStatus && kycStatus.code === "legacy kyc");
   const isKYCApproved = Boolean(
@@ -192,6 +194,19 @@ export default function Home() {
     [markets],
   );
 
+  const overdueMaturity = useMemo(() => {
+    let earliest: bigint | undefined;
+    for (const { market, fixedBorrowPositions } of markets ?? []) {
+      if (market !== marketUSDCAddress) continue;
+      for (const { maturity, position } of fixedBorrowPositions) {
+        if (maturity >= timestamp || position.principal + position.fee === 0n) continue;
+        if (isProcessing(maturity)) continue;
+        if (earliest === undefined || maturity < earliest) earliest = maturity;
+      }
+    }
+    return earliest;
+  }, [markets, timestamp, isProcessing]);
+
   const scrollRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
   const refresh = () =>
@@ -228,6 +243,16 @@ export default function Home() {
           <ProfileHeader />
           <View flex={1} gap="$s5" paddingBottom="$s5">
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
+              {overdueMaturity !== undefined && (
+                <InfoAlert
+                  error
+                  title={t("You have an overdue payment. Pay now to avoid additional interest.")}
+                  actionText={t("Pay now")}
+                  onPress={() => {
+                    router.setParams({ maturity: String(overdueMaturity) });
+                  }}
+                />
+              )}
               {markets && healthFactor(markets) < HEALTH_FACTOR_THRESHOLD && <LiquidationAlert />}
               {(showKYCMigration || showPluginOutdated) && (
                 <InfoAlert

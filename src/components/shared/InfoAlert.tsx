@@ -1,34 +1,45 @@
 import React from "react";
 import { Pressable } from "react-native";
 
-import { ChevronRight, Info } from "@tamagui/lucide-icons";
+import { AlertTriangle, ChevronRight, Info } from "@tamagui/lucide-icons";
 import { Spinner, View, XStack } from "tamagui";
 
 import Text from "./Text";
 export default function InfoAlert({
   title,
   actionText,
+  error,
   loading,
   onPress,
 }: {
   actionText?: string;
+  error?: boolean;
   loading?: boolean;
   onPress?: () => void;
   title: string;
 }) {
+  const onBase = error ? "$interactiveOnBaseErrorSoft" : "$interactiveOnBaseInformationSoft";
   return (
-    <XStack borderRadius="$r3" backgroundColor="$interactiveBaseInformationSoftDefault" overflow="hidden">
+    <XStack
+      borderRadius="$r3"
+      backgroundColor={error ? "$interactiveBaseErrorSoftDefault" : "$interactiveBaseInformationSoftDefault"}
+      overflow="hidden"
+    >
       <View
         padding="$s4"
-        backgroundColor="$interactiveBaseInformationDefault"
+        backgroundColor={error ? "$interactiveBaseErrorDefault" : "$interactiveBaseInformationDefault"}
         justifyContent="center"
         alignItems="center"
         alignSelf="stretch"
       >
-        <Info size={32} color="$interactiveOnBaseInformationDefault" />
+        {error ? (
+          <AlertTriangle size={32} color="$interactiveOnBaseErrorDefault" />
+        ) : (
+          <Info size={32} color="$interactiveOnBaseInformationDefault" />
+        )}
       </View>
       <View gap="$s2" padding="$s4" flex={1}>
-        <Text subHeadline color="$interactiveOnBaseInformationSoft">
+        <Text subHeadline color={onBase}>
           {title}
         </Text>
         <Pressable
@@ -39,14 +50,10 @@ export default function InfoAlert({
         >
           {actionText && (
             <XStack gap="$s1" alignItems="center">
-              <Text emphasized subHeadline color="$interactiveOnBaseInformationSoft">
+              <Text emphasized subHeadline color={onBase}>
                 {actionText}
               </Text>
-              {loading ? (
-                <Spinner color="$interactiveOnBaseInformationSoft" />
-              ) : (
-                <ChevronRight size={16} color="$interactiveOnBaseInformationSoft" strokeWidth={3} />
-              )}
+              {loading ? <Spinner color={onBase} /> : <ChevronRight size={16} color={onBase} strokeWidth={3} />}
             </XStack>
           )}
         </Pressable>
