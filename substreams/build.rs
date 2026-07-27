@@ -51,7 +51,7 @@ fn main() -> Result<(), Error> {
     Command::new("substreams")
       .arg("protogen")
       .arg("--output-path=src/proto")
-      .arg("--exclude-paths=sf/substreams,google")
+      .arg("--exclude-paths=sf/substreams,sf/firehose,google")
       .env("PATH", format!("{}:{}", canonicalize("node_modules/.bin")?.display(), var("PATH").unwrap_or_default()))
       .status()
       .expect("protogen failed")
