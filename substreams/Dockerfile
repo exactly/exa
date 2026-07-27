@@ -17,7 +17,7 @@ ENV NX_DAEMON=false
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm nx build substreams
 
-FROM ghcr.io/streamingfast/substreams-sink-sql:v4.11.3 AS substreams
+FROM ghcr.io/streamingfast/substreams:v1.20.2 AS substreams
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y dumb-init --no-install-recommends && \
   rm -rf /var/lib/apt/lists/* && \
@@ -29,5 +29,5 @@ COPY --from=build --chown=substreams:substreams /usr/src/app/substreams/target/w
 COPY --from=build --chown=substreams:substreams /usr/src/app/server/generated/schema.sql ../server/generated/schema.sql
 USER substreams
 # cspell:ignore sslmode
-ENTRYPOINT ["dumb-init", "/app/substreams-sink-sql", "run"]
-CMD ["postgres://host.docker.internal:5432/postgres?sslmode=disable&schemaName=substreams", "substreams.yaml"]
+ENTRYPOINT ["dumb-init", "/app/substreams", "sink", "postgres", "substreams.yaml"]
+CMD ["--dsn", "postgres://host.docker.internal:5432/postgres?sslmode=disable&schemaName=substreams"]

@@ -153,8 +153,7 @@ export default async function setup() {
       cancelSignal: controller.signal,
       forceKillAfterDelay: 33_333,
       cwd: "node_modules/@exactly/substreams",
-      env: { SUBSTREAMS_ENDPOINTS_CONFIG_ANVIL: "localhost:10016" },
-    })`substreams-sink-sql run ${postgresURL}&schemaName=substreams substreams.yaml --plaintext --batch-block-flush-interval 1 --batch-row-flush-interval 0`;
+    })`substreams sink postgres substreams.yaml --dsn ${`${postgresURL}&schemaName=substreams`} --endpoint localhost:10016 --plaintext --batch-block-flush-interval 1 --batch-row-flush-interval 0`;
     const substreamsLogWatcher = watchProcessOutput(substreams, substreamsOutput, controller);
     substreamsExited = substreamsLogWatcher.exit;
     substreamsOutputFlushed = substreamsLogWatcher.outputFlushed;
