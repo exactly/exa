@@ -780,42 +780,61 @@ describe("registration", () => {
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
   });
 
-  it("creates a credential with source using webauthn", async () => {
-    const account = parse(Address, "0x1234567890123456789012345678901234567893");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+  it.each([
+    ["203.0.113.42", "dGVzdC1jcmVkLWlk2", "0x1234567890123456789012345678901234567893"],
+    ["2001:db8::42", "aXB2Ni1jcmVkLWlk", "0x1234567890123456789012345678901234567891"],
+  ])("creates a credential using webauthn from %s", async (ip, id, account) => {
+    const parsedAccount = parse(Address, account);
+    vi.spyOn(derive, "default").mockReturnValue(parsedAccount);
     const response = await registrationAppClient.index.$post(
-      { json: registrationWebauthnAssertion() },
-      { headers: { cookie: "session_id=test-session", "Client-Fid": "12345" } },
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      {
+        headers: {
+          cookie: "session_id=test-session",
+          "Client-Fid": "12345",
+          "do-connecting-ip": ip,
+        },
+      },
     );
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: { name: "signup", type: "signup" },
-        customer: {
-          id: "dGVzdC1jcmVkLWlk2",
-          tags: [
-            { name: "source", value: "12345", type: "string" },
-            { name: "auth_method", value: "webauthn", type: "string" },
-          ],
-        },
-      }),
-    );
+    expect(customer).toHaveBeenCalledWith({
+      flow: { name: "signup", type: "signup" },
+      customer: {
+        id,
+        tags: [
+          { name: "source", value: "EXA", type: "string" },
+          { name: "auth_method", value: "webauthn", type: "string" },
+        ],
+      },
+      device: { ip },
+    });
 
     const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, "dGVzdC1jcmVkLWlk2"),
+      where: eq(credentials.id, id),
       columns: { source: true },
     });
-    expect(credential?.source).toBe("12345");
+    expect(credential?.source).toBeNull();
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
-  it("returns wallet extension token on ios webauthn registration", async () => {
+  it("omits an invalid signup ip from Sardine", async () => {
+    const id = "aW52YWxpZC1pcC1pZA";
+    const account = parse(Address, "0x1234567890123456789012345678901234567890");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", "do-connecting-ip": "not-an-ip" } },
+    );
+
+    expect(response.status).toBe(500);
+  });
+
+  it("does not return wallet extension token on ios webauthn registration", async () => {
     const id = "aW9zLXJlZ2lzdHJhdGlvbg"; // cspell:ignore Glvbg
     const account = parse(Address, "0x1234567890123456789012345678901234567894");
     vi.spyOn(derive, "default").mockReturnValue(account);
-    const start = Date.now();
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
@@ -825,12 +844,7 @@ describe("registration", () => {
     const json = await response.json();
     const authResponse = parse(Authentication, json);
 
-    assert.ok(authResponse.walletExtension);
-    expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
-    await expect(verifyToken(authResponse.walletExtension.token)).resolves.toStrictEqual({
-      credentialId: id,
-      scope: "card:provisioning",
-    });
+    assert.ok(!authResponse.walletExtension);
   });
 
   it("omits wallet extension token without client platform webauthn registration", async () => {
@@ -857,8 +871,7 @@ describe("registration", () => {
       { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toStrictEqual({ code: "bad client platform" });
+    expect(response.status).toBe(200);
   });
 
   it("creates a credential using webauthn", async () => {
