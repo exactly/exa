@@ -762,29 +762,53 @@ describe("registration", () => {
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
   });
 
-  it("creates a credential with source using webauthn", async () => {
-    const account = parse(Address, "0x1234567890123456789012345678901234567893");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+  it.each([
+    ["203.0.113.42", "dGVzdC1jcmVkLWlk2", "0x1234567890123456789012345678901234567893"],
+    ["2001:db8::42", "aXB2Ni1jcmVkLWlk", "0x1234567890123456789012345678901234567891"],
+  ])("creates a credential with source using webauthn from %s", async (ip, id, account) => {
+    const parsedAccount = parse(Address, account);
+    vi.spyOn(derive, "default").mockReturnValue(parsedAccount);
     const response = await registrationAppClient.index.$post(
-      { json: registrationWebauthnAssertion() },
-      { headers: { cookie: "session_id=test-session", "Client-Fid": "12345" } },
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      {
+        headers: {
+          cookie: "session_id=test-session",
+          "Client-Fid": "12345",
+          "do-connecting-ip": ip,
+        },
+      },
     );
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: { name: "signup", type: "signup" },
-        customer: { id: "dGVzdC1jcmVkLWlk2", tags: [{ name: "source", value: "12345", type: "string" }] },
-      }),
-    );
+    expect(customer).toHaveBeenCalledWith({
+      flow: { name: "signup", type: "signup" },
+      customer: { id, tags: [{ name: "source", value: "12345", type: "string" }] },
+      device: { ip },
+    });
 
     const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, "dGVzdC1jcmVkLWlk2"),
+      where: eq(credentials.id, id),
       columns: { source: true },
     });
     expect(credential?.source).toBe("12345");
     await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("omits an invalid signup ip from Sardine", async () => {
+    const id = "aW52YWxpZC1pcC1pZA";
+    const account = parse(Address, "0x1234567890123456789012345678901234567890");
+    vi.spyOn(derive, "default").mockReturnValue(account);
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", "do-connecting-ip": "not-an-ip" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(customer).toHaveBeenCalledWith({
+      flow: { name: "signup", type: "signup" },
+      customer: { id, tags: [{ name: "source", value: "EXA", type: "string" }] },
+    });
   });
 
   it("returns wallet extension token on ios webauthn registration", async () => {
@@ -847,12 +871,10 @@ describe("registration", () => {
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: { name: "signup", type: "signup" },
-        customer: { id: "YW5vdGhlci1jcmVkLWlk2", tags: [{ name: "source", value: "EXA", type: "string" }] },
-      }),
-    );
+    expect(customer).toHaveBeenCalledWith({
+      flow: { name: "signup", type: "signup" },
+      customer: { id: "YW5vdGhlci1jcmVkLWlk2", tags: [{ name: "source", value: "EXA", type: "string" }] },
+    });
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, "YW5vdGhlci1jcmVkLWlk2"),
       columns: { source: true },

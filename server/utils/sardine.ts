@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import {
   array,
   boolean,
+  brand,
+  ip,
   length,
   literal,
   maxLength,
@@ -11,6 +13,7 @@ import {
   parse,
   picklist,
   pipe,
+  safeParse,
   string,
   toUpperCase,
   transform,
@@ -18,6 +21,7 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 
 import domain from "@exactly/common/domain";
@@ -29,6 +33,18 @@ if (!process.env.SARDINE_API_URL) throw new Error("missing sardine api url");
 
 const key = Buffer.from(process.env.SARDINE_API_KEY).toString("base64");
 const baseURL = process.env.SARDINE_API_URL;
+
+export const IpAddress = pipe(string(), ip(), brand("IpAddress"));
+export type IpAddress = InferOutput<typeof IpAddress>;
+export const IpAddressHeader = optional(
+  pipe(
+    string(),
+    transform((value) => {
+      const result = safeParse(IpAddress, value);
+      return result.success ? result.output : undefined;
+    }),
+  ),
+);
 
 export async function customer(data: InferInput<typeof CustomerRequest>, timeout = 10_000) {
   return await request(CustomerResponse, "/v1/customers", {}, parse(CustomerRequest, data), "POST", timeout);
@@ -162,7 +178,7 @@ const CustomerRequest = object({
       ),
     }),
   ),
-  device: optional(object({ ip: string(), createdAtMillis: optional(number(), () => Date.now()) })),
+  device: optional(object({ ip: IpAddress, createdAtMillis: optional(number(), () => Date.now()) })),
   transaction: optional(
     object({
       id: string(),
