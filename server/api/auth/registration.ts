@@ -15,6 +15,7 @@ import {
   array,
   boolean,
   description,
+  fallback,
   literal,
   maxLength,
   nullish,
@@ -45,6 +46,7 @@ import createCredential from "../../utils/createCredential";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
 import { walletExtension } from "../../utils/walletExtension";
@@ -263,6 +265,7 @@ export default new Hono()
         object({
           "Client-Fid": optional(pipe(string(), maxLength(36))),
           "Client-Platform": optional(literal("ios")),
+          "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
         }),
       ),
     ),
@@ -325,7 +328,8 @@ export default new Hono()
     async (c) => {
       const attestation = c.req.valid("json");
       const factory = c.req.valid("query")?.factory ?? undefined;
-      const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
+      const headers = c.req.valid("header");
+      const platform = safeParse(optional(literal("ios")), headers?.["Client-Platform"]);
       if (!platform.success) return c.json({ code: "bad client platform" }, 400);
       setContext("auth", attestation);
       const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
@@ -386,7 +390,8 @@ export default new Hono()
         const result = await createCredential(c, attestation.id, {
           factory,
           webauthn,
-          source: c.req.header("Client-Fid"),
+          source: headers?.["Client-Fid"],
+          ip: headers?.["do-connecting-ip"],
         });
         const account = deriveAddress(result.factory, { x: result.x, y: result.y });
         const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));

@@ -13,7 +13,7 @@ import { Address } from "@exactly/common/validation";
 import { updateWebhookAddresses } from "./alchemy";
 import authSecret from "./authSecret";
 import decodePublicKey from "./decodePublicKey";
-import { customer } from "./sardine";
+import { customer, type IpAddress } from "./sardine";
 import { identify } from "./segment";
 import database from "../database";
 import { credentials } from "../database/schema";
@@ -25,7 +25,7 @@ import type { Context } from "hono";
 export default async function createCredential<C extends string>(
   c: Context,
   credentialId: C,
-  options?: { factory?: Address; source?: string; webauthn?: WebAuthnCredential },
+  options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
 ) {
   if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
   const factory = options?.factory ?? exaAccountFactoryAddress;
@@ -65,6 +65,7 @@ export default async function createCredential<C extends string>(
           { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
         ],
       },
+      ...(options?.ip ? { device: { ip: options.ip } } : {}),
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
   identify({ userId: account });

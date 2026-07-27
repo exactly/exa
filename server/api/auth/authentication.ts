@@ -13,6 +13,7 @@ import {
   any,
   array,
   description,
+  fallback,
   literal,
   maxLength,
   metadata,
@@ -50,6 +51,7 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
 import { walletExtension } from "../../utils/walletExtension";
@@ -264,6 +266,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         object({
           "Client-Fid": optional(pipe(string(), maxLength(36))),
           "Client-Platform": optional(literal("ios")),
+          "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
         }),
       ),
     ),
@@ -330,6 +333,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
     ),
     async (c) => {
       const assertion = c.req.valid("json");
+      const headers = c.req.valid("header");
       const factory = c.req.valid("query")?.factory ?? undefined;
       const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
       if (!platform.success) return c.json({ code: "bad client platform" }, 400);
@@ -359,7 +363,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
           }
           if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-          const result = await createCredential(c, assertion.id, { factory, source: c.req.header("Client-Fid") });
+          const result = await createCredential(c, assertion.id, {
+            factory,
+            source: c.req.header("Client-Fid"),
+            ip: headers?.["do-connecting-ip"],
+          });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y });
           const intercomToken = await getIntercomToken(account, result.auth);
           return c.json(
