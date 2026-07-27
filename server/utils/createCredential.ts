@@ -60,7 +60,10 @@ export default async function createCredential<C extends string>(
       flow: { name: "signup", type: "signup" },
       customer: {
         id: credentialId,
-        tags: [{ name: "source", value: options?.source ?? "EXA", type: "string" }],
+        tags: [
+          { name: "source", value: options?.source ?? "EXA", type: "string" },
+          { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
+        ],
       },
     }).catch((error: unknown) => captureException(error, { level: "error" })),
   ]);
