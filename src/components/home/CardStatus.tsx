@@ -477,7 +477,7 @@ function LimitPaginator({
               <Text callout emphasized>
                 {t("Spending limit")}
               </Text>
-              <Info size={16} color="$interactiveBaseBrandDefault" />
+              <Info size={16} color="$uiInfoSecondary" />
             </XStack>
             <Text title3 aria-label={hidden ? "***" : `$${spending}`}>
               <Text aria-hidden secondary>
@@ -504,7 +504,7 @@ function LimitPaginator({
                 <Text callout emphasized>
                   {t("Credit limit")}
                 </Text>
-                <Info size={16} color="$interactiveBaseBrandDefault" />
+                <Info size={16} color="$uiInfoSecondary" />
               </XStack>
               <Text sensitive footnote secondary>
                 {t("Collateral {{value}}", {

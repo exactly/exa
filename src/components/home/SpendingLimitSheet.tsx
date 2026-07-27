@@ -34,12 +34,17 @@ export default function SpendingLimitSheet({ onClose, open }: { onClose: () => v
             <YStack gap="$s4">
               <Text subHeadline secondary>
                 <Trans
-                  i18nKey="The maximum amount you can spend using <highlight>Pay Now</highlight>."
+                  i18nKey="The maximum amount you can spend using <highlight>Pay Now</highlight>. Each purchase is deducted from your USDC balance immediately."
                   components={{ highlight: <Text subHeadline emphasized color="$cardDebitInteractive" /> }}
                 />
               </Text>
               <Text subHeadline secondary>
-                {t("It’s based on the USDC available in your balance.")}
+                {t(
+                  "If your balance doesn’t cover a transaction, other assets in your wallet can make up the difference.",
+                )}
+              </Text>
+              <Text subHeadline secondary>
+                {t("Any outstanding Pay Later balance also reduces your available spending limit.")}
               </Text>
             </YStack>
           </YStack>

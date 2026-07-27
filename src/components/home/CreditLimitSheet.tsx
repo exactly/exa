@@ -34,12 +34,19 @@ export default function CreditLimitSheet({ onClose, open }: { onClose: () => voi
             <YStack gap="$s4">
               <Text subHeadline secondary>
                 <Trans
-                  i18nKey="The maximum amount you can spend using <highlight>Pay Later</highlight>."
+                  i18nKey="The maximum amount you can spend using <highlight>Pay Later</highlight>. It’s based on the value of your collateral assets and updates as their value changes."
                   components={{ highlight: <Text subHeadline emphasized color="$cardCreditInteractive" /> }}
                 />
               </Text>
               <Text subHeadline secondary>
-                {t("It’s based on the value of your collateral assets and updates as their value changes.")}
+                {t(
+                  "Each asset has a different borrowing power, so $100 in USDC gives you more credit than $100 on OP.",
+                )}
+              </Text>
+              <Text subHeadline secondary>
+                {t(
+                  "If you hold more than one asset, your limit is a weighted average across all of them. Any outstanding Pay Later balance also reduces your available credit limit.",
+                )}
               </Text>
             </YStack>
           </YStack>
