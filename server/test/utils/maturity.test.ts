@@ -47,10 +47,13 @@ type Position = readonly [bigint, bigint];
 type AggregateCall = { allowFailure: boolean; callData: `0x${string}`; target: Address };
 
 const queue = new Queue<CheckDebts | ScanChunk>("maturity", { connection: queueRedis });
-const notificationQueue = new Queue<{ accounts: Address[]; maturity: number; window: Window }>(
-  "maturity-notifications",
-  { connection: queueRedis },
-);
+const notificationQueue = new Queue<{
+  accounts: Address[];
+  maturity: number;
+  sentryBaggage?: string;
+  sentryTrace?: string;
+  window: Window;
+}>("maturity-notifications", { connection: queueRedis });
 const USDC = 1_000_000n;
 
 function insertAccounts(accounts: Address[]) {
@@ -354,7 +357,15 @@ describe("worker", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]?.id).toBe(reminderChunkJobId(maturity, window, 0));
     expect(jobs[0]?.name).toBe("send-maturity-reminders");
-    expect(jobs[0]?.data).toStrictEqual({ accounts: [account], maturity, window });
+    expect(jobs[0]?.data).toMatchObject({
+      accounts: [account],
+      maturity,
+      window,
+    });
+    expect(jobs[0]?.data.sentryTrace).toMatch(/^[0-9a-f]{32}-[0-9a-f]{16}-[01]$/);
+    expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-trace_id=[0-9a-f]{32}(?:,|$)/);
+    expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-transaction=[^,]+(?:,|$)/);
+    expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-sampled=(?:true|false)(?:,|$)/);
   });
 
   it("retains completed reminder jobs so the planner does not enqueue duplicates", async () => {
@@ -434,7 +445,12 @@ describe("worker", () => {
       await checkDone("check-debts", { window: "1h" });
 
       const jobs = await notificationJobs();
-      expect(jobs.map((job) => job.data)).toStrictEqual([{ accounts: [account], maturity, window: "1h" }]);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]?.data).toMatchObject({ accounts: [account], maturity, window: "1h" });
+      expect(jobs[0]?.data.sentryTrace).toMatch(/^[0-9a-f]{32}-[0-9a-f]{16}-[01]$/);
+      expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-trace_id=[0-9a-f]{32}(?:,|$)/);
+      expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-transaction=[^,]+(?:,|$)/);
+      expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-sampled=(?:true|false)(?:,|$)/);
       expect(sendPushNotification).not.toHaveBeenCalled();
     } finally {
       vi.mocked(Date.now).mockRestore();
