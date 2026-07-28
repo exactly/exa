@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.16
+
+### Patch Changes
+
+- [#1150](https://github.com/exactly/exa/pull/1150) [`2963fa6`](https://github.com/exactly/exa/commit/2963fa6ff523e11be7a2db8f1bf58ab16231fa4e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔨 add allowlist to codegen
+
 ## 0.0.15
 
 ### Patch Changes

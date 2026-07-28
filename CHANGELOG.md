@@ -1,5 +1,25 @@
 # @exactly/mobile
 
+## 1.2.18
+
+### Patch Changes
+
+- [#1179](https://github.com/exactly/exa/pull/1179) [`9d2fce3`](https://github.com/exactly/exa/commit/9d2fce3c1053fbd0ef58d321a1d0f26501be20ec) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 track bridge receipts onchain instead of wallet
+
+- [#1179](https://github.com/exactly/exa/pull/1179) [`73fa4c2`](https://github.com/exactly/exa/commit/73fa4c29ac094e08f78484a600b077dab50bc4aa) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add borrow action to home
+
+- [#1150](https://github.com/exactly/exa/pull/1150) [`2d026c7`](https://github.com/exactly/exa/commit/2d026c71437bab09161ebf3ef01318fe8cf8ae73) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ support exa on base
+
+- [#1179](https://github.com/exactly/exa/pull/1179) [`7111e8c`](https://github.com/exactly/exa/commit/7111e8c4c942489d7f6ffbd72c826f55d633a97e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add overdue payment banner on home
+
+- [#1150](https://github.com/exactly/exa/pull/1150) [`945f8a8`](https://github.com/exactly/exa/commit/945f8a8059ee3f6d1207d79d0e626b16d96db0f4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ support swaps on base
+
+- [#1179](https://github.com/exactly/exa/pull/1179) [`ae53e47`](https://github.com/exactly/exa/commit/ae53e4783713051d1ea09f77175025ddc8e440b8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update limit sheets copy
+
+- Updated dependencies [[`2963fa6`](https://github.com/exactly/exa/commit/2963fa6ff523e11be7a2db8f1bf58ab16231fa4e), [`7149372`](https://github.com/exactly/exa/commit/7149372dbf24ae654c047c3468232da5c9f419a8)]:
+  - @exactly/common@0.0.16
+  - @exactly/server@0.2.105
+
 ## 1.2.17
 
 ### Patch Changes

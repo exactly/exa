@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.105
+
+### Patch Changes
+
+- [#722](https://github.com/exactly/exa/pull/722) [`7149372`](https://github.com/exactly/exa/commit/7149372dbf24ae654c047c3468232da5c9f419a8) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add debt maturity reminders
+
 ## 0.2.104
 
 ### Patch Changes
