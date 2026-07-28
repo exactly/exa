@@ -21,11 +21,7 @@ export default function queue<Job extends Trace>(name: string, attempts: number,
         async (span) => {
           const job = await instance.add(
             name,
-            {
-              ...data,
-              sentryBaggage: spanToBaggageHeader(span),
-              sentryTrace: spanToTraceHeader(span),
-            },
+            { ...data, sentryBaggage: spanToBaggageHeader(span), sentryTrace: spanToTraceHeader(span) },
             { jobId },
           );
           span.setAttribute("messaging.message.id", job.id);

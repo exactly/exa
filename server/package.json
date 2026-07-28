@@ -27,6 +27,7 @@
     "./api/*": {
       "types": "./api/*.ts"
     },
+    "./hooks/activity": "./dist/hooks/activity/bin.cjs",
     "./workers/*": "./dist/workers/*/bin.cjs"
   },
   "files": [

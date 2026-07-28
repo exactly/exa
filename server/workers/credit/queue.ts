@@ -10,11 +10,7 @@ export async function enqueue(account: Job["account"]) {
   try {
     await singleton.enqueue({ account }, account);
   } catch (error) {
-    captureException(error, {
-      level: "error",
-      tags: { queue: name, job: name },
-      extra: { account },
-    });
+    captureException(error, { level: "error", tags: { queue: name, job: name }, extra: { account } });
   }
 }
 

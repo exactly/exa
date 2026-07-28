@@ -18,7 +18,7 @@ import { NETWORKS } from "../../utils/alchemy";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
-import { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../../workers/poke/queue";
+import pokeQueue, { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../../workers/poke/queue";
 import pokeWorker from "../../workers/poke/worker";
 
 import type { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../../workers/credit/queue";
@@ -160,10 +160,11 @@ afterAll(async () => {
 
 describe("poke queue", () => {
   it("publishes account poke jobs", async () => {
+    const instance = pokeQueue(bullmq);
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueuePoke(request);
+    const result = instance.enqueue(request);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -184,6 +185,7 @@ describe("poke queue", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+    await instance.close();
   });
 
   it("includes assets in job ids", async () => {

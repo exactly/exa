@@ -1,10 +1,10 @@
-import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { captureException, close as closeSentry, setExtra } from "@sentry/node";
+import { setExtra } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { parse, string } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
@@ -12,12 +12,13 @@ import chain from "@exactly/common/generated/chain";
 
 import api from "./api";
 import database from "./database";
-import activityHook from "./hooks/activity";
+import activity from "./hooks/activity";
 import block from "./hooks/block";
 import bridge from "./hooks/bridge";
 import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
+import supervise from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
@@ -25,19 +26,23 @@ import { bullmq, close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
 import { close as closeAllow } from "./workers/allow/queue";
 import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
-import { close as closePoke, start as startPoke } from "./workers/poke/queue";
 import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
 
-import type { UnofficialStatusCode } from "hono/utils/http-status";
-
 startCredit(bullmq);
-startPoke(bullmq);
+
+const activityHook = activity({
+  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
+  activityKey: process.env.ALCHEMY_ACTIVITY_KEY,
+  onesignalKey: process.env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+});
 
 const app = new Hono();
 app.use(trimTrailingSlash());
 app.route("/api", api);
-app.route("/hooks/activity", activityHook);
+app.route("/hooks/activity", activityHook.app);
 app.route("/hooks/block", block);
 app.route("/hooks/bridge", bridge);
 app.route("/hooks/manteca", manteca);
@@ -288,80 +293,25 @@ frontend.use(
 );
 app.route("/", frontend);
 
-app.onError((error, c) => {
-  let fingerprint: string[] | undefined;
-  if (error instanceof Error) {
-    const message = error.message
-      .split("Error:")
-      .reduce((result, part) => (result ? `${result}Error:${part}` : part.trimStart()), "");
-    const status = message.slice(0, 3);
-    const hasStatus = /^\d{3}$/.test(status);
-    const hasBodyFormat = message.length === 3 || message[3] === " ";
-    const body = hasBodyFormat && message.length > 3 ? message.slice(4).trim() : undefined;
-    if (hasStatus && hasBodyFormat) fingerprint = ["{{ default }}", status];
-    if (hasStatus && hasBodyFormat && body) {
-      try {
-        const json = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
-        fingerprint = [
-          "{{ default }}",
-          status,
-          ...("code" in json
-            ? [String(json.code)]
-            : typeof json.message === "string"
-              ? [json.message]
-              : typeof json.error === "string"
-                ? [json.error]
-                : [body]),
-        ];
-      } catch {
-        fingerprint = ["{{ default }}", status, body];
-      }
-    }
-  }
-  captureException(error, { level: "error", tags: { unhandled: true }, fingerprint });
-  return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
-});
-
 export default app;
 
-const server = serve(app);
-
-export async function close() {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      Promise.allSettled([
-        closeSentry(),
+export const close = supervise(
+  "server",
+  Promise.resolve({
+    ready: Promise.all([activityHook.ready, reminders().catch(reminders)]),
+    async close() {
+      const services = await Promise.allSettled([
         closeSegment(),
         database.$client.end(),
-        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closePoke(), closeRefund(), closeSubscribe()])
-          .then((results) => {
-            if (results.some((result) => result.status === "rejected")) throw new Error("closing queues failed");
+        activityHook.close(),
+        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closeRefund(), closeSubscribe()])
+          .then((queues) => {
+            if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
           })
           .finally(closeRedis),
-      ])
-        .then((results) => {
-          if (error) reject(error);
-          else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
-          else resolve(null);
-        })
-        .catch(reject);
-    });
-  });
-}
-
-reminders()
-  .catch(reminders)
-  .catch((error: unknown) => {
-    captureException(error, { level: "error", tags: { unhandled: true } });
-    throw error;
-  });
-
-if (!process.env.VITEST) {
-  ["SIGINT", "SIGTERM"].map((code) => {
-    process.on(code, () => {
-      close()
-        .then(() => process.exit(0)) // eslint-disable-line n/no-process-exit
-        .catch(() => process.exit(1)); // eslint-disable-line n/no-process-exit
-    });
-  });
-}
+      ]);
+      if (services.some((service) => service.status === "rejected")) throw new Error("closing services failed");
+    },
+  }),
+  app,
+);

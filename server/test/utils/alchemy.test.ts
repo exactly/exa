@@ -4,10 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
-import { addWebhookAddresses } from "../../utils/alchemy";
+import { addWebhookAddresses, createWebhook, findWebhook, network } from "../../utils/alchemy";
 import ServiceError from "../../utils/ServiceError";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
+const webhook = {
+  id: "activity",
+  network: network(),
+  webhook_type: "ADDRESS_ACTIVITY" as const,
+  webhook_url: "https://example.com/hooks/activity",
+  signing_key: "signing-key",
+  is_active: true,
+};
 
 function bodies() {
   return vi.mocked(fetch).mock.calls.map(([, init]) => {
@@ -18,7 +26,68 @@ function bodies() {
 
 describe("alchemy", () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("finds webhooks with the explicit key", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ data: [webhook] }));
+
+    await expect(findWebhook(() => true, "find-key")).resolves.toStrictEqual(webhook);
+
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("https://dashboard.alchemy.com/api/team-webhooks", {
+      headers: { "Content-Type": "application/json", "X-Alchemy-Token": "find-key" },
+    });
+  });
+
+  it("creates webhooks with the explicit key", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ data: webhook }));
+
+    await expect(
+      createWebhook(
+        { addresses: [], webhook_type: "ADDRESS_ACTIVITY", webhook_url: "https://example.com/hooks/activity" },
+        "create-key",
+      ),
+    ).resolves.toStrictEqual(webhook);
+
+    expect(fetch).toHaveBeenCalledExactlyOnceWith("https://dashboard.alchemy.com/api/create-webhook", {
+      body: JSON.stringify({
+        addresses: [],
+        webhook_type: "ADDRESS_ACTIVITY",
+        webhook_url: "https://example.com/hooks/activity",
+        network: network(),
+      }),
+      headers: { "Content-Type": "application/json", "X-Alchemy-Token": "create-key" },
+      method: "POST",
+    });
+  });
+
+  it("uses the environment key when an explicit key is omitted", async () => {
+    vi.stubEnv("ALCHEMY_WEBHOOKS_KEY", "environment-key");
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ data: [webhook] }))
+      .mockResolvedValueOnce(Response.json({ data: webhook }));
+
+    await findWebhook(() => true);
+    await createWebhook({
+      addresses: [],
+      webhook_type: "ADDRESS_ACTIVITY",
+      webhook_url: "https://example.com/hooks/activity",
+    });
+
+    expect(fetch).toHaveBeenNthCalledWith(1, "https://dashboard.alchemy.com/api/team-webhooks", {
+      headers: { "Content-Type": "application/json", "X-Alchemy-Token": "environment-key" },
+    });
+    expect(fetch).toHaveBeenNthCalledWith(2, "https://dashboard.alchemy.com/api/create-webhook", {
+      body: JSON.stringify({
+        addresses: [],
+        webhook_type: "ADDRESS_ACTIVITY",
+        webhook_url: "https://example.com/hooks/activity",
+        network: network(),
+      }),
+      headers: { "Content-Type": "application/json", "X-Alchemy-Token": "environment-key" },
+      method: "POST",
+    });
   });
 
   it("adds addresses to the active webhook", async () => {

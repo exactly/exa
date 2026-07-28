@@ -1,11 +1,11 @@
 import { name } from "./job";
 import worker from "./worker";
+import supervise from "../../supervise";
 import secret from "../../utils/secret";
-import bin from "../bin";
 
-bin(
+supervise(
   name,
   Promise.all([secret("credit-onesignal-api-key"), secret("credit-postgres-url"), secret("redis-url")]).then(
-    (secrets) => worker({ onesignalKey: secrets[0], postgresUrl: secrets[1], redisUrl: secrets[2] }),
+    ([onesignalKey, postgresUrl, redisUrl]) => worker({ onesignalKey, postgresUrl, redisUrl }),
   ),
 );

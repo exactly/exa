@@ -24,11 +24,7 @@ export async function enqueue({
   try {
     await queue.enqueue({ account, assets, chainId, factory, publicKey, source }, account, "account allow");
   } catch (error) {
-    captureException(error, {
-      level: "error",
-      tags: { queue: name, job: name },
-      extra: { account },
-    });
+    captureException(error, { level: "error", tags: { queue: name, job: name }, extra: { account } });
     throw error;
   }
 }

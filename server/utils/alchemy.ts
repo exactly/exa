@@ -1,4 +1,24 @@
-import * as chains from "@account-kit/infra";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  base,
+  baseSepolia,
+  bsc,
+  inkMainnet,
+  inkSepolia,
+  mainnet,
+  monadMainnet,
+  optimism,
+  optimismSepolia,
+  polygon,
+  sepolia,
+  shape,
+  shapeSepolia,
+  soneiumMainnet,
+  soneiumMinato,
+  worldChain,
+  worldChainSepolia,
+} from "@account-kit/infra";
 import { validator } from "hono/validator";
 import { array, boolean, check, object, parse, picklist, pipe, string, type InferOutput } from "valibot";
 import { withRetry, type Chain } from "viem";
@@ -29,10 +49,10 @@ export function network(id = chain.id) {
   return [...NETWORKS].find(([, current]) => current.id === id)?.[0] ?? "OPT_SEPOLIA";
 }
 
-export async function findWebhook(predicate: (webhook: Webhook) => unknown) {
+export async function findWebhook(predicate: (webhook: Webhook) => unknown, key?: string) {
   const webhooks = await withRetry(
     async () => {
-      const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers: headers() });
+      const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers: headers(key) });
       if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
       return parse(WebhooksResponse, await response.json()).data;
     },
@@ -46,9 +66,10 @@ export async function createWebhook(
     | { addresses: string[]; webhook_type: "ADDRESS_ACTIVITY" }
     | { graphql_query: { query: string; skip_empty_messages: true }; webhook_type: "GRAPHQL" }
   ) & { network?: never; webhook_url: string },
+  key?: string,
 ) {
   const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
-    headers: headers(),
+    headers: headers(key),
     method: "POST",
     body: JSON.stringify({ ...options, network: network() }),
   });
@@ -99,25 +120,25 @@ const WebhookResponse = object({ data: Webhook });
 const WebhooksResponse = object({ data: array(Webhook) });
 
 export const NETWORKS = new Map<string, AlchemyChain>([
-  ["ARB_MAINNET", chains.arbitrum as AlchemyChain],
-  ["ARB_SEPOLIA", chains.arbitrumSepolia as AlchemyChain],
-  ["BASE_MAINNET", chains.base as AlchemyChain],
-  ["BASE_SEPOLIA", chains.baseSepolia as AlchemyChain],
-  ["BNB_MAINNET", chains.bsc as AlchemyChain],
-  ["ETH_MAINNET", chains.mainnet as AlchemyChain],
-  ["ETH_SEPOLIA", chains.sepolia as AlchemyChain],
-  ["INK_MAINNET", chains.inkMainnet as AlchemyChain],
-  ["INK_SEPOLIA", chains.inkSepolia as AlchemyChain],
-  ["MATIC_MAINNET", chains.polygon as AlchemyChain],
-  ["MONAD_MAINNET", chains.monadMainnet as AlchemyChain],
-  ["OPT_MAINNET", chains.optimism as AlchemyChain],
-  ["OPT_SEPOLIA", chains.optimismSepolia as AlchemyChain],
-  ["SHAPE_MAINNET", chains.shape as AlchemyChain],
-  ["SHAPE_SEPOLIA", chains.shapeSepolia as AlchemyChain],
-  ["SONEIUM_MAINNET", chains.soneiumMainnet as AlchemyChain], // cspell:ignore soneium
-  ["SONEIUM_MINATO", chains.soneiumMinato as AlchemyChain], // cspell:ignore minato
-  ["WORLDCHAIN_MAINNET", chains.worldChain as AlchemyChain], // cspell:ignore worldchain
-  ["WORLDCHAIN_SEPOLIA", chains.worldChainSepolia as AlchemyChain],
+  ["ARB_MAINNET", arbitrum as AlchemyChain],
+  ["ARB_SEPOLIA", arbitrumSepolia as AlchemyChain],
+  ["BASE_MAINNET", base as AlchemyChain],
+  ["BASE_SEPOLIA", baseSepolia as AlchemyChain],
+  ["BNB_MAINNET", bsc as AlchemyChain],
+  ["ETH_MAINNET", mainnet as AlchemyChain],
+  ["ETH_SEPOLIA", sepolia as AlchemyChain],
+  ["INK_MAINNET", inkMainnet as AlchemyChain],
+  ["INK_SEPOLIA", inkSepolia as AlchemyChain],
+  ["MATIC_MAINNET", polygon as AlchemyChain],
+  ["MONAD_MAINNET", monadMainnet as AlchemyChain],
+  ["OPT_MAINNET", optimism as AlchemyChain],
+  ["OPT_SEPOLIA", optimismSepolia as AlchemyChain],
+  ["SHAPE_MAINNET", shape as AlchemyChain],
+  ["SHAPE_SEPOLIA", shapeSepolia as AlchemyChain],
+  ["SONEIUM_MAINNET", soneiumMainnet as AlchemyChain], // cspell:ignore soneium
+  ["SONEIUM_MINATO", soneiumMinato as AlchemyChain], // cspell:ignore minato
+  ["WORLDCHAIN_MAINNET", worldChain as AlchemyChain], // cspell:ignore worldchain
+  ["WORLDCHAIN_SEPOLIA", worldChainSepolia as AlchemyChain],
   ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } } as AlchemyChain],
 ]);
 

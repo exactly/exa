@@ -1,11 +1,11 @@
 import { name } from "./job";
 import worker from "./worker";
+import supervise from "../../supervise";
 import secret from "../../utils/secret";
-import bin from "../bin";
 
-bin(
+supervise(
   name,
-  Promise.all([secret("refund-panda-api-key"), secret("panda-api-url"), secret("redis-url")]).then((secrets) =>
-    worker({ pandaKey: secrets[0], pandaUrl: secrets[1], redisUrl: secrets[2] }),
+  Promise.all([secret("refund-panda-api-key"), secret("panda-api-url"), secret("redis-url")]).then(
+    ([pandaKey, pandaUrl, redisUrl]) => worker({ pandaKey, pandaUrl, redisUrl }),
   ),
 );

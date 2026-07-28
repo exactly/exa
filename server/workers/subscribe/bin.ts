@@ -1,11 +1,11 @@
 import { name } from "./job";
 import worker from "./worker";
+import supervise from "../../supervise";
 import secret from "../../utils/secret";
-import bin from "../bin";
 
-bin(
+supervise(
   name,
-  Promise.all([secret("account-alchemy-webhooks-key"), secret("redis-url")]).then((secrets) =>
-    worker({ alchemyKey: secrets[0], redisUrl: secrets[1] }),
+  Promise.all([secret("account-alchemy-webhooks-key"), secret("redis-url")]).then(([alchemyKey, redisUrl]) =>
+    worker({ alchemyKey, redisUrl }),
   ),
 );
