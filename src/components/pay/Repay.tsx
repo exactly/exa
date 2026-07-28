@@ -431,6 +431,7 @@ export default function Repay() {
     },
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }).catch(reportError);
     },
     onSettled() {
       setEnableSimulations(true);
@@ -502,6 +503,7 @@ export default function Repay() {
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: assetQueryKey }).catch(reportError);
       queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
+      queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }).catch(reportError);
     },
     onSettled() {
       setEnableSimulations(true);

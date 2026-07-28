@@ -3,23 +3,23 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { Coins, ExternalLink, FileText, Info, RefreshCw } from "@tamagui/lucide-icons";
+import { Coins, ExternalLink, Info, RefreshCw } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { XStack, YStack, type YStackProps } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict, isAfter } from "date-fns";
 import { digits, pipe, safeParse, string } from "valibot";
-import { optimismSepolia } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 
+import Breakdown from "./Breakdown";
+import StatementActions from "./StatementActions";
 import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
-import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -50,6 +50,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
   const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
   const [infoOpen, setInfoOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const {
@@ -95,19 +96,10 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
 
   const close = useCallback(() => {
     setInfoOpen(false);
+    setBreakdownOpen(false);
     setOpen(false);
     router.setParams({ ...parameters, maturity: undefined });
   }, [parameters, router]);
-
-  const viewStatement = useCallback(() => {
-    openBrowser(
-      `https://${
-        {
-          [optimismSepolia.id]: "testnet",
-        }[chain.id] ?? "app"
-      }.exact.ly/dashboard?account=${address}&tab=b`,
-    ).catch(reportError);
-  }, [address]);
 
   const navigateToRepay = useCallback(() => {
     close();
@@ -133,21 +125,36 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
 
   const renderContent = () => {
     if (!displayMaturity || !USDCMarket || !borrow) return <NotAvailableView onClose={close} />;
+    if (breakdownOpen)
+      return (
+        <Frame>
+          <Breakdown
+            maturity={Number(displayMaturity)}
+            onBack={() => setBreakdownOpen(false)}
+            onViewStatement={() => {
+              close();
+              router.navigate({ pathname: "/statement", params: { maturity: displayMaturity } });
+            }}
+          />
+        </Frame>
+      );
     return (
       <DetailsView
         borrow={borrow}
         language={language}
+        maturity={Number(displayMaturity)}
+        onBreakdown={() => setBreakdownOpen(true)}
+        onClose={close}
         onInfoPress={() => setInfoOpen(true)}
         onRepayPress={navigateToRepay}
         onRolloverPress={navigateToRollover}
-        onViewStatement={viewStatement}
       />
     );
   };
 
   return (
     <>
-      <ModalSheet open={open} onClose={close}>
+      <ModalSheet animation="quick" open={open} onClose={close}>
         {renderContent()}
       </ModalSheet>
       {open && borrow && (
@@ -243,10 +250,12 @@ function NotAvailableView({ onClose }: { onClose: () => void }) {
 function DetailsView({
   borrow,
   language,
+  maturity,
+  onBreakdown,
+  onClose,
   onInfoPress,
   onRepayPress,
   onRolloverPress,
-  onViewStatement,
 }: {
   borrow: {
     discount: number;
@@ -257,10 +266,12 @@ function DetailsView({
     previewValue: bigint;
   };
   language: string;
+  maturity: number;
+  onBreakdown: () => void;
+  onClose: () => void;
   onInfoPress: () => void;
   onRepayPress: () => void;
   onRolloverPress: () => void;
-  onViewStatement: () => void;
 }) {
   const { t } = useTranslation();
   const { previewValue, positionValue, discount, dueDate, isUpcoming, dueStatus } = borrow;
@@ -272,18 +283,10 @@ function DetailsView({
     <Frame>
       <YStack backgroundColor="$backgroundSoft" gap="$s5">
         <YStack gap="$s1">
-          <XStack gap="$s3" alignItems="center">
-            <XStack gap="$s2" alignItems="center" flex={1}>
-              <Text emphasized headline flexShrink={1} color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}>
-                {dueStatus}
-              </Text>
-            </XStack>
-            <XStack flexShrink={0} gap="$s1" alignItems="center" cursor="pointer" onPress={onViewStatement}>
-              <Text emphasized footnote color="$interactiveBaseBrandDefault">
-                {t("View statement")}
-              </Text>
-              <FileText size={16} color="$interactiveBaseBrandDefault" />
-            </XStack>
+          <XStack gap="$s2" alignItems="center">
+            <Text emphasized headline flexShrink={1} color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}>
+              {dueStatus}
+            </Text>
           </XStack>
           <Text caption color="$uiNeutralSecondary">
             {dueDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
@@ -349,6 +352,7 @@ function DetailsView({
             </Button>
           </XStack>
         </YStack>
+        <StatementActions maturity={maturity} onBreakdown={onBreakdown} onClose={onClose} />
       </YStack>
     </Frame>
   );
