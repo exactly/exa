@@ -308,6 +308,18 @@ queryClient.setQueryDefaults(["activity", "details"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["activity", "statement"], {
+  staleTime: 60_000,
+  gcTime: isServer ? Infinity : 60 * 60_000,
+});
+
+export async function getStatement(maturity: number) {
+  return getActivity({ maturity: String(maturity) }, "application/pdf");
+}
+
+export async function getStatementActivity(maturity: number) {
+  return getActivity({ maturity: String(maturity), include: ["card", "repay"] });
+}
 
 let authenticating: Promise<void> | undefined;
 export async function auth() {
