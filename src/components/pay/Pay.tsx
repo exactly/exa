@@ -9,7 +9,6 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict } from "date-fns";
-import { optimismSepolia } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -17,19 +16,22 @@ import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/co
 import { WAD } from "@exactly/lib";
 
 import Empty from "./Empty";
+import EmptyMessage from "./EmptyMessage";
+import HistorySheet from "./HistorySheet";
 import OverduePayments from "./OverduePayments";
+import PaymentHistory from "./PaymentHistory";
 import PaymentSheet from "./PaymentSheet";
 import RolloverIntroSheet from "./RolloverIntroSheet";
 import UpcomingPayments from "./UpcomingPayments";
 import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
-import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
+import useStatements from "../../utils/useStatements";
 import useTabPress from "../../utils/useTabPress";
 import TabBarContext from "../context/TabBarContext";
 import Amount from "../shared/Amount";
@@ -60,16 +62,21 @@ export default function Pay() {
     query: { refetchOnMount: true, enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { account, market: exaUSDC } = useAsset(marketUSDCAddress);
+  const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { markets, timestamp, refetch } = useMarkets({ refetchInterval: 30_000 });
 
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
+  const [historyMaturity, setHistoryMaturity] = useState<number>();
   const [infoType, setInfoType] = useState<"discount" | "fees" | "total" | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () =>
-    Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["activity"], exact: true })]);
+    Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
+    ]);
   useTabPress("pay-mode", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
     refresh().catch(reportError);
@@ -95,6 +102,8 @@ export default function Pay() {
   }, [markets, timestamp]);
 
   const hasPayments = allMaturities.length > 0;
+  const statements = useStatements();
+  const empty = !hasPayments && statements?.length === 0;
   const firstMaturity = allMaturities[0];
 
   const { isProcessing } = usePendingOperations();
@@ -106,10 +115,8 @@ export default function Pay() {
   }, [allMaturities, exaUSDC]);
 
   const viewStatement = useCallback(() => {
-    openBrowser(
-      `https://${{ [optimismSepolia.id]: "testnet" }[chain.id] ?? "app"}.exact.ly/dashboard?account=${account}&tab=b`,
-    ).catch(reportError);
-  }, [account]);
+    if (firstMaturity) router.navigate({ pathname: "/statement", params: { maturity: String(firstMaturity[0]) } });
+  }, [router, firstMaturity]);
 
   const onSelect = useCallback(
     (maturity: bigint) => {
@@ -120,7 +127,7 @@ export default function Pay() {
 
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View fullScreen backgroundColor={hasPayments ? "$backgroundMild" : "$backgroundSoft"}>
+      <View fullScreen backgroundColor={empty ? "$backgroundSoft" : "$backgroundMild"}>
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
           ref={scrollRef}
@@ -128,39 +135,42 @@ export default function Pay() {
           contentContainerStyle={{
             flexGrow: 1,
             paddingBottom: use(TabBarContext),
-            backgroundColor: hasPayments ? "$backgroundMild" : "$backgroundSoft",
+            backgroundColor: empty ? "$backgroundSoft" : "$backgroundMild",
           }}
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >
-          {hasPayments ? (
+          {empty ? (
+            <Empty />
+          ) : (
+            <XStack
+              backgroundColor="$backgroundSoft"
+              paddingHorizontal="$s4"
+              paddingVertical="$s3"
+              justifyContent="space-between"
+              alignItems="center"
+            >
+              <Text emphasized title3>
+                {t("Payments")}
+              </Text>
+              <IconButton
+                icon={hidden ? EyeOff : Eye}
+                color="$uiNeutralSecondary"
+                aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
+                onPress={() => {
+                  queryClient.setQueryData(["settings", "sensitive"], !hidden);
+                }}
+              />
+            </XStack>
+          )}
+          {hasPayments && (
             <>
-              <XStack
-                backgroundColor="$backgroundSoft"
-                paddingHorizontal="$s4"
-                paddingVertical="$s3"
-                justifyContent="space-between"
-                alignItems="center"
-              >
-                <Text emphasized title3>
-                  {t("Payments")}
-                </Text>
-                <IconButton
-                  icon={hidden ? EyeOff : Eye}
-                  color="$uiNeutralSecondary"
-                  aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
-                  onPress={() => {
-                    queryClient.setQueryData(["settings", "sensitive"], !hidden);
-                  }}
-                />
-              </XStack>
               <TotalOutstandingCard
                 amount={totalOutstandingUSD}
                 count={allMaturities.length}
                 t={t}
                 onInfoPress={() => setInfoType("total")}
-                onStatementsPress={viewStatement}
               />
               <View padded paddingTop="$s5" gap="$s5">
                 {firstMaturity && exaUSDC && (
@@ -273,11 +283,34 @@ export default function Pay() {
                 </Text>
               </InfoSheet>
             </>
-          ) : (
-            <Empty />
+          )}
+          {!empty && (
+            <YStack paddingHorizontal="$s4" paddingTop={hasPayments ? "$s4" : "$s6"} paddingBottom="$s6" gap="$s6">
+              {!hasPayments && (
+                <View
+                  backgroundColor="$backgroundSoft"
+                  borderRadius="$r3"
+                  paddingHorizontal="$s4"
+                  paddingTop="$s4"
+                  paddingBottom="$s5"
+                  shadowColor="$backgroundStrong"
+                  shadowOffset={{ width: 0, height: 6 }}
+                  shadowOpacity={0.6}
+                  shadowRadius={28}
+                >
+                  <EmptyMessage
+                    emoji="🎉"
+                    title={t("No payments pending")}
+                    description={t("Payments from Pay Later purchases will appear here.")}
+                  />
+                </View>
+              )}
+              <PaymentHistory onSelect={setHistoryMaturity} />
+            </YStack>
           )}
         </ScrollView>
       </View>
+      <HistorySheet maturity={historyMaturity} onClose={() => setHistoryMaturity(undefined)} />
     </SafeView>
   );
 }
@@ -286,13 +319,11 @@ function TotalOutstandingCard({
   amount,
   count,
   onInfoPress,
-  onStatementsPress,
   t,
 }: {
   amount: number;
   count: number;
   onInfoPress: () => void;
-  onStatementsPress: () => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
@@ -309,12 +340,6 @@ function TotalOutstandingCard({
             aria-label={t("Total outstanding info")}
             onPress={onInfoPress}
           />
-        </XStack>
-        <XStack gap="$s1" alignItems="center" cursor="pointer" onPress={onStatementsPress}>
-          <Text emphasized footnote color="$interactiveBaseBrandDefault">
-            {t("Statements")}
-          </Text>
-          <FileText size={16} color="$interactiveBaseBrandDefault" />
         </XStack>
       </XStack>
       <XStack justifyContent="space-between" alignItems="center">

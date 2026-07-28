@@ -329,6 +329,15 @@ queryClient.setQueryDefaults(["activity", "card"], {
     return activity.filter((item): item is CardActivity => item.type === "card" || item.type === "panda");
   },
 });
+
+export async function getStatement(maturity: number) {
+  return getActivity({ maturity: String(maturity) }, "application/pdf");
+}
+
+export async function getStatementActivity(maturity: number) {
+  return getActivity({ maturity: String(maturity), include: ["card", "repay"] });
+}
+
 let authenticating: Promise<void> | undefined;
 export async function auth() {
   if (authenticating) return authenticating;
