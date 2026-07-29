@@ -132,7 +132,7 @@ describe("refund worker", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.resolve(
         Response.json({
-          parameters: [account, account, 1_000_000, refunderAddress, 1_700_000_000, [1, 2, 3], "0x1234"],
+          parameters: [account, account, "1000000", refunderAddress, 1_700_000_000, [1, 2, 3], "0x1234"],
         }),
       ),
     );

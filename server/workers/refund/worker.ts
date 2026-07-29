@@ -1,5 +1,5 @@
 import { captureException } from "@sentry/node";
-import { array, number, object, parse, tuple } from "valibot";
+import { array, digits, number, object, parse, pipe, string, tuple } from "valibot";
 import { toHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
@@ -47,7 +47,9 @@ export default function worker({
         throw new ServiceError("Panda", response.status, raw, undefined, raw);
       }
       const { parameters } = parse(
-        object({ parameters: tuple([Address, Address, number(), Address, number(), array(number()), Hex]) }),
+        object({
+          parameters: tuple([Address, Address, pipe(string(), digits()), Address, number(), array(number()), Hex]),
+        }),
         JSON.parse(new TextDecoder().decode(await response.arrayBuffer())),
       );
       await wallet.exaSend(
