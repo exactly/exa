@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.106
+
+### Patch Changes
+
+- [#1182](https://github.com/exactly/exa/pull/1182) [`06ff25e`](https://github.com/exactly/exa/commit/06ff25e0cd86c6c86f8f394a7e8e0d5d0da6f3f4) Thanks [@aguxez](https://github.com/aguxez)! - 🐛 fix repeat options and delayed maturity reminders
+
+- [#1182](https://github.com/exactly/exa/pull/1182) [`6a3bc08`](https://github.com/exactly/exa/commit/6a3bc08c4430c1cacdde793a75ca01b56769df53) Thanks [@aguxez](https://github.com/aguxez)! - ⬆️ upgrade bullmq
+
 ## 0.2.105
 
 ### Patch Changes
