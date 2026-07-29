@@ -18,6 +18,14 @@ export default defineConfig([
         "error",
         { paths: [{ name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." }] },
       ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            'Property[key.name="gcTime"]:not([value.type="ConditionalExpression"]):not([value.name="Infinity"]):not([value.value=0])',
+          message: "`gcTime` must be `Infinity` or `isServer ? Infinity : <ms>`.",
+        },
+      ],
       "unicorn/no-array-sort": "off", // unsupported in react-native
       "unicorn/prefer-global-this": "off", // unsupported in react-native
       "unicorn/prefer-top-level-await": "off", // unsupported in react-native
