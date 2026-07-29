@@ -2,7 +2,6 @@ import { SPAN_STATUS_ERROR, SPAN_STATUS_OK, type Span } from "@sentry/core";
 import {
   addBreadcrumb,
   captureException,
-  captureMessage,
   continueTrace,
   spanToBaggageHeader,
   spanToTraceHeader,
@@ -119,15 +118,6 @@ const worker = observe(
           case "check-debts": {
             const check = parse(checkDebtsSchema, job.data);
             const maturity = (Math.floor(Date.now() / 1000 / MATURITY_INTERVAL) + 1) * MATURITY_INTERVAL;
-            const now = Math.floor(Date.now() / 1000);
-            const remaining = maturity - now;
-            if (!insideWindow(check.window, remaining)) {
-              captureMessage("maturity reminders dropped", {
-                level: "warning",
-                extra: { maturity, window: check.window, now, remaining },
-              });
-              break;
-            }
             const accounts = await database.query.credentials
               .findMany({ columns: { account: true }, orderBy: credentials.account })
               .then((rows) => rows.map(({ account }) => parse(Address, account)));
@@ -176,21 +166,6 @@ const worker = observe(
 
           case "scan-chunk": {
             const scan = parse(scanChunkSchema, job.data);
-            const now = Math.floor(Date.now() / 1000);
-            const remaining = scan.maturity - now;
-            if (!insideWindow(scan.window, remaining)) {
-              captureMessage("maturity reminders dropped", {
-                level: "warning",
-                extra: {
-                  maturity: scan.maturity,
-                  window: scan.window,
-                  now,
-                  remaining,
-                  accounts: scan.accounts.length,
-                },
-              });
-              break;
-            }
             let rpcFailures = 0;
             const accounts = await publicClient
               .readContract({
@@ -295,38 +270,8 @@ const notificationWorker = observe(
         const reminder = parse(sendMaturityRemindersSchema, job.data);
         switch (job.name) {
           case "send-maturity-reminders": {
-            let now = Math.floor(Date.now() / 1000);
-            let remaining = reminder.maturity - now;
-            if (!insideWindow(reminder.window, remaining)) {
-              captureMessage("maturity reminders dropped", {
-                level: "warning",
-                extra: {
-                  maturity: reminder.maturity,
-                  window: reminder.window,
-                  now,
-                  remaining,
-                  accounts: reminder.accounts.length,
-                },
-              });
-              break;
-            }
             const failedAccounts: Address[] = [];
             for (let offset = 0; offset < reminder.accounts.length; offset += 50) {
-              now = Math.floor(Date.now() / 1000);
-              remaining = reminder.maturity - now;
-              if (!insideWindow(reminder.window, remaining)) {
-                captureMessage("maturity reminders dropped", {
-                  level: "warning",
-                  extra: {
-                    maturity: reminder.maturity,
-                    window: reminder.window,
-                    now,
-                    remaining,
-                    accounts: reminder.accounts.length,
-                  },
-                });
-                break;
-              }
               const batch = reminder.accounts.slice(offset, offset + 50);
               const results = await Promise.allSettled(
                 batch.map((userId) =>
@@ -342,7 +287,7 @@ const notificationWorker = observe(
                       `https://exact.ly/maturity-reminder/${userId}/${reminder.maturity}/${reminder.window}`,
                       v5.URL,
                     ),
-                    ttl: remaining,
+                    ttl: Math.max(0, reminder.maturity - Math.floor(Date.now() / 1000)),
                   }),
                 ),
               );
@@ -398,7 +343,8 @@ export async function reminders() {
     queue.getJobScheduler("check-debts-24h"),
     queue.getJobScheduler("check-debts-1h"),
   ]);
-  const now = Math.floor(Date.now() / 1000);
+  const timestamp = Date.now();
+  const now = Math.floor(timestamp / 1000);
   const maturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
   const remaining = maturity - now;
   if (!scheduled24h && remaining >= 23 * 3600 && remaining < 24 * 3600)
@@ -415,15 +361,18 @@ export async function reminders() {
       level: "warning",
       data: { maturity, now, remaining, window: "1h" },
     });
+  const every = MATURITY_INTERVAL * 1000;
+  const offset1h = -3600 * 1000;
+  const offset24h = 24 * offset1h;
   return Promise.all([
     queue.upsertJobScheduler(
       "check-debts-24h",
-      { every: MATURITY_INTERVAL * 1000, offset: (MATURITY_INTERVAL - 24 * 3600) * 1000 },
+      { every, offset: offset24h, startDate: Math.ceil((timestamp - offset24h) / every) * every + offset24h },
       { name: "check-debts", data: { window: "24h" } },
     ),
     queue.upsertJobScheduler(
       "check-debts-1h",
-      { every: MATURITY_INTERVAL * 1000, offset: (MATURITY_INTERVAL - 3600) * 1000 },
+      { every, offset: offset1h, startDate: Math.ceil((timestamp - offset1h) / every) * every + offset1h },
       { name: "check-debts", data: { window: "1h" } },
     ),
   ]);
@@ -438,10 +387,4 @@ function observe<T>(target: Worker<T>, name: typeof notificationQueueName | type
       captureException(error, { level: "error", extra: { job: job?.data } });
     });
   return target;
-}
-
-function insideWindow(window: CheckDebts["window"], remaining: number) {
-  return window === "24h"
-    ? remaining >= 23 * 3600 && remaining <= 24 * 3600
-    : remaining >= 55 * 60 && remaining <= 3600;
 }

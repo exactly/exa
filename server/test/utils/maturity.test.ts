@@ -21,7 +21,6 @@ import type * as sentry from "@sentry/node";
 const mocks = vi.hoisted(() => ({
   addBreadcrumb: vi.fn<typeof sentry.addBreadcrumb>(),
   captureException: vi.fn<typeof sentry.captureException>(),
-  captureMessage: vi.fn<typeof sentry.captureMessage>(),
   readContract: vi.fn(),
 }));
 
@@ -31,7 +30,6 @@ vi.mock("@sentry/node", async (importOriginal) => {
     ...module,
     addBreadcrumb: mocks.addBreadcrumb.mockImplementation(module.addBreadcrumb),
     captureException: mocks.captureException.mockImplementation(module.captureException),
-    captureMessage: mocks.captureMessage.mockImplementation(module.captureMessage),
   };
 });
 
@@ -299,14 +297,36 @@ describe("worker", () => {
 
   it("schedules maturity checks", async () => {
     const maturity = nextMaturity();
+    const every = MATURITY_INTERVAL * 1000;
+    const upsertJobScheduler = vi.spyOn(Queue.prototype, "upsertJobScheduler");
     vi.spyOn(Date, "now").mockReturnValue((maturity - 25 * 3600) * 1000);
     try {
       await reminders();
+      expect(upsertJobScheduler).toHaveBeenCalledWith(
+        "check-debts-24h",
+        {
+          every,
+          offset: -24 * 3600 * 1000,
+          startDate: (maturity - 24 * 3600) * 1000,
+        },
+        { name: "check-debts", data: { window: "24h" } },
+      );
+      expect(upsertJobScheduler).toHaveBeenCalledWith(
+        "check-debts-1h",
+        {
+          every,
+          offset: -3600 * 1000,
+          startDate: (maturity - 3600) * 1000,
+        },
+        { name: "check-debts", data: { window: "1h" } },
+      );
       const scheduler24h = await queue.getJobScheduler("check-debts-24h");
       expect(scheduler24h).toMatchObject({
         key: "check-debts-24h",
         name: "check-debts",
         every: MATURITY_INTERVAL * 1000,
+        next: (maturity - 24 * 3600) * 1000,
+        offset: -24 * 3600 * 1000,
       });
       expect(scheduler24h?.template?.data).toStrictEqual({ window: "24h" });
       const scheduler1h = await queue.getJobScheduler("check-debts-1h");
@@ -314,9 +334,14 @@ describe("worker", () => {
         key: "check-debts-1h",
         name: "check-debts",
         every: MATURITY_INTERVAL * 1000,
+        next: (maturity - 3600) * 1000,
+        offset: -3600 * 1000,
       });
       expect(scheduler1h?.template?.data).toStrictEqual({ window: "1h" });
+      await reminders();
+      expect(await queue.getJobSchedulers()).toHaveLength(2);
     } finally {
+      upsertJobScheduler.mockRestore();
       vi.mocked(Date.now).mockRestore();
     }
   });
@@ -698,25 +723,20 @@ describe("worker", () => {
     );
   });
 
-  it("skips stale scan chunks before reading accounts", async () => {
+  it("processes delayed scan chunks", async () => {
     const window = "1h";
     const maturity = nextMaturity();
-    const now = maturity - 54 * 60;
-    const accounts = testAccounts(51);
-    vi.spyOn(Date, "now").mockReturnValue(now * 1000);
+    const accounts = testAccounts(1);
+    vi.spyOn(Date, "now").mockReturnValue((maturity - 54 * 60) * 1000);
     try {
       await notificationQueue.pause();
+      mockFixedBorrowPositionsMany(accounts.map((account) => [account, [0n, 0n]]));
       const job = await queue.add("scan-chunk", { accounts, chunkIndex: 0, maturity, window }, { attempts: 1 });
       if (!job.id) throw new Error("job id missing");
       await waitForCompletedJob(queue, job.id);
 
-      const jobs = await notificationJobs();
-      expect(mocks.readContract).not.toHaveBeenCalled();
-      expect(jobs).toHaveLength(0);
-      expect(mocks.captureMessage).toHaveBeenCalledWith("maturity reminders dropped", {
-        level: "warning",
-        extra: { maturity, window, now, remaining: 54 * 60, accounts: accounts.length },
-      });
+      expect(mocks.readContract).toHaveBeenCalledOnce();
+      expect(await notificationJobs()).toHaveLength(0);
     } finally {
       vi.mocked(Date.now).mockRestore();
     }
@@ -806,20 +826,17 @@ describe("worker", () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
-  it("skips stale delivery job", async () => {
+  it("sends delayed delivery job", async () => {
     const account = parse(Address, "0x1234567890123456789012345678901234567890");
     const now = Math.floor(Date.now() / 1000);
-    const maturity = now + 6 * 3600;
+    const maturity = now - 6 * 3600;
     vi.spyOn(Date, "now").mockReturnValue(now * 1000);
     try {
       await reminderDone({ userId: account, maturity, window: "24h" });
 
       expect(mocks.readContract).not.toHaveBeenCalled();
-      expect(sendPushNotification).not.toHaveBeenCalled();
-      expect(mocks.captureMessage).toHaveBeenCalledWith("maturity reminders dropped", {
-        level: "warning",
-        extra: { maturity, window: "24h", now, remaining: 6 * 3600, accounts: 1 },
-      });
+      expect(sendPushNotification).toHaveBeenCalledOnce();
+      expectSentReminder(account, maturity, "24h", 0);
     } finally {
       vi.mocked(Date.now).mockRestore();
     }
@@ -1012,11 +1029,10 @@ describe("worker", () => {
     }
   });
 
-  it("skips delayed 24h planner jobs", async () => {
+  it("processes delayed 24h planner jobs", async () => {
     const account = parse(Address, "0x1234567890123456789012345678901234567890");
     const maturity = nextMaturity();
-    const now = maturity - 6 * 3600;
-    vi.spyOn(Date, "now").mockReturnValue(now * 1000);
+    vi.spyOn(Date, "now").mockReturnValue((maturity - 6 * 3600) * 1000);
     try {
       await notificationQueue.pause();
       await insertAccounts([account]);
@@ -1024,12 +1040,8 @@ describe("worker", () => {
 
       await checkDone("check-debts", { window: "24h" });
 
-      expect(await notificationJobs()).toHaveLength(0);
+      expect(await notificationJobs()).toHaveLength(1);
       expect(sendPushNotification).not.toHaveBeenCalled();
-      expect(mocks.captureMessage).toHaveBeenCalledWith("maturity reminders dropped", {
-        level: "warning",
-        extra: { maturity, window: "24h", now, remaining: 6 * 3600 },
-      });
     } finally {
       vi.mocked(Date.now).mockRestore();
     }
