@@ -8,18 +8,18 @@ import route from "../../api/chat";
 import database, { credentials } from "../../database";
 import authenticate from "../../middleware/auth";
 import authSecret from "../../utils/authSecret";
-import createChat, * as chat from "../../utils/chat";
+import createChat from "../../utils/chat";
 import redis from "../../utils/redis";
 
-const chatKey = "chat";
-const { encode } = createChat(chatKey);
-const app = route({ auth: authenticate(authSecret), chatKey, database, redis });
+const chat = createChat({ from: "sender", key: "chat", token: "whatsapp" });
+const app = route({ auth: authenticate(authSecret), chat, database, redis });
 const client = testClient(app);
 const me = "chat-me";
 const other = "chat-other";
 
 describe("chat", () => {
   beforeEach(async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response());
     await database.insert(credentials).values([
       {
         id: me,
@@ -44,7 +44,7 @@ describe("chat", () => {
   });
 
   it("reports available when the whatsapp id is free", async () => {
-    const token = await encode("5491100000001");
+    const token = await chat.encode("5491100000001");
     const response = await client.index.$get({ query: { token } }, { headers: await headers() });
 
     expect(response.status).toBe(200);
@@ -53,7 +53,7 @@ describe("chat", () => {
 
   it("reports available when already associated with the same whatsapp id", async () => {
     await database.update(credentials).set({ whatsappId: "5491100000002" }).where(eq(credentials.id, me));
-    const token = await encode("5491100000002");
+    const token = await chat.encode("5491100000002");
     const response = await client.index.$get({ query: { token } }, { headers: await headers() });
 
     expect(response.status).toBe(200);
@@ -62,7 +62,7 @@ describe("chat", () => {
 
   it("reports whatsapp taken when associated with another credential", async () => {
     await database.update(credentials).set({ whatsappId: "5491100000003" }).where(eq(credentials.id, other));
-    const token = await encode("5491100000003");
+    const token = await chat.encode("5491100000003");
     const response = await client.index.$get({ query: { token } }, { headers: await headers() });
 
     expect(response.status).toBe(400);
@@ -71,7 +71,7 @@ describe("chat", () => {
 
   it("reports whatsapp associated when the credential already has a different whatsapp id", async () => {
     await database.update(credentials).set({ whatsappId: "5491100000004" }).where(eq(credentials.id, me));
-    const token = await encode("5491100000005");
+    const token = await chat.encode("5491100000005");
     const response = await client.index.$get({ query: { token } }, { headers: await headers() });
 
     expect(response.status).toBe(400);
@@ -92,8 +92,8 @@ describe("chat", () => {
   });
 
   it("sends a validation code", async () => {
-    const spy = vi.spyOn(chat, "sendCode");
-    const token = await encode("5491100000006");
+    const spy = vi.spyOn(chat, "send");
+    const token = await chat.encode("5491100000006");
     const response = await client.index.$post({ json: { token } }, { headers: await headers() });
 
     expect(response.status).toBe(200);
@@ -103,11 +103,14 @@ describe("chat", () => {
     const { whatsappId, code } = JSON.parse(pending) as { code: string; whatsappId: string };
     expect(whatsappId).toBe("5491100000006");
     expect(code).toMatch(/^\d{6}$/);
-    expect(spy).toHaveBeenCalledExactlyOnceWith("5491100000006", code);
+    expect(spy).toHaveBeenCalledExactlyOnceWith(
+      "5491100000006",
+      `${code} is your Exa validation code. It expires in 10 minutes.`,
+    );
   });
 
   it("rejects a bad token when sending", async () => {
-    const spy = vi.spyOn(chat, "sendCode");
+    const spy = vi.spyOn(chat, "send");
     const response = await client.index.$post({ json: { token: "not-a-token" } }, { headers: await headers() });
 
     expect(response.status).toBe(400);
@@ -116,7 +119,7 @@ describe("chat", () => {
   });
 
   it("rate limits repeated sends to the same whatsapp id", async () => {
-    const token = await encode("5491100000012");
+    const token = await chat.encode("5491100000012");
     const first = await client.index.$post({ json: { token } }, { headers: await headers() });
     const second = await client.index.$post({ json: { token } }, { headers: await headers() });
 
@@ -180,7 +183,7 @@ async function headers(credentialId = me) {
 }
 
 async function request(whatsappId: string) {
-  const token = await encode(whatsappId);
+  const token = await chat.encode(whatsappId);
   await client.index.$post({ json: { token } }, { headers: await headers() });
   const pending = await redis.get(`chat:${me}`);
   assert(pending);

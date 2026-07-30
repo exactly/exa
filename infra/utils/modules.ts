@@ -17,6 +17,7 @@ export default define({
         "sardine-api-key",
         "segment-write-key",
         "wallet-extension-secret",
+        "whatsapp-access-token",
       ],
       shared: [
         "bridge-api-url",
@@ -26,6 +27,7 @@ export default define({
         "pax-api-url",
         "persona-api-url",
         "sardine-api-url",
+        "whatsapp-phone-number-id",
       ],
     },
     activity: { secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"] },
@@ -33,6 +35,16 @@ export default define({
     bridge: {
       secrets: ["bridge-api-key", "onesignal-api-key", "persona-api-key", "postgres-url", "segment-write-key"],
       shared: ["bridge-api-url", "persona-api-url"],
+    },
+    chat: {
+      secrets: [
+        "anthropic-api-key",
+        "postgres-url",
+        "whatsapp-access-token",
+        "whatsapp-app-secret",
+        "whatsapp-verify-token",
+      ],
+      shared: ["chat-identity-key", "whatsapp-phone-number-id"],
     },
     manteca: {
       secrets: ["manteca-api-key", "onesignal-api-key", "postgres-url", "segment-write-key", "webhooks-key"],

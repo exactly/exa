@@ -131,6 +131,8 @@ async function create() {
     sardineUrl: "https://sardine.test",
     segmentKey: "segment",
     walletExtensionSecret: "wallet-extension-secret-32-bytes",
+    whatsappFrom: "whatsapp",
+    whatsappToken: "whatsapp",
   });
 }
 
