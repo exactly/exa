@@ -7,12 +7,11 @@ import { randomInt } from "node:crypto";
 import { description, object, parse, pipe, string, title, union } from "valibot";
 
 import { credentials } from "../database/schema";
-import { sendCode } from "../utils/chat";
 import validatorHook from "../utils/validatorHook";
 
 import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
-import type createChat from "../utils/chat";
+import type createWhatsapp from "../utils/whatsapp";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
@@ -27,11 +26,10 @@ export default function route({
   redis,
 }: {
   auth: Auth;
-  chat: ReturnType<typeof createChat>;
+  chat: ReturnType<typeof createWhatsapp>;
   database: NodePgDatabase<typeof schema>;
   redis: Redis;
 }) {
-  const { decode } = chat;
   return new Hono()
     .get(
       "/",
@@ -48,7 +46,7 @@ export default function route({
       vValidator("query", token, validatorHook({ code: "bad token" })),
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
-        const whatsappId = await decode(c.req.valid("query").token).catch((error: unknown) => {
+        const whatsappId = await chat.decode(c.req.valid("query").token).catch((error: unknown) => {
           captureException(error, { level: "warning" });
           return null;
         });
@@ -90,7 +88,7 @@ export default function route({
         const { credentialId } = c.req.valid("cookie");
         const payload = c.req.valid("json");
         if ("token" in payload) {
-          const whatsappId = await decode(payload.token).catch(() => null);
+          const whatsappId = await chat.decode(payload.token).catch(() => null);
           if (!whatsappId) return c.json({ code: "bad token" }, 400);
           if (!(await redis.set(`chat:cooldown:${whatsappId}`, "1", "PX", 60_000, "NX"))) {
             // cspell:ignore cooldown
@@ -98,7 +96,7 @@ export default function route({
           }
           const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
           await redis.set(`chat:${credentialId}`, JSON.stringify({ whatsappId, code }), "PX", 10 * 60_000);
-          await sendCode(whatsappId, code);
+          await chat.send(whatsappId, `${code} is your Exa validation code. It expires in 10 minutes.`);
           return c.json({ code: "sent" }, 200);
         }
         const pending = await redis.getdel(`chat:${credentialId}`);

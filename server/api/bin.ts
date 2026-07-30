@@ -1,11 +1,12 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 
 import api from ".";
 import * as schema from "../database/schema";
 import supervise, { own } from "../supervise";
-import createChat from "../utils/chat";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
@@ -16,6 +17,7 @@ import createSardine from "../utils/sardine";
 import secret from "../utils/secret";
 import createSegment from "../utils/segment";
 import createWalletExtension from "../utils/walletExtension";
+import createWhatsapp from "../utils/whatsapp";
 import createCredit from "../workers/credit/queue";
 import createSubscribe from "../workers/subscribe/queue";
 import { connect } from "../workers/worker";
@@ -33,7 +35,11 @@ supervise(
     Promise.all([secret("api-bridge-api-key", secrets), secret("bridge-api-url", secrets)]).then(([key, url]) =>
       createBridge(key, url),
     ),
-    secret("chat-identity-key", secrets).then(createChat),
+    Promise.all([
+      secret("chat-identity-key", secrets),
+      Promise.resolve(parse(pipe(string("whatsapp id"), nonEmpty("whatsapp id")), env.WHATSAPP_PHONE_NUMBER_ID)),
+      secret("api-whatsapp-access-token", secrets),
+    ]).then(([key, from, token]) => createWhatsapp({ from, key, token })),
     secret("api-postgres-url", secrets).then((url) => drizzle(url, { schema })),
     secret("api-intercom-identity-key", secrets).then((key) => createIntercom(key)),
     Promise.all([secret("api-manteca-api-key", secrets), secret("manteca-api-url", secrets)]).then(([key, url]) =>

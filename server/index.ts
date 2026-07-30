@@ -23,7 +23,6 @@ import supervise, { own } from "./supervise";
 import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
-import createChat from "./utils/chat";
 import createIntercom from "./utils/intercom";
 import { closeQueue as closeMaturity, reminders, setup as setupMaturity } from "./utils/maturity";
 import createOnesignal from "./utils/onesignal";
@@ -37,6 +36,7 @@ import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createWhatsapp from "./utils/whatsapp";
 import createAllow from "./workers/allow/queue";
 import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
@@ -50,7 +50,11 @@ const bridge = createBridge(
   parse(pipe(string("bridge key"), nonEmpty("bridge key")), env.BRIDGE_API_KEY),
   parse(pipe(string("bridge url"), nonEmpty("bridge url")), env.BRIDGE_API_URL),
 );
-const chat = createChat(parse(pipe(string("chat"), nonEmpty("chat")), env.CHAT_IDENTITY_KEY));
+const chat = createWhatsapp({
+  from: parse(pipe(string("whatsapp id"), nonEmpty("whatsapp id")), env.WHATSAPP_PHONE_NUMBER_ID),
+  key: parse(pipe(string("chat"), nonEmpty("chat")), env.CHAT_IDENTITY_KEY),
+  token: parse(pipe(string("whatsapp token"), nonEmpty("whatsapp token")), env.WHATSAPP_ACCESS_TOKEN),
+});
 const intercom = createIntercom(parse(pipe(string("intercom"), nonEmpty("intercom")), env.INTERCOM_IDENTITY_KEY));
 const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
 const keeper = legacy("keeper"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith

@@ -19,7 +19,7 @@ const walletExtension = {};
 const mocks = {
   api: vi.fn<(config: Record<string, unknown>) => Hook>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
-  chat: vi.fn<(secret: string) => object>(),
+  chat: vi.fn<(config: { from: string; key: string; token: string }) => object>(),
   credit: vi.fn<(bullmq: object) => typeof credit>(),
   drizzle: vi.fn<() => typeof database>(),
   intercom: vi.fn<(key: string) => typeof intercom>(),
@@ -74,7 +74,7 @@ beforeEach(() => {
     ...(await importOriginal<typeof Supervise>()),
     default: mocks.supervise,
   }));
-  vi.doMock("../../utils/chat", () => ({ default: mocks.chat }));
+  vi.doMock("../../utils/whatsapp", () => ({ default: mocks.chat }));
   vi.doMock("../../utils/intercom", () => ({ default: mocks.intercom }));
   vi.doMock("../../utils/panda", () => ({ default: mocks.panda }));
   vi.doMock("../../utils/pax", () => ({ default: mocks.pax }));
@@ -102,6 +102,7 @@ describe("api bin", () => {
       "api-bridge-api-key",
       "bridge-api-url",
       "chat-identity-key",
+      "api-whatsapp-access-token",
       "api-postgres-url",
       "api-intercom-identity-key",
       "api-manteca-api-key",
@@ -119,6 +120,11 @@ describe("api bin", () => {
       "api-wallet-extension-secret",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.chat).toHaveBeenCalledExactlyOnceWith({
+      from: "whatsapp",
+      key: "chat-identity-key",
+      token: "api-whatsapp-access-token",
+    });
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith({
       authSecret: "api-auth-secret",
       bridge,

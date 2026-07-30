@@ -19,7 +19,6 @@ import createBetterAuth from "../utils/auth";
 import createCredential from "../utils/createCredential";
 
 import type * as schema from "../database/schema";
-import type createChat from "../utils/chat";
 import type createIntercom from "../utils/intercom";
 import type createPanda from "../utils/panda";
 import type createPax from "../utils/pax";
@@ -29,6 +28,7 @@ import type createManteca from "../utils/ramps/manteca";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
+import type createWhatsapp from "../utils/whatsapp";
 import type createCredit from "../workers/credit/queue";
 import type createSubscribe from "../workers/subscribe/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -53,7 +53,7 @@ export default function api({
 }: {
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
-  chat: ReturnType<typeof createChat>;
+  chat: ReturnType<typeof createWhatsapp>;
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;

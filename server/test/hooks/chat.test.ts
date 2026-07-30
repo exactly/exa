@@ -10,7 +10,10 @@ import type { Redis } from "ioredis";
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn<() => Promise<void>>(),
-  enqueue: vi.fn<(data: { contact?: string; from: string; id: string; text: string }) => Promise<void>>(),
+  enqueue:
+    vi.fn<
+      (data: { contact?: string; from: string; id: string; phoneNumberId: string; text: string }) => Promise<void>
+    >(),
   on: vi.fn<(event: string, listener: (error: unknown) => void) => void>(),
 }));
 
@@ -119,6 +122,7 @@ describe("chat hook", () => {
       contact: "John",
       from: "US.12345678",
       id: "whatsapp-1",
+      phoneNumberId: "321",
       text: "Hi!",
     });
     expect(captureException).not.toHaveBeenCalled();
@@ -190,6 +194,7 @@ describe("chat hook", () => {
       contact: "John",
       from: "US.12345678",
       id: "whatsapp-1",
+      phoneNumberId: "321",
       text: "Hi!\nHow are you?",
     });
   });
@@ -211,12 +216,14 @@ describe("chat hook", () => {
       contact: "John",
       from: "US.12345678",
       id: "whatsapp-1",
+      phoneNumberId: "321",
       text: "Hi!",
     });
     expect(mocks.enqueue).toHaveBeenCalledWith({
       contact: undefined,
       from: "US.87654321",
       id: "whatsapp-2",
+      phoneNumberId: "321",
       text: "Hola!", // cspell:ignore Hola
     });
   });
