@@ -29,6 +29,9 @@ catalog:
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
+  "@sentry/core": &sentry ^10.70.0
+  "@sentry/node": *sentry
+  "@sentry/profiling-node": *sentry
   tamagui: &tamagui ^1.144.4
   "@tamagui/animations-moti": *tamagui
   "@tamagui/babel-plugin": *tamagui
