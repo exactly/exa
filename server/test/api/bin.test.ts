@@ -39,6 +39,7 @@ describe("api bin", () => {
       "api-auth-secret",
       "api-bridge-api-key",
       "bridge-api-url",
+      "chat-identity-key",
       "api-intercom-identity-key",
       "api-manteca-api-key",
       "manteca-api-url",
@@ -55,12 +56,15 @@ describe("api bin", () => {
       "sardine-api-url",
       "api-segment-write-key",
       "api-wallet-extension-secret",
+      "api-whatsapp-access-token",
+      "whatsapp-phone-number-id",
     ]);
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith({
       alchemyKey: "api-alchemy-webhooks-key",
       authSecret: "api-auth-secret",
       bridgeKey: "api-bridge-api-key",
       bridgeUrl: "bridge-api-url",
+      chatKey: "chat-identity-key",
       intercomKey: "api-intercom-identity-key",
       mantecaKey: "api-manteca-api-key",
       mantecaUrl: "manteca-api-url",
@@ -77,6 +81,8 @@ describe("api bin", () => {
       sardineUrl: "sardine-api-url",
       segmentKey: "api-segment-write-key",
       walletExtensionSecret: "api-wallet-extension-secret",
+      whatsappFrom: "whatsapp-phone-number-id",
+      whatsappToken: "api-whatsapp-access-token",
     });
     expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("api", created);
     const response = await api.app.request("/");

@@ -51,6 +51,8 @@ const api = createApi({
   sardineUrl: parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
   segmentKey: parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY),
   walletExtensionSecret: parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
+  whatsappFrom: parse(pipe(string("whatsapp from"), nonEmpty("whatsapp from")), env.WHATSAPP_PHONE_NUMBER_ID),
+  whatsappToken: parse(pipe(string("whatsapp token"), nonEmpty("whatsapp token")), env.WHATSAPP_ACCESS_TOKEN),
 });
 
 const activity = createActivity({
