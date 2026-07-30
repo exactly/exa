@@ -4,44 +4,38 @@ import { assert, describe, expect, it } from "vitest";
 
 import createChat from "../../utils/chat";
 
+const chat = createChat({ from: "sender", key: "chat", token: "whatsapp" });
+
 const audience = "chat-whatsapp";
 const issuer = "chat-webhook";
 const key = createHash("sha256").update("chat").digest();
-const { decode, encode } = createChat("chat");
 
 describe("token", () => {
   it("round-trips a subject with the default expiration", async () => {
-    const token = await encode("5491123456789");
+    const token = await chat.encode("5491123456789");
     const { payload } = await jwtDecrypt(token, key);
     assert(payload.iat);
 
     expect(payload.exp).toBe(payload.iat + 3600);
     expect(payload.aud).toBe(audience);
     expect(payload.iss).toBe(issuer);
-    await expect(decode(token)).resolves.toBe("5491123456789");
+    await expect(chat.decode(token)).resolves.toBe("5491123456789");
   });
 
   it("honors a custom expiration", async () => {
-    const token = await encode("5491123456789", "2h");
+    const token = await chat.encode("5491123456789", "2h");
     const { payload } = await jwtDecrypt(token, key);
     assert(payload.iat);
 
     expect(payload.exp).toBe(payload.iat + 7200);
-    await expect(decode(token)).resolves.toBe("5491123456789");
+    await expect(chat.decode(token)).resolves.toBe("5491123456789");
   });
 
   it("is opaque and rejects a token from a different secret", async () => {
-    const token = await encode("5491123456789");
+    const token = await chat.encode("5491123456789");
     expect(token).not.toContain("5491123456789");
 
-    const forged = await new EncryptJWT({})
-      .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
-      .setSubject("5491123456789")
-      .setAudience(audience)
-      .setIssuer(issuer)
-      .setExpirationTime("1h")
-      .encrypt(createHash("sha256").update("other").digest());
-    await expect(decode(forged)).rejects.toThrow();
+    await expect(createChat({ from: "sender", key: "other", token: "whatsapp" }).decode(token)).rejects.toThrow();
   });
 
   it("rejects a mismatched audience", async () => {
@@ -53,7 +47,7 @@ describe("token", () => {
       .setExpirationTime("1h")
       .encrypt(key);
 
-    await expect(decode(token)).rejects.toThrow('unexpected "aud" claim value');
+    await expect(chat.decode(token)).rejects.toThrow('unexpected "aud" claim value');
   });
 
   it("rejects a mismatched issuer", async () => {
@@ -65,13 +59,13 @@ describe("token", () => {
       .setExpirationTime("1h")
       .encrypt(key);
 
-    await expect(decode(token)).rejects.toThrow('unexpected "iss" claim value');
+    await expect(chat.decode(token)).rejects.toThrow('unexpected "iss" claim value');
   });
 
   it("rejects an expired token", async () => {
-    const token = await encode("5491123456789", Math.floor(Date.now() / 1000) - 1);
+    const token = await chat.encode("5491123456789", Math.floor(Date.now() / 1000) - 1);
 
-    await expect(decode(token)).rejects.toThrow('"exp" claim timestamp check failed');
+    await expect(chat.decode(token)).rejects.toThrow('"exp" claim timestamp check failed');
   });
 
   it("rejects a token without a subject", async () => {
@@ -82,7 +76,7 @@ describe("token", () => {
       .setExpirationTime("1h")
       .encrypt(key);
 
-    await expect(decode(token)).rejects.toThrow("missing subject");
+    await expect(chat.decode(token)).rejects.toThrow("missing subject");
   });
 
   it("rejects a token with a disallowed encryption algorithm", async () => {
@@ -94,6 +88,6 @@ describe("token", () => {
       .setExpirationTime("1h")
       .encrypt(key);
 
-    await expect(decode(token)).rejects.toThrow(/not allowed/);
+    await expect(chat.decode(token)).rejects.toThrow(/not allowed/);
   });
 });

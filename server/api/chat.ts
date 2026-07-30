@@ -7,11 +7,11 @@ import { randomInt } from "node:crypto";
 import { description, object, parse, pipe, string, title, union } from "valibot";
 
 import { credentials } from "../database/schema";
-import createChat, { sendCode } from "../utils/chat";
 import validatorHook from "../utils/validatorHook";
 
 import type db from "../database";
 import type { Auth } from "../middleware/auth";
+import type createChat from "../utils/chat";
 import type { Redis } from "ioredis";
 
 const token = object({
@@ -20,16 +20,15 @@ const token = object({
 
 export default function route({
   auth,
-  chatKey,
+  chat,
   database,
   redis,
 }: {
   auth: Auth;
-  chatKey: string;
+  chat: ReturnType<typeof createChat>;
   database: typeof db;
   redis: Redis;
 }) {
-  const { decode } = createChat(chatKey);
   return new Hono()
     .get(
       "/",
@@ -46,23 +45,20 @@ export default function route({
       vValidator("query", token, validatorHook({ code: "bad token" })),
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
-        const whatsappId = await decode(c.req.valid("query").token).catch((error: unknown) => {
+        const whatsappId = await chat.decode(c.req.valid("query").token).catch((error: unknown) => {
           captureException(error, { level: "warning" });
           return null;
         });
         if (!whatsappId) return c.json({ code: "bad token" }, 400);
-        return database.query.credentials
-          .findMany({
-            columns: { id: true, whatsappId: true },
-            where: or(eq(credentials.id, credentialId), eq(credentials.whatsappId, whatsappId)),
-          })
-          .then((result) => {
-            if (result.some(({ id }) => id !== credentialId)) return c.json({ code: "whatsapp taken" }, 400);
-            const current = result.find(({ id }) => id === credentialId);
-            if (current?.whatsappId && current.whatsappId !== whatsappId)
-              return c.json({ code: "whatsapp associated" }, 400);
-            return c.json({ code: "available" }, 200);
-          });
+        const result = await database.query.credentials.findMany({
+          columns: { id: true, whatsappId: true },
+          where: or(eq(credentials.id, credentialId), eq(credentials.whatsappId, whatsappId)),
+        });
+        if (result.some(({ id }) => id !== credentialId)) return c.json({ code: "whatsapp taken" }, 400);
+        const current = result.find(({ id }) => id === credentialId);
+        if (current?.whatsappId && current.whatsappId !== whatsappId)
+          return c.json({ code: "whatsapp associated" }, 400);
+        return c.json({ code: "available" }, 200);
       },
     )
     .post(
@@ -91,7 +87,7 @@ export default function route({
         const { credentialId } = c.req.valid("cookie");
         const payload = c.req.valid("json");
         if ("token" in payload) {
-          const whatsappId = await decode(payload.token).catch(() => null);
+          const whatsappId = await chat.decode(payload.token).catch(() => null);
           if (!whatsappId) return c.json({ code: "bad token" }, 400);
           if (!(await redis.set(`chat:cooldown:${whatsappId}`, "1", "PX", 60_000, "NX"))) {
             // cspell:ignore cooldown
@@ -99,7 +95,7 @@ export default function route({
           }
           const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
           await redis.set(`chat:${credentialId}`, JSON.stringify({ whatsappId, code }), "PX", 10 * 60_000);
-          await sendCode(whatsappId, code);
+          await chat.send(whatsappId, `${code} is your Exa validation code. It expires in 10 minutes.`);
           return c.json({ code: "sent" }, 200);
         }
         const pending = await redis.getdel(`chat:${credentialId}`);

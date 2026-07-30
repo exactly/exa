@@ -26,6 +26,8 @@ supervise(
     secret("sardine-api-url"),
     secret("api-segment-write-key"),
     secret("api-wallet-extension-secret"),
+    secret("api-whatsapp-access-token"),
+    secret("whatsapp-phone-number-id"),
   ]).then(
     ([
       alchemyKey,
@@ -49,6 +51,8 @@ supervise(
       sardineUrl,
       segmentKey,
       walletExtensionSecret,
+      whatsappToken,
+      whatsappFrom,
     ]) =>
       api({
         alchemyKey,
@@ -72,6 +76,8 @@ supervise(
         sardineUrl,
         segmentKey,
         walletExtensionSecret,
+        whatsappFrom,
+        whatsappToken,
       }),
   ),
 );

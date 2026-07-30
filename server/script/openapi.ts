@@ -29,6 +29,8 @@ import("../api")
       sardineUrl: "https://api.sardine.ai",
       segmentKey: "segment",
       walletExtensionSecret: zeroHash,
+      whatsappFrom: "whatsapp",
+      whatsappToken: "whatsapp",
     });
     const spec = await generateSpecs(handle.app, {
       documentation: {

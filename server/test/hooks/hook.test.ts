@@ -26,4 +26,11 @@ describe("hook", () => {
   ])("loads the %s factory without environment variables", async (_, load) => {
     await expect(load().then(({ default: hook }) => hook)).resolves.toBeTypeOf("function");
   });
+
+  it("loads the chat factory with only the persona env", async () => {
+    vi.stubEnv("PERSONA_API_KEY", "persona");
+    vi.stubEnv("PERSONA_URL", "https://persona.test");
+    vi.stubEnv("PERSONA_WEBHOOK_SECRET", "persona");
+    await expect(import("../../hooks/chat").then(({ default: hook }) => hook)).resolves.toBeTypeOf("function");
+  });
 });
