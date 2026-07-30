@@ -134,7 +134,7 @@
     "@nx/eslint": "22.6.2",
     "@nx/eslint-plugin": "22.6.2",
     "@nx/js": "22.6.2",
-    "@spotlightjs/spotlight": "^4.11.3",
+    "@spotlightjs/spotlight": "4.11.3",
     "@svgr/core": "^8.1.0",
     "@tamagui/babel-plugin": "catalog:",
     "@types/babel__core": "^7.20.5",
@@ -170,6 +170,9 @@
     "overrides": {
       "@hono/node-server": "catalog:",
       "@opentelemetry/core@2": "^2.8.0",
+      "@sentry/core@10": "catalog:",
+      "@sentry/node@10": "catalog:",
+      "@sentry/profiling-node@10": "catalog:",
       "@wagmi/core": "catalog:",
       "abitype>zod": "^4.0.0",
       "comlink": "$comlink",

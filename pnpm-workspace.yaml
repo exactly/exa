@@ -17,6 +17,9 @@ catalog:
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
   "@hono/node-server": ^2.0.11
+  "@sentry/core": &sentry ^10.68.0
+  "@sentry/node": *sentry
+  "@sentry/profiling-node": *sentry
   tamagui: &tamagui ^1.144.4
   "@tamagui/animations-moti": *tamagui
   "@tamagui/babel-plugin": *tamagui
