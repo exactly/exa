@@ -15,6 +15,7 @@ import database from "./database";
 import activity from "./hooks/activity";
 import block from "./hooks/block";
 import bridge from "./hooks/bridge";
+import chat from "./hooks/chat";
 import manteca from "./hooks/manteca";
 import panda from "./hooks/panda";
 import persona from "./hooks/persona";
@@ -38,6 +39,12 @@ const activityHook = activity({
   postgresUrl: parse(string(), process.env.POSTGRES_URL),
   redisUrl: parse(string(), process.env.REDIS_URL),
 });
+const chatHook = chat({
+  googleKey: parse(string(), process.env.GOOGLE_API_KEY),
+  whatsappKey: parse(string(), process.env.WHATSAPP_API_KEY),
+  whatsappSecret: process.env.WHATSAPP_WEBHOOK_SECRET,
+  whatsappUrl: process.env.WHATSAPP_API_BASE_URL,
+});
 
 const app = new Hono();
 app.use(trimTrailingSlash());
@@ -45,6 +52,7 @@ app.route("/api", api);
 app.route("/hooks/activity", activityHook.app);
 app.route("/hooks/block", block);
 app.route("/hooks/bridge", bridge);
+app.route("/hooks/chat", chatHook.app);
 app.route("/hooks/manteca", manteca);
 app.route("/hooks/panda", panda);
 app.route("/hooks/persona", persona);
@@ -298,12 +306,13 @@ export default app;
 export const close = supervise(
   "server",
   Promise.resolve({
-    ready: Promise.all([activityHook.ready, reminders().catch(reminders)]),
+    ready: Promise.all([activityHook.ready, chatHook.ready, reminders().catch(reminders)]),
     async close() {
       const services = await Promise.allSettled([
         closeSegment(),
         database.$client.end(),
         activityHook.close(),
+        chatHook.close(),
         Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closeRefund(), closeSubscribe()])
           .then((queues) => {
             if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");

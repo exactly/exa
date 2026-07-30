@@ -28,6 +28,7 @@
       "types": "./api/*.ts"
     },
     "./hooks/activity": "./dist/hooks/activity/bin.cjs",
+    "./hooks/chat": "./dist/hooks/chat/bin.cjs",
     "./workers/*": "./dist/workers/*/bin.cjs"
   },
   "files": [

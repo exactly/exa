@@ -22,6 +22,7 @@ export default defineConfig({
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",
+      GOOGLE_API_KEY: "google",
       INTERCOM_IDENTITY_KEY: "a9cBeTfEtGPSQ58REZP35Bx00ofajvStEc8TTuBtSmk",
       ISSUER_PRIVATE_KEY: padHex("0x420"),
       MANTECA_API_URL: "https://manteca.test",
@@ -68,6 +69,7 @@ YQIDAQAB
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
       WALLET_EXTENSION_SECRET: "wallet-extension-secret-32-bytes",
+      WHATSAPP_API_KEY: "whatsapp",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
     ...(env.NODE_ENV === "e2e" && {

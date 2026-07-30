@@ -5,7 +5,8 @@ const stack = require("@exactly/common/stack");
 
 const development = stack === "localhost";
 
-init({
+/** @type {import("@sentry/node").NodeOptions} */
+const config = {
   dsn: process.env.SENTRY_DSN,
   release: require("./generated/release"),
   environment: stack,
@@ -45,4 +46,7 @@ init({
   },
   beforeSendTransaction: (transaction) => (transaction.extra?.["exa.ignore"] ? null : transaction),
   spotlight: development,
-});
+};
+init(config);
+
+module.exports = { config };

@@ -16,4 +16,8 @@ describe("hook", () => {
   it("loads the activity factory without process.env", async () => {
     await expect(import("../../hooks/activity").then(({ default: hook }) => hook)).resolves.toBeTypeOf("function");
   });
+
+  it("loads the chat factory without process.env", async () => {
+    await expect(import("../../hooks/chat").then(({ default: hook }) => hook)).resolves.toBeTypeOf("function");
+  });
 });
