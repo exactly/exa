@@ -8,6 +8,7 @@ auditConfig:
     - GHSA-5p4m-2wfm-xmqj # cspell:ignore xmqj
     - GHSA-6g55-p6wh-862q
     - GHSA-848j-6mx2-7j84
+    - GHSA-866g-f22w-33x8
     - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
     - GHSA-h67p-54hq-rp68
     - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
@@ -52,6 +53,7 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude: ["@mastra/*"]
 packages:
   - "."
   - common
