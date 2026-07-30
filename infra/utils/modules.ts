@@ -34,6 +34,17 @@ export default define({
       secrets: ["bridge-api-key", "onesignal-api-key", "persona-api-key", "postgres-url", "segment-write-key"],
       shared: ["bridge-api-url", "persona-api-url"],
     },
+    chat: {
+      secrets: [
+        "anthropic-api-key",
+        "postgres-url",
+        "whatsapp-access-token",
+        "whatsapp-app-secret",
+        "whatsapp-phone-number-id",
+        "whatsapp-verify-token",
+      ],
+      shared: ["chat-identity-key"],
+    },
     manteca: {
       secrets: ["manteca-api-key", "onesignal-api-key", "postgres-url", "segment-write-key", "webhooks-key"],
       shared: ["manteca-api-url"],

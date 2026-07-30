@@ -20,6 +20,7 @@ import createOrg from "../middleware/org";
 import createAlchemy from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import createBetterAuth from "../utils/auth";
+import createChat from "../utils/chat";
 import createCredential from "../utils/createCredential";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
@@ -55,6 +56,8 @@ export default function api({
   sardineUrl,
   segmentKey,
   walletExtensionSecret,
+  whatsappFrom,
+  whatsappToken,
 }: {
   alchemyKey: string;
   authSecret: string;
@@ -77,6 +80,8 @@ export default function api({
   sardineUrl: string;
   segmentKey: string;
   walletExtensionSecret: string;
+  whatsappFrom: string;
+  whatsappToken: string;
 }) {
   const database = drizzle(postgresUrl, { schema });
   const redis = new Redis(redisUrl);
@@ -110,7 +115,15 @@ export default function api({
     )
     .route("/activity", activity({ auth, database }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
-    .route("/chat", chat({ auth, chatKey, database, redis }))
+    .route(
+      "/chat",
+      chat({
+        auth,
+        chat: createChat({ from: whatsappFrom, key: chatKey, token: whatsappToken }),
+        database,
+        redis,
+      }),
+    )
     .route("/kyc", kyc({ auth, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))

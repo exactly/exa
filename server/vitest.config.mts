@@ -16,6 +16,7 @@ export default defineConfig({
       ALCHEMY_ACTIVITY_KEY: "activity",
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
+      ANTHROPIC_API_KEY: "anthropic",
       AUTH_SECRET: "auth",
       CHAT_IDENTITY_KEY: "chat",
       BRIDGE_API_KEY: "bridge",
@@ -67,6 +68,8 @@ YQIDAQAB
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
       WALLET_EXTENSION_SECRET: "wallet-extension-secret-32-bytes",
+      WHATSAPP_ACCESS_TOKEN: "whatsapp",
+      WHATSAPP_PHONE_NUMBER_ID: "whatsapp",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
     ...(env.NODE_ENV === "e2e" && {
