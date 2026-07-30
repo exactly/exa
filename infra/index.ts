@@ -14,6 +14,7 @@ const secretManager = new projects.Service("secretmanager", { service: "secretma
 
 const keyRing = new kms.KeyRing("signers", { location, name: `${stack}-signers` }, { dependsOn: cloudKms });
 const allow = serviceaccount.getAccountOutput({ accountId: `${stack}-allow` });
+const chat = serviceaccount.getAccountOutput({ accountId: `${stack}-chat` });
 const credit = serviceaccount.getAccountOutput({ accountId: `${stack}-credit` });
 const poke = serviceaccount.getAccountOutput({ accountId: `${stack}-poke` });
 const refund = serviceaccount.getAccountOutput({ accountId: `${stack}-refund` });
@@ -30,6 +31,9 @@ const secrets = (<const S extends readonly string[]>(names: S) =>
     ]),
   ) as Record<S[number], secretmanager.Secret>)([
   "account-alchemy-webhooks-key",
+  "chat-google-api-key",
+  "chat-whatsapp-api-key",
+  "chat-whatsapp-webhook-secret",
   "credit-onesignal-api-key",
   "credit-postgres-url",
   "panda-api-url",
@@ -109,6 +113,55 @@ new cloudrunv2.WorkerPool(
     ],
   },
 );
+
+new cloudrunv2.ServiceIamMember("chat-invoker", {
+  location,
+  member: "allUsers",
+  role: "roles/run.invoker",
+  name: new cloudrunv2.Service(
+    "chat",
+    {
+      location,
+      name: `${stack}-chat`,
+      template: {
+        serviceAccount: chat.email,
+        scaling: { maxInstanceCount: config.getNumber("chatInstances") ?? 1 },
+        containers: [
+          {
+            image: serverImage,
+            resources: config.getObject("chatResources"),
+            args: ["dist/hooks/chat/bin.cjs"],
+            ports: { containerPort: 3000 },
+            envs: [
+              { name: "APP_STACK", value: stack },
+              { name: "DEBUG", value: "exa:*" },
+              { name: "NODE_ENV", value: "production" },
+              {
+                name: "SENTRY_DSN",
+                valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } },
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      dependsOn: [
+        run,
+        ...(
+          ["chat-google-api-key", "chat-whatsapp-api-key", "chat-whatsapp-webhook-secret", "sentry-dsn"] as const
+        ).map(
+          (secret) =>
+            new secretmanager.SecretIamMember(`chat-${secret}-access`, {
+              member: interpolate`serviceAccount:${chat.email}`,
+              role: "roles/secretmanager.secretAccessor",
+              secretId: secrets[secret].id,
+            }),
+        ),
+      ],
+    },
+  ).name,
+});
 
 new cloudrunv2.WorkerPool(
   "credit",

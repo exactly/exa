@@ -117,7 +117,7 @@ const selected = await automation.LocalWorkspace.selectStack(
             },
             { provider },
           );
-          for (const name of ["allow", "credit", "poke", "refund", "subscribe"]) {
+          for (const name of ["allow", "chat", "credit", "poke", "refund", "subscribe"]) {
             const identity = `${stack.name}-${name}`;
             new serviceaccount.IAMMember(
               identity,
