@@ -1503,7 +1503,7 @@ async function publish(payload: v.InferOutput<typeof Payload>, receipt?: Transac
               timestamp,
               body: {
                 ...payload.body,
-                status: { active: "ACTIVE", locked: "FROZEN", canceled: "DELETED", notActivated: "INACTIVE" }[
+                status: { active: "ACTIVE", locked: "LOCKED", canceled: "DELETED", notActivated: "INACTIVE" }[
                   payload.body.status
                 ],
               },
@@ -1634,7 +1634,7 @@ const Webhook = v.variant("resource", [
         amount: v.number(),
         frequency: v.picklist(["per24HourPeriod", "per7DayPeriod", "per30DayPeriod", "perYearPeriod"]),
       }),
-      status: v.picklist(["ACTIVE", "FROZEN", "DELETED", "INACTIVE"]),
+      status: v.picklist(["ACTIVE", "LOCKED", "DELETED", "INACTIVE"]),
       tokenWallets: v.nullish(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
     }),
   }),
