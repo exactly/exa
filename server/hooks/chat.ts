@@ -76,6 +76,7 @@ export default function chat({
                 id: sender.id,
                 contact: sender.contact,
                 from: sender.from,
+                phoneNumberId: sender.phoneNumberId,
                 text: [sender, ...tail].map(({ text }) => text).join("\n"),
               })
               .catch((error: unknown) => {
