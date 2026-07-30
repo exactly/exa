@@ -129,10 +129,18 @@ describe("refund worker", () => {
     vi.restoreAllMocks();
     mocks.exaSend.mockReset().mockResolvedValue({});
     mocks.getWallet.mockReset().mockResolvedValue({ account: { address: account }, exaSend: mocks.exaSend });
-    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) =>
       Promise.resolve(
         Response.json({
-          parameters: [account, account, "1000000", refunderAddress, 1_700_000_000, [1, 2, 3], "0x1234"],
+          parameters: [
+            account,
+            account,
+            String(BigInt(new URL(url instanceof Request ? url.url : url).searchParams.get("amount") ?? 0) * 10_000n),
+            refunderAddress,
+            1_700_000_000,
+            [1, 2, 3],
+            "0x1234",
+          ],
         }),
       ),
     );
@@ -148,7 +156,7 @@ describe("refund worker", () => {
     expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-refunder`);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining(
-        `/issuing/tenants/signatures/withdrawals?token=0x29684075a3C86ea11D9964BcAf0F956e801396bD&amount=1000000&recipientAddress=${refunderAddress}&adminAddress=${account}`,
+        `/issuing/tenants/signatures/withdrawals?token=0x29684075a3C86ea11D9964BcAf0F956e801396bD&amount=100&recipientAddress=${refunderAddress}&adminAddress=${account}`,
       ),
       expect.objectContaining({ headers: expect.objectContaining({ "Api-Key": "panda" }) as unknown, method: "GET" }),
     );
@@ -199,6 +207,27 @@ describe("refund worker", () => {
         recipient: refunderAddress,
       },
     });
+  });
+
+  it("captures panda withdrawal rejections", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("panda error", { status: 502 }));
+
+    await expect(jobDone(5_000_000n)).rejects.toThrow("panda error");
+
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Panda502", message: "panda error", status: 502, cause: "panda error" }),
+      {
+        level: "error",
+        tags: { queue: "refund", job: "refund" },
+        extra: {
+          amount: "5000000",
+          attempts: expect.any(Number) as number,
+          id: expect.any(String) as string,
+          recipient: refunderAddress,
+        },
+      },
+    );
   });
 
   it("continues sentry traces", async () => {

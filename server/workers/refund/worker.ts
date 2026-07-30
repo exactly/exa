@@ -35,7 +35,7 @@ export default function worker({
     async process(job) {
       const wallet = await getWallet(`${stack}-refunder`);
       const response = await fetch(
-        `${pandaUrl}/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${job.data.amount}&recipientAddress=${refunderAddress}&adminAddress=${wallet.account.address}&chainId=${chain.id}`,
+        `${pandaUrl}/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${BigInt(job.data.amount) / 10_000n}&recipientAddress=${refunderAddress}&adminAddress=${wallet.account.address}&chainId=${chain.id}`,
         {
           headers: { "Api-Key": pandaKey, accept: "application/json", "content-type": "application/json" },
           method: "GET",
