@@ -2,12 +2,15 @@ import "../mocks/sentry";
 
 import { Agent } from "@mastra/core/agent";
 import { RequestContext } from "@mastra/core/request-context";
+import { RedisStore } from "@mastra/redis";
 import { captureException } from "@sentry/node";
 import { Queue, QueueEvents, UnrecoverableError } from "bullmq";
-import { Redis } from "ioredis";
+import { eq } from "drizzle-orm";
 import { parse, string } from "valibot";
+import { zeroAddress } from "viem";
 import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import database, { credentials } from "../../database";
 import appOrigin from "../../utils/appOrigin";
 import createWhatsapp from "../../utils/whatsapp";
 import { attempts } from "../../workers/chat/job";
@@ -25,15 +28,11 @@ const bullmq = connect(redisUrl);
 const queue = new Queue<Job, void>("chat", { connection: bullmq });
 const events = new QueueEvents("chat", { connection: bullmq });
 const publisher = createChat(bullmq);
-const { agent, reply } = chat("anthropic");
-const whatsapp = createWhatsapp({ from: "321", key: "chat", token: "token" });
-const welcome = `Hi, welcome to Exa!
-With Exa you choose whether to pay for your purchases instantly with your balance or in fixed-rate installments, without selling your digital assets.
-You also get access to a dollar account in the US, all 100% free.
-Create your account and activate your card here: ${appOrigin}`;
-const help = `Hi again. Almost everything you need to know about the Exa Card is in our help center: credit limit, identity verification, billing address, installments and payments.
-Search for your topic here: https://help.exactly.app
-If you don't find the answer there, write to us from the support chat inside the Exa app: ${appOrigin}/?support`;
+const whatsapp = createWhatsapp({ from: "321", key: "chat", token: "whatsapp" });
+const store = new RedisStore({ id: "chat-worker", connectionString: redisUrl });
+const { agent, reply } = chat("anthropic", whatsapp, store);
+const me = "US.12345678";
+const credentialId = "chat-worker";
 
 let worker: ReturnType<typeof createChatWorker>;
 let connection: ReturnType<typeof connect>;
@@ -41,6 +40,7 @@ let connection: ReturnType<typeof connect>;
 afterAll(async () => {
   await Promise.all([publisher.close(), queue.close(), events.close()]);
   await bullmq.quit();
+  await database.delete(credentials).where(eq(credentials.id, credentialId));
 });
 
 afterEach(() => {
@@ -54,76 +54,122 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await queue.drain(true);
-  await bullmq.del("whatsapp:seen:US.12345678");
+  await database.delete(credentials).where(eq(credentials.id, credentialId));
 });
 
-describe("chat composition", () => {
-  it("offers only the welcome to someone writing for the first time", async () => {
-    await expect(listTools(false)).resolves.toStrictEqual(["welcome"]);
+describe("chat", () => {
+  it("hides the account tools until the number is associated", async () => {
+    await expect(agent.listTools({ requestContext: current() }).then(Object.keys)).resolves.toStrictEqual([
+      "associate",
+      "support",
+    ]);
+    await expect(
+      agent.listTools({ requestContext: current({ credentialId: "credential" }) }).then(Object.keys),
+    ).resolves.toStrictEqual(["associate", "verification", "card", "transfers", "support"]);
   });
 
-  it("offers only the help to someone who wrote before", async () => {
-    await expect(listTools(true)).resolves.toStrictEqual(["help"]);
+  it("tells the model the number is not associated", async () => {
+    const instructions = await agent.getInstructions({ requestContext: current() });
+
+    expect(instructions).toContain("This number is not associated with any Exa account.");
+    expect(instructions).not.toContain("This number is associated with an Exa account.");
   });
 
-  it("asks the model for the script the redis key chose", async () => {
-    expect(await agent.getInstructions({ requestContext: requestContext(false) })).toContain("calling welcome");
-    expect(await agent.getInstructions({ requestContext: requestContext(true) })).toContain("calling help");
+  it("tells the model the account behind an associated number", async () => {
+    const instructions = await agent.getInstructions({
+      requestContext: current({ account: "0x69", credentialId: "credential" }),
+    });
+
+    expect(instructions).toContain("This number is associated with an Exa account.");
+    expect(instructions).toContain("The account is 0x69.");
+    expect(instructions).not.toContain("This number is not associated with any Exa account.");
   });
 
-  it.each(["en-US", "EN", "EN-US"])("welcomes in %s without translating", async (language) => {
-    const translate = vi.spyOn(Agent.prototype, "generate");
-    await expect(execute(false, language)).resolves.toStrictEqual({ text: welcome });
-    expect(translate).not.toHaveBeenCalled();
+  it.each(["en", "en-US", "EN", "EN-US"])(
+    "composes an english sign-in link for %s without translating",
+    async (language) => {
+      const translate = vi.spyOn(Agent.prototype, "generate");
+      const { guidance, link } = await execute("associate", language);
+      const [url, close] = link.split("\n\n");
+
+      expect(guidance).toContain("the link is appended to your reply for you");
+      expect(url).toMatch(`${appOrigin}/whatsapp?token=`);
+      expect(close).toContain("Sign in and follow the steps.");
+      await expect(whatsapp.decode(new URL(url ?? "").searchParams.get("token") ?? "")).resolves.toBe(me);
+      expect(translate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("offers to move the number when it already has an account", async () => {
+    const { link } = await execute("associate", "en", { credentialId: "credential" });
+
+    expect(link).toContain("this number moves to whichever you use");
+    expect(link).not.toContain("Sign in and follow the steps.");
   });
 
-  it("sends the help center and support links in english", async () => {
-    const translate = vi.spyOn(Agent.prototype, "generate");
-    await expect(execute(true, "en")).resolves.toStrictEqual({ text: help });
-    expect(translate).not.toHaveBeenCalled();
-  });
-
-  it("translates every block into the language the person wrote in", async () => {
+  it("translates the link copy into the language the person wrote in", async () => {
     const translate = vi
       .spyOn(Agent.prototype, "generate")
-      .mockResolvedValueOnce({ text: "  ¡Hola de nuevo!  " } as never) // cspell:ignore Hola nuevo
-      .mockResolvedValueOnce({ text: "Escribinos por soporte:" } as never); // cspell:ignore Escribinos soporte
-    await expect(execute(true, "es-AR")).resolves.toStrictEqual({
-      text: `¡Hola de nuevo! https://help.exactly.app\nEscribinos por soporte: ${appOrigin}/?support`, // cspell:ignore Hola nuevo Escribinos soporte
-    });
-    expect(translate).toHaveBeenCalledTimes(2);
-    expect(translate).toHaveBeenCalledWith(expect.stringContaining("Translate to es-AR:") as never);
+      .mockResolvedValue({ text: "  Iniciá sesión y seguí los pasos.  " } as never); // cspell:ignore Iniciá sesión seguí pasos
+    const { link } = await execute("associate", "es-AR");
+
+    expect(link).toContain("Iniciá sesión y seguí los pasos."); // cspell:ignore Iniciá sesión seguí pasos
+    expect(link).not.toContain("Sign in and follow the steps.");
+    expect(translate).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("Translate to es-AR:") as never);
   });
 
-  it("replies with what the script composed", async () => {
+  it("hands off to the app with an introduction and no token", async () => {
+    const associated = { credentialId: "credential" };
+
+    for (const tool of ["verification", "card", "transfers"] as const) {
+      await expect(execute(tool, "en", associated).then(({ link }) => link)).resolves.toBe(
+        `You can continue this in the app.\n${appOrigin}`,
+      );
+    }
+  });
+
+  it("points at support when there is nothing to introduce", async () => {
+    await expect(execute("support").then(({ link }) => link)).resolves.toBe(`${appOrigin}/?support`);
+  });
+
+  it("appends the last link to the last thing the model wrote", async () => {
     const generate = vi.spyOn(Agent.prototype, "generate").mockResolvedValue({
-      toolResults: [{ payload: { result: { guidance: "nothing" } } }, { payload: { result: { text: "hola!" } } }], // cspell:ignore hola
+      steps: [{ text: "on it" }, { text: "   " }, { text: "  here you go  " }],
+      toolResults: [
+        { payload: { result: { guidance: "no link" } } },
+        { payload: { result: { guidance: "first", link: "https://first.test" } } },
+        { payload: { result: { guidance: "last", link: "https://last.test" } } },
+      ],
     } as never);
-    await expect(reply("hello", { requestContext: requestContext(false) }).then(({ text }) => text)).resolves.toBe(
-      "hola!", // cspell:ignore hola
-    );
-    expect(generate).toHaveBeenCalledExactlyOnceWith("hello", {
-      requestContext: requestContext(false),
-      maxSteps: 1,
-      toolChoice: "required",
-    });
+    const options = { memory: { resource: me, thread: `sender/${me}` } };
+
+    await expect(reply("hi", options).then(({ text }) => text)).resolves.toBe("here you go\n\nhttps://last.test");
+    expect(generate).toHaveBeenCalledExactlyOnceWith("hi", options);
   });
 
-  it("fails instead of replying with nothing when no script was composed", async () => {
-    vi.spyOn(Agent.prototype, "generate").mockResolvedValue({ toolResults: [] } as never);
-    await expect(reply("hi")).rejects.toThrow("no script composed");
+  it("fails instead of replying with nothing when the model neither wrote nor called a tool", async () => {
+    vi.spyOn(Agent.prototype, "generate").mockResolvedValue({ steps: [{ text: " " }], toolResults: [] } as never);
+
+    await expect(reply("hi")).rejects.toThrow("no reply composed");
   });
 });
 
 describe("chat queue", () => {
   it("publishes a retryable job", async () => {
-    await publisher.enqueue({ contact: "John", from: "US.12345678", id: "whatsapp-queue", text: "Hi!" });
+    await publisher.enqueue({
+      contact: "John",
+      from: me,
+      id: "whatsapp-queue",
+      phoneNumberId: "321",
+      text: "Hi!",
+    });
     const job = await queue.getJob("whatsapp-queue");
     if (!job) throw new Error("job not found");
     expect(job.name).toBe("chat");
     expect(job.data).toStrictEqual({
       contact: "John",
-      from: "US.12345678",
+      from: me,
+      phoneNumberId: "321",
       sentryBaggage: expect.any(String) as string,
       sentryTrace: expect.any(String) as string,
       text: "Hi!",
@@ -141,80 +187,93 @@ describe("chat queue", () => {
   it("propagates queue failures", async () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
-    await expect(publisher.enqueue({ from: "US.12345678", id: "whatsapp-failure", text: "Hi!" })).rejects.toThrow(
-      error,
-    );
+    await expect(
+      publisher.enqueue({ from: me, id: "whatsapp-failure", phoneNumberId: "321", text: "Hi!" }),
+    ).rejects.toThrow(error);
   });
 });
 
 describe("chat worker", () => {
   afterAll(async () => {
     await worker.close();
+    await store.close();
     await connection.quit();
   });
 
   beforeAll(async () => {
     connection = connect(redisUrl);
-    worker = createChatWorker({
-      anthropicKey: "anthropic",
-      bullmq: connection,
-      whatsapp,
-    });
+    worker = createChatWorker({ anthropicKey: "anthropic", bullmq: connection, database, store, whatsapp });
     await worker.ready;
   });
 
-  it("replies to an unseen sender and records the message", async () => {
-    const generate = vi
-      .spyOn(Agent.prototype, "generate")
-      .mockResolvedValue({ toolResults: [{ payload: { result: { text: "sure!" } } }] } as never);
+  it("replies with an unassociated sender's current situation and persistent thread", async () => {
+    const generate = generated("sure!");
     const send = vi.spyOn(whatsapp, "send").mockResolvedValue();
+
     await jobFinished("whatsapp-new");
-    expect(generate).toHaveBeenCalledExactlyOnceWith("Hi!", options(false));
-    expect(send).toHaveBeenCalledExactlyOnceWith("US.12345678", "sure!");
-    await expect(bullmq.get("whatsapp:seen:US.12345678")).resolves.toBe("whatsapp-new");
+
+    expect(generate).toHaveBeenCalledExactlyOnceWith("Hi!", {
+      memory: { resource: me, thread: `321/${me}` },
+      requestContext: expect.any(RequestContext) as RequestContext,
+    });
+    expect(situation(generate).get("credentialId")).toBeUndefined();
+    expect(situation(generate).get("whatsappId")).toBe(me);
+    expect(send).toHaveBeenCalledExactlyOnceWith(me, "sure!");
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("uses the help script for a sender who wrote before", async () => {
-    await bullmq.set("whatsapp:seen:US.12345678", "whatsapp-first");
-    const generate = vi
-      .spyOn(Agent.prototype, "generate")
-      .mockResolvedValue({ toolResults: [{ payload: { result: { text: "hi again!" } } }] } as never);
+  it("gives the chat the account currently associated with the sender", async () => {
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: "0x0000000000000000000000000000000000000069",
+      bridgeId: "bridge",
+      factory: zeroAddress,
+      pandaId: "panda",
+      whatsappId: me,
+    });
+    const generate = generated("welcome back!");
     vi.spyOn(whatsapp, "send").mockResolvedValue();
-    await jobFinished("whatsapp-returning");
-    expect(generate).toHaveBeenCalledExactlyOnceWith("Hi!", options(true));
-    await expect(bullmq.get("whatsapp:seen:US.12345678")).resolves.toBe("whatsapp-first");
+
+    await jobFinished("whatsapp-associated");
+
+    expect(situation(generate).toJSON()).toStrictEqual({
+      account: "0x0000000000000000000000000000000000000069",
+      bridgeId: "bridge",
+      credentialId,
+      pandaId: "panda",
+      whatsappId: me,
+    });
   });
 
   it("reports a model failure after the final attempt", async () => {
     vi.spyOn(Agent.prototype, "generate").mockRejectedValue(new Error("model down"));
+    const send = vi.spyOn(whatsapp, "send").mockResolvedValue();
+
     await expect(jobFinished("whatsapp-model-failure")).rejects.toThrow("model down");
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("model down"), {
-      extra: { attempts: 1, from: "US.12345678", id: "whatsapp-model-failure" },
+      extra: { attempts: 1, from: me, id: "whatsapp-model-failure" },
       level: "fatal",
     });
-    await expect(bullmq.exists("whatsapp:seen:US.12345678")).resolves.toBe(0);
+    expect(send).not.toHaveBeenCalled();
   });
 
-  it("reports a rejected WhatsApp delivery", async () => {
-    vi.spyOn(Agent.prototype, "generate").mockResolvedValue({
-      toolResults: [{ payload: { result: { text: "sure!" } } }],
-    } as never);
-    vi.spyOn(whatsapp, "send").mockRejectedValue(new Error("too many messages"));
-    await expect(jobFinished("whatsapp-send-failure")).rejects.toThrow("too many messages");
+  it("reports a rejected whatsapp delivery", async () => {
+    generated("sure!");
+    vi.spyOn(whatsapp, "send").mockRejectedValue(new Error("delivery down"));
+
+    await expect(jobFinished("whatsapp-send-failure")).rejects.toThrow("delivery down");
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("too many messages"), {
-      extra: { attempts: 1, from: "US.12345678", id: "whatsapp-send-failure" },
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("delivery down"), {
+      extra: { attempts: 1, from: me, id: "whatsapp-send-failure" },
       level: "fatal",
     });
   });
 
   it("does not retry an unrecoverable WhatsApp rejection", async () => {
     const error = new UnrecoverableError("invalid recipient");
-    const generate = vi
-      .spyOn(Agent.prototype, "generate")
-      .mockResolvedValue({ toolResults: [{ payload: { result: { text: "sure!" } } }] } as never);
+    const generate = generated("sure!");
     const send = vi.spyOn(whatsapp, "send").mockRejectedValue(error);
     await expect(jobFinished("whatsapp-permanent-failure", { attempts })).rejects.toThrow("invalid recipient");
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
@@ -226,62 +285,92 @@ describe("chat worker", () => {
     });
   });
 
-  it("captures redis errors instead of crashing", async () => {
-    const listen = vi.spyOn(Redis.prototype, "on");
+  it("captures store errors instead of crashing", () => {
+    const listener = store.getClient().listeners("error").at(-1);
+    assert(listener);
+    listener(new Error("socket closed"));
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("socket closed"));
+  });
+
+  it("captures bullmq errors instead of crashing", async () => {
     const dedicated = connect(redisUrl);
+    const existing = dedicated.listeners("error");
+    const dedicatedStore = new RedisStore({ id: "chat-worker-errors", connectionString: redisUrl });
     const observed = createChatWorker({
       anthropicKey: "anthropic",
       bullmq: dedicated,
+      database,
+      store: dedicatedStore,
       whatsapp,
     });
-    const listener = listen.mock.calls.find(([event]) => event === "error")?.[1];
-    if (!listener) throw new Error("missing error listener");
+    const listener = dedicated.listeners("error").find((candidate) => !existing.includes(candidate));
+    assert(listener);
     listener(new Error("socket closed"));
     expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("socket closed"));
     await observed.ready;
     await observed.close();
+    await dedicatedStore.close();
     await dedicated.quit();
   });
 
   it("closes in idempotent way", async () => {
     const dedicated = connect(redisUrl);
+    const dedicatedStore = new RedisStore({ id: "chat-worker-close", connectionString: redisUrl });
     const observed = createChatWorker({
       anthropicKey: "anthropic",
       bullmq: dedicated,
+      database,
+      store: dedicatedStore,
       whatsapp,
     });
     await observed.ready;
     await expect(Promise.all([observed.close(), observed.close()])).resolves.toStrictEqual([undefined, undefined]);
+    await dedicatedStore.close();
     await dedicated.quit();
   });
 });
 
-const requestContext = (seen: boolean): RequestContext => new RequestContext([["seen", seen]]);
-const options = (seen: boolean) => ({
-  requestContext: new RequestContext<InferPublicSchema<typeof context>>([["seen", seen]]),
-  maxSteps: 1,
-  toolChoice: "required",
-});
-
-function listTools(seen: boolean) {
-  return agent.listTools({ requestContext: requestContext(seen) }).then(Object.keys);
+function generated(text: string) {
+  return vi.spyOn(Agent.prototype, "generate").mockResolvedValue({ steps: [{ text }], toolResults: [] } as never);
 }
 
-async function execute(seen: boolean, locale: string) {
-  const [tool] = Object.values(
-    (await agent.listTools({ requestContext: requestContext(seen) })) as unknown as Record<
-      string,
-      { execute: (input: { locale: string }) => Promise<{ text: string }> }
-    >,
-  );
-  assert(tool);
-  return tool.execute({ locale });
+async function execute(
+  tool: "associate" | "card" | "support" | "transfers" | "verification",
+  locale = "en",
+  account?: Partial<InferPublicSchema<typeof context>>,
+) {
+  const tools = (await agent.listTools({ requestContext: current(account) })) as unknown as Record<
+    string,
+    { execute: (input: { locale: string }, options: unknown) => Promise<{ guidance: string; link: string }> }
+  >;
+  const callable = tools[tool];
+  assert(callable);
+  return callable.execute({ locale }, { requestContext: current(account) });
+}
+
+function current(account?: Partial<InferPublicSchema<typeof context>>): RequestContext {
+  return new RequestContext([
+    ["account", account?.account],
+    ["credentialId", account?.credentialId],
+    ["whatsappId", me],
+  ]);
+}
+
+function situation(generate: ReturnType<typeof generated>) {
+  const options = (
+    generate.mock.calls as unknown as [
+      unknown,
+      { requestContext?: RequestContext<InferPublicSchema<typeof context>> },
+    ][]
+  )[0]?.[1];
+  assert(options?.requestContext);
+  return options.requestContext;
 }
 
 async function jobFinished(id: string, jobOptions?: JobsOptions) {
   const job = await queue.add(
     "chat",
-    { from: "US.12345678", text: "Hi!" },
+    { from: me, phoneNumberId: "321", text: "Hi!" },
     { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...jobOptions },
   );
   return job.waitUntilFinished(events);

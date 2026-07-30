@@ -77,7 +77,7 @@ export default define({
     allow: { signers: ["allower"] },
     chat: {
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
-      secrets: ["anthropic-api-key", "whatsapp-access-token"],
+      secrets: ["anthropic-api-key", "postgres-url", "whatsapp-access-token"],
       shared: ["chat-identity-key"],
     },
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },

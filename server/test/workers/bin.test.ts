@@ -13,11 +13,20 @@ const panda = {};
 const poker = privateKeyToAccount(padHex("0xb0b"));
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
+const store = { close: vi.fn<() => Promise<void>>() };
 const whatsapp = {};
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
   allow: vi.fn<(config: { allower: typeof allower; bullmq: object }) => Handle>(),
-  chat: vi.fn<(config: { anthropicKey: string; bullmq: object; whatsapp: object }) => Handle>(),
+  chat: vi.fn<
+    (config: {
+      anthropicKey: string;
+      bullmq: object;
+      database: typeof database;
+      store: object;
+      whatsapp: object;
+    }) => Handle
+  >(),
   close: vi.fn<() => Promise<void>>(),
   credit: vi.fn<(config: { bullmq: object; database: typeof database; onesignal: object }) => Handle>(),
   drizzle: vi.fn<() => typeof database>(),
@@ -43,6 +52,7 @@ const mocks = {
   segment: vi.fn<(key: string) => typeof segment>(),
   signer: vi.fn<(name: string) => Promise<typeof refunder>>(),
   sardine: vi.fn<(key: string, url: string) => object>(),
+  store: vi.fn<(config: { connectionString: string; id: string }) => void>(),
   subscribe: vi.fn<(config: { alchemy: object; bullmq: object; database: typeof database }) => Handle>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
   whatsapp: vi.fn<(config: { from: string; key: string; token: string }) => object>(),
@@ -73,7 +83,17 @@ beforeEach(() => {
     .mockImplementation((name) => Promise.resolve(name === "allower" ? allower : name === "poker" ? poker : refunder));
   mocks.subscribe.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.supervise.mockReset();
+  mocks.store.mockReset();
   mocks.whatsapp.mockReset().mockReturnValue(whatsapp);
+  vi.doMock("@mastra/redis", () => ({
+    RedisStore: class {
+      readonly close = store.close;
+
+      constructor(config: { connectionString: string; id: string }) {
+        mocks.store(config);
+      }
+    },
+  }));
   vi.doMock("drizzle-orm/node-postgres", () => ({ drizzle: mocks.drizzle }));
   vi.doMock("ioredis", () => ({
     Redis: class {
@@ -88,13 +108,13 @@ beforeEach(() => {
     default: mocks.supervise,
   }));
   vi.doMock("../../utils/alchemy", () => ({ default: mocks.alchemy }));
+  vi.doMock("../../utils/whatsapp", () => ({ default: mocks.whatsapp }));
   vi.doMock("../../utils/onesignal", () => ({ default: mocks.onesignal }));
   vi.doMock("../../utils/panda", () => ({ default: mocks.panda }));
   vi.doMock("../../utils/sardine", () => ({ default: mocks.sardine }));
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
-  vi.doMock("../../utils/whatsapp", () => ({ default: mocks.whatsapp }));
   vi.doMock("../../workers/allow/worker", () => ({ default: mocks.allow }));
   vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
@@ -146,20 +166,24 @@ describe("bin", () => {
     await created;
     expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
       "chat-anthropic-api-key",
-      "redis-url",
       "chat-identity-key",
       "chat-whatsapp-access-token",
+      "chat-postgres-url",
+      "redis-url",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
-    expect(mocks.chat).toHaveBeenCalledExactlyOnceWith({
-      anthropicKey: "chat-anthropic-api-key",
-      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
-      whatsapp,
-    });
     expect(mocks.whatsapp).toHaveBeenCalledExactlyOnceWith({
       from: "whatsapp",
       key: "chat-identity-key",
       token: "chat-whatsapp-access-token",
+    });
+    expect(mocks.store).toHaveBeenCalledExactlyOnceWith({ connectionString: "redis-url", id: "chat" });
+    expect(mocks.chat).toHaveBeenCalledExactlyOnceWith({
+      anthropicKey: "chat-anthropic-api-key",
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
+      store: expect.objectContaining({ close: store.close }) as object,
+      whatsapp,
     });
   });
 
