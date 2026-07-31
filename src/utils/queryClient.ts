@@ -104,6 +104,7 @@ queryClient.setQueryDefaults(["credential"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["getBytecode"], { staleTime: (query) => (query.state.data ? Infinity : 0) });
 queryClient.setQueryDefaults(["readContract"], {
   queryFn: () => {
     throw new Error("don't refetch");
