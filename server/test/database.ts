@@ -84,9 +84,7 @@ export default async function setup() {
     const warmup = $({
       cancelSignal: warmupController.signal,
       forceKillAfterDelay: 33_333,
-      env: { ETH_RPC_SHORT_BLOCK_NUMBER_NOTATION: "true" },
-    })`fireeth start reader-node --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=bash --reader-node-arguments=${'-c "\
-      fireeth tools poll-rpc-blocks http://localhost:8545 0 | tsx script/firehose.ts"'}`;
+    })`fireeth start reader-node --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=fireeth --reader-node-arguments=${"tools poll-rpc-blocks http://localhost:8545 0"}`;
     const warmupLogWatcher = watchProcessOutput(warmup, warmupOutput, warmupController);
     try {
       await Promise.race([
@@ -123,9 +121,7 @@ export default async function setup() {
     const firehose = $({
       cancelSignal: controller.signal,
       forceKillAfterDelay: 33_333,
-      env: { ETH_RPC_SHORT_BLOCK_NUMBER_NOTATION: "true" },
-    })`fireeth start reader-node,merger,relayer,substreams-tier1 --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=bash --reader-node-arguments=${'-c "\
-      fireeth tools poll-rpc-blocks http://localhost:8545 0 | tsx script/firehose.ts"'}`;
+    })`fireeth start reader-node,merger,relayer,substreams-tier1 --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=fireeth --reader-node-arguments=${"tools poll-rpc-blocks http://localhost:8545 0"}`;
     const firehoseLogWatcher = watchProcessOutput(firehose, firehoseOutput, controller);
     firehoseExited = firehoseLogWatcher.exit;
     firehoseOutputFlushed = firehoseLogWatcher.outputFlushed;
