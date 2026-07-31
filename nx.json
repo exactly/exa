@@ -3,6 +3,7 @@
   "cli": { "packageManager": "pnpm" },
   "tasksRunnerOptions": { "default": "nx/tasks-runners/default" },
   "plugins": [{ "plugin": "@nx/eslint/plugin", "options": { "targetName": "test:eslint" } }],
+  "pluginsConfig": { "@nx/js": { "analyzeSourceFiles": false } },
   "namedInputs": {
     "default": [
       "{projectRoot}/**/*",
@@ -26,5 +27,6 @@
     }
   },
   "analytics": false,
+  "neverConnectToCloud": true,
   "tui": { "autoExit": true }
 }

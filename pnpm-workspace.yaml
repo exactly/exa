@@ -17,6 +17,11 @@ catalog:
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
   "@hono/node-server": ^2.0.11
+  nx: &nx ^23.1.0
+  "@nx/esbuild": *nx
+  "@nx/eslint": *nx
+  "@nx/eslint-plugin": *nx
+  "@nx/js": *nx
   tamagui: &tamagui ^1.144.4
   "@tamagui/animations-moti": *tamagui
   "@tamagui/babel-plugin": *tamagui
