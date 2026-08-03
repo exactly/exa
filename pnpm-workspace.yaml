@@ -5,9 +5,11 @@ auditConfig:
     - GHSA-52cp-r559-cp3m
     - GHSA-6g55-p6wh-862q
     - GHSA-848j-6mx2-7j84
+    - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
     - GHSA-h67p-54hq-rp68
     - GHSA-mh99-v99m-4gvg
     - GHSA-r28c-9q8g-f849
+    - GHSA-rgw5-rvv9-x895
     - GHSA-w5hq-g745-h8pq
 autoInstallPeers: false
 catalog:
