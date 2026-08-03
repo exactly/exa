@@ -6,7 +6,7 @@ import { selectionAsync } from "expo-haptics";
 import Head from "expo-router/head";
 import { TabList, Tabs, TabSlot, TabTrigger, useTabTrigger } from "expo-router/ui";
 
-import { Boxes, CalendarCheck, CreditCard, History, Home } from "@tamagui/lucide-icons";
+import { CalendarCheck, CreditCard, History, Home } from "@tamagui/lucide-icons";
 import { YStack } from "tamagui";
 
 import SafeView from "../../../components/shared/SafeView";
@@ -20,7 +20,6 @@ const tabs = [
   { name: "index", title: "Home", href: "/", Icon: Home },
   { name: "card", title: "Card", href: "/card", Icon: CreditCard },
   { name: "pay-mode", title: "Payments", href: "/pay-mode", Icon: CalendarCheck },
-  { name: "defi", title: "DeFi", href: "/defi", Icon: Boxes },
   { name: "activity", title: "Activity", href: "/activity", Icon: History },
 ] as const;
 
