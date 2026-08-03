@@ -231,8 +231,6 @@ describe("authenticated", () => {
       timeBasedSecret: "secret-default",
     });
 
-    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
-
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
       { headers: { "test-credential-id": "default" } },
@@ -269,8 +267,6 @@ describe("authenticated", () => {
       processorCardId: "proc-sig",
       timeBasedSecret: "secret-sig",
     });
-
-    vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
@@ -2231,7 +2227,6 @@ describe("authenticated", () => {
       vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
       vi.spyOn(panda, "getCard").mockRejectedValueOnce(new ServiceError("Panda", 404, "card not found"));
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: migratedCardId });
-      vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
       const response = await appClient.index.$post({
         header: { "test-credential-id": "migrate-card-upgraded-plugin" },
@@ -2252,7 +2247,6 @@ describe("authenticated", () => {
 
       vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: migratedCardId });
-      vi.spyOn(panda, "isPanda").mockResolvedValueOnce(true);
 
       const response = await appClient.index.$post({
         header: { "test-credential-id": credentialId },
