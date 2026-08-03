@@ -1,6 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
-import { eq } from "drizzle-orm";
 import {
   array,
   boolean,
@@ -30,18 +29,15 @@ import {
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
+import { recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
-  exaAccountFactoryAddress,
-  exaPluginAddress,
   issuerCheckerAddress,
   marketUSDCAddress,
   previewerAbi,
   previewerAddress,
-  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hash } from "@exactly/common/validation";
@@ -49,12 +45,9 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
-import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
 import type { Hex } from "@exactly/common/validation";
-
-const plugin = exaPluginAddress.toLowerCase();
 
 if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
 const baseURL = process.env.PANDA_API_URL;
@@ -350,27 +343,6 @@ const UserResponse = object({
   ]),
   applicationReason: string(),
 });
-
-export async function isPanda(account: Address) {
-  try {
-    const installedPlugins = await publicClient.readContract({
-      address: account,
-      functionName: "getInstalledPlugins",
-      abi: upgradeableModularAccountAbi,
-    });
-    return installedPlugins.some((addr) => plugin === addr.toLowerCase());
-  } catch (error) {
-    if (error instanceof BaseError && error.cause instanceof ContractFunctionZeroDataError) {
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.account, account),
-        columns: { factory: true },
-      });
-      if (!credential) throw new Error("no credential");
-      return credential.factory === exaAccountFactoryAddress;
-    }
-    throw error;
-  }
-}
 
 export async function autoCredit(account: Address) {
   const markets = await publicClient.readContract({
