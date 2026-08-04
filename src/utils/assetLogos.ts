@@ -10,10 +10,10 @@ const assetLogos = {
 
 export function getTokenLogoURI(tokens: { logoURI?: string; symbol: string }[], symbol: string): string | undefined {
   const search = symbol === "ETH" ? "WETH" : symbol;
-  const fallback = symbol === "WETH" ? "ETH" : symbol;
+  const key = symbol === "WETH" ? "ETH" : symbol;
   return (
-    tokens.find((token) => token.symbol === search || token.symbol === symbol)?.logoURI ??
-    assetLogos[fallback as keyof typeof assetLogos]
+    (Object.hasOwn(assetLogos, key) ? assetLogos[key as keyof typeof assetLogos] : undefined) ??
+    tokens.find((token) => token.symbol === search || token.symbol === symbol)?.logoURI
   );
 }
 
