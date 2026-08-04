@@ -7,9 +7,9 @@ jobs:
   version:
     environment: version
     runs-on: ubuntu-latest
+    permissions: { contents: read }
     steps:
       - uses: actions/checkout@v6
-        with: { token: "${{ secrets.RELEASE_GITHUB_TOKEN }}" }
       - uses: actions/setup-node@v6
         with: { node-version: 24, check-latest: true, package-manager-cache: false }
       - uses: foundry-rs/foundry-toolchain@v1
@@ -26,17 +26,19 @@ jobs:
             .reverse()
             .join(", "))' >> $GITHUB_OUTPUT
           rm status.json
-      - uses: crazy-max/ghaction-import-gpg@v7 # cspell:ignore ghaction
+      - uses: actions/create-github-app-token@v3
+        id: github
         with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          git_user_signingkey: true # cspell:ignore signingkey
-          git_commit_gpgsign: true # cspell:ignore gpgsign
-      - uses: changesets/action@v1
+          client-id: Iv23liuyLJGozoujn17O # cspell:ignore Iv23liuyLJGozoujn17O
+          private-key: ${{ secrets.EXA_VERSION_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - id: changesets
+        uses: changesets/action@v1
         with:
           title: ${{ steps.title.outputs.title }}
+          github-token: ${{ steps.github.outputs.token }}
+          commitMode: github-api
           publish: pnpm changeset publish
           version: ./.changeset/version.sh
           prDraft: create
-          setupGitUser: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
