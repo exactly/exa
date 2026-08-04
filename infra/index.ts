@@ -1,28 +1,26 @@
 import { artifactregistry, cloudrunv2, kms, projects, secretmanager, serviceaccount } from "@pulumi/gcp";
-import { Config, getStack, interpolate } from "@pulumi/pulumi";
+import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
+
+import rejectSecrets from "./utils/rejectSecrets.ts";
+import secretIds from "./utils/secrets.ts";
 
 const stack = getStack();
+await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: import.meta.dirname }));
 const config = new Config();
+const project = new Config("gcp").require("project");
 const location = config.get("location") ?? "us-west1";
-const iam = new projects.Service("iam", { service: "iam.googleapis.com" });
 const run = new projects.Service("run", { service: "run.googleapis.com" });
 const cloudKms = new projects.Service("cloudkms", { service: "cloudkms.googleapis.com" });
 const registry = new projects.Service("artifactregistry", { service: "artifactregistry.googleapis.com" });
-const secretManager = new projects.Service("secretmanager", { service: "secretmanager.googleapis.com" });
 
 const keyRing = new kms.KeyRing("signers", { location, name: `${stack}-signers` }, { dependsOn: cloudKms });
-const refund = new serviceaccount.Account("refund-worker", { accountId: `${stack}-refund` }, { dependsOn: iam });
-const secrets = (<const S extends readonly string[]>(names: S) =>
-  Object.fromEntries(
-    names.map((secret) => [
-      secret,
-      new secretmanager.Secret(
-        secret,
-        { secretId: `${stack}-${secret}`, replication: { auto: {} } },
-        { dependsOn: secretManager },
-      ),
-    ]),
-  ) as Record<S[number], secretmanager.Secret>)(["panda-api-url", "refund-panda-api-key", "redis-url", "sentry-dsn"]);
+const refund = serviceaccount.getAccountOutput({ accountId: `${stack}-refund` });
+const secrets = Object.fromEntries(
+  secretIds.map((secret) => [
+    secret,
+    secretmanager.Secret.get(secret, `projects/${project}/secrets/${stack}-${secret}`),
+  ]),
+) as Record<(typeof secretIds)[number], secretmanager.Secret>;
 
 const serverImage = interpolate`${
   new artifactregistry.Repository(
