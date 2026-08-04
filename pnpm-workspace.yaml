@@ -18,7 +18,7 @@ catalog:
   "@account-kit/smart-contracts": *aaSDK
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
-  "@hono/node-server": ^2.0.11
+  "@hono/node-server": ^2.0.12
   nx: &nx ^23.1.0
   "@nx/esbuild": *nx
   "@nx/eslint": *nx
@@ -31,7 +31,7 @@ catalog:
   "@tamagui/lucide-icons": *tamagui
   "@tamagui/toast": *tamagui
   "@wagmi/core": ^3.4.1
-  hono: ^4.12.31
+  hono: ^4.12.34
   i18next: ^26.0.5
   ioredis: ^5.10.1
   ox: ^0.14.7
