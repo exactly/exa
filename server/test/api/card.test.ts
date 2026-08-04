@@ -37,6 +37,7 @@ import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
 import { walletExtension } from "../../utils/walletExtension";
 
+import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const appClient = testClient(app);
@@ -641,11 +642,22 @@ describe("authenticated", () => {
       lastFour: "4242",
       productId: SIGNATURE_PRODUCT_ID,
     });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error) as Error, {
-      level: "warning",
-      fingerprint: ["orphan-card-adopted"],
-      extra: { credentialId, pandaId: credentialId, cardId: orphanId },
-    });
+    expect(
+      vi
+        .mocked(captureException)
+        .mock.calls.filter(([, context]) =>
+          (context as undefined | { fingerprint?: string[] })?.fingerprint?.includes("orphan-card-adopted"),
+        ),
+    ).toStrictEqual([
+      [
+        expect.any(Error) as Error,
+        {
+          level: "warning",
+          fingerprint: ["orphan-card-adopted"],
+          extra: { credentialId, pandaId: credentialId, cardId: orphanId },
+        },
+      ],
+    ]);
   });
 
   it("adopts only the first active card when panda has multiple orphans", async () => {
@@ -673,6 +685,8 @@ describe("authenticated", () => {
       },
     ]);
     const createCard = vi.spyOn(panda, "createCard");
+    const error = new Error("preview failure");
+    vi.spyOn(panda, "autoCredit").mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
@@ -689,11 +703,23 @@ describe("authenticated", () => {
       where: eq(cards.credentialId, credentialId),
     });
     expect(persisted).toStrictEqual([{ id: first }]);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error) as Error, {
-      level: "warning",
-      fingerprint: ["orphan-card-adopted"],
-      extra: { credentialId, pandaId: credentialId, cardId: first },
-    });
+    expect(captureException).toHaveBeenCalledWith(error);
+    expect(
+      vi
+        .mocked(captureException)
+        .mock.calls.filter(([, context]) =>
+          (context as undefined | { fingerprint?: string[] })?.fingerprint?.includes("orphan-card-adopted"),
+        ),
+    ).toStrictEqual([
+      [
+        expect.any(Error) as Error,
+        {
+          level: "warning",
+          fingerprint: ["orphan-card-adopted"],
+          extra: { credentialId, pandaId: credentialId, cardId: first },
+        },
+      ],
+    ]);
   });
 
   it("creates a new card when panda has only non-active cards", async () => {
@@ -2654,7 +2680,7 @@ async function bearer(credentialId = "wallet-extension") {
   return `Bearer ${extension.token}`;
 }
 
-const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn<typeof sentry.captureException>() }));
 vi.mock("@sentry/node", async (importOriginal) => {
   const module = await importOriginal();
   if (typeof module !== "object" || module === null) return { captureException };
