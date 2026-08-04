@@ -5,6 +5,8 @@ import { readdir } from "node:fs/promises";
 import rejectSecrets from "./utils/rejectSecrets.ts";
 import secrets from "./utils/secrets.ts";
 
+const workers = ["refund"] as const;
+
 if (process.argv[2] !== "preview" && process.argv[2] !== "up") throw new Error("expected preview or up");
 
 const workspace = await automation.LocalWorkspace.create({ workDir: import.meta.dirname });
@@ -96,6 +98,15 @@ const selected = await automation.LocalWorkspace.selectStack(
           },
           { dependsOn: orgPolicy, provider },
         );
+        new projects.IAMCustomRole(
+          `${project}-crema-scaler`,
+          {
+            permissions: ["run.operations.get", "run.workerpools.get", "run.workerpools.update"],
+            roleId: "cremaScaler",
+            title: "crema scaler",
+          },
+          { dependsOn: service, provider },
+        );
         const secretAccess = new projects.IAMCustomRole(
           `${project}-secrets`,
           {
@@ -104,6 +115,38 @@ const selected = await automation.LocalWorkspace.selectStack(
               .map((permission) => `secretmanager.secrets.${permission}`),
             roleId: "pulumiSecrets",
             title: "pulumi secret access",
+          },
+          { dependsOn: service, provider },
+        );
+        const deployment = new projects.IAMCustomRole(
+          `${project}-deployment`,
+          {
+            permissions: [
+              ...["delete", "get", "update"].map((permission) => `parametermanager.parameters.${permission}`),
+              ...["create", "delete", "get", "update"].map(
+                (permission) => `parametermanager.parameterVersions.${permission}`,
+              ),
+            ],
+            roleId: "pulumiDeployment",
+            title: "pulumi deployment",
+          },
+          { dependsOn: service, provider },
+        );
+        const workerPools = new projects.IAMCustomRole(
+          `${project}-worker-pools`,
+          {
+            permissions: ["getIamPolicy", "setIamPolicy"].map((permission) => `run.workerpools.${permission}`),
+            roleId: "pulumiWorkerPools",
+            title: "pulumi worker pools",
+          },
+          { dependsOn: service, provider },
+        );
+        const parameters = new projects.IAMCustomRole(
+          `${project}-parameters`,
+          {
+            permissions: ["parametermanager.parameters.create"],
+            roleId: "pulumiParameters",
+            title: "pulumi parameter creation",
           },
           { dependsOn: service, provider },
         );
@@ -121,6 +164,12 @@ const selected = await automation.LocalWorkspace.selectStack(
             { dependsOn: service, provider },
           );
           const member = interpolate`serviceAccount:${github.email}`;
+          const crema = new serviceaccount.Account(
+            `${stack.name}-crema`,
+            { accountId: `${stack.name}-crema` },
+            { dependsOn: service, provider },
+          );
+          const cremaMember = interpolate`serviceAccount:${crema.email}`;
           new serviceaccount.IAMMember(
             `${stack.name}-identity`,
             {
@@ -130,21 +179,41 @@ const selected = await automation.LocalWorkspace.selectStack(
             },
             { provider },
           );
-          for (const name of ["refund"]) {
-            const identity = `${stack.name}-${name}`;
-            new serviceaccount.IAMMember(
-              identity,
-              {
-                member,
-                role: "roles/iam.serviceAccountUser",
-                serviceAccountId: new serviceaccount.Account(
-                  identity,
-                  { accountId: identity },
-                  { dependsOn: service, provider },
-                ).name,
+          new serviceaccount.IAMMember(
+            `${stack.name}-crema`,
+            { member, role: "roles/iam.serviceAccountUser", serviceAccountId: crema.name },
+            { provider },
+          );
+          new projects.IAMMember(
+            `${stack.name}-crema-config`,
+            {
+              condition: {
+                expression: `resource.name.startsWith("projects/${project}/locations/global/parameters/${stack.name}-crema/versions/")`,
+                title: `${stack.name} crema config`,
               },
-              { provider },
+              member: cremaMember,
+              project,
+              role: "roles/parametermanager.parameterViewer",
+            },
+            { provider },
+          );
+          for (const name of workers) {
+            const identity = `${stack.name}-${name}`;
+            const account = new serviceaccount.Account(
+              identity,
+              { accountId: identity },
+              { dependsOn: service, provider },
             );
+            for (const [suffix, principal] of [
+              ["", member],
+              ["-crema", cremaMember],
+            ] as const) {
+              new serviceaccount.IAMMember(
+                `${identity}${suffix}`,
+                { member: principal, role: "roles/iam.serviceAccountUser", serviceAccountId: account.name },
+                { provider },
+              );
+            }
           }
           for (const [name, role] of [
             ["artifact-registry", "roles/artifactregistry.editor"],
@@ -177,6 +246,25 @@ const selected = await automation.LocalWorkspace.selectStack(
               project,
               role: secretAccess.name,
             },
+            { provider },
+          );
+          new projects.IAMMember(
+            `${stack.name}-deployment`,
+            {
+              condition: {
+                expression: `resource.type == "cloud.googleapis.com/Location" || resource.name == "projects/${project}/locations/global/parameters/${stack.name}-crema" || resource.name.startsWith("projects/${project}/locations/global/parameters/${stack.name}-crema/versions/")`,
+                title: `${stack.name} deployment`,
+              },
+              member,
+              project,
+              role: deployment.name,
+            },
+            { provider },
+          );
+          new projects.IAMMember(`${stack.name}-parameters`, { member, project, role: parameters.name }, { provider });
+          new projects.IAMMember(
+            `${stack.name}-worker-pools`,
+            { member, project, role: workerPools.name },
             { provider },
           );
           new storage.BucketIAMMember(
