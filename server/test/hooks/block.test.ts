@@ -2271,7 +2271,7 @@ function proposeWithdraw(amount: bigint, receiver: Address, market = inject("Mar
 }
 
 async function getLogs(hashes: Hex[]) {
-  const receipts = await Promise.all(hashes.map((hash) => anvilClient.getTransactionReceipt({ hash })));
+  const receipts = await Promise.all(hashes.map((hash) => anvilClient.waitForTransactionReceipt({ hash })));
   return parseEventLogs<typeof proposalManagerAbi, true, "Proposed">({
     logs: receipts.flatMap((r) => r.logs),
     abi: proposalManagerAbi,
