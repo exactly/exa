@@ -14,7 +14,6 @@ vi.mock("@exactly/common/generated/chain", () => ({
   default: chainMock,
 }));
 
-vi.mock("../../utils/panda");
 vi.mock("../../utils/pax");
 
 vi.mock("@sentry/node", { spy: true });

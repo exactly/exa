@@ -1,3 +1,4 @@
+import "../mocks/panda";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sentry";
@@ -13,12 +14,13 @@ import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { cards, credentials } from "../../database";
 import app from "../../hooks/persona";
-import * as panda from "../../utils/panda";
+import createPanda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
 
 const appClient = testClient(app);
+const panda = createPanda();
 
 vi.mock("@sentry/node", { spy: true });
 

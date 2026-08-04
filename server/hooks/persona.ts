@@ -27,7 +27,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database/index";
-import { createUser, updateCard } from "../utils/panda";
+import createPanda from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
   addDocument,
@@ -46,6 +46,9 @@ import { customer } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type { InferOutput } from "valibot";
+
+const panda = createPanda();
+
 const Session = pipe(
   object({
     type: literal("inquiry-session"),
@@ -277,23 +280,25 @@ export default new Hono().post(
         throw error;
       });
       if (credential.pandaId && credential.cards[0]) {
-        await updateCard({
-          id: credential.cards[0].id,
-          limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
-        }).catch((error: unknown) => {
-          captureException(error, {
-            level: "error",
-            contexts: {
-              cardLimitDrift: {
-                referenceId,
-                limitUsd,
-                pandaId: credential.pandaId,
-                cardId: credential.cards[0]?.id ?? null,
+        await panda
+          .updateCard({
+            id: credential.cards[0].id,
+            limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
+          })
+          .catch((error: unknown) => {
+            captureException(error, {
+              level: "error",
+              contexts: {
+                cardLimitDrift: {
+                  referenceId,
+                  limitUsd,
+                  pandaId: credential.pandaId,
+                  cardId: credential.cards[0]?.id ?? null,
+                },
               },
-            },
+            });
+            throw error;
           });
-          throw error;
-        });
       }
       return c.json({ code: "ok" }, 200);
     }
@@ -387,7 +392,7 @@ export default new Hono().post(
     }
 
     // TODO implement error handling to return 200 if event should not be retried
-    const { id } = await createUser({
+    const { id } = await panda.createUser({
       accountPurpose: fields.accountPurpose.value,
       annualSalary,
       expectedMonthlyVolume,

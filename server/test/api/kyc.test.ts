@@ -1,5 +1,6 @@
 import "../mocks/auth";
 import "../mocks/deployments";
+import "../mocks/panda";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -18,15 +19,17 @@ import chain from "@exactly/common/generated/chain";
 import app from "../../api/kyc";
 import database, { credentials, organizations, sources } from "../../database";
 import auth from "../../utils/auth";
-import * as panda from "../../utils/panda";
+import createPanda from "../../utils/panda";
 import * as persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 import ServiceError from "../../utils/ServiceError";
 
+import type * as utils from "../../utils/panda";
 import type * as v from "valibot";
 
 const appClient = testClient(app);
+const panda = createPanda();
 
 vi.mock("@sentry/node", { spy: true });
 
@@ -2446,7 +2449,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
                 address: {
                   line1: "123 main street",
                 },
-              } as unknown as v.InferOutput<typeof panda.UpdateApplicationRequest>,
+              } as unknown as v.InferOutput<typeof utils.UpdateApplicationRequest>,
             },
             { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
           );

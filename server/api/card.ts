@@ -43,21 +43,7 @@ import database, { cards, credentials } from "../database";
 import t from "../i18n";
 import auth from "../middleware/auth";
 import { sendPushNotification } from "../utils/onesignal";
-import {
-  autoCredit,
-  createCard,
-  getApplicationStatus,
-  getCard,
-  getCards,
-  getNonce,
-  getPIN,
-  getProcessorDetails,
-  getSecrets,
-  getUser,
-  setPIN,
-  updateCard,
-  verify,
-} from "../utils/panda";
+import createPanda from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import { getAccount } from "../utils/persona";
 import publicClient from "../utils/publicClient";
@@ -66,6 +52,8 @@ import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 import { verifyToken } from "../utils/walletExtension";
+
+const panda = createPanda();
 
 const mutexes = new Map<string, Mutex>();
 function createMutex(credentialId: string) {
@@ -320,9 +308,9 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         if (status === "DELETED") throw new Error("card deleted");
         const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] = await Promise.all(
           [
-            getCard(id),
-            sessionid && getSecrets(id, sessionid),
-            getUser(credential.pandaId).catch((error: unknown) => {
+            panda.getCard(id),
+            sessionid && panda.getSecrets(id, sessionid),
+            panda.getUser(credential.pandaId).catch((error: unknown) => {
               const issue = noUser(error);
               if (!issue) throw error;
               const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
@@ -348,11 +336,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               }
               return null;
             }),
-            sessionid && getPIN(id, sessionid),
+            sessionid && panda.getPIN(id, sessionid),
             (async () => {
               if (include("siwe")) {
                 if (!credential.pandaId) return;
-                return getNonce(credential.pandaId).then(({ nonce }) =>
+                return panda.getNonce(credential.pandaId).then(({ nonce }) =>
                   createSiweMessage({
                     domain,
                     address: parse(Address, credentialId),
@@ -368,7 +356,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               }
             })(),
             include("provisioning")
-              ? getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+              ? panda.getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
                   id: processorCardId,
                   secret: timeBasedSecret,
                 }))
@@ -477,7 +465,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       const [card] = credential.cards;
       if (!card) return c.json({ code: "no card" }, 404);
       if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-      const provider = await getCard(card.id).catch((error: unknown) => {
+      const provider = await panda.getCard(card.id).catch((error: unknown) => {
         if (error instanceof ServiceError && error.status === 404) return null;
         throw error;
       });
@@ -485,7 +473,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
       if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
       try {
-        const { processorCardId, timeBasedSecret } = await getProcessorDetails(card.id);
+        const { processorCardId, timeBasedSecret } = await panda.getProcessorDetails(card.id);
         return c.json(
           {
             id: processorCardId,
@@ -576,7 +564,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           let cardCount = activeCards.length;
           for (const card of activeCards) {
             try {
-              await getCard(parse(CardUUID, card.id));
+              await panda.getCard(parse(CardUUID, card.id));
             } catch (error) {
               if (
                 (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
@@ -593,7 +581,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
           try {
-            const kyc = await getApplicationStatus(pandaId);
+            const kyc = await panda.getApplicationStatus(pandaId);
             if (kyc.applicationStatus !== "approved") {
               return c.json({ code: "kyc not approved" }, 403);
             }
@@ -603,7 +591,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   ? SIGNATURE_PRODUCT_ID
                   : BASE_PRODUCT_ID
                 : SIGNATURE_PRODUCT_ID;
-            const card = await getCards(pandaId)
+            const card = await panda
+              .getCards(pandaId)
               .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
               .then(async (orphan) => {
                 if (orphan) {
@@ -618,7 +607,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   });
                   return orphan;
                 } else {
-                  return createCard(
+                  return panda.createCard(
                     pandaId,
                     productId,
                     await getAccount(credentialId, "cardLimit")
@@ -639,7 +628,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
 
             let mode = 0;
             try {
-              if (await autoCredit(account)) mode = 1;
+              if (await panda.autoCredit(account)) mode = 1;
             } catch (error) {
               captureException(error);
             }
@@ -868,7 +857,7 @@ async function encryptPIN(pin: string) {
                   track({ userId: account, event: "CardUnfrozen", properties: { source: credential.source } });
                   break;
                 case "DELETED":
-                  await updateCard({ id: card.id, status: "canceled" });
+                  await panda.updateCard({ id: card.id, status: "canceled" });
                   track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
                   break;
                 case "FROZEN":
@@ -881,7 +870,7 @@ async function encryptPIN(pin: string) {
             case "pin": {
               const { sessionId, data, iv } = patch;
               try {
-                await setPIN(card.id, sessionId, { data, iv });
+                await panda.setPIN(card.id, sessionId, { data, iv });
               } catch (error) {
                 if (error instanceof Error && error.message.includes("Weak PIN")) {
                   return c.json({ code: "weak pin" }, 400);
@@ -914,7 +903,7 @@ async function encryptPIN(pin: string) {
                     });
                   if (!verified) return c.json({ code: "bad signature" }, 400);
                   try {
-                    await verify(credential.pandaId, {
+                    await panda.verify(credential.pandaId, {
                       message: patch.message,
                       signature: patch.signature,
                       authType: "siwe",
@@ -930,7 +919,7 @@ async function encryptPIN(pin: string) {
 
                 case "webauthn":
                   try {
-                    await verify(credential.pandaId, {
+                    await panda.verify(credential.pandaId, {
                       authType: "webauthn",
                       credential: {
                         publicKey: { type: "Buffer", data: [...credential.publicKey] },

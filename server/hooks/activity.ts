@@ -37,13 +37,15 @@ import { createWebhook, findWebhook, headerValidator, NETWORKS } from "../utils/
 import appOrigin from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
 import { sendPushNotification } from "../utils/onesignal";
-import { autoCredit } from "../utils/panda";
+import createPanda from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import redis from "../utils/redis";
 import revertFingerprint from "../utils/revertFingerprint";
 import { track } from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 import { getWallet } from "../utils/wallet";
+
+const panda = createPanda();
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -263,7 +265,8 @@ export default new Hono().post(
                   span.setStatus({ code: SPAN_STATUS_ERROR, message: "poke_failed" });
                   throw result.reason;
                 }
-                autoCredit(account)
+                panda
+                  .autoCredit(account)
                   .then(async (auto) => {
                     span.setAttribute("exa.autoCredit", auto);
                     if (!auto) return;

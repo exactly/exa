@@ -20,13 +20,7 @@ import { Address, Hex } from "@exactly/common/validation";
 import database, { credentials, walletAddresses } from "../database/index";
 import auth from "../middleware/auth";
 import decodePublicKey from "../utils/decodePublicKey";
-import {
-  Application,
-  UpdateApplicationRequest as ApplicationUpdate,
-  getApplicationStatus,
-  submitApplication,
-  updateApplication,
-} from "../utils/panda";
+import createPanda, { Application, UpdateApplicationRequest as ApplicationUpdate } from "../utils/panda";
 import {
   CARD_LIMIT_TEMPLATE,
   createInquiry,
@@ -44,6 +38,8 @@ import {
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
+
+const panda = createPanda();
 
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -562,7 +558,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
 
       try {
-        const application = await submitApplication(body);
+        const application = await panda.submitApplication(body);
         await database
           .update(credentials)
           .set({ pandaId: application.id, source: member.organization.id })
@@ -633,7 +629,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
       }
       try {
-        await updateApplication(credential.pandaId, payload);
+        await panda.updateApplication(credential.pandaId, payload);
       } catch (error) {
         if (error instanceof ServiceError && error.status === 400) {
           return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
@@ -690,7 +686,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       if (!credential.pandaId) {
         return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
       }
-      const status = await getApplicationStatus(credential.pandaId);
+      const status = await panda.getApplicationStatus(credential.pandaId);
       return c.json(
         { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason ?? "unknown" },
         200,

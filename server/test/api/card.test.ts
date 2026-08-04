@@ -1,6 +1,7 @@
 import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/onesignal";
+import "../mocks/panda";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sardine";
@@ -30,7 +31,7 @@ import app from "../../api/card";
 import database, { cards, credentials } from "../../database";
 import auth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
-import * as panda from "../../utils/panda";
+import createPanda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
@@ -42,6 +43,7 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 let keeper: Awaited<ReturnType<typeof getWallet>>;
 
 const appClient = testClient(app);
+const panda = createPanda();
 const { WALLET_EXTENSION_SECRET } = process.env;
 if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));

@@ -1,6 +1,7 @@
 import "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/onesignal";
+import "../mocks/panda";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
@@ -32,13 +33,14 @@ import t, { f } from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
 import * as decodePublicKey from "../../utils/decodePublicKey";
 import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
+import createPanda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import * as keeperUtilities from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);
+const panda = createPanda();
 let keeper: Awaited<ReturnType<typeof keeperUtilities.getWallet>>;
 
 describe("address activity", () => {

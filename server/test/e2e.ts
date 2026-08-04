@@ -54,12 +54,12 @@ describe("e2e", () => {
 
 vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
   const original = await importOriginal();
-  type User = Awaited<ReturnType<typeof original.getUser>>;
-  type Card = Awaited<ReturnType<typeof original.getCard>>;
+  type User = Awaited<ReturnType<ReturnType<typeof original.default>["getUser"]>>;
+  type Card = Awaited<ReturnType<ReturnType<typeof original.default>["getCard"]>>;
   const users = new Map<string, User>();
   const cards = new Map<string, Card>();
-  return {
-    ...original,
+  const instance = {
+    ...original.default(),
     autoCredit: vi.fn().mockResolvedValue(false),
     createCard: vi.fn().mockImplementation((userId: string) => {
       const id = crypto.randomUUID();
@@ -124,7 +124,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
     getUser: vi.fn().mockImplementation((userId: string) => Promise.resolve(users.get(userId))),
     getApplicationStatus: vi.fn().mockResolvedValue({ id: "pandaId", applicationStatus: "approved" }),
     setPIN: vi.fn().mockResolvedValue({}),
-    signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
     updateCard: vi.fn().mockImplementation((update: { id: string }) => {
       const card = cards.get(update.id);
       if (!card) return Promise.resolve();
@@ -137,6 +136,11 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
       Object.assign(user, update);
       return Promise.resolve(user);
     }),
+  };
+  return {
+    ...original,
+    default: () => instance,
+    issuer: () => ({ ...original.issuer(), signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)) }),
   };
 });
 

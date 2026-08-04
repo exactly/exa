@@ -57,16 +57,7 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import database, { cards, credentials, transactions } from "../database/index";
 import t, { f } from "../i18n";
 import { sendPushNotification } from "../utils/onesignal";
-import {
-  collectors,
-  createMutex,
-  getMutex,
-  getUser,
-  headerValidator,
-  signIssuerOp,
-  updateUser,
-  verifyPandaSignature,
-} from "../utils/panda";
+import createPanda, { collectors, issuer as createIssuer } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import risk, { feedback } from "../utils/sardine";
@@ -76,6 +67,9 @@ import validatorHook from "../utils/validatorHook";
 import { getWallet } from "../utils/wallet";
 
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+
+const panda = createPanda();
+const issuer = createIssuer();
 
 let keeper: Awaited<ReturnType<typeof getWallet>> | undefined;
 
@@ -254,7 +248,7 @@ const Payload = v.variant("resource", [
 
 export default new Hono().post(
   "/",
-  headerValidator(),
+  panda.headerValidator(),
   vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
   async (c) => {
     const payload = c.req.valid("json");
@@ -354,7 +348,7 @@ export default new Hono().post(
           }).catch((error: unknown) => captureException(error, { level: "error" }));
           return c.json({ code: "ok" });
         }
-        const mutex = getMutex(account) ?? createMutex(account);
+        const mutex = panda.getMutex(account) ?? panda.createMutex(account);
         try {
           await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () => mutex.acquire());
         } catch (error: unknown) {
@@ -542,7 +536,7 @@ export default new Hono().post(
               where: eq(cards.id, payload.body.spend.cardId),
               with: { credential: { columns: { account: true, id: true, source: true } } },
             }),
-            getUser(payload.body.spend.userId),
+            panda.getUser(payload.body.spend.userId),
           ]);
           if (!card) throw new Error("card not found");
           const account = v.parse(Address, card.credential.account);
@@ -558,7 +552,7 @@ export default new Hono().post(
           const timestamp = // TODO use update timestamp when provided
             Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
             Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
-          const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
+          const signature = await issuer.signIssuerOp({ account, amount: -refundAmount, timestamp }); // TODO replace with payload signature
           if (payload.body.spend.signature) {
             await startSpan(
               {
@@ -573,15 +567,17 @@ export default new Hono().post(
               (span) => {
                 if (!payload.body.spend.signature) throw new Error("signature not found");
                 if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-                return verifyPandaSignature({
-                  account,
-                  amount: -refundAmount,
-                  timestamp: payload.body.spend.timestamp,
-                  signature: payload.body.spend.signature,
-                }).then((valid) => {
-                  span.setAttribute("signature.valid", valid);
-                  if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
-                });
+                return issuer
+                  .verifyPandaSignature({
+                    account,
+                    amount: -refundAmount,
+                    timestamp: payload.body.spend.timestamp,
+                    signature: payload.body.spend.signature,
+                  })
+                  .then((valid) => {
+                    span.setAttribute("signature.valid", valid);
+                    if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
+                  });
               },
             ).catch((error: unknown) => captureException(error, { level: "error" }));
           }
@@ -737,7 +733,7 @@ export default new Hono().post(
             [SEMANTIC_ATTRIBUTE_SENTRY_OP]: "panda.tx.declined",
             ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
           });
-          const mutex = getMutex(account);
+          const mutex = panda.getMutex(account);
           mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
 
@@ -1020,14 +1016,14 @@ export default new Hono().post(
                 account,
                 amount: payload.body.spend.amount,
               });
-              await updateUser({ id: payload.body.spend.userId, isActive: false });
+              await panda.updateUser({ id: payload.body.spend.userId, isActive: false });
               getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
               return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
             }
             return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
           }
         } finally {
-          const mutex = getMutex(account);
+          const mutex = panda.getMutex(account);
           if (payload.action === "created" || payload.action === "updated") mutex?.release();
           setContext("mutex", { locked: mutex?.isLocked() });
         }
@@ -1196,7 +1192,7 @@ async function prepareCollection(
     const timestamp = Math.floor(
       (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
     );
-    const signature = await signIssuerOp({ account, amount, timestamp }); // TODO replace with payload signature
+    const signature = await issuer.signIssuerOp({ account, amount, timestamp }); // TODO replace with payload signature
     if (payload.body.spend.signature) {
       await startSpan(
         {
@@ -1211,15 +1207,17 @@ async function prepareCollection(
         (span) => {
           if (!payload.body.spend.signature) throw new Error("signature not found");
           if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-          return verifyPandaSignature({
-            account,
-            amount,
-            timestamp: payload.body.spend.timestamp,
-            signature: payload.body.spend.signature,
-          }).then((valid) => {
-            span.setAttribute("signature.valid", valid);
-            if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
-          });
+          return issuer
+            .verifyPandaSignature({
+              account,
+              amount,
+              timestamp: payload.body.spend.timestamp,
+              signature: payload.body.spend.signature,
+            })
+            .then((valid) => {
+              span.setAttribute("signature.valid", valid);
+              if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
+            });
         },
       ).catch((error: unknown) => captureException(error, { level: "error" }));
     }

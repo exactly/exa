@@ -1,14 +1,18 @@
 import "../mocks/sentry";
 
+import { parse } from "valibot";
+import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address, Hex } from "@exactly/common/validation";
 
-import * as panda from "../../utils/panda";
+import createPanda, { issuer } from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0 }));
+const panda = createPanda();
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -198,5 +202,65 @@ describe("siwe", () => {
       expect.stringContaining("/issuing/users/e5cd86bb-a19e-4a66-9728-9e6c5d97e616/signatures/verify"),
       expect.objectContaining({ method: "PUT", body: JSON.stringify(payload) }),
     );
+  });
+});
+
+describe("panda factory", () => {
+  it("requires an api key", () => {
+    expect(() => createPanda("")).toThrow("missing panda api key");
+  });
+
+  it("requires an api url", () => {
+    expect(() => createPanda("panda", "")).toThrow("missing panda api url");
+  });
+});
+
+describe("mutexes", () => {
+  it("creates mutexes with the default delay", () => {
+    chainMock.id = base.id;
+    const account = parse(Address, padHex("0xdead", { size: 20 }));
+    const mutex = panda.createMutex(account);
+
+    expect(panda.getMutex(account)).toBe(mutex);
+  });
+});
+
+describe("issuer", () => {
+  const account = parse(Address, padHex("0xb0b", { size: 20 }));
+
+  it("signs and verifies collections", async () => {
+    const { signIssuerOp, verifyPandaSignature } = issuer();
+
+    await expect(signIssuerOp({ account, amount: 100n, timestamp: 1 })).resolves.toBeDefined();
+    const signature = parse(Hex, await signIssuerOp({ account, amount: 100n, timestamp: 1 }));
+    await expect(verifyPandaSignature({ account, amount: 100n, timestamp: 1, signature })).resolves.toBe(true);
+  });
+
+  it("signs and verifies refunds", async () => {
+    const { signIssuerOp, verifyPandaSignature } = issuer();
+    const signature = parse(Hex, await signIssuerOp({ account, amount: -100n, timestamp: 1 }));
+
+    await expect(verifyPandaSignature({ account, amount: -100n, timestamp: 1, signature })).resolves.toBe(true);
+  });
+
+  it("throws on invalid private keys", () => {
+    expect(() => issuer("invalid").signIssuerOp({ account, amount: 100n, timestamp: 1 })).toThrow("bad hash");
+  });
+
+  it("verifies against an explicit issuer address", async () => {
+    const signature = parse(Hex, await issuer().signIssuerOp({ account, amount: 100n, timestamp: 1 }));
+
+    await expect(
+      issuer(padHex("0x420"), account).verifyPandaSignature({ account, amount: 100n, timestamp: 1, signature }),
+    ).resolves.toBe(false);
+  });
+
+  it("falls back to the default issuer address", async () => {
+    vi.stubEnv("ISSUER_ADDRESS", undefined); // eslint-disable-line unicorn/no-useless-undefined -- unset env var
+    const { signIssuerOp, verifyPandaSignature } = issuer();
+    const signature = parse(Hex, await signIssuerOp({ account, amount: 100n, timestamp: 1 }));
+
+    await expect(verifyPandaSignature({ account, amount: 100n, timestamp: 1, signature })).resolves.toBe(false);
+    vi.unstubAllEnvs();
   });
 });

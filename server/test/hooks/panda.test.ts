@@ -50,7 +50,7 @@ import database, { cards, credentials, sources, transactions } from "../../datab
 import app from "../../hooks/panda";
 import t, { f } from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
+import createPanda, { issuer as createIssuer } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
@@ -61,6 +61,8 @@ import anvilClient from "../anvilClient";
 let keeper: Awaited<ReturnType<typeof getWallet>>;
 
 const appClient = testClient(app);
+const panda = createPanda();
+const issuer = createIssuer();
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
 
@@ -429,7 +431,7 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        vi.spyOn(issuer, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
         const cardId = "rc-ouch";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
 
