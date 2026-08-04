@@ -639,15 +639,11 @@ export default function Bridge() {
       );
       const accounts = senderAddress ? [senderAddress] : [];
       if (account && account.toLowerCase() !== senderAddress?.toLowerCase()) accounts.push(account);
-      const nonce = Date.now();
       Promise.all(
         accounts.map((item) =>
           queryClient
-            .fetchQuery({ ...balancesOptions(item, nonce), staleTime: 0 })
-            .then((fresh) => {
-              queryClient.setQueryData(balancesOptions(item).queryKey, fresh);
-              queryClient.removeQueries({ queryKey: balancesOptions(item, nonce).queryKey });
-            })
+            .cancelQueries({ queryKey: balancesOptions(item).queryKey })
+            .then(() => queryClient.fetchQuery({ ...balancesOptions(item), staleTime: 0 }))
             .catch(reportError),
         ),
       )

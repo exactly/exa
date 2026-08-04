@@ -1,4 +1,3 @@
-import * as infra from "@account-kit/infra";
 import {
   ChainType,
   config,
@@ -7,7 +6,6 @@ import {
   getChains,
   getQuote,
   getToken,
-  getTokenBalancesByChain,
   getTokens,
   type Estimate,
   type ExtendedChain,
@@ -15,14 +13,15 @@ import {
   type TokenAmount,
 } from "@lifi/sdk";
 import { queryOptions } from "@tanstack/react-query";
-import { array, looseObject, number, object, optional, parse, pipe, record, regex, string } from "valibot";
-import { encodeFunctionData, formatUnits, getAddress, type Address } from "viem";
+import { array, boolean, nullish, number, object, optional, parse, string, union, unknown } from "valibot";
+import { encodeFunctionData, formatUnits, getAddress, zeroAddress, type Address } from "viem";
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, { allowlist, exaAddress, mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
+import alchemyChains from "./alchemyChains";
 import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";
@@ -73,42 +72,48 @@ export const lifiTokensOptions = queryOptions({
   },
 });
 
-export function balancesOptions(account: Address | undefined, nonce?: number) {
+export function balancesOptions(account: Address | undefined) {
   return queryOptions({
-    queryKey: nonce === undefined ? ["lifi", "balances", account] : ["lifi", "balances", account, nonce],
+    queryKey: ["lifi", "balances", account],
     staleTime: 30_000,
     gcTime: isServer ? Infinity : 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
     queryFn: async () => {
       if (!account) return {} as Record<number, TokenAmount[]>;
       ensureConfig();
-      const [balances, lifiTokens, exa] = await Promise.all([
-        getWalletBalances(account, nonce).catch((error: unknown) => {
+      const [amounts, lifiTokens, exa] = await Promise.all([
+        getWalletBalances(account).catch((error: unknown) => {
           reportError(error);
-          return {} as Record<number, TokenAmount[]>;
+          return {} as Record<number, Holding[]>;
         }),
         queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
           reportError(error);
           return [] as Token[];
         }),
         exaAddress
-          ? getToken(chain.id, exaAddress)
-              .then((token) => getTokenBalancesByChain(account, { [chain.id]: [token] }))
-              .then((result) => result[chain.id]?.[0])
-              .catch((error: unknown) => {
-                reportError(error);
-              })
+          ? getToken(chain.id, exaAddress).catch((error: unknown) => {
+              reportError(error);
+            })
           : undefined,
       ]);
-      const known = new Set(lifiTokens.map((token) => `${token.chainId}:${token.address.toLowerCase()}`));
-      if (known.size > 0) {
-        for (const [chainId, tokens] of Object.entries(balances)) {
-          balances[Number(chainId)] = tokens.filter((token) => known.has(`${chainId}:${token.address.toLowerCase()}`));
-        }
+      const known =
+        knownTokens.get(lifiTokens) ??
+        new Map(lifiTokens.map((token) => [`${token.chainId}:${token.address.toLowerCase()}`, token]));
+      knownTokens.set(lifiTokens, known);
+      const balances: Record<number, TokenAmount[]> = {};
+      for (const [chainId, holdings] of Object.entries(amounts)) {
+        const id = Number(chainId);
+        const found = holdings.flatMap(({ address, amount }) => {
+          const token = known.get(`${id}:${address.toLowerCase()}`);
+          return token ? [{ ...token, amount }] : [];
+        });
+        if (found.length > 0) balances[id] = found;
       }
       if (exa) {
+        const amount =
+          amounts[chain.id]?.find((t) => t.address.toLowerCase() === exa.address.toLowerCase())?.amount ?? 0n;
         balances[chain.id] = [
-          exa,
+          { ...exa, amount },
           ...(balances[chain.id] ?? []).filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase()),
         ];
       }
@@ -134,14 +139,7 @@ function ensureConfig() {
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
     preloadChains: false,
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
-    rpcUrls: Object.values(infra).reduce<Record<number, string[]>>((result, item) => {
-      if (typeof item !== "object" || !("id" in item) || !("rpcUrls" in item)) return result;
-      const { id, rpcUrls } = item as { id: number; rpcUrls: { alchemy?: { http?: readonly string[] } } };
-      const url = rpcUrls.alchemy?.http?.[0];
-      if (!url) return result;
-      result[id] = [`${url}/${alchemyAPIKey}`];
-      return result;
-    }, {}),
+    rpcUrls: Object.fromEntries(Object.entries(alchemyURLs).map(([id, url]) => [id, [url]])),
   });
   config.loading = getChains({ chainTypes: [ChainType.EVM] })
     .then((availableChains) => {
@@ -435,58 +433,122 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
   };
 }
 
-async function getWalletBalances(account: Address, nonce?: number) {
-  const balances: Record<number, TokenAmount[]> = {};
-  const lifiConfig = config.get();
-  let offset: string | undefined;
-  do {
-    const url = new URL(`${lifiConfig.apiUrl}/wallets/${account}/balances`);
-    url.searchParams.set("extended", "true");
-    url.searchParams.set("limit", "1000");
-    if (nonce !== undefined) url.searchParams.set("_", String(nonce));
-    if (offset) url.searchParams.set("offset", offset);
-    const response = await fetch(url, {
-      headers: {
-        ...(lifiConfig.apiKey && { "x-lifi-api-key": lifiConfig.apiKey }),
-        ...(lifiConfig.integrator && { "x-lifi-integrator": lifiConfig.integrator }),
-      },
-    });
-    if (!response.ok) throw new Error("wallet balances request failed");
-    const json = parse(
-      object({
-        balances: optional(
-          record(
-            string(),
-            array(
-              looseObject({
-                chainId: number(),
-                address: string(),
-                symbol: string(),
-                decimals: number(),
-                name: string(),
-                priceUSD: optional(string(), "0"),
-                logoURI: optional(string()),
-                amount: pipe(string(), regex(/^\d+$/)),
-              }),
-            ),
-          ),
-        ),
-        offset: optional(string()),
-      }),
-      await response.json(),
-    );
-    for (const [chainId, tokens] of Object.entries(json.balances ?? {})) {
-      const id = Number(chainId);
-      if (!Number.isInteger(id)) continue;
-      balances[id] = [
-        ...(balances[id] ?? []),
-        ...tokens.map(({ amount, ...token }) => ({ ...token, amount: BigInt(amount) })),
-      ];
-    }
-    offset = json.offset;
-  } while (offset);
+async function getWalletBalances(account: Address) {
+  const [chains, networks] = await Promise.all([
+    config.getChains(),
+    queryClient.fetchQuery(networksOptions).catch((error: unknown) => {
+      reportError(error);
+      return [];
+    }),
+  ]);
+  const urls: Record<number, string> = { ...alchemyURLs };
+  for (const { isTestNet, kebabCaseId, networkChainId, supportedProducts } of networks) {
+    if (isTestNet || typeof networkChainId !== "number" || urls[networkChainId]) continue;
+    if (!supportedProducts.includes("token-api")) continue;
+    urls[networkChainId] = `https://${kebabCaseId}.g.alchemy.com/v2/${alchemyAPIKey}`;
+  }
+  const balances: Record<number, Holding[]> = {};
+  const failures = new Map<string, { error: unknown; ids: number[] }>();
+  await Promise.all(
+    chains.map(async ({ id, mainnet }) => {
+      const url = urls[id];
+      if (!mainnet || !url) return;
+      try {
+        const held: Holding[] = [];
+        let pageKey: string | undefined;
+        do {
+          const [tokens, native] = await Promise.all([
+            rpc(url, "alchemy_getTokenBalances", pageKey ? [account, "erc20", { pageKey }] : [account, "erc20"]),
+            pageKey ? undefined : rpc(url, "eth_getBalance", [account, "latest"]),
+          ]);
+          if (typeof native === "string") {
+            const amount = BigInt(native);
+            if (amount > 0n) held.push({ address: zeroAddress, amount });
+          }
+          pageKey = undefined;
+          if (tokens && typeof tokens !== "string") {
+            for (const { contractAddress, tokenBalance } of tokens.tokenBalances) {
+              if (!tokenBalance) continue;
+              const amount = BigInt(tokenBalance);
+              if (amount > 0n) held.push({ address: contractAddress, amount });
+            }
+            pageKey = tokens.pageKey ?? undefined;
+          }
+        } while (pageKey);
+        if (held.length > 0) balances[id] = held;
+      } catch (error) {
+        const key = String(error);
+        const failure = failures.get(key) ?? { ids: [], error };
+        failure.ids.push(id);
+        failures.set(key, failure);
+      }
+    }),
+  );
+  for (const [key, { ids, error }] of failures) {
+    reportError(new Error(`balances failed for chains ${ids.join(", ")}: ${key}`, { cause: error }));
+  }
   return balances;
 }
+
+async function rpc(url: string, method: string, params: unknown[]) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  if (response.status === 400 || response.status === 403) return;
+  if (!response.ok) throw new Error(`${method} failed: ${response.status} ${await response.text()}`);
+  const { error, result } = parse(Balances, await response.json());
+  if (error) throw new Error(`${method} failed: ${error.code} ${error.message}`);
+  return result;
+}
+
+const networksOptions = queryOptions({
+  queryKey: ["alchemy", "networks"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: async () => {
+    const response = await fetch("https://app-api.alchemy.com/trpc/config.getNetworkConfig");
+    if (!response.ok) throw new Error(`alchemy networks failed: ${response.status}`);
+    return parse(Networks, await response.json()).result.data;
+  },
+});
+
+const Networks = object({
+  result: object({
+    data: array(
+      object({
+        isTestNet: boolean(),
+        kebabCaseId: string(),
+        networkChainId: optional(unknown()),
+        supportedProducts: array(nullish(string())),
+      }),
+    ),
+  }),
+});
+
+const alchemyURLs = Object.fromEntries(
+  [...alchemyChains.values()].flatMap(({ id, rpcUrls }) =>
+    rpcUrls.alchemy ? [[id, `${rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`] as const] : [],
+  ),
+);
+
+const Balances = object({
+  error: optional(object({ code: number(), message: string() })),
+  result: optional(
+    union([
+      Hex,
+      object({
+        tokenBalances: array(object({ contractAddress: AddressSchema, tokenBalance: nullish(Hex) })),
+        pageKey: nullish(string()),
+      }),
+    ]),
+  ),
+});
+
+const knownTokens = new WeakMap<Token[], Map<string, Token>>();
+
+type Holding = { address: string; amount: bigint };
 
 export const tokenCorrelation = {
   ETH: "ETH",
