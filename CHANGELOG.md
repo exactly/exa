@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.19
+
+### Patch Changes
+
+- [#1195](https://github.com/exactly/exa/pull/1195) [`88f7003`](https://github.com/exactly/exa/commit/88f700370aae08e93fa4122021ae55b731a9db5d) Thanks [@franm91](https://github.com/franm91)! - 🚑️ replace deprecated wallet balances endpoint
+
+- [#1195](https://github.com/exactly/exa/pull/1195) [`4fb9287`](https://github.com/exactly/exa/commit/4fb92873983c2bfded2eecb6cd4fef9847ac5be6) Thanks [@franm91](https://github.com/franm91)! - 🐛 fix token logo resolution
+
+- [#1184](https://github.com/exactly/exa/pull/1184) [`4709146`](https://github.com/exactly/exa/commit/4709146d885e98fc62a6966d6995d9da08ea80f8) Thanks [@franm91](https://github.com/franm91)! - 👔 extend installments benefit
+
+- Updated dependencies [[`199370e`](https://github.com/exactly/exa/commit/199370e5c63008fd869ca66c852209f27305802a)]:
+  - @exactly/server@0.2.107
+
 ## 1.2.18
 
 ### Patch Changes
