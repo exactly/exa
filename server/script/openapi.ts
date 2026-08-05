@@ -12,6 +12,7 @@ import("../api")
       authSecret: zeroHash,
       bridgeKey: "bridge",
       bridgeUrl: "https://bridge.test",
+      chatKey: zeroHash,
       intercomKey: "intercom",
       mantecaKey: "manteca",
       mantecaUrl: "https://manteca.test",

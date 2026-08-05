@@ -114,6 +114,7 @@ async function create() {
     authSecret: "auth-secret-auth-secret-auth-secret",
     bridgeKey: "bridge",
     bridgeUrl: "https://bridge.test",
+    chatKey: "chat",
     intercomKey: "intercom",
     mantecaKey: "manteca",
     mantecaUrl: "https://manteca.test",
