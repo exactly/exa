@@ -6,20 +6,26 @@ import {
   createBundlerClient,
   createSmartAccountClient,
   deepHexlify,
+  defaultGasEstimator,
   defaultUserOpSigner,
   getEntryPoint,
   resolveProperties,
   smartAccountClientActions,
   toSmartContractAccount,
-  type ClientMiddlewareFn,
+  type ClientMiddlewareArgs,
+  type Deferrable,
+  type GetEntryPointFromAccount,
+  type MiddlewareClient,
   type SmartAccountClient,
   type SmartContractAccount,
+  type UserOperationContext,
+  type UserOperationRequest,
+  type UserOperationStruct,
   type UserOperationStruct_v6,
 } from "@aa-sdk/core";
 import {
   alchemy,
   alchemyFeeEstimator,
-  alchemyGasAndPaymasterAndDataMiddleware,
   alchemyGasManagerMiddleware,
   createAlchemyPublicRpcClient,
 } from "@account-kit/infra";
@@ -57,7 +63,6 @@ import {
   hexToBytes,
   hexToNumber,
   isHex,
-  maxUint256,
   numberToHex,
   sliceHex,
   trim,
@@ -104,7 +109,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     }
     const credential = await get({
       rpId: domain,
-      challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
+      challenge: encodeChallenge(uoHash),
       allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
       userVerification: "preferred",
     });
@@ -137,7 +142,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     transport,
     account,
     ...(alchemyGasPolicyId
-      ? alchemyGasManagerMiddleware(alchemyGasPolicyId)
+      ? { ...alchemyGasManagerMiddleware(alchemyGasPolicyId), gasEstimator }
       : {
           gasEstimator(struct) {
             struct.preVerificationGas = 1_000_000n;
@@ -148,7 +153,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
           paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
         }),
-    customMiddleware: dummySignatureMiddleware,
   });
   const crossChainAccounts = new Map<
     number,
@@ -177,7 +181,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           chain: targetChain,
           transport: targetTransport,
           account: targetAccount,
-          customMiddleware: dummySignatureMiddleware,
         }),
         transport: targetTransport,
       }))
@@ -231,21 +234,14 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 chain: targetChain,
                 transport: remote.transport,
                 account: remote.account,
+                feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
                 ...(context
-                  ? alchemyGasAndPaymasterAndDataMiddleware({
-                      policyId,
-                      policyToken,
-                      transport: remote.alchemyTransport,
-                    })
-                  : {
-                      feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
-                      feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } },
-                    }),
-                customMiddleware: dummySignatureMiddleware,
+                  ? alchemyGasManagerMiddleware(policyId, policyToken)
+                  : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
+                gasEstimator,
               });
               const { hash } = await crossClient.sendUserOperation({
                 uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
-                overrides: { verificationGasLimit: { multiplier: 2 } },
               });
               return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
             }
@@ -261,7 +257,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                       transport,
                       account,
                       ...alchemyGasManagerMiddleware(policyId, policyToken),
-                      customMiddleware: dummySignatureMiddleware,
+                      gasEstimator,
                     })
                   : client;
               const { hash } = await uoClient.sendUserOperation({
@@ -439,21 +435,29 @@ function dummySignature(challenge: string) {
     clientDataJSON: `{"type":"webauthn.get","challenge":"${challenge}","origin":"https://web.exactly.app","crossOrigin":false}`,
     typeIndex: 1n,
     challengeIndex: 23n,
-    r: maxUint256,
+    r: P256_N - 1n,
     s: P256_N / 2n,
   });
 }
 
-async function dummySignatureMiddleware<T extends Parameters<ClientMiddlewareFn>[0]>(userOp: T) {
-  if ((await userOp.signature) === DUMMY_SIGNATURE) {
-    userOp.signature = dummySignature(
-      bufferToBase64URLString(
-        hexToBytes(hashMessage({ raw: deepHexlify(await resolveProperties(userOp)) as Hex }), { size: 32 })
-          .buffer as ArrayBuffer,
-      ),
-    );
-  }
-  return userOp;
+function encodeChallenge(uoHash: Hex) {
+  return bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer);
+}
+
+async function gasEstimator<
+  TAccount extends SmartContractAccount,
+  C extends MiddlewareClient,
+  TEntryPointVersion extends GetEntryPointFromAccount<TAccount> = GetEntryPointFromAccount<TAccount>,
+>(
+  userOp: Deferrable<UserOperationStruct<TEntryPointVersion>>,
+  context: ClientMiddlewareArgs<TAccount, C, undefined | UserOperationContext, TEntryPointVersion>,
+): Promise<Deferrable<UserOperationStruct<TEntryPointVersion>>> {
+  const entryPoint = context.account.getEntryPoint();
+  const estimateGas = defaultGasEstimator(context.client);
+  const result = await estimateGas(userOp, context);
+  const request = deepHexlify(await resolveProperties(result)) as UserOperationRequest<TEntryPointVersion>;
+  result.signature = dummySignature(encodeChallenge(entryPoint.getUserOperationHash(request)));
+  return estimateGas(result, context);
 }
 
 const UO_MAGIC_ID = "0x4337433743374337433743374337433743374337433743374337433743374337";
