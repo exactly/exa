@@ -5,21 +5,25 @@ import {
   buildUserOperationFromTx,
   createBundlerClient,
   createSmartAccountClient,
-  deepHexlify,
+  defaultGasEstimator,
   defaultUserOpSigner,
   getEntryPoint,
   resolveProperties,
   smartAccountClientActions,
   toSmartContractAccount,
-  type ClientMiddlewareFn,
+  type ClientMiddlewareArgs,
+  type Deferrable,
+  type GetEntryPointFromAccount,
+  type MiddlewareClient,
   type SmartAccountClient,
   type SmartContractAccount,
+  type UserOperationContext,
+  type UserOperationStruct,
   type UserOperationStruct_v6,
 } from "@aa-sdk/core";
 import {
   alchemy,
   alchemyFeeEstimator,
-  alchemyGasAndPaymasterAndDataMiddleware,
   alchemyGasManagerMiddleware,
   createAlchemyPublicRpcClient,
 } from "@account-kit/infra";
@@ -99,9 +103,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   login(accountAddress);
   const transport = custom(publicClient);
   const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
-    if (queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && getConnection(ownerConfig).address) {
-      return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
-    }
+    if (isSiwe()) return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
     const credential = await get({
       rpId: domain,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
@@ -137,7 +139,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     transport,
     account,
     ...(alchemyGasPolicyId
-      ? alchemyGasManagerMiddleware(alchemyGasPolicyId)
+      ? { ...alchemyGasManagerMiddleware(alchemyGasPolicyId), gasEstimator }
       : {
           gasEstimator(struct) {
             struct.preVerificationGas = 1_000_000n;
@@ -148,7 +150,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
           paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
         }),
-    customMiddleware: dummySignatureMiddleware,
   });
   const crossChainAccounts = new Map<
     number,
@@ -177,7 +178,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
           chain: targetChain,
           transport: targetTransport,
           account: targetAccount,
-          customMiddleware: dummySignatureMiddleware,
         }),
         transport: targetTransport,
       }))
@@ -231,21 +231,14 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 chain: targetChain,
                 transport: remote.transport,
                 account: remote.account,
+                feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
                 ...(context
-                  ? alchemyGasAndPaymasterAndDataMiddleware({
-                      policyId,
-                      policyToken,
-                      transport: remote.alchemyTransport,
-                    })
-                  : {
-                      feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
-                      feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } },
-                    }),
-                customMiddleware: dummySignatureMiddleware,
+                  ? alchemyGasManagerMiddleware(policyId, policyToken)
+                  : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
+                gasEstimator,
               });
               const { hash } = await crossClient.sendUserOperation({
                 uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
-                overrides: { verificationGasLimit: { multiplier: 2 } },
               });
               return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
             }
@@ -261,7 +254,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                       transport,
                       account,
                       ...alchemyGasManagerMiddleware(policyId, policyToken),
-                      customMiddleware: dummySignatureMiddleware,
+                      gasEstimator,
                     })
                   : client;
               const { hash } = await uoClient.sendUserOperation({
@@ -436,7 +429,13 @@ function wrapSignature(ownerIndex: number, signature: Hex) {
 function dummySignature(challenge: string) {
   return webauthn({
     authenticatorData: "0x49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000000",
-    clientDataJSON: `{"type":"webauthn.get","challenge":"${challenge}","origin":"https://web.exactly.app","crossOrigin":false}`,
+    clientDataJSON: `{"type":"webauthn.get","challenge":"${challenge}","origin":"${
+      Platform.OS === "android"
+        ? `android:apk-key-hash:${"A".repeat(43)}`
+        : Platform.OS === "web" && typeof window !== "undefined"
+          ? window.location.origin
+          : `https://${domain}`
+    }"${Platform.OS === "ios" ? "" : ',"crossOrigin":false'}}`,
     typeIndex: 1n,
     challengeIndex: 23n,
     r: maxUint256,
@@ -444,16 +443,24 @@ function dummySignature(challenge: string) {
   });
 }
 
-async function dummySignatureMiddleware<T extends Parameters<ClientMiddlewareFn>[0]>(userOp: T) {
-  if ((await userOp.signature) === DUMMY_SIGNATURE) {
-    userOp.signature = dummySignature(
-      bufferToBase64URLString(
-        hexToBytes(hashMessage({ raw: deepHexlify(await resolveProperties(userOp)) as Hex }), { size: 32 })
-          .buffer as ArrayBuffer,
-      ),
-    );
-  }
-  return userOp;
+async function gasEstimator<
+  TAccount extends SmartContractAccount,
+  C extends MiddlewareClient,
+  TEntryPointVersion extends GetEntryPointFromAccount<TAccount> = GetEntryPointFromAccount<TAccount>,
+>(
+  userOp: Deferrable<UserOperationStruct<TEntryPointVersion>>,
+  context: ClientMiddlewareArgs<TAccount, C, undefined | UserOperationContext, TEntryPointVersion>,
+): Promise<Deferrable<UserOperationStruct<TEntryPointVersion>>> {
+  const result = await defaultGasEstimator(context.client)(userOp, context);
+  if (isSiwe()) return result;
+  const limit = BigInt((await result.verificationGasLimit) ?? 0);
+  if (!limit) throw new Error("missing verification gas limit");
+  result.verificationGasLimit = limit + 10_000n;
+  return result;
+}
+
+function isSiwe() {
+  return queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && !!getConnection(ownerConfig).address;
 }
 
 const UO_MAGIC_ID = "0x4337433743374337433743374337433743374337433743374337433743374337";
