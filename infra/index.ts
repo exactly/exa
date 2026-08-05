@@ -1,0 +1,216 @@
+import {
+  artifactregistry,
+  cloudrunv2,
+  kms,
+  parametermanager,
+  projects,
+  secretmanager,
+  serviceaccount,
+} from "@pulumi/gcp";
+import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
+import { hash } from "node:crypto";
+
+import rejectSecrets from "./utils/rejectSecrets.ts";
+import resources from "./utils/resources.ts";
+
+import type { types } from "@pulumi/gcp";
+
+const stack = getStack();
+await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: import.meta.dirname }));
+
+const config = new Config();
+const project = new Config("gcp").require("project");
+const location = config.get("location") ?? "us-west1";
+const run = new projects.Service("run", { service: "run.googleapis.com" });
+const registry = new projects.Service("artifactregistry", { service: "artifactregistry.googleapis.com" });
+const parameterManager = new projects.Service("parametermanager", { service: "parametermanager.googleapis.com" });
+
+const image = interpolate`${
+  new artifactregistry.Repository(
+    "ghcr",
+    {
+      location,
+      format: "DOCKER",
+      mode: "REMOTE_REPOSITORY",
+      repositoryId: `${stack}-ghcr`,
+      remoteRepositoryConfig: { commonRepository: { uri: "https://ghcr.io" } },
+      cleanupPolicies: [{ action: "DELETE", condition: { olderThan: "1d" }, id: "delete-cached" }],
+    },
+    { dependsOn: registry },
+  ).registryUri
+}/exactly/exa-${stack}:${config.require("serverImage")}`;
+
+function worker(name: string, { env, secrets, signer }: (typeof resources.workers)[keyof typeof resources.workers]) {
+  const account = serviceaccount.getAccountOutput({ accountId: `${stack}-${name}` });
+  return {
+    dependencies: [
+      ...(signer
+        ? [
+            new kms.CryptoKeyIAMMember(`${name}-signer`, {
+              cryptoKeyId: `projects/${project}/locations/${location}/keyRings/${stack}-signers/cryptoKeys/${stack}-${signer}`,
+              member: interpolate`serviceAccount:${account.email}`,
+              role: "roles/cloudkms.signerVerifier",
+            }),
+          ]
+        : []),
+      ...secrets.map(
+        (secret) =>
+          new secretmanager.SecretIamMember(`${name}-${secret}-access`, {
+            member: interpolate`serviceAccount:${account.email}`,
+            role: "roles/secretmanager.secretAccessor",
+            secretId: `projects/${project}/secrets/${stack}-${secret}`,
+          }),
+      ),
+    ],
+    name,
+    template: {
+      serviceAccount: account.email,
+      containers: [
+        {
+          image,
+          resources: config.getObject<types.input.cloudrunv2.JobTemplateTemplateContainerResources>(`${name}Resources`),
+          args: [`dist/workers/${name}/bin.cjs`],
+          envs: [
+            { name: "APP_STACK", value: stack },
+            { name: "DEBUG", value: "exa:*" },
+            { name: "NODE_ENV", value: "production" },
+            { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
+            ...(signer
+              ? [
+                  { name: "GCP_KMS_KEY_RING", value: `${stack}-signers` },
+                  { name: "GCP_KMS_KEY_VERSION", value: config.get(`${signer}Version`) ?? "1" },
+                  { name: "GCP_KMS_LOCATION", value: location },
+                ]
+              : []),
+            ...(env
+              ? Object.entries(env).map(([variable, setting]) => ({ name: variable, value: config.require(setting) }))
+              : []),
+          ],
+        },
+      ],
+    },
+  };
+}
+
+const workers = Object.entries(resources.workers).map(([name, spec]) => worker(name, spec));
+const checks = workers.map(
+  ({ dependencies, name, template }) =>
+    new cloudrunv2.Job(
+      `${name}-check`,
+      {
+        deletionProtection: false,
+        location,
+        name: `${stack}-${name}-check`,
+        runExecutionToken: hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16),
+        template: {
+          template: {
+            ...template,
+            containers: template.containers.map((c) => ({ ...c, args: [...c.args, "--check"] })),
+            maxRetries: 0,
+            timeout: "60s",
+          },
+        },
+      },
+      { dependsOn: [run, ...dependencies] },
+    ),
+);
+const pools = workers.map(({ dependencies, name, template }) => ({
+  name,
+  target: new cloudrunv2.WorkerPool(
+    name,
+    { location, name: `${stack}-${name}`, scaling: { manualInstanceCount: 1 }, template },
+    { dependsOn: [run, ...dependencies, ...checks], ignoreChanges: ["scaling.manualInstanceCount"] },
+  ),
+}));
+
+const crema = serviceaccount.getAccountOutput({ accountId: `${stack}-crema` });
+const cremaConfig = JSON.stringify({
+  apiVersion: "crema/v1",
+  kind: "CremaConfig",
+  spec: {
+    pollingInterval: 2,
+    triggerAuthentications: [
+      {
+        metadata: { name: "redis" },
+        spec: {
+          gcpSecretManager: {
+            secrets: [
+              { parameter: "address", id: `${stack}-redis-address` },
+              { parameter: "password", id: `${stack}-redis-password` },
+              { parameter: "username", id: `${stack}-redis-username` },
+            ],
+          },
+        },
+      },
+    ],
+    scaledObjects: workers.map(({ name }) => ({
+      spec: {
+        scaleTargetRef: { name: `projects/${project}/locations/${location}/workerpools/${stack}-${name}` },
+        minReplicaCount: config.getNumber(`${name}Workers`),
+        maxReplicaCount: 1,
+        advanced: { horizontalPodAutoscalerConfig: { behavior: { scaleDown: { stabilizationWindowSeconds: 900 } } } },
+        triggers: (["wait", "active", "delayed", "prioritized"] as const).map((state) => ({
+          type: "redis",
+          name: state,
+          metadata: { enableTLS: "true", listLength: "1", listName: `bull:${name}:${state}` },
+          authenticationRef: { name: "redis" },
+        })),
+      },
+    })),
+  },
+});
+new cloudrunv2.Service(
+  "crema",
+  {
+    location,
+    name: `${stack}-crema`,
+    scaling: { manualInstanceCount: 1 },
+    ingress: "INGRESS_TRAFFIC_INTERNAL_ONLY",
+    template: {
+      serviceAccount: crema.email,
+      containers: [
+        {
+          envs: [
+            {
+              name: "CREMA_CONFIG",
+              value: new parametermanager.ParameterVersion("crema", {
+                parameter: new parametermanager.Parameter(
+                  "crema",
+                  { format: "JSON", parameterId: `${stack}-crema` },
+                  { dependsOn: parameterManager },
+                ).id,
+                parameterData: cremaConfig,
+                parameterVersionId: hash("sha256", cremaConfig).slice(0, 16),
+              }).name,
+            },
+          ],
+          image: "us-central1-docker.pkg.dev/cloud-run-oss-images/crema-v1/autoscaler:1.2",
+          baseImageUri: "us-central1-docker.pkg.dev/serverless-runtimes/google-24/runtimes/java25",
+          resources: { cpuIdle: false },
+        },
+      ],
+    },
+  },
+  {
+    dependsOn: [
+      run,
+      ...pools.map(
+        ({ name, target }) =>
+          new cloudrunv2.WorkerPoolIamMember(`crema-${name}`, {
+            location,
+            name: target.name,
+            member: interpolate`serviceAccount:${crema.email}`,
+            role: `projects/${project}/roles/cremaScaler`,
+          }),
+      ),
+      ...resources.crema.map(
+        (secret) =>
+          new secretmanager.SecretIamMember(`crema-${secret}-access`, {
+            secretId: `projects/${project}/secrets/${stack}-${secret}`,
+            member: interpolate`serviceAccount:${crema.email}`,
+            role: "roles/secretmanager.secretAccessor",
+          }),
+      ),
+    ],
+  },
+);
