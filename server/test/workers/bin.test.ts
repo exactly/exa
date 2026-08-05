@@ -45,7 +45,7 @@ const mocks = {
   sardine: vi.fn<(key: string, url: string) => object>(),
   subscribe: vi.fn<(config: { alchemy: object; bullmq: object; database: typeof database }) => Handle>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
-  whatsapp: vi.fn<(config: { from: string; token: string }) => object>(),
+  whatsapp: vi.fn<(config: { from: string; key: string; token: string }) => object>(),
 };
 
 afterEach(() => {
@@ -147,6 +147,7 @@ describe("bin", () => {
     expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
       "chat-anthropic-api-key",
       "redis-url",
+      "chat-identity-key",
       "chat-whatsapp-access-token",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
@@ -157,6 +158,7 @@ describe("bin", () => {
     });
     expect(mocks.whatsapp).toHaveBeenCalledExactlyOnceWith({
       from: "whatsapp",
+      key: "chat-identity-key",
       token: "chat-whatsapp-access-token",
     });
   });

@@ -5,7 +5,7 @@ import { env } from "node:process";
 import { afterAll, beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { ExaAPI } from "../../api";
-import type { hc } from "hono/client";
+import type { hc, InferResponseType } from "hono/client";
 
 vi.mock("../../utils/wallet", () => ({ default: vi.fn() }));
 
@@ -25,6 +25,9 @@ describe("api", () => {
 
   it("preserves every client response type", () => {
     expectTypeOf<AnyResponses<ReturnType<typeof hc<ExaAPI>>>>().toBeNever();
+    expectTypeOf<InferResponseType<ReturnType<typeof hc<ExaAPI>>["chat"]["$get"]>>().toEqualTypeOf<{
+      code: string;
+    }>();
   });
 });
 

@@ -3,6 +3,7 @@ export default define({
   crema: ["redis-address", "redis-password", "redis-username"],
   services: {
     api: {
+      env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: [
         "auth-secret",
         "bridge-api-key",
@@ -16,9 +17,11 @@ export default define({
         "sardine-api-key",
         "segment-write-key",
         "wallet-extension-secret",
+        "whatsapp-access-token",
       ],
       shared: [
         "bridge-api-url",
+        "chat-identity-key",
         "manteca-api-url",
         "panda-api-url",
         "pax-api-url",
@@ -70,6 +73,7 @@ export default define({
     chat: {
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["anthropic-api-key", "whatsapp-access-token"],
+      shared: ["chat-identity-key"],
     },
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
     hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url"] },
