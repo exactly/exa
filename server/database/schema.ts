@@ -38,10 +38,12 @@ export const credentials = pgTable(
     bridgeId: text("bridge_id"),
     source: text("source"),
     salt: text("salt").notNull().default(zeroAddress),
+    whatsappId: text("whatsapp_id"),
   },
-  ({ account, bridgeId, salt }) => [
+  ({ account, bridgeId, whatsappId, salt }) => [
     uniqueIndex("account_index").on(account),
     uniqueIndex("bridge_id_index").on(bridgeId),
+    uniqueIndex("whatsapp_id_index").on(whatsappId),
     check("credentials_salt_hex_check", sql`${salt} ~ '^0x[0-9a-fA-F]{40}$'`),
   ],
 );
