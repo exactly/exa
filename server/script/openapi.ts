@@ -6,6 +6,7 @@ import { zeroHash } from "viem";
 
 import * as schema from "../database/schema";
 import { version } from "../package.json";
+import createChat from "../utils/chat";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
@@ -25,6 +26,7 @@ import("../api")
     const handle = api({
       authSecret: zeroHash,
       bridge: createBridge("bridge", "https://bridge.test"),
+      chat: createChat(zeroHash),
       credit: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       database,
       intercom: createIntercom("intercom"),

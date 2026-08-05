@@ -6,6 +6,7 @@ import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
+import chatRoute from "./chat";
 import kyc from "./kyc";
 import passkey from "./passkey";
 import paxRoute from "./pax";
@@ -18,6 +19,7 @@ import createBetterAuth from "../utils/auth";
 import createCredential from "../utils/createCredential";
 
 import type * as schema from "../database/schema";
+import type createChat from "../utils/chat";
 import type createIntercom from "../utils/intercom";
 import type createPanda from "../utils/panda";
 import type createPax from "../utils/pax";
@@ -35,6 +37,7 @@ import type { Redis } from "ioredis";
 export default function api({
   authSecret,
   bridge,
+  chat,
   credit,
   database,
   intercom,
@@ -50,6 +53,7 @@ export default function api({
 }: {
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
+  chat: ReturnType<typeof createChat>;
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
@@ -81,6 +85,7 @@ export default function api({
     )
     .route("/activity", activity({ auth, database }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/chat", chatRoute({ auth, chat, database, redis }))
     .route("/kyc", kyc({ auth, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))

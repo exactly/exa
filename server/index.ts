@@ -23,6 +23,7 @@ import supervise, { own } from "./supervise";
 import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
+import createChat from "./utils/chat";
 import createIntercom from "./utils/intercom";
 import { closeQueue as closeMaturity, reminders, setup as setupMaturity } from "./utils/maturity";
 import createOnesignal from "./utils/onesignal";
@@ -49,6 +50,7 @@ const bridge = createBridge(
   parse(pipe(string("bridge key"), nonEmpty("bridge key")), env.BRIDGE_API_KEY),
   parse(pipe(string("bridge url"), nonEmpty("bridge url")), env.BRIDGE_API_URL),
 );
+const chat = createChat(parse(pipe(string("chat"), nonEmpty("chat")), env.CHAT_IDENTITY_KEY));
 const intercom = createIntercom(parse(pipe(string("intercom"), nonEmpty("intercom")), env.INTERCOM_IDENTITY_KEY));
 const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
 const keeper = legacy("keeper"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
@@ -88,6 +90,7 @@ setupMaturity(onesignal);
 const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
+  chat,
   credit,
   database,
   intercom,

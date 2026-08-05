@@ -5,6 +5,7 @@ import { Redis } from "ioredis";
 import api from ".";
 import * as schema from "../database/schema";
 import supervise, { own } from "../supervise";
+import createChat from "../utils/chat";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
@@ -32,6 +33,7 @@ supervise(
     Promise.all([secret("api-bridge-api-key", secrets), secret("bridge-api-url", secrets)]).then(([key, url]) =>
       createBridge(key, url),
     ),
+    secret("chat-identity-key", secrets).then(createChat),
     secret("api-postgres-url", secrets).then((url) => drizzle(url, { schema })),
     secret("api-intercom-identity-key", secrets).then((key) => createIntercom(key)),
     Promise.all([secret("api-manteca-api-key", secrets), secret("manteca-api-url", secrets)]).then(([key, url]) =>
@@ -58,6 +60,7 @@ supervise(
       [redis, bullmq, credit, subscribe],
       authSecret,
       bridge,
+      chat,
       database,
       intercom,
       manteca,
@@ -72,6 +75,7 @@ supervise(
         api({
           authSecret,
           bridge,
+          chat,
           credit,
           database,
           intercom,

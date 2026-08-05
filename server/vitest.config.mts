@@ -17,6 +17,7 @@ export default defineConfig({
       AUTH_SECRET: "auth",
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
+      CHAT_IDENTITY_KEY: "chat",
       EXPO_PUBLIC_ALCHEMY_API_KEY: " ",
       INTERCOM_IDENTITY_KEY: "a9cBeTfEtGPSQ58REZP35Bx00ofajvStEc8TTuBtSmk",
       ISSUER_PRIVATE_KEY: padHex("0x420"),

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as Supervise from "../../supervise";
 
 const bridge = {};
+const chat = {};
 const credit = { close: vi.fn<() => Promise<void>>() };
 const database = { $client: { end: vi.fn<() => Promise<void>>() } };
 const intercom = vi.fn();
@@ -18,6 +19,7 @@ const walletExtension = {};
 const mocks = {
   api: vi.fn<(config: Record<string, unknown>) => Hook>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
+  chat: vi.fn<(secret: string) => object>(),
   credit: vi.fn<(bullmq: object) => typeof credit>(),
   drizzle: vi.fn<() => typeof database>(),
   intercom: vi.fn<(key: string) => typeof intercom>(),
@@ -44,6 +46,7 @@ beforeEach(() => {
     ready: Promise.resolve(),
   });
   mocks.bridge.mockReset().mockReturnValue(bridge);
+  mocks.chat.mockReset().mockReturnValue(chat);
   mocks.credit.mockReset().mockReturnValue(credit);
   mocks.drizzle.mockReset().mockReturnValue(database);
   mocks.intercom.mockReset().mockReturnValue(intercom);
@@ -71,6 +74,7 @@ beforeEach(() => {
     ...(await importOriginal<typeof Supervise>()),
     default: mocks.supervise,
   }));
+  vi.doMock("../../utils/chat", () => ({ default: mocks.chat }));
   vi.doMock("../../utils/intercom", () => ({ default: mocks.intercom }));
   vi.doMock("../../utils/panda", () => ({ default: mocks.panda }));
   vi.doMock("../../utils/pax", () => ({ default: mocks.pax }));
@@ -97,6 +101,7 @@ describe("api bin", () => {
       "api-auth-secret",
       "api-bridge-api-key",
       "bridge-api-url",
+      "chat-identity-key",
       "api-postgres-url",
       "api-intercom-identity-key",
       "api-manteca-api-key",
@@ -117,6 +122,7 @@ describe("api bin", () => {
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith({
       authSecret: "api-auth-secret",
       bridge,
+      chat,
       credit,
       database,
       intercom,

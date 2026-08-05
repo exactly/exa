@@ -19,6 +19,7 @@ export default define({
       ],
       shared: [
         "bridge-api-url",
+        "chat-identity-key",
         "manteca-api-url",
         "panda-api-url",
         "pax-api-url",
