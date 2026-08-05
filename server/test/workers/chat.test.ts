@@ -26,7 +26,7 @@ const queue = new Queue<Job, void>("chat", { connection: bullmq });
 const events = new QueueEvents("chat", { connection: bullmq });
 const publisher = createChat(bullmq);
 const { agent, reply } = chat("anthropic");
-const whatsapp = createWhatsapp({ from: "321", token: "token" });
+const whatsapp = createWhatsapp({ from: "321", key: "chat", token: "token" });
 const welcome = `Hi, welcome to Exa!
 With Exa you choose whether to pay for your purchases instantly with your balance or in fixed-rate installments, without selling your digital assets.
 You also get access to a dollar account in the US, all 100% free.

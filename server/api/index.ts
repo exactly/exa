@@ -6,6 +6,7 @@ import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
+import chatRoute from "./chat";
 import kyc from "./kyc";
 import passkey from "./passkey";
 import paxRoute from "./pax";
@@ -27,6 +28,7 @@ import type createManteca from "../utils/ramps/manteca";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
+import type createWhatsapp from "../utils/whatsapp";
 import type createCredit from "../workers/credit/queue";
 import type createSubscribe from "../workers/subscribe/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -35,6 +37,7 @@ import type { Redis } from "ioredis";
 export default function api({
   authSecret,
   bridge,
+  chat,
   credit,
   database,
   intercom,
@@ -50,6 +53,7 @@ export default function api({
 }: {
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
+  chat: ReturnType<typeof createWhatsapp>;
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
@@ -81,6 +85,7 @@ export default function api({
     )
     .route("/activity", activity({ auth, database }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/chat", chatRoute({ auth, chat, database, redis }))
     .route("/kyc", kyc({ auth, credit, database, panda, persona, sardine, segment }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))

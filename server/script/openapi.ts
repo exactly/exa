@@ -15,6 +15,7 @@ import createManteca from "../utils/ramps/manteca";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import createWalletExtension from "../utils/walletExtension";
+import createWhatsapp from "../utils/whatsapp";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
@@ -25,6 +26,7 @@ import("../api")
     const handle = api({
       authSecret: zeroHash,
       bridge: createBridge("bridge", "https://bridge.test"),
+      chat: createWhatsapp({ from: "whatsapp", key: zeroHash, token: "whatsapp" }),
       credit: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       database,
       intercom: createIntercom("intercom"),
