@@ -19,7 +19,7 @@ catalog:
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
   "@hono/node-server": ^2.0.12
-  nx: &nx ^23.1.0
+  nx: &nx ^23.1.1
   "@nx/esbuild": *nx
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
