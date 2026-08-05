@@ -35,8 +35,13 @@ export const credentials = pgTable(
     pandaId: text("panda_id"),
     bridgeId: text("bridge_id"),
     source: text("source"),
+    whatsappId: text("whatsapp_id"),
   },
-  ({ account, bridgeId }) => [uniqueIndex("account_index").on(account), uniqueIndex("bridge_id_index").on(bridgeId)],
+  ({ account, bridgeId, whatsappId }) => [
+    uniqueIndex("account_index").on(account),
+    uniqueIndex("bridge_id_index").on(bridgeId),
+    uniqueIndex("whatsapp_id_index").on(whatsappId),
+  ],
 );
 
 export const cards = pgTable(
