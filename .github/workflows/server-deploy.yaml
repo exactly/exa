@@ -37,7 +37,7 @@ jobs:
       - uses: pulumi/actions@v7
       - run: pulumi login "gs://exa-pulumi-state/$STACK"
       - run: pulumi stack select "$STACK" --create --cwd infra
-      - run: pulumi up --stack "$STACK" --cwd infra --refresh --yes --config "exa:serverImage=sha-$GITHUB_SHA"
+      - run: pulumi up --stack "$STACK" --cwd infra --refresh --yes --config "exa:rollout=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --config "exa:serverImage=sha-$GITHUB_SHA"
   digitalocean:
     runs-on: ubuntu-latest
     environment: { name: "${{ inputs.stack }}", url: "https://${{ vars.APP_DOMAIN }}" }

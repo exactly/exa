@@ -2,6 +2,7 @@ import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
+import { argv } from "node:process";
 
 import type { Span } from "@sentry/core";
 import type * as BullMQ from "bullmq";
@@ -21,6 +22,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
   name: string;
   process: (job: BullMQ.Job<Job>, span: Span) => Promise<void>;
 }) {
+  const check = argv.includes("--check");
   const queue = new Worker<Job, void>(
     name,
     (job) => {
@@ -59,7 +61,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
         ? continueTrace({ sentryTrace: job.data.sentryTrace, baggage: job.data.sentryBaggage }, callback)
         : callback();
     },
-    { connection: bullmq, limiter: { max: 10, duration: 1000 } },
+    { connection: bullmq, limiter: { max: 10, duration: 1000 }, autorun: !check },
   )
     .on("failed", (job, error) => {
       if (job && job.attemptsMade < (job.opts.attempts ?? attempts)) return;
@@ -70,6 +72,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
     });
   let closing: Promise<unknown> | undefined;
   return {
+    check,
     close: () =>
       (closing ??= queue
         .close()

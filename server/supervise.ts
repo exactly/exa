@@ -46,6 +46,10 @@ export default function supervise<App extends Hono | undefined = undefined>(
         return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
       });
       await handle.ready;
+      if (handle.check)
+        return close().catch(() => {
+          process.exitCode = 1;
+        });
       if (closing || !app) return;
       server = serve(app);
       server.once("error", fail);
@@ -94,6 +98,7 @@ export default function supervise<App extends Hono | undefined = undefined>(
 
 type Handle<App extends Hono | undefined = undefined> = {
   app?: App;
+  check?: boolean;
   close(): Promise<unknown>;
   ready: Promise<unknown>;
 };

@@ -259,6 +259,38 @@ describe("supervise", () => {
     expect(mocks.exit).not.toHaveBeenCalled();
   });
 
+  it("closes checks after readiness", async () => {
+    const ready = Promise.withResolvers<boolean>();
+    supervise("test", Promise.resolve({ check: true, close: mocks.close, ready: ready.promise }));
+    await settle();
+
+    expect(mocks.close).not.toHaveBeenCalled();
+    ready.resolve(true);
+    await vi.waitFor(() => expect(mocks.close).toHaveBeenCalledOnce());
+
+    expect(closeSentry).toHaveBeenCalledOnce();
+    expect(serve).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    expect(mocks.exit).not.toHaveBeenCalled();
+  });
+
+  it("fails checks when closing fails", async () => {
+    const error = new Error("check close failed");
+    mocks.close.mockRejectedValueOnce(error);
+
+    supervise("test", Promise.resolve({ check: true, close: mocks.close, ready: Promise.resolve() }));
+
+    await vi.waitFor(() => expect(process.exitCode).toBe(1));
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+      level: "fatal",
+      tags: { close: true, entrypoint: "test" },
+    });
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(closeSentry).toHaveBeenCalledOnce();
+    expect(serve).not.toHaveBeenCalled();
+    expect(mocks.exit).not.toHaveBeenCalled();
+  });
+
   it("captures startup failures without an app", async () => {
     const error = new Error("startup failed");
 
@@ -332,6 +364,7 @@ function serverError(error: Error) {
 }
 
 type Handle = {
+  check?: boolean;
   close(): Promise<void>;
   ready: Promise<unknown>;
 };
