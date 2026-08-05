@@ -16,11 +16,14 @@ supervise(
   Promise.all([
     secret("chat-anthropic-api-key", secrets),
     secret("redis-url", secrets).then((redisUrl) => connect(redisUrl)),
-    Promise.resolve(parse(pipe(string("whatsapp id"), nonEmpty("whatsapp id")), env.WHATSAPP_PHONE_NUMBER_ID)),
-    secret("chat-whatsapp-access-token", secrets),
-  ]).then(([anthropicKey, bullmq, whatsappFrom, whatsappToken]) =>
+    Promise.all([
+      secret("chat-identity-key", secrets),
+      Promise.resolve(parse(pipe(string("whatsapp id"), nonEmpty("whatsapp id")), env.WHATSAPP_PHONE_NUMBER_ID)),
+      secret("chat-whatsapp-access-token", secrets),
+    ]).then(([key, from, token]) => createWhatsapp({ from, key, token })),
+  ]).then(([anthropicKey, bullmq, whatsapp]) =>
     own(
-      worker({ anthropicKey, bullmq, whatsapp: createWhatsapp({ from: whatsappFrom, token: whatsappToken }) }),
+      worker({ anthropicKey, bullmq, whatsapp }),
       () => bullmq.quit(),
       () => secrets.close(),
     ),
