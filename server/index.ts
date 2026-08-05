@@ -34,6 +34,7 @@ const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridgeKey: parse(pipe(string("bridge key"), nonEmpty("bridge key")), env.BRIDGE_API_KEY),
   bridgeUrl: parse(pipe(string("bridge url"), nonEmpty("bridge url")), env.BRIDGE_API_URL),
+  chatKey: parse(pipe(string("chat"), nonEmpty("chat")), env.CHAT_IDENTITY_KEY),
   intercomKey: parse(pipe(string("intercom"), nonEmpty("intercom")), env.INTERCOM_IDENTITY_KEY),
   mantecaKey: parse(pipe(string("manteca key"), nonEmpty("manteca key")), env.MANTECA_API_KEY),
   mantecaUrl: parse(pipe(string("manteca url"), nonEmpty("manteca url")), env.MANTECA_API_URL),
