@@ -8,6 +8,7 @@ import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
+import chat from "./chat";
 import kyc from "./kyc";
 import passkey from "./passkey";
 import paxRoute from "./pax";
@@ -37,6 +38,7 @@ export default function api({
   authSecret,
   bridgeKey,
   bridgeUrl,
+  chatKey,
   intercomKey,
   mantecaKey,
   mantecaUrl,
@@ -58,6 +60,7 @@ export default function api({
   authSecret: string;
   bridgeKey: string;
   bridgeUrl: string;
+  chatKey: string;
   intercomKey: string;
   mantecaKey: string;
   mantecaUrl: string;
@@ -107,6 +110,7 @@ export default function api({
     )
     .route("/activity", activity({ auth, database }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/chat", chat({ auth, chatKey, database, redis }))
     .route("/kyc", kyc({ auth, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
