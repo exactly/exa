@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, TriangleAlert } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
@@ -21,12 +21,13 @@ import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
-import { bridgeFee, bridgeFiatCurrencies, getSymbol } from "../../utils/currencies";
+import ReferenceSheet from "./ReferenceSheet";
+import { bridgeFee, bridgeFiatCurrencies, bridgeRails, getSymbol } from "../../utils/currencies";
 import { presentArticle } from "../../utils/intercom";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getRampQuote, listExternalAccounts } from "../../utils/server";
+import { APIError, getRampQuote, listExternalAccounts } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
@@ -50,6 +51,7 @@ export default function Review() {
   const router = useRouter();
   const toast = useToastController();
   const { currency, provider, contactId, amount: amountParameter } = useLocalSearchParams();
+  const [openReference, setOpenReference] = useState(false);
   const currencyString = typeof currency === "string" ? currency : "";
   const contactString = typeof contactId === "string" ? contactId : "";
   const fiatCurrency = isFiatCurrency(currencyString) ? currencyString : undefined;
@@ -64,7 +66,7 @@ export default function Review() {
   });
   const recipient = recipients?.find((account) => account.id === contactString);
 
-  const { data: quote } = useQuery({
+  const { data: quote, error: quoteError } = useQuery({
     queryKey: ["ramp", "quote", "offramp", { currency: fiatCurrency, externalAccountId: contactString }],
     queryFn: () => {
       if (!fiatCurrency || !contactString) throw new Error("invalid params");
@@ -83,6 +85,9 @@ export default function Review() {
   const depositInfo = quote?.depositInfo[0];
   const depositResult = depositInfo && "address" in depositInfo ? safeParse(Address, depositInfo.address) : undefined;
   const depositAddress = depositResult?.success ? depositResult.output : undefined;
+  const reference = depositInfo && "reference" in depositInfo ? depositInfo.reference : undefined;
+  const rail = depositInfo && "rail" in depositInfo ? depositInfo.rail : undefined;
+  const missingTransfer = quoteError instanceof APIError && quoteError.text === "transfer not found";
 
   const { address: userAddress } = useAccount({ config: exa });
   const { request: proposeSimulation } = useSimulateProposal({
@@ -276,12 +281,43 @@ export default function Review() {
                 </YStack>
               }
             />
+            {rail && (
+              <ReviewRow
+                label={t("Transfer type")}
+                value={
+                  <Text emphasized primary>
+                    {bridgeRails[rail].label}
+                  </Text>
+                }
+              />
+            )}
+            {reference && (
+              <ReviewRow
+                label={t("Reference")}
+                value={
+                  <XStack gap="$s2" alignItems="center" flex={1} justifyContent="flex-end">
+                    <Text emphasized primary flexShrink={1} textAlign="right">
+                      {reference}
+                    </Text>
+                    <IconButton
+                      icon={Info}
+                      size={16}
+                      color="$interactiveBaseBrandDefault"
+                      aria-label={t("More info")}
+                      onPress={() => {
+                        setOpenReference(true);
+                      }}
+                    />
+                  </XStack>
+                }
+              />
+            )}
             <ReviewRow
               label={t("Transfer fee")}
               value={
                 <XStack gap="$s2" alignItems="center">
                   <Text emphasized strikeThrough color="$uiNeutralSecondary">
-                    {bridgeFee(currencyString)}
+                    {rail ? bridgeRails[rail].fee : bridgeFee(currencyString)}
                   </Text>
                   <Text emphasized color="$uiSuccessSecondary">
                     {t("Free")}
@@ -303,12 +339,23 @@ export default function Review() {
           </YStack>
         </ScrollView>
 
+        {missingTransfer && (
+          <XStack gap="$s3" alignItems="flex-start">
+            <TriangleAlert size={16} color="$uiErrorSecondary" />
+            <Text secondary caption flex={1}>
+              {t(
+                "The transfer details saved for this contact aren't available. To send to them, delete the contact and add their account details again.",
+              )}
+            </Text>
+          </XStack>
+        )}
+
         <Button
           onPress={() => {
             transfer.mutate();
           }}
           primary
-          disabled={!proposeSimulation || !recipientValid || !meetsMinimum}
+          disabled={!proposeSimulation || !recipientValid || !meetsMinimum || missingTransfer}
         >
           <Button.Text>{t("Confirm and send")}</Button.Text>
           <Button.Icon>
@@ -316,6 +363,15 @@ export default function Review() {
           </Button.Icon>
         </Button>
       </View>
+
+      <ReferenceSheet
+        open={openReference}
+        currency={currencyString}
+        provider={providerString}
+        onClose={() => {
+          setOpenReference(false);
+        }}
+      />
     </SafeView>
   );
 }

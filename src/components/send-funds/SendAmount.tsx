@@ -24,11 +24,12 @@ import { formatUnits, parseUnits } from "viem";
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
-import { bridgeFee, bridgeFiatCurrencies, getSymbol } from "../../utils/currencies";
+import MissingTransferSheet from "./MissingTransferSheet";
+import { bridgeFee, bridgeFiatCurrencies, bridgeRails, getSymbol } from "../../utils/currencies";
 import { presentArticle } from "../../utils/intercom";
 import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
-import { getRampQuote } from "../../utils/server";
+import { APIError, getRampQuote } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
@@ -61,7 +62,7 @@ export default function SendAmount() {
 
   const { available } = useAsset(marketUSDCAddress);
 
-  const { data: quote, isError: quoteError } = useQuery({
+  const { data: quote, error: quoteError } = useQuery({
     queryKey: ["ramp", "quote", "offramp", { currency: fiatCurrency, externalAccountId: contactString }],
     queryFn: () => {
       if (!fiatCurrency || !contactString) throw new Error("invalid params");
@@ -75,6 +76,9 @@ export default function SendAmount() {
     enabled: !!fiatCurrency && !!contactString,
   });
 
+  const missingTransfer = quoteError instanceof APIError && quoteError.text === "transfer not found";
+  const depositInfo = quote?.depositInfo[0];
+  const rail = depositInfo && "rail" in depositInfo ? depositInfo.rail : undefined;
   const buyRate = quote?.quote?.buyRate;
   const rate = buyRate ? parseAmount(buyRate, 18) : undefined;
   const availableInTargetCurrency = rate ? (available * rate) / WAD : 0n;
@@ -97,7 +101,7 @@ export default function SendAmount() {
   const insufficient = usdcRequired > available;
   const belowMinimum = usdcRequired > 0n && usdcRequired < parseUnits(String(MINIMUM_USDC), 6);
   const hasError = insufficient || belowMinimum;
-  const canContinue = !!rate && amountInTargetCurrency > 0n && !hasError;
+  const canContinue = !!rate && amountInTargetCurrency > 0n && !hasError && !missingTransfer;
 
   if (!fiatCurrency || !contactString || providerString !== "bridge") return <Redirect href="/send-funds" />;
 
@@ -216,7 +220,7 @@ export default function SendAmount() {
               </XStack>
             </YStack>
 
-            {quoteError ? (
+            {quoteError && !missingTransfer ? (
               <XStack gap="$s3" alignItems="center">
                 <TriangleAlert size={16} color="$uiErrorSecondary" />
                 <Text secondary caption flex={1}>
@@ -245,7 +249,7 @@ export default function SendAmount() {
           <SummaryRow
             icon={<Calendar size={16} color="$uiNeutralPlaceholder" />}
             label={t("Delivery time")}
-            value={t(DELIVERY_TIME)}
+            value={t(rail ? bridgeRails[rail].time : DELIVERY_TIME)}
           />
           <SummaryRow
             icon={<ArrowLeftRight size={16} color="$uiNeutralPlaceholder" />}
@@ -258,7 +262,7 @@ export default function SendAmount() {
             value={
               <>
                 <Text emphasized strikeThrough color="$uiNeutralSecondary">
-                  {bridgeFee(currencyString)}
+                  {rail ? bridgeRails[rail].fee : bridgeFee(currencyString)}
                 </Text>{" "}
                 <Text emphasized color="$uiSuccessSecondary">
                   {t("Free")}
@@ -281,6 +285,13 @@ export default function SendAmount() {
           </Button.Icon>
         </Button>
       </View>
+
+      <MissingTransferSheet
+        open={missingTransfer}
+        contactId={contactString}
+        currency={currencyString}
+        provider={providerString}
+      />
     </SafeView>
   );
 }

@@ -1,12 +1,14 @@
+import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { getStringAsync } from "expo-clipboard";
 
+import type { ArrowRight } from "@tamagui/lucide-icons";
 import { ChevronDown, ClipboardPaste } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import { length, maxLength, minLength, pipe, regex, safeParse, string } from "valibot";
+import { check, length, maxLength, minLength, pipe, regex, safeParse, string } from "valibot";
 
 import { countryCodes, countryLabels } from "../../utils/countries";
 import reportError from "../../utils/reportError";
@@ -18,14 +20,23 @@ import View from "../shared/View";
 import type { GenericSchema } from "valibot";
 
 export type FieldConfig = {
-  kind: "country" | "select" | "subdivision" | "text";
+  info?: boolean;
+  kind: "country" | "option" | "select" | "subdivision" | "text";
   label: string;
+  multiline?: boolean;
   optional?: boolean;
-  options?: { label: string; value: string }[];
+  options?: {
+    fee?: string;
+    icon?: ComponentType<ComponentPropsWithoutRef<typeof ArrowRight>>;
+    label: string;
+    time?: string;
+    value: string;
+  }[];
   path: string;
   placeholder: string;
   transient?: boolean;
   validate?: GenericSchema<string>;
+  variant?: boolean;
 };
 
 export const text = pipe(string(), minLength(1, "Required"));
@@ -43,6 +54,32 @@ export const clabe = pipe(string(), regex(/^\d{18}$/, "Must be 18 numbers"));
 export const ukAccount = pipe(string(), regex(/^\d{8}$/, "Must be 8 numbers"));
 export const sortCode = pipe(string(), regex(/^\d{6}$/, "Must be 6 numbers"));
 export const documentNumber = pipe(string(), regex(/^\d+$/, "Numbers only"));
+export const achReference = pipe(
+  string(),
+  maxLength(10, "Must be 10 characters or less"),
+  regex(/^[\dA-Z ]+$/i, "Letters, numbers and spaces only"),
+);
+export const wireReference = pipe(
+  string(),
+  minLength(1, "Required"),
+  check(
+    (value) => value.split("\n").every((line, index) => index < 4 && line.length <= 35),
+    "Up to 4 lines of 35 characters",
+  ),
+);
+export const eurReference = pipe(
+  string(),
+  minLength(6, "Must be 6 to 140 characters"),
+  maxLength(140, "Must be 6 to 140 characters"),
+  regex(/^[\dA-Z &./-]+$/i, "Letters, numbers, spaces and & - . / only"),
+);
+export const gbpReference = pipe(string(), maxLength(18, "Must be 18 characters or less"));
+export const mxnReference = pipe(
+  string(),
+  maxLength(40, "Must be 40 characters or less"),
+  regex(/^[\dA-Z ]+$/i, "Letters, numbers and spaces only"),
+);
+export const brlReference = pipe(string(), maxLength(100, "Must be 100 characters or less"));
 
 export const countryOptions = countryCodes.map((code) => ({ value: code, label: countryLabels[code] ?? code }));
 
@@ -178,8 +215,10 @@ export function Field({
 export function TextField({
   placeholder,
   value,
+  multiline,
   onChangeText,
 }: {
+  multiline?: boolean;
   onChangeText: (text: string) => void;
   placeholder: string;
   value: string;
@@ -200,6 +239,9 @@ export function TextField({
         onChangeText={onChangeText}
         borderWidth={0}
         backgroundColor="transparent"
+        multiline={multiline}
+        numberOfLines={multiline ? 4 : undefined}
+        minHeight={multiline ? 96 : undefined}
       />
       <View
         backgroundColor="$interactiveBaseBrandSoftDefault"
@@ -265,6 +307,89 @@ export function SelectField({
   );
 }
 
+export function OptionField({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: NonNullable<FieldConfig["options"]>;
+  value: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <YStack gap="$s4" role="radiogroup" aria-label={t(label)}>
+      {options.map(({ value: option, label: name, icon: Icon, time, fee }) => {
+        const selected = value === option;
+        return (
+          <XStack
+            key={option}
+            gap="$s3_5"
+            alignItems="center"
+            padding="$s4_5"
+            backgroundColor="$backgroundSoft"
+            borderRadius="$r5"
+            borderWidth={1}
+            borderColor={selected ? "$borderBrandStrong" : "$borderNeutralSoft"}
+            cursor="pointer"
+            pressStyle={{ opacity: 0.7 }}
+            role="radio"
+            aria-checked={selected}
+            onPress={() => {
+              onChange(option);
+            }}
+          >
+            <YStack flex={1} gap="$s3_5">
+              <XStack gap="$s3" alignItems="center">
+                {Icon && <Icon size={24} color="$iconBrandDefault" />}
+                <Text emphasized headline primary>
+                  {t(name)}
+                </Text>
+              </XStack>
+              <XStack gap="$s6">
+                {time && (
+                  <OptionDetail label={t("Estimated time")}>
+                    <Text footnote color="$uiNeutralSecondary">
+                      {t(time)}
+                    </Text>
+                  </OptionDetail>
+                )}
+                {fee && (
+                  <OptionDetail label={t("Fees")}>
+                    <XStack gap="$s2" alignItems="center">
+                      <Text footnote strikeThrough color="$uiNeutralSecondary">
+                        {fee}
+                      </Text>
+                      <Text footnote emphasized color="$uiSuccessSecondary">
+                        {t("Free")}
+                      </Text>
+                    </XStack>
+                  </OptionDetail>
+                )}
+              </XStack>
+            </YStack>
+            <View
+              width={24}
+              height={24}
+              borderRadius="$r_0"
+              borderWidth={1}
+              borderColor={selected ? "$borderBrandStrong" : "$borderNeutralSoft"}
+              alignItems="center"
+              justifyContent="center"
+            >
+              {selected && (
+                <View width={12} height={12} borderRadius="$r_0" backgroundColor="$interactiveBaseBrandDefault" />
+              )}
+            </View>
+          </XStack>
+        );
+      })}
+    </YStack>
+  );
+}
+
 export function FieldInput({
   field,
   value,
@@ -279,8 +404,13 @@ export function FieldInput({
   value: string;
 }) {
   const { t } = useTranslation();
+  if (field.kind === "option") {
+    return <OptionField label={field.label} options={field.options ?? []} value={value} onChange={onChange} />;
+  }
   if (field.kind === "text") {
-    return <TextField placeholder={t(field.placeholder)} value={value} onChangeText={onChange} />;
+    return (
+      <TextField placeholder={t(field.placeholder)} value={value} multiline={field.multiline} onChangeText={onChange} />
+    );
   }
   if (field.kind === "subdivision") {
     if (!country) return <SelectField placeholder={t("Select a country first")} value="" disabled onPress={onOpen} />;
@@ -304,5 +434,16 @@ export function FieldInput({
       displayValue={value ? t(labelFor(field, value)) : undefined}
       onPress={onOpen}
     />
+  );
+}
+
+function OptionDetail({ label, children }: { children: React.ReactNode; label: string }) {
+  return (
+    <YStack gap="$s1">
+      <Text caption2 color="$uiNeutralPlaceholder">
+        {label}
+      </Text>
+      {children}
+    </YStack>
   );
 }
