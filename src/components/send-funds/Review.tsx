@@ -21,7 +21,7 @@ import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
-import { bridgeFee, bridgeFiatCurrencies, getSymbol } from "../../utils/currencies";
+import { bridgeFee, bridgeFiatCurrencies, bridgeRails, getSymbol } from "../../utils/currencies";
 import { presentArticle } from "../../utils/intercom";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
@@ -83,6 +83,8 @@ export default function Review() {
   const depositInfo = quote?.depositInfo[0];
   const depositResult = depositInfo && "address" in depositInfo ? safeParse(Address, depositInfo.address) : undefined;
   const depositAddress = depositResult?.success ? depositResult.output : undefined;
+  const reference = depositInfo && "reference" in depositInfo ? depositInfo.reference : undefined;
+  const rail = depositInfo && "rail" in depositInfo ? depositInfo.rail : undefined;
 
   const { address: userAddress } = useAccount({ config: exa });
   const { request: proposeSimulation } = useSimulateProposal({
@@ -276,12 +278,32 @@ export default function Review() {
                 </YStack>
               }
             />
+            {rail && (
+              <ReviewRow
+                label={t("Transfer type")}
+                value={
+                  <Text emphasized primary>
+                    {bridgeRails[rail].label}
+                  </Text>
+                }
+              />
+            )}
+            {reference && (
+              <ReviewRow
+                label={t("Reference")}
+                value={
+                  <Text emphasized primary flex={1} textAlign="right">
+                    {reference}
+                  </Text>
+                }
+              />
+            )}
             <ReviewRow
               label={t("Transfer fee")}
               value={
                 <XStack gap="$s2" alignItems="center">
                   <Text emphasized strikeThrough color="$uiNeutralSecondary">
-                    {bridgeFee(currencyString)}
+                    {rail ? bridgeRails[rail].fee : bridgeFee(currencyString)}
                   </Text>
                   <Text emphasized color="$uiSuccessSecondary">
                     {t("Free")}

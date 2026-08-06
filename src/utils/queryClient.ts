@@ -23,7 +23,7 @@ export const isServer = typeof window === "undefined";
 export function triage(error: unknown) {
   if (!(error instanceof APIError)) return;
   if (error.text === "bad kyc") return "warn";
-  if (["no kyc", "not started", "kyc required"].includes(error.text)) return "drop";
+  if (["no kyc", "not started", "kyc required", "transfer not found"].includes(error.text)) return "drop";
 }
 
 function versionAwareDeserialize(cache: string): PersistedClient {
@@ -241,6 +241,9 @@ queryClient.setQueryDefaults(["defi", "lifi-connected"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
+});
+queryClient.setQueryDefaults(["ramp", "quote"], {
+  retry: (count, error) => !(error instanceof APIError && error.code === 400) && count < 3,
 });
 queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
   initialData: false,
