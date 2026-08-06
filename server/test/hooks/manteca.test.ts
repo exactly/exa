@@ -1,23 +1,43 @@
+import "../mocks/manteca";
 import "../mocks/onesignal";
+import "../mocks/segment";
 import "../mocks/sentry";
 
+import { DefaultApi } from "@onesignal/node-onesignal";
+import { Analytics } from "@segment/analytics-node";
 import { captureException } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
+import { parse, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
-import app from "../../hooks/manteca";
+import createManteca from "../../hooks/manteca";
 import t, { f } from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
 import * as manteca from "../../utils/ramps/manteca";
 import * as segment from "../../utils/segment";
 
-const appClient = testClient(app);
+const provider = { key: "manteca", url: "https://manteca.test" };
+const hook = createManteca({
+  mantecaKey: provider.key,
+  mantecaUrl: provider.url,
+  mantecaWebhookKey: "manteca",
+  onesignalKey: "onesignal",
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  segmentKey: "segment",
+});
+const appClient = testClient(hook.app);
+
+afterAll(() => {
+  const closing = hook.close();
+  if (hook.close() !== closing) throw new Error("close is not idempotent");
+  return closing;
+});
 
 function createSignature(payload: object) {
   return createHmac("sha256", "manteca")
@@ -195,12 +215,15 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS");
-      expect(sendPushNotification).toHaveBeenCalledWith({
-        userId: account,
-        headings: t("Deposited funds"),
-        contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "ARS" }),
-      });
+      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS", provider);
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        {
+          userId: account,
+          headings: t("Deposited funds"),
+          contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "ARS" }),
+        },
+        expect.any(DefaultApi),
+      );
     });
 
     it("returns ok if credential does not exist", async () => {
@@ -351,7 +374,7 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS");
+      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS", provider);
     });
 
     it("handles completed order and withdraws balance", async () => {
@@ -378,12 +401,15 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(segment.track).toHaveBeenCalledWith({
-        userId: account,
-        event: "Onramp",
-        properties: { currency: "ARS", amount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
-      });
-      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
+      expect(segment.track).toHaveBeenCalledWith(
+        {
+          userId: account,
+          event: "Onramp",
+          properties: { currency: "ARS", amount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
+        },
+        expect.any(Analytics),
+      );
+      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account, provider);
     });
 
     it("returns ok for pending order status", async () => {
@@ -433,7 +459,7 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
+      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account, provider);
     });
 
     it("returns ok for executed withdrawal", async () => {
@@ -506,16 +532,18 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(segment.track).toHaveBeenCalledWith({
-        userId: account,
-        event: "RampAccount",
-        properties: { provider: "manteca", source: null },
-      });
-      expect(sendPushNotification).toHaveBeenCalledWith({
-        userId: account,
-        headings: t("Fiat onramp activated"),
-        contents: t("Your fiat onramp account has been activated"),
-      });
+      expect(segment.track).toHaveBeenCalledWith(
+        { userId: account, event: "RampAccount", properties: { provider: "manteca", source: null } },
+        expect.any(Analytics),
+      );
+      expect(sendPushNotification).toHaveBeenCalledWith(
+        {
+          userId: account,
+          headings: t("Fiat onramp activated"),
+          contents: t("Your fiat onramp account has been activated"),
+        },
+        expect.any(DefaultApi),
+      );
     });
 
     it("captures onboarding notification errors", async () => {

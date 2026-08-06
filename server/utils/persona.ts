@@ -32,10 +32,6 @@ import ServiceError from "./ServiceError";
 
 const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
 
-if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
-if (!process.env.PERSONA_URL) throw new Error("missing persona url");
-if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
-
 export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; // cspell:ignore ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF
 export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
@@ -46,9 +42,16 @@ export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
 
 const PERSONA_API_VERSION = "2023-01-05";
 
-const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
-const baseURL = process.env.PERSONA_URL;
-const webhookSecret = process.env.PERSONA_WEBHOOK_SECRET;
+export default function persona(key: string, url: string) {
+  const provider = { key, url };
+  return {
+    addDocument: (referenceId: string, document: InferOutput<typeof IdentityDocument>) =>
+      addDocument(referenceId, document, provider),
+    getInquiryById: (id: string) => getInquiryById(id, provider),
+    searchAccounts: (email: string) => searchAccounts(email, provider),
+    updateCardLimit: (referenceId: string, limitUsd: number) => updateCardLimit(referenceId, limitUsd, provider),
+  };
+}
 
 export async function getInquiry(referenceId: string, templateId: string) {
   const { data: approvedInquiries } = await request(
@@ -63,10 +66,14 @@ export async function getInquiry(referenceId: string, templateId: string) {
   return inquiries[0];
 }
 
-export function getInquiryById(inquiryId: string) {
+export function getInquiryById(inquiryId: string, provider = getDefaultProvider()) {
   return request(
     object({ data: object({ attributes: object({ "reference-id": string() }) }) }),
     `/inquiries/${inquiryId}`,
+    undefined,
+    "GET",
+    10_000,
+    provider,
   );
 }
 
@@ -97,8 +104,12 @@ export async function getDocument(documentId: string) {
   return data;
 }
 
-export async function addDocument(referenceId: string, identityDocument: InferOutput<typeof IdentityDocument>) {
-  const account = await getAccount(referenceId, "document");
+export async function addDocument(
+  referenceId: string,
+  identityDocument: InferOutput<typeof IdentityDocument>,
+  provider = getDefaultProvider(),
+) {
+  const account = await getAccount(referenceId, "document", provider);
   if (!account) throw new Error("account not found");
   const existingDocument = account.attributes.fields.documents.value.find(
     (document) => document.value.id_document_id.value === identityDocument.id_document_id.value,
@@ -133,6 +144,8 @@ export async function addDocument(referenceId: string, identityDocument: InferOu
       },
     },
     "PATCH",
+    10_000,
+    provider,
   );
 }
 
@@ -142,11 +155,12 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  provider = getDefaultProvider(),
 ) {
-  const response = await fetch(`${baseURL}${url}`, {
+  const response = await fetch(`${provider.url}${url}`, {
     method,
     headers: {
-      authorization,
+      authorization: `Bearer ${provider.key}`,
       accept: "application/json",
       "content-type": "application/json",
       "persona-version": PERSONA_API_VERSION,
@@ -319,39 +333,48 @@ export type AccountScope = keyof typeof accountScopeSchemas;
 type AccountResponse<T extends AccountScope> = InferOutput<(typeof accountScopeSchemas)[T]>;
 export type AccountOutput<T extends AccountScope> = AccountResponse<T>["data"][number];
 
-export async function searchAccounts(email: string) {
+export async function searchAccounts(email: string, provider = getDefaultProvider()) {
   const { data } = await request(
     object({ data: array(object({ attributes: object({ "reference-id": string() }) })) }),
     "/accounts/search",
     { query: { attribute: "fields.email_address", operator: "eq", value: email } },
     "POST",
+    10_000,
+    provider,
   );
   return data;
 }
 
-export function getAccounts<T extends AccountScope>(referenceId: string, scope: T) {
+export function getAccounts<T extends AccountScope>(referenceId: string, scope: T, provider = getDefaultProvider()) {
   return request<unknown, AccountResponse<T>, BaseIssue<unknown>>(
     accountScopeSchemas[scope],
     `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+    undefined,
+    "GET",
+    10_000,
+    provider,
   );
 }
 
 export async function getAccount<T extends AccountScope>(
   referenceId: string,
   scope: T,
+  provider = getDefaultProvider(),
 ): Promise<AccountOutput<T> | undefined> {
-  const { data } = await getAccounts(referenceId, scope);
+  const { data } = await getAccounts(referenceId, scope, provider);
   return data[0];
 }
 
-export async function updateCardLimit(referenceId: string, limitUsd: number) {
-  const account = await getAccount(referenceId, "cardLimit");
+export async function updateCardLimit(referenceId: string, limitUsd: number, provider = getDefaultProvider()) {
+  const account = await getAccount(referenceId, "cardLimit", provider);
   if (!account) throw new Error("account not found");
   return request(
     object({ data: object({ id: string() }) }),
     `/accounts/${account.id}`,
     { data: { attributes: { fields: { card_limit_usd: limitUsd } } } },
     "PATCH",
+    10_000,
+    provider,
   );
 }
 
@@ -500,12 +523,12 @@ const CreateInquiryResponse = object({
   }),
 });
 
-export function headerValidator() {
+export function headerValidator(secret = getWebhookSecret()) {
   return vValidator("header", object({ "persona-signature": string() }), async (r, c) => {
     if (!r.success) return c.text("bad request", 400);
     const body = await c.req.text();
     const t = r.output["persona-signature"].split(",")[0]?.split("=")[1];
-    const hmac = createHmac("sha256", webhookSecret).update(`${t}.${body}`).digest("hex");
+    const hmac = createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
     const isVerified = r.output["persona-signature"]
       .split(" ")
       .map((pair) => pair.split("v1=")[1])
@@ -633,3 +656,16 @@ export const scopeValidationErrors = {
   INVALID_ACCOUNT: "invalid account",
   NOT_SUPPORTED: "not supported",
 } as const;
+
+function getDefaultProvider(): Provider {
+  if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
+  if (!process.env.PERSONA_URL) throw new Error("missing persona url");
+  return { key: process.env.PERSONA_API_KEY, url: process.env.PERSONA_URL };
+}
+
+function getWebhookSecret() {
+  if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
+  return process.env.PERSONA_WEBHOOK_SECRET;
+}
+
+type Provider = { key: string; url: string };

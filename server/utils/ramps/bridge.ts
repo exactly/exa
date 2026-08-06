@@ -40,7 +40,6 @@ import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../../database";
 import * as persona from "../persona";
 import ServiceError from "../ServiceError";
 
@@ -50,11 +49,10 @@ export const EVMNetwork = ["BASE"] as const;
 export const Network = [...EVMNetwork, "SOLANA", "STELLAR", "TRON"] as const;
 export const OfframpNetwork = ["BASE", "SOLANA", "STELLAR", "TRON"];
 
-if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
-const baseURL = process.env.BRIDGE_API_URL;
-
-if (!process.env.BRIDGE_API_KEY) throw new Error("missing bridge api key");
-const apiKey = process.env.BRIDGE_API_KEY;
+export default function bridge(key: string, url: string) {
+  const provider = { key, url };
+  return { getCustomer: (id: string) => getCustomer(id, provider) };
+}
 
 export function createCustomer(user: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
   return request(NewCustomer, "/customers", {}, user, "POST", 15_000, idempotencyKey).catch((error: unknown) => {
@@ -101,8 +99,17 @@ export async function agreementLink(redirectUri?: string) {
   return String(url);
 }
 
-export async function getCustomer(customerId: string) {
-  return await request(CustomerResponse, `/customers/${customerId}`).catch((error: unknown) => {
+export async function getCustomer(customerId: string, provider = getDefaultProvider()) {
+  return await request(
+    CustomerResponse,
+    `/customers/${customerId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    undefined,
+    provider,
+  ).catch((error: unknown) => {
     if (
       error instanceof ServiceError &&
       typeof error.cause === "string" &&
@@ -856,6 +863,7 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
       },
     },
   );
+  const { credentials, default: database } = await import("../../database");
   await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
 }
 
@@ -2018,12 +2026,13 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
   idempotencyKey?: string,
+  provider = getDefaultProvider(),
 ) {
-  const response = await fetch(`${baseURL}${url}`, {
+  const response = await fetch(`${provider.url}${url}`, {
     method,
     headers: {
       ...headers,
-      "api-key": apiKey,
+      "api-key": provider.key,
       ...(method === "POST" && { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() }),
       accept: "application/json",
       "content-type": "application/json",
@@ -2235,7 +2244,6 @@ const BridgeApiErrorCodes = {
 
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing -- ignore empty string */
 export const publicKey =
-  process.env.BRIDGE_WEBHOOK_PUBLIC_KEY ||
   {
     "web.exactly.app": `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3iaPv91f5xNeSu41hSi/
@@ -2266,3 +2274,11 @@ QXWfFylw6m7eQTvZDQz70pnUEakofRlvKasetbyKmvLzMhuRHeqsxgi8C4ZCx7MP
 dwIDAQAB
 -----END PUBLIC KEY-----`;
 /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
+
+function getDefaultProvider(): Provider {
+  if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
+  if (!process.env.BRIDGE_API_KEY) throw new Error("missing bridge api key");
+  return { key: process.env.BRIDGE_API_KEY, url: process.env.BRIDGE_API_URL };
+}
+
+type Provider = { key: string; url: string };

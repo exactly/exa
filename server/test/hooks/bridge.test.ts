@@ -1,26 +1,49 @@
+import "../mocks/bridge";
 import "../mocks/onesignal";
+import "../mocks/persona";
+import "../mocks/segment";
 import "../mocks/sentry";
 
+import { DefaultApi } from "@onesignal/node-onesignal";
+import { Analytics } from "@segment/analytics-node";
 import { captureEvent, captureException } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
+import { parse, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
-import app from "../../hooks/bridge";
+import createBridge from "../../hooks/bridge";
 import t, { f } from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
 import * as persona from "../../utils/persona";
 import * as bridge from "../../utils/ramps/bridge";
 import * as segment from "../../utils/segment";
 
+const hook = createBridge({
+  bridgeKey: "bridge",
+  bridgeUrl: "https://bridge.test",
+  bridgeWebhookKey: parse(string(), process.env.BRIDGE_WEBHOOK_PUBLIC_KEY),
+  onesignalKey: "onesignal",
+  personaKey: "persona",
+  personaUrl: "https://persona.test",
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  segmentKey: "segment",
+});
+const app = hook.app;
 const appClient = testClient(app);
+
+afterAll(() => {
+  const closing = hook.close();
+  if (hook.close() !== closing) throw new Error("close is not idempotent");
+  return closing;
+});
 
 describe("bridge hook", () => {
   const owner = privateKeyToAddress(padHex("0xb1e"));
@@ -177,11 +200,14 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Deposited funds"),
-      contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "USD" }),
-    });
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      {
+        userId: account,
+        headings: t("Deposited funds"),
+        contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "USD" }),
+      },
+      expect.any(DefaultApi),
+    );
   });
 
   it("captures payment_submitted notification errors", async () => {
@@ -210,11 +236,14 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(segment.track).toHaveBeenCalledWith({
-      userId: account,
-      event: "Onramp",
-      properties: { currency: "usd", amount: 1000, provider: "bridge", source: null, usdcAmount: 995 },
-    });
+    expect(segment.track).toHaveBeenCalledWith(
+      {
+        userId: account,
+        event: "Onramp",
+        properties: { currency: "usd", amount: 1000, provider: "bridge", source: null, usdcAmount: 995 },
+      },
+      expect.any(Analytics),
+    );
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -291,20 +320,25 @@ describe("bridge hook", () => {
       where: eq(credentials.id, "fallback-test"),
     });
     expect(updated?.bridgeId).toBe("fallback-bridge-id");
-    expect(segment.track).toHaveBeenCalledWith({
-      userId: fallbackAccount,
-      event: "RampAccount",
-      properties: { provider: "bridge", source: null },
-    });
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: fallbackAccount,
-      headings: t("Fiat onramp activated"),
-      contents: t("Your fiat onramp account has been activated"),
-    });
+    expect(segment.track).toHaveBeenCalledWith(
+      { userId: fallbackAccount, event: "RampAccount", properties: { provider: "bridge", source: null } },
+      expect.any(Analytics),
+    );
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      {
+        userId: fallbackAccount,
+        headings: t("Fiat onramp activated"),
+        contents: t("Your fiat onramp account has been activated"),
+      },
+      expect.any(DefaultApi),
+    );
   });
 
   it("returns 500 when fallback credential already paired", async () => {
-    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+    vi.spyOn(
+      Reflect.getPrototypeOf(database.query.credentials) as typeof database.query.credentials,
+      "findFirst",
+    ).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "conflict-bridge-id",
       email: "conflict@example.com",
@@ -437,16 +471,18 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(segment.track).toHaveBeenCalledWith({
-      userId: account,
-      event: "RampAccount",
-      properties: { provider: "bridge", source: null },
-    });
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Fiat onramp activated"),
-      contents: t("Your fiat onramp account has been activated"),
-    });
+    expect(segment.track).toHaveBeenCalledWith(
+      { userId: account, event: "RampAccount", properties: { provider: "bridge", source: null } },
+      expect.any(Analytics),
+    );
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      {
+        userId: account,
+        headings: t("Fiat onramp activated"),
+        contents: t("Your fiat onramp account has been activated"),
+      },
+      expect.any(DefaultApi),
+    );
   });
 
   it("captures status_transitioned notification errors", async () => {
@@ -526,11 +562,14 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(segment.track).toHaveBeenCalledWith({
-      userId: account,
-      event: "Onramp",
-      properties: { currency: "usdc", amount: 500, provider: "bridge", source: null, usdcAmount: 500 },
-    });
+    expect(segment.track).toHaveBeenCalledWith(
+      {
+        userId: account,
+        event: "Onramp",
+        properties: { currency: "usdc", amount: 500, provider: "bridge", source: null, usdcAmount: 500 },
+      },
+      expect.any(Analytics),
+    );
   });
 
   it("sends push notification on drain payment_submitted", async () => {
@@ -543,11 +582,14 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Deposited funds"),
-      contents: t("{{amount}} {{asset}} deposited", { amount: f("500"), asset: "USDC" }),
-    });
+    expect(sendPushNotification).toHaveBeenCalledWith(
+      {
+        userId: account,
+        headings: t("Deposited funds"),
+        contents: t("{{amount}} {{asset}} deposited", { amount: f("500"), asset: "USDC" }),
+      },
+      expect.any(DefaultApi),
+    );
   });
 
   it("captures drain payment_submitted notification errors", async () => {
@@ -749,16 +791,22 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      event: "Offramp",
-      properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
-    });
-    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      headings: t("Withdraw completed"),
-      contents: t("{{amount}} {{asset}} withdrawn", { amount: f("2.97"), asset: "USD" }),
-    });
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith(
+      {
+        userId: account,
+        event: "Offramp",
+        properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
+      },
+      expect.any(Analytics),
+    );
+    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+      {
+        userId: account,
+        headings: t("Withdraw completed"),
+        contents: t("{{amount}} {{asset}} withdrawn", { amount: f("2.97"), asset: "USD" }),
+      },
+      expect.any(DefaultApi),
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -772,11 +820,14 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      headings: t("Withdrawal in progress"),
-      contents: t("Your funds are on the way to your bank"),
-    });
+    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
+      {
+        userId: account,
+        headings: t("Withdrawal in progress"),
+        contents: t("Your funds are on the way to your bank"),
+      },
+      expect.any(DefaultApi),
+    );
     expect(segment.track).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -812,11 +863,14 @@ describe("bridge hook", () => {
     expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      event: "Offramp",
-      properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
-    });
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith(
+      {
+        userId: account,
+        event: "Offramp",
+        properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
+      },
+      expect.any(Analytics),
+    );
   });
 
   it("returns 200 without tracking for transfer non-payment_processed state", async () => {

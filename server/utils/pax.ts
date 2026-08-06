@@ -6,28 +6,30 @@ import ServiceError from "./ServiceError";
 
 import type { Address } from "@exactly/common/validation";
 
-if (!process.env.PAX_API_URL) throw new Error("missing pax api url");
-const baseURL = process.env.PAX_API_URL;
-
-if (!process.env.PAX_API_KEY) throw new Error("missing pax api key");
-const key = process.env.PAX_API_KEY;
-
-if (!process.env.PAX_ASSOCIATE_ID_KEY) throw new Error("missing pax associate id secret");
-const associateIdSecret = process.env.PAX_ASSOCIATE_ID_KEY;
-
 const ASSOCIATE_ID_LENGTH = 10;
 
-export async function addCapita(data: {
-  birthdate: string;
-  document: string;
-  email: string;
-  firstName: string;
-  internalId: string;
-  lastName: string;
-  phone: string;
-  product: string;
-}) {
-  return await request(object({}), "/api/capita", data, "POST");
+export default function pax({ associateKey, key, url }: { associateKey: string; key: string; url: string }) {
+  const client = { key, url };
+  return {
+    addCapita: (data: Parameters<typeof addCapita>[0]) => addCapita(data, client),
+    deriveAssociateId: (account: Address) => deriveAssociateId(account, associateKey),
+  };
+}
+
+export async function addCapita(
+  data: {
+    birthdate: string;
+    document: string;
+    email: string;
+    firstName: string;
+    internalId: string;
+    lastName: string;
+    phone: string;
+    product: string;
+  },
+  client = getDefaultClient(),
+) {
+  return await request(object({}), "/api/capita", data, "POST", 10_000, client);
 }
 
 export async function removeCapita(internalId: string): Promise<void> {
@@ -40,11 +42,12 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "DELETE" | "GET" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  client = getDefaultClient(),
 ) {
-  const response = await fetch(`${baseURL}${url}`, {
+  const response = await fetch(`${client.url}${url}`, {
     method,
     headers: {
-      "x-api-key": key,
+      "x-api-key": client.key,
       "content-type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -73,7 +76,20 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   return result.output;
 }
 
-export function deriveAssociateId(account: Address): string {
-  const hash = keccak256(encodePacked(["address", "string"], [account, associateIdSecret]));
+export function deriveAssociateId(account: Address, associateKey = getAssociateKey()): string {
+  const hash = keccak256(encodePacked(["address", "string"], [account, associateKey]));
   return BigInt(hash).toString(36).slice(0, ASSOCIATE_ID_LENGTH);
 }
+
+function getDefaultClient(): Client {
+  if (!process.env.PAX_API_URL) throw new Error("missing pax api url");
+  if (!process.env.PAX_API_KEY) throw new Error("missing pax api key");
+  return { key: process.env.PAX_API_KEY, url: process.env.PAX_API_URL };
+}
+
+function getAssociateKey() {
+  if (!process.env.PAX_ASSOCIATE_ID_KEY) throw new Error("missing pax associate id secret");
+  return process.env.PAX_ASSOCIATE_ID_KEY;
+}
+
+type Client = { key: string; url: string };

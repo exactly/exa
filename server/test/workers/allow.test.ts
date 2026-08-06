@@ -11,7 +11,11 @@ import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
-import { close as closeAllow, enqueue as enqueueAllow } from "../../workers/allow/queue";
+import allowQueue, {
+  close as closeAllow,
+  enqueue as enqueueAllow,
+  start as startAllow,
+} from "../../workers/allow/queue";
 import allowWorker from "../../workers/allow/worker";
 
 import type { Job as Allow } from "../../workers/allow/job";
@@ -24,6 +28,8 @@ const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const redisUrl = parse(string(), process.env.REDIS_URL);
 const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
+startAllow(bullmq);
+startAllow(bullmq);
 const mocks = vi.hoisted(() => ({
   closePoke: vi.fn<typeof closePoke>(),
   enqueuePoke: vi.fn<typeof enqueuePoke>(),
@@ -120,6 +126,7 @@ function jobDone(
 
 afterAll(async () => {
   await Promise.all([queue.close(), closeAllow()]);
+  await closeAllow();
 });
 
 beforeEach(async () => {
@@ -138,10 +145,11 @@ beforeEach(async () => {
 
 describe("allow queue", () => {
   it("publishes firewall allow jobs", async () => {
+    const instance = allowQueue(bullmq);
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueueAllow(request);
+    const result = instance.enqueue(request);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -162,6 +170,7 @@ describe("allow queue", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+    await instance.close();
   });
 
   it("captures queue failures", async () => {
@@ -175,6 +184,14 @@ describe("allow queue", () => {
       tags: { queue: "allow", job: "allow" },
       extra: { account },
     });
+  });
+
+  it("requires the monolith queue to be started", async () => {
+    await closeAllow();
+
+    await expect(enqueueAllow(request)).rejects.toThrow("allow queue is not started");
+
+    startAllow(bullmq);
   });
 });
 

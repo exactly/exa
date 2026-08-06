@@ -13,20 +13,18 @@ import chain from "@exactly/common/generated/chain";
 import api from "./api";
 import database from "./database";
 import createActivity from "./hooks/activity";
-import block from "./hooks/block";
-import bridge from "./hooks/bridge";
-import manteca from "./hooks/manteca";
-import panda from "./hooks/panda";
-import persona from "./hooks/persona";
+import createBlock from "./hooks/block";
+import createBridge from "./hooks/bridge";
+import createManteca from "./hooks/manteca";
+import createPanda from "./hooks/panda";
+import createPersona from "./hooks/persona";
 import supervise from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
 import { bullmq, close as closeRedis } from "./utils/redis";
 import { closeAndFlush as closeSegment } from "./utils/segment";
-import { close as closeAllow } from "./workers/allow/queue";
 import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
-import { close as closeRefund } from "./workers/refund/queue";
 import { close as closeSubscribe } from "./workers/subscribe/queue";
 
 startCredit(bullmq);
@@ -38,16 +36,66 @@ const activity = createActivity({
   postgresUrl: parse(string(), process.env.POSTGRES_URL),
   redisUrl: parse(string(), process.env.REDIS_URL),
 });
+const block = createBlock({
+  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
+  blockKey: process.env.ALCHEMY_BLOCK_KEY,
+  onesignalKey: process.env.ONESIGNAL_API_KEY,
+  redisUrl: parse(string(), process.env.REDIS_URL),
+});
+const bridge = createBridge({
+  bridgeKey: parse(string(), process.env.BRIDGE_API_KEY),
+  bridgeUrl: parse(string(), process.env.BRIDGE_API_URL),
+  bridgeWebhookKey: process.env.BRIDGE_WEBHOOK_PUBLIC_KEY,
+  onesignalKey: process.env.ONESIGNAL_API_KEY,
+  personaKey: parse(string(), process.env.PERSONA_API_KEY),
+  personaUrl: parse(string(), process.env.PERSONA_URL),
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+});
+const manteca = createManteca({
+  mantecaKey: parse(string(), process.env.MANTECA_API_KEY),
+  mantecaUrl: parse(string(), process.env.MANTECA_API_URL),
+  mantecaWebhookKey: parse(string(), process.env.MANTECA_WEBHOOKS_KEY),
+  onesignalKey: process.env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+});
+const panda = createPanda({
+  issuerAddress: process.env.ISSUER_ADDRESS,
+  issuerKey: parse(string(), process.env.ISSUER_PRIVATE_KEY),
+  onesignalKey: process.env.ONESIGNAL_API_KEY,
+  pandaKey: parse(string(), process.env.PANDA_API_KEY),
+  pandaUrl: parse(string(), process.env.PANDA_API_URL),
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+  sardineKey: parse(string(), process.env.SARDINE_API_KEY),
+  sardineUrl: parse(string(), process.env.SARDINE_API_URL),
+  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+});
+const persona = createPersona({
+  pandaKey: parse(string(), process.env.PANDA_API_KEY),
+  pandaUrl: parse(string(), process.env.PANDA_API_URL),
+  paxAssociateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
+  paxKey: parse(string(), process.env.PAX_API_KEY),
+  paxUrl: parse(string(), process.env.PAX_API_URL),
+  personaKey: parse(string(), process.env.PERSONA_API_KEY),
+  personaUrl: parse(string(), process.env.PERSONA_URL),
+  personaWebhookSecret: parse(string(), process.env.PERSONA_WEBHOOK_SECRET),
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+  sardineKey: parse(string(), process.env.SARDINE_API_KEY),
+  sardineUrl: parse(string(), process.env.SARDINE_API_URL),
+});
 
 const app = new Hono();
 app.use(trimTrailingSlash());
 app.route("/api", api);
 app.route("/hooks/activity", activity.app);
-app.route("/hooks/block", block);
-app.route("/hooks/bridge", bridge);
-app.route("/hooks/manteca", manteca);
-app.route("/hooks/panda", panda);
-app.route("/hooks/persona", persona);
+app.route("/hooks/block", block.app);
+app.route("/hooks/bridge", bridge.app);
+app.route("/hooks/manteca", manteca.app);
+app.route("/hooks/panda", panda.app);
+app.route("/hooks/persona", persona.app);
 
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
@@ -299,13 +347,26 @@ export const close = supervise(
   "server",
   Promise.resolve({
     app,
-    ready: Promise.all([activity.ready, reminders().catch(reminders)]),
+    ready: Promise.all([
+      activity.ready,
+      block.ready,
+      bridge.ready,
+      manteca.ready,
+      panda.ready,
+      persona.ready,
+      reminders().catch(reminders),
+    ]),
     async close() {
       const services = await Promise.allSettled([
         closeSegment(),
         database.$client.end(),
         activity.close(),
-        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closeRefund(), closeSubscribe()])
+        block.close(),
+        bridge.close(),
+        manteca.close(),
+        panda.close(),
+        persona.close(),
+        Promise.allSettled([closeCredit(), closeMaturity(), closeSubscribe()])
           .then((queues) => {
             if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
           })

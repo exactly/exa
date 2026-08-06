@@ -2,6 +2,7 @@ import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
@@ -31,7 +32,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -47,7 +48,7 @@ import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
-import app from "../../hooks/panda";
+import createPanda from "../../hooks/panda";
 import t, { f } from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
 import * as panda from "../../utils/panda";
@@ -59,7 +60,41 @@ import { getWallet } from "../../utils/wallet";
 import { enqueue as enqueueRefund } from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
 
-vi.mock("../../workers/refund/queue", () => ({ enqueue: vi.fn<typeof enqueueRefund>() }));
+import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
+
+const queues = vi.hoisted(() => ({
+  close: vi.fn<() => Promise<void>>().mockResolvedValue(),
+  enqueue: vi.fn<typeof enqueueRefund>(),
+}));
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const hook = createPanda({
+  issuerAddress: process.env.ISSUER_ADDRESS,
+  issuerKey: parse(string(), process.env.ISSUER_PRIVATE_KEY),
+  onesignalKey: "onesignal",
+  pandaKey: pandaConfig.key,
+  pandaUrl: pandaConfig.url,
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+  sardineKey: sardineConfig.key,
+  sardineUrl: sardineConfig.url,
+  segmentKey: "segment",
+});
+const app = hook.app;
+
+vi.mock("../../workers/refund/queue", () => ({
+  default: () => ({ close: () => Promise.resolve(queues.close()), enqueue: queues.enqueue }),
+  enqueue: queues.enqueue,
+}));
+vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
+  const original = await importOriginal<{ drizzle: typeof Drizzle }>();
+  let instance: ReturnType<typeof original.drizzle> | undefined;
+  return {
+    ...original,
+    drizzle: ((...args: Parameters<typeof original.drizzle>) =>
+      (instance ??= original.drizzle(...args))) as typeof original.drizzle,
+  };
+});
 
 let keeper: Awaited<ReturnType<typeof getWallet>>;
 
@@ -78,6 +113,10 @@ beforeAll(async () => {
     }),
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
   ]);
+});
+
+afterAll(async () => {
+  await hook.close();
 });
 
 describe("validation", () => {
@@ -265,7 +304,7 @@ describe("card operations", () => {
       it("authorizes debit when risk assessment times out", async () => {
         const error = new Error("timeout");
         error.name = "TimeoutError";
-        vi.spyOn(sardine, "default").mockRejectedValueOnce(error);
+        vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
         await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -346,6 +385,7 @@ describe("card operations", () => {
             transaction: { id: "authorization-negative-amount" },
             feedback: { type: "authorization", status: "approved" },
           }),
+          sardineConfig,
         );
       });
 
@@ -452,7 +492,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk authorization", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -476,7 +516,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk verification", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -505,7 +545,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk refund", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -759,15 +799,18 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
-        expect(sendPushNotification).toHaveBeenCalledWith({
-          userId: account,
-          headings: t("Card purchase"),
-          contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
-            count: 0,
-            amount: f(localAmount / 100, "ARS"),
-            merchantName: authorization.json.body.spend.merchantName,
-          }),
-        });
+        expect(sendPushNotification).toHaveBeenCalledWith(
+          {
+            userId: account,
+            headings: t("Card purchase"),
+            contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
+              count: 0,
+              amount: f(localAmount / 100, "ARS"),
+              merchantName: authorization.json.body.spend.merchantName,
+            }),
+          },
+          expect.anything(),
+        );
       });
 
       it("captures card purchase notification errors", async () => {
@@ -872,50 +915,56 @@ describe("card operations", () => {
           functionName: "collectCredit",
           args: [expect.any(BigInt), 600_000n, expect.any(BigInt), expect.any(BigInt), expect.any(String)],
         });
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "TransactionRejected",
-          properties: {
-            cardMode: 6,
-            declinedReason: "collection:created:collectCredit:timeout",
-            id: cardId,
-            reasonName: "Error",
-            source: null,
-            updated: false,
-            usdAmount: 0.6,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "TransactionRejected",
+            properties: {
+              cardMode: 6,
+              declinedReason: "collection:created:collectCredit:timeout",
+              id: cardId,
+              reasonName: "Error",
+              source: null,
+              updated: false,
+              usdAmount: 0.6,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
             },
           },
-        });
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: {
-            action: "created",
-            amount: 60,
-            authorizedAmount: authorization.json.body.spend.authorizedAmount,
-            cardMode: 6,
-            functionName: "collectCredit",
-            id: cardId,
-            knownTransaction: true,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+          expect.anything(),
+        );
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: {
+              action: "created",
+              amount: 60,
+              authorizedAmount: authorization.json.body.spend.authorizedAmount,
+              cardMode: 6,
+              functionName: "collectCredit",
+              id: cardId,
+              knownTransaction: true,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
+              reason: "timeout",
+              reasonName: "Error",
+              settlement: false,
+              usdAmount: 0.6,
+              source: null,
+              webhookId: authorization.json.id,
             },
-            reason: "timeout",
-            reasonName: "Error",
-            settlement: false,
-            usdAmount: 0.6,
-            source: null,
-            webhookId: authorization.json.id,
           },
-        });
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledExactlyOnceWith(error, expect.objectContaining({ level: "fatal" }));
         expect(transaction).toBeDefined();
         expect(transaction?.hashes).toContain(zeroHash);
@@ -1193,14 +1242,17 @@ describe("card operations", () => {
         expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
-        expect(sendPushNotification).toHaveBeenCalledWith({
-          userId: account,
-          headings: t("Refund processed"),
-          contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
-            refundAmount: f(amount / 100),
-            merchantName: authorization.json.body.spend.merchantName,
-          }),
-        });
+        expect(sendPushNotification).toHaveBeenCalledWith(
+          {
+            userId: account,
+            headings: t("Refund processed"),
+            contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+              refundAmount: f(amount / 100),
+              merchantName: authorization.json.body.spend.merchantName,
+            }),
+          },
+          expect.anything(),
+        );
         expect(response.status).toBe(200);
       });
 
@@ -1776,50 +1828,56 @@ describe("card operations", () => {
         expect(completeResponse.status).toBe(569);
         expect(updateUser).not.toHaveBeenCalled();
         expect(pandaLogger).not.toHaveBeenCalledWith("suspicious-user:%j", expect.anything());
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "TransactionRejected",
-          properties: {
-            cardMode: 0,
-            declinedReason: "collection:completed:collectDebit:settlement failed",
-            id: cardId,
-            reasonName: "Error",
-            source: null,
-            updated: true,
-            usdAmount: capture / 100,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "TransactionRejected",
+            properties: {
+              cardMode: 0,
+              declinedReason: "collection:completed:collectDebit:settlement failed",
+              id: cardId,
+              reasonName: "Error",
+              source: null,
+              updated: true,
+              usdAmount: capture / 100,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
             },
           },
-        });
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: {
-            action: "completed",
-            amount: capture,
-            authorizedAmount: hold,
-            cardMode: 0,
-            functionName: "collectDebit",
-            id: cardId,
-            knownTransaction: true,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+          expect.anything(),
+        );
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: {
+              action: "completed",
+              amount: capture,
+              authorizedAmount: hold,
+              cardMode: 0,
+              functionName: "collectDebit",
+              id: cardId,
+              knownTransaction: true,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
+              reason: "settlement failed",
+              reasonName: "Error",
+              settlement: true,
+              usdAmount: capture / 100,
+              source: null,
+              webhookId: authorization.json.id,
             },
-            reason: "settlement failed",
-            reasonName: "Error",
-            settlement: true,
-            usdAmount: capture / 100,
-            source: null,
-            webhookId: authorization.json.id,
           },
-        });
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "settlement failed" }),
           expect.objectContaining({
@@ -1910,7 +1968,7 @@ describe("card operations", () => {
 
         expect(createResponse.status).toBe(200);
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, pandaConfig);
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -1951,19 +2009,22 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(569);
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: expect.objectContaining({
-            action: "updated",
-            functionName: "collectCredit",
-            id: cardId,
-            knownTransaction: false,
-            reason: "collection failed",
-            reasonName: "Error",
-            settlement: false,
-          }) as unknown,
-        });
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: expect.objectContaining({
+              action: "updated",
+              functionName: "collectCredit",
+              id: cardId,
+              knownTransaction: false,
+              reason: "collection failed",
+              reasonName: "Error",
+              settlement: false,
+            }) as unknown,
+          },
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledWith(
           lookupError,
           expect.objectContaining({
@@ -2041,18 +2102,21 @@ describe("card operations", () => {
 
         expect(response.status).toBe(569);
         expect(updateUser).not.toHaveBeenCalled();
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: expect.objectContaining({
-            action: "completed",
-            id: cardId,
-            knownTransaction: false,
-            reason: "settlement failed",
-            reasonName: "Error",
-            settlement: true,
-          }) as unknown,
-        });
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: expect.objectContaining({
+              action: "completed",
+              id: cardId,
+              knownTransaction: false,
+              reason: "settlement failed",
+              reasonName: "Error",
+              settlement: true,
+            }) as unknown,
+          },
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledWith(
           lookupError,
           expect.objectContaining({
@@ -2355,7 +2419,7 @@ describe("card operations", () => {
         });
 
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, pandaConfig);
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -2415,7 +2479,7 @@ describe("card operations", () => {
         });
 
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, pandaConfig);
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,

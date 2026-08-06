@@ -23,11 +23,15 @@ import ServiceError from "../ServiceError";
 
 export const name = "manteca" as const;
 
-if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
-const baseURL = process.env.MANTECA_API_URL;
-
-if (!process.env.MANTECA_API_KEY) throw new Error("missing manteca api key");
-const apiKey = process.env.MANTECA_API_KEY;
+export default function manteca(key: string, url: string) {
+  const provider = { key, url };
+  return {
+    convertBalanceToUsdc: (userNumberId: string, against: string) =>
+      convertBalanceToUsdc(userNumberId, against, provider),
+    withdrawBalance: (userNumberId: string, asset: string, address: Address) =>
+      withdrawBalance(userNumberId, asset, address, provider),
+  };
+}
 
 // #region services
 export async function getUser(account: Address): Promise<InferInput<typeof UserResponse> | null> {
@@ -81,8 +85,16 @@ export async function acceptTermsAndConditions(userAnyId: string) {
   return await request(object({}), `/crypto/v2/onboarding-actions/accept-tyc`, {}, { userAnyId }, "POST");
 }
 
-export async function balances(userAnyId: string) {
-  return await request(BalancesResponse, `/crypto/v2/user-balances/${userAnyId}`, {}, undefined, "GET");
+export async function balances(userAnyId: string, provider = getDefaultProvider()) {
+  return await request(
+    BalancesResponse,
+    `/crypto/v2/user-balances/${userAnyId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  );
 }
 
 export async function getQuote(coinPair: string) {
@@ -99,12 +111,12 @@ export async function getLimits(userNumberId: string) {
   return await request(LimitsResponse, `/crypto/v2/limits/${userNumberId}`, {}, undefined, "GET");
 }
 
-export async function createOrder(order: InferInput<typeof Order>) {
-  return await request(OrderResponse, "/crypto/v2/orders", {}, order, "POST");
+export async function createOrder(order: InferInput<typeof Order>, provider = getDefaultProvider()) {
+  return await request(OrderResponse, "/crypto/v2/orders", {}, order, "POST", 10_000, provider);
 }
 
-export async function withdrawOrder(withdraw: InferInput<typeof Withdraw>) {
-  return await request(WithdrawResponse, "/crypto/v2/withdraws", {}, withdraw, "POST");
+export async function withdrawOrder(withdraw: InferInput<typeof Withdraw>, provider = getDefaultProvider()) {
+  return await request(WithdrawResponse, "/crypto/v2/withdraws", {}, withdraw, "POST", 10_000, provider);
 }
 
 export async function lockQrPayment(userAnyId: string, paymentDestination: string, amount?: string, against?: string) {
@@ -166,19 +178,22 @@ export function getDepositDetails(currency: (typeof MantecaCurrency)[number], ex
   }
 }
 
-export async function convertBalanceToUsdc(userNumberId: string, against: string) {
-  const userBalances = await balances(userNumberId);
+export async function convertBalanceToUsdc(userNumberId: string, against: string, provider = getDefaultProvider()) {
+  const userBalances = await balances(userNumberId, provider);
   const assetBalance = userBalances.balance[against as keyof typeof userBalances.balance];
   if (!assetBalance) throw new Error("asset balance not found");
 
-  await createOrder({
-    userAnyId: userNumberId,
-    side: "BUY",
-    disallowDebt: true,
-    asset: "USDC",
-    against,
-    againstAmount: assetBalance,
-  }).catch((error: unknown) => {
+  await createOrder(
+    {
+      userAnyId: userNumberId,
+      side: "BUY",
+      disallowDebt: true,
+      asset: "USDC",
+      against,
+      againstAmount: assetBalance,
+    },
+    provider,
+  ).catch((error: unknown) => {
     if (
       error instanceof ServiceError &&
       typeof error.cause === "string" &&
@@ -190,8 +205,13 @@ export async function convertBalanceToUsdc(userNumberId: string, against: string
   });
 }
 
-export async function withdrawBalance(userNumberId: string, asset: string, address: Address) {
-  const userBalances = await balances(userNumberId);
+export async function withdrawBalance(
+  userNumberId: string,
+  asset: string,
+  address: Address,
+  provider = getDefaultProvider(),
+) {
+  const userBalances = await balances(userNumberId, provider);
   const assetBalance = userBalances.balance[asset as keyof typeof userBalances.balance];
   if (!assetBalance) throw new Error("asset balance not found");
 
@@ -201,12 +221,10 @@ export async function withdrawBalance(userNumberId: string, asset: string, addre
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
 
-  await withdrawOrder({
-    userAnyId: userNumberId,
-    asset,
-    amount: assetBalance,
-    destination: { address, network: supportedChain },
-  });
+  await withdrawOrder(
+    { userAnyId: userNumberId, asset, amount: assetBalance, destination: { address, network: supportedChain } },
+    provider,
+  );
 }
 
 export async function getProvider(account: Address, countryCode?: string) {
@@ -641,12 +659,13 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  provider = getDefaultProvider(),
 ) {
-  const response = await fetch(`${baseURL}${url}`, {
+  const response = await fetch(`${provider.url}${url}`, {
     method,
     headers: {
       ...headers,
-      "md-api-key": apiKey,
+      "md-api-key": provider.key,
       accept: "application/json",
       "content-type": "application/json",
     },
@@ -757,3 +776,11 @@ const MantecaApiErrorCodes = {
   INVALID_ORDER_SIZE: "MIN_SIZE",
   USER_NOT_FOUND: "USER_NF",
 } as const;
+
+function getDefaultProvider(): Provider {
+  if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
+  if (!process.env.MANTECA_API_KEY) throw new Error("missing manteca api key");
+  return { key: process.env.MANTECA_API_KEY, url: process.env.MANTECA_API_URL };
+}
+
+type Provider = { key: string; url: string };

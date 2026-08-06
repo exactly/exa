@@ -4,12 +4,20 @@ import { captureException } from "@sentry/node";
 import type { Address } from "@exactly/common/validation";
 import type { Prettify } from "viem";
 
-if (!process.env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key");
+let singleton: Analytics | undefined;
 
-const analytics = new Analytics({ writeKey: process.env.SEGMENT_WRITE_KEY });
+export default function segment(key: string) {
+  const analytics = createAnalytics(key);
+  return {
+    close: () => analytics.closeAndFlush(),
+    identify: (user: Parameters<typeof identify>[0]) => identify(user, analytics),
+    track: (action: Parameters<typeof track>[0]) => track(action, analytics),
+  };
+}
 
 export function identify(
-  user: Prettify<Omit<Parameters<typeof analytics.identify>[0], "userId"> & { userId: Address }>,
+  user: Prettify<Omit<Parameters<Analytics["identify"]>[0], "userId"> & { userId: Address }>,
+  analytics = getAnalytics(),
 ) {
   analytics.identify(user);
 }
@@ -110,6 +118,7 @@ export function track(
         };
       }
   >,
+  analytics = getAnalytics(),
 ) {
   try {
     analytics.track(action);
@@ -119,9 +128,20 @@ export function track(
 }
 
 export function closeAndFlush() {
-  return analytics.closeAndFlush();
+  return singleton?.closeAndFlush() ?? Promise.resolve();
 }
 
-analytics.on("error", (error) => captureException(error, { level: "error" }));
+function getAnalytics() {
+  if (singleton) return singleton;
+  if (!process.env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key");
+  singleton = createAnalytics(process.env.SEGMENT_WRITE_KEY);
+  return singleton;
+}
+
+function createAnalytics(key: string) {
+  const analytics = new Analytics({ writeKey: key });
+  analytics.on("error", (error) => captureException(error, { level: "error" }));
+  return analytics;
+}
 
 type Id<T> = Prettify<T & { userId: Address }>;

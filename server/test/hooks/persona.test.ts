@@ -1,12 +1,15 @@
 import "../mocks/deployments";
+import "../mocks/panda";
 import "../mocks/pax";
 import "../mocks/persona";
+import "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
+import { parse, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
@@ -15,19 +18,47 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
-import app from "../../hooks/persona";
+import createPersona from "../../hooks/persona";
 import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
 import { enqueue as enqueueAllow } from "../../workers/allow/queue";
 
+const queues = vi.hoisted(() => ({ close: vi.fn<() => Promise<void>>(), enqueue: vi.fn<typeof enqueueAllow>() }));
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const paxConfig = { associateKey: "pax", key: "pax", url: "https://pax.test" };
+const personaConfig = { key: "persona", url: "https://persona.test" };
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const hook = createPersona({
+  pandaKey: pandaConfig.key,
+  pandaUrl: pandaConfig.url,
+  paxAssociateKey: paxConfig.associateKey,
+  paxKey: paxConfig.key,
+  paxUrl: paxConfig.url,
+  personaKey: personaConfig.key,
+  personaUrl: personaConfig.url,
+  personaWebhookSecret: "persona",
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+  sardineKey: sardineConfig.key,
+  sardineUrl: sardineConfig.url,
+});
+const app = hook.app;
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
-vi.mock("../../workers/allow/queue", () => ({ enqueue: vi.fn<typeof enqueueAllow>() }));
+vi.mock("../../workers/allow/queue", () => ({
+  default: () => ({ close: () => Promise.resolve(queues.close()), enqueue: queues.enqueue }),
+  enqueue: queues.enqueue,
+}));
+
+afterAll(async () => {
+  await hook.close();
+});
 
 beforeEach(() => {
+  queues.close.mockReset().mockResolvedValue();
   vi.mocked(enqueueAllow).mockReset().mockResolvedValue();
 });
 
@@ -132,12 +163,16 @@ describe("with reference", () => {
     });
 
     expect(p?.pandaId).toBe(id);
-    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
-      id_class: { value: "pp" },
-      id_number: { value: "333333333" },
-      id_issuing_country: { value: "TW" },
-      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
-    });
+    expect(persona.addDocument).toHaveBeenCalledWith(
+      referenceId,
+      {
+        id_class: { value: "pp" },
+        id_number: { value: "333333333" },
+        id_issuing_country: { value: "TW" },
+        id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+      },
+      personaConfig,
+    );
     expect(response.status).toBe(200);
   });
 
@@ -180,12 +215,16 @@ describe("with reference", () => {
     });
 
     expect(p?.pandaId).toBe(id);
-    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
-      id_class: { value: "pp" },
-      id_number: { value: "333333333" },
-      id_issuing_country: { value: "TW" },
-      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
-    });
+    expect(persona.addDocument).toHaveBeenCalledWith(
+      referenceId,
+      {
+        id_class: { value: "pp" },
+        id_number: { value: "333333333" },
+        id_issuing_country: { value: "TW" },
+        id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+      },
+      personaConfig,
+    );
     expect(response.status).toBe(200);
   });
 
@@ -221,8 +260,6 @@ describe("with reference", () => {
   });
 
   it("returns 200 if no credential", async () => {
-    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
-
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -233,6 +270,10 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: "missing" },
+              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -457,27 +498,34 @@ describe("persona hook", () => {
         }),
       }),
     );
-    expect(panda.createUser).toHaveBeenCalledWith({
-      accountPurpose: "business",
-      annualSalary: "100000",
-      expectedMonthlyVolume: "1000",
-      ipAddress: "127.0.0.1",
-      isTermsOfServiceAccepted: true,
-      occupation: "engineer",
-      personaShareToken: "inq_123",
-    });
-    expect(pax.addCapita).toHaveBeenCalledWith({
-      birthdate: "1990-01-01",
-      document: "DOC123",
-      firstName: "John",
-      lastName: "Doe",
-      email: "john@example.com",
-      phone: "+1234567890",
-      internalId: pax.deriveAssociateId(
-        deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
-      ),
-      product: "travel insurance",
-    });
+    expect(panda.createUser).toHaveBeenCalledWith(
+      {
+        accountPurpose: "business",
+        annualSalary: "100000",
+        expectedMonthlyVolume: "1000",
+        ipAddress: "127.0.0.1",
+        isTermsOfServiceAccepted: true,
+        occupation: "engineer",
+        personaShareToken: "inq_123",
+      },
+      pandaConfig,
+    );
+    expect(pax.addCapita).toHaveBeenCalledWith(
+      {
+        birthdate: "1990-01-01",
+        document: "DOC123",
+        firstName: "John",
+        lastName: "Doe",
+        email: "john@example.com",
+        phone: "+1234567890",
+        internalId: pax.deriveAssociateId(
+          deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
+          paxConfig.associateKey,
+        ),
+        product: "travel insurance",
+      },
+      paxConfig,
+    );
   });
 
   it("does not allow very high risk accounts", async () => {
@@ -553,12 +601,16 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.addDocument).toHaveBeenCalledWith("manteca-ref", {
-      id_class: { value: "dl" },
-      id_number: { value: "ID12345" },
-      id_issuing_country: { value: "AR" },
-      id_document_id: { value: "doc_gov_123" },
-    });
+    expect(persona.addDocument).toHaveBeenCalledWith(
+      "manteca-ref",
+      {
+        id_class: { value: "dl" },
+        id_number: { value: "ID12345" },
+        id_issuing_country: { value: "AR" },
+        id_document_id: { value: "doc_gov_123" },
+      },
+      personaConfig,
+    );
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 });
@@ -654,11 +706,14 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
-      id: "case-card",
-      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-    });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
+      {
+        id: "case-card",
+        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+      },
+      pandaConfig,
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -676,11 +731,14 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
-      id: "case-card",
-      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-    });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
+      {
+        id: "case-card",
+        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+      },
+      pandaConfig,
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -693,7 +751,7 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -708,7 +766,7 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -737,11 +795,14 @@ describe("card limit case", () => {
     });
 
     expect(response.status).toBe(500);
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
-      id: "case-card",
-      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-    });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
+      {
+        id: "case-card",
+        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+      },
+      pandaConfig,
+    );
     expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
       [
         error,
@@ -779,7 +840,7 @@ describe("card limit case", () => {
     });
 
     expect(response.status).toBe(500);
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
       [
@@ -847,7 +908,7 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });

@@ -38,7 +38,7 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export { webhookId } from "../utils/activityWebhook";
 
-export default function activity({
+export default function hook({
   activityKey,
   alchemyKey,
   onesignalKey,

@@ -46,20 +46,35 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
-import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
 import type { Hex } from "@exactly/common/validation";
 
 const plugin = exaPluginAddress.toLowerCase();
 
-if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
-const baseURL = process.env.PANDA_API_URL;
-
-if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
-const key = process.env.PANDA_API_KEY;
-
-export default key;
+export default function panda({
+  issuerAddress,
+  issuerKey,
+  key,
+  url,
+}: {
+  issuerAddress?: string;
+  issuerKey?: string;
+  key: string;
+  url: string;
+}) {
+  const provider = { key, url };
+  return {
+    createUser: (user: Parameters<typeof createUser>[0]) => createUser(user, provider),
+    getUser: (id: string) => getUser(id, provider),
+    headerValidator: headerValidator(key),
+    signIssuerOp: (input: Parameters<typeof signIssuerOp>[0]) => signIssuerOp(input, issuerKey),
+    updateCard: (card: Parameters<typeof updateCard>[0]) => updateCard(card, provider),
+    updateUser: (user: Parameters<typeof updateUser>[0]) => updateUser(user, provider),
+    verifyPandaSignature: (input: Parameters<typeof verifyPandaSignature>[0]) =>
+      verifyPandaSignature(input, issuerAddress),
+  };
+}
 
 export async function createCard(
   userId: string,
@@ -90,41 +105,47 @@ export async function createCard(
   );
 }
 
-export async function createUser(user: {
-  accountPurpose: string;
-  annualSalary: string;
-  expectedMonthlyVolume: string;
-  ipAddress: string;
-  isTermsOfServiceAccepted: true;
-  occupation: string;
-  personaShareToken: string;
-}) {
-  return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
+export async function createUser(
+  user: {
+    accountPurpose: string;
+    annualSalary: string;
+    expectedMonthlyVolume: string;
+    ipAddress: string;
+    isTermsOfServiceAccepted: true;
+    occupation: string;
+    personaShareToken: string;
+  },
+  provider = getDefaultProvider(),
+) {
+  return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000, provider);
 }
 
-export async function updateUser(user: {
-  address?: {
-    city: string;
-    country?: string;
-    countryCode: string;
-    line1: string;
-    line2?: string;
-    postalCode: string;
-    region: string;
-  };
-  email?: string;
-  firstName?: string;
-  id: string;
-  isActive?: boolean;
-  lastName?: string;
-  phoneCountryCode?: string;
-  phoneNumber?: string;
-}) {
-  return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH");
+export async function updateUser(
+  user: {
+    address?: {
+      city: string;
+      country?: string;
+      countryCode: string;
+      line1: string;
+      line2?: string;
+      postalCode: string;
+      region: string;
+    };
+    email?: string;
+    firstName?: string;
+    id: string;
+    isActive?: boolean;
+    lastName?: string;
+    phoneCountryCode?: string;
+    phoneNumber?: string;
+  },
+  provider = getDefaultProvider(),
+) {
+  return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH", 10_000, provider);
 }
 
-export async function getUser(userId: string) {
-  return await request(UserResponse, `/issuing/users/${userId}`);
+export async function getUser(userId: string, provider = getDefaultProvider()) {
+  return await request(UserResponse, `/issuing/users/${userId}`, {}, undefined, "GET", 10_000, provider);
 }
 
 export async function getCard(cardId: string) {
@@ -142,25 +163,28 @@ export function getProcessorDetails(cardId: string) {
   );
 }
 
-export async function updateCard(card: {
-  billing?: {
-    city: string;
-    country?: string;
-    countryCode: string;
-    line1: string;
-    line2?: string;
-    postalCode: string;
-    region: string;
-  };
-  configuration?: { virtualCardArt: string };
-  id: string;
-  limit?: {
-    amount: number;
-    frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
-  };
-  status?: "active" | "canceled" | "locked" | "notActivated";
-}) {
-  return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH");
+export async function updateCard(
+  card: {
+    billing?: {
+      city: string;
+      country?: string;
+      countryCode: string;
+      line1: string;
+      line2?: string;
+      postalCode: string;
+      region: string;
+    };
+    configuration?: { virtualCardArt: string };
+    id: string;
+    limit?: {
+      amount: number;
+      frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
+    };
+    status?: "active" | "canceled" | "locked" | "notActivated";
+  },
+  provider = getDefaultProvider(),
+) {
+  return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH", 10_000, provider);
 }
 
 export async function getSecrets(cardId: string, sessionId: string) {
@@ -223,12 +247,13 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  provider = getDefaultProvider(),
 ) {
-  const response = await fetch(`${baseURL}${url}`, {
+  const response = await fetch(`${provider.url}${url}`, {
     method,
     headers: {
       ...headers,
-      "Api-Key": key,
+      "Api-Key": provider.key,
       accept: "application/json",
       "content-type": "application/json",
     },
@@ -358,6 +383,7 @@ export async function isPanda(account: Address) {
     return installedPlugins.some((addr) => plugin === addr.toLowerCase());
   } catch (error) {
     if (error instanceof BaseError && error.cause instanceof ContractFunctionZeroDataError) {
+      const { credentials, default: database } = await import("../database");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.account, account),
         columns: { factory: true },
@@ -369,7 +395,7 @@ export async function isPanda(account: Address) {
   }
 }
 
-export function headerValidator() {
+export function headerValidator(key = getDefaultProvider().key) {
   return vValidator("header", object({ signature: string() }), async (r, c) => {
     if (!r.success) return c.text("bad request", 400);
     const payload = await c.req.arrayBuffer();
@@ -386,9 +412,11 @@ export const collectors: Address[] = (
 ).map((address) => parse(Address, address));
 
 // TODO remove code below
-const issuer = privateKeyToAccount(parse(Hash, process.env.ISSUER_PRIVATE_KEY, { message: "invalid private key" }));
-export function signIssuerOp({ account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number }) {
-  return issuer.signTypedData({
+export function signIssuerOp(
+  { account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number },
+  issuerKey = getIssuerKey(),
+) {
+  return privateKeyToAccount(parse(Hash, issuerKey, { message: "invalid private key" })).signTypedData({
     domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
     types: {
       Collection: [
@@ -407,17 +435,20 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
   });
 }
 
-export function verifyPandaSignature({
-  account,
-  amount,
-  timestamp,
-  signature,
-}: {
-  account: Address;
-  amount: bigint;
-  signature: Hex;
-  timestamp: number;
-}) {
+export function verifyPandaSignature(
+  {
+    account,
+    amount,
+    timestamp,
+    signature,
+  }: {
+    account: Address;
+    amount: bigint;
+    signature: Hex;
+    timestamp: number;
+  },
+  issuerAddress = process.env.ISSUER_ADDRESS ?? "0xB9771269312B32676B77C9db2242c8d1836F1a85",
+) {
   return recoverTypedDataAddress({
     domain: {
       chainId: chain.id,
@@ -440,11 +471,7 @@ export function verifyPandaSignature({
     primaryType: amount < 0n ? "Refund" : "Collection",
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
     signature,
-  }).then(
-    (recovered) =>
-      parse(Address, recovered) ===
-      parse(Address, process.env.ISSUER_ADDRESS ?? "0xB9771269312B32676B77C9db2242c8d1836F1a85"),
-  );
+  }).then((recovered) => parse(Address, recovered) === parse(Address, issuerAddress));
 }
 
 const mutexes = new Map<Address, MutexInterface>();
@@ -582,3 +609,16 @@ const ApplicationStatusResponse = object({
   applicationStatus: picklist(kycStatus),
   applicationReason: optional(string()),
 });
+
+function getDefaultProvider(): Provider {
+  if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
+  if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
+  return { key: process.env.PANDA_API_KEY, url: process.env.PANDA_API_URL };
+}
+
+function getIssuerKey() {
+  if (!process.env.ISSUER_PRIVATE_KEY) throw new Error("invalid private key");
+  return process.env.ISSUER_PRIVATE_KEY;
+}
+
+type Provider = { key: string; url: string };
