@@ -2,15 +2,15 @@ import { captureException, withScope } from "@sentry/node";
 import { parse } from "valibot";
 
 import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
-import { getWallet } from "../../utils/wallet";
+import { getAccount, getWallet } from "../../utils/wallet";
 import { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../poke/queue";
 import createWorker, { connect } from "../worker";
 
-export default function worker({ redisUrl }: { redisUrl: string }) {
+export default async function worker({ redisUrl }: { redisUrl: string }) {
+  const signer = await getAccount("allower");
   const bullmq = connect(redisUrl);
   startPoke(bullmq);
   return createWorker<Job>({
@@ -29,7 +29,7 @@ export default function worker({ redisUrl }: { redisUrl: string }) {
     },
     name,
     async process(job) {
-      const wallet = await getWallet(`${stack}-allower`);
+      const wallet = getWallet(signer);
       await wallet.exaSend(
         { name: "firewall.allow", op: "exa.firewall", attributes: { account: job.data.account } },
         {

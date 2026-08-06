@@ -56,7 +56,7 @@ import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
-import { getWallet } from "../../utils/wallet";
+import { getAccount, getWallet } from "../../utils/wallet";
 import { enqueue as enqueueRefund } from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
 
@@ -68,6 +68,7 @@ const queues = vi.hoisted(() => ({
 }));
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const hook = createPanda({
   issuerAddress: process.env.ISSUER_ADDRESS,
   issuerKey: parse(string(), process.env.ISSUER_PRIVATE_KEY),
@@ -79,6 +80,7 @@ const hook = createPanda({
   sardineKey: sardineConfig.key,
   sardineUrl: sardineConfig.url,
   segmentKey: "segment",
+  settler: owner.account,
 });
 const app = hook.app;
 
@@ -96,15 +98,15 @@ vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
   };
 });
 
-let keeper: Awaited<ReturnType<typeof getWallet>>;
+let keeper: ReturnType<typeof getWallet>;
 
 const appClient = testClient(app);
-const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
 
 beforeAll(async () => {
-  keeper = await getWallet("keeper");
+  keeper = getWallet(await getAccount("keeper"));
   await Promise.all([
+    hook.ready,
     database.transaction(async (tx) => {
       await tx
         .insert(credentials)

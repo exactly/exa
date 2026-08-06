@@ -4,15 +4,14 @@ import { toHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { refunderAddress, usdcAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address, Hex } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
 import ServiceError from "../../utils/ServiceError";
-import { getWallet } from "../../utils/wallet";
+import { getAccount, getWallet } from "../../utils/wallet";
 import createWorker, { connect } from "../worker";
 
-export default function worker({
+export default async function worker({
   pandaKey,
   pandaUrl,
   redisUrl,
@@ -21,6 +20,7 @@ export default function worker({
   pandaUrl: string;
   redisUrl: string;
 }) {
+  const signer = await getAccount("refunder");
   return createWorker<Job>({
     attempts,
     bullmq: connect(redisUrl),
@@ -33,7 +33,7 @@ export default function worker({
     },
     name,
     async process(job) {
-      const wallet = await getWallet(`${stack}-refunder`);
+      const wallet = getWallet(signer);
       const response = await fetch(
         `${pandaUrl}/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${BigInt(job.data.amount) / 10_000n}&recipientAddress=${refunderAddress}&adminAddress=${wallet.account.address}&chainId=${chain.id}`,
         {

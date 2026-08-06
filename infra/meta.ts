@@ -179,6 +179,22 @@ const selected = await automation.LocalWorkspace.selectStack(
             { location: stack.location, name: `${stack.name}-signers` },
             { dependsOn: cloudKms, provider },
           );
+          for (const key of new Set(
+            [...Object.values(modules.services), ...Object.values(modules.workers)].flatMap(({ signer }) =>
+              signer ? [signer] : [],
+            ),
+          )) {
+            new kms.CryptoKey(
+              `${stack.name}-${key}`,
+              {
+                keyRing: keyRing.id,
+                name: `${stack.name}-${key}`,
+                purpose: "ASYMMETRIC_SIGN",
+                versionTemplate: { algorithm: "EC_SIGN_SECP256K1_SHA256", protectionLevel: "HSM" },
+              },
+              { provider, retainOnDelete: true },
+            );
+          }
           for (const secret of new Set([
             ...modules.crema,
             ...Object.values(modules.services).flatMap((fields) => fields.secrets),
@@ -242,25 +258,13 @@ const selected = await automation.LocalWorkspace.selectStack(
               { provider },
             );
           }
-          for (const [name, { signer }] of Object.entries(modules.workers)) {
+          for (const name of Object.keys(modules.workers)) {
             const identity = `${stack.name}-${name}`;
             const account = new serviceaccount.Account(
               identity,
               { accountId: identity },
               { dependsOn: service, provider },
             );
-            if (signer) {
-              new kms.CryptoKey(
-                `${stack.name}-${signer}`,
-                {
-                  keyRing: keyRing.id,
-                  name: `${stack.name}-${signer}`,
-                  purpose: "ASYMMETRIC_SIGN",
-                  versionTemplate: { algorithm: "EC_SIGN_SECP256K1_SHA256", protectionLevel: "HSM" },
-                },
-                { provider, retainOnDelete: true },
-              );
-            }
             for (const [suffix, principal] of [
               ["", member],
               ["-crema", cremaMember],

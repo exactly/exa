@@ -28,10 +28,8 @@ export default {
         "sardine-api-url",
       ],
     },
-    activity: {
-      secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"],
-    },
-    block: { secrets: ["alchemy-webhooks-key", "onesignal-api-key"] },
+    activity: { secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"] },
+    block: { secrets: ["alchemy-webhooks-key", "onesignal-api-key"], signer: "executor" },
     bridge: {
       secrets: ["bridge-api-key", "onesignal-api-key", "persona-api-key", "postgres-url", "segment-write-key"],
       shared: ["bridge-api-url", "persona-api-url"],
@@ -50,6 +48,7 @@ export default {
         "segment-write-key",
       ],
       shared: ["panda-api-url", "sardine-api-url"],
+      signer: "settler",
     },
     persona: {
       secrets: [
@@ -67,19 +66,9 @@ export default {
   workers: modules({
     allow: { secrets: [], signer: "allower" },
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
-    poke: {
-      secrets: ["onesignal-api-key", "segment-write-key"],
-      signer: "poker",
-    },
-    refund: {
-      secrets: ["panda-api-key"],
-      shared: ["panda-api-url"],
-      signer: "refunder",
-    },
-    subscribe: {
-      env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" },
-      secrets: ["alchemy-webhooks-key"],
-    },
+    poke: { secrets: ["onesignal-api-key", "segment-write-key"], signer: "poker" },
+    refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signer: "refunder" },
+    subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },
   } as const satisfies Record<string, Config>),
 } as const;
 

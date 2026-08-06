@@ -120,7 +120,7 @@ describe("supervise", () => {
     await vi.waitFor(() => expect(serve).toHaveBeenCalledOnce());
     serverError(error);
 
-    await vi.waitFor(() => expect(closeSentry).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(1));
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "fatal",
       tags: { startup: true, entrypoint: "activity" },
@@ -128,7 +128,6 @@ describe("supervise", () => {
     expect(process.exitCode).toBe(1);
     expect(mocks.close).toHaveBeenCalledOnce();
     expect(mocks.serverClose).not.toHaveBeenCalled();
-    expect(mocks.exit).not.toHaveBeenCalled();
   });
 
   it("does not start when stopped before readiness", async () => {
@@ -165,23 +164,26 @@ describe("supervise", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("captures construction failures before closing", async () => {
+  it("exits after cleaning up construction failures", async () => {
+    const closed = Promise.withResolvers<boolean>();
     const error = new Error("construction failed");
+    vi.mocked(closeSentry).mockReturnValueOnce(closed.promise);
 
     supervise("activity", Promise.reject(error));
 
-    await vi.waitFor(() =>
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-        level: "fatal",
-        tags: { startup: true, entrypoint: "activity" },
-      }),
-    );
+    await vi.waitFor(() => expect(closeSentry).toHaveBeenCalledOnce());
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+      level: "fatal",
+      tags: { startup: true, entrypoint: "activity" },
+    });
     expect(process.exitCode).toBe(1);
     expect(closeSentry).toHaveBeenCalledOnce();
     expect(serve).not.toHaveBeenCalled();
     expect(mocks.serverClose).not.toHaveBeenCalled();
     expect(mocks.close).not.toHaveBeenCalled();
     expect(mocks.exit).not.toHaveBeenCalled();
+    closed.resolve(true);
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(1));
   });
 
   it("captures close failures after startup failures", async () => {
@@ -191,7 +193,7 @@ describe("supervise", () => {
 
     superviseApp(createHandle(Promise.reject(startupError)));
 
-    await vi.waitFor(() => expect(closeSentry).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(1));
     expect(captureException).toHaveBeenNthCalledWith(1, startupError, {
       level: "fatal",
       tags: { startup: true, entrypoint: "activity" },
@@ -202,7 +204,6 @@ describe("supervise", () => {
     });
     expect(captureException).toHaveBeenCalledTimes(2);
     expect(process.exitCode).toBe(1);
-    expect(mocks.exit).not.toHaveBeenCalled();
   });
 
   it.each(["ready", "serve"] as const)("captures %s startup failures before closing", async (source) => {
@@ -214,17 +215,15 @@ describe("supervise", () => {
 
     superviseApp(createHandle(source === "ready" ? Promise.reject(error) : Promise.resolve()));
 
-    await vi.waitFor(() =>
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-        level: "fatal",
-        tags: { startup: true, entrypoint: "activity" },
-      }),
-    );
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(1));
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+      level: "fatal",
+      tags: { startup: true, entrypoint: "activity" },
+    });
     expect(process.exitCode).toBe(1);
     expect(mocks.close).toHaveBeenCalledOnce();
     expect(closeSentry).toHaveBeenCalledOnce();
     expect(mocks.serverClose).not.toHaveBeenCalled();
-    expect(mocks.exit).not.toHaveBeenCalled();
   });
 
   it.each(["handle", "server"] as const)("captures %s close failures before exiting", async (source) => {
@@ -260,18 +259,29 @@ describe("supervise", () => {
   });
 
   it("closes checks after readiness", async () => {
+    const closed = Promise.withResolvers<boolean>();
     const ready = Promise.withResolvers<boolean>();
+    const sentry = Promise.withResolvers<boolean>();
+    mocks.close.mockImplementationOnce(async () => {
+      await closed.promise;
+    });
+    vi.mocked(closeSentry).mockReturnValueOnce(sentry.promise);
     supervise("test", Promise.resolve({ check: true, close: mocks.close, ready: ready.promise }));
     await settle();
 
     expect(mocks.close).not.toHaveBeenCalled();
     ready.resolve(true);
     await vi.waitFor(() => expect(mocks.close).toHaveBeenCalledOnce());
+    expect(closeSentry).not.toHaveBeenCalled();
+    expect(mocks.exit).not.toHaveBeenCalled();
+    closed.resolve(true);
+    await vi.waitFor(() => expect(closeSentry).toHaveBeenCalledOnce());
+    expect(mocks.exit).not.toHaveBeenCalled();
+    sentry.resolve(true);
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(0));
 
-    expect(closeSentry).toHaveBeenCalledOnce();
     expect(serve).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
-    expect(mocks.exit).not.toHaveBeenCalled();
   });
 
   it("fails checks when closing fails", async () => {
@@ -280,7 +290,7 @@ describe("supervise", () => {
 
     supervise("test", Promise.resolve({ check: true, close: mocks.close, ready: Promise.resolve() }));
 
-    await vi.waitFor(() => expect(process.exitCode).toBe(1));
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(1));
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "fatal",
       tags: { close: true, entrypoint: "test" },
@@ -288,7 +298,6 @@ describe("supervise", () => {
     expect(mocks.close).toHaveBeenCalledOnce();
     expect(closeSentry).toHaveBeenCalledOnce();
     expect(serve).not.toHaveBeenCalled();
-    expect(mocks.exit).not.toHaveBeenCalled();
   });
 
   it("captures startup failures without an app", async () => {
@@ -296,7 +305,7 @@ describe("supervise", () => {
 
     supervise("test", Promise.resolve({ close: mocks.close, ready: Promise.reject(error) }));
 
-    await vi.waitFor(() => expect(mocks.close).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(1));
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "fatal",
       tags: { startup: true, entrypoint: "test" },
@@ -304,7 +313,6 @@ describe("supervise", () => {
     expect(process.exitCode).toBe(1);
     expect(closeSentry).toHaveBeenCalledOnce();
     expect(serve).not.toHaveBeenCalled();
-    expect(mocks.exit).not.toHaveBeenCalled();
   });
 
   it("captures close failures without an app", async () => {

@@ -14,7 +14,6 @@ import exaChain, {
   upgradeableModularAccountAbi,
   wethAddress,
 } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
@@ -24,11 +23,11 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import { sendPushNotification } from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import revertFingerprint from "../../utils/revertFingerprint";
-import { getWallet } from "../../utils/wallet";
+import { getAccount, getWallet } from "../../utils/wallet";
 import { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../credit/queue";
 import createWorker, { connect } from "../worker";
 
-export default function worker({
+export default async function worker({
   onesignalKey,
   redisUrl,
   segmentKey,
@@ -37,6 +36,7 @@ export default function worker({
   redisUrl: string;
   segmentKey: string;
 }) {
+  const signer = await getAccount("poker");
   const analytics = new Analytics({ writeKey: segmentKey });
   const bullmq = connect(redisUrl);
   startCredit(bullmq);
@@ -62,7 +62,7 @@ export default function worker({
     async process(job, span) {
       const chain = [...NETWORKS.values()].find(({ id }) => id === job.data.chainId);
       if (!chain) throw new Error(`unsupported chain ${job.data.chainId}`);
-      const wallet = await getWallet(`${stack}-poker`, chain);
+      const wallet = getWallet(signer, chain);
       const isDeployed = !!(await wallet.getCode({ address: job.data.account }));
       span.setAttribute("exa.new", !isDeployed);
       if (!isDeployed) {

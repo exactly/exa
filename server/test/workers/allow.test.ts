@@ -7,7 +7,6 @@ import { padHex } from "viem";
 import { afterAll, afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import chain, { firewallAbi } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
@@ -28,6 +27,7 @@ const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const redisUrl = parse(string(), process.env.REDIS_URL);
 const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
+const signer = { address: account };
 startAllow(bullmq);
 startAllow(bullmq);
 const mocks = vi.hoisted(() => ({
@@ -35,11 +35,12 @@ const mocks = vi.hoisted(() => ({
   enqueuePoke: vi.fn<typeof enqueuePoke>(),
   exaSend: vi.fn(),
   firewall: vi.fn<() => Address | undefined>(),
+  getAccount: vi.fn(),
   getWallet: vi.fn(),
   startPoke: vi.fn<typeof startPoke>(),
 }));
 
-vi.mock("../../utils/wallet", () => ({ getWallet: mocks.getWallet }));
+vi.mock("../../utils/wallet", () => ({ getAccount: mocks.getAccount, getWallet: mocks.getWallet }));
 vi.mock("../../workers/poke/queue", () => ({
   close: mocks.closePoke,
   enqueue: mocks.enqueuePoke,
@@ -57,7 +58,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
 });
 
 const queue = new Queue<Allow, void, "allow">("allow", { connection: bullmq });
-let worker: ReturnType<typeof allowWorker>;
+let worker: Awaited<ReturnType<typeof allowWorker>>;
 
 function allowDone(current: Address) {
   return new Promise<void>((resolve, reject) => {
@@ -135,7 +136,8 @@ beforeEach(async () => {
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
   mocks.firewall.mockReset().mockReturnValue(firewall);
-  mocks.getWallet.mockReset().mockResolvedValue({ exaSend: mocks.exaSend });
+  mocks.getAccount.mockReset().mockResolvedValue(signer);
+  mocks.getWallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
   mocks.startPoke.mockReset();
   vi.clearAllMocks();
   await queue.drain(true);
@@ -195,9 +197,22 @@ describe("allow queue", () => {
   });
 });
 
+describe("allow startup", () => {
+  it("fails when the signer is unavailable", async () => {
+    const error = Object.assign(new Error("kms key version not found"), { code: 5 });
+    mocks.getAccount.mockRejectedValueOnce(error);
+
+    await expect(allowWorker({ redisUrl })).rejects.toBe(error);
+
+    expect(mocks.getAccount).toHaveBeenCalledExactlyOnceWith("allower");
+    expect(mocks.getWallet).not.toHaveBeenCalled();
+    expect(mocks.startPoke).not.toHaveBeenCalled();
+  });
+});
+
 describe("allow worker", () => {
   beforeEach(async () => {
-    worker = allowWorker({ redisUrl });
+    worker = await allowWorker({ redisUrl });
     await worker.ready;
   });
 
@@ -208,7 +223,8 @@ describe("allow worker", () => {
   it("allows queued accounts with the isolated wallet", async () => {
     await allowDone(account);
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-allower`);
+    expect(mocks.getAccount).toHaveBeenCalledExactlyOnceWith("allower");
+    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(signer);
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
       { address: firewall, functionName: "allow", args: [account, true], abi: firewallAbi },

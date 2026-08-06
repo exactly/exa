@@ -1,5 +1,6 @@
 import supervise from "../../supervise";
 import secret from "../../utils/secret";
+import { getAccount } from "../../utils/wallet";
 import panda from "../panda";
 
 supervise(
@@ -14,7 +15,31 @@ supervise(
     secret("panda-sardine-api-key"),
     secret("sardine-api-url"),
     secret("panda-segment-write-key"),
-  ]).then(([issuerKey, onesignalKey, pandaKey, pandaUrl, postgresUrl, redisUrl, sardineKey, sardineUrl, segmentKey]) =>
-    panda({ issuerKey, onesignalKey, pandaKey, pandaUrl, postgresUrl, redisUrl, sardineKey, sardineUrl, segmentKey }),
+    getAccount("settler"),
+  ]).then(
+    ([
+      issuerKey,
+      onesignalKey,
+      pandaKey,
+      pandaUrl,
+      postgresUrl,
+      redisUrl,
+      sardineKey,
+      sardineUrl,
+      segmentKey,
+      settler,
+    ]) =>
+      panda({
+        issuerKey,
+        onesignalKey,
+        pandaKey,
+        pandaUrl,
+        postgresUrl,
+        redisUrl,
+        sardineKey,
+        sardineUrl,
+        segmentKey,
+        settler,
+      }),
   ),
 );

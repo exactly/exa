@@ -34,6 +34,7 @@ import {
   toBytes,
   withRetry,
   zeroHash,
+  type LocalAccount,
   type TransactionReceipt,
 } from "viem";
 
@@ -258,6 +259,7 @@ export default function hook({
   sardineKey,
   sardineUrl,
   segmentKey,
+  settler,
 }: {
   issuerAddress?: string;
   issuerKey: string;
@@ -269,8 +271,9 @@ export default function hook({
   sardineKey: string;
   sardineUrl: string;
   segmentKey: string;
+  settler: LocalAccount;
 }) {
-  let keeper: Awaited<ReturnType<typeof getWallet>> | undefined;
+  const wallet = getWallet(settler);
   const database = drizzle(postgresUrl, { schema });
   const onesignal = new DefaultApi(createConfiguration({ restApiKey: onesignalKey }));
   const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
@@ -278,7 +281,6 @@ export default function hook({
   const panda = createPanda({ issuerAddress, issuerKey, key: pandaKey, url: pandaUrl });
   const sardine = createSardine(sardineKey, sardineUrl);
   const segment = createSegment(segmentKey);
-  const wallet = async () => (keeper ??= await getWallet("keeper"));
   const app = new Hono().post(
     "/",
     panda.headerValidator,
@@ -637,8 +639,7 @@ export default function hook({
             }
             try {
               await refund.enqueue(refundAmount, payload.id);
-              const signer = await wallet();
-              await signer.exaSend(
+              await wallet.exaSend(
                 { name: "exa.refund", op: "exa.refund", attributes: { account } },
                 {
                   address: refunderAddress,
@@ -890,8 +891,7 @@ export default function hook({
               return c.json({ code: "ok" });
             }
             try {
-              const signer = await wallet();
-              await signer.exaSend(
+              await wallet.exaSend(
                 { name: "collect credit", op: "exa.collect", attributes: { account } },
                 {
                   address: account,
@@ -1263,7 +1263,7 @@ async function prepareCollection(
   payload: v.InferOutput<typeof Transaction>,
   database: NodePgDatabase<typeof schema>,
   panda: ReturnType<typeof createPanda>,
-  wallet: () => Promise<Awaited<ReturnType<typeof getWallet>>>,
+  wallet: ReturnType<typeof getWallet>,
 ) {
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
@@ -1378,12 +1378,11 @@ async function prepareCollection(
     } as const;
   })();
   setContext("tx", { call });
-  const signer = await wallet();
   return {
     amount,
     call,
     transaction: {
-      from: signer.account.address,
+      from: wallet.account.address,
       to: account,
       data: encodeFunctionData({ abi: exaPluginAbi, ...call }),
     } as const,

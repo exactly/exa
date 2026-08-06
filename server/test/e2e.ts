@@ -10,8 +10,13 @@ import "./mocks/wallet";
 import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { parse } from "valibot";
+import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
+import { Hash } from "@exactly/common/validation";
+
+import { getWallet } from "../utils/wallet";
 import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import pokeWorker from "../workers/poke/worker";
@@ -27,18 +32,23 @@ describe("e2e", () => {
     "runs server",
     async () => {
       const { default: app, close } = await import("../index");
+      const keeper = privateKeyToAccount(parse(Hash, process.env.KEEPER_PRIVATE_KEY));
+      expect(vi.mocked(getWallet)).toHaveBeenNthCalledWith(1, expect.objectContaining({ address: keeper.address }));
+      expect(vi.mocked(getWallet)).toHaveBeenNthCalledWith(2, expect.objectContaining({ address: keeper.address }));
       const redisUrl = process.env.REDIS_URL;
       if (!redisUrl) throw new Error("missing redis url");
+      const workers = [
+        ...(await Promise.all([
+          allowWorker({ redisUrl }),
+          pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
+          refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
+        ])),
+        creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
+        subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
+      ];
 
       await expect(
         new Promise((resolve, reject) => {
-          const workers = [
-            allowWorker({ redisUrl }),
-            creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
-            pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
-            refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
-            subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
-          ];
           let closing: Promise<unknown> | undefined;
           const teardown = () => {
             closing ??= Promise.allSettled([close(), ...workers.map((worker) => worker.close())]).then(resolve, reject);

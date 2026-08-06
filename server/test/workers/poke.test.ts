@@ -10,7 +10,6 @@ import { BaseError, ContractFunctionRevertedError, encodeErrorResult } from "vie
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain, { wethAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import t from "../../i18n";
@@ -43,6 +42,7 @@ const request = {
   publicKey: "0x1234",
   source: null,
 } as const;
+const signer = { address: account };
 startPoke(bullmq);
 startPoke(bullmq);
 const mocks = vi.hoisted(() => ({
@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   decodePublicKey: vi.fn(),
   enqueueCredit: vi.fn<typeof enqueueCredit>(),
   exaSend: vi.fn(),
+  getAccount: vi.fn(),
   getCode: vi.fn(),
   getWallet: vi.fn(),
   segmentOn: vi.fn(),
@@ -66,7 +67,7 @@ vi.mock("@segment/analytics-node", () => ({
   },
 }));
 vi.mock("../../utils/decodePublicKey", () => ({ default: mocks.decodePublicKey }));
-vi.mock("../../utils/wallet", () => ({ getWallet: mocks.getWallet }));
+vi.mock("../../utils/wallet", () => ({ getAccount: mocks.getAccount, getWallet: mocks.getWallet }));
 vi.mock("../../workers/credit/queue", () => ({
   close: mocks.closeCredit,
   enqueue: mocks.enqueueCredit,
@@ -74,7 +75,7 @@ vi.mock("../../workers/credit/queue", () => ({
 }));
 
 const queue = new Queue<Poke, void, "poke">("poke", { connection: bullmq });
-let worker: ReturnType<typeof pokeWorker>;
+let worker: Awaited<ReturnType<typeof pokeWorker>>;
 
 function done(
   poke: Parameters<typeof enqueuePoke>[0],
@@ -140,8 +141,9 @@ beforeEach(async () => {
   mocks.decodePublicKey.mockReset().mockReturnValue({ x: "0x01", y: "0x02" });
   mocks.enqueueCredit.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({ status: "success" });
+  mocks.getAccount.mockReset().mockResolvedValue(signer);
   mocks.getCode.mockReset().mockResolvedValue("0x01");
-  mocks.getWallet.mockReset().mockResolvedValue({ exaSend: mocks.exaSend, getCode: mocks.getCode });
+  mocks.getWallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend, getCode: mocks.getCode });
   mocks.segmentOn.mockReset();
   mocks.startCredit.mockReset();
   mocks.track.mockReset();
@@ -227,9 +229,23 @@ describe("poke queue", () => {
   });
 });
 
+describe("poke startup", () => {
+  it("fails when the signer is unavailable", async () => {
+    const error = Object.assign(new Error("kms key version not found"), { code: 5 });
+    mocks.getAccount.mockRejectedValueOnce(error);
+
+    await expect(pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" })).rejects.toBe(error);
+
+    expect(mocks.getAccount).toHaveBeenCalledExactlyOnceWith("poker");
+    expect(mocks.getWallet).not.toHaveBeenCalled();
+    expect(mocks.startCredit).not.toHaveBeenCalled();
+  });
+});
+
 describe("poke worker", () => {
   beforeAll(async () => {
-    worker = pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" });
+    mocks.getAccount.mockResolvedValue(signer);
+    worker = await pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" });
     await worker.ready;
   });
 
@@ -246,7 +262,7 @@ describe("poke worker", () => {
 
     await queued(request);
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-poker`, NETWORKS.get("ANVIL"));
+    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(signer, NETWORKS.get("ANVIL"));
     expect(mocks.exaSend).toHaveBeenCalledTimes(3);
     expect(mocks.exaSend).toHaveBeenNthCalledWith(
       1,
@@ -382,7 +398,7 @@ describe("poke worker", () => {
 
     await done({ ...request, chainId: network.id });
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-poker`, network);
+    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(signer, network);
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       { name: "create account", op: "exa.account", attributes: { account } },
       expect.objectContaining({ address: factory, functionName: "createAccount" }),

@@ -1,9 +1,13 @@
 import { Hono } from "hono";
+import { padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const signer = privateKeyToAccount(padHex("0x69"));
 const mocks = {
   close: vi.fn<() => Promise<void>>(),
-  hook: vi.fn<(config: Record<string, string>) => Hook>(),
+  getAccount: vi.fn<(name: string) => Promise<typeof signer>>(),
+  hook: vi.fn<(config: Record<string, unknown>) => Hook>(),
   secret: vi.fn<(name: string) => Promise<string>>(),
   supervise: vi.fn<(name: string, created: Promise<Hook>) => void>(),
 };
@@ -15,6 +19,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.resetModules();
   mocks.close.mockReset().mockResolvedValue();
+  mocks.getAccount.mockReset().mockResolvedValue(signer);
   mocks.hook.mockReset().mockReturnValue({
     app: new Hono().get("/", (c) => c.json({ status: "ok" })),
     close: mocks.close,
@@ -30,11 +35,13 @@ beforeEach(() => {
   vi.doMock("../../hooks/persona", () => ({ default: mocks.hook }));
   vi.doMock("../../supervise", () => ({ default: mocks.supervise }));
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
+  vi.doMock("../../utils/wallet", () => ({ getAccount: mocks.getAccount }));
 });
 
 describe("hook bin", () => {
   it.each([
     {
+      accounts: [],
       config: {
         alchemyKey: "activity-alchemy-webhooks-key",
         onesignalKey: "activity-onesignal-api-key",
@@ -46,8 +53,10 @@ describe("hook bin", () => {
       secrets: ["activity-alchemy-webhooks-key", "activity-onesignal-api-key", "activity-postgres-url", "redis-url"],
     },
     {
+      accounts: ["executor"],
       config: {
         alchemyKey: "block-alchemy-webhooks-key",
+        executor: signer,
         onesignalKey: "block-onesignal-api-key",
         redisUrl: "redis-url",
       },
@@ -56,6 +65,7 @@ describe("hook bin", () => {
       secrets: ["block-alchemy-webhooks-key", "block-onesignal-api-key", "redis-url"],
     },
     {
+      accounts: [],
       config: {
         bridgeKey: "bridge-bridge-api-key",
         bridgeUrl: "bridge-api-url",
@@ -78,6 +88,7 @@ describe("hook bin", () => {
       ],
     },
     {
+      accounts: [],
       config: {
         mantecaKey: "manteca-manteca-api-key",
         mantecaUrl: "manteca-api-url",
@@ -98,6 +109,7 @@ describe("hook bin", () => {
       ],
     },
     {
+      accounts: ["settler"],
       config: {
         issuerKey: "panda-issuer-private-key",
         onesignalKey: "panda-onesignal-api-key",
@@ -108,6 +120,7 @@ describe("hook bin", () => {
         sardineKey: "panda-sardine-api-key",
         sardineUrl: "sardine-api-url",
         segmentKey: "panda-segment-write-key",
+        settler: signer,
       },
       load: () => import("../../hooks/bin/panda"),
       name: "panda",
@@ -124,6 +137,7 @@ describe("hook bin", () => {
       ],
     },
     {
+      accounts: [],
       config: {
         pandaKey: "persona-panda-api-key",
         pandaUrl: "panda-api-url",
@@ -157,13 +171,14 @@ describe("hook bin", () => {
     },
   ])(
     "resolves private config before constructing and supervising the $name hook",
-    async ({ config, load, name, secrets }) => {
+    async ({ accounts, config, load, name, secrets }) => {
       await load();
       const created = mocks.supervise.mock.calls[0]?.[1];
       if (!created) throw new Error(`missing ${name} hook`);
       const hook = await created;
 
       expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(secrets);
+      expect(mocks.getAccount.mock.calls.map(([account]) => account)).toStrictEqual(accounts);
       const response = await hook.app.request("/");
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ status: "ok" });
@@ -171,6 +186,25 @@ describe("hook bin", () => {
       expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith(name, created);
     },
   );
+
+  it.each([
+    { account: "executor", load: () => import("../../hooks/bin/block"), name: "block" },
+    { account: "settler", load: () => import("../../hooks/bin/panda"), name: "panda" },
+  ])("fails before constructing the $name hook without its $account account", async ({ account, load, name }) => {
+    const error = new Error(`missing ${account}`);
+    mocks.getAccount.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await load();
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error(`missing ${name} hook`);
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.getAccount).toHaveBeenCalledExactlyOnceWith(account);
+    expect(mocks.hook).not.toHaveBeenCalled();
+  });
 });
 
 type Hook = {

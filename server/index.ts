@@ -5,10 +5,12 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import { parse, string } from "valibot";
+import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import { Hash } from "@exactly/common/validation";
 
 import createApi from "./api";
 import database from "./database";
@@ -22,8 +24,13 @@ import supervise from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
+import nonceManager from "./utils/nonceManager";
 import { close as closeRedis } from "./utils/redis";
 
+const keeper = privateKeyToAccount(
+  parse(Hash, process.env.KEEPER_PRIVATE_KEY, { message: "invalid keeper private key" }),
+  { nonceManager },
+);
 const api = createApi({
   alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
   authSecret: parse(string(), process.env.AUTH_SECRET),
@@ -57,6 +64,7 @@ const activity = createActivity({
 const block = createBlock({
   alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
   blockKey: process.env.ALCHEMY_BLOCK_KEY,
+  executor: keeper,
   onesignalKey: process.env.ONESIGNAL_API_KEY,
   redisUrl: parse(string(), process.env.REDIS_URL),
 });
@@ -89,6 +97,7 @@ const panda = createPanda({
   sardineKey: parse(string(), process.env.SARDINE_API_KEY),
   sardineUrl: parse(string(), process.env.SARDINE_API_URL),
   segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+  settler: keeper,
 });
 const persona = createPersona({
   pandaKey: parse(string(), process.env.PANDA_API_KEY),

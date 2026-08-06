@@ -28,6 +28,7 @@ import {
   encodeErrorResult,
   ExecutionRevertedError,
   formatUnits,
+  type LocalAccount,
 } from "viem";
 import { optimismSepolia } from "viem/chains";
 
@@ -64,15 +65,17 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 export default function hook({
   alchemyKey,
   blockKey,
+  executor,
   onesignalKey,
   redisUrl,
 }: {
   alchemyKey: string;
   blockKey?: string;
+  executor: LocalAccount;
   onesignalKey?: string;
   redisUrl: string;
 }) {
-  let keeper: Awaited<ReturnType<typeof getWallet>> | undefined;
+  const wallet = getWallet(executor);
   const mutexes = new Map<Address, Mutex>();
   function createMutex(address: Address) {
     const mutex = new Mutex();
@@ -270,7 +273,7 @@ export default function hook({
           retryCount,
         });
         const skipNonce = async () =>
-          (keeper ??= await getWallet("keeper")).exaSend(
+          wallet.exaSend(
             { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
             {
               address: account,
@@ -306,7 +309,7 @@ export default function hook({
             async () => {
               await (proposalType === ProposalType.None
                 ? skipNonce()
-                : (keeper ??= await getWallet("keeper")).exaSend(
+                : wallet.exaSend(
                     { name: "exa.execute", op: "exa.execute", attributes: { account } },
                     {
                       address: account,
@@ -534,7 +537,7 @@ export default function hook({
               },
             },
             async () => {
-              const receipt = await (keeper ??= await getWallet("keeper")).exaSend(
+              const receipt = await wallet.exaSend(
                 { name: "exa.execute", op: "exa.execute", attributes: { account } },
                 {
                   address: account,

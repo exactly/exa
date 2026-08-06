@@ -39,14 +39,14 @@ import createPersona, * as persona from "../../utils/persona";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
-import { getWallet } from "../../utils/wallet";
+import { getAccount as getSigner, getWallet } from "../../utils/wallet";
 import createWalletExtension from "../../utils/walletExtension";
 import * as credit from "../../workers/credit/queue";
 
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
-let keeper: Awaited<ReturnType<typeof getWallet>>;
+let keeper: ReturnType<typeof getWallet>;
 
 vi.mock("../../workers/credit/queue", () => ({ enqueue: vi.fn<typeof credit.enqueue>() }));
 
@@ -76,7 +76,7 @@ const app = route({
 const appClient = testClient(app);
 
 beforeAll(async () => {
-  keeper = await getWallet("keeper");
+  keeper = getWallet(await getSigner("keeper"));
 });
 
 describe("authenticated", () => {

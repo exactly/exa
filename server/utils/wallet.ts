@@ -33,6 +33,7 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
+import stack from "@exactly/common/stack";
 import { Address, Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
@@ -42,7 +43,7 @@ import defaultTraceClient, { trace as traceActions, type RpcSchema } from "./tra
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export async function getWallet(name: string, network: Chain = chain) {
+export function getWallet(signer: LocalAccount, network: Chain = chain) {
   const url = network.rpcUrls.alchemy?.http[0];
   if (!url) throw new Error("missing alchemy rpc url");
   const transport = http(`${url}/${alchemyAPIKey}`, {
@@ -55,7 +56,7 @@ export async function getWallet(name: string, network: Chain = chain) {
   const client = createPublicClient({ chain: network, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(
     traceActions,
   );
-  return createWalletClient({ chain: network, transport, account: await getAccount(name) }).extend((wallet) => ({
+  return createWalletClient({ chain: network, transport, account: signer }).extend((wallet) => ({
     ...extender(wallet, { publicClient: client, traceClient: client }),
     getCode: client.getCode,
   }));
@@ -246,7 +247,7 @@ export async function getAccount(name: string): Promise<LocalAccount> {
           message: "invalid GCP_KMS_LOCATION",
         })}/keyRings/${parse(string(), process.env.GCP_KMS_KEY_RING, {
           message: "invalid GCP_KMS_KEY_RING",
-        })}/cryptoKeys/${name}/cryptoKeyVersions/${parse(
+        })}/cryptoKeys/${stack}-${name}/cryptoKeyVersions/${parse(
           pipe(string(), regex(/^\d+$/)),
           process.env.GCP_KMS_KEY_VERSION,
           { message: "invalid GCP_KMS_KEY_VERSION" },

@@ -58,12 +58,12 @@ import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
-import { getWallet } from "../../utils/wallet";
+import { getAccount, getWallet } from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 import type * as sentry from "@sentry/node";
 
-let keeper: Awaited<ReturnType<typeof getWallet>>;
+let keeper: ReturnType<typeof getWallet>;
 
 const bob = createWalletClient({
   chain,
@@ -74,6 +74,7 @@ const bobAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob.ac
 vi.mocked(findWebhook).mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
 const hook = blockHook({
   alchemyKey: "webhooks",
+  executor: bob.account,
   onesignalKey: "onesignal",
   redisUrl: parse(string(), process.env.REDIS_URL),
 });
@@ -81,7 +82,7 @@ const appClient = testClient(hook.app);
 
 beforeAll(async () => {
   await hook.ready;
-  keeper = await getWallet("keeper");
+  keeper = getWallet(await getAccount("keeper"));
 });
 
 afterAll(() => hook.close());

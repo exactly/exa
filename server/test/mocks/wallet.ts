@@ -1,5 +1,13 @@
 import path from "node:path";
-import { createWalletClient, http, keccak256, toBytes, type Chain, type NonceManagerSource } from "viem";
+import {
+  createWalletClient,
+  http,
+  keccak256,
+  toBytes,
+  type Chain,
+  type LocalAccount,
+  type NonceManagerSource,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getTransactionCount } from "viem/actions";
 import { expect, vi } from "vitest";
@@ -36,7 +44,7 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
   return {
     ...original,
     getAccount: vi.fn(() => Promise.resolve(account)),
-    getWallet: vi.fn((_name: string, network?: Chain) => Promise.resolve(network ? create(network) : keeper)),
+    getWallet: vi.fn((_account: LocalAccount, network?: Chain) => (network ? create(network) : keeper)),
   };
 });
 

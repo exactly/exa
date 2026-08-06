@@ -12,7 +12,7 @@ import { auditorAbi } from "@exactly/common/generated/chain";
 
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
-import { getWallet } from "../../utils/wallet";
+import { getAccount, getWallet } from "../../utils/wallet";
 
 import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
@@ -21,7 +21,7 @@ import type { Hex } from "viem";
 let keeper: Awaited<ReturnType<typeof getWallet>>;
 
 beforeAll(async () => {
-  keeper = await getWallet("keeper");
+  keeper = getWallet(await getAccount("keeper"));
 });
 
 describe("fault tolerance", () => {
