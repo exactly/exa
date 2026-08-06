@@ -2,8 +2,8 @@ import { iam, kms, orgpolicy, projects, Provider, secretmanager, serviceaccount,
 import { automation, interpolate, runtime } from "@pulumi/pulumi";
 import { readdir } from "node:fs/promises";
 
+import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
-import resources from "./utils/resources.ts";
 
 if (process.argv[2] !== "preview" && process.argv[2] !== "up") throw new Error("expected preview or up");
 
@@ -164,6 +164,15 @@ const selected = await automation.LocalWorkspace.selectStack(
           },
           { dependsOn: service, provider },
         );
+        const services = new projects.IAMCustomRole(
+          `${project}-services`,
+          {
+            permissions: ["getIamPolicy", "setIamPolicy"].map((permission) => `run.services.${permission}`),
+            roleId: "pulumiServices",
+            title: "pulumi services",
+          },
+          { dependsOn: service, provider },
+        );
         for (const stack of projectStacks) {
           const keyRing = new kms.KeyRing(
             `${stack.name}-signers`,
@@ -171,8 +180,9 @@ const selected = await automation.LocalWorkspace.selectStack(
             { dependsOn: cloudKms, provider },
           );
           for (const secret of new Set([
-            ...resources.crema,
-            ...Object.values(resources.workers).flatMap((worker) => worker.secrets),
+            ...modules.crema,
+            ...Object.values(modules.services).flatMap((fields) => fields.secrets),
+            ...Object.values(modules.workers).flatMap((worker) => worker.secrets),
           ])) {
             new secretmanager.Secret(
               `${stack.name}-${secret}`,
@@ -219,7 +229,20 @@ const selected = await automation.LocalWorkspace.selectStack(
             },
             { provider },
           );
-          for (const [name, { signer }] of Object.entries(resources.workers)) {
+          for (const name of Object.keys(modules.services)) {
+            const identity = `${stack.name}-${name}`;
+            const account = new serviceaccount.Account(
+              identity,
+              { accountId: identity },
+              { dependsOn: service, provider },
+            );
+            new serviceaccount.IAMMember(
+              identity,
+              { member, role: "roles/iam.serviceAccountUser", serviceAccountId: account.name },
+              { provider },
+            );
+          }
+          for (const [name, { signer }] of Object.entries(modules.workers)) {
             const identity = `${stack.name}-${name}`;
             const account = new serviceaccount.Account(
               identity,
@@ -296,6 +319,7 @@ const selected = await automation.LocalWorkspace.selectStack(
             { provider },
           );
           new projects.IAMMember(`${stack.name}-parameters`, { member, project, role: parameters.name }, { provider });
+          new projects.IAMMember(`${stack.name}-services`, { member, project, role: services.name }, { provider });
           new projects.IAMMember(
             `${stack.name}-worker-pools`,
             { member, project, role: workerPools.name },

@@ -10,8 +10,8 @@ import {
 import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
 import { hash } from "node:crypto";
 
+import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
-import resources from "./utils/resources.ts";
 
 import type { types } from "@pulumi/gcp";
 
@@ -40,7 +40,15 @@ const image = interpolate`${
   ).registryUri
 }/exactly/exa-${stack}:${config.require("serverImage")}`;
 
-function worker(name: string, { env, secrets, signer }: (typeof resources.workers)[keyof typeof resources.workers]) {
+function module(
+  name: string,
+  {
+    env,
+    secrets,
+    signer,
+  }: (typeof modules.services)[keyof typeof modules.services] | (typeof modules.workers)[keyof typeof modules.workers],
+  bin: string,
+) {
   const account = serviceaccount.getAccountOutput({ accountId: `${stack}-${name}` });
   return {
     dependencies: [
@@ -69,7 +77,7 @@ function worker(name: string, { env, secrets, signer }: (typeof resources.worker
         {
           image,
           resources: config.getObject<types.input.cloudrunv2.JobTemplateTemplateContainerResources>(`${name}Resources`),
-          args: [`dist/workers/${name}/bin.cjs`],
+          args: [bin],
           envs: [
             { name: "APP_STACK", value: stack },
             { name: "DEBUG", value: "exa:*" },
@@ -83,7 +91,7 @@ function worker(name: string, { env, secrets, signer }: (typeof resources.worker
                 ]
               : []),
             ...(env
-              ? Object.entries(env).map(([variable, setting]) => ({ name: variable, value: config.require(setting) }))
+              ? Object.entries(env).map(([variable, key]) => ({ name: variable, value: config.require(key) }))
               : []),
           ],
         },
@@ -92,7 +100,34 @@ function worker(name: string, { env, secrets, signer }: (typeof resources.worker
   };
 }
 
-const workers = Object.entries(resources.workers).map(([name, spec]) => worker(name, spec));
+for (const [name, fields] of Object.entries(modules.services)) {
+  const service = module(name, fields, name === "api" ? "dist/api/bin.cjs" : `dist/hooks/bin/${name}.cjs`);
+  new cloudrunv2.ServiceIamMember(`${name}-invoker`, {
+    location,
+    member: "allUsers",
+    role: "roles/run.invoker",
+    name: new cloudrunv2.Service(
+      name,
+      {
+        location,
+        name: `${stack}-${name}`,
+        template: {
+          ...service.template,
+          scaling: { maxInstanceCount: config.getNumber(`${name}Instances`) ?? 1 },
+          containers: service.template.containers.map((container) => ({
+            ...container,
+            ports: { containerPort: 3000 },
+          })),
+        },
+      },
+      { dependsOn: [run, ...service.dependencies] },
+    ).name,
+  });
+}
+
+const workers = Object.entries(modules.workers).map(([name, worker]) =>
+  module(name, worker, `dist/workers/${name}/bin.cjs`),
+);
 const checks = workers.map(
   ({ dependencies, name, template }) =>
     new cloudrunv2.Job(
@@ -203,7 +238,7 @@ new cloudrunv2.Service(
             role: `projects/${project}/roles/cremaScaler`,
           }),
       ),
-      ...resources.crema.map(
+      ...modules.crema.map(
         (secret) =>
           new secretmanager.SecretIamMember(`crema-${secret}-access`, {
             secretId: `projects/${project}/secrets/${stack}-${secret}`,
