@@ -1968,7 +1968,7 @@ describe("card operations", () => {
 
         expect(createResponse.status).toBe(200);
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, pandaConfig);
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -2419,7 +2419,7 @@ describe("card operations", () => {
         });
 
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, pandaConfig);
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -2479,7 +2479,7 @@ describe("card operations", () => {
         });
 
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, pandaConfig);
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,

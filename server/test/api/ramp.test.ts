@@ -1,13 +1,16 @@
 // cspell:ignore SEPA, SPEI, GABCDEFGHIJ
 import "../mocks/auth";
+import "../mocks/bridge";
 import "../mocks/deployments";
+import "../mocks/manteca";
+import "../mocks/persona";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { parse, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -15,12 +18,20 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
-import app from "../../api/ramp";
+import route from "../../api/ramp";
 import database, { credentials } from "../../database";
-import * as persona from "../../utils/persona";
-import * as bridge from "../../utils/ramps/bridge";
-import * as manteca from "../../utils/ramps/manteca";
+import authenticate from "../../middleware/auth";
+import createPersona, * as persona from "../../utils/persona";
+import createBridge, * as bridge from "../../utils/ramps/bridge";
+import createManteca, * as manteca from "../../utils/ramps/manteca";
 
+const app = route({
+  authenticate: authenticate(""),
+  bridge: createBridge(parse(string(), process.env.BRIDGE_API_KEY), parse(string(), process.env.BRIDGE_API_URL)),
+  database,
+  manteca: createManteca(parse(string(), process.env.MANTECA_API_KEY), parse(string(), process.env.MANTECA_API_URL)),
+  persona: createPersona(parse(string(), process.env.PERSONA_API_KEY), parse(string(), process.env.PERSONA_URL)),
+});
 const appClient = testClient(app);
 
 describe("ramp api", () => {

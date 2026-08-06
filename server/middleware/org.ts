@@ -1,10 +1,11 @@
 import { createMiddleware } from "hono/factory";
 
-import auth from "../utils/auth";
-
+import type createAuth from "../utils/auth";
 import type { BlankInput, Env, Input } from "hono/types";
 
-export default function org<E extends Env = Env, P extends string = string, I extends Input = BlankInput>() {
+export default function org<E extends Env = Env, P extends string = string, I extends Input = BlankInput>(
+  auth: ReturnType<typeof createAuth>,
+) {
   return createMiddleware<
     E & { Variables: { session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>> } },
     P,

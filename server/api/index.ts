@@ -1,6 +1,8 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { csrf } from "hono/csrf";
+import { Redis } from "ioredis";
 
 import activity from "./activity";
 import authentication from "./auth/authentication";
@@ -8,29 +10,141 @@ import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
 import passkey from "./passkey";
-import pax from "./pax";
+import paxRoute from "./pax";
 import ramp from "./ramp";
 import webhook from "./webhook";
+import * as schema from "../database/schema";
+import authenticate from "../middleware/auth";
+import organization from "../middleware/org";
+import createAlchemy from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
-import auth from "../utils/auth";
+import createAuth from "../utils/auth";
+import createCredential from "../utils/createCredential";
+import createIntercom from "../utils/intercom";
+import createPanda from "../utils/panda";
+import createPax from "../utils/pax";
+import createPersona from "../utils/persona";
+import createBridge from "../utils/ramps/bridge";
+import createManteca from "../utils/ramps/manteca";
+import createSardine from "../utils/sardine";
+import createSegment from "../utils/segment";
+import createWalletExtension from "../utils/walletExtension";
+import createCredit from "../workers/credit/queue";
+import createSubscribe from "../workers/subscribe/queue";
 
-const api = new Hono()
-  .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
-  .use((c, next) => {
-    if (c.req.method.toUpperCase() === "OPTIONS") return next();
-    if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
-    return csrf({ origin: [appOrigin, "http://localhost:8081"] })(c, next);
-  })
-  .route("/auth/registration", registration)
-  .route("/auth/authentication", authentication)
-  .route("/activity", activity)
-  .route("/card", card)
-  .route("/kyc", kyc)
-  .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
-  .route("/pax", pax)
-  .route("/ramp", ramp)
-  .route("/webhook", webhook)
-  .on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
+export default function api({
+  alchemyKey,
+  authSecret,
+  bridgeKey,
+  bridgeUrl,
+  intercomKey,
+  mantecaKey,
+  mantecaUrl,
+  pandaKey,
+  pandaUrl,
+  paxAssociateKey,
+  paxKey,
+  paxUrl,
+  personaKey,
+  personaUrl,
+  postgresUrl,
+  redisUrl,
+  sardineKey,
+  sardineUrl,
+  segmentKey,
+  walletExtensionSecret,
+}: {
+  alchemyKey: string;
+  authSecret: string;
+  bridgeKey: string;
+  bridgeUrl: string;
+  intercomKey: string;
+  mantecaKey: string;
+  mantecaUrl: string;
+  pandaKey: string;
+  pandaUrl: string;
+  paxAssociateKey: string;
+  paxKey: string;
+  paxUrl: string;
+  personaKey: string;
+  personaUrl: string;
+  postgresUrl: string;
+  redisUrl: string;
+  sardineKey: string;
+  sardineUrl: string;
+  segmentKey: string;
+  walletExtensionSecret: string;
+}) {
+  const database = drizzle(postgresUrl, { schema });
+  const redis = new Redis(redisUrl);
+  const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
+  const auth = createAuth(database, authSecret);
+  const authenticateRequest = authenticate(authSecret);
+  const authorizeOrganization = organization(auth);
+  const bridge = createBridge(bridgeKey, bridgeUrl);
+  const credit = createCredit(bullmq);
+  const intercom = createIntercom(intercomKey);
+  const manteca = createManteca(mantecaKey, mantecaUrl);
+  const panda = createPanda({ key: pandaKey, url: pandaUrl });
+  const pax = createPax({ associateKey: paxAssociateKey, key: paxKey, url: paxUrl });
+  const persona = createPersona(personaKey, personaUrl);
+  const sardine = createSardine(sardineKey, sardineUrl);
+  const segment = createSegment(segmentKey);
+  const subscribe = createSubscribe(bullmq, createAlchemy(alchemyKey));
+  const walletExtension = createWalletExtension(walletExtensionSecret);
+  const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
+  const app = new Hono()
+    .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
+    .use((c, next) => {
+      if (c.req.method.toUpperCase() === "OPTIONS") return next();
+      if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
+      return csrf({ origin: [appOrigin, "http://localhost:8081"] })(c, next);
+    })
+    .route("/auth/registration", registration({ createCredential: credential, intercom, redis, walletExtension }))
+    .route(
+      "/auth/authentication",
+      authentication({
+        authSecret,
+        createCredential: credential,
+        database,
+        intercom,
+        redis,
+        walletExtension,
+      }),
+    )
+    .route("/activity", activity({ authenticate: authenticateRequest, database }))
+    .route(
+      "/card",
+      card({
+        authenticate: authenticateRequest,
+        credit,
+        database,
+        panda,
+        pax,
+        persona,
+        sardine,
+        segment,
+        walletExtension,
+      }),
+    )
+    .route("/kyc", kyc({ authenticate: authenticateRequest, database, panda, persona }))
+    .route("/passkey", passkey({ authenticate: authenticateRequest, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
+    .route("/pax", paxRoute({ authenticate: authenticateRequest, database, pax }))
+    .route("/ramp", ramp({ authenticate: authenticateRequest, bridge, database, manteca, persona }))
+    .route("/webhook", webhook({ auth, database, organization: authorizeOrganization }))
+    .on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
+  let closing: Promise<unknown> | undefined;
+  return {
+    app,
+    close: () =>
+      (closing ??= Promise.all([
+        database.$client.end(),
+        redis.quit(),
+        segment.close(),
+        Promise.all([credit.close(), subscribe.close()]).finally(() => bullmq.quit()),
+      ])),
+    ready: Promise.resolve(),
+  };
+}
 
-export default api;
-export type ExaAPI = typeof api;
+export type ExaAPI = ReturnType<typeof api>["app"];

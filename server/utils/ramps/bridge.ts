@@ -40,8 +40,12 @@ import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import * as persona from "../persona";
+import { credentials } from "../../database/schema";
+import * as Persona from "../persona";
 import ServiceError from "../ServiceError";
+
+import type db from "../../database";
+import type createPersona from "../persona";
 
 export const name = "bridge" as const;
 
@@ -51,49 +55,114 @@ export const OfframpNetwork = ["BASE", "SOLANA", "STELLAR", "TRON"];
 
 export default function bridge(key: string, url: string) {
   const provider = { key, url };
-  return { getCustomer: (id: string) => getCustomer(id, provider) };
+  return {
+    createExternalAccount: (
+      customer: Parameters<typeof createExternalAccount>[0],
+      externalAccount: Parameters<typeof createExternalAccount>[1],
+    ) => createExternalAccount(customer, externalAccount, provider),
+    getCryptoDepositDetails: (
+      currency: Parameters<typeof getCryptoDepositDetails>[0],
+      network: Parameters<typeof getCryptoDepositDetails>[1],
+      account: string,
+      customer: Parameters<typeof getCryptoDepositDetails>[3],
+    ) => getCryptoDepositDetails(currency, network, account, customer, provider),
+    getCryptoOfframpDepositDetails: (
+      currency: Parameters<typeof getCryptoOfframpDepositDetails>[0],
+      network: Parameters<typeof getCryptoOfframpDepositDetails>[1],
+      toAddress: string,
+      account: Address,
+      customer: Parameters<typeof getCryptoOfframpDepositDetails>[4],
+      memo?: string,
+    ) => getCryptoOfframpDepositDetails(currency, network, toAddress, account, customer, memo, provider),
+    getCustomer: (id: string) => getCustomer(id, provider),
+    getDepositDetails: (
+      currency: Parameters<typeof getDepositDetails>[0],
+      account: string,
+      customer: Parameters<typeof getDepositDetails>[2],
+    ) => getDepositDetails(currency, account, customer, provider),
+    getOfframpDepositDetails: (
+      externalAccountId: string,
+      account: string,
+      customer: Parameters<typeof getOfframpDepositDetails>[2],
+      currency: Parameters<typeof getOfframpDepositDetails>[3],
+    ) => getOfframpDepositDetails(externalAccountId, account, customer, currency, provider),
+    getProvider: (params: Parameters<typeof getProvider>[0], persona: ReturnType<typeof createPersona>) =>
+      getProvider(params, provider, persona),
+    getQuote: (from: "USD", to: Parameters<typeof getQuote>[1]) => getQuote(from, to, provider),
+    listExternalAccounts: (customerId: string) => listExternalAccounts(customerId, provider),
+    onboarding: (
+      params: Parameters<typeof onboarding>[0],
+      database: typeof db,
+      persona: ReturnType<typeof createPersona>,
+    ) => onboarding(params, provider, database, persona),
+    removeExternalAccount: (customer: Parameters<typeof removeExternalAccount>[0], externalAccountId: string) =>
+      removeExternalAccount(customer, externalAccountId, provider),
+    updateExternalAccount: (
+      customer: Parameters<typeof updateExternalAccount>[0],
+      externalAccountId: string,
+      update: Parameters<typeof updateExternalAccount>[2],
+    ) => updateExternalAccount(customer, externalAccountId, update, provider),
+  };
 }
 
-export function createCustomer(user: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
-  return request(NewCustomer, "/customers", {}, user, "POST", 15_000, idempotencyKey).catch((error: unknown) => {
-    if (error instanceof ServiceError && typeof error.cause === "string") {
-      if (error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
-        withScope((scope) => {
-          scope.addEventProcessor((event) => {
-            if (event.exception?.values?.[0]) event.exception.values[0].type = "email already exists";
-            return event;
+export function createCustomer(
+  user: InferInput<typeof CreateCustomer>,
+  idempotencyKey?: string,
+  provider = getDefaultProvider(),
+) {
+  return request(NewCustomer, "/customers", {}, user, "POST", 15_000, idempotencyKey, provider).catch(
+    (error: unknown) => {
+      if (error instanceof ServiceError && typeof error.cause === "string") {
+        if (error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
+          withScope((scope) => {
+            scope.addEventProcessor((event) => {
+              if (event.exception?.values?.[0]) event.exception.values[0].type = "email already exists";
+              return event;
+            });
+            captureException(error, {
+              level: "error",
+              fingerprint: ["{{ default }}", "email already exists"],
+            });
           });
-          captureException(error, {
-            level: "error",
-            fingerprint: ["{{ default }}", "email already exists"],
+          throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
+        }
+        if (
+          error.cause.includes(BridgeApiErrorCodes.INVALID_PARAMETERS) &&
+          error.cause.includes("residential_address")
+        ) {
+          withScope((scope) => {
+            scope.addEventProcessor((event) => {
+              if (event.exception?.values?.[0]) event.exception.values[0].type = "invalid address";
+              return event;
+            });
+            captureException(error, {
+              level: "warning",
+              fingerprint: ["{{ default }}", "invalid address"],
+            });
           });
-        });
-        throw new Error(ErrorCodes.EMAIL_ALREADY_EXISTS);
+          throw new Error(ErrorCodes.INVALID_ADDRESS);
+        }
       }
-      if (error.cause.includes(BridgeApiErrorCodes.INVALID_PARAMETERS) && error.cause.includes("residential_address")) {
-        withScope((scope) => {
-          scope.addEventProcessor((event) => {
-            if (event.exception?.values?.[0]) event.exception.values[0].type = "invalid address";
-            return event;
-          });
-          captureException(error, {
-            level: "warning",
-            fingerprint: ["{{ default }}", "invalid address"],
-          });
-        });
-        throw new Error(ErrorCodes.INVALID_ADDRESS);
-      }
-    }
-    throw error;
-  });
+      throw error;
+    },
+  );
 }
 
 export async function updateCustomer(customerId: string, user: Partial<InferInput<typeof CreateCustomer>>) {
   return await request(NewCustomer, `/customers/${customerId}`, {}, user, "PUT");
 }
 
-export async function agreementLink(redirectUri?: string) {
-  const response = await request(AgreementLinkResponse, `/customers/tos_links`, {}, undefined, "POST");
+export async function agreementLink(redirectUri?: string, provider = getDefaultProvider()) {
+  const response = await request(
+    AgreementLinkResponse,
+    `/customers/tos_links`,
+    {},
+    undefined,
+    "POST",
+    10_000,
+    undefined,
+    provider,
+  );
   const url = new URL(response.url);
   if (redirectUri) url.searchParams.set("redirect_uri", redirectUri);
   return String(url);
@@ -121,24 +190,44 @@ export async function getCustomer(customerId: string, provider = getDefaultProvi
   });
 }
 
-export async function getQuote(from: "USD", to: (typeof QuoteCurrency)[number]) {
+export async function getQuote(from: "USD", to: (typeof QuoteCurrency)[number], provider = getDefaultProvider()) {
   if (["USDC", "USD"].includes(to)) return { buyRate: "1.0", sellRate: "1.0" };
-  const quote = await request(Quote, `/exchange_rates?from=${CurrencyToBridge[from]}&to=${CurrencyToBridge[to]}`).catch(
-    (error: unknown) => {
-      captureException(error, { level: "error" });
-    },
-  );
+  const quote = await request(
+    Quote,
+    `/exchange_rates?from=${CurrencyToBridge[from]}&to=${CurrencyToBridge[to]}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    undefined,
+    provider,
+  ).catch((error: unknown) => {
+    captureException(error, { level: "error" });
+  });
   if (!quote) return;
   return { buyRate: quote.buy_rate, sellRate: quote.sell_rate };
 }
 
-export async function createVirtualAccount(customerId: string, data: InferInput<typeof CreateVirtualAccount>) {
-  return await request(VirtualAccount, `/customers/${customerId}/virtual_accounts`, {}, data, "POST");
+export async function createVirtualAccount(
+  customerId: string,
+  data: InferInput<typeof CreateVirtualAccount>,
+  provider = getDefaultProvider(),
+) {
+  return await request(
+    VirtualAccount,
+    `/customers/${customerId}/virtual_accounts`,
+    {},
+    data,
+    "POST",
+    10_000,
+    undefined,
+    provider,
+  );
 }
 
-export async function getVirtualAccounts(customerId: string) {
+export async function getVirtualAccounts(customerId: string, provider = getDefaultProvider()) {
   const path = `/customers/${customerId}/virtual_accounts` as const;
-  const first = await request(VirtualAccounts, `${path}?limit=20`);
+  const first = await request(VirtualAccounts, `${path}?limit=20`, {}, undefined, "GET", 10_000, undefined, provider);
   const all = [...first.data];
   if (first.data.length < first.count)
     captureException(new Error("bridge virtual accounts pagination"), {
@@ -148,7 +237,16 @@ export async function getVirtualAccounts(customerId: string) {
   while (all.length < first.count) {
     const last = all.at(-1);
     if (!last) break;
-    const page = await request(VirtualAccounts, `${path}?limit=20&starting_after=${last.id}`);
+    const page = await request(
+      VirtualAccounts,
+      `${path}?limit=20&starting_after=${last.id}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+      undefined,
+      provider,
+    );
     if (page.data.length === 0) {
       captureException(new Error("bridge virtual accounts empty page"), {
         level: "warning",
@@ -161,13 +259,35 @@ export async function getVirtualAccounts(customerId: string) {
   return all;
 }
 
-export async function createLiquidationAddress(customerId: string, data: InferInput<typeof CreateLiquidationAddress>) {
-  return await request(LiquidationAddress, `/customers/${customerId}/liquidation_addresses`, {}, data, "POST");
+export async function createLiquidationAddress(
+  customerId: string,
+  data: InferInput<typeof CreateLiquidationAddress>,
+  provider = getDefaultProvider(),
+) {
+  return await request(
+    LiquidationAddress,
+    `/customers/${customerId}/liquidation_addresses`,
+    {},
+    data,
+    "POST",
+    10_000,
+    undefined,
+    provider,
+  );
 }
 
-export async function getLiquidationAddresses(customerId: string) {
+export async function getLiquidationAddresses(customerId: string, provider = getDefaultProvider()) {
   const path = `/customers/${customerId}/liquidation_addresses` as const;
-  const first = await request(LiquidationAddresses, `${path}?limit=20`);
+  const first = await request(
+    LiquidationAddresses,
+    `${path}?limit=20`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    undefined,
+    provider,
+  );
   const all = [...first.data];
   if (first.data.length < first.count)
     captureException(new Error("bridge liquidation addresses pagination"), {
@@ -177,7 +297,16 @@ export async function getLiquidationAddresses(customerId: string) {
   while (all.length < first.count) {
     const last = all.at(-1);
     if (!last) break;
-    const page = await request(LiquidationAddresses, `${path}?limit=20&starting_after=${last.id}`);
+    const page = await request(
+      LiquidationAddresses,
+      `${path}?limit=20&starting_after=${last.id}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+      undefined,
+      provider,
+    );
     if (page.data.length === 0) {
       captureException(new Error("bridge liquidation addresses empty page"), {
         level: "warning",
@@ -190,17 +319,21 @@ export async function getLiquidationAddresses(customerId: string) {
   return all;
 }
 
-export async function createTransfer(data: InferInput<typeof CreateTransfer>, idempotencyKey?: string) {
-  return await request(Transfer, "/transfers", {}, data, "POST", 15_000, idempotencyKey);
+export async function createTransfer(
+  data: InferInput<typeof CreateTransfer>,
+  idempotencyKey?: string,
+  provider = getDefaultProvider(),
+) {
+  return await request(Transfer, "/transfers", {}, data, "POST", 15_000, idempotencyKey, provider);
 }
 
 export async function getTransfers(customerId: string) {
   return await request(Transfers, `/customers/${customerId}/transfers`, {}, undefined, "GET");
 }
 
-export async function getStaticTemplates(customerId: string) {
+export async function getStaticTemplates(customerId: string, provider = getDefaultProvider()) {
   const path = `/customers/${customerId}/transfers/static_templates` as const;
-  const first = await request(StaticTemplates, `${path}?limit=50`);
+  const first = await request(StaticTemplates, `${path}?limit=50`, {}, undefined, "GET", 10_000, undefined, provider);
   const all = [...first.data];
   if (first.data.length < first.count)
     captureException(new Error("bridge static templates pagination"), {
@@ -210,7 +343,16 @@ export async function getStaticTemplates(customerId: string) {
   while (all.length < first.count) {
     const last = all.at(-1);
     if (!last) break;
-    const page = await request(StaticTemplates, `${path}?limit=50&starting_after=${last.id}`);
+    const page = await request(
+      StaticTemplates,
+      `${path}?limit=50&starting_after=${last.id}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+      undefined,
+      provider,
+    );
     if (page.data.length === 0) {
       captureException(new Error("bridge static templates empty page"), {
         level: "warning",
@@ -223,19 +365,31 @@ export async function getStaticTemplates(customerId: string) {
   return all;
 }
 
-export function getKYCLink(customerId: string, redirectUri?: string, endorsement?: (typeof Endorsements)[number]) {
+export function getKYCLink(
+  customerId: string,
+  redirectUri?: string,
+  endorsement?: (typeof Endorsements)[number],
+  provider = getDefaultProvider(),
+) {
   const params = new URLSearchParams();
   if (endorsement) params.set("endorsement", endorsement);
   if (redirectUri) params.set("redirect_uri", redirectUri);
   return request(
     object({ url: pipe(string(), urlValidator()) }),
     `/customers/${customerId}/kyc_link${String(params) ? `?${String(params)}` : ""}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    undefined,
+    provider,
   ).then((result) => result.url);
 }
 
 export async function createExternalAccount(
   customer: InferOutput<typeof CustomerResponse>,
   externalAccount: InferInput<typeof ExternalAccountInput>,
+  provider = getDefaultProvider(),
 ) {
   const approved = customer.endorsements.some(
     (endorsement) =>
@@ -440,6 +594,9 @@ export async function createExternalAccount(
       }
     })(),
     "POST",
+    10_000,
+    undefined,
+    provider,
   )
     .catch((error: unknown) => {
       if (error instanceof ServiceError && typeof error.cause === "string") {
@@ -469,6 +626,7 @@ export function updateExternalAccount(
   customer: InferOutput<typeof CustomerResponse>,
   externalAccountId: string,
   update: InferInput<typeof UpdateExternalAccountInput>,
+  provider = getDefaultProvider(),
 ) {
   return request(
     BridgeExternalAccount,
@@ -489,6 +647,9 @@ export function updateExternalAccount(
           : undefined,
     } satisfies InferInput<typeof BridgeUpdateExternalAccount>,
     "PUT",
+    10_000,
+    undefined,
+    provider,
   )
     .catch((error: unknown) => {
       if (
@@ -512,24 +673,35 @@ export function updateExternalAccount(
     );
 }
 
-export async function getExternalAccount(customerId: string, externalAccountId: string) {
-  return await request(BridgeExternalAccount, `/customers/${customerId}/external_accounts/${externalAccountId}`).catch(
-    (error: unknown) => {
-      if (
-        error instanceof ServiceError &&
-        typeof error.cause === "string" &&
-        error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
-      ) {
-        return;
-      }
-      throw error;
-    },
-  );
+export async function getExternalAccount(
+  customerId: string,
+  externalAccountId: string,
+  provider = getDefaultProvider(),
+) {
+  return await request(
+    BridgeExternalAccount,
+    `/customers/${customerId}/external_accounts/${externalAccountId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    undefined,
+    provider,
+  ).catch((error: unknown) => {
+    if (
+      error instanceof ServiceError &&
+      typeof error.cause === "string" &&
+      error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
+    ) {
+      return;
+    }
+    throw error;
+  });
 }
 
-export async function listExternalAccounts(customerId: string) {
+export async function listExternalAccounts(customerId: string, provider = getDefaultProvider()) {
   const path = `/customers/${customerId}/external_accounts` as const;
-  const first = await request(ExternalAccounts, `${path}?limit=20`);
+  const first = await request(ExternalAccounts, `${path}?limit=20`, {}, undefined, "GET", 10_000, undefined, provider);
   const accounts = [...first.data];
   if (first.data.length < first.count)
     captureException(new Error("bridge external accounts pagination"), {
@@ -539,7 +711,16 @@ export async function listExternalAccounts(customerId: string) {
   while (accounts.length < first.count) {
     const last = accounts.at(-1);
     if (!last) break;
-    const page = await request(ExternalAccounts, `${path}?limit=20&starting_after=${last.id}`);
+    const page = await request(
+      ExternalAccounts,
+      `${path}?limit=20&starting_after=${last.id}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+      undefined,
+      provider,
+    );
     if (page.data.length === 0) {
       captureException(new Error("bridge external accounts empty page"), {
         level: "warning",
@@ -565,12 +746,16 @@ export async function listExternalAccounts(customerId: string) {
   });
 }
 
-export async function getProvider(params: {
-  countryCode?: string;
-  credentialId: string;
-  customerId?: null | string;
-  redirectURL?: string;
-}) {
+export async function getProvider(
+  params: {
+    countryCode?: string;
+    credentialId: string;
+    customerId?: null | string;
+    redirectURL?: string;
+  },
+  provider = getDefaultProvider(),
+  persona: PersonaService = Persona,
+) {
   if (!Supported[chain.id]) {
     captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
     return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
@@ -592,7 +777,7 @@ export async function getProvider(params: {
   };
 
   if (params.customerId) {
-    const bridgeUser = await getCustomer(params.customerId);
+    const bridgeUser = await getCustomer(params.customerId, provider);
     if (!bridgeUser) throw new Error(ErrorCodes.BAD_BRIDGE_ID);
     switch (bridgeUser.status) {
       case "offboarded":
@@ -622,6 +807,7 @@ export async function getProvider(params: {
               redirect.searchParams.set("provider", "bridge");
               return String(redirect);
             })(),
+            provider,
           ),
         };
       case "active":
@@ -641,6 +827,7 @@ export async function getProvider(params: {
                 redirect.searchParams.set("provider", "bridge");
                 return String(redirect);
               })(),
+              provider,
             ),
           };
         }
@@ -687,6 +874,7 @@ export async function getProvider(params: {
           redirect.searchParams.set("provider", "bridge");
           return String(redirect);
         })(),
+        provider,
       ),
     };
   }
@@ -705,10 +893,10 @@ export async function getProvider(params: {
       offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base] },
     };
   }
-  const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
+  const validDocument = Persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
-  const idClass = safeParse(picklist(persona.IdentificationClasses), validDocument.id_class.value);
-  const bridgeIdType = idClass.success && persona.IdClassToBridge[idClass.output];
+  const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
+  const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
   if (!bridgeIdType) {
     captureException(new Error("bridge not found identification class"), {
       contexts: { bridge: { credentialId: params.credentialId, idClass: validDocument.id_class.value } },
@@ -741,6 +929,7 @@ export async function getProvider(params: {
         redirect.searchParams.set("provider", "bridge");
         return String(redirect);
       })(),
+      provider,
     ),
     onramp: {
       currencies: [...currencies.onramp, ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement])],
@@ -751,7 +940,12 @@ export async function getProvider(params: {
   };
 }
 
-export async function onboarding(params: { acceptedTermsId: string; credentialId: string; customerId: null | string }) {
+export async function onboarding(
+  params: { acceptedTermsId: string; credentialId: string; customerId: null | string },
+  provider = getDefaultProvider(),
+  database?: typeof db,
+  persona: PersonaService = Persona,
+) {
   if (params.customerId) throw new Error(ErrorCodes.ALREADY_ONBOARDED);
 
   if (!Supported[chain.id]) {
@@ -779,7 +973,7 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
     throw new Error(ErrorCodes.NOT_ENABLED);
   }
 
-  const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
+  const validDocument = Persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
   if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
 
   const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
@@ -799,8 +993,8 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
       : undefined,
   ]);
 
-  const idClass = safeParse(picklist(persona.IdentificationClasses), validDocument.id_class.value);
-  const bridgeIdType = idClass.success && persona.IdClassToBridge[idClass.output];
+  const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
+  const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
   if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
   const country = alpha2ToAlpha3(countryCode);
   if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
@@ -851,6 +1045,7 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
           identifying_information: identifyingInformation,
         },
         idempotencyKey,
+        provider,
       ),
     {
       retryCount: 2,
@@ -863,14 +1058,17 @@ export async function onboarding(params: { acceptedTermsId: string; credentialId
       },
     },
   );
-  const { credentials, default: database } = await import("../../database");
-  await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
+  const module = database ? undefined : await import("../../database");
+  const db = database ?? module?.default;
+  if (!db) throw new Error("missing database");
+  await db.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
 }
 
 export async function getDepositDetails(
   currency: (typeof FiatCurrency)[number],
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
+  provider = getDefaultProvider(),
 ) {
   const supportedChainId = Supported[chain.id];
   if (!supportedChainId) {
@@ -882,24 +1080,28 @@ export async function getDepositDetails(
   const approvedEndorsements = customer.endorsements.filter((endorsement) => endorsement.status === "approved");
   const availableCurrencies = approvedEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement.name]);
   if (!availableCurrencies.includes(currency)) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
-  const virtualAccounts = await getVirtualAccounts(customer.id);
+  const virtualAccounts = await getVirtualAccounts(customer.id, provider);
   let virtualAccount = virtualAccounts.find(
     ({ source_deposit_instructions, status }) =>
       source_deposit_instructions.currency === CurrencyToBridge[currency] && status === "activated",
   );
 
-  virtualAccount ??= await createVirtualAccount(customer.id, {
-    source: { currency: CurrencyToBridge[currency] },
-    developer_fee_percentage: "0.0",
-    destination: { currency: "usdc", payment_rail: supportedChainId, address: account },
-    travel_rule_data: {
-      beneficiary: {
-        is_self: true,
-        wallet_type: "self_custodied", // cspell:ignore custodied
-        wallet_attested_ownership_at: new Date().toISOString(),
+  virtualAccount ??= await createVirtualAccount(
+    customer.id,
+    {
+      source: { currency: CurrencyToBridge[currency] },
+      developer_fee_percentage: "0.0",
+      destination: { currency: "usdc", payment_rail: supportedChainId, address: account },
+      travel_rule_data: {
+        beneficiary: {
+          is_self: true,
+          wallet_type: "self_custodied", // cspell:ignore custodied
+          wallet_attested_ownership_at: new Date().toISOString(),
+        },
       },
     },
-  });
+    provider,
+  );
 
   return getDepositDetailsFromVirtualAccount(virtualAccount, account);
 }
@@ -909,6 +1111,7 @@ export async function getCryptoDepositDetails(
   network: (typeof Network)[number],
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
+  provider = getDefaultProvider(),
 ) {
   const supportedChainId = Supported[chain.id];
   if (!supportedChainId) {
@@ -922,7 +1125,7 @@ export async function getCryptoDepositDetails(
     throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
   }
 
-  const liquidationAddresses = await getLiquidationAddresses(customer.id);
+  const liquidationAddresses = await getLiquidationAddresses(customer.id, provider);
   let liquidationAddress = liquidationAddresses.find(
     ({ chain: bridgeChain, currency: bridgeCurrency }) =>
       bridgeChain === paymentRail && CurrencyToBridge[currency] === bridgeCurrency,
@@ -937,6 +1140,7 @@ export async function getCryptoDepositDetails(
       currency: CurrencyToBridge[currency],
       chain: paymentRail,
     }),
+    provider,
   );
 
   return getDepositDetailsFromLiquidationAddress(
@@ -951,6 +1155,7 @@ export async function getOfframpDepositDetails(
   account: string,
   customer: InferOutput<typeof CustomerResponse>,
   currency: (typeof SupportedCurrency)[number],
+  provider = getDefaultProvider(),
 ) {
   if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
   const supportedChain = Supported[chain.id];
@@ -959,14 +1164,14 @@ export async function getOfframpDepositDetails(
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
 
-  const externalAccount = await getExternalAccount(customer.id, externalAccountId);
+  const externalAccount = await getExternalAccount(customer.id, externalAccountId, provider);
   if (!externalAccount) throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
   if (externalAccount.currency !== CurrencyToBridge[currency]) {
     throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH);
   }
   const paymentRail = PaymentRailByBridgeCurrency[externalAccount.currency];
   if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
-  const templates = await getStaticTemplates(customer.id);
+  const templates = await getStaticTemplates(customer.id, provider);
   let transfer = templates.find(
     ({ destination, source, state }) =>
       destination.external_account_id === externalAccountId &&
@@ -974,17 +1179,21 @@ export async function getOfframpDepositDetails(
       source.currency === "usdc" &&
       state !== "canceled",
   );
-  transfer ??= await createTransfer({
-    on_behalf_of: customer.id,
-    client_reference_id: account,
-    source: { currency: "usdc", payment_rail: supportedChain },
-    destination: {
-      currency: externalAccount.currency,
-      payment_rail: paymentRail,
-      external_account_id: externalAccountId,
+  transfer ??= await createTransfer(
+    {
+      on_behalf_of: customer.id,
+      client_reference_id: account,
+      source: { currency: "usdc", payment_rail: supportedChain },
+      destination: {
+        currency: externalAccount.currency,
+        payment_rail: paymentRail,
+        external_account_id: externalAccountId,
+      },
+      features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
     },
-    features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-  });
+    undefined,
+    provider,
+  );
 
   return [
     {
@@ -1004,6 +1213,7 @@ export async function getCryptoOfframpDepositDetails(
   account: Address,
   customer: InferOutput<typeof CustomerResponse>,
   memo?: string,
+  provider = getDefaultProvider(),
 ) {
   if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
   const supportedChain = Supported[chain.id];
@@ -1017,18 +1227,22 @@ export async function getCryptoOfframpDepositDetails(
     throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
   }
 
-  const transfer = await createTransfer({
-    on_behalf_of: customer.id,
-    client_reference_id: account,
-    source: { currency: "usdc", payment_rail: supportedChain },
-    destination: {
-      currency: CurrencyToBridge[currency],
-      payment_rail: paymentRail,
-      to_address: toAddress,
-      blockchain_memo: memo,
+  const transfer = await createTransfer(
+    {
+      on_behalf_of: customer.id,
+      client_reference_id: account,
+      source: { currency: "usdc", payment_rail: supportedChain },
+      destination: {
+        currency: CurrencyToBridge[currency],
+        payment_rail: paymentRail,
+        to_address: toAddress,
+        blockchain_memo: memo,
+      },
+      features: { flexible_amount: true, allow_any_from_address: true },
     },
-    features: { flexible_amount: true, allow_any_from_address: true },
-  }).catch((error: unknown) => {
+    undefined,
+    provider,
+  ).catch((error: unknown) => {
     if (
       error instanceof ServiceError &&
       typeof error.cause === "string" &&
@@ -1051,18 +1265,35 @@ export async function getCryptoOfframpDepositDetails(
   ];
 }
 
-export async function removeExternalAccount(customer: InferOutput<typeof CustomerResponse>, externalAccountId: string) {
+export async function removeExternalAccount(
+  customer: InferOutput<typeof CustomerResponse>,
+  externalAccountId: string,
+  provider = getDefaultProvider(),
+) {
   const [externalAccount, templates] = await Promise.all([
-    getExternalAccount(customer.id, externalAccountId),
-    getStaticTemplates(customer.id),
+    getExternalAccount(customer.id, externalAccountId, provider),
+    getStaticTemplates(customer.id, provider),
   ]);
   if (!externalAccount) throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
   const transfers = templates.filter(
     ({ destination, state }) => destination.external_account_id === externalAccountId && state !== "canceled",
   );
   if (transfers.some(({ state }) => state !== "awaiting_funds")) throw new Error(ErrorCodes.TRANSFER_IN_USE);
-  await Promise.all(transfers.map(({ id }) => request(unknown(), `/transfers/${id}`, {}, undefined, "DELETE")));
-  await request(unknown(), `/customers/${customer.id}/external_accounts/${externalAccountId}`, {}, undefined, "DELETE");
+  await Promise.all(
+    transfers.map(({ id }) =>
+      request(unknown(), `/transfers/${id}`, {}, undefined, "DELETE", 10_000, undefined, provider),
+    ),
+  );
+  await request(
+    unknown(),
+    `/customers/${customer.id}/external_accounts/${externalAccountId}`,
+    {},
+    undefined,
+    "DELETE",
+    10_000,
+    undefined,
+    provider,
+  );
 }
 
 const PaymentRailByBridgeCurrency: Partial<
@@ -1091,7 +1322,11 @@ const issues = new Set([
   "place_of_birth_missing",
 ]);
 
-function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
+function maybeKYCLink(
+  bridgeUser: InferOutput<typeof CustomerResponse>,
+  redirectUri: string | undefined,
+  provider: Provider,
+) {
   if (bridgeUser.status === "offboarded") return;
   if (
     bridgeUser.endorsements.some((endorsement) => endorsement.requirements.issues.includes("blocklist_check_failed")) ||
@@ -1110,13 +1345,17 @@ function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirect
         endorsement.requirements.issues.some((issue) => hasIssue(issue)),
     )
   ) {
-    return getKYCLink(bridgeUser.id, redirectUri).catch((error: unknown): undefined => {
+    return getKYCLink(bridgeUser.id, redirectUri, undefined, provider).catch((error: unknown): undefined => {
       captureException(error, { level: "error" });
     });
   }
 }
 
-function futureRequirement(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri?: string) {
+function futureRequirement(
+  bridgeUser: InferOutput<typeof CustomerResponse>,
+  redirectUri: string | undefined,
+  provider: Provider,
+) {
   const next = bridgeUser.endorsements
     .flatMap((endorsement) => endorsement.future_requirements ?? [])
     .flatMap((requirement) => {
@@ -1127,7 +1366,7 @@ function futureRequirement(bridgeUser: InferOutput<typeof CustomerResponse>, red
     })
     .toSorted((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
   if (!next) return;
-  return getKYCLink(bridgeUser.id, redirectUri)
+  return getKYCLink(bridgeUser.id, redirectUri, undefined, provider)
     .then((url) => ({ url, date: next }))
     .catch((error: unknown): undefined => {
       captureException(error, { level: "error" });
@@ -2282,3 +2521,4 @@ function getDefaultProvider(): Provider {
 }
 
 type Provider = { key: string; url: string };
+type PersonaService = Pick<ReturnType<typeof createPersona>, "getAccount" | "getDocument">;

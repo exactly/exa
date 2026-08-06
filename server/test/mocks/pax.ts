@@ -10,10 +10,9 @@ vi.mock("../../utils/pax", async (importOriginal) => {
     removeCapita: vi.fn<(internalId: string) => Promise<void>>().mockResolvedValue(),
   };
   return Object.assign(module, {
-    default: (options: Parameters<typeof pax.default>[0]) => ({
-      addCapita: (data: Parameters<typeof pax.addCapita>[0]) => module.addCapita(data, options),
-      deriveAssociateId: (account: Parameters<typeof pax.deriveAssociateId>[0]) =>
-        module.deriveAssociateId(account, options.associateKey),
+    default: () => ({
+      addCapita: (data: Parameters<typeof pax.addCapita>[0]) => module.addCapita(data),
+      deriveAssociateId: (account: Parameters<typeof pax.deriveAssociateId>[0]) => module.deriveAssociateId(account),
     }),
   });
 });

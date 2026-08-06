@@ -3,16 +3,29 @@ import "../mocks/deployments";
 import "../mocks/sentry";
 
 import { testClient } from "hono/testing";
+import { parse, string } from "valibot";
 import { padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
-import app from "../../api/pax";
-import { deriveAssociateId } from "../../utils/pax";
+import route from "../../api/pax";
+import database from "../../database";
+import authenticate from "../../middleware/auth";
+import createPax, { deriveAssociateId } from "../../utils/pax";
 
-const appClient = testClient(app);
+const appClient = testClient(
+  route({
+    authenticate: authenticate(""),
+    database,
+    pax: createPax({
+      associateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
+      key: parse(string(), process.env.PAX_API_KEY),
+      url: parse(string(), process.env.PAX_API_URL),
+    }),
+  }),
+);
 
 describe("/pax GET", () => {
   afterEach(() => vi.restoreAllMocks());

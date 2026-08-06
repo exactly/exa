@@ -47,21 +47,46 @@ export default function persona(key: string, url: string) {
   return {
     addDocument: (referenceId: string, document: InferOutput<typeof IdentityDocument>) =>
       addDocument(referenceId, document, provider),
+    createInquiry: (
+      referenceId: string,
+      templateId: string,
+      redirectURI?: string,
+      fields?: { "name-first": string; "name-last": string },
+    ) => createInquiry(referenceId, templateId, redirectURI, fields, provider),
+    getAccount: <T extends AccountScope>(referenceId: string, scope: T) => getAccount(referenceId, scope, provider),
+    getCardLimitStatus: (referenceId: string, account?: UnknownAccountOutput) =>
+      getCardLimitStatus(referenceId, account, provider),
+    getDocument: (documentId: string) => getDocument(documentId, provider),
+    getDocumentForManteca: (documents: InferOutput<typeof AccountBasicFields>["documents"]["value"], country: string) =>
+      getDocumentForManteca(documents, country, provider),
+    getInquiry: (referenceId: string, templateId: string) => getInquiry(referenceId, templateId, provider),
     getInquiryById: (id: string) => getInquiryById(id, provider),
+    getPendingInquiryTemplate: (referenceId: string, scope: AccountScope) =>
+      getPendingInquiryTemplate(referenceId, scope, provider),
+    getUnknownAccount: (referenceId: string) => getUnknownAccount(referenceId, provider),
+    resumeInquiry: (inquiryId: string) => resumeInquiry(inquiryId, provider),
     searchAccounts: (email: string) => searchAccounts(email, provider),
     updateCardLimit: (referenceId: string, limitUsd: number) => updateCardLimit(referenceId, limitUsd, provider),
   };
 }
 
-export async function getInquiry(referenceId: string, templateId: string) {
+export async function getInquiry(referenceId: string, templateId: string, provider = getDefaultProvider()) {
   const { data: approvedInquiries } = await request(
     GetInquiriesResponse,
     `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=approved`,
+    undefined,
+    "GET",
+    10_000,
+    provider,
   );
   if (approvedInquiries[0]) return approvedInquiries[0];
   const { data: inquiries } = await request(
     GetInquiriesResponse,
     `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}`,
+    undefined,
+    "GET",
+    10_000,
+    provider,
   );
   return inquiries[0];
 }
@@ -77,8 +102,8 @@ export function getInquiryById(inquiryId: string, provider = getDefaultProvider(
   );
 }
 
-export function resumeInquiry(inquiryId: string) {
-  return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
+export function resumeInquiry(inquiryId: string, provider = getDefaultProvider()) {
+  return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST", 10_000, provider);
 }
 
 export function createInquiry(
@@ -86,21 +111,36 @@ export function createInquiry(
   templateId: string,
   redirectURI?: string,
   fields?: { "name-first": string; "name-last": string },
+  provider = getDefaultProvider(),
 ) {
-  return request(CreateInquiryResponse, "/inquiries", {
-    data: {
-      attributes: {
-        "inquiry-template-id": templateId,
-        "redirect-uri": `${redirectURI ?? appOrigin}/card`,
-        ...(fields && { fields }),
+  return request(
+    CreateInquiryResponse,
+    "/inquiries",
+    {
+      data: {
+        attributes: {
+          "inquiry-template-id": templateId,
+          "redirect-uri": `${redirectURI ?? appOrigin}/card`,
+          ...(fields && { fields }),
+        },
       },
+      meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
     },
-    meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
-  });
+    "POST",
+    10_000,
+    provider,
+  );
 }
 
-export async function getDocument(documentId: string) {
-  const { data } = await request(GetDocumentResponse, `/document/government-ids/${encodeURIComponent(documentId)}`);
+export async function getDocument(documentId: string, provider = getDefaultProvider()) {
+  const { data } = await request(
+    GetDocumentResponse,
+    `/document/government-ids/${encodeURIComponent(documentId)}`,
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  );
   return data;
 }
 
@@ -388,34 +428,50 @@ export function parseAccount<T extends AccountScope>(unknownAccount: UnknownAcco
   return result.success ? result.output.data[0] : undefined;
 }
 
-export async function getCardLimitStatus(referenceId: string, account?: UnknownAccountOutput) {
+export async function getCardLimitStatus(
+  referenceId: string,
+  account?: UnknownAccountOutput,
+  provider = getDefaultProvider(),
+) {
   const unknownAccount =
     account ??
-    (await getUnknownAccount(referenceId).catch((error: unknown) => {
+    (await getUnknownAccount(referenceId, provider).catch((error: unknown) => {
       captureException(error, { level: "error", contexts: { details: { referenceId, scope: "cardLimit" } } });
       throw error;
     }));
   if (parseAccount(unknownAccount, "cardLimit")?.attributes.fields.card_limit_usd?.value != null)
     return { status: "resolved" as const };
-  if ((await evaluateAccount(unknownAccount, "cardLimit")) !== CARD_LIMIT_TEMPLATE)
+  if ((await evaluateAccount(unknownAccount, "cardLimit", provider)) !== CARD_LIMIT_TEMPLATE)
     return { status: "noTemplate" as const };
-  const inquiry = await getInquiry(referenceId, CARD_LIMIT_TEMPLATE);
+  const inquiry = await getInquiry(referenceId, CARD_LIMIT_TEMPLATE, provider);
   if (!inquiry) return { status: "noInquiry" as const };
   return { status: inquiry.attributes.status, id: inquiry.id };
 }
 
-export function getUnknownAccount(referenceId: string) {
-  return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
+export function getUnknownAccount(referenceId: string, provider = getDefaultProvider()) {
+  return request(
+    UnknownAccount,
+    `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  );
 }
 
-export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
-  const unknownAccount = await getUnknownAccount(referenceId);
-  return evaluateAccount(unknownAccount, scope);
+export async function getPendingInquiryTemplate(
+  referenceId: string,
+  scope: AccountScope,
+  provider = getDefaultProvider(),
+) {
+  const unknownAccount = await getUnknownAccount(referenceId, provider);
+  return evaluateAccount(unknownAccount, scope, provider);
 }
 
 export async function evaluateAccount(
   unknownAccount: InferOutput<typeof UnknownAccount>,
   scope: AccountScope,
+  provider = getDefaultProvider(),
 ): Promise<
   | typeof CARD_LIMIT_TEMPLATE
   | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
@@ -427,7 +483,7 @@ export async function evaluateAccount(
     case "document":
       throw new Error("document account scope not supported");
     case "cardLimit":
-      return (await evaluateAccount(unknownAccount, "basic")) ?? CARD_LIMIT_TEMPLATE;
+      return (await evaluateAccount(unknownAccount, "basic", provider)) ?? CARD_LIMIT_TEMPLATE;
     case "basic": {
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
       if (!result.success) {
@@ -441,7 +497,7 @@ export async function evaluateAccount(
       return;
     }
     case "manteca": {
-      const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
+      const requiredTemplate = await evaluateAccount(unknownAccount, "basic", provider);
       // TODO use an unified template for panda + manteca
       if (requiredTemplate) return requiredTemplate;
 
@@ -457,7 +513,7 @@ export async function evaluateAccount(
       if (!allowedIds) throw new Error(scopeValidationErrors.NOT_SUPPORTED);
 
       const documents = basicAccount.output.data[0]?.attributes.fields.documents.value ?? [];
-      const validDocument = await getValidDocumentForManteca(documents, allowedIds);
+      const validDocument = await getValidDocumentForManteca(documents, allowedIds, provider);
       const hasValidDocument = validDocument !== undefined;
 
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
@@ -593,13 +649,14 @@ export function getAllowedMantecaIds(country: string): readonly AllowedIdConfig[
 export async function getValidDocumentForManteca(
   documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
   allowedIds: readonly AllowedIdConfig[],
+  provider = getDefaultProvider(),
 ): Promise<InferOutput<typeof IdentityDocument> | undefined> {
   for (const { id: idClass, side } of allowedIds) {
     const classDocuments = documents.filter(({ value: { id_class } }) => id_class.value === idClass);
     if (classDocuments.length === 0) continue;
     for (const document of classDocuments.toReversed()) {
       if (side === "front") return document.value;
-      const { attributes } = await getDocument(document.value.id_document_id.value);
+      const { attributes } = await getDocument(document.value.id_document_id.value, provider);
       if (attributes["front-photo"] && attributes["back-photo"]) {
         return document.value;
       }
@@ -612,10 +669,11 @@ export async function getValidDocumentForManteca(
 export async function getDocumentForManteca(
   documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
   country: string,
+  provider = getDefaultProvider(),
 ): Promise<InferOutput<typeof IdentityDocument> | undefined> {
   const allowedIds = getAllowedMantecaIds(country);
   if (!allowedIds) return undefined;
-  return getValidDocumentForManteca(documents, allowedIds);
+  return getValidDocumentForManteca(documents, allowedIds, provider);
 }
 
 export const BridgeIdentityDocumentType = [

@@ -25,7 +25,7 @@ vi.mock("../../utils/sardine", async (importOriginal) => {
       const client = { key, url };
       return {
         customer: (data: Parameters<typeof sardine.customer>[0], timeout?: number) =>
-          module.customer(data, timeout, client),
+          timeout === undefined ? module.customer(data) : module.customer(data, timeout),
         feedback: (data: Parameters<typeof sardine.feedback>[0]) => module.feedback(data, client),
         risk: (data: Parameters<typeof sardine.risk>[0]) => module.risk(data, client),
       };

@@ -10,7 +10,7 @@ import { base } from "viem/chains";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import api from "./api";
+import createApi from "./api";
 import database from "./database";
 import createActivity from "./hooks/activity";
 import createBlock from "./hooks/block";
@@ -22,12 +22,30 @@ import supervise from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
-import { bullmq, close as closeRedis } from "./utils/redis";
-import { closeAndFlush as closeSegment } from "./utils/segment";
-import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
-import { close as closeSubscribe } from "./workers/subscribe/queue";
+import { close as closeRedis } from "./utils/redis";
 
-startCredit(bullmq);
+const api = createApi({
+  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
+  authSecret: parse(string(), process.env.AUTH_SECRET),
+  bridgeKey: parse(string(), process.env.BRIDGE_API_KEY),
+  bridgeUrl: parse(string(), process.env.BRIDGE_API_URL),
+  intercomKey: parse(string(), process.env.INTERCOM_IDENTITY_KEY),
+  mantecaKey: parse(string(), process.env.MANTECA_API_KEY),
+  mantecaUrl: parse(string(), process.env.MANTECA_API_URL),
+  pandaKey: parse(string(), process.env.PANDA_API_KEY),
+  pandaUrl: parse(string(), process.env.PANDA_API_URL),
+  paxAssociateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
+  paxKey: parse(string(), process.env.PAX_API_KEY),
+  paxUrl: parse(string(), process.env.PAX_API_URL),
+  personaKey: parse(string(), process.env.PERSONA_API_KEY),
+  personaUrl: parse(string(), process.env.PERSONA_URL),
+  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  redisUrl: parse(string(), process.env.REDIS_URL),
+  sardineKey: parse(string(), process.env.SARDINE_API_KEY),
+  sardineUrl: parse(string(), process.env.SARDINE_API_URL),
+  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+  walletExtensionSecret: parse(string(), process.env.WALLET_EXTENSION_SECRET),
+});
 
 const activity = createActivity({
   alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
@@ -89,7 +107,7 @@ const persona = createPersona({
 
 const app = new Hono();
 app.use(trimTrailingSlash());
-app.route("/api", api);
+app.route("/api", api.app);
 app.route("/hooks/activity", activity.app);
 app.route("/hooks/block", block.app);
 app.route("/hooks/bridge", bridge.app);
@@ -348,6 +366,7 @@ export const close = supervise(
   Promise.resolve({
     app,
     ready: Promise.all([
+      api.ready,
       activity.ready,
       block.ready,
       bridge.ready,
@@ -358,7 +377,7 @@ export const close = supervise(
     ]),
     async close() {
       const services = await Promise.allSettled([
-        closeSegment(),
+        api.close(),
         database.$client.end(),
         activity.close(),
         block.close(),
@@ -366,11 +385,7 @@ export const close = supervise(
         manteca.close(),
         panda.close(),
         persona.close(),
-        Promise.allSettled([closeCredit(), closeMaturity(), closeSubscribe()])
-          .then((queues) => {
-            if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
-          })
-          .finally(closeRedis),
+        closeMaturity().finally(closeRedis),
       ]);
       if (services.some((service) => service.status === "rejected")) throw new Error("closing services failed");
     },

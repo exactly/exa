@@ -65,12 +65,27 @@ export default function panda({
 }) {
   const provider = { key, url };
   return {
+    createCard: (userId: string, productId: Parameters<typeof createCard>[1], amount?: number) =>
+      createCard(userId, productId, amount, provider),
     createUser: (user: Parameters<typeof createUser>[0]) => createUser(user, provider),
+    getApplicationStatus: (applicationId: string) => getApplicationStatus(applicationId, provider),
+    getCard: (cardId: string) => getCard(cardId, provider),
+    getCards: (userId: string) => getCards(userId, provider),
+    getNonce: (userId: string) => getNonce(userId, provider),
+    getPIN: (cardId: string, sessionId: string) => getPIN(cardId, sessionId, provider),
+    getProcessorDetails: (cardId: string) => getProcessorDetails(cardId, provider),
+    getSecrets: (cardId: string, sessionId: string) => getSecrets(cardId, sessionId, provider),
     getUser: (id: string) => getUser(id, provider),
     headerValidator: headerValidator(key),
+    setPIN: (cardId: string, sessionId: string, pin: Parameters<typeof setPIN>[2]) =>
+      setPIN(cardId, sessionId, pin, provider),
     signIssuerOp: (input: Parameters<typeof signIssuerOp>[0]) => signIssuerOp(input, issuerKey),
+    submitApplication: (payload: Parameters<typeof submitApplication>[0]) => submitApplication(payload, provider),
+    updateApplication: (applicationId: string, payload: Parameters<typeof updateApplication>[1]) =>
+      updateApplication(applicationId, payload, provider),
     updateCard: (card: Parameters<typeof updateCard>[0]) => updateCard(card, provider),
     updateUser: (user: Parameters<typeof updateUser>[0]) => updateUser(user, provider),
+    verify: (userId: string, payload: Parameters<typeof verify>[1]) => verify(userId, payload, provider),
     verifyPandaSignature: (input: Parameters<typeof verifyPandaSignature>[0]) =>
       verifyPandaSignature(input, issuerAddress),
   };
@@ -80,6 +95,7 @@ export async function createCard(
   userId: string,
   productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
   amount = 1_000_000,
+  provider = getDefaultProvider(),
 ) {
   return await request(
     CardResponse,
@@ -102,6 +118,8 @@ export async function createCard(
       },
     }),
     "POST",
+    10_000,
+    provider,
   );
 }
 
@@ -148,18 +166,31 @@ export async function getUser(userId: string, provider = getDefaultProvider()) {
   return await request(UserResponse, `/issuing/users/${userId}`, {}, undefined, "GET", 10_000, provider);
 }
 
-export async function getCard(cardId: string) {
-  return await request(CardResponse, `/issuing/cards/${cardId}`);
+export async function getCard(cardId: string, provider = getDefaultProvider()) {
+  return await request(CardResponse, `/issuing/cards/${cardId}`, {}, undefined, "GET", 10_000, provider);
 }
 
-export async function getCards(userId: string) {
-  return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`);
+export async function getCards(userId: string, provider = getDefaultProvider()) {
+  return await request(
+    CardsResponse,
+    `/issuing/cards?userId=${userId}&limit=100`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  );
 }
 
-export function getProcessorDetails(cardId: string) {
+export function getProcessorDetails(cardId: string, provider = getDefaultProvider()) {
   return request(
     object({ processorCardId: string(), timeBasedSecret: string() }),
     `/issuing/cards/${cardId}/processorDetails`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    provider,
   );
 }
 
@@ -187,13 +218,29 @@ export async function updateCard(
   return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH", 10_000, provider);
 }
 
-export async function getSecrets(cardId: string, sessionId: string) {
-  return await request(PANResponse, `/issuing/cards/${cardId}/secrets`, { SessionId: sessionId });
+export async function getSecrets(cardId: string, sessionId: string, provider = getDefaultProvider()) {
+  return await request(
+    PANResponse,
+    `/issuing/cards/${cardId}/secrets`,
+    { SessionId: sessionId },
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  );
 }
 
-export async function getPIN(cardId: string, sessionId: string) {
+export async function getPIN(cardId: string, sessionId: string, provider = getDefaultProvider()) {
   try {
-    return await request(PINResponse, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
+    return await request(
+      PINResponse,
+      `/issuing/cards/${cardId}/pin`,
+      { SessionId: sessionId },
+      undefined,
+      "GET",
+      10_000,
+      provider,
+    );
   } catch (error) {
     if (error instanceof ServiceError && error.message.includes("Failed to get PIN, card does not have PIN set")) {
       return parse(PINResponse, { encryptedPin: null });
@@ -202,18 +249,33 @@ export async function getPIN(cardId: string, sessionId: string) {
   }
 }
 
-export async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
+export async function setPIN(
+  cardId: string,
+  sessionId: string,
+  pin: { data: string; iv: string },
+  provider = getDefaultProvider(),
+) {
   return await request(
     object({}),
     `/issuing/cards/${cardId}/pin`,
     { SessionId: sessionId },
     { encryptedPin: pin },
     "PUT",
+    10_000,
+    provider,
   );
 }
 
-export function getNonce(userId: string) {
-  return request(object({ nonce: string() }), `/issuing/users/${userId}/signatures/generate-nonce`);
+export function getNonce(userId: string, provider = getDefaultProvider()) {
+  return request(
+    object({ nonce: string() }),
+    `/issuing/users/${userId}/signatures/generate-nonce`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  );
 }
 
 export function verify(
@@ -236,8 +298,9 @@ export function verify(
         statement: string;
       }
     | { authType: "siwe"; message: string; signature: string },
+  provider = getDefaultProvider(),
 ) {
-  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
+  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT", 10_000, provider);
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -487,7 +550,10 @@ export function getMutex(address: Address) {
   return mutexes.get(address);
 }
 
-export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
+export async function submitApplication(
+  payload: InferInput<typeof SubmitApplicationRequest>,
+  provider = getDefaultProvider(),
+) {
   return request(
     ApplicationResponse,
     "/issuing/applications/user",
@@ -495,10 +561,11 @@ export async function submitApplication(payload: InferInput<typeof SubmitApplica
     payload,
     "POST",
     10_000,
+    provider,
   );
 }
 
-export async function getApplicationStatus(applicationId: string) {
+export async function getApplicationStatus(applicationId: string, provider = getDefaultProvider()) {
   return request(
     ApplicationStatusResponse,
     `/issuing/applications/user/${applicationId}`,
@@ -506,11 +573,16 @@ export async function getApplicationStatus(applicationId: string) {
     undefined,
     "GET",
     10_000,
+    provider,
   );
 }
 
-export async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
-  return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH", 10_000);
+export async function updateApplication(
+  applicationId: string,
+  payload: InferInput<typeof UpdateApplicationRequest>,
+  provider = getDefaultProvider(),
+) {
+  return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH", 10_000, provider);
 }
 
 const AddressSchema = object({

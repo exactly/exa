@@ -163,16 +163,12 @@ describe("with reference", () => {
     });
 
     expect(p?.pandaId).toBe(id);
-    expect(persona.addDocument).toHaveBeenCalledWith(
-      referenceId,
-      {
-        id_class: { value: "pp" },
-        id_number: { value: "333333333" },
-        id_issuing_country: { value: "TW" },
-        id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
-      },
-      personaConfig,
-    );
+    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+      id_class: { value: "pp" },
+      id_number: { value: "333333333" },
+      id_issuing_country: { value: "TW" },
+      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+    });
     expect(response.status).toBe(200);
   });
 
@@ -215,16 +211,12 @@ describe("with reference", () => {
     });
 
     expect(p?.pandaId).toBe(id);
-    expect(persona.addDocument).toHaveBeenCalledWith(
-      referenceId,
-      {
-        id_class: { value: "pp" },
-        id_number: { value: "333333333" },
-        id_issuing_country: { value: "TW" },
-        id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
-      },
-      personaConfig,
-    );
+    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+      id_class: { value: "pp" },
+      id_number: { value: "333333333" },
+      id_issuing_country: { value: "TW" },
+      id_document_id: { value: "doc_yc294YWhCZi7YKxPnoxCGMmCH111" },
+    });
     expect(response.status).toBe(200);
   });
 
@@ -498,34 +490,28 @@ describe("persona hook", () => {
         }),
       }),
     );
-    expect(panda.createUser).toHaveBeenCalledWith(
-      {
-        accountPurpose: "business",
-        annualSalary: "100000",
-        expectedMonthlyVolume: "1000",
-        ipAddress: "127.0.0.1",
-        isTermsOfServiceAccepted: true,
-        occupation: "engineer",
-        personaShareToken: "inq_123",
-      },
-      pandaConfig,
-    );
-    expect(pax.addCapita).toHaveBeenCalledWith(
-      {
-        birthdate: "1990-01-01",
-        document: "DOC123",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-        phone: "+1234567890",
-        internalId: pax.deriveAssociateId(
-          deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
-          paxConfig.associateKey,
-        ),
-        product: "travel insurance",
-      },
-      paxConfig,
-    );
+    expect(panda.createUser).toHaveBeenCalledWith({
+      accountPurpose: "business",
+      annualSalary: "100000",
+      expectedMonthlyVolume: "1000",
+      ipAddress: "127.0.0.1",
+      isTermsOfServiceAccepted: true,
+      occupation: "engineer",
+      personaShareToken: "inq_123",
+    });
+    expect(pax.addCapita).toHaveBeenCalledWith({
+      birthdate: "1990-01-01",
+      document: "DOC123",
+      firstName: "John",
+      lastName: "Doe",
+      email: "john@example.com",
+      phone: "+1234567890",
+      internalId: pax.deriveAssociateId(
+        deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
+        paxConfig.associateKey,
+      ),
+      product: "travel insurance",
+    });
   });
 
   it("does not allow very high risk accounts", async () => {
@@ -601,16 +587,12 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.addDocument).toHaveBeenCalledWith(
-      "manteca-ref",
-      {
-        id_class: { value: "dl" },
-        id_number: { value: "ID12345" },
-        id_issuing_country: { value: "AR" },
-        id_document_id: { value: "doc_gov_123" },
-      },
-      personaConfig,
-    );
+    expect(persona.addDocument).toHaveBeenCalledWith("manteca-ref", {
+      id_class: { value: "dl" },
+      id_number: { value: "ID12345" },
+      id_issuing_country: { value: "AR" },
+      id_document_id: { value: "doc_gov_123" },
+    });
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 });
@@ -706,14 +688,11 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
-      {
-        id: "case-card",
-        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-      },
-      pandaConfig,
-    );
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -731,14 +710,11 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
-      {
-        id: "case-card",
-        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-      },
-      pandaConfig,
-    );
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -751,7 +727,7 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -766,7 +742,7 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -795,14 +771,11 @@ describe("card limit case", () => {
     });
 
     expect(response.status).toBe(500);
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
-      {
-        id: "case-card",
-        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-      },
-      pandaConfig,
-    );
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
     expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
       [
         error,
@@ -840,7 +813,7 @@ describe("card limit case", () => {
     });
 
     expect(response.status).toBe(500);
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
       [
@@ -908,7 +881,7 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000, personaConfig);
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
     expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });

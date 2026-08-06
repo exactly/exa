@@ -1,5 +1,7 @@
 import "../mocks/auth";
 import "../mocks/deployments";
+import "../mocks/panda";
+import "../mocks/persona";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -8,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
+import { parse, string } from "valibot";
 import { getAddress, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
@@ -16,17 +19,29 @@ import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } fr
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import app from "../../api/kyc";
+import route from "../../api/kyc";
 import database, { credentials, organizations, sources } from "../../database";
-import auth from "../../utils/auth";
-import * as panda from "../../utils/panda";
-import * as persona from "../../utils/persona";
+import authenticate from "../../middleware/auth";
+import createAuth from "../../utils/auth";
+import authSecret from "../../utils/authSecret";
+import createPanda, * as panda from "../../utils/panda";
+import createPersona, * as persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 import ServiceError from "../../utils/ServiceError";
 
 import type * as v from "valibot";
 
+const auth = createAuth(database, authSecret);
+const app = route({
+  authenticate: authenticate(""),
+  database,
+  panda: createPanda({
+    key: parse(string(), process.env.PANDA_API_KEY),
+    url: parse(string(), process.env.PANDA_API_URL),
+  }),
+  persona: createPersona(parse(string(), process.env.PERSONA_API_KEY), parse(string(), process.env.PERSONA_URL)),
+});
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });

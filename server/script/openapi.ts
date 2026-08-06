@@ -1,5 +1,6 @@
 import { generateSpecs } from "hono-openapi";
 import { writeFile } from "node:fs/promises";
+import { parse, string } from "valibot";
 import { padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 
@@ -36,7 +37,29 @@ process.env.WALLET_EXTENSION_SECRET = zeroHash;
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
   .then(async ({ default: api }) => {
-    const spec = await generateSpecs(api, {
+    const handle = api({
+      alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
+      authSecret: parse(string(), process.env.AUTH_SECRET),
+      bridgeKey: parse(string(), process.env.BRIDGE_API_KEY),
+      bridgeUrl: parse(string(), process.env.BRIDGE_API_URL),
+      intercomKey: parse(string(), process.env.INTERCOM_IDENTITY_KEY),
+      mantecaKey: parse(string(), process.env.MANTECA_API_KEY),
+      mantecaUrl: parse(string(), process.env.MANTECA_API_URL),
+      pandaKey: parse(string(), process.env.PANDA_API_KEY),
+      pandaUrl: parse(string(), process.env.PANDA_API_URL),
+      paxAssociateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
+      paxKey: parse(string(), process.env.PAX_API_KEY),
+      paxUrl: parse(string(), process.env.PAX_API_URL),
+      personaKey: parse(string(), process.env.PERSONA_API_KEY),
+      personaUrl: parse(string(), process.env.PERSONA_URL),
+      postgresUrl: parse(string(), process.env.POSTGRES_URL),
+      redisUrl: parse(string(), process.env.REDIS_URL),
+      sardineKey: parse(string(), process.env.SARDINE_API_KEY),
+      sardineUrl: parse(string(), process.env.SARDINE_API_URL),
+      segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+      walletExtensionSecret: parse(string(), process.env.WALLET_EXTENSION_SECRET),
+    });
+    const spec = await generateSpecs(handle.app, {
       documentation: {
         info: { version, title: "Exa API" },
         servers: [
@@ -57,6 +80,7 @@ import("../api")
       },
     });
     await writeFile("generated/openapi.json", JSON.stringify(spec, null, 2));
+    await handle.close();
     process.exit(0);
   })
   .catch((error: unknown) => {

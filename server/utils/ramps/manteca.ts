@@ -18,8 +18,11 @@ import { optimism, optimismSepolia } from "viem/chains";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import { getAccount, getDocument, getDocumentForManteca, MantecaCountryCode } from "../persona";
+import * as Persona from "../persona";
+import { MantecaCountryCode } from "../persona";
 import ServiceError from "../ServiceError";
+
+import type createPersona from "../persona";
 
 export const name = "manteca" as const;
 
@@ -28,28 +31,38 @@ export default function manteca(key: string, url: string) {
   return {
     convertBalanceToUsdc: (userNumberId: string, against: string) =>
       convertBalanceToUsdc(userNumberId, against, provider),
+    getProvider: (account: Address, countryCode?: string) => getProvider(account, countryCode, provider),
+    getQuote: (coinPair: string) => getQuote(coinPair, provider),
+    getUser: (account: Address) => getUser(account, provider),
+    onboarding: (account: Address, credentialId: string, persona: ReturnType<typeof createPersona>) =>
+      onboarding(account, credentialId, provider, persona),
     withdrawBalance: (userNumberId: string, asset: string, address: Address) =>
       withdrawBalance(userNumberId, asset, address, provider),
   };
 }
 
 // #region services
-export async function getUser(account: Address): Promise<InferInput<typeof UserResponse> | null> {
+export async function getUser(
+  account: Address,
+  provider = getDefaultProvider(),
+): Promise<InferInput<typeof UserResponse> | null> {
   const externalId = account.replace("0x", "");
-  return await request(UserResponse, `/crypto/v2/users/${externalId}`).catch((error: unknown) => {
-    if (
-      error instanceof ServiceError &&
-      typeof error.cause === "string" &&
-      error.cause.includes(MantecaApiErrorCodes.USER_NOT_FOUND)
-    ) {
-      return null;
-    }
-    throw error;
-  });
+  return await request(UserResponse, `/crypto/v2/users/${externalId}`, {}, undefined, "GET", 10_000, provider).catch(
+    (error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(MantecaApiErrorCodes.USER_NOT_FOUND)
+      ) {
+        return null;
+      }
+      throw error;
+    },
+  );
 }
 
-export async function initiateOnboarding(user: InferInput<typeof UserOnboarding>) {
-  return await request(NewUserResponse, "/crypto/v2/onboarding-actions/initial", {}, user, "POST");
+export async function initiateOnboarding(user: InferInput<typeof UserOnboarding>, provider = getDefaultProvider()) {
+  return await request(NewUserResponse, "/crypto/v2/onboarding-actions/initial", {}, user, "POST", 10_000, provider);
 }
 
 export async function uploadIdentityFile(
@@ -57,6 +70,7 @@ export async function uploadIdentityFile(
   side: "BACK" | "FRONT",
   fileName: string,
   documentURL?: null | string,
+  provider = getDefaultProvider(),
 ): Promise<void> {
   if (!documentURL) return;
   await withRetry(
@@ -67,6 +81,8 @@ export async function uploadIdentityFile(
         {},
         { userAnyId, fileName, side },
         "POST",
+        10_000,
+        provider,
       );
       await forwardFileToURL(documentURL, presignedURL);
     },
@@ -81,8 +97,16 @@ export async function uploadIdentityFile(
   );
 }
 
-export async function acceptTermsAndConditions(userAnyId: string) {
-  return await request(object({}), `/crypto/v2/onboarding-actions/accept-tyc`, {}, { userAnyId }, "POST");
+export async function acceptTermsAndConditions(userAnyId: string, provider = getDefaultProvider()) {
+  return await request(
+    object({}),
+    `/crypto/v2/onboarding-actions/accept-tyc`,
+    {},
+    { userAnyId },
+    "POST",
+    10_000,
+    provider,
+  );
 }
 
 export async function balances(userAnyId: string, provider = getDefaultProvider()) {
@@ -97,18 +121,24 @@ export async function balances(userAnyId: string, provider = getDefaultProvider(
   );
 }
 
-export async function getQuote(coinPair: string) {
-  const quote = await request(QuoteResponse, `/crypto/v2/prices/direct/${coinPair}`, {}, undefined, "GET").catch(
-    (error: unknown) => {
-      captureException(error, { level: "error" });
-    },
-  );
+export async function getQuote(coinPair: string, provider = getDefaultProvider()) {
+  const quote = await request(
+    QuoteResponse,
+    `/crypto/v2/prices/direct/${coinPair}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    provider,
+  ).catch((error: unknown) => {
+    captureException(error, { level: "error" });
+  });
   if (!quote) return;
   return { buyRate: quote.buy, sellRate: quote.sell };
 }
 
-export async function getLimits(userNumberId: string) {
-  return await request(LimitsResponse, `/crypto/v2/limits/${userNumberId}`, {}, undefined, "GET");
+export async function getLimits(userNumberId: string, provider = getDefaultProvider()) {
+  return await request(LimitsResponse, `/crypto/v2/limits/${userNumberId}`, {}, undefined, "GET", 10_000, provider);
 }
 
 export async function createOrder(order: InferInput<typeof Order>, provider = getDefaultProvider()) {
@@ -119,13 +149,21 @@ export async function withdrawOrder(withdraw: InferInput<typeof Withdraw>, provi
   return await request(WithdrawResponse, "/crypto/v2/withdraws", {}, withdraw, "POST", 10_000, provider);
 }
 
-export async function lockQrPayment(userAnyId: string, paymentDestination: string, amount?: string, against?: string) {
+export async function lockQrPayment(
+  userAnyId: string,
+  paymentDestination: string,
+  amount?: string,
+  against?: string,
+  provider = getDefaultProvider(),
+) {
   return await request(
     QrPaymentResponse,
     "/crypto/v2/payment-locks",
     {},
     { userAnyId, paymentDestination, amount, against },
     "POST",
+    10_000,
+    provider,
   );
 }
 
@@ -227,20 +265,20 @@ export async function withdrawBalance(
   );
 }
 
-export async function getProvider(account: Address, countryCode?: string) {
+export async function getProvider(account: Address, countryCode?: string, provider = getDefaultProvider()) {
   if (!Supported[chain.id]) {
     captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
     return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
   }
 
   const currencies = getSupported(countryCode);
-  const mantecaUser = await getUser(account);
+  const mantecaUser = await getUser(account, provider);
   if (!mantecaUser) {
     return { onramp: { currencies }, status: "NOT_STARTED" as const };
   }
   if (mantecaUser.status === "ACTIVE") {
     const exchange = mantecaUser.exchange;
-    const limits = await getLimits(mantecaUser.numberId).catch((error: unknown) => {
+    const limits = await getLimits(mantecaUser.numberId, provider).catch((error: unknown) => {
       captureException(error, { level: "error" });
     });
     const exchangeLimits = limits?.find((limit) => limit.type === "EXCHANGE");
@@ -307,21 +345,29 @@ export async function getProvider(account: Address, countryCode?: string) {
   return { onramp: { currencies }, status: "ONBOARDING" as const };
 }
 
-export async function onboarding(account: Address, credentialId: string) {
+export async function onboarding(
+  account: Address,
+  credentialId: string,
+  provider = getDefaultProvider(),
+  persona: PersonaService = Persona,
+) {
   const externalId = account.replace("0x", "");
   if (!Supported[chain.id]) {
     captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
     throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
   }
 
-  const mantecaUser = await getUser(account);
+  const mantecaUser = await getUser(account, provider);
   if (mantecaUser?.status === "ACTIVE") return;
   if (mantecaUser?.status === "INACTIVE") throw new Error(ErrorCodes.MANTECA_USER_INACTIVE);
-  const personaAccount = await getAccount(credentialId, "manteca");
+  const personaAccount = await persona.getAccount(credentialId, "manteca");
   if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
   const countryCode = personaAccount.attributes["country-code"];
 
-  const identityDocument = await getDocumentForManteca(personaAccount.attributes.fields.documents.value, countryCode);
+  const identityDocument = await persona.getDocumentForManteca(
+    personaAccount.attributes.fields.documents.value,
+    countryCode,
+  );
   if (!identityDocument) {
     captureException(new Error("no identity document"), {
       level: "error",
@@ -331,31 +377,34 @@ export async function onboarding(account: Address, credentialId: string) {
   }
 
   if (!mantecaUser) {
-    await initiateOnboarding({
-      email: personaAccount.attributes["email-address"],
-      legalId: personaAccount.attributes.fields.tin.value,
-      externalId,
-      type: "INDIVIDUAL",
-      exchange: getExchange(countryCode),
-      personalData: {
-        birthDate: personaAccount.attributes.fields.birthdate.value,
-        nationality: getNationality(countryCode),
-        phoneNumber: personaAccount.attributes.fields.phone_number.value,
-        surname: personaAccount.attributes.fields.name.value.last.value,
-        name: personaAccount.attributes.fields.name.value.first.value,
-        maritalStatus: "Soltero", // cspell:ignore soltero
-        sex:
-          personaAccount.attributes.fields.sex_1.value === "Male"
-            ? "M"
-            : personaAccount.attributes.fields.sex_1.value === "Female"
-              ? "F"
-              : "X",
-        isFacta: !personaAccount.attributes.fields.isnotfacta.value, // cspell:ignore isnotfacta
-        isPep: false,
-        isFep: false,
-        work: personaAccount.attributes.fields.economic_activity.value,
+    await initiateOnboarding(
+      {
+        email: personaAccount.attributes["email-address"],
+        legalId: personaAccount.attributes.fields.tin.value,
+        externalId,
+        type: "INDIVIDUAL",
+        exchange: getExchange(countryCode),
+        personalData: {
+          birthDate: personaAccount.attributes.fields.birthdate.value,
+          nationality: getNationality(countryCode),
+          phoneNumber: personaAccount.attributes.fields.phone_number.value,
+          surname: personaAccount.attributes.fields.name.value.last.value,
+          name: personaAccount.attributes.fields.name.value.first.value,
+          maritalStatus: "Soltero", // cspell:ignore soltero
+          sex:
+            personaAccount.attributes.fields.sex_1.value === "Male"
+              ? "M"
+              : personaAccount.attributes.fields.sex_1.value === "Female"
+                ? "F"
+                : "X",
+          isFacta: !personaAccount.attributes.fields.isnotfacta.value, // cspell:ignore isnotfacta
+          isPep: false,
+          isFep: false,
+          work: personaAccount.attributes.fields.economic_activity.value,
+        },
       },
-    }).catch((error: unknown) => {
+      provider,
+    ).catch((error: unknown) => {
       if (
         error instanceof ServiceError &&
         typeof error.cause === "string" &&
@@ -367,7 +416,7 @@ export async function onboarding(account: Address, credentialId: string) {
     });
   }
 
-  const document = await getDocument(identityDocument.id_document_id.value);
+  const document = await persona.getDocument(identityDocument.id_document_id.value);
   const frontDocumentURL = document.attributes["front-photo"]?.url;
   if (!frontDocumentURL) throw new Error("front document URL not found");
   const backDocumentURL = document.attributes["back-photo"]?.url;
@@ -378,14 +427,16 @@ export async function onboarding(account: Address, credentialId: string) {
       "FRONT",
       document.attributes["front-photo"]?.filename ?? "front-photo.jpg",
       frontDocumentURL,
+      provider,
     ),
     uploadIdentityFile(
       externalId,
       "BACK",
       document.attributes["back-photo"]?.filename ?? "back-photo.jpg",
       backDocumentURL,
+      provider,
     ),
-    acceptTermsAndConditions(externalId),
+    acceptTermsAndConditions(externalId, provider),
   ]);
 
   for (const result of results) {
@@ -784,3 +835,4 @@ function getDefaultProvider(): Provider {
 }
 
 type Provider = { key: string; url: string };
+type PersonaService = Pick<ReturnType<typeof createPersona>, "getAccount" | "getDocument" | "getDocumentForManteca">;

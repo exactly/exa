@@ -10,16 +10,19 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import app from "../../api/webhook";
+import route from "../../api/webhook";
 import database, { sources } from "../../database";
-import auth from "../../utils/auth";
+import organization from "../../middleware/org";
+import createAuth from "../../utils/auth";
+import authSecret from "../../utils/authSecret";
 
 vi.mock("node:dns/promises", () => ({
   resolve4: vi.fn<() => Promise<string[]>>(),
   resolve6: vi.fn<() => Promise<string[]>>(),
 }));
 
-const appClient = testClient(app);
+const auth = createAuth(database, authSecret);
+const appClient = testClient(route({ auth, database, organization: organization(auth) }));
 
 const owner = mnemonicToAccount("test test test test test test test test test test test junk");
 const integratorAccount = mnemonicToAccount("test test test test test test test test test test test integrator");

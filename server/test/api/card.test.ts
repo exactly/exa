@@ -1,9 +1,11 @@
 import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/onesignal";
+import "../mocks/panda";
 import "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/wallet";
 
 import { eq } from "drizzle-orm";
@@ -13,7 +15,7 @@ import { testClient } from "hono/testing";
 import { serializeSigned } from "hono/utils/cookie";
 import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
-import { parse } from "valibot";
+import { parse, string } from "valibot";
 import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
@@ -26,16 +28,19 @@ import chain, { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/gener
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
-import app from "../../api/card";
+import route from "../../api/card";
 import database, { cards, credentials } from "../../database";
-import auth from "../../utils/auth";
+import authenticate from "../../middleware/auth";
+import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
-import * as panda from "../../utils/panda";
-import * as pax from "../../utils/pax";
-import * as persona from "../../utils/persona";
+import createPanda, * as panda from "../../utils/panda";
+import createPax, * as pax from "../../utils/pax";
+import createPersona, * as persona from "../../utils/persona";
+import createSardine from "../../utils/sardine";
+import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 import { getWallet } from "../../utils/wallet";
-import { walletExtension } from "../../utils/walletExtension";
+import createWalletExtension from "../../utils/walletExtension";
 import * as credit from "../../workers/credit/queue";
 
 import type * as sentry from "@sentry/node";
@@ -45,10 +50,30 @@ let keeper: Awaited<ReturnType<typeof getWallet>>;
 
 vi.mock("../../workers/credit/queue", () => ({ enqueue: vi.fn<typeof credit.enqueue>() }));
 
-const appClient = testClient(app);
 const { WALLET_EXTENSION_SECRET } = process.env;
 if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
+const auth = createAuth(database, authSecret);
+const walletExtension = createWalletExtension(WALLET_EXTENSION_SECRET);
+const app = route({
+  authenticate: authenticate(""),
+  credit: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue: credit.enqueue },
+  database,
+  panda: createPanda({
+    key: parse(string(), process.env.PANDA_API_KEY),
+    url: parse(string(), process.env.PANDA_API_URL),
+  }),
+  pax: createPax({
+    associateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
+    key: parse(string(), process.env.PAX_API_KEY),
+    url: parse(string(), process.env.PAX_API_URL),
+  }),
+  persona: createPersona(parse(string(), process.env.PERSONA_API_KEY), parse(string(), process.env.PERSONA_URL)),
+  sardine: createSardine(parse(string(), process.env.SARDINE_API_KEY), parse(string(), process.env.SARDINE_API_URL)),
+  segment: createSegment(parse(string(), process.env.SEGMENT_WRITE_KEY)),
+  walletExtension,
+});
+const appClient = testClient(app);
 
 beforeAll(async () => {
   keeper = await getWallet("keeper");
@@ -961,7 +986,6 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
 
     const response = await appClient.index.$post({ header: { "test-credential-id": "debit" } });
-    const json = await response.json();
 
     expect(response.status).toBe(200);
 
@@ -972,7 +996,7 @@ describe("authenticated", () => {
 
     expect(created?.mode).toBe(0);
     expect(credit.enqueue).toHaveBeenCalledWith(padHex("0x4", { size: 20 }));
-    expect(json).toStrictEqual({
+    await expect(response.json()).resolves.toStrictEqual({
       status: "ACTIVE",
       lastFour: "7394",
       cardId: id,
@@ -988,7 +1012,6 @@ describe("authenticated", () => {
     });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
-    const json = await response.json();
     expect(response.status).toBe(200);
 
     const created = await database.query.cards.findFirst({
@@ -1004,7 +1027,7 @@ describe("authenticated", () => {
       }),
     );
     expect(captureException).not.toHaveBeenCalled();
-    expect(json).toStrictEqual({
+    await expect(response.json()).resolves.toStrictEqual({
       status: "ACTIVE",
       lastFour: "1224",
       cardId: "123e4567-e89b-12d3-a456-426655440001",
@@ -1251,8 +1274,12 @@ describe("authenticated", () => {
     const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
 
     expect(response.status).toBe(200);
-    const json = await response.json();
-    expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "8888", cardId, productId: SIGNATURE_PRODUCT_ID });
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "8888",
+      cardId,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
 
     expect(pax.addCapita).not.toHaveBeenCalled();
   });
@@ -1333,8 +1360,12 @@ describe("authenticated", () => {
     const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
 
     expect(response.status).toBe(200);
-    const json = await response.json();
-    expect(json).toStrictEqual({ status: "ACTIVE", lastFour: "6666", cardId, productId: SIGNATURE_PRODUCT_ID });
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "6666",
+      cardId,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
   });
 
   it("handles missing persona account during signature card creation", async () => {
@@ -2786,7 +2817,7 @@ const mockERC20Abi = [
 ] as const;
 
 async function bearer(credentialId = "wallet-extension") {
-  const { walletExtension: extension } = await walletExtension(credentialId);
+  const { walletExtension: extension } = await walletExtension.create(credentialId);
   return `Bearer ${extension.token}`;
 }
 

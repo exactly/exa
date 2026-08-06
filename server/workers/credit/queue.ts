@@ -5,17 +5,31 @@ import createQueue from "../queue";
 
 import type { Redis } from "ioredis";
 
+export default function queue(bullmq: Redis) {
+  const instance = createQueue<Job>(name, attempts, bullmq);
+  return {
+    close: () => instance.close(),
+    async enqueue(account: Job["account"]) {
+      try {
+        await instance.enqueue({ account }, account);
+      } catch (error) {
+        captureException(error, { level: "error", tags: { queue: name, job: name }, extra: { account } });
+      }
+    },
+  };
+}
+
 export async function enqueue(account: Job["account"]) {
   if (!singleton) throw new Error("credit queue is not started");
   try {
-    await singleton.enqueue({ account }, account);
+    await singleton.enqueue(account);
   } catch (error) {
     captureException(error, { level: "error", tags: { queue: name, job: name }, extra: { account } });
   }
 }
 
 export function start(bullmq: Redis) {
-  singleton ??= createQueue<Job>(name, attempts, bullmq);
+  singleton ??= queue(bullmq);
 }
 
 export async function close() {
@@ -26,4 +40,4 @@ export async function close() {
   }
 }
 
-let singleton: ReturnType<typeof createQueue<Job>> | undefined;
+let singleton: ReturnType<typeof queue> | undefined;

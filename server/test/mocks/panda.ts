@@ -16,18 +16,30 @@ vi.mock("../../utils/panda", async (importOriginal) => {
     },
   };
   return Object.assign(module, {
-    default: (options: Parameters<typeof panda.default>[0]) => ({
-      createUser: (user: Parameters<typeof panda.createUser>[0]) =>
-        module.createUser(user, { key: options.key, url: options.url }),
-      getUser: (id: string) => module.getUser(id, { key: options.key, url: options.url }),
+    default: () => ({
+      createCard: (userId: string, productId: Parameters<typeof panda.createCard>[1], amount?: number) =>
+        module.createCard(userId, productId, amount),
+      createUser: (user: Parameters<typeof panda.createUser>[0]) => module.createUser(user),
+      getApplicationStatus: (applicationId: string) => module.getApplicationStatus(applicationId),
+      getCard: (cardId: string) => module.getCard(cardId),
+      getCards: (userId: string) => module.getCards(userId),
+      getNonce: (userId: string) => module.getNonce(userId),
+      getPIN: (cardId: string, sessionId: string) => module.getPIN(cardId, sessionId),
+      getProcessorDetails: (cardId: string) => module.getProcessorDetails(cardId),
+      getSecrets: (cardId: string, sessionId: string) => module.getSecrets(cardId, sessionId),
+      getUser: (id: string) => module.getUser(id),
       headerValidator: module.headerValidator(),
-      signIssuerOp: (input: Parameters<typeof panda.signIssuerOp>[0]) => module.signIssuerOp(input, options.issuerKey),
-      updateCard: (card: Parameters<typeof panda.updateCard>[0]) =>
-        module.updateCard(card, { key: options.key, url: options.url }),
-      updateUser: (user: Parameters<typeof panda.updateUser>[0]) =>
-        module.updateUser(user, { key: options.key, url: options.url }),
+      setPIN: (cardId: string, sessionId: string, pin: Parameters<typeof panda.setPIN>[2]) =>
+        module.setPIN(cardId, sessionId, pin),
+      signIssuerOp: (input: Parameters<typeof panda.signIssuerOp>[0]) => module.signIssuerOp(input),
+      submitApplication: (payload: Parameters<typeof panda.submitApplication>[0]) => module.submitApplication(payload),
+      updateApplication: (applicationId: string, payload: Parameters<typeof panda.updateApplication>[1]) =>
+        module.updateApplication(applicationId, payload),
+      updateCard: (card: Parameters<typeof panda.updateCard>[0]) => module.updateCard(card),
+      updateUser: (user: Parameters<typeof panda.updateUser>[0]) => module.updateUser(user),
+      verify: (userId: string, payload: Parameters<typeof panda.verify>[1]) => module.verify(userId, payload),
       verifyPandaSignature: (input: Parameters<typeof panda.verifyPandaSignature>[0]) =>
-        module.verifyPandaSignature(input, options.issuerAddress),
+        module.verifyPandaSignature(input),
     }),
   });
 });

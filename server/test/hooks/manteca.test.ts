@@ -215,7 +215,7 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS", provider);
+      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS");
       expect(sendPushNotification).toHaveBeenCalledWith(
         {
           userId: account,
@@ -374,7 +374,7 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS", provider);
+      expect(manteca.convertBalanceToUsdc).toHaveBeenCalledWith("456", "ARS");
     });
 
     it("handles completed order and withdraws balance", async () => {
@@ -409,7 +409,7 @@ describe("manteca hook", () => {
         },
         expect.any(Analytics),
       );
-      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account, provider);
+      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });
 
     it("returns ok for pending order status", async () => {
@@ -459,7 +459,7 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account, provider);
+      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });
 
     it("returns ok for executed withdrawal", async () => {

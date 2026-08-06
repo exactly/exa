@@ -10,7 +10,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
-import createCredential from "../../utils/createCredential";
+import createCredentialFactory from "../../utils/createCredential";
+import createSardine from "../../utils/sardine";
 import { enqueue as enqueueSubscribe } from "../../workers/subscribe/queue";
 
 const mocks = vi.hoisted(() => ({ domain: "sandbox.exactly.app" }));
@@ -26,6 +27,13 @@ vi.mock("../../utils/segment", () => ({ identify: vi.fn() }));
 vi.mock("../../workers/subscribe/queue", () => ({ enqueue: vi.fn<() => Promise<void>>().mockResolvedValue() }));
 
 const credentialId = "0x1234567890123456789012345678901234567888";
+const createCredential = createCredentialFactory({
+  authSecret: "secret",
+  database,
+  sardine: createSardine("sardine", "https://api.sardine.ai"),
+  segment: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), identify: vi.fn(), track: vi.fn() },
+  subscribe: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue: enqueueSubscribe },
+});
 
 function credential(source?: string) {
   return new Hono()
