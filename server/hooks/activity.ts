@@ -28,7 +28,7 @@ import appOrigin from "../utils/appOrigin";
 import { sendPushNotification } from "../utils/onesignal";
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
-import pokeQueue from "../workers/poke/queue";
+import createPoke from "../workers/poke/queue";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -55,7 +55,7 @@ export default function hook({
   const onesignal = new DefaultApi(createConfiguration({ restApiKey: onesignalKey }));
   const redis = new Redis(redisUrl);
   const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
-  const poke = pokeQueue(bullmq);
+  const poke = createPoke(bullmq);
   if (!activityKey) debug("missing alchemy activity key");
   const signingKeys = new Set(activityKey && [activityKey]);
   const app = new Hono().post(

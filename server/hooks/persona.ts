@@ -47,7 +47,7 @@ import createPersona, {
 } from "../utils/persona";
 import createSardine from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
-import allowQueue from "../workers/allow/queue";
+import createAllow from "../workers/allow/queue";
 
 import type { InferOutput } from "valibot";
 
@@ -96,7 +96,7 @@ export default function hook({
 }) {
   const database = drizzle(postgresUrl, { schema });
   const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
-  const allow = allowQueue(bullmq);
+  const allow = createAllow(bullmq);
   const persona = createPersona(personaKey, personaUrl);
   const panda = createPanda({ key: pandaKey, url: pandaUrl });
   const pax = createPax({ associateKey: paxAssociateKey, key: paxKey, url: paxUrl });

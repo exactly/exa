@@ -70,7 +70,7 @@ import createSegment from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import { getWallet } from "../utils/wallet";
-import refundQueue from "../workers/refund/queue";
+import createRefund from "../workers/refund/queue";
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -277,7 +277,7 @@ export default function hook({
   const database = drizzle(postgresUrl, { schema });
   const onesignal = new DefaultApi(createConfiguration({ restApiKey: onesignalKey }));
   const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
-  const refund = refundQueue(bullmq);
+  const refund = createRefund(bullmq);
   const panda = createPanda({ issuerAddress, issuerKey, key: pandaKey, url: pandaUrl });
   const sardine = createSardine(sardineKey, sardineUrl);
   const segment = createSegment(segmentKey);

@@ -6,17 +6,17 @@ import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
 import { getAccount, getWallet } from "../../utils/wallet";
-import { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../poke/queue";
+import createPoke from "../poke/queue";
 import createWorker, { connect } from "../worker";
 
 export default async function worker({ redisUrl }: { redisUrl: string }) {
   const signer = await getAccount("allower");
   const bullmq = connect(redisUrl);
-  startPoke(bullmq);
+  const poke = createPoke(bullmq);
   return createWorker<Job>({
     attempts,
     bullmq,
-    close: closePoke,
+    close: poke.close,
     failed(job, error) {
       withScope((scope) => {
         if (job) scope.setUser({ id: job.data.account });
@@ -40,7 +40,7 @@ export default async function worker({ redisUrl }: { redisUrl: string }) {
         },
         { ignore: [`AlreadyAllowed(${job.data.account})`] },
       );
-      await enqueuePoke({
+      await poke.enqueue({
         account: job.data.account,
         assets: job.data.assets,
         chainId: job.data.chainId,

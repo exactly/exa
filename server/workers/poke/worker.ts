@@ -24,7 +24,7 @@ import { sendPushNotification } from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import revertFingerprint from "../../utils/revertFingerprint";
 import { getAccount, getWallet } from "../../utils/wallet";
-import { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../credit/queue";
+import createCredit from "../credit/queue";
 import createWorker, { connect } from "../worker";
 
 export default async function worker({
@@ -39,13 +39,13 @@ export default async function worker({
   const signer = await getAccount("poker");
   const analytics = new Analytics({ writeKey: segmentKey });
   const bullmq = connect(redisUrl);
-  startCredit(bullmq);
+  const credit = createCredit(bullmq);
   analytics.on("error", (error) => captureException(error, { level: "error" }));
   const onesignal = new DefaultApi(createConfiguration({ restApiKey: onesignalKey }));
   return createWorker<Job>({
     attempts,
     bullmq,
-    close: () => closeCredit().finally(() => analytics.closeAndFlush()),
+    close: () => credit.close().finally(() => analytics.closeAndFlush()),
     failed(job, error) {
       withScope((scope) => {
         if (job) scope.setUser({ id: job.data.account });
@@ -165,7 +165,7 @@ export default async function worker({
           ).catch((error: unknown) => captureException(error, { level: "error" }));
         }
         if (job.data.origin === "activity") {
-          await enqueueCredit(job.data.account);
+          await credit.enqueue(job.data.account);
         }
       }
     },

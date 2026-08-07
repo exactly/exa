@@ -41,23 +41,25 @@ import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 import { getAccount as getSigner, getWallet } from "../../utils/wallet";
 import createWalletExtension from "../../utils/walletExtension";
-import * as credit from "../../workers/credit/queue";
 
+import type createCredit from "../../workers/credit/queue";
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 let keeper: ReturnType<typeof getWallet>;
 
-vi.mock("../../workers/credit/queue", () => ({ enqueue: vi.fn<typeof credit.enqueue>() }));
-
 const { WALLET_EXTENSION_SECRET } = process.env;
 if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
 const auth = createAuth(database, authSecret);
+const credit = {
+  close: vi.fn<ReturnType<typeof createCredit>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createCredit>["enqueue"]>(),
+};
 const walletExtension = createWalletExtension(WALLET_EXTENSION_SECRET);
 const app = route({
   authenticate: authenticate(""),
-  credit: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue: credit.enqueue },
+  credit,
   database,
   panda: createPanda({
     key: parse(string(), process.env.PANDA_API_KEY),

@@ -37,22 +37,3 @@ export default function queue(bullmq: Redis, alchemy: ReturnType<typeof createAl
     },
   };
 }
-
-export async function enqueue(account: Address) {
-  if (!singleton) throw new Error("subscribe queue is not started");
-  await singleton.enqueue(account);
-}
-
-export function start(bullmq: Redis, alchemy: ReturnType<typeof createAlchemy>) {
-  singleton ??= queue(bullmq, alchemy);
-}
-
-export async function close() {
-  try {
-    await singleton?.close();
-  } finally {
-    singleton = undefined;
-  }
-}
-
-let singleton: ReturnType<typeof queue> | undefined;

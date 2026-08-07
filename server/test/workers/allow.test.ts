@@ -10,15 +10,11 @@ import chain, { firewallAbi } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
-import allowQueue, {
-  close as closeAllow,
-  enqueue as enqueueAllow,
-  start as startAllow,
-} from "../../workers/allow/queue";
+import createAllow from "../../workers/allow/queue";
 import allowWorker from "../../workers/allow/worker";
 
 import type { Job as Allow } from "../../workers/allow/job";
-import type { close as closePoke, enqueue as enqueuePoke, start as startPoke } from "../../workers/poke/queue";
+import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type { Job, JobsOptions } from "bullmq";
 
@@ -28,24 +24,19 @@ const redisUrl = parse(string(), process.env.REDIS_URL);
 const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
 const signer = { address: account };
-startAllow(bullmq);
-startAllow(bullmq);
+const allow = createAllow(bullmq);
 const mocks = vi.hoisted(() => ({
-  closePoke: vi.fn<typeof closePoke>(),
-  enqueuePoke: vi.fn<typeof enqueuePoke>(),
+  closePoke: vi.fn<ReturnType<typeof createPoke>["close"]>(),
+  createPoke: vi.fn<typeof createPoke>(),
+  enqueuePoke: vi.fn<ReturnType<typeof createPoke>["enqueue"]>(),
   exaSend: vi.fn(),
   firewall: vi.fn<() => Address | undefined>(),
   getAccount: vi.fn(),
   getWallet: vi.fn(),
-  startPoke: vi.fn<typeof startPoke>(),
 }));
 
 vi.mock("../../utils/wallet", () => ({ getAccount: mocks.getAccount, getWallet: mocks.getWallet }));
-vi.mock("../../workers/poke/queue", () => ({
-  close: mocks.closePoke,
-  enqueue: mocks.enqueuePoke,
-  start: mocks.startPoke,
-}));
+vi.mock("../../workers/poke/queue", () => ({ default: mocks.createPoke }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
@@ -78,7 +69,7 @@ function allowDone(current: Address) {
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    enqueueAllow({ ...request, account: current }).catch((error: unknown) => {
+    allow.enqueue({ ...request, account: current }).catch((error: unknown) => {
       cleanup();
       reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
     });
@@ -126,19 +117,18 @@ function jobDone(
 }
 
 afterAll(async () => {
-  await Promise.all([queue.close(), closeAllow()]);
-  await closeAllow();
+  await Promise.all([queue.close(), allow.close()]);
 });
 
 beforeEach(async () => {
   vi.restoreAllMocks();
   mocks.closePoke.mockReset().mockResolvedValue();
+  mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
   mocks.firewall.mockReset().mockReturnValue(firewall);
   mocks.getAccount.mockReset().mockResolvedValue(signer);
   mocks.getWallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
-  mocks.startPoke.mockReset();
   vi.clearAllMocks();
   await queue.drain(true);
   await queue.clean(0, 1000, "completed");
@@ -147,7 +137,7 @@ beforeEach(async () => {
 
 describe("allow queue", () => {
   it("publishes firewall allow jobs", async () => {
-    const instance = allowQueue(bullmq);
+    const instance = createAllow(bullmq);
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
@@ -179,21 +169,13 @@ describe("allow queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueueAllow(request)).rejects.toThrow(error);
+    await expect(allow.enqueue(request)).rejects.toThrow(error);
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "allow", job: "allow" },
       extra: { account },
     });
-  });
-
-  it("requires the monolith queue to be started", async () => {
-    await closeAllow();
-
-    await expect(enqueueAllow(request)).rejects.toThrow("allow queue is not started");
-
-    startAllow(bullmq);
   });
 });
 
@@ -206,7 +188,7 @@ describe("allow startup", () => {
 
     expect(mocks.getAccount).toHaveBeenCalledExactlyOnceWith("allower");
     expect(mocks.getWallet).not.toHaveBeenCalled();
-    expect(mocks.startPoke).not.toHaveBeenCalled();
+    expect(mocks.createPoke).not.toHaveBeenCalled();
   });
 });
 

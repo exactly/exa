@@ -12,7 +12,8 @@ import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import database, { credentials } from "../../database";
 import createCredentialFactory from "../../utils/createCredential";
 import createSardine from "../../utils/sardine";
-import { enqueue as enqueueSubscribe } from "../../workers/subscribe/queue";
+
+import type createSubscribe from "../../workers/subscribe/queue";
 
 const mocks = vi.hoisted(() => ({ domain: "sandbox.exactly.app" }));
 
@@ -24,9 +25,9 @@ vi.mock("@exactly/common/domain", () => ({
 vi.mock("hono/cookie", () => ({ setSignedCookie: vi.fn() }));
 vi.mock("../../utils/authSecret", () => ({ default: "secret" }));
 vi.mock("../../utils/segment", () => ({ identify: vi.fn() }));
-vi.mock("../../workers/subscribe/queue", () => ({ enqueue: vi.fn<() => Promise<void>>().mockResolvedValue() }));
 
 const credentialId = "0x1234567890123456789012345678901234567888";
+const enqueueSubscribe = vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue();
 const createCredential = createCredentialFactory({
   authSecret: "secret",
   database,

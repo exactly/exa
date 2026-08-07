@@ -57,14 +57,14 @@ import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import { getAccount, getWallet } from "../../utils/wallet";
-import { enqueue as enqueueRefund } from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
 
+import type createRefund from "../../workers/refund/queue";
 import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
 const queues = vi.hoisted(() => ({
-  close: vi.fn<() => Promise<void>>().mockResolvedValue(),
-  enqueue: vi.fn<typeof enqueueRefund>(),
+  close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
 }));
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
@@ -86,7 +86,6 @@ const app = hook.app;
 
 vi.mock("../../workers/refund/queue", () => ({
   default: () => ({ close: () => Promise.resolve(queues.close()), enqueue: queues.enqueue }),
-  enqueue: queues.enqueue,
 }));
 vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
   const original = await importOriginal<{ drizzle: typeof Drizzle }>();
@@ -1180,7 +1179,7 @@ describe("card operations", () => {
       afterEach(() => vi.restoreAllMocks());
 
       beforeEach(() => {
-        vi.mocked(enqueueRefund).mockClear().mockResolvedValue();
+        queues.enqueue.mockClear().mockResolvedValue();
       });
 
       it("handles reversal", async () => {
@@ -1241,7 +1240,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
-        expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
+        expect(queues.enqueue).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
         await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
         expect(sendPushNotification).toHaveBeenCalledWith(
@@ -1647,7 +1646,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
-        expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
+        expect(queues.enqueue).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(transaction?.payload).toMatchObject({
           bodies: [
             { action: "created", createdAt },
@@ -1704,7 +1703,7 @@ describe("card operations", () => {
           .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
           .find((l) => l.args.owner === account);
 
-        expect(enqueueRefund).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
+        expect(queues.enqueue).toHaveBeenCalledWith(BigInt(amount * 1e4), "abcdef-123456");
         expect(transaction?.payload).toMatchObject({
           bodies: [{ action: "completed", createdAt }],
         });

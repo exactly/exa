@@ -31,8 +31,8 @@ import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
-import * as subscribe from "../../workers/subscribe/queue";
 
+import type createSubscribe from "../../workers/subscribe/queue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -40,15 +40,18 @@ import type * as ViemSiwe from "viem/siwe";
 const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 
 vi.mock("@sentry/node", { spy: true });
-vi.mock("../../workers/subscribe/queue", () => ({ enqueue: vi.fn<() => Promise<void>>().mockResolvedValue() }));
 
 const walletExtension = createWalletExtension(parse(string(), process.env.WALLET_EXTENSION_SECRET));
+const subscribe = {
+  close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
+};
 const createCredential = createCredentialFactory({
   authSecret,
   database,
   sardine: createSardine(parse(string(), process.env.SARDINE_API_KEY), parse(string(), process.env.SARDINE_API_URL)),
   segment: createSegment(parse(string(), process.env.SEGMENT_WRITE_KEY)),
-  subscribe: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue: subscribe.enqueue },
+  subscribe,
 });
 const intercom = createIntercom(parse(string(), process.env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(

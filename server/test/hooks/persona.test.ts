@@ -23,9 +23,13 @@ import * as panda from "../../utils/panda";
 import * as pax from "../../utils/pax";
 import * as persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
-import { enqueue as enqueueAllow } from "../../workers/allow/queue";
 
-const queues = vi.hoisted(() => ({ close: vi.fn<() => Promise<void>>(), enqueue: vi.fn<typeof enqueueAllow>() }));
+import type createAllow from "../../workers/allow/queue";
+
+const queues = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
+  enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
+}));
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const paxConfig = { associateKey: "pax", key: "pax", url: "https://pax.test" };
 const personaConfig = { key: "persona", url: "https://persona.test" };
@@ -50,7 +54,6 @@ const appClient = testClient(app);
 vi.mock("@sentry/node", { spy: true });
 vi.mock("../../workers/allow/queue", () => ({
   default: () => ({ close: () => Promise.resolve(queues.close()), enqueue: queues.enqueue }),
-  enqueue: queues.enqueue,
 }));
 
 afterAll(async () => {
@@ -59,7 +62,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   queues.close.mockReset().mockResolvedValue();
-  vi.mocked(enqueueAllow).mockReset().mockResolvedValue();
+  queues.enqueue.mockReset().mockResolvedValue();
 });
 
 describe("with reference", () => {
@@ -114,7 +117,7 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(enqueueAllow).toHaveBeenCalledWith({
+    expect(queues.enqueue).toHaveBeenCalledWith({
       account,
       chainId: chain.id,
       factory,
@@ -247,7 +250,7 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(enqueueAllow).toHaveBeenCalledWith(expect.objectContaining({ account }));
+    expect(queues.enqueue).toHaveBeenCalledWith(expect.objectContaining({ account }));
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -482,7 +485,7 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(enqueueAllow).toHaveBeenCalledWith(
+    expect(queues.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         account: deriveAddress(inject("ExaAccountFactory"), {
           x: padHex(privateKeyToAddress(padHex("0x420"))),
@@ -542,14 +545,14 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
-    expect(enqueueAllow).not.toHaveBeenCalled();
+    expect(queues.enqueue).not.toHaveBeenCalled();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.mocked(enqueueAllow).mockRejectedValueOnce(error);
+    queues.enqueue.mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       header: {
@@ -572,7 +575,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(enqueueAllow).toHaveBeenCalledOnce();
+    expect(queues.enqueue).toHaveBeenCalledOnce();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 

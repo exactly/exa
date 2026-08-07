@@ -21,25 +21,6 @@ export default function queue(bullmq: Redis) {
   };
 }
 
-export async function enqueue(request: Request) {
-  if (!singleton) throw new Error("allow queue is not started");
-  await singleton.enqueue(request);
-}
-
-export function start(bullmq: Redis) {
-  singleton ??= queue(bullmq);
-}
-
-export async function close() {
-  try {
-    await singleton?.close();
-  } finally {
-    singleton = undefined;
-  }
-}
-
-let singleton: ReturnType<typeof queue> | undefined;
-
 type Request = {
   account: Address;
   assets?: Address[];

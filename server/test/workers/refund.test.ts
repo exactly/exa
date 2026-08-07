@@ -10,11 +10,7 @@ import { refunderAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
-import refundQueue, {
-  close as closeRefund,
-  enqueue as enqueueRefund,
-  start as startRefund,
-} from "../../workers/refund/queue";
+import createRefund from "../../workers/refund/queue";
 import refundWorker from "../../workers/refund/worker";
 
 import type { Job as Refund } from "../../workers/refund/job";
@@ -23,9 +19,8 @@ import type { Job, JobsOptions } from "bullmq";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const signer = { address: account };
+const refund = createRefund(bullmq);
 const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
-startRefund(bullmq);
-startRefund(bullmq);
 let worker: Awaited<ReturnType<typeof refundWorker>>;
 
 function jobDone(
@@ -69,8 +64,7 @@ function jobDone(
 }
 
 afterAll(async () => {
-  await Promise.all([queue.close(), closeRefund()]);
-  await closeRefund();
+  await Promise.all([queue.close(), refund.close()]);
 });
 
 describe("refund queue", () => {
@@ -80,7 +74,7 @@ describe("refund queue", () => {
   });
 
   it("publishes refund jobs", async () => {
-    const instance = refundQueue(bullmq);
+    const instance = createRefund(bullmq);
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Job<Refund, void, "refund">>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
@@ -112,21 +106,13 @@ describe("refund queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueueRefund(2_000_000n, "refund")).resolves.toBeUndefined();
+    await expect(refund.enqueue(2_000_000n, "refund")).resolves.toBeUndefined();
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "refund", job: "refund" },
       extra: { amount: "2000000", id: "refund" },
     });
-  });
-
-  it("requires the monolith queue to be started", async () => {
-    await closeRefund();
-
-    await expect(enqueueRefund(1_000_000n, "refund")).rejects.toThrow("refund queue is not started");
-
-    startRefund(bullmq);
   });
 });
 

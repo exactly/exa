@@ -27,7 +27,6 @@ import { NETWORKS } from "../../utils/alchemy";
 import appOrigin from "../../utils/appOrigin";
 import * as onesignal from "../../utils/onesignal";
 import redis from "../../utils/redis";
-import * as poke from "../../workers/poke/queue";
 
 const mocks = vi.hoisted(() => ({
   closePoke: vi.fn<() => Promise<void>>().mockResolvedValue(),
@@ -35,7 +34,6 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("../../workers/poke/queue", () => ({
   default: () => ({ close: mocks.closePoke, enqueue: mocks.enqueuePoke }),
-  enqueue: mocks.enqueuePoke,
 }));
 
 const hook = createHook("activity");
@@ -49,7 +47,7 @@ describe("address activity", () => {
   let account: Address;
 
   beforeEach(async () => {
-    vi.mocked(poke.enqueue).mockReset().mockResolvedValue();
+    mocks.enqueuePoke.mockReset().mockResolvedValue();
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
 
@@ -77,7 +75,7 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported activity network" }));
-    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
   });
 
   it("ignores transfers to unknown accounts", async () => {
@@ -92,7 +90,7 @@ describe("address activity", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
@@ -126,7 +124,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: [inject("WETH")],
       chainId: chain.id,
@@ -159,7 +157,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -185,7 +183,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -207,7 +205,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -238,7 +236,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
       account,
       assets: [inject("WETH")],
       chainId: 31_337,
@@ -263,7 +261,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -301,8 +299,8 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledTimes(2);
-    expect(poke.enqueue).toHaveBeenNthCalledWith(1, {
+    expect(mocks.enqueuePoke).toHaveBeenCalledTimes(2);
+    expect(mocks.enqueuePoke).toHaveBeenNthCalledWith(1, {
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", inject("WETH")],
       chainId: 31_337,
@@ -311,7 +309,7 @@ describe("address activity", () => {
       publicKey: owner.address.toLowerCase(),
       source: null,
     });
-    expect(poke.enqueue).toHaveBeenNthCalledWith(2, {
+    expect(mocks.enqueuePoke).toHaveBeenNthCalledWith(2, {
       account: secondAccount,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
@@ -327,7 +325,7 @@ describe("address activity", () => {
   it("fails the webhook when poke cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.mocked(poke.enqueue).mockRejectedValueOnce(error);
+    mocks.enqueuePoke.mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -342,7 +340,7 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(poke.enqueue).toHaveBeenCalledOnce();
+    expect(mocks.enqueuePoke).toHaveBeenCalledOnce();
   });
 
   it("sends translated notification without symbol when asset is missing", async () => {

@@ -18,26 +18,3 @@ export default function queue(bullmq: Redis) {
     },
   };
 }
-
-export async function enqueue(account: Job["account"]) {
-  if (!singleton) throw new Error("credit queue is not started");
-  try {
-    await singleton.enqueue(account);
-  } catch (error) {
-    captureException(error, { level: "error", tags: { queue: name, job: name }, extra: { account } });
-  }
-}
-
-export function start(bullmq: Redis) {
-  singleton ??= queue(bullmq);
-}
-
-export async function close() {
-  try {
-    await singleton?.close();
-  } finally {
-    singleton = undefined;
-  }
-}
-
-let singleton: ReturnType<typeof queue> | undefined;
