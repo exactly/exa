@@ -74,6 +74,11 @@ export const fees = {
   },
 };
 
+export const bridgeRails = {
+  ach: { label: "ACH", fee: fees.bridge.ACH.fee, time: "1-2 business days" },
+  wire: { label: "Wire", fee: fees.bridge.WIRE.fee, time: "Same business day" },
+} as const;
+
 export function bridgeFee(currency?: string): string {
   if (currency === "USD") return fees.bridge.ACH.fee;
   if (!currency || !(currency in bridgeMethods)) return "";

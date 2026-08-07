@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, CircleHelp, Info, Landmark, Zap } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -11,12 +11,17 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
 import {
+  achReference,
   addressFields,
+  brlReference,
   clabe,
   documentNumber,
+  eurReference,
   Field,
   FieldInput,
+  gbpReference,
   isoCountry,
+  mxnReference,
   name256,
   nest,
   optionsFor,
@@ -25,9 +30,11 @@ import {
   text,
   ukAccount,
   validator,
+  wireReference,
   type FieldConfig,
 } from "./recipientForm";
-import { isValidCurrency } from "../../utils/currencies";
+import TransferTypeSheet from "./TransferTypeSheet";
+import { bridgeRails, isValidCurrency } from "../../utils/currencies";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -47,14 +54,16 @@ export default function NewRecipient() {
 
   const [step, setStep] = useState(1);
   const [openSelect, setOpenSelect] = useState<string | undefined>();
+  const [openInfo, setOpenInfo] = useState(false);
 
   const currencyKey = typeof currency === "string" ? currency : "";
   const build = forms[currencyKey];
 
   const allFields = build ? supersetFields(build) : [];
+  const variantField = allFields.find((field) => field.variant);
   const defaultValues: Record<string, string> = Object.fromEntries(allFields.map((f) => [f.path, ""]));
   for (const field of allFields) {
-    if (field.kind === "select" && (field.path === "accountOwnerType" || field.transient) && field.options?.[0]) {
+    if (field.kind === "select" && (field.path === "accountOwnerType" || field.variant) && field.options?.[0]) {
       defaultValues[field.path] = field.options[0].value;
     }
   }
@@ -102,7 +111,10 @@ export default function NewRecipient() {
     defaultValues,
     onSubmit: ({ value }) => {
       if (!build) return;
-      const fields = build({ ownerType: value.accountOwnerType, method: value.method });
+      const fields = build({
+        ownerType: value.accountOwnerType,
+        variant: variantField ? value[variantField.path] : undefined,
+      });
       const activePaths = new Set(fields.filter((f) => !f.transient).map((f) => f.path));
       const stripped = Object.fromEntries(Object.entries(value).filter(([k, v]) => v !== "" && activePaths.has(k)));
       const payload = { currency: currencyKey, ...nest(stripped) };
@@ -111,10 +123,10 @@ export default function NewRecipient() {
   });
 
   const currentOwnerType = useStore(form.store, ({ values }) => values.accountOwnerType ?? "");
-  const currentMethod = useStore(form.store, ({ values }) => values.method ?? "");
+  const currentVariant = useStore(form.store, ({ values }) => (variantField ? (values[variantField.path] ?? "") : ""));
   const currentCountry = useStore(form.store, ({ values }) => values.address_country ?? "");
 
-  const visibleFields = build ? build({ ownerType: currentOwnerType, method: currentMethod }) : [];
+  const visibleFields = build ? build({ ownerType: currentOwnerType, variant: currentVariant }) : [];
   const steps = getSteps(visibleFields);
   const currentStep = steps[step - 1];
   const totalSteps = steps.length;
@@ -135,6 +147,7 @@ export default function NewRecipient() {
   }
 
   const openField = openSelect ? currentStep.fields.find((f) => f.path === openSelect) : undefined;
+  const info = currentStep.fields.some((field) => field.info);
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
@@ -182,9 +195,22 @@ export default function NewRecipient() {
         <ScrollView flex={1} showsVerticalScrollIndicator={false}>
           <YStack flex={1} gap="$s5">
             <YStack gap="$s2">
-              <Text title3 emphasized primary>
-                {t(currentStep.title)}
-              </Text>
+              <XStack gap="$s2" alignItems="center">
+                <Text title3 emphasized primary>
+                  {t(currentStep.title)}
+                </Text>
+                {info && (
+                  <IconButton
+                    icon={Info}
+                    size={20}
+                    color="$interactiveBaseBrandDefault"
+                    aria-label={t("More info")}
+                    onPress={() => {
+                      setOpenInfo(true);
+                    }}
+                  />
+                )}
+              </XStack>
               {currentStep.subtitle && (
                 <Text footnote color="$uiNeutralPlaceholder">
                   {t(currentStep.subtitle)}
@@ -195,23 +221,33 @@ export default function NewRecipient() {
             <YStack gap="$s4">
               {currentStep.fields.map((field) => (
                 <form.Field key={field.path} name={field.path} validators={{ onChange: validator(field) }}>
-                  {({ state: { value, meta }, handleChange }) => (
-                    <Field
-                      label={t(field.label)}
-                      optional={field.optional}
-                      error={meta.isTouched && typeof meta.errors[0] === "string" ? meta.errors[0] : undefined}
-                    >
+                  {({ state: { value, meta }, handleChange }) => {
+                    const input = (
                       <FieldInput
                         field={field}
                         value={value}
                         country={currentCountry}
-                        onChange={handleChange}
+                        onChange={(next) => {
+                          handleChange(next);
+                          if (field.kind === "option" && next !== value) form.resetField("reference");
+                        }}
                         onOpen={() => {
                           setOpenSelect(field.path);
                         }}
                       />
-                    </Field>
-                  )}
+                    );
+                    return field.kind === "option" ? (
+                      input
+                    ) : (
+                      <Field
+                        label={t(field.label)}
+                        optional={field.optional}
+                        error={meta.isTouched && typeof meta.errors[0] === "string" ? meta.errors[0] : undefined}
+                      >
+                        {input}
+                      </Field>
+                    );
+                  }}
                 </form.Field>
               ))}
             </YStack>
@@ -255,6 +291,15 @@ export default function NewRecipient() {
             searchable={openField.kind !== "select"}
           />
         )}
+
+      {info && (
+        <TransferTypeSheet
+          open={openInfo}
+          onClose={() => {
+            setOpenInfo(false);
+          }}
+        />
+      )}
     </SafeView>
   );
 }
@@ -266,6 +311,7 @@ const errorMessages: Record<string, string> = {
   "not started": "Bridge setup incomplete",
   "no credential": "Session expired, please log in again",
   "external account already exists": "This bank account is already on your list",
+  "transfer not found": "This contact needs to be recreated before you can send",
   "invalid bank name": "Bank name not accepted, try a different one",
   "postal code required": "Postal code is required for this country",
 };
@@ -320,8 +366,31 @@ function nameFields(ownerType?: string): FieldConfig[] {
   return ownerType === "business" ? [businessName] : [firstName, lastName];
 }
 
-const forms: Record<string, (d: { method?: string; ownerType?: string }) => FieldConfig[]> = {
-  USD: () => [
+function referenceField(validate: FieldConfig["validate"]): FieldConfig {
+  return {
+    path: "reference",
+    label: "Reference",
+    placeholder: "Shown on the beneficiary's statement",
+    kind: "text",
+    optional: true,
+    validate,
+  };
+}
+
+const forms: Record<string, (d: { ownerType?: string; variant?: string }) => FieldConfig[]> = {
+  USD: ({ variant }) => [
+    {
+      path: "rail",
+      label: "Transfer type",
+      placeholder: "Select",
+      kind: "option",
+      variant: true,
+      info: true,
+      options: [
+        { value: "ach", icon: Landmark, ...bridgeRails.ach },
+        { value: "wire", icon: Zap, ...bridgeRails.wire },
+      ],
+    },
     ownerName,
     {
       path: "accountNumber",
@@ -350,12 +419,16 @@ const forms: Record<string, (d: { method?: string; ownerType?: string }) => Fiel
     },
     bankName,
     ...addressFields({ requireStatePostal: true }),
+    variant === "wire"
+      ? { ...referenceField(wireReference), multiline: true, optional: false }
+      : referenceField(achReference),
   ],
   MXN: () => [
     ownerName,
     { path: "clabe", label: "CLABE", placeholder: "Enter beneficiary's 18-digit CLABE", kind: "text", validate: clabe },
     bankName,
     ...addressFields(),
+    referenceField(mxnReference),
   ],
   EUR: ({ ownerType }) => [
     ownerTypeSelect,
@@ -366,6 +439,7 @@ const forms: Record<string, (d: { method?: string; ownerType?: string }) => Fiel
     { path: "country", label: "Country", placeholder: "Select country", kind: "country", validate: isoCountry },
     bankName,
     ...addressFields(),
+    referenceField(eurReference),
   ],
   GBP: ({ ownerType }) => [
     ownerTypeSelect,
@@ -387,8 +461,9 @@ const forms: Record<string, (d: { method?: string; ownerType?: string }) => Fiel
     },
     bankName,
     ...addressFields(),
+    referenceField(gbpReference),
   ],
-  BRL: ({ method }) => [
+  BRL: ({ variant }) => [
     ownerName,
     {
       path: "method",
@@ -396,12 +471,13 @@ const forms: Record<string, (d: { method?: string; ownerType?: string }) => Fiel
       placeholder: "Select",
       kind: "select",
       transient: true,
+      variant: true,
       options: [
         { value: "pixKey", label: "PIX Key" },
         { value: "brCode", label: "BR Code" },
       ],
     },
-    method === "brCode"
+    variant === "brCode"
       ? { path: "account_brCode", label: "BR Code", placeholder: "Paste BR Code", kind: "text", validate: text }
       : { path: "account_pixKey", label: "PIX key", placeholder: "Enter PIX key", kind: "text", validate: text },
     {
@@ -414,31 +490,39 @@ const forms: Record<string, (d: { method?: string; ownerType?: string }) => Fiel
     },
     bankName,
     ...addressFields(),
+    referenceField(brlReference),
   ],
 };
 
-function supersetFields(build: (d: { method?: string; ownerType?: string }) => FieldConfig[]): FieldConfig[] {
+function supersetFields(build: (d: { ownerType?: string; variant?: string }) => FieldConfig[]): FieldConfig[] {
   const base = build({});
   const ownerTypes = base.find((f) => f.path === "accountOwnerType")?.options?.map((o) => o.value) ?? [""];
-  const methods = base.find((f) => f.transient)?.options?.map((o) => o.value) ?? [""];
+  const variants = base.find((f) => f.variant)?.options?.map((o) => o.value) ?? [""];
   const all = new Map<string, FieldConfig>();
   for (const ownerType of ownerTypes) {
-    for (const method of methods) {
-      for (const field of build({ ownerType, method })) if (!all.has(field.path)) all.set(field.path, field);
+    for (const variant of variants) {
+      for (const field of build({ ownerType, variant })) if (!all.has(field.path)) all.set(field.path, field);
     }
   }
   return [...all.values()];
 }
 
 function getSteps(fields: FieldConfig[]): Step[] {
-  if (fields.length <= 7) {
-    return [{ title: "Add new beneficiary", subtitle: "Enter beneficiary's details", fields }];
+  const optionSteps = fields
+    .filter((field) => field.kind === "option")
+    .map((field) => ({ title: field.label, fields: [field] }));
+  const rest = fields.filter((field) => field.kind !== "option");
+  if (rest.length <= 7) {
+    return [...optionSteps, { title: "Add new beneficiary", subtitle: "Enter beneficiary's details", fields: rest }];
   }
-  const recipientFields = fields.filter((field) => isRecipientField(field));
-  const accountFields = fields.filter((field) => !isRecipientField(field));
   return [
-    { title: "Add new beneficiary", subtitle: "Enter beneficiary's details", fields: recipientFields },
-    { title: "Beneficiary's account details", fields: accountFields },
+    ...optionSteps,
+    {
+      title: "Add new beneficiary",
+      subtitle: "Enter beneficiary's details",
+      fields: rest.filter((field) => isRecipientField(field)),
+    },
+    { title: "Beneficiary's account details", fields: rest.filter((field) => !isRecipientField(field)) },
   ];
 }
 
