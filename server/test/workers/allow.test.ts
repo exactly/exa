@@ -2,37 +2,42 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import chain, { firewallAbi } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
-import { close as closeAllow, enqueue as enqueueAllow } from "../../workers/allow/queue";
+import createAllow from "../../workers/allow/queue";
 import allowWorker from "../../workers/allow/worker";
 
 import type { Job as Allow } from "../../workers/allow/job";
-import type { enqueue as enqueuePoke } from "../../workers/poke/queue";
+import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type { Job, JobsOptions } from "bullmq";
 
 const factory = inject("ExaAccountFactory");
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
-const redisUrl = parse(string(), process.env.REDIS_URL);
+const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
 const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
+const allower = privateKeyToAccount(padHex("0xa11"));
+const allow = createAllow(bullmq);
 const mocks = vi.hoisted(() => ({
-  enqueuePoke: vi.fn<typeof enqueuePoke>(),
+  closePoke: vi.fn<ReturnType<typeof createPoke>["close"]>(),
+  createPoke: vi.fn<typeof createPoke>(),
+  enqueuePoke: vi.fn<ReturnType<typeof createPoke>["enqueue"]>(),
   exaSend: vi.fn(),
   firewall: vi.fn<() => Address | undefined>(),
-  getWallet: vi.fn(),
+  wallet: vi.fn(),
 }));
 
-vi.mock("../../utils/wallet", () => ({ getWallet: mocks.getWallet }));
-vi.mock("../../workers/poke/queue", () => ({ enqueue: mocks.enqueuePoke }));
+vi.mock("../../utils/wallet", () => ({ default: mocks.wallet }));
+vi.mock("../../workers/poke/queue", () => ({ default: mocks.createPoke }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
@@ -45,7 +50,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
 });
 
 const queue = new Queue<Allow, void, "allow">("allow", { connection: bullmq });
-let worker: ReturnType<typeof allowWorker>;
+let worker: Awaited<ReturnType<typeof allowWorker>>;
 
 function allowDone(current: Address) {
   return new Promise<void>((resolve, reject) => {
@@ -65,7 +70,7 @@ function allowDone(current: Address) {
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    enqueueAllow({ ...request, account: current }).catch((error: unknown) => {
+    allow.enqueue({ ...request, account: current }).catch((error: unknown) => {
       cleanup();
       reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
     });
@@ -113,15 +118,17 @@ function jobDone(
 }
 
 afterAll(async () => {
-  await Promise.all([queue.close(), closeAllow()]);
+  await Promise.all([queue.close(), allow.close()]);
 });
 
 beforeEach(async () => {
   vi.restoreAllMocks();
+  mocks.closePoke.mockReset().mockResolvedValue();
+  mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
   mocks.firewall.mockReset().mockReturnValue(firewall);
-  mocks.getWallet.mockReset().mockResolvedValue({ exaSend: mocks.exaSend });
+  mocks.wallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
   vi.clearAllMocks();
   await queue.drain(true);
   await queue.clean(0, 1000, "completed");
@@ -130,10 +137,11 @@ beforeEach(async () => {
 
 describe("allow queue", () => {
   it("publishes firewall allow jobs", async () => {
+    const instance = createAllow(bullmq);
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueueAllow(request);
+    const result = instance.enqueue(request);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -154,13 +162,14 @@ describe("allow queue", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+    await instance.close();
   });
 
   it("captures queue failures", async () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueueAllow(request)).rejects.toThrow(error);
+    await expect(allow.enqueue(request)).rejects.toThrow(error);
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
@@ -172,7 +181,7 @@ describe("allow queue", () => {
 
 describe("allow worker", () => {
   beforeEach(async () => {
-    worker = allowWorker({ redisUrl });
+    worker = allowWorker({ allower, redisUrl });
     await worker.ready;
   });
 
@@ -183,7 +192,7 @@ describe("allow worker", () => {
   it("allows queued accounts with the isolated wallet", async () => {
     await allowDone(account);
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-allower`);
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(allower);
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
       { address: firewall, functionName: "allow", args: [account, true], abi: firewallAbi },
@@ -213,6 +222,24 @@ describe("allow worker", () => {
 
     expect(queuedBefore).toBe(0);
     expect(mocks.enqueuePoke).toHaveBeenCalledOnce();
+  });
+
+  it("closes the poke queue after active jobs settle", async () => {
+    const deferred = Promise.withResolvers<object>();
+    mocks.exaSend.mockReturnValueOnce(deferred.promise);
+
+    const processing = allowDone(account);
+    await vi.waitUntil(() => mocks.exaSend.mock.calls.length === 1);
+    const closeWorker = vi.spyOn(worker.queue, "close");
+    const closing = worker.close();
+    await vi.waitUntil(() => closeWorker.mock.calls.length === 1);
+
+    expect(mocks.closePoke).not.toHaveBeenCalled();
+
+    deferred.resolve({});
+    await processing;
+    await closing;
+    expect(mocks.closePoke).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("retries allow failures", async () => {

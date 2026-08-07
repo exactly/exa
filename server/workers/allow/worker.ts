@@ -2,19 +2,22 @@ import { captureException, withScope } from "@sentry/node";
 import { parse } from "valibot";
 
 import { firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
-import { getWallet } from "../../utils/wallet";
-import { enqueue as enqueuePoke } from "../poke/queue";
+import wallet from "../../utils/wallet";
+import createPoke from "../poke/queue";
 import createWorker, { connect } from "../worker";
 
-export default function worker({ redisUrl }: { redisUrl: string }) {
+import type { LocalAccount } from "viem";
+
+export default function worker({ allower, redisUrl }: { allower: LocalAccount; redisUrl: string }) {
   const bullmq = connect(redisUrl);
+  const poke = createPoke(bullmq);
   return createWorker<Job>({
     attempts,
     bullmq,
+    close: poke.close,
     failed(job, error) {
       withScope((scope) => {
         if (job) scope.setUser({ id: job.data.account });
@@ -27,8 +30,7 @@ export default function worker({ redisUrl }: { redisUrl: string }) {
     },
     name,
     async process(job) {
-      const wallet = await getWallet(`${stack}-allower`);
-      await wallet.exaSend(
+      await wallet(allower).exaSend(
         { name: "firewall.allow", op: "exa.firewall", attributes: { account: job.data.account } },
         {
           address: parse(Address, firewallAddress),
@@ -38,7 +40,7 @@ export default function worker({ redisUrl }: { redisUrl: string }) {
         },
         { ignore: [`AlreadyAllowed(${job.data.account})`] },
       );
-      await enqueuePoke({
+      await poke.enqueue({
         account: job.data.account,
         assets: job.data.assets,
         chainId: job.data.chainId,

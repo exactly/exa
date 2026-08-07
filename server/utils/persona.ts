@@ -2,6 +2,7 @@ import { vValidator } from "@hono/valibot-validator";
 import { captureEvent, setContext } from "@sentry/core";
 import { captureException } from "@sentry/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -32,10 +33,6 @@ import ServiceError from "./ServiceError";
 
 const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
 
-if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
-if (!process.env.PERSONA_URL) throw new Error("missing persona url");
-if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
-
 export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; // cspell:ignore ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF
 export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
@@ -46,121 +43,337 @@ export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
 
 const PERSONA_API_VERSION = "2023-01-05";
 
-const authorization = `Bearer ${process.env.PERSONA_API_KEY}`;
-const baseURL = process.env.PERSONA_URL;
-const webhookSecret = process.env.PERSONA_WEBHOOK_SECRET;
+export default function persona(key: string, url: string) {
+  return {
+    addDocument,
+    createInquiry,
+    evaluateAccount,
+    getAccount,
+    getAccounts,
+    getCardLimitStatus,
+    getDocument,
+    getDocumentForBridge,
+    getDocumentForManteca,
+    getInquiry,
+    getInquiryById,
+    getPendingInquiryTemplate,
+    getUnknownAccount,
+    getValidDocumentForManteca,
+    resumeInquiry,
+    searchAccounts,
+    updateCardLimit,
+  };
 
-export async function getInquiry(referenceId: string, templateId: string) {
-  const { data: approvedInquiries } = await request(
-    GetInquiriesResponse,
-    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=approved`,
-  );
-  if (approvedInquiries[0]) return approvedInquiries[0];
-  const { data: inquiries } = await request(
-    GetInquiriesResponse,
-    `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}`,
-  );
-  return inquiries[0];
-}
-
-export function getInquiryById(inquiryId: string) {
-  return request(
-    object({ data: object({ attributes: object({ "reference-id": string() }) }) }),
-    `/inquiries/${inquiryId}`,
-  );
-}
-
-export function resumeInquiry(inquiryId: string) {
-  return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST");
-}
-
-export function createInquiry(
-  referenceId: string,
-  templateId: string,
-  redirectURI?: string,
-  fields?: { "name-first": string; "name-last": string },
-) {
-  return request(CreateInquiryResponse, "/inquiries", {
-    data: {
-      attributes: {
-        "inquiry-template-id": templateId,
-        "redirect-uri": `${redirectURI ?? appOrigin}/card`,
-        ...(fields && { fields }),
-      },
-    },
-    meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
-  });
-}
-
-export async function getDocument(documentId: string) {
-  const { data } = await request(GetDocumentResponse, `/document/government-ids/${encodeURIComponent(documentId)}`);
-  return data;
-}
-
-export async function addDocument(referenceId: string, identityDocument: InferOutput<typeof IdentityDocument>) {
-  const account = await getAccount(referenceId, "document");
-  if (!account) throw new Error("account not found");
-  const existingDocument = account.attributes.fields.documents.value.find(
-    (document) => document.value.id_document_id.value === identityDocument.id_document_id.value,
-  );
-  if (existingDocument) {
-    captureEvent({ message: "document-already-exists", contexts: { id: existingDocument.value.id_document_id } });
-    return;
-  }
-  return request(
-    object({ data: object({ id: string() }) }),
-    `/accounts/${account.id}`,
-    {
-      data: {
-        attributes: {
-          fields: {
-            documents: [
-              ...account.attributes.fields.documents.value.map((document) => ({
-                id_class: document.value.id_class.value,
-                id_number: document.value.id_number.value,
-                id_issuing_country: document.value.id_issuing_country.value,
-                id_document_id: document.value.id_document_id.value,
-              })),
-              {
-                id_class: identityDocument.id_class.value,
-                id_number: identityDocument.id_number.value,
-                id_issuing_country: identityDocument.id_issuing_country.value,
-                id_document_id: identityDocument.id_document_id.value,
-              },
-            ],
+  async function addDocument(referenceId: string, identityDocument: InferOutput<typeof IdentityDocument>) {
+    const account = await getAccount(referenceId, "document");
+    if (!account) throw new Error("account not found");
+    const existingDocument = account.attributes.fields.documents.value.find(
+      (document) => document.value.id_document_id.value === identityDocument.id_document_id.value,
+    );
+    if (existingDocument) {
+      captureEvent({ message: "document-already-exists", contexts: { id: existingDocument.value.id_document_id } });
+      return;
+    }
+    return request(
+      object({ data: object({ id: string() }) }),
+      `/accounts/${account.id}`,
+      {
+        data: {
+          attributes: {
+            fields: {
+              documents: [
+                ...account.attributes.fields.documents.value.map((document) => ({
+                  id_class: document.value.id_class.value,
+                  id_number: document.value.id_number.value,
+                  id_issuing_country: document.value.id_issuing_country.value,
+                  id_document_id: document.value.id_document_id.value,
+                })),
+                {
+                  id_class: identityDocument.id_class.value,
+                  id_number: identityDocument.id_number.value,
+                  id_issuing_country: identityDocument.id_issuing_country.value,
+                  id_document_id: identityDocument.id_document_id.value,
+                },
+              ],
+            },
           },
         },
       },
-    },
-    "PATCH",
-  );
-}
-
-async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
-  schema: BaseSchema<TInput, TOutput, TIssue>,
-  url: `/${string}`,
-  body?: unknown,
-  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
-  timeout = 10_000,
-) {
-  const response = await fetch(`${baseURL}${url}`, {
-    method,
-    headers: {
-      authorization,
-      accept: "application/json",
-      "content-type": "application/json",
-      "persona-version": PERSONA_API_VERSION,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(timeout),
-  });
-  if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
-  const result = safeParse(schema, await response.json());
-  if (!result.success) {
-    setContext("validation", { ...result, flatten: flatten(result.issues) });
-    throw new ValiError(result.issues);
+      "PATCH",
+      10_000,
+    );
   }
-  return result.output;
+  function createInquiry(
+    referenceId: string,
+    templateId: string,
+    redirectURI?: string,
+    fields?: { "name-first": string; "name-last": string },
+  ) {
+    return request(
+      CreateInquiryResponse,
+      "/inquiries",
+      {
+        data: {
+          attributes: {
+            "inquiry-template-id": templateId,
+            "redirect-uri": `${redirectURI ?? appOrigin}/card`,
+            ...(fields && { fields }),
+          },
+        },
+        meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
+      },
+      "POST",
+      10_000,
+    );
+  }
+  async function evaluateAccount(
+    unknownAccount: InferOutput<typeof UnknownAccount>,
+    scope: AccountScope,
+  ): Promise<
+    | typeof CARD_LIMIT_TEMPLATE
+    | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
+    | typeof MANTECA_TEMPLATE_WITH_ID_CLASS
+    | typeof PANDA_TEMPLATE
+    | undefined
+  > {
+    switch (scope) {
+      case "document":
+        throw new Error("document account scope not supported");
+      case "cardLimit":
+        return (await evaluateAccount(unknownAccount, "basic")) ?? CARD_LIMIT_TEMPLATE;
+      case "basic": {
+        const result = safeParse(accountScopeSchemas[scope], unknownAccount);
+        if (!result.success) {
+          const notMissingFieldsIssues = result.issues.filter((issue) => !isMissingOrNull(issue));
+          if (notMissingFieldsIssues.length === 0) return PANDA_TEMPLATE;
+
+          setContext("validation", { ...result, flatten: flatten(result.issues) });
+          throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+        }
+        if (!result.output.data[0]) return PANDA_TEMPLATE;
+        return;
+      }
+      case "manteca": {
+        const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
+        // TODO use an unified template for panda + manteca
+        if (requiredTemplate) return requiredTemplate;
+
+        const basicAccount = safeParse(accountScopeSchemas.basic, unknownAccount);
+        if (!basicAccount.success) {
+          setContext("validation", { ...basicAccount, flatten: flatten(basicAccount.issues) });
+          throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+        }
+
+        const countryCode = basicAccount.output.data[0]?.attributes["country-code"];
+        if (!countryCode) throw new Error(scopeValidationErrors.INVALID_ACCOUNT);
+        const allowedIds = getAllowedMantecaIds(countryCode);
+        if (!allowedIds) throw new Error(scopeValidationErrors.NOT_SUPPORTED);
+
+        const documents = basicAccount.output.data[0]?.attributes.fields.documents.value ?? [];
+        const validDocument = await getValidDocumentForManteca(documents, allowedIds);
+        const hasValidDocument = validDocument !== undefined;
+
+        const result = safeParse(accountScopeSchemas[scope], unknownAccount);
+        if (!result.success) {
+          const notMissingFieldsIssues = result.issues.filter((issue) => !isMissingOrNull(issue));
+          if (notMissingFieldsIssues.length === 0) {
+            return hasValidDocument ? MANTECA_TEMPLATE_EXTRA_FIELDS : MANTECA_TEMPLATE_WITH_ID_CLASS;
+          }
+          setContext("validation", { ...result, flatten: flatten(result.issues) });
+          throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+        }
+        if (!hasValidDocument) return MANTECA_TEMPLATE_WITH_ID_CLASS;
+
+        return;
+      }
+      case "bridge": {
+        const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
+        if (requiredTemplate) return requiredTemplate;
+
+        const bridgeAccount = safeParse(accountScopeSchemas.bridge, unknownAccount);
+        if (!bridgeAccount.success) {
+          setContext("validation", { ...bridgeAccount, flatten: flatten(bridgeAccount.issues) });
+          throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
+        }
+
+        if (!getDocumentForBridge(bridgeAccount.output.data[0]?.attributes.fields.documents.value ?? [])) {
+          throw new Error(scopeValidationErrors.NOT_SUPPORTED);
+        }
+
+        return;
+      }
+      default: {
+        const exhaustive: never = scope;
+        throw new Error(`unhandled account scope: ${exhaustive as string}`);
+      }
+    }
+  }
+  async function getAccount<T extends AccountScope>(
+    referenceId: string,
+    scope: T,
+  ): Promise<AccountOutput<T> | undefined> {
+    const { data } = await getAccounts(referenceId, scope);
+    return data[0];
+  }
+  function getAccounts<T extends AccountScope>(referenceId: string, scope: T) {
+    return request<unknown, AccountResponse<T>, BaseIssue<unknown>>(
+      accountScopeSchemas[scope],
+      `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getCardLimitStatus(referenceId: string, account?: UnknownAccountOutput) {
+    const unknownAccount =
+      account ??
+      (await getUnknownAccount(referenceId).catch((error: unknown) => {
+        captureException(error, { level: "error", contexts: { details: { referenceId, scope: "cardLimit" } } });
+        throw error;
+      }));
+    if (parseAccount(unknownAccount, "cardLimit")?.attributes.fields.card_limit_usd?.value != null)
+      return { status: "resolved" as const };
+    if ((await evaluateAccount(unknownAccount, "cardLimit")) !== CARD_LIMIT_TEMPLATE)
+      return { status: "noTemplate" as const };
+    const inquiry = await getInquiry(referenceId, CARD_LIMIT_TEMPLATE);
+    if (!inquiry) return { status: "noInquiry" as const };
+    return { status: inquiry.attributes.status, id: inquiry.id };
+  }
+  async function getDocument(documentId: string) {
+    const { data } = await request(
+      GetDocumentResponse,
+      `/document/government-ids/${encodeURIComponent(documentId)}`,
+      undefined,
+      "GET",
+      10_000,
+    );
+    return data;
+  }
+  // eslint-disable-next-line unicorn/consistent-function-scoping
+  function getDocumentForBridge(documents: InferOutput<typeof AccountBasicFields>["documents"]["value"]) {
+    const classDocuments = documents.filter(({ value: { id_class } }) => {
+      const result = safeParse(picklist(IdentificationClasses), id_class.value);
+      return result.success && IdClassToBridge[result.output];
+    });
+    if (classDocuments.length === 0) return;
+    return classDocuments.at(-1)?.value;
+  }
+  async function getDocumentForManteca(
+    documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
+    country: string,
+  ): Promise<InferOutput<typeof IdentityDocument> | undefined> {
+    const allowedIds = getAllowedMantecaIds(country);
+    if (!allowedIds) return undefined;
+    return getValidDocumentForManteca(documents, allowedIds);
+  }
+  async function getInquiry(referenceId: string, templateId: string) {
+    const { data: approvedInquiries } = await request(
+      GetInquiriesResponse,
+      `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=approved`,
+      undefined,
+      "GET",
+      10_000,
+    );
+    if (approvedInquiries[0]) return approvedInquiries[0];
+    const { data: inquiries } = await request(
+      GetInquiriesResponse,
+      `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}`,
+      undefined,
+      "GET",
+      10_000,
+    );
+    return inquiries[0];
+  }
+  function getInquiryById(inquiryId: string) {
+    return request(
+      object({ data: object({ attributes: object({ "reference-id": string() }) }) }),
+      `/inquiries/${inquiryId}`,
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
+    const unknownAccount = await getUnknownAccount(referenceId);
+    return evaluateAccount(unknownAccount, scope);
+  }
+  function getUnknownAccount(referenceId: string) {
+    return request(
+      UnknownAccount,
+      `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getValidDocumentForManteca(
+    documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
+    allowedIds: readonly AllowedIdConfig[],
+  ): Promise<InferOutput<typeof IdentityDocument> | undefined> {
+    for (const { id: idClass, side } of allowedIds) {
+      const classDocuments = documents.filter(({ value: { id_class } }) => id_class.value === idClass);
+      if (classDocuments.length === 0) continue;
+      for (const document of classDocuments.toReversed()) {
+        if (side === "front") return document.value;
+        const { attributes } = await getDocument(document.value.id_document_id.value);
+        if (attributes["front-photo"] && attributes["back-photo"]) {
+          return document.value;
+        }
+      }
+    }
+
+    return undefined;
+  }
+  async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
+    schema: BaseSchema<TInput, TOutput, TIssue>,
+    path: `/${string}`,
+    body?: unknown,
+    method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+    timeout = 10_000,
+  ) {
+    const response = await fetch(`${url}${path}`, {
+      method,
+      headers: {
+        authorization: `Bearer ${key}`,
+        accept: "application/json",
+        "content-type": "application/json",
+        "persona-version": PERSONA_API_VERSION,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeout),
+    });
+    if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
+    const result = safeParse(schema, await response.json());
+    if (!result.success) {
+      setContext("validation", { ...result, flatten: flatten(result.issues) });
+      throw new ValiError(result.issues);
+    }
+    return result.output;
+  }
+  function resumeInquiry(inquiryId: string) {
+    return request(ResumeInquiryResponse, `/inquiries/${inquiryId}/resume`, undefined, "POST", 10_000);
+  }
+  async function searchAccounts(email: string) {
+    const { data } = await request(
+      object({ data: array(object({ attributes: object({ "reference-id": string() }) })) }),
+      "/accounts/search",
+      { query: { attribute: "fields.email_address", operator: "eq", value: email } },
+      "POST",
+      10_000,
+    );
+    return data;
+  }
+  async function updateCardLimit(referenceId: string, limitUsd: number) {
+    const account = await getAccount(referenceId, "cardLimit");
+    if (!account) throw new Error("account not found");
+    return request(
+      object({ data: object({ id: string() }) }),
+      `/accounts/${account.id}`,
+      { data: { attributes: { fields: { card_limit_usd: limitUsd } } } },
+      "PATCH",
+      10_000,
+    );
+  }
 }
 
 export const IdentificationClasses = ["dl", "id", "pp", "pr", "rp", "visa", "wp"] as const;
@@ -319,42 +532,6 @@ export type AccountScope = keyof typeof accountScopeSchemas;
 type AccountResponse<T extends AccountScope> = InferOutput<(typeof accountScopeSchemas)[T]>;
 export type AccountOutput<T extends AccountScope> = AccountResponse<T>["data"][number];
 
-export async function searchAccounts(email: string) {
-  const { data } = await request(
-    object({ data: array(object({ attributes: object({ "reference-id": string() }) })) }),
-    "/accounts/search",
-    { query: { attribute: "fields.email_address", operator: "eq", value: email } },
-    "POST",
-  );
-  return data;
-}
-
-export function getAccounts<T extends AccountScope>(referenceId: string, scope: T) {
-  return request<unknown, AccountResponse<T>, BaseIssue<unknown>>(
-    accountScopeSchemas[scope],
-    `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
-  );
-}
-
-export async function getAccount<T extends AccountScope>(
-  referenceId: string,
-  scope: T,
-): Promise<AccountOutput<T> | undefined> {
-  const { data } = await getAccounts(referenceId, scope);
-  return data[0];
-}
-
-export async function updateCardLimit(referenceId: string, limitUsd: number) {
-  const account = await getAccount(referenceId, "cardLimit");
-  if (!account) throw new Error("account not found");
-  return request(
-    object({ data: object({ id: string() }) }),
-    `/accounts/${account.id}`,
-    { data: { attributes: { fields: { card_limit_usd: limitUsd } } } },
-    "PATCH",
-  );
-}
-
 export function parseAccount(unknownAccount: UnknownAccountOutput, scope: "basic"): AccountOutput<"basic"> | undefined;
 export function parseAccount(
   unknownAccount: UnknownAccountOutput,
@@ -363,114 +540,6 @@ export function parseAccount(
 export function parseAccount<T extends AccountScope>(unknownAccount: UnknownAccountOutput, scope: T) {
   const result = safeParse(accountScopeSchemas[scope], unknownAccount);
   return result.success ? result.output.data[0] : undefined;
-}
-
-export async function getCardLimitStatus(referenceId: string, account?: UnknownAccountOutput) {
-  const unknownAccount =
-    account ??
-    (await getUnknownAccount(referenceId).catch((error: unknown) => {
-      captureException(error, { level: "error", contexts: { details: { referenceId, scope: "cardLimit" } } });
-      throw error;
-    }));
-  if (parseAccount(unknownAccount, "cardLimit")?.attributes.fields.card_limit_usd?.value != null)
-    return { status: "resolved" as const };
-  if ((await evaluateAccount(unknownAccount, "cardLimit")) !== CARD_LIMIT_TEMPLATE)
-    return { status: "noTemplate" as const };
-  const inquiry = await getInquiry(referenceId, CARD_LIMIT_TEMPLATE);
-  if (!inquiry) return { status: "noInquiry" as const };
-  return { status: inquiry.attributes.status, id: inquiry.id };
-}
-
-export function getUnknownAccount(referenceId: string) {
-  return request(UnknownAccount, `/accounts?page[size]=1&filter[reference-id]=${referenceId}`);
-}
-
-export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
-  const unknownAccount = await getUnknownAccount(referenceId);
-  return evaluateAccount(unknownAccount, scope);
-}
-
-export async function evaluateAccount(
-  unknownAccount: InferOutput<typeof UnknownAccount>,
-  scope: AccountScope,
-): Promise<
-  | typeof CARD_LIMIT_TEMPLATE
-  | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
-  | typeof MANTECA_TEMPLATE_WITH_ID_CLASS
-  | typeof PANDA_TEMPLATE
-  | undefined
-> {
-  switch (scope) {
-    case "document":
-      throw new Error("document account scope not supported");
-    case "cardLimit":
-      return (await evaluateAccount(unknownAccount, "basic")) ?? CARD_LIMIT_TEMPLATE;
-    case "basic": {
-      const result = safeParse(accountScopeSchemas[scope], unknownAccount);
-      if (!result.success) {
-        const notMissingFieldsIssues = result.issues.filter((issue) => !isMissingOrNull(issue));
-        if (notMissingFieldsIssues.length === 0) return PANDA_TEMPLATE;
-
-        setContext("validation", { ...result, flatten: flatten(result.issues) });
-        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
-      }
-      if (!result.output.data[0]) return PANDA_TEMPLATE;
-      return;
-    }
-    case "manteca": {
-      const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
-      // TODO use an unified template for panda + manteca
-      if (requiredTemplate) return requiredTemplate;
-
-      const basicAccount = safeParse(accountScopeSchemas.basic, unknownAccount);
-      if (!basicAccount.success) {
-        setContext("validation", { ...basicAccount, flatten: flatten(basicAccount.issues) });
-        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
-      }
-
-      const countryCode = basicAccount.output.data[0]?.attributes["country-code"];
-      if (!countryCode) throw new Error(scopeValidationErrors.INVALID_ACCOUNT);
-      const allowedIds = getAllowedMantecaIds(countryCode);
-      if (!allowedIds) throw new Error(scopeValidationErrors.NOT_SUPPORTED);
-
-      const documents = basicAccount.output.data[0]?.attributes.fields.documents.value ?? [];
-      const validDocument = await getValidDocumentForManteca(documents, allowedIds);
-      const hasValidDocument = validDocument !== undefined;
-
-      const result = safeParse(accountScopeSchemas[scope], unknownAccount);
-      if (!result.success) {
-        const notMissingFieldsIssues = result.issues.filter((issue) => !isMissingOrNull(issue));
-        if (notMissingFieldsIssues.length === 0) {
-          return hasValidDocument ? MANTECA_TEMPLATE_EXTRA_FIELDS : MANTECA_TEMPLATE_WITH_ID_CLASS;
-        }
-        setContext("validation", { ...result, flatten: flatten(result.issues) });
-        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
-      }
-      if (!hasValidDocument) return MANTECA_TEMPLATE_WITH_ID_CLASS;
-
-      return;
-    }
-    case "bridge": {
-      const requiredTemplate = await evaluateAccount(unknownAccount, "basic");
-      if (requiredTemplate) return requiredTemplate;
-
-      const bridgeAccount = safeParse(accountScopeSchemas.bridge, unknownAccount);
-      if (!bridgeAccount.success) {
-        setContext("validation", { ...bridgeAccount, flatten: flatten(bridgeAccount.issues) });
-        throw new Error(scopeValidationErrors.INVALID_SCOPE_VALIDATION);
-      }
-
-      if (!getDocumentForBridge(bridgeAccount.output.data[0]?.attributes.fields.documents.value ?? [])) {
-        throw new Error(scopeValidationErrors.NOT_SUPPORTED);
-      }
-
-      return;
-    }
-    default: {
-      const exhaustive: never = scope;
-      throw new Error(`unhandled account scope: ${exhaustive as string}`);
-    }
-  }
 }
 
 export const Inquiry = object({
@@ -500,12 +569,12 @@ const CreateInquiryResponse = object({
   }),
 });
 
-export function headerValidator() {
+export function headerValidator(secret = getWebhookSecret()) {
   return vValidator("header", object({ "persona-signature": string() }), async (r, c) => {
     if (!r.success) return c.text("bad request", 400);
     const body = await c.req.text();
     const t = r.output["persona-signature"].split(",")[0]?.split("=")[1];
-    const hmac = createHmac("sha256", webhookSecret).update(`${t}.${body}`).digest("hex");
+    const hmac = createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
     const isVerified = r.output["persona-signature"]
       .split(" ")
       .map((pair) => pair.split("v1=")[1])
@@ -567,34 +636,6 @@ export function getAllowedMantecaIds(country: string): readonly AllowedIdConfig[
   return allowedMantecaCountries.get(result.output)?.allowedIds;
 }
 
-export async function getValidDocumentForManteca(
-  documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
-  allowedIds: readonly AllowedIdConfig[],
-): Promise<InferOutput<typeof IdentityDocument> | undefined> {
-  for (const { id: idClass, side } of allowedIds) {
-    const classDocuments = documents.filter(({ value: { id_class } }) => id_class.value === idClass);
-    if (classDocuments.length === 0) continue;
-    for (const document of classDocuments.toReversed()) {
-      if (side === "front") return document.value;
-      const { attributes } = await getDocument(document.value.id_document_id.value);
-      if (attributes["front-photo"] && attributes["back-photo"]) {
-        return document.value;
-      }
-    }
-  }
-
-  return undefined;
-}
-
-export async function getDocumentForManteca(
-  documents: InferOutput<typeof AccountBasicFields>["documents"]["value"],
-  country: string,
-): Promise<InferOutput<typeof IdentityDocument> | undefined> {
-  const allowedIds = getAllowedMantecaIds(country);
-  if (!allowedIds) return undefined;
-  return getValidDocumentForManteca(documents, allowedIds);
-}
-
 export const BridgeIdentityDocumentType = [
   "drivers_license",
   "matriculate_id",
@@ -619,17 +660,13 @@ export const IdClassToBridge: Record<
   visa: "visa",
 };
 
-export function getDocumentForBridge(documents: InferOutput<typeof AccountBasicFields>["documents"]["value"]) {
-  const classDocuments = documents.filter(({ value: { id_class } }) => {
-    const result = safeParse(picklist(IdentificationClasses), id_class.value);
-    return result.success && IdClassToBridge[result.output];
-  });
-  if (classDocuments.length === 0) return;
-  return classDocuments.at(-1)?.value;
-}
-
 export const scopeValidationErrors = {
   INVALID_SCOPE_VALIDATION: "invalid scope validation",
   INVALID_ACCOUNT: "invalid account",
   NOT_SUPPORTED: "not supported",
 } as const;
+
+function getWebhookSecret() {
+  if (!env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
+  return env.PERSONA_WEBHOOK_SECRET;
+}

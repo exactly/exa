@@ -5,7 +5,8 @@ import { DefaultApi } from "@onesignal/node-onesignal";
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -16,7 +17,7 @@ import t from "../../i18n";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
-import { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../../workers/credit/queue";
+import createCredit from "../../workers/credit/queue";
 import creditWorker from "../../workers/credit/worker";
 
 import type { Job as Credit } from "../../workers/credit/job";
@@ -25,10 +26,9 @@ import type { Job, JobsOptions } from "bullmq";
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
 const unknown = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
-const postgresUrl = parse(string(), process.env.POSTGRES_URL);
-const redisUrl = parse(string(), process.env.REDIS_URL);
-startCredit(bullmq);
-startCredit(bullmq);
+const postgresUrl = parse(pipe(string(), nonEmpty()), env.POSTGRES_URL);
+const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
+const credit = createCredit(bullmq);
 const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
 let worker: ReturnType<typeof creditWorker>;
 
@@ -78,7 +78,7 @@ function queued() {
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    enqueueCredit(account).catch((error: unknown) => {
+    credit.enqueue(account).catch((error: unknown) => {
       cleanup();
       reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
     });
@@ -109,8 +109,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await database.delete(cards).where(eq(cards.credentialId, "credit-worker"));
   await database.delete(credentials).where(eq(credentials.id, "credit-worker"));
-  await Promise.all([queue.close(), closeCredit()]);
-  await closeCredit();
+  await Promise.all([queue.close(), credit.close()]);
 });
 
 describe("credit queue", () => {
@@ -118,7 +117,7 @@ describe("credit queue", () => {
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueueCredit(account);
+    const result = credit.enqueue(account);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -145,21 +144,13 @@ describe("credit queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueueCredit(account)).resolves.toBeUndefined();
+    await expect(credit.enqueue(account)).resolves.toBeUndefined();
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "credit", job: "credit" },
       extra: { account },
     });
-  });
-
-  it("requires the monolith queue to be started", async () => {
-    await closeCredit();
-
-    await expect(enqueueCredit(account)).rejects.toThrow("credit queue is not started");
-
-    startCredit(bullmq);
   });
 });
 

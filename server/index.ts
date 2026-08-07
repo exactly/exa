@@ -4,42 +4,121 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import api from "./api";
+import createApi from "./api";
 import database from "./database";
-import activityHook from "./hooks/activity";
-import block from "./hooks/block";
-import bridge from "./hooks/bridge";
-import manteca from "./hooks/manteca";
-import panda from "./hooks/panda";
-import persona from "./hooks/persona";
+import createActivity from "./hooks/activity";
+import createBlock from "./hooks/block";
+import createBridge from "./hooks/bridge";
+import createManteca from "./hooks/manteca";
+import createPanda from "./hooks/panda";
+import createPersona from "./hooks/persona";
 import supervise from "./supervise";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
 import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
-import { bullmq, close as closeRedis } from "./utils/redis";
-import { closeAndFlush as closeSegment } from "./utils/segment";
-import { close as closeAllow } from "./workers/allow/queue";
-import { close as closeCredit, start as startCredit } from "./workers/credit/queue";
-import { close as closePoke } from "./workers/poke/queue";
-import { close as closeRefund } from "./workers/refund/queue";
-import { close as closeSubscribe } from "./workers/subscribe/queue";
+import { close as closeRedis } from "./utils/redis";
+import { legacy } from "./utils/wallet";
 
-startCredit(bullmq);
+const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const keeper = legacy("keeper"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const api = createApi({
+  alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+  authSecret: parse(pipe(string(), nonEmpty()), env.AUTH_SECRET),
+  bridgeKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+  bridgeUrl: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  intercomKey: parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY),
+  mantecaKey: parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+  mantecaUrl: parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+  pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+  pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  paxAssociateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+  paxKey: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+  paxUrl: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
+  personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+  personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
+  walletExtensionSecret: parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET),
+});
+
+const activity = createActivity({
+  alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+  activityKey: env.ALCHEMY_ACTIVITY_KEY,
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+});
+const block = createBlock({
+  alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+  blockKey: env.ALCHEMY_BLOCK_KEY,
+  executor: keeper,
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+});
+const bridge = createBridge({
+  bridgeKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+  bridgeUrl: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+  personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
+});
+const manteca = createManteca({
+  mantecaKey: parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+  mantecaUrl: parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+  mantecaWebhookKey: parse(pipe(string(), nonEmpty()), env.MANTECA_WEBHOOKS_KEY),
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
+});
+const panda = createPanda({
+  issuer,
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+  pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
+  settler: keeper,
+});
+const persona = createPersona({
+  pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+  pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  paxAssociateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+  paxKey: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+  paxUrl: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
+  personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+  personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  personaWebhookSecret: parse(pipe(string(), nonEmpty()), env.PERSONA_WEBHOOK_SECRET),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+});
 
 const app = new Hono();
 app.use(trimTrailingSlash());
-app.route("/api", api);
-app.route("/hooks/activity", activityHook);
-app.route("/hooks/block", block);
-app.route("/hooks/bridge", bridge);
-app.route("/hooks/manteca", manteca);
-app.route("/hooks/panda", panda);
-app.route("/hooks/persona", persona);
+app.route("/api", api.app);
+app.route("/hooks/activity", activity.app);
+app.route("/hooks/block", block.app);
+app.route("/hooks/bridge", bridge.app);
+app.route("/hooks/manteca", manteca.app);
+app.route("/hooks/panda", panda.app);
+app.route("/hooks/persona", persona.app);
 
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
@@ -291,16 +370,27 @@ export const close = supervise(
   "server",
   Promise.resolve({
     app,
-    ready: reminders().catch(reminders),
+    ready: Promise.all([
+      api.ready,
+      activity.ready,
+      block.ready,
+      bridge.ready,
+      manteca.ready,
+      panda.ready,
+      persona.ready,
+      reminders().catch(reminders),
+    ]),
     async close() {
       const services = await Promise.allSettled([
-        closeSegment(),
+        api.close(),
         database.$client.end(),
-        Promise.allSettled([closeAllow(), closeCredit(), closeMaturity(), closePoke(), closeRefund(), closeSubscribe()])
-          .then((queues) => {
-            if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
-          })
-          .finally(closeRedis),
+        activity.close(),
+        block.close(),
+        bridge.close(),
+        manteca.close(),
+        panda.close(),
+        persona.close(),
+        closeMaturity().finally(closeRedis),
       ]);
       if (services.some((service) => service.status === "rejected")) throw new Error("closing services failed");
     },

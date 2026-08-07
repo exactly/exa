@@ -30,8 +30,7 @@ import {
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { BaseError, ContractFunctionZeroDataError, recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
@@ -41,227 +40,349 @@ import chain, {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
-import { Address, Hash } from "@exactly/common/validation";
+import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
-import database, { credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
 import type { Hex } from "@exactly/common/validation";
 
 const plugin = exaPluginAddress.toLowerCase();
 
-if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
-const baseURL = process.env.PANDA_API_URL;
-
-if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
-const key = process.env.PANDA_API_KEY;
-
-export default key;
-
-export async function createCard(
-  userId: string,
-  productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-  amount = 1_000_000,
-) {
-  return await request(
-    CardResponse,
-    `/issuing/users/${userId}/cards`,
-    {},
-    parse(CreateCardRequest, {
-      type: "virtual",
-      status: "active",
-      limit: { amount, frequency: "per7DayPeriod" },
-      configuration: {
-        productId,
-        virtualCardArt:
-          chain.id === baseSepolia.id || chain.id === optimismSepolia.id
-            ? "0c515d7eb0a140fa8f938f8242b0780a"
-            : {
-                [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-                [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-                [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-              }[productId],
-      },
-    }),
-    "POST",
-  );
-}
-
-export async function createUser(user: {
-  accountPurpose: string;
-  annualSalary: string;
-  expectedMonthlyVolume: string;
-  ipAddress: string;
-  isTermsOfServiceAccepted: true;
-  occupation: string;
-  personaShareToken: string;
-}) {
-  return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
-}
-
-export async function updateUser(user: {
-  address?: {
-    city: string;
-    country?: string;
-    countryCode: string;
-    line1: string;
-    line2?: string;
-    postalCode: string;
-    region: string;
+export default function panda({ key, url }: { key: string; url: string }) {
+  return {
+    createCard,
+    createUser,
+    getApplicationStatus,
+    getCard,
+    getCards,
+    getNonce,
+    getPIN,
+    getProcessorDetails,
+    getSecrets,
+    getUser,
+    headerValidator: headerValidator(),
+    isPanda,
+    setPIN,
+    submitApplication,
+    updateApplication,
+    updateCard,
+    updateUser,
+    verify,
+    verifyPandaSignature,
   };
-  email?: string;
-  firstName?: string;
-  id: string;
-  isActive?: boolean;
-  lastName?: string;
-  phoneCountryCode?: string;
-  phoneNumber?: string;
-}) {
-  return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH");
-}
 
-export async function getUser(userId: string) {
-  return await request(UserResponse, `/issuing/users/${userId}`);
-}
-
-export async function getCard(cardId: string) {
-  return await request(CardResponse, `/issuing/cards/${cardId}`);
-}
-
-export async function getCards(userId: string) {
-  return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`);
-}
-
-export function getProcessorDetails(cardId: string) {
-  return request(
-    object({ processorCardId: string(), timeBasedSecret: string() }),
-    `/issuing/cards/${cardId}/processorDetails`,
-  );
-}
-
-export async function updateCard(card: {
-  billing?: {
-    city: string;
-    country?: string;
-    countryCode: string;
-    line1: string;
-    line2?: string;
-    postalCode: string;
-    region: string;
-  };
-  configuration?: { virtualCardArt: string };
-  id: string;
-  limit?: {
-    amount: number;
-    frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
-  };
-  status?: "active" | "canceled" | "locked" | "notActivated";
-}) {
-  return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH");
-}
-
-export async function getSecrets(cardId: string, sessionId: string) {
-  return await request(PANResponse, `/issuing/cards/${cardId}/secrets`, { SessionId: sessionId });
-}
-
-export async function getPIN(cardId: string, sessionId: string) {
-  try {
-    return await request(PINResponse, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
-  } catch (error) {
-    if (error instanceof ServiceError && error.message.includes("Failed to get PIN, card does not have PIN set")) {
-      return parse(PINResponse, { encryptedPin: null });
-    }
-    throw error;
+  async function createCard(
+    userId: string,
+    productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
+    amount = 1_000_000,
+  ) {
+    return await request(
+      CardResponse,
+      `/issuing/users/${userId}/cards`,
+      {},
+      parse(CreateCardRequest, {
+        type: "virtual",
+        status: "active",
+        limit: { amount, frequency: "per7DayPeriod" },
+        configuration: {
+          productId,
+          virtualCardArt:
+            chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+              ? "0c515d7eb0a140fa8f938f8242b0780a"
+              : {
+                  [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                  [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                  [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                }[productId],
+        },
+      }),
+      "POST",
+      10_000,
+    );
   }
-}
-
-export async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
-  return await request(
-    object({}),
-    `/issuing/cards/${cardId}/pin`,
-    { SessionId: sessionId },
-    { encryptedPin: pin },
-    "PUT",
-  );
-}
-
-export function getNonce(userId: string) {
-  return request(object({ nonce: string() }), `/issuing/users/${userId}/signatures/generate-nonce`);
-}
-
-export function verify(
-  userId: string,
-  payload:
-    | {
-        assertion: {
-          clientExtensionResults: Record<string, unknown>;
-          id: string;
-          rawId: string;
-          response: { authenticatorData: string; clientDataJSON: string; signature: string; userHandle?: string };
-          type: "public-key";
-        };
-        authType: "webauthn";
-        credential: {
-          publicKey: { data: number[]; type: "Buffer" };
-          transports: null | string[];
-        };
-        factory: string;
-        statement: string;
-      }
-    | { authType: "siwe"; message: string; signature: string },
-) {
-  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
-}
-
-async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
-  schema: BaseSchema<TInput, TOutput, TIssue>,
-  url: `/${string}`,
-  headers = {},
-  body?: unknown,
-  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
-  timeout = 10_000,
-) {
-  const response = await fetch(`${baseURL}${url}`, {
-    method,
-    headers: {
-      ...headers,
-      "Api-Key": key,
-      accept: "application/json",
-      "content-type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(timeout),
-  });
-
-  if (!response.ok) {
-    const raw = await response.text();
-    let type: string | undefined;
-    let message = raw;
+  async function createUser(user: {
+    accountPurpose: string;
+    annualSalary: string;
+    expectedMonthlyVolume: string;
+    ipAddress: string;
+    isTermsOfServiceAccepted: true;
+    occupation: string;
+    personaShareToken: string;
+  }) {
+    return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000);
+  }
+  async function getApplicationStatus(applicationId: string) {
+    return request(
+      ApplicationStatusResponse,
+      `/issuing/applications/user/${applicationId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getCard(cardId: string) {
+    return await request(CardResponse, `/issuing/cards/${cardId}`, {}, undefined, "GET", 10_000);
+  }
+  async function getCards(userId: string) {
+    return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`, {}, undefined, "GET", 10_000);
+  }
+  function getNonce(userId: string) {
+    return request(
+      object({ nonce: string() }),
+      `/issuing/users/${userId}/signatures/generate-nonce`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getPIN(cardId: string, sessionId: string) {
     try {
-      const payload = JSON.parse(raw) as unknown;
-      if (typeof payload === "object" && payload !== null) {
-        const { error, message: detail } = payload as { error?: unknown; message?: unknown };
-        if (typeof error === "string") type = error;
-        if (typeof detail === "string") message = detail;
+      return await request(
+        PINResponse,
+        `/issuing/cards/${cardId}/pin`,
+        { SessionId: sessionId },
+        undefined,
+        "GET",
+        10_000,
+      );
+    } catch (error) {
+      if (error instanceof ServiceError && error.message.includes("Failed to get PIN, card does not have PIN set")) {
+        return parse(PINResponse, { encryptedPin: null });
       }
-    } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
-    if (!type) {
-      const lower = raw.toLowerCase();
-      if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
-      if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
+      throw error;
     }
-    if (message === "Not Found") {
-      const entity = url.split("/")[2]?.replace(/s$/, "");
-      if (entity) message = entity;
-    }
-    throw new ServiceError("Panda", response.status, raw, type, message);
   }
-  const rawBody = await response.arrayBuffer();
-  if (rawBody.byteLength === 0) return parse(schema, {});
-  return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+  function getProcessorDetails(cardId: string) {
+    return request(
+      object({ processorCardId: string(), timeBasedSecret: string() }),
+      `/issuing/cards/${cardId}/processorDetails`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getSecrets(cardId: string, sessionId: string) {
+    return await request(
+      PANResponse,
+      `/issuing/cards/${cardId}/secrets`,
+      { SessionId: sessionId },
+      undefined,
+      "GET",
+      10_000,
+    );
+  }
+  async function getUser(userId: string) {
+    return await request(UserResponse, `/issuing/users/${userId}`, {}, undefined, "GET", 10_000);
+  }
+  // eslint-disable-next-line unicorn/consistent-function-scoping
+  async function isPanda(account: Address) {
+    try {
+      const installedPlugins = await publicClient.readContract({
+        address: account,
+        functionName: "getInstalledPlugins",
+        abi: upgradeableModularAccountAbi,
+      });
+      return installedPlugins.some((address) => plugin === address.toLowerCase());
+    } catch (error) {
+      if (error instanceof BaseError && error.cause instanceof ContractFunctionZeroDataError) {
+        const { credentials, default: database } = await import("../database");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.account, account),
+          columns: { factory: true },
+        });
+        if (!credential) throw new Error("no credential");
+        return credential.factory === exaAccountFactoryAddress;
+      }
+      throw error;
+    }
+  }
+  function headerValidator() {
+    return vValidator("header", object({ signature: string() }), async (r, c) => {
+      if (!r.success) return c.text("bad request", 400);
+      const payload = await c.req.arrayBuffer();
+      if (verifySignature({ signature: r.output.signature, signingKey: key, payload })) return;
+      return c.text("unauthorized", 401);
+    });
+  }
+  async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
+    schema: BaseSchema<TInput, TOutput, TIssue>,
+    path: `/${string}`,
+    headers = {},
+    body?: unknown,
+    method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+    timeout = 10_000,
+  ) {
+    const response = await fetch(`${url}${path}`, {
+      method,
+      headers: {
+        ...headers,
+        "Api-Key": key,
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeout),
+    });
+
+    if (!response.ok) {
+      const raw = await response.text();
+      let type: string | undefined;
+      let message = raw;
+      try {
+        const payload = JSON.parse(raw) as unknown;
+        if (typeof payload === "object" && payload !== null) {
+          const { error, message: detail } = payload as { error?: unknown; message?: unknown };
+          if (typeof error === "string") type = error;
+          if (typeof detail === "string") message = detail;
+        }
+      } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
+      if (!type) {
+        const lower = raw.toLowerCase();
+        if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
+        if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
+      }
+      if (message === "Not Found") {
+        const entity = path.split("/")[2]?.replace(/s$/, "");
+        if (entity) message = entity;
+      }
+      throw new ServiceError("Panda", response.status, raw, type, message);
+    }
+    const rawBody = await response.arrayBuffer();
+    if (rawBody.byteLength === 0) return parse(schema, {});
+    return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+  }
+  async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
+    return await request(
+      object({}),
+      `/issuing/cards/${cardId}/pin`,
+      { SessionId: sessionId },
+      { encryptedPin: pin },
+      "PUT",
+      10_000,
+    );
+  }
+  async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
+    return request(
+      ApplicationResponse,
+      "/issuing/applications/user",
+      { ...("ciphertext" in payload && { encrypted: "true" }) },
+      payload,
+      "POST",
+      10_000,
+    );
+  }
+  async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
+    return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH", 10_000);
+  }
+  async function updateCard(card: {
+    billing?: {
+      city: string;
+      country?: string;
+      countryCode: string;
+      line1: string;
+      line2?: string;
+      postalCode: string;
+      region: string;
+    };
+    configuration?: { virtualCardArt: string };
+    id: string;
+    limit?: {
+      amount: number;
+      frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
+    };
+    status?: "active" | "canceled" | "locked" | "notActivated";
+  }) {
+    return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH", 10_000);
+  }
+  async function updateUser(user: {
+    address?: {
+      city: string;
+      country?: string;
+      countryCode: string;
+      line1: string;
+      line2?: string;
+      postalCode: string;
+      region: string;
+    };
+    email?: string;
+    firstName?: string;
+    id: string;
+    isActive?: boolean;
+    lastName?: string;
+    phoneCountryCode?: string;
+    phoneNumber?: string;
+  }) {
+    return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH", 10_000);
+  }
+  function verify(
+    userId: string,
+    payload:
+      | {
+          assertion: {
+            clientExtensionResults: Record<string, unknown>;
+            id: string;
+            rawId: string;
+            response: { authenticatorData: string; clientDataJSON: string; signature: string; userHandle?: string };
+            type: "public-key";
+          };
+          authType: "webauthn";
+          credential: {
+            publicKey: { data: number[]; type: "Buffer" };
+            transports: null | string[];
+          };
+          factory: string;
+          statement: string;
+        }
+      | { authType: "siwe"; message: string; signature: string },
+  ) {
+    return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT", 10_000);
+  }
+}
+
+async function verifyPandaSignature(
+  {
+    account,
+    amount,
+    timestamp,
+    signature,
+  }: {
+    account: Address;
+    amount: bigint;
+    signature: Hex;
+    timestamp: number;
+  },
+  issuer: LocalAccount,
+) {
+  const recovered = await recoverTypedDataAddress({
+    domain: {
+      chainId: chain.id,
+      name: "IssuerChecker",
+      version: "1",
+      verifyingContract: issuerCheckerAddress,
+    },
+    types: {
+      Collection: [
+        { name: "account", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "timestamp", type: "uint40" },
+      ],
+      Refund: [
+        { name: "account", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "timestamp", type: "uint40" },
+      ],
+    },
+    primaryType: amount < 0n ? "Refund" : "Collection",
+    message: { account, amount: amount < 0n ? -amount : amount, timestamp },
+    signature,
+  });
+  return parse(Address, recovered) === issuer.address;
 }
 
 const PANResponse = object({
@@ -348,36 +469,6 @@ const UserResponse = object({
   applicationReason: string(),
 });
 
-export async function isPanda(account: Address) {
-  try {
-    const installedPlugins = await publicClient.readContract({
-      address: account,
-      functionName: "getInstalledPlugins",
-      abi: upgradeableModularAccountAbi,
-    });
-    return installedPlugins.some((addr) => plugin === addr.toLowerCase());
-  } catch (error) {
-    if (error instanceof BaseError && error.cause instanceof ContractFunctionZeroDataError) {
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.account, account),
-        columns: { factory: true },
-      });
-      if (!credential) throw new Error("no credential");
-      return credential.factory === exaAccountFactoryAddress;
-    }
-    throw error;
-  }
-}
-
-export function headerValidator() {
-  return vValidator("header", object({ signature: string() }), async (r, c) => {
-    if (!r.success) return c.text("bad request", 400);
-    const payload = await c.req.arrayBuffer();
-    if (verifySignature({ signature: r.output.signature, signingKey: key, payload })) return;
-    return c.text("unauthorized", 401);
-  });
-}
-
 export const collectors: Address[] = (
   {
     [optimism.id]: ["0x3a73880ff21ABf9cA9F80B293570a3cBD846eFc5"],
@@ -386,8 +477,10 @@ export const collectors: Address[] = (
 ).map((address) => parse(Address, address));
 
 // TODO remove code below
-const issuer = privateKeyToAccount(parse(Hash, process.env.ISSUER_PRIVATE_KEY, { message: "invalid private key" }));
-export function signIssuerOp({ account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number }) {
+export function signIssuerOp(
+  { account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number },
+  issuer: LocalAccount,
+) {
   return issuer.signTypedData({
     domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
     types: {
@@ -406,47 +499,6 @@ export function signIssuerOp({ account, amount, timestamp }: { account: Address;
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
   });
 }
-
-export function verifyPandaSignature({
-  account,
-  amount,
-  timestamp,
-  signature,
-}: {
-  account: Address;
-  amount: bigint;
-  signature: Hex;
-  timestamp: number;
-}) {
-  return recoverTypedDataAddress({
-    domain: {
-      chainId: chain.id,
-      name: "IssuerChecker",
-      version: "1",
-      verifyingContract: issuerCheckerAddress,
-    },
-    types: {
-      Collection: [
-        { name: "account", type: "address" },
-        { name: "amount", type: "uint256" },
-        { name: "timestamp", type: "uint40" },
-      ],
-      Refund: [
-        { name: "account", type: "address" },
-        { name: "amount", type: "uint256" },
-        { name: "timestamp", type: "uint40" },
-      ],
-    },
-    primaryType: amount < 0n ? "Refund" : "Collection",
-    message: { account, amount: amount < 0n ? -amount : amount, timestamp },
-    signature,
-  }).then(
-    (recovered) =>
-      parse(Address, recovered) ===
-      parse(Address, process.env.ISSUER_ADDRESS ?? "0xB9771269312B32676B77C9db2242c8d1836F1a85"),
-  );
-}
-
 const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
   const mutex = withTimeout(
@@ -458,32 +510,6 @@ export function createMutex(address: Address) {
 }
 export function getMutex(address: Address) {
   return mutexes.get(address);
-}
-
-export async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
-  return request(
-    ApplicationResponse,
-    "/issuing/applications/user",
-    { ...("ciphertext" in payload && { encrypted: "true" }) },
-    payload,
-    "POST",
-    10_000,
-  );
-}
-
-export async function getApplicationStatus(applicationId: string) {
-  return request(
-    ApplicationStatusResponse,
-    `/issuing/applications/user/${applicationId}`,
-    {},
-    undefined,
-    "GET",
-    10_000,
-  );
-}
-
-export async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
-  return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH", 10_000);
 }
 
 const AddressSchema = object({

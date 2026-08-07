@@ -1,42 +1,64 @@
 import { generateSpecs } from "hono-openapi";
 import { writeFile } from "node:fs/promises";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { padHex, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
 
 import { version } from "../package.json";
 
-process.env.ALCHEMY_ACTIVITY_ID = "activity";
-process.env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
-process.env.AUTH_SECRET = zeroHash;
-process.env.BRIDGE_API_KEY = "bridge";
-process.env.BRIDGE_API_URL = "https://bridge.test";
-process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
-process.env.INTERCOM_IDENTITY_KEY = "intercom";
-process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
-process.env.KEEPER_PRIVATE_KEY = padHex("0x420");
-process.env.MANTECA_API_KEY = "manteca";
-process.env.MANTECA_API_URL = "https://manteca.test";
-process.env.MANTECA_WEBHOOKS_KEY = "manteca";
-process.env.PANDA_API_KEY = "panda";
-process.env.PANDA_API_URL = "https://panda.test";
-process.env.ISSUER_ADDRESS = privateKeyToAddress(padHex("0x420"));
-process.env.PAX_API_KEY = "pax";
-process.env.PAX_API_URL = "https://pax.test";
-process.env.PAX_ASSOCIATE_ID_KEY = "pax";
-process.env.PERSONA_API_KEY = "persona";
-process.env.PERSONA_URL = "https://persona.test";
-process.env.PERSONA_WEBHOOK_SECRET = "persona";
-process.env.POSTGRES_URL = "postgres";
-process.env.REDIS_URL = "redis";
-process.env.SARDINE_API_KEY = "sardine";
-process.env.SARDINE_API_URL = "https://api.sardine.ai";
-process.env.SEGMENT_WRITE_KEY = "segment";
-process.env.WALLET_EXTENSION_SECRET = zeroHash;
+env.ALCHEMY_ACTIVITY_ID = "activity";
+env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
+env.AUTH_SECRET = zeroHash;
+env.BRIDGE_API_KEY = "bridge";
+env.BRIDGE_API_URL = "https://bridge.test";
+env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
+env.INTERCOM_IDENTITY_KEY = "intercom";
+env.ISSUER_PRIVATE_KEY = padHex("0x420");
+env.KEEPER_PRIVATE_KEY = padHex("0x420");
+env.MANTECA_API_KEY = "manteca";
+env.MANTECA_API_URL = "https://manteca.test";
+env.MANTECA_WEBHOOKS_KEY = "manteca";
+env.PANDA_API_KEY = "panda";
+env.PANDA_API_URL = "https://panda.test";
+env.PAX_API_KEY = "pax";
+env.PAX_API_URL = "https://pax.test";
+env.PAX_ASSOCIATE_ID_KEY = "pax";
+env.PERSONA_API_KEY = "persona";
+env.PERSONA_URL = "https://persona.test";
+env.PERSONA_WEBHOOK_SECRET = "persona";
+env.POSTGRES_URL = "postgres";
+env.REDIS_URL = "redis";
+env.SARDINE_API_KEY = "sardine";
+env.SARDINE_API_URL = "https://api.sardine.ai";
+env.SEGMENT_WRITE_KEY = "segment";
+env.WALLET_EXTENSION_SECRET = zeroHash;
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
   .then(async ({ default: api }) => {
-    const spec = await generateSpecs(api, {
+    const handle = api({
+      alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+      authSecret: parse(pipe(string(), nonEmpty()), env.AUTH_SECRET),
+      bridgeKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+      bridgeUrl: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+      intercomKey: parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY),
+      mantecaKey: parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+      mantecaUrl: parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+      pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+      pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+      paxAssociateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+      paxKey: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+      paxUrl: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
+      personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+      personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+      postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+      redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+      sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+      sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+      segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
+      walletExtensionSecret: parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET),
+    });
+    const spec = await generateSpecs(handle.app, {
       documentation: {
         info: { version, title: "Exa API" },
         servers: [
@@ -57,6 +79,7 @@ import("../api")
       },
     });
     await writeFile("generated/openapi.json", JSON.stringify(spec, null, 2));
+    await handle.close();
     process.exit(0);
   })
   .catch((error: unknown) => {

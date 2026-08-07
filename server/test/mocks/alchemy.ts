@@ -1,30 +1,40 @@
-import { validator } from "hono/validator";
 import { vi } from "vitest";
 
-import type * as Alchemy from "../../utils/alchemy";
+import type alchemy from "../../utils/alchemy";
 
-const { addWebhookAddresses, createWebhook, findWebhook, headerValidator } = vi.hoisted(() => ({
-  findWebhook: vi.fn().mockResolvedValue({ id: "activity", signing_key: "mock-signing-key" }),
-  createWebhook: vi.fn().mockResolvedValue({ id: "mock-webhook-id", signing_key: "mock-signing-key" }),
-  addWebhookAddresses: vi.fn().mockResolvedValue(undefined), // eslint-disable-line unicorn/no-useless-undefined
-  headerValidator: vi.fn(),
+const { addWebhookAddresses, createAlchemy, createWebhook, findWebhook, headerValidator } = vi.hoisted(() => ({
+  createAlchemy: vi.fn<(key: string) => void>(),
+  findWebhook: vi.fn<ReturnType<typeof alchemy>["findWebhook"]>().mockResolvedValue(undefined), // eslint-disable-line unicorn/no-useless-undefined -- no hooks
+  createWebhook: vi.fn<ReturnType<typeof alchemy>["createWebhook"]>(),
+  addWebhookAddresses: vi.fn<ReturnType<typeof alchemy>["addWebhookAddresses"]>().mockResolvedValue(undefined), // eslint-disable-line unicorn/no-useless-undefined
+  headerValidator: vi.fn<(signingKeys: Set<string>) => void>(),
 }));
 
-vi.mock("../../utils/alchemy", async (importOriginal) => {
-  const alchemy = await importOriginal<typeof Alchemy>();
-  return {
-    ...alchemy,
-    default: (key: string) => ({
-      ...alchemy.default(key),
-      findWebhook,
-      createWebhook,
-      addWebhookAddresses,
+vi.mock(import("../../utils/alchemy"), async (importOriginal) => {
+  const original = await importOriginal();
+  createWebhook.mockImplementation(({ webhook_type, webhook_url }) =>
+    Promise.resolve({
+      id: "mock-webhook-id",
+      is_active: true,
+      network: original.network(),
+      signing_key: "mock-signing-key",
+      webhook_type,
+      webhook_url,
     }),
-    headerValidator: (signingKeys: Set<string>) => {
-      headerValidator(signingKeys);
-      return validator("header", () => undefined);
+  );
+  return {
+    ...original,
+    default: (key: string) => {
+      createAlchemy(key);
+      return { ...original.default(key), findWebhook, createWebhook, addWebhookAddresses };
+    },
+    headerValidator: (
+      signingKeys: Parameters<typeof original.headerValidator>[0],
+    ): ReturnType<typeof original.headerValidator> => {
+      headerValidator(typeof signingKeys === "function" ? signingKeys() : signingKeys);
+      return vi.fn<ReturnType<typeof original.headerValidator>>(async (_c, next) => next());
     },
   };
 });
 
-export { addWebhookAddresses, createWebhook, findWebhook, headerValidator };
+export { addWebhookAddresses, createAlchemy, createWebhook, findWebhook, headerValidator };

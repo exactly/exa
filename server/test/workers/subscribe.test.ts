@@ -2,15 +2,17 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
+import { env } from "node:process";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
+import createAlchemy from "../../utils/alchemy";
 import { bullmq, close as closeRedis } from "../../utils/redis";
 import { name } from "../../workers/subscribe/job";
-import { close as closeSubscribe, enqueue as enqueueSubscribe } from "../../workers/subscribe/queue";
+import createSubscribe from "../../workers/subscribe/queue";
 import subscribeWorker from "../../workers/subscribe/worker";
 
 import type { Job as Subscribe } from "../../workers/subscribe/job";
@@ -26,6 +28,7 @@ vi.mock("../../utils/activityWebhook", () => ({
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const queue = new Queue<Subscribe, void, typeof name>(name, { connection: bullmq });
+const subscribe = createSubscribe(bullmq, createAlchemy("webhooks"));
 let worker: ReturnType<typeof subscribeWorker>;
 
 function jobDone(
@@ -77,7 +80,7 @@ function bodies() {
 
 afterAll(async () => {
   await queue.close();
-  await closeSubscribe();
+  await subscribe.close();
   await closeRedis();
 });
 
@@ -95,7 +98,7 @@ describe("subscribe queue", () => {
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Job<Subscribe, void, typeof name>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueueSubscribe(account);
+    const result = subscribe.enqueue(account);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -124,7 +127,7 @@ describe("subscribe queue", () => {
     const pending = Symbol("pending");
     const fallback = Promise.withResolvers<Response>();
     vi.spyOn(globalThis, "fetch").mockReturnValue(fallback.promise);
-    const result = enqueueSubscribe(account);
+    const result = subscribe.enqueue(account);
 
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -150,7 +153,7 @@ describe("subscribe queue", () => {
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(fallback);
 
-    await expect(enqueueSubscribe(account)).resolves.toBeUndefined();
+    await expect(subscribe.enqueue(account)).resolves.toBeUndefined();
 
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(expect.any(AggregateError), {
       level: "error",
@@ -165,7 +168,7 @@ describe("subscribe queue", () => {
 
 describe("subscribe worker", () => {
   beforeAll(async () => {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.REDIS_URL;
     if (!redisUrl) throw new Error("missing redis url");
     worker = subscribeWorker({ alchemyKey: "worker", redisUrl });
     await worker.ready;

@@ -10,8 +10,8 @@ import {
 import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
 import { hash } from "node:crypto";
 
+import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
-import resources from "./utils/resources.ts";
 
 import type { types } from "@pulumi/gcp";
 
@@ -40,19 +40,47 @@ const image = interpolate`${
   ).registryUri
 }/exactly/exa-${stack}:${config.require("serverImage")}`;
 
-function worker(name: string, { env, secrets, signer }: (typeof resources.workers)[keyof typeof resources.workers]) {
+function module(
+  name: string,
+  {
+    env,
+    secrets,
+    signers,
+  }: (typeof modules.services)[keyof typeof modules.services] | (typeof modules.workers)[keyof typeof modules.workers],
+  bin: string,
+) {
   const account = serviceaccount.getAccountOutput({ accountId: `${stack}-${name}` });
   return {
+    name,
+    template: {
+      serviceAccount: account.email,
+      containers: [
+        {
+          image,
+          resources: config.getObject<types.input.cloudrunv2.JobTemplateTemplateContainerResources>(`${name}Resources`),
+          args: [bin],
+          envs: [
+            { name: "APP_STACK", value: stack },
+            { name: "DEBUG", value: "exa:*" },
+            { name: "NODE_ENV", value: "production" },
+            { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
+            ...(signers
+              ? [
+                  { name: "GCP_KMS_LOCATION", value: location },
+                  ...signers.map((signer) => ({
+                    name: `GCP_KMS_KEY_VERSION_${signer.toUpperCase()}`,
+                    value: config.get(`${signer}Version`),
+                  })),
+                ]
+              : []),
+            ...(env
+              ? Object.entries(env).map(([variable, key]) => ({ name: variable, value: config.require(key) }))
+              : []),
+          ],
+        },
+      ],
+    },
     dependencies: [
-      ...(signer
-        ? [
-            new kms.CryptoKeyIAMMember(`${name}-signer`, {
-              cryptoKeyId: `projects/${project}/locations/${location}/keyRings/${stack}-signers/cryptoKeys/${stack}-${signer}`,
-              member: interpolate`serviceAccount:${account.email}`,
-              role: "roles/cloudkms.signerVerifier",
-            }),
-          ]
-        : []),
       ...secrets.map(
         (secret) =>
           new secretmanager.SecretIamMember(`${name}-${secret}-access`, {
@@ -61,67 +89,75 @@ function worker(name: string, { env, secrets, signer }: (typeof resources.worker
             secretId: `projects/${project}/secrets/${stack}-${secret}`,
           }),
       ),
+      ...(signers?.map(
+        (signer) =>
+          new kms.CryptoKeyIAMMember(`${name}-${signer}-signer`, {
+            cryptoKeyId: `projects/${project}/locations/${location}/keyRings/${stack}-signers/cryptoKeys/${stack}-${signer}`,
+            member: interpolate`serviceAccount:${account.email}`,
+            role: "roles/cloudkms.signerVerifier",
+          }),
+      ) ?? []),
     ],
-    name,
-    template: {
-      serviceAccount: account.email,
-      containers: [
-        {
-          image,
-          resources: config.getObject<types.input.cloudrunv2.JobTemplateTemplateContainerResources>(`${name}Resources`),
-          args: [`dist/workers/${name}/bin.cjs`],
-          envs: [
-            { name: "APP_STACK", value: stack },
-            { name: "DEBUG", value: "exa:*" },
-            { name: "NODE_ENV", value: "production" },
-            { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
-            ...(signer
-              ? [
-                  { name: "GCP_KMS_KEY_RING", value: `${stack}-signers` },
-                  { name: "GCP_KMS_KEY_VERSION", value: config.get(`${signer}Version`) ?? "1" },
-                  { name: "GCP_KMS_LOCATION", value: location },
-                ]
-              : []),
-            ...(env
-              ? Object.entries(env).map(([variable, setting]) => ({ name: variable, value: config.require(setting) }))
-              : []),
-          ],
-        },
-      ],
-    },
   };
 }
 
-const workers = Object.entries(resources.workers).map(([name, spec]) => worker(name, spec));
-const checks = workers.map(
-  ({ dependencies, name, template }) =>
-    new cloudrunv2.Job(
-      `${name}-check`,
+for (const [name, fields] of Object.entries(modules.services)) {
+  const service = module(name, fields, name === "api" ? "dist/api/bin.cjs" : `dist/hooks/bin/${name}.cjs`);
+  new cloudrunv2.ServiceIamMember(`${name}-invoker`, {
+    location,
+    member: "allUsers",
+    role: "roles/run.invoker",
+    name: new cloudrunv2.Service(
+      name,
       {
-        deletionProtection: false,
         location,
-        name: `${stack}-${name}-check`,
-        runExecutionToken: hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16),
+        name: `${stack}-${name}`,
+        scaling: { minInstanceCount: config.getNumber(`${name}Minimum`), maxInstanceCount: 1 },
         template: {
-          template: {
-            ...template,
-            containers: template.containers.map((c) => ({ ...c, args: [...c.args, "--check"] })),
-            maxRetries: 0,
-            timeout: "60s",
-          },
+          ...service.template,
+          containers: service.template.containers.map((container) => ({
+            ...container,
+            ports: { containerPort: 3000 },
+          })),
         },
       },
-      { dependsOn: [run, ...dependencies] },
-    ),
-);
-const pools = workers.map(({ dependencies, name, template }) => ({
-  name,
-  target: new cloudrunv2.WorkerPool(
+      { dependsOn: [run, ...service.dependencies] },
+    ).name,
+  });
+}
+
+const workers = Object.entries(modules.workers).map(([name, w]) => module(name, w, `dist/workers/${name}/bin.cjs`));
+const pools = workers.map(({ dependencies, name, template }) => {
+  const check = new cloudrunv2.Job(
+    `${name}-check`,
+    {
+      deletionProtection: false,
+      location,
+      name: `${stack}-${name}-check`,
+      runExecutionToken: hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16),
+      template: {
+        template: {
+          ...template,
+          containers: template.containers.map((container) => ({
+            ...container,
+            args: [...container.args, "--check"],
+          })),
+          maxRetries: 0,
+          timeout: "60s",
+        },
+      },
+    },
+    { dependsOn: [run, ...dependencies] },
+  );
+  return {
     name,
-    { location, name: `${stack}-${name}`, scaling: { manualInstanceCount: 1 }, template },
-    { dependsOn: [run, ...dependencies, ...checks], ignoreChanges: ["scaling.manualInstanceCount"] },
-  ),
-}));
+    target: new cloudrunv2.WorkerPool(
+      name,
+      { location, name: `${stack}-${name}`, scaling: { manualInstanceCount: 0 }, template },
+      { dependsOn: [run, ...dependencies, check], ignoreChanges: ["scaling.manualInstanceCount"] },
+    ),
+  };
+});
 
 const crema = serviceaccount.getAccountOutput({ accountId: `${stack}-crema` });
 const cremaConfig = JSON.stringify({
@@ -146,7 +182,7 @@ const cremaConfig = JSON.stringify({
     scaledObjects: workers.map(({ name }) => ({
       spec: {
         scaleTargetRef: { name: `projects/${project}/locations/${location}/workerpools/${stack}-${name}` },
-        minReplicaCount: config.getNumber(`${name}Workers`),
+        minReplicaCount: config.getNumber(`${name}Minimum`),
         maxReplicaCount: 1,
         advanced: { horizontalPodAutoscalerConfig: { behavior: { scaleDown: { stabilizationWindowSeconds: 900 } } } },
         triggers: (["wait", "active", "delayed", "prioritized"] as const).map((state) => ({
@@ -203,7 +239,7 @@ new cloudrunv2.Service(
             role: `projects/${project}/roles/cremaScaler`,
           }),
       ),
-      ...resources.crema.map(
+      ...modules.crema.map(
         (secret) =>
           new secretmanager.SecretIamMember(`crema-${secret}-access`, {
             secretId: `projects/${project}/secrets/${stack}-${secret}`,

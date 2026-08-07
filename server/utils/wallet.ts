@@ -2,8 +2,9 @@ import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
 import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
+import { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
-import { parse, pipe, regex, safeParse, string } from "valibot";
+import { nonEmpty, parse, pipe, rawTransform, regex, safeParse, string } from "valibot";
 import {
   concatHex,
   createPublicClient,
@@ -12,6 +13,7 @@ import {
   getContractError,
   http,
   InvalidInputRpcError,
+  isHash,
   keccak256,
   RawContractError,
   rpcSchema,
@@ -33,7 +35,8 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
-import { Address, Hash } from "@exactly/common/validation";
+import stack from "@exactly/common/stack";
+import { Address, type Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
 import defaultPublicClient, { captureRequests, Request, Requests } from "./publicClient";
@@ -42,7 +45,7 @@ import defaultTraceClient, { trace as traceActions, type RpcSchema } from "./tra
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export async function getWallet(name: string, network: Chain = chain) {
+export default function wallet(account: LocalAccount, network: Chain = chain) {
   const url = network.rpcUrls.alchemy?.http[0];
   if (!url) throw new Error("missing alchemy rpc url");
   const transport = http(`${url}/${alchemyAPIKey}`, {
@@ -52,12 +55,14 @@ export async function getWallet(name: string, network: Chain = chain) {
       captureRequests(Array.isArray(body) ? parse(Requests, body) : [parse(Request, body)]);
     },
   });
-  const client = createPublicClient({ chain: network, transport, rpcSchema: rpcSchema<RpcSchema>() }).extend(
-    traceActions,
-  );
-  return createWalletClient({ chain: network, transport, account: await getAccount(name) }).extend((wallet) => ({
-    ...extender(wallet, { publicClient: client, traceClient: client }),
-    getCode: client.getCode,
+  const publicClient = createPublicClient({
+    chain: network,
+    transport,
+    rpcSchema: rpcSchema<RpcSchema>(),
+  }).extend(traceActions);
+  return createWalletClient({ chain: network, transport, account }).extend((client) => ({
+    ...extender(client, { publicClient, traceClient: publicClient }),
+    getCode: publicClient.getCode,
   }));
 }
 
@@ -230,26 +235,21 @@ export function extender(
   };
 }
 
-export async function getAccount(name: string): Promise<LocalAccount> {
-  const privateKey = process.env[`${name.toUpperCase()}_PRIVATE_KEY`];
-  if (privateKey)
-    return privateKeyToAccount(parse(Hash, privateKey, { message: `invalid ${name} private key` }), { nonceManager });
+export async function signer(name: string): Promise<LocalAccount> {
   const kmsClient = new KeyManagementServiceClient();
-  const signer = await withRetry(
+  const account = await withRetry(
     async () =>
       gcpHsmToAccount({
         hsmKeyVersion: `projects/${parse(
           pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)),
           await kmsClient.getProjectId(),
           { message: "invalid gcp project id" },
-        )}/locations/${parse(string(), process.env.GCP_KMS_LOCATION, {
+        )}/locations/${parse(pipe(string(), nonEmpty()), env.GCP_KMS_LOCATION, {
           message: "invalid GCP_KMS_LOCATION",
-        })}/keyRings/${parse(string(), process.env.GCP_KMS_KEY_RING, {
-          message: "invalid GCP_KMS_KEY_RING",
-        })}/cryptoKeys/${name}/cryptoKeyVersions/${parse(
+        })}/keyRings/${stack}-signers/cryptoKeys/${stack}-${name}/cryptoKeyVersions/${parse(
           pipe(string(), regex(/^\d+$/)),
-          process.env.GCP_KMS_KEY_VERSION,
-          { message: "invalid GCP_KMS_KEY_VERSION" },
+          env[`GCP_KMS_KEY_VERSION_${name.toUpperCase()}`] || "1", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- empty defaults
+          { message: `invalid GCP_KMS_KEY_VERSION_${name.toUpperCase()}` },
         )}`,
         kmsClient,
       }),
@@ -267,6 +267,24 @@ export async function getAccount(name: string): Promise<LocalAccount> {
           ["NetworkError", "TimeoutError"].includes(error.name)),
     },
   );
-  signer.nonceManager = nonceManager;
-  return signer;
+  account.nonceManager = nonceManager;
+  return account;
 }
+
+/** @deprecated remove with the monolith */
+export function legacy(name: string) {
+  return privateKeyToAccount(parse(PrivateKey, name), { nonceManager });
+}
+
+const PrivateKey = pipe(
+  string(),
+  rawTransform(({ addIssue, dataset, NEVER }) => {
+    const name = dataset.value;
+    const privateKey = env[`${name.toUpperCase()}_PRIVATE_KEY`];
+    if (privateKey === undefined || !isHash(privateKey)) {
+      addIssue({ message: `invalid ${name} private key` });
+      return NEVER;
+    }
+    return privateKey;
+  }),
+);

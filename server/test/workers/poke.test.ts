@@ -5,28 +5,29 @@ import "../mocks/sentry";
 import { DefaultApi } from "@onesignal/node-onesignal";
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
-import { parse, string } from "valibot";
-import { BaseError, ContractFunctionRevertedError, encodeErrorResult } from "viem";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
+import { BaseError, ContractFunctionRevertedError, encodeErrorResult, padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain, { wethAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import t from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
 import * as onesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
-import { bullmq as connection } from "../../utils/redis";
-import { close as closeQueue, enqueue } from "../../workers/poke/queue";
+import { bullmq } from "../../utils/redis";
+import createPoke from "../../workers/poke/queue";
 import pokeWorker from "../../workers/poke/worker";
 
-import type { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../../workers/credit/queue";
+import type createCredit from "../../workers/credit/queue";
 import type { Job as Poke } from "../../workers/poke/job";
 import type { Job, JobsOptions } from "bullmq";
 
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
-const redisUrl = parse(string(), process.env.REDIS_URL);
+const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
 const eth = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const factory = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
@@ -43,16 +44,18 @@ const request = {
   publicKey: "0x1234",
   source: null,
 } as const;
+const poker = privateKeyToAccount(padHex("0xb0b"));
+const poke = createPoke(bullmq);
 const mocks = vi.hoisted(() => ({
-  closeCredit: vi.fn<typeof closeCredit>(),
+  closeCredit: vi.fn<ReturnType<typeof createCredit>["close"]>(),
   closeSegment: vi.fn(),
+  createCredit: vi.fn<typeof createCredit>(),
   decodePublicKey: vi.fn(),
-  enqueueCredit: vi.fn<typeof enqueueCredit>(),
+  enqueueCredit: vi.fn<ReturnType<typeof createCredit>["enqueue"]>(),
   exaSend: vi.fn(),
   getCode: vi.fn(),
-  getWallet: vi.fn(),
+  wallet: vi.fn(),
   segmentOn: vi.fn(),
-  startCredit: vi.fn<typeof startCredit>(),
   track: vi.fn(),
 }));
 
@@ -64,29 +67,26 @@ vi.mock("@segment/analytics-node", () => ({
   },
 }));
 vi.mock("../../utils/decodePublicKey", () => ({ default: mocks.decodePublicKey }));
-vi.mock("../../utils/wallet", () => ({ getWallet: mocks.getWallet }));
-vi.mock("../../workers/credit/queue", () => ({
-  close: mocks.closeCredit,
-  enqueue: mocks.enqueueCredit,
-  start: mocks.startCredit,
-}));
+vi.mock("../../utils/wallet", () => ({ default: mocks.wallet }));
+vi.mock("../../workers/credit/queue", () => ({ default: mocks.createCredit }));
+mocks.createCredit.mockReturnValue({ close: mocks.closeCredit, enqueue: mocks.enqueueCredit });
 
-const producer = new Queue<Poke, void, "poke">("poke", { connection });
-let worker: ReturnType<typeof pokeWorker>;
+const queue = new Queue<Poke, void, "poke">("poke", { connection: bullmq });
+let worker: Awaited<ReturnType<typeof pokeWorker>>;
 
 function done(
-  poke: Parameters<typeof enqueue>[0],
+  current: Parameters<ReturnType<typeof createPoke>["enqueue"]>[0],
   options?: JobsOptions,
   trace?: { sentryBaggage?: string; sentryTrace?: string },
 ) {
   return new Promise<Job<Poke>>((resolve, reject) => {
     const completed = (job: Job<Poke>) => {
-      if (job.data.account !== poke.account) return;
+      if (job.data.account !== current.account) return;
       cleanup();
       resolve(job);
     };
     const failed = (job: Job<Poke> | undefined, error: Error) => {
-      if (job?.data.account !== poke.account) return;
+      if (job?.data.account !== current.account) return;
       if (job.attemptsMade < (options?.attempts ?? 1)) return;
       cleanup();
       reject(error);
@@ -97,8 +97,8 @@ function done(
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    producer
-      .add("poke", { ...poke, ...trace }, { attempts: 1, removeOnComplete: true, removeOnFail: true, ...options })
+    queue
+      .add("poke", { ...current, ...trace }, { attempts: 1, removeOnComplete: true, removeOnFail: true, ...options })
       .catch((error: unknown) => {
         cleanup();
         reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
@@ -106,15 +106,15 @@ function done(
   });
 }
 
-function queued(poke: Parameters<typeof enqueue>[0]) {
+function queued(current: Parameters<ReturnType<typeof createPoke>["enqueue"]>[0]) {
   return new Promise<void>((resolve, reject) => {
     const completed = (job: Job<Poke>) => {
-      if (job.data.account !== poke.account) return;
+      if (job.data.account !== current.account) return;
       cleanup();
       resolve();
     };
     const failed = (job: Job<Poke> | undefined, error: Error) => {
-      if (job?.data.account !== poke.account) return;
+      if (job?.data.account !== current.account) return;
       cleanup();
       reject(error);
     };
@@ -124,7 +124,7 @@ function queued(poke: Parameters<typeof enqueue>[0]) {
     };
     worker.queue.on("completed", completed);
     worker.queue.on("failed", failed);
-    enqueue(poke).catch((error: unknown) => {
+    poke.enqueue(current).catch((error: unknown) => {
       cleanup();
       reject(error instanceof Error ? error : new Error("queue add failed", { cause: error }));
     });
@@ -135,36 +135,37 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   mocks.closeCredit.mockReset().mockResolvedValue();
   mocks.closeSegment.mockReset().mockImplementation(() => Promise.resolve());
+  mocks.createCredit.mockReset().mockReturnValue({ close: mocks.closeCredit, enqueue: mocks.enqueueCredit });
   mocks.decodePublicKey.mockReset().mockReturnValue({ x: "0x01", y: "0x02" });
   mocks.enqueueCredit.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({ status: "success" });
   mocks.getCode.mockReset().mockResolvedValue("0x01");
-  mocks.getWallet.mockReset().mockResolvedValue({ exaSend: mocks.exaSend, getCode: mocks.getCode });
+  mocks.wallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend, getCode: mocks.getCode });
   mocks.segmentOn.mockReset();
-  mocks.startCredit.mockReset();
   mocks.track.mockReset();
   vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({} as never);
   vi.spyOn(publicClient, "getBalance").mockResolvedValue(0n);
   vi.spyOn(publicClient, "readContract").mockResolvedValue([] as never);
   vi.clearAllMocks();
-  await producer.drain(true);
-  await producer.clean(0, 1000, "completed");
-  await producer.clean(0, 1000, "failed");
+  await queue.drain(true);
+  await queue.clean(0, 1000, "completed");
+  await queue.clean(0, 1000, "failed");
 });
 afterAll(async () => {
-  await Promise.all([producer.close(), closeQueue()]);
+  await Promise.all([queue.close(), poke.close()]);
 });
 
 describe("poke queue", () => {
   it("publishes account poke jobs", async () => {
+    const instance = createPoke(bullmq);
     const pending = Symbol("pending");
-    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof producer.add>>>();
+    const deferred = Promise.withResolvers<Awaited<ReturnType<typeof queue.add>>>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueue(request);
+    const result = instance.enqueue(request);
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
-    deferred.resolve({ id: account, data: request } as unknown as Awaited<ReturnType<typeof producer.add>>);
+    deferred.resolve({ id: account, data: request } as unknown as Awaited<ReturnType<typeof queue.add>>);
 
     await expect(result).resolves.toBeUndefined();
     expect(add).toHaveBeenCalledExactlyOnceWith(
@@ -181,14 +182,15 @@ describe("poke queue", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+    await instance.close();
   });
 
   it("includes assets in job ids", async () => {
     const add = vi
       .spyOn(Queue.prototype, "add")
-      .mockResolvedValueOnce({ id: account, data: request } as unknown as Awaited<ReturnType<typeof producer.add>>);
+      .mockResolvedValueOnce({ id: account, data: request } as unknown as Awaited<ReturnType<typeof queue.add>>);
 
-    await enqueue({ ...request, assets: [token] });
+    await poke.enqueue({ ...request, assets: [token] });
 
     expect(add).toHaveBeenCalledExactlyOnceWith(
       "poke",
@@ -204,7 +206,7 @@ describe("poke queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueue(request)).rejects.toThrow(error);
+    await expect(poke.enqueue(request)).rejects.toThrow(error);
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
@@ -216,7 +218,7 @@ describe("poke queue", () => {
 
 describe("poke worker", () => {
   beforeAll(async () => {
-    worker = pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" });
+    worker = pokeWorker({ onesignalKey: "onesignal", poker, redisUrl, segmentKey: "segment" });
     await worker.ready;
   });
 
@@ -233,7 +235,7 @@ describe("poke worker", () => {
 
     await queued(request);
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-poker`, NETWORKS.get("ANVIL"));
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(poker, NETWORKS.get("ANVIL"));
     expect(mocks.exaSend).toHaveBeenCalledTimes(3);
     expect(mocks.exaSend).toHaveBeenNthCalledWith(
       1,
@@ -369,7 +371,7 @@ describe("poke worker", () => {
 
     await done({ ...request, chainId: network.id });
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-poker`, network);
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       { name: "create account", op: "exa.account", attributes: { account } },
       expect.objectContaining({ address: factory, functionName: "createAccount" }),
@@ -477,7 +479,7 @@ describe("poke worker", () => {
 
     worker.queue.emit(
       "failed",
-      { attemptsMade: 9, data: request, name: "poke", opts: {} } as unknown as Awaited<ReturnType<typeof producer.add>>,
+      { attemptsMade: 9, data: request, name: "poke", opts: {} } as unknown as Awaited<ReturnType<typeof queue.add>>,
       error,
       "active",
     );

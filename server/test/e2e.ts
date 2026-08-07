@@ -10,8 +10,12 @@ import "./mocks/wallet";
 import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { env } from "node:process";
+import { padHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
+import wallet from "../utils/wallet";
 import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import pokeWorker from "../workers/poke/worker";
@@ -27,18 +31,24 @@ describe("e2e", () => {
     "runs server",
     async () => {
       const { default: app, close } = await import("../index");
-      const redisUrl = process.env.REDIS_URL;
+      const allower = privateKeyToAccount(padHex("0xa11"));
+      const keeper = privateKeyToAccount(padHex("0x69"));
+      const poker = privateKeyToAccount(padHex("0xb0b"));
+      const refunder = privateKeyToAccount(padHex("0xfee"));
+      expect(vi.mocked(wallet)).toHaveBeenNthCalledWith(1, expect.objectContaining({ address: keeper.address }));
+      expect(vi.mocked(wallet)).toHaveBeenNthCalledWith(2, expect.objectContaining({ address: keeper.address }));
+      const redisUrl = env.REDIS_URL;
       if (!redisUrl) throw new Error("missing redis url");
+      const workers = [
+        allowWorker({ allower, redisUrl }),
+        pokeWorker({ onesignalKey: "onesignal", poker, redisUrl, segmentKey: "segment" }),
+        refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl, refunder }),
+        creditWorker({ onesignalKey: "onesignal", postgresUrl: env.POSTGRES_URL ?? "postgres", redisUrl }),
+        subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
+      ];
 
       await expect(
         new Promise((resolve, reject) => {
-          const workers = [
-            allowWorker({ redisUrl }),
-            creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
-            pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
-            refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
-            subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
-          ];
           let closing: Promise<unknown> | undefined;
           const teardown = () => {
             closing ??= Promise.allSettled([close(), ...workers.map((worker) => worker.close())]).then(resolve, reject);
@@ -66,12 +76,12 @@ describe("e2e", () => {
 
 vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
   const original = await importOriginal();
-  type User = Awaited<ReturnType<typeof original.getUser>>;
-  type Card = Awaited<ReturnType<typeof original.getCard>>;
+  type Panda = ReturnType<typeof original.default>;
+  type User = Awaited<ReturnType<Panda["getUser"]>>;
+  type Card = Awaited<ReturnType<Panda["getCard"]>>;
   const users = new Map<string, User>();
   const cards = new Map<string, Card>();
-  return {
-    ...original,
+  const methods = {
     createCard: vi.fn().mockImplementation((userId: string) => {
       const id = crypto.randomUUID();
       const card: Card = {
@@ -112,7 +122,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         Promise.resolve({ processorCardId: `proc_${cardId}`, timeBasedSecret: `secret_${cardId}` }),
       ),
     getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
-      const privateKey = process.env.PANDA_E2E_PRIVATE_KEY;
+      const privateKey = env.PANDA_E2E_PRIVATE_KEY;
       if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");
       const encryptedSecret = Buffer.from(sessionId, "base64");
       const secretKeyBase64 = crypto.privateDecrypt(
@@ -150,6 +160,13 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
       return Promise.resolve(user);
     }),
   };
+  return {
+    ...original,
+    default: (...parameters: Parameters<typeof original.default>) => ({
+      ...original.default(...parameters),
+      ...methods,
+    }),
+  };
 });
 
 vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>) => {
@@ -158,8 +175,7 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
     string,
     { id: string; referenceId: string; status: "approved" | "created" | "expired" | "pending"; templateId: string }
   >();
-  return {
-    ...original,
+  const methods = {
     getPendingInquiryTemplate: vi.fn().mockResolvedValue(original.PANDA_TEMPLATE),
     getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
       const key = `${referenceId}:${templateId}`;
@@ -201,6 +217,13 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
     addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
     getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
     getAccount: vi.fn().mockResolvedValue(null),
+  };
+  return {
+    ...original,
+    default: (...parameters: Parameters<typeof original.default>) => ({
+      ...original.default(...parameters),
+      ...methods,
+    }),
   };
 });
 

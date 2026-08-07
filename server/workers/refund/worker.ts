@@ -1,25 +1,26 @@
 import { captureException } from "@sentry/node";
 import { array, digits, number, object, parse, pipe, string, tuple } from "valibot";
-import { toHex } from "viem";
+import { toHex, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { refunderAddress, usdcAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address, Hex } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
 import ServiceError from "../../utils/ServiceError";
-import { getWallet } from "../../utils/wallet";
+import createWallet from "../../utils/wallet";
 import createWorker, { connect } from "../worker";
 
 export default function worker({
   pandaKey,
   pandaUrl,
   redisUrl,
+  refunder,
 }: {
   pandaKey: string;
   pandaUrl: string;
   redisUrl: string;
+  refunder: LocalAccount;
 }) {
   return createWorker<Job>({
     attempts,
@@ -33,7 +34,7 @@ export default function worker({
     },
     name,
     async process(job) {
-      const wallet = await getWallet(`${stack}-refunder`);
+      const wallet = createWallet(refunder);
       const response = await fetch(
         `${pandaUrl}/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${BigInt(job.data.amount) / 10_000n}&recipientAddress=${refunderAddress}&adminAddress=${wallet.account.address}&chainId=${chain.id}`,
         {

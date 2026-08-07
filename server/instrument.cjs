@@ -1,12 +1,13 @@
 const { consoleLoggingIntegration, extraErrorDataIntegration, init } = require("@sentry/node");
 const { nodeProfilingIntegration } = require("@sentry/profiling-node");
+const { env } = require("node:process");
 
 const stack = require("@exactly/common/stack");
 
 const development = stack === "localhost";
 
 init({
-  dsn: process.env.SENTRY_DSN,
+  dsn: env.SENTRY_DSN,
   release: require("./generated/release"),
   environment: stack,
   tracesSampleRate: 1,

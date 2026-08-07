@@ -44,10 +44,9 @@ function insertAccounts(accounts: Address[]) {
   return database.insert(credentials).values(accounts.map((account, index) => credential(account, index)));
 }
 
-function storedAccounts() {
-  return database.query.credentials
-    .findMany({ columns: { account: true }, orderBy: credentials.account })
-    .then((rows) => rows.map(({ account }) => parse(Address, account)));
+async function storedAccounts() {
+  const rows = await database.query.credentials.findMany({ columns: { account: true }, orderBy: credentials.account });
+  return rows.map(({ account }) => parse(Address, account));
 }
 
 function credential(account: Address, index: number) {
@@ -259,15 +258,10 @@ describe("worker", () => {
     if (ttl !== undefined) expect(notification?.ttl).toBe(ttl);
   }
 
-  afterAll(() => {
-    return Promise.allSettled([queue.close(), notificationQueue.close(), closeQueue(), closeRedis()]).then(
-      (results) => {
-        const errors = results.flatMap((result) =>
-          result.status === "rejected" ? Array.of<unknown>(result.reason) : [],
-        );
-        if (errors.length > 0) throw new AggregateError(errors, "failed to close maturity test resources");
-      },
-    );
+  afterAll(async () => {
+    const results = await Promise.allSettled([queue.close(), notificationQueue.close(), closeQueue(), closeRedis()]);
+    const errors = results.flatMap((result) => (result.status === "rejected" ? Array.of<unknown>(result.reason) : []));
+    if (errors.length > 0) throw new AggregateError(errors, "failed to close maturity test resources");
   });
 
   beforeEach(async () => {

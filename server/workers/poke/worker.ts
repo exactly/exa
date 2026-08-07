@@ -2,7 +2,7 @@ import { createConfiguration, DefaultApi } from "@onesignal/node-onesignal";
 import { Analytics } from "@segment/analytics-node";
 import { captureException, withScope } from "@sentry/node";
 import { parse } from "valibot";
-import { bytesToBigInt, erc20Abi, hexToBytes } from "viem";
+import { bytesToBigInt, erc20Abi, hexToBytes, type LocalAccount } from "viem";
 
 import exaChain, {
   auditorAbi,
@@ -14,7 +14,6 @@ import exaChain, {
   upgradeableModularAccountAbi,
   wethAddress,
 } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
@@ -24,28 +23,30 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import { sendPushNotification } from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import revertFingerprint from "../../utils/revertFingerprint";
-import { getWallet } from "../../utils/wallet";
-import { close as closeCredit, enqueue as enqueueCredit, start as startCredit } from "../credit/queue";
+import createWallet from "../../utils/wallet";
+import createCredit from "../credit/queue";
 import createWorker, { connect } from "../worker";
 
 export default function worker({
   onesignalKey,
+  poker,
   redisUrl,
   segmentKey,
 }: {
   onesignalKey: string;
+  poker: LocalAccount;
   redisUrl: string;
   segmentKey: string;
 }) {
   const analytics = new Analytics({ writeKey: segmentKey });
   const bullmq = connect(redisUrl);
-  startCredit(bullmq);
+  const credit = createCredit(bullmq);
   analytics.on("error", (error) => captureException(error, { level: "error" }));
   const onesignal = new DefaultApi(createConfiguration({ restApiKey: onesignalKey }));
   return createWorker<Job>({
     attempts,
     bullmq,
-    close: () => closeCredit().finally(() => analytics.closeAndFlush()),
+    close: () => credit.close().finally(() => analytics.closeAndFlush()),
     failed(job, error) {
       withScope((scope) => {
         if (job) scope.setUser({ id: job.data.account });
@@ -62,7 +63,7 @@ export default function worker({
     async process(job, span) {
       const chain = [...NETWORKS.values()].find(({ id }) => id === job.data.chainId);
       if (!chain) throw new Error(`unsupported chain ${job.data.chainId}`);
-      const wallet = await getWallet(`${stack}-poker`, chain);
+      const wallet = createWallet(poker, chain);
       const isDeployed = !!(await wallet.getCode({ address: job.data.account }));
       span.setAttribute("exa.new", !isDeployed);
       if (!isDeployed) {
@@ -165,7 +166,7 @@ export default function worker({
           ).catch((error: unknown) => captureException(error, { level: "error" }));
         }
         if (job.data.origin === "activity") {
-          await enqueueCredit(job.data.account);
+          await credit.enqueue(job.data.account);
         }
       }
     },

@@ -1,12 +1,16 @@
 import "../mocks/deployments";
+import "../mocks/panda";
 import "../mocks/pax";
 import "../mocks/persona";
+import "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
@@ -15,20 +19,53 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
-import app from "../../hooks/persona";
-import * as panda from "../../utils/panda";
+import createHook from "../../hooks/persona";
+import createPanda from "../../utils/panda";
 import * as pax from "../../utils/pax";
-import * as persona from "../../utils/persona";
+import createPersona, * as Persona from "../../utils/persona";
 import * as sardine from "../../utils/sardine";
-import { enqueue as enqueueAllow } from "../../workers/allow/queue";
 
+import type createAllow from "../../workers/allow/queue";
+
+const queues = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
+  enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
+}));
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const paxConfig = { associateKey: "pax", key: "pax", url: "https://pax.test" };
+const personaConfig = { key: "persona", url: "https://persona.test" };
+const panda = createPanda(pandaConfig);
+const persona = Object.assign(createPersona(personaConfig.key, personaConfig.url), Persona);
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const hook = createHook({
+  pandaKey: pandaConfig.key,
+  pandaUrl: pandaConfig.url,
+  paxAssociateKey: paxConfig.associateKey,
+  paxKey: paxConfig.key,
+  paxUrl: paxConfig.url,
+  personaKey: personaConfig.key,
+  personaUrl: personaConfig.url,
+  personaWebhookSecret: "persona",
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: sardineConfig.key,
+  sardineUrl: sardineConfig.url,
+});
+const app = hook.app;
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
-vi.mock("../../workers/allow/queue", () => ({ enqueue: vi.fn<typeof enqueueAllow>() }));
+vi.mock("../../workers/allow/queue", () => ({
+  default: () => ({ close: () => Promise.resolve(queues.close()), enqueue: queues.enqueue }),
+}));
+
+afterAll(async () => {
+  await hook.close();
+});
 
 beforeEach(() => {
-  vi.mocked(enqueueAllow).mockReset().mockResolvedValue();
+  queues.close.mockReset().mockResolvedValue();
+  queues.enqueue.mockReset().mockResolvedValue();
 });
 
 describe("with reference", () => {
@@ -83,7 +120,7 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(enqueueAllow).toHaveBeenCalledWith({
+    expect(queues.enqueue).toHaveBeenCalledWith({
       account,
       chainId: chain.id,
       factory,
@@ -216,13 +253,11 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(enqueueAllow).toHaveBeenCalledWith(expect.objectContaining({ account }));
+    expect(queues.enqueue).toHaveBeenCalledWith(expect.objectContaining({ account }));
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
   it("returns 200 if no credential", async () => {
-    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
-
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -233,6 +268,10 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: "missing" },
+              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -449,7 +488,7 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(enqueueAllow).toHaveBeenCalledWith(
+    expect(queues.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
         account: deriveAddress(inject("ExaAccountFactory"), {
           x: padHex(privateKeyToAddress(padHex("0x420"))),
@@ -475,6 +514,7 @@ describe("persona hook", () => {
       phone: "+1234567890",
       internalId: pax.deriveAssociateId(
         deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
+        paxConfig.associateKey,
       ),
       product: "travel insurance",
     });
@@ -508,14 +548,14 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
-    expect(enqueueAllow).not.toHaveBeenCalled();
+    expect(queues.enqueue).not.toHaveBeenCalled();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.mocked(enqueueAllow).mockRejectedValueOnce(error);
+    queues.enqueue.mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       header: {
@@ -538,7 +578,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(enqueueAllow).toHaveBeenCalledOnce();
+    expect(queues.enqueue).toHaveBeenCalledOnce();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 

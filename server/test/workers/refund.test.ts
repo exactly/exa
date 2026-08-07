@@ -2,16 +2,17 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
+import { env } from "node:process";
 import { parse } from "valibot";
 import { padHex, toHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { refunderAddress } from "@exactly/common/generated/chain";
-import stack from "@exactly/common/stack";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
-import { close as closeRefund, enqueue as enqueueRefund } from "../../workers/refund/queue";
+import createRefund from "../../workers/refund/queue";
 import refundWorker from "../../workers/refund/worker";
 
 import type { Job as Refund } from "../../workers/refund/job";
@@ -19,8 +20,10 @@ import type * as C from "@exactly/common/generated/chain";
 import type { Job, JobsOptions } from "bullmq";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
+const refunder = privateKeyToAccount(padHex("0xfee"));
+const refund = createRefund(bullmq);
 const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
-let worker: ReturnType<typeof refundWorker>;
+let worker: Awaited<ReturnType<typeof refundWorker>>;
 
 function jobDone(
   amount: bigint,
@@ -63,7 +66,7 @@ function jobDone(
 }
 
 afterAll(async () => {
-  await Promise.all([queue.close(), closeRefund()]);
+  await Promise.all([queue.close(), refund.close()]);
 });
 
 describe("refund queue", () => {
@@ -73,10 +76,11 @@ describe("refund queue", () => {
   });
 
   it("publishes refund jobs", async () => {
+    const instance = createRefund(bullmq);
     const pending = Symbol("pending");
     const deferred = Promise.withResolvers<Job<Refund, void, "refund">>();
     const add = vi.spyOn(Queue.prototype, "add").mockReturnValue(deferred.promise);
-    const result = enqueueRefund(1_000_000n, "refund");
+    const result = instance.enqueue(1_000_000n, "refund");
 
     await vi.waitFor(() => expect(add).toHaveBeenCalledOnce());
     expect(await Promise.race([result, Promise.resolve(pending)])).toBe(pending);
@@ -97,13 +101,14 @@ describe("refund queue", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+    await instance.close();
   });
 
   it("captures queue failures", async () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    await expect(enqueueRefund(2_000_000n, "refund")).resolves.toBeUndefined();
+    await expect(refund.enqueue(2_000_000n, "refund")).resolves.toBeUndefined();
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
@@ -115,9 +120,9 @@ describe("refund queue", () => {
 
 describe("refund worker", () => {
   beforeAll(async () => {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.REDIS_URL;
     if (!redisUrl) throw new Error("missing redis url");
-    worker = refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl });
+    worker = refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl, refunder });
     await worker.ready;
   });
 
@@ -128,7 +133,7 @@ describe("refund worker", () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     mocks.exaSend.mockReset().mockResolvedValue({});
-    mocks.getWallet.mockReset().mockResolvedValue({ account: { address: account }, exaSend: mocks.exaSend });
+    mocks.wallet.mockReset().mockReturnValue({ account: { address: account }, exaSend: mocks.exaSend });
     vi.spyOn(globalThis, "fetch").mockImplementation((url) =>
       Promise.resolve(
         Response.json({
@@ -153,7 +158,7 @@ describe("refund worker", () => {
   it("withdraws from panda for the refund wallet", async () => {
     await jobDone(1_000_000n);
 
-    expect(mocks.getWallet).toHaveBeenCalledExactlyOnceWith(`${stack}-refunder`);
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(refunder);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining(
         `/issuing/tenants/signatures/withdrawals?token=0x29684075a3C86ea11D9964BcAf0F956e801396bD&amount=100&recipientAddress=${refunderAddress}&adminAddress=${account}`,
@@ -283,12 +288,10 @@ describe("refund worker", () => {
 
 const mocks = vi.hoisted(() => ({
   exaSend: vi.fn(),
-  getWallet: vi.fn(),
+  wallet: vi.fn(),
 }));
 
-vi.mock("../../utils/wallet", () => ({
-  getWallet: mocks.getWallet,
-}));
+vi.mock("../../utils/wallet", () => ({ default: mocks.wallet }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();

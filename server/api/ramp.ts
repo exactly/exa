@@ -20,18 +20,17 @@ import {
 
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../database";
-import auth from "../middleware/auth";
-import {
-  ADDRESS_TEMPLATE,
-  createInquiry,
-  getInquiry,
-  MANTECA_TEMPLATE_EXTRA_FIELDS,
-  resumeInquiry,
-} from "../utils/persona";
-import * as bridge from "../utils/ramps/bridge";
-import * as manteca from "../utils/ramps/manteca";
+import { credentials } from "../database/schema";
+import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS } from "../utils/persona";
+import * as Bridge from "../utils/ramps/bridge";
+import * as Manteca from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
+
+import type db from "../database";
+import type { Auth } from "../middleware/auth";
+import type createPersona from "../utils/persona";
+import type createBridge from "../utils/ramps/bridge";
+import type createManteca from "../utils/ramps/manteca";
 
 const ErrorCodes = {
   EXTERNAL_ACCOUNT_ALREADY_EXISTS: "external account already exists",
@@ -47,444 +46,470 @@ const ErrorCodes = {
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
 };
 
-export default new Hono()
-  .get(
-    "/",
-    auth(),
-    vValidator(
-      "query",
-      object({ countryCode: optional(string()), redirectURL: optional(pipe(string(), url())) }),
-      validatorHook(),
-    ),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
+export default function route({
+  auth,
+  bridge,
+  database,
+  manteca,
+  persona,
+}: {
+  auth: Auth;
+  bridge: ReturnType<typeof createBridge>;
+  database: typeof db;
+  manteca: ReturnType<typeof createManteca>;
+  persona: ReturnType<typeof createPersona>;
+}) {
+  return new Hono()
+    .get(
+      "/",
+      auth,
+      vValidator(
+        "query",
+        object({ countryCode: optional(string()), redirectURL: optional(pipe(string(), url())) }),
+        validatorHook(),
+      ),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
 
-      const countryCode = c.req.valid("query").countryCode;
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
-      });
-      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-      const account = parse(Address, credential.account);
-      setUser({ id: account });
+        const countryCode = c.req.valid("query").countryCode;
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true, bridgeId: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
 
-      const redirectURL = c.req.valid("query").redirectURL;
-      const [mantecaProvider, bridgeProvider] = await Promise.all([
-        manteca.getProvider(account, countryCode).catch((error: unknown) => {
-          captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-          return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
-        }),
-        bridge
-          .getProvider({
-            credentialId,
-            customerId: credential.bridgeId,
-            countryCode,
-            redirectURL,
-          })
-          .catch((error: unknown) => {
+        const redirectURL = c.req.valid("query").redirectURL;
+        const [mantecaProvider, bridgeProvider] = await Promise.all([
+          manteca.getProvider(account, countryCode).catch((error: unknown) => {
             captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-            return {
-              onramp: { currencies: [] },
-              offramp: { currencies: [] },
-              status: "NOT_AVAILABLE" as const,
-            };
+            return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
           }),
-      ]);
-
-      return c.json(
-        {
-          manteca: { provider: "manteca" as const, ...mantecaProvider } satisfies InferInput<typeof ProviderInfo>,
-          bridge: { provider: "bridge" as const, ...bridgeProvider } satisfies InferInput<typeof ProviderInfo>,
-        },
-        200,
-      );
-    },
-  )
-  .get(
-    "/quote",
-    auth(),
-    vValidator(
-      "query",
-      variant("provider", [
-        object({
-          currency: picklist(manteca.Currency),
-          direction: optional(literal("onramp")),
-          provider: literal("manteca"),
-        }),
-        object({
-          currency: picklist(bridge.FiatCurrency),
-          direction: optional(literal("onramp")),
-          provider: literal("bridge"),
-        }),
-        object({
-          currency: picklist(bridge.FiatCurrency),
-          direction: literal("offramp"),
-          externalAccountId: string(),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: Address,
-          currency: literal("USDC"),
-          direction: literal("offramp"),
-          network: literal("BASE"),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: string(),
-          currency: literal("USDC"),
-          direction: literal("offramp"),
-          network: literal("SOLANA"),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: string(),
-          currency: literal("USDC"),
-          direction: literal("offramp"),
-          memo: string(),
-          network: literal("STELLAR"),
-          provider: literal("bridge"),
-        }),
-        object({
-          address: string(),
-          currency: literal("USDT"),
-          direction: literal("offramp"),
-          network: literal("TRON"),
-          provider: literal("bridge"),
-        }),
-        object({
-          currency: literal("USDT"),
-          direction: optional(literal("onramp")),
-          network: literal("TRON"),
-          provider: literal("bridge"),
-        }),
-        object({
-          currency: literal("USDC"),
-          direction: optional(literal("onramp")),
-          network: picklist([...bridge.EVMNetwork, "SOLANA", "STELLAR"]),
-          provider: literal("bridge"),
-        }),
-      ]),
-      validatorHook(),
-    ),
-    async (c) => {
-      const query = c.req.valid("query");
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
-      });
-      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-      const account = parse(Address, credential.account);
-      setUser({ id: account });
-
-      switch (query.provider) {
-        case "manteca": {
-          const mantecaUser = await manteca.getUser(account);
-          if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-          if (mantecaUser.status !== "ACTIVE") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-          try {
-            const depositInfo: InferOutput<typeof RampResponse>["depositInfo"] = manteca.getDepositDetails(
-              query.currency,
-              mantecaUser.exchange,
-            );
-            return c.json(
+          bridge
+            .getProvider(
               {
-                quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse,
-                depositInfo,
+                credentialId,
+                customerId: credential.bridgeId,
+                countryCode,
+                redirectURL,
               },
-              200,
-            );
-          } catch (error) {
-            captureException(error, { level: "error", contexts: { credential } });
-            if (error instanceof Error && Object.values(manteca.ErrorCodes).includes(error.message)) {
-              switch (error.message) {
-                case manteca.ErrorCodes.NOT_SUPPORTED_CURRENCY:
-                  return c.json({ code: error.message }, 400);
-              }
-            }
-            throw error;
-          }
-        }
-        case "bridge": {
-          if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-          const bridgeUser = await bridge.getCustomer(credential.bridgeId);
-          if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-          if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-          const quote = (await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse;
+              persona,
+            )
+            .catch((error: unknown) => {
+              captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
+              return {
+                onramp: { currencies: [] },
+                offramp: { currencies: [] },
+                status: "NOT_AVAILABLE" as const,
+              };
+            }),
+        ]);
 
-          if (query.direction === "offramp") {
-            if ("network" in query) {
+        return c.json(
+          {
+            manteca: { provider: "manteca" as const, ...mantecaProvider } satisfies InferInput<typeof ProviderInfo>,
+            bridge: { provider: "bridge" as const, ...bridgeProvider } satisfies InferInput<typeof ProviderInfo>,
+          },
+          200,
+        );
+      },
+    )
+    .get(
+      "/quote",
+      auth,
+      vValidator(
+        "query",
+        variant("provider", [
+          object({
+            currency: picklist(Manteca.Currency),
+            direction: optional(literal("onramp")),
+            provider: literal("manteca"),
+          }),
+          object({
+            currency: picklist(Bridge.FiatCurrency),
+            direction: optional(literal("onramp")),
+            provider: literal("bridge"),
+          }),
+          object({
+            currency: picklist(Bridge.FiatCurrency),
+            direction: literal("offramp"),
+            externalAccountId: string(),
+            provider: literal("bridge"),
+          }),
+          object({
+            address: Address,
+            currency: literal("USDC"),
+            direction: literal("offramp"),
+            network: literal("BASE"),
+            provider: literal("bridge"),
+          }),
+          object({
+            address: string(),
+            currency: literal("USDC"),
+            direction: literal("offramp"),
+            network: literal("SOLANA"),
+            provider: literal("bridge"),
+          }),
+          object({
+            address: string(),
+            currency: literal("USDC"),
+            direction: literal("offramp"),
+            memo: string(),
+            network: literal("STELLAR"),
+            provider: literal("bridge"),
+          }),
+          object({
+            address: string(),
+            currency: literal("USDT"),
+            direction: literal("offramp"),
+            network: literal("TRON"),
+            provider: literal("bridge"),
+          }),
+          object({
+            currency: literal("USDT"),
+            direction: optional(literal("onramp")),
+            network: literal("TRON"),
+            provider: literal("bridge"),
+          }),
+          object({
+            currency: literal("USDC"),
+            direction: optional(literal("onramp")),
+            network: picklist([...Bridge.EVMNetwork, "SOLANA", "STELLAR"]),
+            provider: literal("bridge"),
+          }),
+        ]),
+        validatorHook(),
+      ),
+      async (c) => {
+        const query = c.req.valid("query");
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true, bridgeId: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
+
+        switch (query.provider) {
+          case "manteca": {
+            const mantecaUser = await manteca.getUser(account);
+            if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+            if (mantecaUser.status !== "ACTIVE") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+            try {
+              const depositInfo: InferOutput<typeof RampResponse>["depositInfo"] = manteca.getDepositDetails(
+                query.currency,
+                mantecaUser.exchange,
+              );
+              return c.json(
+                {
+                  quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse,
+                  depositInfo,
+                },
+                200,
+              );
+            } catch (error) {
+              captureException(error, { level: "error", contexts: { credential } });
+              if (error instanceof Error && Object.values(Manteca.ErrorCodes).includes(error.message)) {
+                switch (error.message) {
+                  case Manteca.ErrorCodes.NOT_SUPPORTED_CURRENCY:
+                    return c.json({ code: error.message }, 400);
+                }
+              }
+              throw error;
+            }
+          }
+          case "bridge": {
+            if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+            const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+            if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+            if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+            const quote = (await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse;
+
+            if (query.direction === "offramp") {
+              if ("network" in query) {
+                try {
+                  return c.json(
+                    {
+                      quote,
+                      depositInfo: await bridge.getCryptoOfframpDepositDetails(
+                        query.currency,
+                        query.network,
+                        query.address,
+                        parse(Address, credential.account),
+                        bridgeUser,
+                        query.network === "STELLAR" ? query.memo : undefined,
+                      ),
+                    } satisfies InferOutput<typeof RampResponse>,
+                    200,
+                  );
+                } catch (error) {
+                  if (error instanceof Error && error.message === Bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS) {
+                    return c.json({ code: ErrorCodes.INVALID_DEPOSIT_ADDRESS }, 400);
+                  }
+                  throw error;
+                }
+              }
               try {
                 return c.json(
                   {
                     quote,
-                    depositInfo: await bridge.getCryptoOfframpDepositDetails(
-                      query.currency,
-                      query.network,
-                      query.address,
-                      parse(Address, credential.account),
+                    depositInfo: await bridge.getOfframpDepositDetails(
+                      query.externalAccountId,
+                      credential.account,
                       bridgeUser,
-                      query.network === "STELLAR" ? query.memo : undefined,
+                      query.currency,
                     ),
                   } satisfies InferOutput<typeof RampResponse>,
                   200,
                 );
               } catch (error) {
-                if (error instanceof Error && error.message === bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS) {
-                  return c.json({ code: ErrorCodes.INVALID_DEPOSIT_ADDRESS }, 400);
+                if (error instanceof Error && error.message === Bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
+                  return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
+                }
+                if (error instanceof Error && error.message === Bridge.ErrorCodes.NOT_AVAILABLE_CURRENCY) {
+                  return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_SUPPORTED }, 400);
+                }
+                if (error instanceof Error && error.message === Bridge.ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH) {
+                  return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH }, 400);
+                }
+                if (error instanceof Error && error.message === Bridge.ErrorCodes.TRANSFER_IN_USE) {
+                  return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
                 }
                 throw error;
               }
             }
-            try {
+
+            if ("network" in query) {
               return c.json(
                 {
                   quote,
-                  depositInfo: await bridge.getOfframpDepositDetails(
-                    query.externalAccountId,
+                  depositInfo: await bridge.getCryptoDepositDetails(
+                    query.currency,
+                    query.network,
                     credential.account,
                     bridgeUser,
-                    query.currency,
                   ),
                 } satisfies InferOutput<typeof RampResponse>,
                 200,
               );
-            } catch (error) {
-              if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
-                return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
-              }
-              if (error instanceof Error && error.message === bridge.ErrorCodes.NOT_AVAILABLE_CURRENCY) {
-                return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_SUPPORTED }, 400);
-              }
-              if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH) {
-                return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_CURRENCY_MISMATCH }, 400);
-              }
-              if (error instanceof Error && error.message === bridge.ErrorCodes.TRANSFER_IN_USE) {
-                return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
-              }
-              throw error;
             }
-          }
 
-          if ("network" in query) {
             return c.json(
               {
                 quote,
-                depositInfo: await bridge.getCryptoDepositDetails(
-                  query.currency,
-                  query.network,
-                  credential.account,
-                  bridgeUser,
-                ),
+                depositInfo: await bridge.getDepositDetails(query.currency, credential.account, bridgeUser),
               } satisfies InferOutput<typeof RampResponse>,
               200,
             );
           }
+        }
+      },
+    )
+    .post(
+      "/",
+      auth,
+      vValidator(
+        "json",
+        variant("provider", [
+          object({ provider: literal("bridge"), acceptedTermsId: string() }),
+          object({ provider: literal("manteca") }),
+        ]),
+        validatorHook({ code: "bad onboarding" }),
+      ),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const onboarding = c.req.valid("json");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true, bridgeId: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
 
+        switch (onboarding.provider) {
+          case "manteca":
+            try {
+              await manteca.onboarding(account, credentialId, persona);
+            } catch (error) {
+              captureException(error, { level: "error", contexts: { credential } });
+              if (error instanceof Error && Object.values(Manteca.ErrorCodes).includes(error.message)) {
+                switch (error.message) {
+                  case Manteca.ErrorCodes.NO_DOCUMENT:
+                    return c.json({ code: error.message }, 400);
+                  case Manteca.ErrorCodes.INVALID_LEGAL_ID: {
+                    const { inquiryId, sessionToken } = await getOrCreateInquiry(
+                      credentialId,
+                      MANTECA_TEMPLATE_EXTRA_FIELDS,
+                      persona,
+                    );
+                    return c.json({ code: error.message, inquiryId, sessionToken }, 400);
+                  }
+                }
+              }
+              throw error;
+            }
+            break;
+          case "bridge":
+            try {
+              await bridge.onboarding(
+                {
+                  credentialId,
+                  customerId: credential.bridgeId,
+                  acceptedTermsId: onboarding.acceptedTermsId,
+                },
+                database,
+                persona,
+              );
+            } catch (error) {
+              captureException(error, { level: "error", contexts: { credential } });
+              if (error instanceof Error && Object.values(Bridge.ErrorCodes).includes(error.message)) {
+                switch (error.message) {
+                  case Bridge.ErrorCodes.ALREADY_ONBOARDED:
+                  case Bridge.ErrorCodes.DENYLISTED_COUNTRY:
+                  case Bridge.ErrorCodes.NOT_ENABLED:
+                    return c.json({ code: error.message }, 400);
+                  case Bridge.ErrorCodes.INVALID_ADDRESS: {
+                    const { inquiryId, sessionToken } = await getOrCreateInquiry(
+                      credentialId,
+                      ADDRESS_TEMPLATE,
+                      persona,
+                    );
+                    return c.json({ code: error.message, inquiryId, sessionToken }, 400);
+                  }
+                }
+              }
+              throw error;
+            }
+            break;
+        }
+        return c.json({ code: "ok" }, 200);
+      },
+    )
+    .post("/external-account", auth, vValidator("json", Bridge.ExternalAccountInput, validatorHook()), async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true, bridgeId: true },
+      });
+      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+      if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      setUser({ id: parse(Address, credential.account) });
+
+      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+      if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+
+      try {
+        return c.json(await bridge.createExternalAccount(bridgeUser, c.req.valid("json")), 200);
+      } catch (error) {
+        if (error instanceof Error && error.message === Bridge.ErrorCodes.NO_ENDORSEMENT) {
+          return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+        }
+        if (error instanceof Error && error.message === Bridge.ErrorCodes.INVALID_BANK_NAME) {
+          return c.json({ code: ErrorCodes.INVALID_BANK_NAME }, 400);
+        }
+        if (error instanceof Error && error.message === Bridge.ErrorCodes.POSTAL_CODE_REQUIRED) {
+          return c.json({ code: ErrorCodes.POSTAL_CODE_REQUIRED }, 400);
+        }
+        if (error instanceof Error && error.message === Bridge.ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS) {
+          return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS }, 400);
+        }
+        throw error;
+      }
+    })
+    .get("/external-account", auth, async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true, bridgeId: true },
+      });
+      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+      if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      setUser({ id: parse(Address, credential.account) });
+
+      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+      if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+      if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+
+      return c.json(await bridge.listExternalAccounts(credential.bridgeId), 200);
+    })
+    .patch(
+      "/external-account/:id",
+      auth,
+      vValidator("param", object({ id: string() }), validatorHook()),
+      vValidator("json", Bridge.UpdateExternalAccountInput, validatorHook()),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true, bridgeId: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+        setUser({ id: parse(Address, credential.account) });
+
+        const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+        if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+        if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+        try {
           return c.json(
-            {
-              quote,
-              depositInfo: await bridge.getDepositDetails(query.currency, credential.account, bridgeUser),
-            } satisfies InferOutput<typeof RampResponse>,
+            await bridge.updateExternalAccount(bridgeUser, c.req.valid("param").id, c.req.valid("json")),
             200,
           );
-        }
-      }
-    },
-  )
-  .post(
-    "/",
-    auth(),
-    vValidator(
-      "json",
-      variant("provider", [
-        object({ provider: literal("bridge"), acceptedTermsId: string() }),
-        object({ provider: literal("manteca") }),
-      ]),
-      validatorHook({ code: "bad onboarding" }),
-    ),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const onboarding = c.req.valid("json");
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
-      });
-      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-      const account = parse(Address, credential.account);
-      setUser({ id: account });
-
-      switch (onboarding.provider) {
-        case "manteca":
-          try {
-            await manteca.onboarding(account, credentialId);
-          } catch (error) {
-            captureException(error, { level: "error", contexts: { credential } });
-            if (error instanceof Error && Object.values(manteca.ErrorCodes).includes(error.message)) {
-              switch (error.message) {
-                case manteca.ErrorCodes.NO_DOCUMENT:
-                  return c.json({ code: error.message }, 400);
-                case manteca.ErrorCodes.INVALID_LEGAL_ID: {
-                  const { inquiryId, sessionToken } = await getOrCreateInquiry(
-                    credentialId,
-                    MANTECA_TEMPLATE_EXTRA_FIELDS,
-                  );
-                  return c.json({ code: error.message, inquiryId, sessionToken }, 400);
-                }
-              }
-            }
-            throw error;
+        } catch (error) {
+          if (error instanceof Error && error.message === Bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
+            return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
           }
-          break;
-        case "bridge":
-          try {
-            await bridge.onboarding({
-              credentialId,
-              customerId: credential.bridgeId,
-              acceptedTermsId: onboarding.acceptedTermsId,
-            });
-          } catch (error) {
-            captureException(error, { level: "error", contexts: { credential } });
-            if (error instanceof Error && Object.values(bridge.ErrorCodes).includes(error.message)) {
-              switch (error.message) {
-                case bridge.ErrorCodes.ALREADY_ONBOARDED:
-                case bridge.ErrorCodes.DENYLISTED_COUNTRY:
-                case bridge.ErrorCodes.NOT_ENABLED:
-                  return c.json({ code: error.message }, 400);
-                case bridge.ErrorCodes.INVALID_ADDRESS: {
-                  const { inquiryId, sessionToken } = await getOrCreateInquiry(credentialId, ADDRESS_TEMPLATE);
-                  return c.json({ code: error.message, inquiryId, sessionToken }, 400);
-                }
-              }
-            }
-            throw error;
+          throw error;
+        }
+      },
+    )
+    .delete(
+      "/external-account/:id",
+      auth,
+      vValidator("param", object({ id: string() }), validatorHook()),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true, bridgeId: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+        setUser({ id: parse(Address, credential.account) });
+
+        const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+        if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
+        if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
+
+        try {
+          await bridge.removeExternalAccount(bridgeUser, c.req.valid("param").id);
+        } catch (error) {
+          if (error instanceof Error && error.message === Bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
+            return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
           }
-          break;
-      }
-      return c.json({ code: "ok" }, 200);
-    },
-  )
-  .post("/external-account", auth(), vValidator("json", bridge.ExternalAccountInput, validatorHook()), async (c) => {
-    const { credentialId } = c.req.valid("cookie");
-    const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, credentialId),
-      columns: { account: true, bridgeId: true },
-    });
-    if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-    if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-    setUser({ id: parse(Address, credential.account) });
-
-    const bridgeUser = await bridge.getCustomer(credential.bridgeId);
-    if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-    if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-
-    try {
-      return c.json(await bridge.createExternalAccount(bridgeUser, c.req.valid("json")), 200);
-    } catch (error) {
-      if (error instanceof Error && error.message === bridge.ErrorCodes.NO_ENDORSEMENT) {
-        return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-      }
-      if (error instanceof Error && error.message === bridge.ErrorCodes.INVALID_BANK_NAME) {
-        return c.json({ code: ErrorCodes.INVALID_BANK_NAME }, 400);
-      }
-      if (error instanceof Error && error.message === bridge.ErrorCodes.POSTAL_CODE_REQUIRED) {
-        return c.json({ code: ErrorCodes.POSTAL_CODE_REQUIRED }, 400);
-      }
-      if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS) {
-        return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_ALREADY_EXISTS }, 400);
-      }
-      throw error;
-    }
-  })
-  .get("/external-account", auth(), async (c) => {
-    const { credentialId } = c.req.valid("cookie");
-    const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, credentialId),
-      columns: { account: true, bridgeId: true },
-    });
-    if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-    if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-    setUser({ id: parse(Address, credential.account) });
-
-    const bridgeUser = await bridge.getCustomer(credential.bridgeId);
-    if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-    if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-
-    return c.json(await bridge.listExternalAccounts(credential.bridgeId), 200);
-  })
-  .patch(
-    "/external-account/:id",
-    auth(),
-    vValidator("param", object({ id: string() }), validatorHook()),
-    vValidator("json", bridge.UpdateExternalAccountInput, validatorHook()),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
-      });
-      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-      if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-      setUser({ id: parse(Address, credential.account) });
-
-      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
-      if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-      if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-      try {
-        return c.json(
-          await bridge.updateExternalAccount(bridgeUser, c.req.valid("param").id, c.req.valid("json")),
-          200,
-        );
-      } catch (error) {
-        if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
-          return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
+          if (error instanceof Error && error.message === Bridge.ErrorCodes.TRANSFER_IN_USE) {
+            return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
+          }
+          throw error;
         }
-        throw error;
-      }
-    },
-  )
-  .delete(
-    "/external-account/:id",
-    auth(),
-    vValidator("param", object({ id: string() }), validatorHook()),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
-      });
-      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-      if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-      setUser({ id: parse(Address, credential.account) });
+        return c.json({ code: "ok" }, 200);
+      },
+    );
+}
 
-      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
-      if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-      if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
-
-      try {
-        await bridge.removeExternalAccount(bridgeUser, c.req.valid("param").id);
-      } catch (error) {
-        if (error instanceof Error && error.message === bridge.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND) {
-          return c.json({ code: ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND }, 400);
-        }
-        if (error instanceof Error && error.message === bridge.ErrorCodes.TRANSFER_IN_USE) {
-          return c.json({ code: ErrorCodes.WITHDRAWAL_IN_PROGRESS }, 400);
-        }
-        throw error;
-      }
-      return c.json({ code: "ok" }, 200);
-    },
-  );
-
-async function getOrCreateInquiry(credentialId: string, template: string) {
-  const existing = await getInquiry(credentialId, template);
+async function getOrCreateInquiry(credentialId: string, template: string, persona: ReturnType<typeof createPersona>) {
+  const existing = await persona.getInquiry(credentialId, template);
   const { data: inquiry } =
     existing?.attributes.status === "created" ||
     existing?.attributes.status === "pending" ||
     existing?.attributes.status === "expired"
       ? { data: { id: existing.id } }
-      : await createInquiry(credentialId, template);
-  const { meta } = await resumeInquiry(inquiry.id);
+      : await persona.createInquiry(credentialId, template);
+  const { meta } = await persona.resumeInquiry(inquiry.id);
   return { inquiryId: inquiry.id, sessionToken: meta["session-token"] };
 }
 
@@ -562,7 +587,7 @@ const RampResponse = object({
         fee: string(),
         estimatedProcessingTime: string(),
       }),
-      ...bridge.EVMNetwork.map((network) =>
+      ...Bridge.EVMNetwork.map((network) =>
         object({
           network: literal(network),
           displayName: literal(network),
@@ -622,7 +647,7 @@ const ProviderInfo = variant("provider", [
   object({
     provider: literal("manteca"),
     onramp: object({
-      currencies: array(picklist(manteca.Currency)),
+      currencies: array(picklist(Manteca.Currency)),
       limits: optional(
         object({
           monthly: object({ available: string(), limit: string(), symbol: string() }),
@@ -637,7 +662,7 @@ const ProviderInfo = variant("provider", [
     offramp: object({
       currencies: array(
         union([
-          picklist(bridge.FiatCurrency),
+          picklist(Bridge.FiatCurrency),
           variant("currency", [
             object({ currency: literal("USDT"), network: literal("TRON") }),
             object({ currency: literal("USDC"), network: picklist(["BASE", "SOLANA", "STELLAR"]) }),
@@ -648,10 +673,10 @@ const ProviderInfo = variant("provider", [
     onramp: object({
       currencies: array(
         union([
-          picklist(bridge.FiatCurrency),
+          picklist(Bridge.FiatCurrency),
           variant("currency", [
             object({ currency: literal("USDT"), network: literal("TRON") }),
-            object({ currency: literal("USDC"), network: picklist([...bridge.EVMNetwork, "SOLANA", "STELLAR"]) }),
+            object({ currency: literal("USDC"), network: picklist([...Bridge.EVMNetwork, "SOLANA", "STELLAR"]) }),
           ]),
         ]),
       ),

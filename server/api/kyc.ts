@@ -17,33 +17,24 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { Address, Hex } from "@exactly/common/validation";
 
-import database, { credentials, walletAddresses } from "../database/index";
-import auth from "../middleware/auth";
+import { credentials, walletAddresses } from "../database/schema";
 import decodePublicKey from "../utils/decodePublicKey";
-import {
-  Application,
-  UpdateApplicationRequest as ApplicationUpdate,
-  getApplicationStatus,
-  submitApplication,
-  updateApplication,
-} from "../utils/panda";
+import { Application, UpdateApplicationRequest as ApplicationUpdate } from "../utils/panda";
 import {
   CARD_LIMIT_TEMPLATE,
-  createInquiry,
   CRYPTOMATE_TEMPLATE,
-  getAccount,
-  getCardLimitStatus,
-  getInquiry,
-  getPendingInquiryTemplate,
-  getUnknownAccount,
   PANDA_TEMPLATE,
   parseAccount,
-  resumeInquiry,
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
+
+import type db from "../database";
+import type { Auth } from "../middleware/auth";
+import type createPanda from "../utils/panda";
+import type createPersona from "../utils/persona";
 
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -70,248 +61,262 @@ function buildBaseResponse(example = "string") {
   });
 }
 
-export default new Hono()
-  .get(
-    "/",
-    auth(),
-    vValidator(
-      "query",
-      object({
-        countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
-      }),
-      validatorHook(),
-    ),
-    async (c) => {
-      const scope = c.req.valid("query").scope ?? "basic";
+export default function route({
+  auth,
+  database,
+  panda,
+  persona,
+}: {
+  auth: Auth;
+  database: typeof db;
+  panda: ReturnType<typeof createPanda>;
+  persona: ReturnType<typeof createPersona>;
+}) {
+  return new Hono()
+    .get(
+      "/",
+      auth,
+      vValidator(
+        "query",
+        object({
+          countryCode: optional(literal("true")),
+          scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        }),
+        validatorHook(),
+      ),
+      async (c) => {
+        const scope = c.req.valid("query").scope ?? "basic";
 
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true },
-        where: eq(credentials.id, credentialId),
-      });
-      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true },
+          where: eq(credentials.id, credentialId),
+        });
+        if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
 
-      const account = parse(Address, credential.account);
-      setUser({ id: account });
-      setContext("exa", { credential });
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
+        setContext("exa", { credential });
 
-      if (scope === "cardLimit") {
-        const unknownAccount = c.req.valid("query").countryCode
-          ? await getUnknownAccount(credentialId).catch((error: unknown): undefined => {
-              captureException(error, {
-                level: "error",
-                contexts: { details: { credentialId, scope: "cardLimit" } },
-              });
-            })
-          : undefined;
-        if (unknownAccount) {
-          const countryCode = parseAccount(unknownAccount, "basic")?.attributes["country-code"];
-          countryCode && c.header("User-Country", countryCode);
-        }
-        const cardLimit = await getCardLimitStatus(credentialId, unknownAccount);
-
-        switch (cardLimit.status) {
-          case "resolved":
-            return c.json({ code: "ok" }, 200);
-          case "approved":
-            captureException(new Error("inquiry approved but account not updated"), {
-              level: "error",
-              contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
-            });
-            return c.json({ code: "ok" }, 200);
-          case "noTemplate":
-            return c.json({ code: "no kyc" }, 400);
-          case "noInquiry":
-          case "created":
-          case "pending":
-          case "expired":
-            return c.json({ code: "not started" }, 400);
-          case "completed":
-          case "needs_review":
-            return c.json({ code: "processing" }, 400);
-          case "failed":
-          case "declined":
-            return c.json({ code: "bad kyc" }, 400);
-          default:
-            throw new Error("unknown inquiry status");
-        }
-      }
-
-      if (scope === "basic" && credential.pandaId) {
-        if (c.req.valid("query").countryCode) {
-          const personaAccount = await getAccount(credentialId, scope).catch((error: unknown) => {
-            captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
-          });
-          const countryCode = personaAccount?.attributes["country-code"];
-          countryCode && c.header("User-Country", countryCode);
-        }
-        return c.json({ code: "ok", legacy: "ok" }, 200);
-      }
-
-      if (await isLegacy(credentialId, account, credential.factory, credential.publicKey)) {
-        return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
-      }
-
-      let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
-      try {
-        inquiryTemplateId = await getPendingInquiryTemplate(credentialId, scope);
-      } catch (error: unknown) {
-        if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
-          return c.json({ code: "not supported" }, 400);
-        }
-        throw error;
-      }
-      if (!inquiryTemplateId) {
-        if (c.req.valid("query").countryCode) {
-          const personaAccount = await getAccount(credentialId, scope).catch((error: unknown) => {
-            captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
-          });
-          const countryCode = personaAccount?.attributes["country-code"];
-          countryCode && c.header("User-Country", countryCode);
-        }
-        return c.json({ code: "ok", legacy: "ok" }, 200);
-      }
-      const inquiry = await getInquiry(credentialId, inquiryTemplateId);
-      if (!inquiry) return c.json({ code: "not started", legacy: "kyc not started" }, 400);
-      switch (inquiry.attributes.status) {
-        case "approved":
-          captureException(new Error("inquiry approved but account not updated"), {
-            level: "error",
-            contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
-          });
-          return c.json({ code: "ok", legacy: "ok" }, 200);
-        case "created":
-        case "pending":
-        case "expired":
-          return c.json({ code: "not started", legacy: "kyc not started" }, 400);
-        case "completed":
-        case "needs_review":
-          return c.json({ code: "processing", legacy: "kyc not approved" }, 400);
-        case "failed":
-        case "declined":
-          return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
-        default:
-          throw new Error("unknown inquiry status");
-      }
-    },
-  )
-  .post(
-    "/",
-    auth(),
-    vValidator(
-      "json",
-      object({
-        redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
-      }),
-      validatorHook({ debug }),
-    ),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const payload = c.req.valid("json");
-      const scope = payload.scope ?? "basic";
-      const redirectURI = payload.redirectURI;
-      const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true },
-        where: eq(credentials.id, credentialId),
-      });
-      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-      setUser({ id: parse(Address, credential.account) });
-      setContext("exa", { credential });
-
-      if (scope === "cardLimit") {
-        const cardLimit = await getCardLimitStatus(credentialId);
-        switch (cardLimit.status) {
-          case "resolved":
-            return c.json({ code: "already approved" }, 400);
-          case "approved":
-            captureException(new Error("inquiry approved but account not updated"), {
-              level: "error",
-              contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
-            });
-            return c.json({ code: "already approved" }, 400);
-          case "noTemplate":
-            return c.json({ code: "not started" }, 400);
-          case "noInquiry": {
-            const basicAccount = await getAccount(credentialId, "basic").catch((error: unknown) => {
-              captureException(error, { level: "error", contexts: { details: { credentialId, scope: "cardLimit" } } });
-            });
-            const { data } = await createInquiry(
-              credentialId,
-              CARD_LIMIT_TEMPLATE,
-              redirectURI,
-              basicAccount
-                ? {
-                    "name-first": basicAccount.attributes["name-first"],
-                    "name-last": basicAccount.attributes["name-last"],
-                  }
-                : undefined,
-            );
-            return c.json(await generateInquiryTokens(data.id), 200);
+        if (scope === "cardLimit") {
+          const unknownAccount = c.req.valid("query").countryCode
+            ? await persona.getUnknownAccount(credentialId).catch((error: unknown): undefined => {
+                captureException(error, {
+                  level: "error",
+                  contexts: { details: { credentialId, scope: "cardLimit" } },
+                });
+              })
+            : undefined;
+          if (unknownAccount) {
+            const countryCode = parseAccount(unknownAccount, "basic")?.attributes["country-code"];
+            countryCode && c.header("User-Country", countryCode);
           }
+          const cardLimit = await persona.getCardLimitStatus(credentialId, unknownAccount);
+
+          switch (cardLimit.status) {
+            case "resolved":
+              return c.json({ code: "ok" }, 200);
+            case "approved":
+              captureException(new Error("inquiry approved but account not updated"), {
+                level: "error",
+                contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
+              });
+              return c.json({ code: "ok" }, 200);
+            case "noTemplate":
+              return c.json({ code: "no kyc" }, 400);
+            case "noInquiry":
+            case "created":
+            case "pending":
+            case "expired":
+              return c.json({ code: "not started" }, 400);
+            case "completed":
+            case "needs_review":
+              return c.json({ code: "processing" }, 400);
+            case "failed":
+            case "declined":
+              return c.json({ code: "bad kyc" }, 400);
+            default:
+              throw new Error("unknown inquiry status");
+          }
+        }
+
+        if (scope === "basic" && credential.pandaId) {
+          if (c.req.valid("query").countryCode) {
+            const personaAccount = await persona.getAccount(credentialId, scope).catch((error: unknown) => {
+              captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
+            });
+            const countryCode = personaAccount?.attributes["country-code"];
+            countryCode && c.header("User-Country", countryCode);
+          }
+          return c.json({ code: "ok", legacy: "ok" }, 200);
+        }
+
+        if (await isLegacy(credentialId, account, credential.factory, credential.publicKey, persona)) {
+          return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
+        }
+
+        let inquiryTemplateId: Awaited<ReturnType<(typeof persona)["getPendingInquiryTemplate"]>>;
+        try {
+          inquiryTemplateId = await persona.getPendingInquiryTemplate(credentialId, scope);
+        } catch (error: unknown) {
+          if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
+            return c.json({ code: "not supported" }, 400);
+          }
+          throw error;
+        }
+        if (!inquiryTemplateId) {
+          if (c.req.valid("query").countryCode) {
+            const personaAccount = await persona.getAccount(credentialId, scope).catch((error: unknown) => {
+              captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
+            });
+            const countryCode = personaAccount?.attributes["country-code"];
+            countryCode && c.header("User-Country", countryCode);
+          }
+          return c.json({ code: "ok", legacy: "ok" }, 200);
+        }
+        const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
+        if (!inquiry) return c.json({ code: "not started", legacy: "kyc not started" }, 400);
+        switch (inquiry.attributes.status) {
+          case "approved":
+            captureException(new Error("inquiry approved but account not updated"), {
+              level: "error",
+              contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
+            });
+            return c.json({ code: "ok", legacy: "ok" }, 200);
+          case "created":
+          case "pending":
+          case "expired":
+            return c.json({ code: "not started", legacy: "kyc not started" }, 400);
           case "completed":
           case "needs_review":
-            return c.json({ code: "processing" }, 400);
-          case "pending":
-          case "created":
-          case "expired":
-            return c.json(await generateInquiryTokens(cardLimit.id), 200);
+            return c.json({ code: "processing", legacy: "kyc not approved" }, 400);
           case "failed":
           case "declined":
-            return c.json({ code: "failed" }, 400);
+            return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
           default:
             throw new Error("unknown inquiry status");
         }
-      }
+      },
+    )
+    .post(
+      "/",
+      auth,
+      vValidator(
+        "json",
+        object({
+          redirectURI: optional(string()),
+          scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        }),
+        validatorHook({ debug }),
+      ),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const payload = c.req.valid("json");
+        const scope = payload.scope ?? "basic";
+        const redirectURI = payload.redirectURI;
+        const credential = await database.query.credentials.findFirst({
+          columns: { id: true, account: true, pandaId: true },
+          where: eq(credentials.id, credentialId),
+        });
+        if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+        setUser({ id: parse(Address, credential.account) });
+        setContext("exa", { credential });
 
-      let inquiryTemplateId: Awaited<ReturnType<typeof getPendingInquiryTemplate>>;
-      try {
-        inquiryTemplateId = await getPendingInquiryTemplate(credentialId, scope);
-      } catch (error: unknown) {
-        if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
-          return c.json({ code: "not supported" }, 400);
+        if (scope === "cardLimit") {
+          const cardLimit = await persona.getCardLimitStatus(credentialId);
+          switch (cardLimit.status) {
+            case "resolved":
+              return c.json({ code: "already approved" }, 400);
+            case "approved":
+              captureException(new Error("inquiry approved but account not updated"), {
+                level: "error",
+                contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
+              });
+              return c.json({ code: "already approved" }, 400);
+            case "noTemplate":
+              return c.json({ code: "not started" }, 400);
+            case "noInquiry": {
+              const basicAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
+                captureException(error, {
+                  level: "error",
+                  contexts: { details: { credentialId, scope: "cardLimit" } },
+                });
+              });
+              const { data } = await persona.createInquiry(
+                credentialId,
+                CARD_LIMIT_TEMPLATE,
+                redirectURI,
+                basicAccount
+                  ? {
+                      "name-first": basicAccount.attributes["name-first"],
+                      "name-last": basicAccount.attributes["name-last"],
+                    }
+                  : undefined,
+              );
+              return c.json(await generateInquiryTokens(data.id, persona), 200);
+            }
+            case "completed":
+            case "needs_review":
+              return c.json({ code: "processing" }, 400);
+            case "pending":
+            case "created":
+            case "expired":
+              return c.json(await generateInquiryTokens(cardLimit.id, persona), 200);
+            case "failed":
+            case "declined":
+              return c.json({ code: "failed" }, 400);
+            default:
+              throw new Error("unknown inquiry status");
+          }
         }
-        throw error;
-      }
-      if (!inquiryTemplateId) {
-        return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
-      }
 
-      const inquiry = await getInquiry(credentialId, inquiryTemplateId);
-      if (!inquiry) {
-        const { data } = await createInquiry(credentialId, inquiryTemplateId, redirectURI);
-        return c.json(await generateInquiryTokens(data.id), 200);
-      }
-
-      switch (inquiry.attributes.status) {
-        case "approved":
-          captureException(new Error("inquiry approved but account not updated"), {
-            level: "error",
-            contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
-          });
+        let inquiryTemplateId: Awaited<ReturnType<(typeof persona)["getPendingInquiryTemplate"]>>;
+        try {
+          inquiryTemplateId = await persona.getPendingInquiryTemplate(credentialId, scope);
+        } catch (error: unknown) {
+          if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
+            return c.json({ code: "not supported" }, 400);
+          }
+          throw error;
+        }
+        if (!inquiryTemplateId) {
           return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
-        case "failed":
-        case "declined":
-          return c.json({ code: "failed", legacy: "kyc failed" }, 400);
-        case "completed":
-        case "needs_review":
-          return c.json({ code: "processing", legacy: "kyc failed" }, 400);
-        case "pending":
-        case "created":
-        case "expired":
-          return c.json(await generateInquiryTokens(inquiry.id), 200);
-        default:
-          throw new Error("unknown inquiry status");
-      }
-    },
-  )
-  .post(
-    "/application",
-    auth(),
-    honoOpenapi.describeRoute({
-      summary: "Submit KYC application",
-      description: `
+        }
+
+        const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
+        if (!inquiry) {
+          const { data } = await persona.createInquiry(credentialId, inquiryTemplateId, redirectURI);
+          return c.json(await generateInquiryTokens(data.id, persona), 200);
+        }
+
+        switch (inquiry.attributes.status) {
+          case "approved":
+            captureException(new Error("inquiry approved but account not updated"), {
+              level: "error",
+              contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
+            });
+            return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
+          case "failed":
+          case "declined":
+            return c.json({ code: "failed", legacy: "kyc failed" }, 400);
+          case "completed":
+          case "needs_review":
+            return c.json({ code: "processing", legacy: "kyc failed" }, 400);
+          case "pending":
+          case "created":
+          case "expired":
+            return c.json(await generateInquiryTokens(inquiry.id, persona), 200);
+          default:
+            throw new Error("unknown inquiry status");
+        }
+      },
+    )
+    .post(
+      "/application",
+      auth,
+      honoOpenapi.describeRoute({
+        summary: "Submit KYC application",
+        description: `
 Submit information for KYC application.
 
 **Encrypted kyc payload**
@@ -404,305 +409,307 @@ Working example about how to login is [here](../../../organization-authenticatio
 
 The admin should add a member using [addMember method](https://www.better-auth.com/docs/plugins/organization#add-member).
 `,
-      tags: ["KYC"],
-      responses: {
-        200: {
-          description: "KYC application submitted successfully",
-          content: {
-            "application/json": {
-              schema: resolver(object({ status: string() }), { errorMode: "ignore" }),
+        tags: ["KYC"],
+        responses: {
+          200: {
+            description: "KYC application submitted successfully",
+            content: {
+              "application/json": {
+                schema: resolver(object({ status: string() }), { errorMode: "ignore" }),
+              },
             },
           },
-        },
-        400: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([
-                  object({ code: picklist(["invalid encryption", "no account", "bad chain"]), message: string() }),
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([
+                    object({ code: picklist(["invalid encryption", "no account", "bad chain"]), message: string() }),
+                    object({
+                      ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                      message: optional(array(string())),
+                    }),
+                  ]),
+                  {
+                    errorMode: "ignore",
+                  },
+                ),
+              },
+            },
+          },
+          401: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([
+                    object({
+                      code: literal("invalid payload"),
+                      message: string(),
+                    }),
+                    object({
+                      code: string(),
+                    }),
+                  ]),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+          409: {
+            description: "Conflict",
+            content: {
+              "application/json": {
+                schema: resolver(object({ code: literal(BadRequestCodes.ALREADY_STARTED) }), { errorMode: "ignore" }),
+              },
+            },
+          },
+          403: {
+            description: "Forbidden",
+            content: {
+              "application/json": {
+                schema: resolver(
                   object({
-                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
-                    message: optional(array(string())),
+                    code: picklist(["no permission", "no organization"]),
+                    message: optional(string()),
                   }),
-                ]),
-                {
-                  errorMode: "ignore",
-                },
-              ),
-            },
-          },
-        },
-        401: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([
-                  object({
-                    code: literal("invalid payload"),
-                    message: string(),
-                  }),
-                  object({
-                    code: string(),
-                  }),
-                ]),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
-        409: {
-          description: "Conflict",
-          content: {
-            "application/json": {
-              schema: resolver(object({ code: literal(BadRequestCodes.ALREADY_STARTED) }), { errorMode: "ignore" }),
-            },
-          },
-        },
-        403: {
-          description: "Forbidden",
-          content: {
-            "application/json": {
-              schema: resolver(
-                object({
-                  code: picklist(["no permission", "no organization"]),
-                  message: optional(string()),
-                }),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
-      },
-      validateResponse: true,
-    }),
-    vValidator(
-      "json",
-      union([
-        object({
-          ...Application.entries,
-          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-        }),
-        object({
-          key: string(),
-          iv: string(),
-          ciphertext: string(),
-          tag: string(),
-          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-        }),
-      ]),
-      validatorHook({ debug }),
-    ),
-    async (c) => {
-      const payload = c.req.valid("json");
-      const { message, signature, walletAddress: address } = payload.verify;
-
-      if (!(await verifyMessage({ address, message, signature }))) {
-        return c.json({ code: "no permission", message: "invalid signature" }, 403);
-      }
-      const account = await database.query.walletAddresses.findFirst({
-        where: eq(walletAddresses.address, address),
-        with: {
-          user: {
-            columns: { id: true },
-            with: {
-              members: {
-                columns: { role: true },
-                with: { organization: { columns: { id: true, role: true } } },
+                  { errorMode: "ignore" },
+                ),
               },
             },
           },
         },
-      });
+        validateResponse: true,
+      }),
+      vValidator(
+        "json",
+        union([
+          object({
+            ...Application.entries,
+            verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+          }),
+          object({
+            key: string(),
+            iv: string(),
+            ciphertext: string(),
+            tag: string(),
+            verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+          }),
+        ]),
+        validatorHook({ debug }),
+      ),
+      async (c) => {
+        const payload = c.req.valid("json");
+        const { message, signature, walletAddress: address } = payload.verify;
 
-      if (!account) return c.json({ code: "no account", message: `no account found for address ${address}` }, 400);
-      const member = account.user.members[0];
-      if (!member) return c.json({ code: "no organization" }, 403);
-      if (member.role !== "admin" && member.role !== "owner") return c.json({ code: "no permission" }, 403);
-      if (member.organization.role !== "kyc") return c.json({ code: "no permission" }, 403);
-
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true },
-        where: eq(credentials.id, credentialId),
-      });
-      if (!credential) return c.json({ code: "no credential" }, 500);
-      setUser({ id: parse(Address, credential.account) });
-      setContext("exa", { credential });
-
-      const siweMessage = parseSiweMessage(payload.verify.message);
-
-      if (siweMessage.domain !== domain) return c.json({ code: "no permission", message: "invalid domain" }, 403);
-
-      if (siweMessage.chainId !== chain.id)
-        return c.json({ code: "bad chain", message: `expected ${chain.id} but got ${siweMessage.chainId}` }, 400);
-
-      const { verify, ...body } = payload;
-      const hash =
-        "ciphertext" in body
-          ? sha256(Buffer.from(body.ciphertext, "base64"))
-          : await canonicalize.then((serialize) => {
-              const canon = serialize(body);
-              if (!canon) throw new Error("bad body");
-              return sha256(Buffer.from(canon, "utf8"));
-            });
-
-      const expected = `I apply for KYC approval on behalf of address ${parse(Address, credential.account)} with payload hash ${hash}`;
-      if (siweMessage.statement !== expected) {
-        return c.json(
-          {
-            code: "no permission",
-            message: `invalid statement, expected: [${expected}] but got [${siweMessage.statement}]`,
+        if (!(await verifyMessage({ address, message, signature }))) {
+          return c.json({ code: "no permission", message: "invalid signature" }, 403);
+        }
+        const account = await database.query.walletAddresses.findFirst({
+          where: eq(walletAddresses.address, address),
+          with: {
+            user: {
+              columns: { id: true },
+              with: {
+                members: {
+                  columns: { role: true },
+                  with: { organization: { columns: { id: true, role: true } } },
+                },
+              },
+            },
           },
-          403,
-        );
-      }
+        });
 
-      if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+        if (!account) return c.json({ code: "no account", message: `no account found for address ${address}` }, 400);
+        const member = account.user.members[0];
+        if (!member) return c.json({ code: "no organization" }, 403);
+        if (member.role !== "admin" && member.role !== "owner") return c.json({ code: "no permission" }, 403);
+        if (member.organization.role !== "kyc") return c.json({ code: "no permission" }, 403);
 
-      try {
-        const application = await submitApplication(body);
-        await database
-          .update(credentials)
-          .set({ pandaId: application.id, source: member.organization.id })
-          .where(eq(credentials.id, credentialId));
-        return c.json({ status: application.applicationStatus }, 200);
-      } catch (error) {
-        if (error instanceof ServiceError) {
-          switch (error.status) {
-            case 400:
-              return c.json({ code: "invalid encryption", message: error.message }, 400);
-            case 401:
-              return c.json({ code: "invalid payload", message: error.message }, 401);
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          columns: { id: true, account: true, pandaId: true },
+          where: eq(credentials.id, credentialId),
+        });
+        if (!credential) return c.json({ code: "no credential" }, 500);
+        setUser({ id: parse(Address, credential.account) });
+        setContext("exa", { credential });
+
+        const siweMessage = parseSiweMessage(payload.verify.message);
+
+        if (siweMessage.domain !== domain) return c.json({ code: "no permission", message: "invalid domain" }, 403);
+
+        if (siweMessage.chainId !== chain.id)
+          return c.json({ code: "bad chain", message: `expected ${chain.id} but got ${siweMessage.chainId}` }, 400);
+
+        const { verify, ...body } = payload;
+        const hash =
+          "ciphertext" in body
+            ? sha256(Buffer.from(body.ciphertext, "base64"))
+            : await canonicalize.then((serialize) => {
+                const canon = serialize(body);
+                if (!canon) throw new Error("bad body");
+                return sha256(Buffer.from(canon, "utf8"));
+              });
+
+        const expected = `I apply for KYC approval on behalf of address ${parse(Address, credential.account)} with payload hash ${hash}`;
+        if (siweMessage.statement !== expected) {
+          return c.json(
+            {
+              code: "no permission",
+              message: `invalid statement, expected: [${expected}] but got [${siweMessage.statement}]`,
+            },
+            403,
+          );
+        }
+
+        if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+
+        try {
+          const application = await panda.submitApplication(body);
+          await database
+            .update(credentials)
+            .set({ pandaId: application.id, source: member.organization.id })
+            .where(eq(credentials.id, credentialId));
+          return c.json({ status: application.applicationStatus }, 200);
+        } catch (error) {
+          if (error instanceof ServiceError) {
+            switch (error.status) {
+              case 400:
+                return c.json({ code: "invalid encryption", message: error.message }, 400);
+              case 401:
+                return c.json({ code: "invalid payload", message: error.message }, 401);
+            }
           }
+          throw error;
         }
-        throw error;
-      }
-    },
-  )
-  .patch(
-    "/application",
-    auth(),
-    honoOpenapi.describeRoute({
-      summary: "Update KYC application",
-      description: "Update the KYC application",
-      tags: ["KYC"],
-      responses: {
-        200: {
-          description: "KYC application updated successfully",
-          content: {
-            "application/json": {
-              schema: resolver(buildBaseResponse("ok"), { errorMode: "ignore" }),
-            },
-          },
-        },
-        400: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([
-                  buildBaseResponse(BadRequestCodes.NOT_STARTED),
-                  object({
-                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
-                    legacy: optional(pipe(string(), metadata({ examples: [BadRequestCodes.BAD_REQUEST] }))),
-                    message: optional(array(string())),
-                  }),
-                ]),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
       },
-      validateResponse: true,
-    }),
-    vValidator("json", ApplicationUpdate, validatorHook({ debug })),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const payload = c.req.valid("json");
-      const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true },
-        where: eq(credentials.id, credentialId),
-      });
-      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-      setUser({ id: parse(Address, credential.account) });
-      setContext("exa", { credential });
-      if (!credential.pandaId) {
-        return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
-      }
-      try {
-        await updateApplication(credential.pandaId, payload);
-      } catch (error) {
-        if (error instanceof ServiceError && error.status === 400) {
-          return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
+    )
+    .patch(
+      "/application",
+      auth,
+      honoOpenapi.describeRoute({
+        summary: "Update KYC application",
+        description: "Update the KYC application",
+        tags: ["KYC"],
+        responses: {
+          200: {
+            description: "KYC application updated successfully",
+            content: {
+              "application/json": {
+                schema: resolver(buildBaseResponse("ok"), { errorMode: "ignore" }),
+              },
+            },
+          },
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([
+                    buildBaseResponse(BadRequestCodes.NOT_STARTED),
+                    object({
+                      ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                      legacy: optional(pipe(string(), metadata({ examples: [BadRequestCodes.BAD_REQUEST] }))),
+                      message: optional(array(string())),
+                    }),
+                  ]),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+        },
+        validateResponse: true,
+      }),
+      vValidator("json", ApplicationUpdate, validatorHook({ debug })),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const payload = c.req.valid("json");
+        const credential = await database.query.credentials.findFirst({
+          columns: { id: true, account: true, pandaId: true },
+          where: eq(credentials.id, credentialId),
+        });
+        if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+        setUser({ id: parse(Address, credential.account) });
+        setContext("exa", { credential });
+        if (!credential.pandaId) {
+          return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
         }
-        throw error;
-      }
-      return c.json({ code: "ok", legacy: "ok" }, 200);
-    },
-  )
-  .get(
-    "/application",
-    auth(),
-    honoOpenapi.describeRoute({
-      summary: "Get KYC application status",
-      description: "Get the status of the KYC application",
-      tags: ["KYC"],
-      responses: {
-        200: {
-          description: "KYC application status",
-          content: {
-            "application/json": {
-              schema: resolver(KYCStatusResponse, { errorMode: "ignore" }),
-            },
-          },
-        },
-        400: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([
-                  buildBaseResponse(BadRequestCodes.NOT_STARTED),
-                  object({
-                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
-                    message: optional(array(string())),
-                  }),
-                ]),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
+        try {
+          await panda.updateApplication(credential.pandaId, payload);
+        } catch (error) {
+          if (error instanceof ServiceError && error.status === 400) {
+            return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
+          }
+          throw error;
+        }
+        return c.json({ code: "ok", legacy: "ok" }, 200);
       },
-    }),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true },
-        where: eq(credentials.id, credentialId),
-      });
-      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-      setUser({ id: parse(Address, credential.account) });
-      setContext("exa", { credential });
-      if (!credential.pandaId) {
-        return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
-      }
-      const status = await getApplicationStatus(credential.pandaId);
-      return c.json(
-        { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason ?? "unknown" },
-        200,
-      );
-    },
-  );
+    )
+    .get(
+      "/application",
+      auth,
+      honoOpenapi.describeRoute({
+        summary: "Get KYC application status",
+        description: "Get the status of the KYC application",
+        tags: ["KYC"],
+        responses: {
+          200: {
+            description: "KYC application status",
+            content: {
+              "application/json": {
+                schema: resolver(KYCStatusResponse, { errorMode: "ignore" }),
+              },
+            },
+          },
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([
+                    buildBaseResponse(BadRequestCodes.NOT_STARTED),
+                    object({
+                      ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                      message: optional(array(string())),
+                    }),
+                  ]),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          columns: { id: true, account: true, pandaId: true },
+          where: eq(credentials.id, credentialId),
+        });
+        if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+        setUser({ id: parse(Address, credential.account) });
+        setContext("exa", { credential });
+        if (!credential.pandaId) {
+          return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
+        }
+        const status = await panda.getApplicationStatus(credential.pandaId);
+        return c.json(
+          { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason ?? "unknown" },
+          200,
+        );
+      },
+    );
+}
 
 async function isLegacy(
   credentialId: string,
   account: Address,
   factory: string,
   publicKey: Uint8Array<ArrayBuffer>,
+  persona: ReturnType<typeof createPersona>,
 ): Promise<boolean> {
   if (factory === exaAccountFactoryAddress) return false;
   return await startSpan({ name: "exa.kyc", op: "isLegacy" }, async () => {
@@ -716,15 +723,18 @@ async function isLegacy(
     if (installedPlugin.length === 0) return false;
     if (installedPlugin.includes(exaPluginAddress)) return false;
     const [legacyKYC, inquiry] = await Promise.all([
-      getInquiry(credentialId, CRYPTOMATE_TEMPLATE),
-      getInquiry(credentialId, PANDA_TEMPLATE),
+      persona.getInquiry(credentialId, CRYPTOMATE_TEMPLATE),
+      persona.getInquiry(credentialId, PANDA_TEMPLATE),
     ]);
 
     return legacyKYC?.attributes.status === "approved" && !inquiry;
   });
 }
 
-async function generateInquiryTokens(inquiryId: string): Promise<{ inquiryId: string; sessionToken: string }> {
-  const { meta: sessionTokenMeta } = await resumeInquiry(inquiryId);
+async function generateInquiryTokens(
+  inquiryId: string,
+  persona: ReturnType<typeof createPersona>,
+): Promise<{ inquiryId: string; sessionToken: string }> {
+  const { meta: sessionTokenMeta } = await persona.resumeInquiry(inquiryId);
   return { inquiryId, sessionToken: sessionTokenMeta["session-token"] };
 }
