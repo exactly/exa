@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
 import { getAddress, type Abi } from "viem";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -35,9 +35,26 @@ const [proposalManager] = loadBroadcast("ProposalManager").transactions;
 const [refunder] = loadBroadcast("Refunder").transactions;
 const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
 const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default;
-const allowlist = Object.keys(
-  (deploy.proposalManager.allowlist as Record<string, Record<string, string>>)[chainId] ?? {},
-).map((address) => getAddress(address));
+const allowlists = Object.fromEntries(
+  Object.entries(deploy.proposalManager.allowlist as Record<string, Record<string, string>>).map(([id, tokens]) => {
+    const network = { [String(optimism.id)]: "optimism", [String(base.id)]: "base" }[id];
+    const underlying = network
+      ? readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
+          .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
+          .filter((asset) => asset !== "ETHRouter")
+          .map((asset) =>
+            getAddress(
+              (
+                JSON.parse(
+                  readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${asset}.json`, "utf8"),
+                ) as Deployment
+              ).address,
+            ),
+          )
+      : [];
+    return [id, [...underlying, ...Object.keys(tokens).map((address) => getAddress(address))]];
+  }),
+);
 if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
   throw new Error("missing contracts");
 }
@@ -113,7 +130,12 @@ export default defineConfig([
           },
         },
       ),
-      { name: "Allowlist", run: () => ({ content: `export const allowlist = ${JSON.stringify(allowlist)} as const` }) },
+      {
+        name: "Allowlist",
+        run: () => ({
+          content: `export const allowlists: Record<string, readonly string[] | undefined> = ${JSON.stringify(allowlists)}`,
+        }),
+      },
       foundry({
         forge: { build: false },
         project: "../contracts",

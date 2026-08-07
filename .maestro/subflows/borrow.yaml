@@ -4,14 +4,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertTrue: ${installments && !Number.isNaN(Number(installments))}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
-- tapOn: DeFi
-- runFlow:
-    when: { visible: Explore decentralized services }
-    commands: [{ tapOn: 'Explore decentralized services' }]
-- tapOn: USDC funding
-- runFlow:
-    when: { visible: Connect wallet to Exactly Protocol }
-    commands: [{ tapOn: Connect wallet to Exactly Protocol }]
+- tapOn: Borrow
 - tapOn: Explore funding options
 - assertVisible: Select amount
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }

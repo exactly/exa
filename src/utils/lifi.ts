@@ -18,7 +18,7 @@ import { encodeFunctionData, formatUnits, getAddress, zeroAddress, type Address 
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, { allowlist, exaAddress, mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
+import chain, { allowlists, exaAddress, mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import alchemyChains from "./alchemyChains";
@@ -226,8 +226,12 @@ export async function getAllowTokens(markets: readonly { asset: string; symbol: 
   ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
-  const protocolAssets = markets.filter((m) => m.symbol.slice(3) !== "USDC.e").map((m) => m.asset);
-  const allowed = new Set([...allowlist, ...protocolAssets].map((address) => address.toLowerCase()));
+  const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
+  const allowed = new Set(
+    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)]
+      .map((address) => address.toLowerCase())
+      .filter((address) => !excluded.has(address)),
+  );
   const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
   if (!exaAddress) return allowTokens;
   try {
@@ -251,6 +255,8 @@ export type RouteFrom = {
   tool?: string;
   value: bigint;
 };
+
+export const bridgeSlippage = 0.02;
 
 export async function getRouteFrom({
   fromChainId,
@@ -305,7 +311,7 @@ export async function getRouteFrom({
   config.set({ integrator: "exa_app", userId: fromAddress });
   const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
-    slippage: 0.02,
+    slippage: bridgeSlippage,
     integrator: "exa_app",
     fromChain: fromChainId ?? chain.id,
     toChain: toChainId ?? chain.id,
@@ -554,6 +560,9 @@ export const tokenCorrelation = {
   ETH: "ETH",
   WETH: "ETH",
   "WETH.e": "ETH",
+
+  USDT0: "USDT",
+  "USD₮0": "USDT",
 
   // #region liquid staked ETH
   cbETH: "wstETH",

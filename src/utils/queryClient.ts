@@ -104,6 +104,7 @@ queryClient.setQueryDefaults(["credential"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["getBytecode"], { staleTime: (query) => (query.state.data ? Infinity : 0) });
 queryClient.setQueryDefaults(["readContract"], {
   queryFn: () => {
     throw new Error("don't refetch");
@@ -226,6 +227,27 @@ queryClient.setQueryDefaults(["settings", "defi-intro-shown"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "defi-intro-shown"]),
+});
+queryClient.setQueryDefaults(["settings", "bridge-needed-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "bridge-needed-shown"]),
+});
+queryClient.setQueryDefaults(["settings", "bridge-swap-needed-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "bridge-swap-needed-shown"]),
+});
+queryClient.setQueryDefaults(["settings", "swap-needed-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => queryClient.getQueryData(["settings", "swap-needed-shown"]),
 });
 queryClient.setQueryDefaults(["defi", "usdc-funding-connected"], {
   initialData: false,

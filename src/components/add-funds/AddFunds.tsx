@@ -1,16 +1,16 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, Banknote, Blocks, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { isAfter, parseISO } from "date-fns";
 import { isAddress } from "viem";
-import { base } from "viem/chains";
+import { base, mainnet } from "viem/chains";
+import { useEnsName } from "wagmi";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -18,15 +18,14 @@ import shortenHex from "@exactly/common/shortenHex";
 
 import AddFundsOption from "./AddFundsOption";
 import { presentArticle } from "../../utils/intercom";
-import openBrowser from "../../utils/openBrowser";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useMarkets from "../../utils/useMarkets";
+import ownerConfig from "../../utils/wagmi/owner";
 import RampButton from "../ramp/RampButton";
-import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
-import InfoAlert from "../shared/InfoAlert";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -42,8 +41,15 @@ export default function AddFunds() {
   const { t } = useTranslation();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const ownerAccount = credential && isAddress(credential.credentialId) ? credential.credentialId : undefined;
+  const { data: ensName } = useEnsName({
+    config: ownerConfig,
+    chainId: mainnet.id,
+    address: ownerAccount,
+    query: { staleTime: 86_400_000, retry: false, meta: { dropError: () => true } },
+  });
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
+  const { supportedAssets } = useMarkets();
   const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
   const beginKYC = useBeginKYC();
   const isKYCApproved =
@@ -69,47 +75,7 @@ export default function AddFunds() {
 
   const hasFiat =
     providers && Object.values(providers).some((p) => p.onramp.currencies.some((item) => typeof item === "string"));
-  const hasCrypto =
-    providers &&
-    Object.values(providers).some((p) =>
-      p.onramp.currencies.some((item) => typeof item === "object" && "network" in item),
-    );
-  const past = useMemo(() => isAfter(new Date(), parseISO("2026-07-01")), []);
-
-  function renderProviders(filter: "crypto" | "fiat") {
-    if (countryCode && isPending) {
-      return (
-        <View justifyContent="center" alignItems="center">
-          <Skeleton width="100%" height={82} />
-        </View>
-      );
-    }
-    if (!providers) return null;
-    return (
-      <YStack gap="$s3_5">
-        {Object.entries(providers).flatMap(([providerKey, provider]) =>
-          provider.onramp.currencies
-            .filter((item) => (filter === "crypto") === (typeof item === "object"))
-            .map((item) => {
-              const isCrypto = typeof item === "object";
-              const currency = isCrypto ? item.currency : item;
-              const network = isCrypto ? item.network : undefined;
-              return (
-                <RampButton
-                  key={`${providerKey}-${currency}-${network ?? "fiat"}`}
-                  currency={currency}
-                  direction="onramp"
-                  network={network}
-                  provider={providerKey as "bridge" | "manteca"}
-                  status={provider.status}
-                />
-              );
-            }),
-        )}
-      </YStack>
-    );
-  }
-
+  if (type === "crypto") return <Redirect href="/add-funds/assets" />;
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
       <View gap="$s6" fullScreen padded>
@@ -119,7 +85,7 @@ export default function AddFunds() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                if (type === "crypto" || type === "fiat") {
+                if (type === "fiat") {
                   if (router.canGoBack()) {
                     router.back();
                   } else {
@@ -131,7 +97,7 @@ export default function AddFunds() {
               }}
             />
             <Text emphasized subHeadline primary>
-              {t(type === "crypto" ? "Cryptocurrencies" : type === "fiat" ? "Bank transfers" : "Add Funds")}
+              {t(type === "fiat" ? "Bank transfers" : "Add Funds")}
             </Text>
             <IconButton
               icon={CircleHelp}
@@ -146,19 +112,36 @@ export default function AddFunds() {
           <YStack flex={1} gap="$s3_5">
             {type !== "crypto" && type !== "fiat" && (
               <>
+                {method === "siwe" && (
+                  <AddFundsOption
+                    icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
+                    title={t("With connected wallet")}
+                    subtitle={
+                      ownerAccount &&
+                      (ensName ? `${ensName} | ${shortenHex(ownerAccount, 4, 6)}` : shortenHex(ownerAccount, 4, 6))
+                    }
+                    onPress={() => {
+                      router.push("/add-funds/bridge");
+                    }}
+                  />
+                )}
                 <AddFundsOption
                   icon={<Blocks size={24} color="$iconBrandDefault" />}
                   title={t("Cryptocurrencies")}
-                  subtitle={t("Multiple networks and wallets")}
+                  subtitle={
+                    supportedAssets.length > 3
+                      ? t("{{assets}} and more", { assets: supportedAssets.slice(0, 3).join(", ") })
+                      : supportedAssets.join(", ")
+                  }
                   onPress={() => {
-                    router.push({ pathname: "/add-funds", params: { type: "crypto" } });
+                    router.push("/add-funds/assets");
                   }}
                 />
                 {hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
-                    subtitle={t("From a bank account")}
+                    subtitle={t("Pesos, dollars, or euros")}
                     disabled={(isKYCApproved && !hasFiat) || beginKYC.isPending}
                     loading={beginKYC.isPending}
                     onPress={() => {
@@ -189,64 +172,6 @@ export default function AddFunds() {
                     }}
                   />
                 )}
-              </>
-            )}
-            {type === "crypto" && (
-              <>
-                {hasCrypto && (
-                  <InfoAlert
-                    title={
-                      past
-                        ? t("Crypto on-ramps are no longer available as of July 1st.")
-                        : t("Crypto on-ramps will no longer be available from July 1st.")
-                    }
-                    actionText={t("Learn more")}
-                    onPress={() => {
-                      openBrowser("https://x.com/exa_app/status/2071690658339770622").catch(reportError);
-                    }}
-                  />
-                )}
-                {!past && !isKYCApproved && chain.id !== base.id && (
-                  <InfoAlert
-                    title={t("Complete a quick identity check to access more networks.")}
-                    actionText={t("Get verified")}
-                    onPress={() => {
-                      beginKYC.mutate(undefined, {
-                        onError(error) {
-                          toast.show(t("Error verifying identity"), {
-                            duration: 1000,
-                            burntOptions: { haptic: "error", preset: "error" },
-                          });
-                          reportError(error);
-                        },
-                      });
-                    }}
-                    loading={beginKYC.isPending}
-                  />
-                )}
-                {method === "siwe" && (
-                  <AddFundsOption
-                    icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
-                    title={t("From connected wallet")}
-                    subtitle={
-                      // TODO add support for ens resolution
-                      ownerAccount ? shortenHex(ownerAccount, 4, 6) : ""
-                    }
-                    onPress={() => {
-                      router.push("/add-funds/bridge");
-                    }}
-                  />
-                )}
-                <AddFundsOption
-                  icon={<ChainLogo size={24} borderRadius="$r3" />}
-                  title={t("From another wallet")}
-                  subtitle={t("On {{chain}}", { chain: chain.name })}
-                  onPress={() => {
-                    router.push("/add-funds/add-crypto");
-                  }}
-                />
-
-                {!past && renderProviders("crypto")}
               </>
             )}
             {type === "fiat" && countryCode && isPending && (
