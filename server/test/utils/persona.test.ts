@@ -169,6 +169,30 @@ describe("is missing or null util", () => {
   });
 });
 
+describe("createInquiry", () => {
+  it("selects the configured Persona account type when provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "created", "reference-id": "reference-id" },
+        },
+      }),
+    );
+
+    await persona.createInquiry("reference-id", "template-id", undefined, undefined, "acttp_company");
+
+    expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      meta: {
+        "auto-create-account": true,
+        "auto-create-account-reference-id": "reference-id",
+        "auto-create-account-type-id": "acttp_company",
+      },
+    });
+  });
+});
+
 describe("evaluateAccount", () => {
   let fetchSpy: MockInstance<typeof fetch>;
   beforeEach(() => {
@@ -177,6 +201,7 @@ describe("evaluateAccount", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("throws when scope is not supported", async () => {
@@ -571,6 +596,24 @@ describe("evaluateAccount", () => {
       );
 
       expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+    });
+  });
+
+  describe("business", () => {
+    it("returns the business template when an account is not found", async () => {
+      await expect(persona.evaluateAccount({ data: [] }, "business")).resolves.toBe(persona.PANDA_BUSINESS_TEMPLATE);
+    });
+
+    it("uses the local template only for the sandbox harness", async () => {
+      vi.stubEnv("PERSONA_BUSINESS_TEMPLATE_ID", persona.LOCAL_PANDA_BUSINESS_TEMPLATE);
+
+      await expect(persona.evaluateAccount({ data: [] }, "business")).resolves.toBe(
+        persona.LOCAL_PANDA_BUSINESS_TEMPLATE,
+      );
+    });
+
+    it("returns undefined when a business account exists", async () => {
+      await expect(persona.evaluateAccount(emptyAccount, "business")).resolves.toBeUndefined();
     });
   });
 

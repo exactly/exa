@@ -24,11 +24,13 @@ import decodePublicKey from "../utils/decodePublicKey";
 import {
   Application,
   UpdateApplicationRequest as ApplicationUpdate,
+  BusinessApplicationError,
+  businessApplicationFromPersona,
+  BusinessApplicationResponse,
   CompanyApplicationResponse,
   createCompanyApplication,
-  CreateCompanyApplicationRequest,
-  createCompanyUser,
   createMutex,
+  finalizeBusinessApproval,
   getApplicationStatus,
   getCompanyApplicationStatus,
   getMutex,
@@ -40,6 +42,7 @@ import {
   createInquiry,
   CRYPTOMATE_TEMPLATE,
   getAccount,
+  getBusinessAccountTypeId,
   getCardLimitStatus,
   getInquiry,
   getPendingInquiryTemplate,
@@ -71,6 +74,8 @@ const BadRequestCodes = {
   BAD_REQUEST: "bad request",
 } as const;
 
+const failedKycStatus = new Set(["denied", "locked", "canceled"]);
+
 function buildBaseResponse(example = "string") {
   return object({
     code: pipe(string(), metadata({ examples: [example] })),
@@ -86,7 +91,7 @@ export default new Hono()
       "query",
       object({
         countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca"])),
       }),
       validatorHook(),
     ),
@@ -171,7 +176,7 @@ export default new Hono()
         throw error;
       }
       if (!inquiryTemplateId) {
-        if (c.req.valid("query").countryCode) {
+        if (scope !== "business" && c.req.valid("query").countryCode) {
           const personaAccount = await getAccount(credentialId, scope).catch((error: unknown) => {
             captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
           });
@@ -211,7 +216,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
@@ -288,7 +293,10 @@ export default new Hono()
 
       const inquiry = await getInquiry(credentialId, inquiryTemplateId);
       if (!inquiry) {
-        const { data } = await createInquiry(credentialId, inquiryTemplateId, redirectURI);
+        const { data } =
+          scope === "business"
+            ? await createInquiry(credentialId, inquiryTemplateId, redirectURI, undefined, getBusinessAccountTypeId())
+            : await createInquiry(credentialId, inquiryTemplateId, redirectURI);
         return c.json(await generateInquiryTokens(data.id), 200);
       }
 
@@ -422,6 +430,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                 union([
                   object({ status: string() }),
                   object({ id: string(), applicationStatus: string() }),
+                  BusinessApplicationResponse,
                   CompanyApplicationResponse,
                 ]),
                 { errorMode: "ignore" },
@@ -481,7 +490,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             "application/json": {
               schema: resolver(
                 object({
-                  code: picklist(["no permission", "no organization"]),
+                  code: picklist(["no permission", "no organization", "not business"]),
                   message: optional(string()),
                 }),
                 { errorMode: "ignore" },
@@ -495,26 +504,28 @@ The admin should add a member using [addMember method](https://www.better-auth.c
     vValidator("query", optional(object({ type: optional(literal("business")) })), validatorHook({ debug })),
     vValidator(
       "json",
-      union([
-        object({
-          ...Application.entries,
-          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-        }),
-        object({
-          key: string(),
-          iv: string(),
-          ciphertext: string(),
-          tag: string(),
-          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-        }),
-        CreateCompanyApplicationRequest,
-      ]),
+      optional(
+        union([
+          object({
+            ...Application.entries,
+            verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+          }),
+          object({
+            key: string(),
+            iv: string(),
+            ciphertext: string(),
+            tag: string(),
+            verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+          }),
+          object({}),
+        ]),
+      ),
       validatorHook({ debug }),
     ),
     async (c) => {
       const payload = c.req.valid("json");
       if (c.req.valid("query")?.type === "business") {
-        if ("verify" in payload) {
+        if (payload && "verify" in payload) {
           return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
         }
 
@@ -528,37 +539,49 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         const mutex = getMutex(account) ?? createMutex(account);
         return mutex.runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
-            columns: { account: true, pandaCompanyId: true, pandaId: true, salt: true },
+            columns: { pandaCompanyId: true, pandaId: true, salt: true },
             where: eq(credentials.id, credentialId),
           });
           if (!credential) return c.json({ code: "no credential" }, 500);
           if (!isBusinessSalt(parse(Address, credential.salt))) return c.json({ code: "not business" }, 403);
 
-          const application = credential.pandaCompanyId ? undefined : await createCompanyApplication(payload);
-          const companyId = credential.pandaCompanyId ?? application?.id;
-          if (!companyId) throw new Error("missing company id");
-          if (application)
-            await database
-              .update(credentials)
-              .set({ pandaCompanyId: application.id })
-              .where(eq(credentials.id, credentialId));
-          if (application) {
+          try {
+            const application = credential.pandaCompanyId
+              ? undefined
+              : await createCompanyApplication(
+                  await businessApplicationFromPersona(credentialId, account, c.req.header("do-connecting-ip")),
+                );
+            const companyId = credential.pandaCompanyId ?? application?.id;
+            if (!companyId) throw new Error("missing company id");
+            if (application)
+              await database
+                .update(credentials)
+                .set({ pandaCompanyId: application.id })
+                .where(eq(credentials.id, credentialId));
+            if (application) {
+              if (application.applicationStatus === "approved")
+                await finalizeBusinessApproval(credentialId, application.id, account);
+              setUser({ id: account });
+              return c.json(parse(BusinessApplicationResponse, application), 200);
+            }
+            if (credential.pandaCompanyId && credential.pandaId)
+              return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+            const applicationStatus = await getCompanyApplicationStatus(companyId);
+            if (applicationStatus.applicationStatus !== "approved")
+              return failedKycStatus.has(applicationStatus.applicationStatus)
+                ? c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400)
+                : c.json(parse(BusinessApplicationResponse, applicationStatus), 200);
+            await finalizeBusinessApproval(credentialId, companyId, account);
             setUser({ id: account });
-            return c.json(application, 200);
+            return c.json(parse(BusinessApplicationResponse, applicationStatus), 200);
+          } catch (error) {
+            if (error instanceof BusinessApplicationError)
+              return c.json({ code: error.code, legacy: error.legacy, message: [error.message] }, 400);
+            throw error;
           }
-          if (credential.pandaCompanyId && credential.pandaId)
-            return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
-          const { applicationStatus } = await getCompanyApplicationStatus(companyId);
-          if (applicationStatus !== "approved") return c.json({ id: companyId, applicationStatus }, 200);
-          if (!credential.pandaId) {
-            const { id } = await createCompanyUser(companyId, payload.initialUser);
-            await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, credentialId));
-          }
-          setUser({ id: account });
-          return c.json({ id: companyId, applicationStatus }, 200);
         });
       }
-      if (!("verify" in payload)) {
+      if (!payload || !("verify" in payload)) {
         return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
       }
 

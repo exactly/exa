@@ -1,14 +1,18 @@
 import "../mocks/sentry";
 
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address } from "@exactly/common/validation";
 
 import * as panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
+import { parse } from "valibot";
 import type { InferInput } from "valibot";
+
+afterEach(() => vi.restoreAllMocks());
 
 const chainMock = vi.hoisted(() => ({ id: 0 }));
 
@@ -214,6 +218,73 @@ describe("corporate applications", () => {
     email: "jane@example.com",
     address,
   };
+
+  it("prefers Account fields and fills null Account fields from Inquiry", async () => {
+    const accountFields = {
+      i_company_name: { value: "Account Acme" },
+      company_description: { value: null },
+      company_industry: { value: "541511" },
+      company_registration_number: { value: "123" },
+      company_tax_id: { value: "456" },
+      company_website: { value: "https://account.example.com" },
+      company_type: { value: "corporation" },
+      company_expected_spend: { value: 1000 },
+      i_auth_user_name: { value: "Jane" },
+      i_auth_user_last_name: { value: "Doe" },
+      birth_date: { value: "1990-01-01" },
+      id_number: { value: "123456789" },
+      id_country: { value: "US" },
+      collected_email_address: { value: "jane@example.com" },
+      terms_and_conditions: { value: true },
+      street_1: { value: address.line1 },
+      city: { value: address.city },
+      subdivision: { value: address.region },
+      postal_code: { value: address.postalCode },
+      country_code: { value: address.countryCode },
+      street_1_1: { value: address.line1 },
+      city_1: { value: address.city },
+      subdivision_1: { value: address.region },
+      postal_code_1: { value: address.postalCode },
+      country_code_1: { value: address.countryCode },
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "inquiry-id",
+            type: "inquiry",
+            attributes: {
+              status: "approved",
+              "reference-id": "reference-id",
+              fields: { "company-description": { value: "Inquiry software" } },
+            },
+          },
+        ],
+      }),
+    ).mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "account-id",
+            type: "account",
+            attributes: { "reference-id": "reference-id", fields: accountFields },
+          },
+        ],
+      }),
+    );
+
+    const application = await panda.businessApplicationFromPersona(
+      "reference-id",
+      parse(Address, "0x0000000000000000000000000000000000000001"),
+      "127.0.0.1",
+    );
+
+    expect(application.name).toBe("Account Acme");
+    expect(application.entity.name).toBe("Account Acme");
+    expect(application.entity.description).toBe("Inquiry software");
+    expect(application.entity.industry).toBe("541511");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 
   it("creates a company application in the configured subtenant", async () => {
     const response = { id: "company_123", name: "Acme", address, applicationStatus: "pending" };

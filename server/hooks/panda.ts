@@ -50,7 +50,6 @@ import {
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import revertReason from "@exactly/common/revertReason";
 import { Address, Hex, type Hash } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
@@ -62,13 +61,12 @@ import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   collectors,
-  createCard,
   createMutex,
-  getCards,
-  getCompanyApplicationStatus,
+  finalizeBusinessApproval,
   getMutex,
   getUser,
   headerValidator,
+  kycStatus,
   signIssuerOp,
   updateUser,
   verifyPandaSignature,
@@ -221,15 +219,20 @@ const Card = v.variant("action", [
   }),
 ]);
 
+const Company = v.object({
+  resource: v.literal("company"),
+  action: v.literal("updated"),
+  body: v.looseObject({
+    id: v.string(),
+    applicationStatus: v.optional(v.picklist(kycStatus)),
+  }),
+  id: v.string(),
+});
+
 const Payload = v.variant("resource", [
   Transaction,
   Card,
-  v.object({
-    resource: v.literal("company"),
-    action: v.string(),
-    body: v.looseObject({ id: v.string() }),
-    id: v.string(),
-  }),
+  Company,
   v.object({
     resource: v.literal("application"),
     action: v.string(),
@@ -247,16 +250,7 @@ const Payload = v.variant("resource", [
     action: v.literal("updated"),
     body: v.object({
       applicationReason: v.string(),
-      applicationStatus: v.picklist([
-        "approved",
-        "pending",
-        "needsInformation",
-        "needsVerification",
-        "manualReview",
-        "denied",
-        "locked",
-        "canceled",
-      ]),
+      applicationStatus: v.picklist(kycStatus),
       firstName: v.string(),
       id: v.string(),
       isActive: v.boolean(),
@@ -282,33 +276,31 @@ export default new Hono().post(
 
     if (payload.resource !== "transaction") {
       if (payload.resource === "company" || payload.resource === "application") {
+        if (payload.resource !== "company" || payload.body.applicationStatus !== "approved")
+          return c.json({ code: "ok" });
+
+        debug("business-approval", {
+          companyId: payload.body.id,
+          eventId: payload.id,
+          outcome: "approved",
+          stage: "received",
+        });
         const credential = await database.query.credentials.findFirst({
           columns: { account: true, id: true, pandaId: true, salt: true },
           where: eq(credentials.pandaCompanyId, payload.body.id),
         });
-        if (credential && isBusinessSalt(v.parse(Address, credential.salt))) {
-          const { applicationStatus } = await getCompanyApplicationStatus(payload.body.id);
-          if (applicationStatus === "approved") {
-            const subtenantId = process.env.PANDA_SUBTENANT_ID;
-            if (!subtenantId) throw new Error("missing panda subtenant id");
-
-            const userId = credential.pandaId;
-            if (userId) {
-              const account = v.parse(Address, credential.account);
-              setUser({ id: account });
-              const mutex = getMutex(account) ?? createMutex(account);
-              await mutex.runExclusive(async () => {
-                const available = await getCards(userId, subtenantId);
-                const card =
-                  available.find(({ status: cardStatus }) => cardStatus === "active") ??
-                  (await createCard(userId, SIGNATURE_PRODUCT_ID, undefined, subtenantId, null));
-                await database
-                  .insert(cards)
-                  .values({ id: card.id, lastFour: card.last4, credentialId: credential.id })
-                  .onConflictDoNothing();
-              });
-            }
-          }
+        const business = credential ? isBusinessSalt(v.parse(Address, credential.salt)) : false;
+        debug("business-approval", {
+          ...(credential && { credentialId: credential.id }),
+          companyId: payload.body.id,
+          outcome: credential ? (business ? "matched" : "not-business") : "not-found",
+          stage: "credential-lookup",
+        });
+        if (credential && business) {
+          const account = v.parse(Address, credential.account);
+          setUser({ id: account });
+          const mutex = getMutex(account) ?? createMutex(account);
+          await mutex.runExclusive(() => finalizeBusinessApproval(credential.id, payload.body.id, account));
         }
         return c.json({ code: "ok" });
       }

@@ -1,11 +1,13 @@
 import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
+import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import {
   array,
   boolean,
   check,
   email,
+  ip,
   ipv4,
   ipv6,
   length,
@@ -22,11 +24,15 @@ import {
   partial,
   picklist,
   pipe,
+  record,
   regex,
+  safeParse,
   string,
   transform,
   union,
   unknown,
+  url as urlValidator,
+  ValiError,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
@@ -48,20 +54,24 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { isBusinessSalt } from "./credentialContext";
+import { getAccount, getBusinessTemplate, getInquiry } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
-import database, { credentials } from "../database";
+import database, { cards, credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
 import type { Hex } from "@exactly/common/validation";
 
 const plugin = exaPluginAddress.toLowerCase();
+const debug = createDebug("exa:panda");
 
 if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
 const baseURL = process.env.PANDA_API_URL;
 
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
+const secondaryKey = process.env.PANDA_API_KEY_SECONDARY;
 
 export default key;
 
@@ -76,11 +86,12 @@ export function createCard(
   amount = 1_000_000,
   subtenantId?: string,
   virtualCardArt?: null | string,
+  idempotencyKey?: string,
 ) {
   return request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
-    {},
+    idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
     parse(CreateCardRequest, {
       type: "virtual",
       status: "active",
@@ -173,6 +184,90 @@ export function createCompanyUser(companyId: string, user: unknown, subtenantId 
   );
 }
 
+export async function finalizeBusinessApproval(credentialId: string, companyId: string, account: Address) {
+  const log = (stage: string, outcome: string, details: Record<string, unknown> = {}) =>
+    debug("business-approval", { companyId, credentialId, stage, outcome, ...details });
+  const userId = await database
+    .transaction(async (tx) => {
+      const [row] = await tx
+        .select({ pandaCompanyId: credentials.pandaCompanyId, pandaId: credentials.pandaId, salt: credentials.salt })
+        .from(credentials)
+        .where(eq(credentials.id, credentialId))
+        .for("update");
+      if (row?.pandaCompanyId !== companyId || !isBusinessSalt(parse(Address, row.salt))) {
+        log("credential-state", "stale");
+        return;
+      }
+      if (row.pandaId) {
+        log("panda-id", "already-present", { userId: row.pandaId });
+        return row.pandaId;
+      }
+
+      const users = await getUserByCompany(companyId);
+      const user =
+        users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase()) ?? users[0];
+      if (!user) {
+        log("company-user", "not-found");
+        throw new Error("company user not found");
+      }
+      const id = user.id;
+      log("company-user", "adopted", { userId: id });
+
+      await tx
+        .update(credentials)
+        .set({ pandaId: id })
+        .where(eq(credentials.id, credentialId))
+        .catch((error: unknown) => {
+          log("panda-id", "failed", { errorName: error instanceof Error ? error.name : "unknown", userId: id });
+          throw error;
+        });
+      log("panda-id", "persisted", { userId: id });
+      return id;
+    })
+    .catch((error: unknown) => {
+      log("transaction", "failed", { errorName: error instanceof Error ? error.name : "unknown" });
+      throw error;
+    });
+  if (!userId) {
+    log("transaction", "skipped");
+    return;
+  }
+  log("transaction", "committed", { userId });
+
+  const subtenantId = requireSubtenant();
+  const localCard = await database.query.cards.findFirst({
+    columns: { id: true },
+    where: eq(cards.credentialId, credentialId),
+  });
+  if (localCard) {
+    log("card", "reused", { cardId: localCard.id, userId });
+    return { userId, cardId: localCard.id };
+  }
+  const card = await createCard(
+    userId,
+    SIGNATURE_PRODUCT_ID,
+    undefined,
+    subtenantId,
+    null,
+    `business-approval:${credentialId}`,
+  ).catch((error: unknown) => {
+    log("card", "failed", { errorName: error instanceof Error ? error.name : "unknown", userId });
+    throw error;
+  });
+  log("card", "created", { cardId: card.id, userId });
+  await database
+    .insert(cards)
+    .values({ id: card.id, lastFour: card.last4, credentialId })
+    .onConflictDoNothing()
+    .catch((error: unknown) => {
+      log("local-card", "failed", { cardId: card.id, errorName: error instanceof Error ? error.name : "unknown" });
+      throw error;
+    });
+  log("local-card", "persisted", { cardId: card.id });
+  log("completed", "success", { cardId: card.id, userId });
+  return { userId, cardId: card.id };
+}
+
 export function getCompanyApplicationStatus(companyId: string, subtenantId = requireSubtenant()) {
   return request(
     object({
@@ -214,6 +309,18 @@ export async function updateUser(user: {
 
 export async function getUser(userId: string) {
   return await request(UserResponse, `/issuing/users/${userId}`);
+}
+
+export function getUserByCompany(companyId: string, subtenantId = requireSubtenant()) {
+  return request(
+    array(object({ id: string(), companyId: optional(string()), walletAddress: optional(string()) })),
+    `/issuing/users?companyId=${companyId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    subtenantId,
+  );
 }
 
 export async function getCard(cardId: string) {
@@ -479,12 +586,32 @@ export async function autoCredit(account: Address) {
 }
 
 export function headerValidator() {
-  return vValidator("header", object({ signature: string() }), async (r, c) => {
-    if (!r.success) return c.text("bad request", 400);
-    const payload = await c.req.arrayBuffer();
-    if (verifySignature({ signature: r.output.signature, signingKey: key, payload })) return;
-    return c.text("unauthorized", 401);
-  });
+  return vValidator(
+    "header",
+    pipe(
+      object({ signature: optional(string()), "secondary-signature": optional(string()) }),
+      check(
+        ({ signature, "secondary-signature": secondarySignature }) => Boolean(signature ?? secondarySignature),
+        "missing signature",
+      ),
+    ),
+    async (r, c) => {
+      if (!r.success) return c.text("bad request", 400);
+      const payload = await c.req.arrayBuffer();
+      if (
+        (r.output.signature && verifySignature({ signature: r.output.signature, signingKey: key, payload })) ||
+        (r.output["secondary-signature"] &&
+          secondaryKey &&
+          verifySignature({
+            signature: r.output["secondary-signature"],
+            signingKey: secondaryKey,
+            payload,
+          }))
+      )
+        return;
+      return c.text("unauthorized", 401);
+    },
+  );
 }
 
 export const collectors: Address[] = (
@@ -652,6 +779,134 @@ export const CreateCompanyApplicationRequest = object({
   externalId: optional(pipe(string(), minLength(1), maxLength(255))),
 });
 
+const BusinessFields = {
+  companyName: "i_company_name",
+  companyDescription: "company_description",
+  companyIndustry: "company_industry",
+  companyRegistrationNumber: "company_registration_number",
+  companyTaxId: "company_tax_id",
+  companyWebsite: "company_website",
+  companyType: "company_type",
+  companyExpectedSpend: "company_expected_spend",
+  userFirstName: "i_auth_user_name",
+  userLastName: "i_auth_user_last_name",
+  userBirthDate: "birth_date",
+  userNationalId: "id_number",
+  userCountryOfIssue: "id_country",
+  userEmail: "collected_email_address",
+  termsOfServiceAccepted: "terms_and_conditions",
+};
+
+export class BusinessApplicationError extends Error {
+  constructor(
+    message: string,
+    readonly code: "bad request" | "not started" | "processing",
+    readonly legacy: "bad request" | "kyc not approved" | "kyc not started",
+  ) {
+    super(message);
+  }
+}
+
+function requiredBusinessField(fields: Record<string, { value: unknown }> | undefined, name: string) {
+  const field = fields?.[name];
+  if (field?.value == null)
+    throw new BusinessApplicationError("business Account is not complete", "processing", "kyc not approved");
+  return field.value;
+}
+
+function businessAddress(fields: Record<string, { value: unknown }> | undefined, suffix = "") {
+  const field = (name: string) => requiredBusinessField(fields, `${name}${suffix}`);
+  return {
+    line1: field("street_1"),
+    line2: fields?.[`street_2${suffix}`]?.value ?? undefined,
+    city: field("city"),
+    region: field("subdivision"),
+    postalCode: field("postal_code"),
+    countryCode: field("country_code"),
+  };
+}
+
+async function businessFields(credentialId: string) {
+  const inquiry = await getInquiry(credentialId, getBusinessTemplate());
+  if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started", "kyc not started");
+  if (inquiry.attributes["reference-id"] !== credentialId)
+    throw new BusinessApplicationError("business inquiry does not match credential", "bad request", "bad request");
+  if (inquiry.attributes.status !== "completed" && inquiry.attributes.status !== "approved")
+    throw new BusinessApplicationError("business inquiry is not complete", "processing", "kyc not approved");
+  const account = await getAccount(credentialId, "business");
+  if (!account) throw new BusinessApplicationError("business Account not started", "not started", "kyc not started");
+  const result = safeParse(
+    object({
+      "reference-id": string(),
+      fields: record(string(), object({ value: unknown() })),
+    }),
+    account.attributes,
+  );
+  if (!result.success || result.output["reference-id"] !== credentialId)
+    throw new BusinessApplicationError("business Account is not complete", "processing", "kyc not approved");
+  const fields = { ...result.output.fields };
+  for (const [inquiryName, inquiryField] of Object.entries(inquiry.attributes.fields ?? {})) {
+    const accountName = inquiryName.replaceAll("-", "_");
+    if (fields[accountName]?.value == null && inquiryField.value != null) fields[accountName] = inquiryField;
+  }
+  return fields;
+}
+
+export async function businessApplicationFromPersona(credentialId: string, account: Address, ipAddress?: string) {
+  if (!ipAddress || !safeParse(pipe(string(), ip()), ipAddress).success)
+    throw new BusinessApplicationError("missing valid client IP address", "bad request", "bad request");
+  const fields = await businessFields(credentialId);
+  const field = (name: keyof typeof BusinessFields) => requiredBusinessField(fields, BusinessFields[name]);
+  const expectedSpend = field("companyExpectedSpend");
+  if (typeof expectedSpend !== "string" && typeof expectedSpend !== "number")
+    throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");
+  const initialUser = {
+    firstName: field("userFirstName"),
+    lastName: field("userLastName"),
+    birthDate: field("userBirthDate"),
+    nationalId: field("userNationalId"),
+    countryOfIssue: field("userCountryOfIssue"),
+    email: field("userEmail"),
+    address: businessAddress(fields, "_1"),
+    ...(ipAddress && { ipAddress }),
+    isTermsOfServiceAccepted: field("termsOfServiceAccepted"),
+    walletAddress: account,
+  };
+  const companyPerson = {
+    firstName: initialUser.firstName,
+    lastName: initialUser.lastName,
+    birthDate: initialUser.birthDate,
+    nationalId: initialUser.nationalId,
+    countryOfIssue: initialUser.countryOfIssue,
+    email: initialUser.email,
+    address: initialUser.address,
+  };
+  const application = {
+    initialUser,
+    name: field("companyName"),
+    address: businessAddress(fields),
+    entity: {
+      name: field("companyName"),
+      description: field("companyDescription"),
+      industry: field("companyIndustry"),
+      registrationNumber: field("companyRegistrationNumber"),
+      taxId: field("companyTaxId"),
+      website: requiredBusinessField(fields, BusinessFields.companyWebsite),
+      type: field("companyType"),
+      expectedSpend: String(expectedSpend),
+    },
+    representatives: [companyPerson],
+    ultimateBeneficialOwners: [companyPerson],
+  };
+  try {
+    return parse(CreateCompanyApplicationRequest, application);
+  } catch (error) {
+    if (error instanceof ValiError)
+      throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");
+    throw error;
+  }
+}
+
 export const Application = object({
   email: pipe(
     string(),
@@ -732,6 +987,13 @@ export const kycStatus = [
   "denied",
   "locked",
 ] as const;
+
+export const BusinessApplicationResponse = object({
+  id: string(),
+  applicationStatus: picklist(kycStatus),
+  applicationCompletionLink: optional(object({ url: pipe(string(), urlValidator()), params: unknown() })),
+  applicationExternalVerificationLink: optional(object({ url: pipe(string(), urlValidator()), params: unknown() })),
+});
 
 const ApplicationLink = object({ url: string(), params: unknown() });
 
