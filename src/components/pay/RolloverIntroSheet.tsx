@@ -14,12 +14,13 @@ import accountInit from "@exactly/common/accountInit";
 import { exaPluginAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
-import CalendarImage from "../../assets/images/calendar-rollover.svg";
+import calendarRollover from "../../assets/images/calendar-rollover.svg";
 import queryClient from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
@@ -74,7 +75,7 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
       >
         <View aspectRatio={2} justifyContent="center" alignItems="center">
           <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <CalendarImage width="100%" height="100%" />
+            <ThemedSvg xml={calendarRollover} width="100%" height="100%" />
           </View>
         </View>
         <Separator height={1} borderColor="$borderNeutralSoft" />

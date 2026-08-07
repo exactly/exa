@@ -5,9 +5,10 @@ import { StyleSheet } from "react-native";
 import { ArrowUpToLine, CreditCard, IdCard } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import ExaCard from "../../../assets/images/exa-card.svg";
+import exaCard from "../../../assets/images/exa-card.svg";
 import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
+import ThemedSvg from "../../shared/ThemedSvg";
 import View from "../../shared/View";
 
 export default function Intro({ onPress }: { onPress: () => void }) {
@@ -21,7 +22,7 @@ export default function Intro({ onPress }: { onPress: () => void }) {
         <YStack flex={1} justifyContent="center" gap="$s3_5">
           <View width="100%" aspectRatio={1.2} justifyContent="center" alignItems="center" position="relative">
             <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-              <ExaCard width="100%" height="100%" />
+              <ThemedSvg xml={exaCard} width="100%" height="100%" />
             </View>
           </View>
           <YStack gap="$s5">
