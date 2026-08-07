@@ -976,6 +976,13 @@ export async function getOfframpDepositDetails(
       external_account_id: externalAccountId,
     },
     features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+    travel_rule_data: {
+      originator: {
+        is_self: true,
+        wallet_type: "self_custodied", // cspell:ignore custodied
+        wallet_attested_ownership_at: new Date().toISOString(),
+      },
+    },
   });
 
   return [
@@ -1975,6 +1982,15 @@ const CreateTransfer = object({
     blockchain_memo: optional(string()),
     swift_charges: optional(picklist(["ben", "our", "sha"])),
   }),
+  travel_rule_data: optional(
+    object({
+      originator: object({
+        is_self: boolean(),
+        wallet_type: picklist(["external", "hosted", "self_custodied"]), // cspell:ignore custodied
+        wallet_attested_ownership_at: string(),
+      }),
+    }),
+  ),
 });
 
 const Transfer = object({
