@@ -5,41 +5,28 @@ import { AlertTriangle, ChevronRight, Info } from "@tamagui/lucide-icons";
 import { Spinner, View, XStack } from "tamagui";
 
 import Text from "./Text";
+
 export default function InfoAlert({
   title,
   actionText,
-  error,
   loading,
   onPress,
+  variant = "info",
 }: {
   actionText?: string;
-  error?: boolean;
   loading?: boolean;
   onPress?: () => void;
   title: string;
+  variant?: keyof typeof variants;
 }) {
-  const onBase = error ? "$interactiveOnBaseErrorSoft" : "$interactiveOnBaseInformationSoft";
+  const { bg, iconBg, icon: Icon, color, text } = variants[variant];
   return (
-    <XStack
-      borderRadius="$r3"
-      backgroundColor={error ? "$interactiveBaseErrorSoftDefault" : "$interactiveBaseInformationSoftDefault"}
-      overflow="hidden"
-    >
-      <View
-        padding="$s4"
-        backgroundColor={error ? "$interactiveBaseErrorDefault" : "$interactiveBaseInformationDefault"}
-        justifyContent="center"
-        alignItems="center"
-        alignSelf="stretch"
-      >
-        {error ? (
-          <AlertTriangle size={32} color="$interactiveOnBaseErrorDefault" />
-        ) : (
-          <Info size={32} color="$interactiveOnBaseInformationDefault" />
-        )}
+    <XStack borderRadius="$r3" backgroundColor={bg} overflow="hidden">
+      <View padding="$s4" backgroundColor={iconBg} justifyContent="center" alignItems="center" alignSelf="stretch">
+        <Icon size={32} color={color} />
       </View>
       <View gap="$s2" padding="$s4" flex={1}>
-        <Text subHeadline color={onBase}>
+        <Text subHeadline color={text}>
           {title}
         </Text>
         <Pressable
@@ -50,10 +37,10 @@ export default function InfoAlert({
         >
           {actionText && (
             <XStack gap="$s1" alignItems="center">
-              <Text emphasized subHeadline color={onBase}>
+              <Text emphasized subHeadline color={text}>
                 {actionText}
               </Text>
-              {loading ? <Spinner color={onBase} /> : <ChevronRight size={16} color={onBase} strokeWidth={3} />}
+              {loading ? <Spinner color={text} /> : <ChevronRight size={16} color={text} strokeWidth={3} />}
             </XStack>
           )}
         </Pressable>
@@ -61,3 +48,27 @@ export default function InfoAlert({
     </XStack>
   );
 }
+
+const variants = {
+  error: {
+    bg: "$interactiveBaseErrorSoftDefault",
+    iconBg: "$interactiveBaseErrorDefault",
+    icon: AlertTriangle,
+    color: "$interactiveOnBaseErrorDefault",
+    text: "$interactiveOnBaseErrorSoft",
+  },
+  info: {
+    bg: "$interactiveBaseInformationSoftDefault",
+    iconBg: "$interactiveBaseInformationDefault",
+    icon: Info,
+    color: "$interactiveOnBaseInformationDefault",
+    text: "$interactiveOnBaseInformationSoft",
+  },
+  warning: {
+    bg: "$interactiveBaseWarningSoftDefault",
+    iconBg: "$interactiveBaseWarningDefault",
+    icon: AlertTriangle,
+    color: "$interactiveOnBaseWarningDefault",
+    text: "$interactiveOnBaseWarningSoft",
+  },
+} as const;
