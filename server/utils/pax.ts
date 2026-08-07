@@ -1,4 +1,5 @@
 import { captureException, setContext } from "@sentry/node";
+import { env } from "node:process";
 import { flatten, object, safeParse, ValiError, type BaseIssue, type BaseSchema } from "valibot";
 import { encodePacked, keccak256 } from "viem";
 
@@ -82,14 +83,14 @@ export function deriveAssociateId(account: Address, associateKey = getAssociateK
 }
 
 function getDefaultClient(): Client {
-  if (!process.env.PAX_API_URL) throw new Error("missing pax api url");
-  if (!process.env.PAX_API_KEY) throw new Error("missing pax api key");
-  return { key: process.env.PAX_API_KEY, url: process.env.PAX_API_URL };
+  if (!env.PAX_API_URL) throw new Error("missing pax api url");
+  if (!env.PAX_API_KEY) throw new Error("missing pax api key");
+  return { key: env.PAX_API_KEY, url: env.PAX_API_URL };
 }
 
 function getAssociateKey() {
-  if (!process.env.PAX_ASSOCIATE_ID_KEY) throw new Error("missing pax associate id secret");
-  return process.env.PAX_ASSOCIATE_ID_KEY;
+  if (!env.PAX_ASSOCIATE_ID_KEY) throw new Error("missing pax associate id secret");
+  return env.PAX_ASSOCIATE_ID_KEY;
 }
 
 type Client = { key: string; url: string };

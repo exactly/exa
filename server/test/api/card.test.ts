@@ -15,7 +15,8 @@ import { testClient } from "hono/testing";
 import { serializeSigned } from "hono/utils/cookie";
 import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
@@ -48,7 +49,7 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 let keeper: ReturnType<typeof getWallet>;
 
-const { WALLET_EXTENSION_SECRET } = process.env;
+const { WALLET_EXTENSION_SECRET } = env;
 if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
 const auth = createAuth(database, authSecret);
@@ -62,17 +63,23 @@ const app = route({
   credit,
   database,
   panda: createPanda({
-    key: parse(string(), process.env.PANDA_API_KEY),
-    url: parse(string(), process.env.PANDA_API_URL),
+    key: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+    url: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
   }),
   pax: createPax({
-    associateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
-    key: parse(string(), process.env.PAX_API_KEY),
-    url: parse(string(), process.env.PAX_API_URL),
+    associateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+    key: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+    url: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
   }),
-  persona: createPersona(parse(string(), process.env.PERSONA_API_KEY), parse(string(), process.env.PERSONA_URL)),
-  sardine: createSardine(parse(string(), process.env.SARDINE_API_KEY), parse(string(), process.env.SARDINE_API_URL)),
-  segment: createSegment(parse(string(), process.env.SEGMENT_WRITE_KEY)),
+  persona: createPersona(
+    parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  ),
+  sardine: createSardine(
+    parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  ),
+  segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
   walletExtension,
 });
 const appClient = testClient(app);

@@ -5,7 +5,8 @@ import "../mocks/sentry";
 import { DefaultApi } from "@onesignal/node-onesignal";
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { BaseError, ContractFunctionRevertedError, encodeErrorResult } from "viem";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +26,7 @@ import type { Job as Poke } from "../../workers/poke/job";
 import type { Job, JobsOptions } from "bullmq";
 
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
-const redisUrl = parse(string(), process.env.REDIS_URL);
+const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
 const eth = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const factory = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");

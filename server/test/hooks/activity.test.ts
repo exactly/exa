@@ -13,7 +13,8 @@ import { DefaultApi } from "@onesignal/node-onesignal";
 import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
@@ -781,7 +782,7 @@ function createHook(activityKey?: string) {
     alchemyKey: "webhooks",
     activityKey,
     onesignalKey: "onesignal",
-    postgresUrl: parse(string(), process.env.POSTGRES_URL),
-    redisUrl: parse(string(), process.env.REDIS_URL),
+    postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+    redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
   });
 }

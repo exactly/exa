@@ -2,6 +2,7 @@ import { vValidator } from "@hono/valibot-validator";
 import { captureEvent, setContext } from "@sentry/core";
 import { captureException } from "@sentry/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -716,14 +717,14 @@ export const scopeValidationErrors = {
 } as const;
 
 function getDefaultProvider(): Provider {
-  if (!process.env.PERSONA_API_KEY) throw new Error("missing persona api key");
-  if (!process.env.PERSONA_URL) throw new Error("missing persona url");
-  return { key: process.env.PERSONA_API_KEY, url: process.env.PERSONA_URL };
+  if (!env.PERSONA_API_KEY) throw new Error("missing persona api key");
+  if (!env.PERSONA_URL) throw new Error("missing persona url");
+  return { key: env.PERSONA_API_KEY, url: env.PERSONA_URL };
 }
 
 function getWebhookSecret() {
-  if (!process.env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
-  return process.env.PERSONA_WEBHOOK_SECRET;
+  if (!env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");
+  return env.PERSONA_WEBHOOK_SECRET;
 }
 
 type Provider = { key: string; url: string };

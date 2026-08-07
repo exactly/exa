@@ -29,7 +29,7 @@ export default {
       ],
     },
     activity: { secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"] },
-    block: { secrets: ["alchemy-webhooks-key", "onesignal-api-key"], signer: "executor" },
+    block: { secrets: ["alchemy-webhooks-key", "onesignal-api-key"], signers: ["executor"] },
     bridge: {
       secrets: ["bridge-api-key", "onesignal-api-key", "persona-api-key", "postgres-url", "segment-write-key"],
       shared: ["bridge-api-url", "persona-api-url"],
@@ -48,7 +48,7 @@ export default {
         "segment-write-key",
       ],
       shared: ["panda-api-url", "sardine-api-url"],
-      signer: "settler",
+      signers: ["settler", "issuer"],
     },
     persona: {
       secrets: [
@@ -64,10 +64,10 @@ export default {
     },
   } as const satisfies Record<string, Config>),
   workers: modules({
-    allow: { secrets: [], signer: "allower" },
+    allow: { secrets: [], signers: ["allower"] },
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
-    poke: { secrets: ["onesignal-api-key", "segment-write-key"], signer: "poker" },
-    refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signer: "refunder" },
+    poke: { secrets: ["onesignal-api-key", "segment-write-key"], signers: ["poker"] },
+    refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
     subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },
   } as const satisfies Record<string, Config>),
 } as const;
@@ -77,13 +77,13 @@ function modules<const Specs extends Readonly<Record<string, Config>>>(
 ): { readonly [Name in keyof Specs]: Module<Name & string, Specs[Name]> };
 function modules(specs: Readonly<Record<string, Config>>): Readonly<Record<string, Config>> {
   return Object.fromEntries(
-    Object.entries(specs).map(([name, { env, secrets, shared = [], signer, ...config }]) => [
+    Object.entries(specs).map(([name, { env, secrets, shared = [], signers, ...config }]) => [
       name,
       {
         ...config,
         env,
         secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common],
-        signer,
+        signers,
       },
     ]),
   );
@@ -93,9 +93,9 @@ type Config = {
   readonly env?: Readonly<Record<string, string>>;
   readonly secrets: readonly string[];
   readonly shared?: readonly string[];
-  readonly signer?: string;
+  readonly signers?: readonly string[];
 };
-type Module<Name extends string, Spec extends Config> = Omit<Spec, "env" | "secrets" | "shared" | "signer"> & {
+type Module<Name extends string, Spec extends Config> = Omit<Spec, "env" | "secrets" | "shared" | "signers"> & {
   readonly env: Spec extends { readonly env: infer Environment extends NonNullable<Config["env"]> }
     ? Environment
     : undefined;
@@ -108,8 +108,8 @@ type Module<Name extends string, Spec extends Config> = Omit<Spec, "env" | "secr
     ...(Spec extends { readonly shared: infer Shared extends readonly string[] } ? Shared : readonly []),
     ...typeof common,
   ];
-  readonly signer: Spec extends { readonly signer: infer Signer extends NonNullable<Config["signer"]> }
-    ? Signer
+  readonly signers: Spec extends { readonly signers: infer Signers extends NonNullable<Config["signers"]> }
+    ? Signers
     : undefined;
 } extends infer Result
   ? { [Key in keyof Result]: Result[Key] } & {}

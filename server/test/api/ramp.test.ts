@@ -10,7 +10,8 @@ import { captureException } from "@sentry/node";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -27,10 +28,19 @@ import createManteca, * as manteca from "../../utils/ramps/manteca";
 
 const app = route({
   authenticate: authenticate(""),
-  bridge: createBridge(parse(string(), process.env.BRIDGE_API_KEY), parse(string(), process.env.BRIDGE_API_URL)),
+  bridge: createBridge(
+    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  ),
   database,
-  manteca: createManteca(parse(string(), process.env.MANTECA_API_KEY), parse(string(), process.env.MANTECA_API_URL)),
-  persona: createPersona(parse(string(), process.env.PERSONA_API_KEY), parse(string(), process.env.PERSONA_URL)),
+  manteca: createManteca(
+    parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+  ),
+  persona: createPersona(
+    parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  ),
 });
 const appClient = testClient(app);
 

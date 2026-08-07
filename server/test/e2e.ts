@@ -10,6 +10,7 @@ import "./mocks/wallet";
 import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { env } from "node:process";
 import { parse } from "valibot";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
@@ -32,10 +33,10 @@ describe("e2e", () => {
     "runs server",
     async () => {
       const { default: app, close } = await import("../index");
-      const keeper = privateKeyToAccount(parse(Hash, process.env.KEEPER_PRIVATE_KEY));
+      const keeper = privateKeyToAccount(parse(Hash, env.KEEPER_PRIVATE_KEY));
       expect(vi.mocked(getWallet)).toHaveBeenNthCalledWith(1, expect.objectContaining({ address: keeper.address }));
       expect(vi.mocked(getWallet)).toHaveBeenNthCalledWith(2, expect.objectContaining({ address: keeper.address }));
-      const redisUrl = process.env.REDIS_URL;
+      const redisUrl = env.REDIS_URL;
       if (!redisUrl) throw new Error("missing redis url");
       const workers = [
         ...(await Promise.all([
@@ -43,7 +44,7 @@ describe("e2e", () => {
           pokeWorker({ onesignalKey: "onesignal", redisUrl, segmentKey: "segment" }),
           refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl }),
         ])),
-        creditWorker({ onesignalKey: "onesignal", postgresUrl: process.env.POSTGRES_URL ?? "postgres", redisUrl }),
+        creditWorker({ onesignalKey: "onesignal", postgresUrl: env.POSTGRES_URL ?? "postgres", redisUrl }),
         subscribeWorker({ alchemyKey: "webhooks", redisUrl }),
       ];
 
@@ -122,7 +123,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         Promise.resolve({ processorCardId: `proc_${cardId}`, timeBasedSecret: `secret_${cardId}` }),
       ),
     getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
-      const privateKey = process.env.PANDA_E2E_PRIVATE_KEY;
+      const privateKey = env.PANDA_E2E_PRIVATE_KEY;
       if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");
       const encryptedSecret = Buffer.from(sessionId, "base64");
       const secretKeyBase64 = crypto.privateDecrypt(

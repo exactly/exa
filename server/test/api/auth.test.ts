@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
-import { parse, string, type InferOutput } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
 import { getAddress, padHex, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
@@ -41,7 +42,7 @@ const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 
 vi.mock("@sentry/node", { spy: true });
 
-const walletExtension = createWalletExtension(parse(string(), process.env.WALLET_EXTENSION_SECRET));
+const walletExtension = createWalletExtension(parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET));
 const subscribe = {
   close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
@@ -49,11 +50,14 @@ const subscribe = {
 const createCredential = createCredentialFactory({
   authSecret,
   database,
-  sardine: createSardine(parse(string(), process.env.SARDINE_API_KEY), parse(string(), process.env.SARDINE_API_URL)),
-  segment: createSegment(parse(string(), process.env.SEGMENT_WRITE_KEY)),
+  sardine: createSardine(
+    parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  ),
+  segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
   subscribe,
 });
-const intercom = createIntercom(parse(string(), process.env.INTERCOM_IDENTITY_KEY));
+const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(
   authentication({ authSecret, createCredential, database, intercom, redis, walletExtension }),
 );

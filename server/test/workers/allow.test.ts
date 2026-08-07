@@ -2,7 +2,8 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { padHex } from "viem";
 import { afterAll, afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -20,7 +21,7 @@ import type { Job, JobsOptions } from "bullmq";
 
 const factory = inject("ExaAccountFactory");
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
-const redisUrl = parse(string(), process.env.REDIS_URL);
+const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
 const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
 const signer = { address: account };

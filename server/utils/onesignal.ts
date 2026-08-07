@@ -1,8 +1,9 @@
 import { createConfiguration, DefaultApi, Notification } from "@onesignal/node-onesignal";
+import { env } from "node:process";
 
 import appId from "@exactly/common/onesignalAppId.web";
 
-const client = new DefaultApi(createConfiguration({ restApiKey: process.env.ONESIGNAL_API_KEY }));
+const client = new DefaultApi(createConfiguration({ restApiKey: env.ONESIGNAL_API_KEY }));
 
 // eslint-disable-next-line import/prefer-default-export -- library module
 export async function sendPushNotification(

@@ -9,7 +9,8 @@ import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
@@ -76,7 +77,7 @@ const hook = blockHook({
   alchemyKey: "webhooks",
   executor: bob.account,
   onesignalKey: "onesignal",
-  redisUrl: parse(string(), process.env.REDIS_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
 });
 const appClient = testClient(hook.app);
 

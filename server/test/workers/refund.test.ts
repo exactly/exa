@@ -2,6 +2,7 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
+import { env } from "node:process";
 import { parse } from "valibot";
 import { padHex, toHex } from "viem";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -132,7 +133,7 @@ describe("refund startup", () => {
 
 describe("refund worker", () => {
   beforeAll(async () => {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.REDIS_URL;
     if (!redisUrl) throw new Error("missing redis url");
     mocks.getAccount.mockResolvedValue(signer);
     worker = await refundWorker({ pandaKey: "panda", pandaUrl: "https://panda.test", redisUrl });

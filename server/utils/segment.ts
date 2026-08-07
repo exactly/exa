@@ -1,5 +1,6 @@
 import { Analytics } from "@segment/analytics-node";
 import { captureException } from "@sentry/node";
+import { env } from "node:process";
 
 import type { Address } from "@exactly/common/validation";
 import type { Prettify } from "viem";
@@ -133,8 +134,8 @@ export function closeAndFlush() {
 
 function getAnalytics() {
   if (singleton) return singleton;
-  if (!process.env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key");
-  singleton = createAnalytics(process.env.SEGMENT_WRITE_KEY);
+  if (!env.SEGMENT_WRITE_KEY) throw new Error("missing segment write key");
+  singleton = createAnalytics(env.SEGMENT_WRITE_KEY);
   return singleton;
 }
 

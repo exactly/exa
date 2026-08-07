@@ -10,7 +10,8 @@ import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { createHmac, randomBytes } from "node:crypto";
-import { object, parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, object, parse, pipe, string } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
@@ -70,13 +71,13 @@ const pandaConfig = { key: "panda", url: "https://panda.test" };
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const hook = createPanda({
-  issuerAddress: process.env.ISSUER_ADDRESS,
-  issuerKey: parse(string(), process.env.ISSUER_PRIVATE_KEY),
+  issuerAddress: env.ISSUER_ADDRESS,
+  issuerKey: parse(pipe(string(), nonEmpty()), env.ISSUER_PRIVATE_KEY),
   onesignalKey: "onesignal",
   pandaKey: pandaConfig.key,
   pandaUrl: pandaConfig.url,
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  redisUrl: parse(string(), process.env.REDIS_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
   sardineKey: sardineConfig.key,
   sardineUrl: sardineConfig.url,
   segmentKey: "segment",

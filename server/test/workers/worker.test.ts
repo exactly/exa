@@ -2,15 +2,15 @@
 import "../mocks/sentry";
 
 import { Queue } from "bullmq";
-import { argv } from "node:process";
-import { parse, string } from "valibot";
+import { argv, env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import worker, { connect } from "../../workers/worker";
 
 const workers = Object.entries(import.meta.glob<{ default: unknown }>("../../workers/*/worker.ts"));
 const length = argv.length;
-const redisUrl = parse(string(), process.env.REDIS_URL);
+const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
 
 afterAll(() => {
   vi.unstubAllEnvs();
@@ -22,7 +22,7 @@ afterEach(() => {
 
 beforeAll(() => {
   vi.resetModules();
-  for (const name of Object.keys(process.env)) vi.stubEnv(name, undefined); // eslint-disable-line unicorn/no-useless-undefined
+  for (const name of Object.keys(env)) vi.stubEnv(name, undefined); // eslint-disable-line unicorn/no-useless-undefined
 });
 
 describe("worker", () => {
@@ -30,7 +30,7 @@ describe("worker", () => {
     expect(workers.length).toBeGreaterThan(0);
   });
 
-  it.each(workers)("%s loads without process.env", async (_, load) => {
+  it.each(workers)("%s loads without environment variables", async (_, load) => {
     await expect(load().then(({ default: loaded }) => loaded)).resolves.toBeTypeOf("function");
   });
 

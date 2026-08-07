@@ -180,8 +180,8 @@ const selected = await automation.LocalWorkspace.selectStack(
             { dependsOn: cloudKms, provider },
           );
           for (const key of new Set(
-            [...Object.values(modules.services), ...Object.values(modules.workers)].flatMap(({ signer }) =>
-              signer ? [signer] : [],
+            [...Object.values(modules.services), ...Object.values(modules.workers)].flatMap(
+              ({ signers }) => signers ?? [],
             ),
           )) {
             new kms.CryptoKey(

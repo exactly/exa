@@ -1,6 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -510,7 +511,7 @@ export function verifyPandaSignature(
     signature: Hex;
     timestamp: number;
   },
-  issuerAddress = process.env.ISSUER_ADDRESS ?? "0xB9771269312B32676B77C9db2242c8d1836F1a85",
+  issuerAddress = env.ISSUER_ADDRESS ?? "0xB9771269312B32676B77C9db2242c8d1836F1a85",
 ) {
   return recoverTypedDataAddress({
     domain: {
@@ -683,14 +684,14 @@ const ApplicationStatusResponse = object({
 });
 
 function getDefaultProvider(): Provider {
-  if (!process.env.PANDA_API_URL) throw new Error("missing panda api url");
-  if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
-  return { key: process.env.PANDA_API_KEY, url: process.env.PANDA_API_URL };
+  if (!env.PANDA_API_URL) throw new Error("missing panda api url");
+  if (!env.PANDA_API_KEY) throw new Error("missing panda api key");
+  return { key: env.PANDA_API_KEY, url: env.PANDA_API_URL };
 }
 
 function getIssuerKey() {
-  if (!process.env.ISSUER_PRIVATE_KEY) throw new Error("invalid private key");
-  return process.env.ISSUER_PRIVATE_KEY;
+  if (!env.ISSUER_PRIVATE_KEY) throw new Error("invalid private key");
+  return env.ISSUER_PRIVATE_KEY;
 }
 
 type Provider = { key: string; url: string };

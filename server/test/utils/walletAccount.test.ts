@@ -55,18 +55,20 @@ describe("get account", () => {
     expect(mocks.gcpHsmToAccount).not.toHaveBeenCalled();
   });
 
-  it("fails for missing kms versions", async () => {
+  it.each([
+    ["configured", "42", "42"],
+    ["empty", "", "1"],
+    ["default", undefined, "1"],
+  ] as const)("uses the %s kms version", async (_, version, expected) => {
     const error = Object.assign(new Error("kms key version not found"), { code: 5 });
     mocks.gcpHsmToAccount.mockRejectedValueOnce(error);
-    vi.stubEnv("GCP_KMS_KEY_RING", "sandbox-signers");
-    vi.stubEnv("GCP_KMS_KEY_VERSION", "42");
+    vi.stubEnv("GCP_KMS_KEY_VERSION_ALLOWER", version);
     vi.stubEnv("GCP_KMS_LOCATION", "us-west1");
 
     await expect(getAccount("allower")).rejects.toBe(error);
 
     expect(mocks.gcpHsmToAccount).toHaveBeenCalledExactlyOnceWith({
-      hsmKeyVersion:
-        "projects/exa-test/locations/us-west1/keyRings/sandbox-signers/cryptoKeys/sandbox-allower/cryptoKeyVersions/42",
+      hsmKeyVersion: `projects/exa-test/locations/us-west1/keyRings/sandbox-signers/cryptoKeys/sandbox-allower/cryptoKeyVersions/${expected}`,
       kmsClient: mocks.clients[0],
     });
     expect(mocks.close).not.toHaveBeenCalled();

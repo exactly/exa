@@ -2,8 +2,9 @@ import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
 import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
+import { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
-import { parse, pipe, regex, safeParse, string } from "valibot";
+import { nonEmpty, parse, pipe, regex, safeParse, string } from "valibot";
 import {
   concatHex,
   createPublicClient,
@@ -232,7 +233,7 @@ export function extender(
 }
 
 export async function getAccount(name: string): Promise<LocalAccount> {
-  const privateKey = process.env[`${name.toUpperCase()}_PRIVATE_KEY`];
+  const privateKey = env[`${name.toUpperCase()}_PRIVATE_KEY`];
   if (privateKey)
     return privateKeyToAccount(parse(Hash, privateKey, { message: `invalid ${name} private key` }), { nonceManager });
   const kmsClient = new KeyManagementServiceClient();
@@ -243,14 +244,12 @@ export async function getAccount(name: string): Promise<LocalAccount> {
           pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)),
           await kmsClient.getProjectId(),
           { message: "invalid gcp project id" },
-        )}/locations/${parse(string(), process.env.GCP_KMS_LOCATION, {
+        )}/locations/${parse(pipe(string(), nonEmpty()), env.GCP_KMS_LOCATION, {
           message: "invalid GCP_KMS_LOCATION",
-        })}/keyRings/${parse(string(), process.env.GCP_KMS_KEY_RING, {
-          message: "invalid GCP_KMS_KEY_RING",
-        })}/cryptoKeys/${stack}-${name}/cryptoKeyVersions/${parse(
+        })}/keyRings/${stack}-signers/cryptoKeys/${stack}-${name}/cryptoKeyVersions/${parse(
           pipe(string(), regex(/^\d+$/)),
-          process.env.GCP_KMS_KEY_VERSION,
-          { message: "invalid GCP_KMS_KEY_VERSION" },
+          env[`GCP_KMS_KEY_VERSION_${name.toUpperCase()}`] || "1", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- empty defaults
+          { message: `invalid GCP_KMS_KEY_VERSION_${name.toUpperCase()}` },
         )}`,
         kmsClient,
       }),

@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { getAddress, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
@@ -37,10 +38,13 @@ const app = route({
   authenticate: authenticate(""),
   database,
   panda: createPanda({
-    key: parse(string(), process.env.PANDA_API_KEY),
-    url: parse(string(), process.env.PANDA_API_URL),
+    key: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+    url: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
   }),
-  persona: createPersona(parse(string(), process.env.PERSONA_API_KEY), parse(string(), process.env.PERSONA_URL)),
+  persona: createPersona(
+    parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  ),
 });
 const appClient = testClient(app);
 

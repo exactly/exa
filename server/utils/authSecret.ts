@@ -1,3 +1,4 @@
-if (!process.env.AUTH_SECRET) throw new Error("missing auth secret");
+import { env } from "node:process";
+if (!env.AUTH_SECRET) throw new Error("missing auth secret");
 
-export default process.env.AUTH_SECRET as string; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+export default env.AUTH_SECRET as string; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion

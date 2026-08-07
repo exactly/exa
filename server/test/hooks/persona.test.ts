@@ -9,7 +9,8 @@ import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
@@ -43,8 +44,8 @@ const hook = createPersona({
   personaKey: personaConfig.key,
   personaUrl: personaConfig.url,
   personaWebhookSecret: "persona",
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  redisUrl: parse(string(), process.env.REDIS_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
   sardineKey: sardineConfig.key,
   sardineUrl: sardineConfig.url,
 });

@@ -3,7 +3,8 @@ import "../mocks/deployments";
 import "../mocks/sentry";
 
 import { testClient } from "hono/testing";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, describe, expect, inject, it, vi } from "vitest";
@@ -20,9 +21,9 @@ const appClient = testClient(
     authenticate: authenticate(""),
     database,
     pax: createPax({
-      associateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
-      key: parse(string(), process.env.PAX_API_KEY),
-      url: parse(string(), process.env.PAX_API_URL),
+      associateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+      key: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+      url: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
     }),
   }),
 );

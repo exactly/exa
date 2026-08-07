@@ -2,6 +2,7 @@ import { captureException, setContext, withScope } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -2515,9 +2516,9 @@ dwIDAQAB
 /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
 
 function getDefaultProvider(): Provider {
-  if (!process.env.BRIDGE_API_URL) throw new Error("missing bridge api url");
-  if (!process.env.BRIDGE_API_KEY) throw new Error("missing bridge api key");
-  return { key: process.env.BRIDGE_API_KEY, url: process.env.BRIDGE_API_URL };
+  if (!env.BRIDGE_API_URL) throw new Error("missing bridge api url");
+  if (!env.BRIDGE_API_KEY) throw new Error("missing bridge api key");
+  return { key: env.BRIDGE_API_KEY, url: env.BRIDGE_API_URL };
 }
 
 type Provider = { key: string; url: string };

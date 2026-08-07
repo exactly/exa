@@ -4,7 +4,8 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 
@@ -27,91 +28,90 @@ import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
 import nonceManager from "./utils/nonceManager";
 import { close as closeRedis } from "./utils/redis";
 
-const keeper = privateKeyToAccount(
-  parse(Hash, process.env.KEEPER_PRIVATE_KEY, { message: "invalid keeper private key" }),
-  { nonceManager },
-);
+const keeper = privateKeyToAccount(parse(Hash, env.KEEPER_PRIVATE_KEY, { message: "invalid keeper private key" }), {
+  nonceManager,
+});
 const api = createApi({
-  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
-  authSecret: parse(string(), process.env.AUTH_SECRET),
-  bridgeKey: parse(string(), process.env.BRIDGE_API_KEY),
-  bridgeUrl: parse(string(), process.env.BRIDGE_API_URL),
-  intercomKey: parse(string(), process.env.INTERCOM_IDENTITY_KEY),
-  mantecaKey: parse(string(), process.env.MANTECA_API_KEY),
-  mantecaUrl: parse(string(), process.env.MANTECA_API_URL),
-  pandaKey: parse(string(), process.env.PANDA_API_KEY),
-  pandaUrl: parse(string(), process.env.PANDA_API_URL),
-  paxAssociateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
-  paxKey: parse(string(), process.env.PAX_API_KEY),
-  paxUrl: parse(string(), process.env.PAX_API_URL),
-  personaKey: parse(string(), process.env.PERSONA_API_KEY),
-  personaUrl: parse(string(), process.env.PERSONA_URL),
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  redisUrl: parse(string(), process.env.REDIS_URL),
-  sardineKey: parse(string(), process.env.SARDINE_API_KEY),
-  sardineUrl: parse(string(), process.env.SARDINE_API_URL),
-  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
-  walletExtensionSecret: parse(string(), process.env.WALLET_EXTENSION_SECRET),
+  alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+  authSecret: parse(pipe(string(), nonEmpty()), env.AUTH_SECRET),
+  bridgeKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+  bridgeUrl: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  intercomKey: parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY),
+  mantecaKey: parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+  mantecaUrl: parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+  pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+  pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  paxAssociateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+  paxKey: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+  paxUrl: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
+  personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+  personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
+  walletExtensionSecret: parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET),
 });
 
 const activity = createActivity({
-  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
-  activityKey: process.env.ALCHEMY_ACTIVITY_KEY,
-  onesignalKey: process.env.ONESIGNAL_API_KEY,
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  redisUrl: parse(string(), process.env.REDIS_URL),
+  alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+  activityKey: env.ALCHEMY_ACTIVITY_KEY,
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
 });
 const block = createBlock({
-  alchemyKey: parse(string(), process.env.ALCHEMY_WEBHOOKS_KEY),
-  blockKey: process.env.ALCHEMY_BLOCK_KEY,
+  alchemyKey: parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY),
+  blockKey: env.ALCHEMY_BLOCK_KEY,
   executor: keeper,
-  onesignalKey: process.env.ONESIGNAL_API_KEY,
-  redisUrl: parse(string(), process.env.REDIS_URL),
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
 });
 const bridge = createBridge({
-  bridgeKey: parse(string(), process.env.BRIDGE_API_KEY),
-  bridgeUrl: parse(string(), process.env.BRIDGE_API_URL),
-  bridgeWebhookKey: process.env.BRIDGE_WEBHOOK_PUBLIC_KEY,
-  onesignalKey: process.env.ONESIGNAL_API_KEY,
-  personaKey: parse(string(), process.env.PERSONA_API_KEY),
-  personaUrl: parse(string(), process.env.PERSONA_URL),
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+  bridgeKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+  bridgeUrl: parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+  personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
 });
 const manteca = createManteca({
-  mantecaKey: parse(string(), process.env.MANTECA_API_KEY),
-  mantecaUrl: parse(string(), process.env.MANTECA_API_URL),
-  mantecaWebhookKey: parse(string(), process.env.MANTECA_WEBHOOKS_KEY),
-  onesignalKey: process.env.ONESIGNAL_API_KEY,
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+  mantecaKey: parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+  mantecaUrl: parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+  mantecaWebhookKey: parse(pipe(string(), nonEmpty()), env.MANTECA_WEBHOOKS_KEY),
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
 });
 const panda = createPanda({
-  issuerAddress: process.env.ISSUER_ADDRESS,
-  issuerKey: parse(string(), process.env.ISSUER_PRIVATE_KEY),
-  onesignalKey: process.env.ONESIGNAL_API_KEY,
-  pandaKey: parse(string(), process.env.PANDA_API_KEY),
-  pandaUrl: parse(string(), process.env.PANDA_API_URL),
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  redisUrl: parse(string(), process.env.REDIS_URL),
-  sardineKey: parse(string(), process.env.SARDINE_API_KEY),
-  sardineUrl: parse(string(), process.env.SARDINE_API_URL),
-  segmentKey: parse(string(), process.env.SEGMENT_WRITE_KEY),
+  issuerAddress: env.ISSUER_ADDRESS,
+  issuerKey: parse(pipe(string(), nonEmpty()), env.ISSUER_PRIVATE_KEY),
+  onesignalKey: env.ONESIGNAL_API_KEY,
+  pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+  pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  segmentKey: parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY),
   settler: keeper,
 });
 const persona = createPersona({
-  pandaKey: parse(string(), process.env.PANDA_API_KEY),
-  pandaUrl: parse(string(), process.env.PANDA_API_URL),
-  paxAssociateKey: parse(string(), process.env.PAX_ASSOCIATE_ID_KEY),
-  paxKey: parse(string(), process.env.PAX_API_KEY),
-  paxUrl: parse(string(), process.env.PAX_API_URL),
-  personaKey: parse(string(), process.env.PERSONA_API_KEY),
-  personaUrl: parse(string(), process.env.PERSONA_URL),
-  personaWebhookSecret: parse(string(), process.env.PERSONA_WEBHOOK_SECRET),
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
-  redisUrl: parse(string(), process.env.REDIS_URL),
-  sardineKey: parse(string(), process.env.SARDINE_API_KEY),
-  sardineUrl: parse(string(), process.env.SARDINE_API_URL),
+  pandaKey: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+  pandaUrl: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  paxAssociateKey: parse(pipe(string(), nonEmpty()), env.PAX_ASSOCIATE_ID_KEY),
+  paxKey: parse(pipe(string(), nonEmpty()), env.PAX_API_KEY),
+  paxUrl: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
+  personaKey: parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+  personaUrl: parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  personaWebhookSecret: parse(pipe(string(), nonEmpty()), env.PERSONA_WEBHOOK_SECRET),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+  sardineKey: parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  sardineUrl: parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
 });
 
 const app = new Hono();

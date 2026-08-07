@@ -11,7 +11,8 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -29,11 +30,11 @@ import * as segment from "../../utils/segment";
 const hook = createBridge({
   bridgeKey: "bridge",
   bridgeUrl: "https://bridge.test",
-  bridgeWebhookKey: parse(string(), process.env.BRIDGE_WEBHOOK_PUBLIC_KEY),
+  bridgeWebhookKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_WEBHOOK_PUBLIC_KEY),
   onesignalKey: "onesignal",
   personaKey: "persona",
   personaUrl: "https://persona.test",
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
   segmentKey: "segment",
 });
 const app = hook.app;

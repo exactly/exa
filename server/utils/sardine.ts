@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -76,9 +77,9 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
 }
 
 function getDefaultClient(): Client {
-  if (!process.env.SARDINE_API_KEY) throw new Error("missing sardine api key");
-  if (!process.env.SARDINE_API_URL) throw new Error("missing sardine api url");
-  return { key: process.env.SARDINE_API_KEY, url: process.env.SARDINE_API_URL };
+  if (!env.SARDINE_API_KEY) throw new Error("missing sardine api key");
+  if (!env.SARDINE_API_URL) throw new Error("missing sardine api url");
+  return { key: env.SARDINE_API_KEY, url: env.SARDINE_API_URL };
 }
 
 type Client = { key: string; url: string };

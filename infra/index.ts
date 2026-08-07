@@ -45,22 +45,21 @@ function module(
   {
     env,
     secrets,
-    signer,
+    signers,
   }: (typeof modules.services)[keyof typeof modules.services] | (typeof modules.workers)[keyof typeof modules.workers],
   bin: string,
 ) {
   const account = serviceaccount.getAccountOutput({ accountId: `${stack}-${name}` });
   return {
     dependencies: [
-      ...(signer
-        ? [
-            new kms.CryptoKeyIAMMember(`${name}-signer`, {
-              cryptoKeyId: `projects/${project}/locations/${location}/keyRings/${stack}-signers/cryptoKeys/${stack}-${signer}`,
-              member: interpolate`serviceAccount:${account.email}`,
-              role: "roles/cloudkms.signerVerifier",
-            }),
-          ]
-        : []),
+      ...(signers?.map(
+        (signer) =>
+          new kms.CryptoKeyIAMMember(`${name}-${signer}-signer`, {
+            cryptoKeyId: `projects/${project}/locations/${location}/keyRings/${stack}-signers/cryptoKeys/${stack}-${signer}`,
+            member: interpolate`serviceAccount:${account.email}`,
+            role: "roles/cloudkms.signerVerifier",
+          }),
+      ) ?? []),
       ...secrets.map(
         (secret) =>
           new secretmanager.SecretIamMember(`${name}-${secret}-access`, {
@@ -83,11 +82,13 @@ function module(
             { name: "DEBUG", value: "exa:*" },
             { name: "NODE_ENV", value: "production" },
             { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
-            ...(signer
+            ...(signers
               ? [
-                  { name: "GCP_KMS_KEY_RING", value: `${stack}-signers` },
-                  { name: "GCP_KMS_KEY_VERSION", value: config.get(`${signer}Version`) ?? "1" },
                   { name: "GCP_KMS_LOCATION", value: location },
+                  ...signers.map((signer) => ({
+                    name: `GCP_KMS_KEY_VERSION_${signer.toUpperCase()}`,
+                    value: config.get(`${signer}Version`),
+                  })),
                 ]
               : []),
             ...(env

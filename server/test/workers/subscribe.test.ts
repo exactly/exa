@@ -2,6 +2,7 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan } from "@sentry/node";
 import { Queue } from "bullmq";
+import { env } from "node:process";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -167,7 +168,7 @@ describe("subscribe queue", () => {
 
 describe("subscribe worker", () => {
   beforeAll(async () => {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.REDIS_URL;
     if (!redisUrl) throw new Error("missing redis url");
     worker = subscribeWorker({ alchemyKey: "worker", redisUrl });
     await worker.ready;

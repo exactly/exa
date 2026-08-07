@@ -8,7 +8,8 @@ import { Analytics } from "@segment/analytics-node";
 import { captureException } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
-import { parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -28,7 +29,7 @@ const hook = createManteca({
   mantecaUrl: provider.url,
   mantecaWebhookKey: "manteca",
   onesignalKey: "onesignal",
-  postgresUrl: parse(string(), process.env.POSTGRES_URL),
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
   segmentKey: "segment",
 });
 const appClient = testClient(hook.app);

@@ -1,4 +1,5 @@
 import { captureException, withScope } from "@sentry/core";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -829,9 +830,9 @@ const MantecaApiErrorCodes = {
 } as const;
 
 function getDefaultProvider(): Provider {
-  if (!process.env.MANTECA_API_URL) throw new Error("missing manteca api url");
-  if (!process.env.MANTECA_API_KEY) throw new Error("missing manteca api key");
-  return { key: process.env.MANTECA_API_KEY, url: process.env.MANTECA_API_URL };
+  if (!env.MANTECA_API_URL) throw new Error("missing manteca api url");
+  if (!env.MANTECA_API_KEY) throw new Error("missing manteca api key");
+  return { key: env.MANTECA_API_KEY, url: env.MANTECA_API_URL };
 }
 
 type Provider = { key: string; url: string };
