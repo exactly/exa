@@ -47,7 +47,7 @@ import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import weeklySpend from "../../utils/weeklySpend";
 import BenefitsSection from "../benefits/BenefitsSection";
-import CardDetailsSheet from "../card/CardDetails";
+import CardDetailsSheet from "../card/CardDetailsSheet";
 import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
 import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";

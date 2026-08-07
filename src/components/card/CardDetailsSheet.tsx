@@ -29,15 +29,14 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { CardDetails as CardDetailsData } from "../../utils/server";
+import type { CardDetails } from "../../utils/server";
 
-export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
+export default function CardDetailsSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const theme = useThemeName();
   const toast = useToastController();
   const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
-  const banner = card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
+  const { data: card, isPending } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {
     if (card?.encryptedPan && card.encryptedCvc) {
@@ -78,7 +77,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   width="100%"
                   gap="$s4"
                 >
-                  {banner ? (
+                  {card.productId === SIGNATURE_PRODUCT_ID || card.productId === BASE_PRODUCT_ID ? (
                     <>
                       <View position="absolute" top="$s4" left="$s5">
                         <ExaLogoSignature height={20} width={63} />
@@ -180,6 +179,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   </YStack>
                 </YStack>
               ) : null}
+
               {card && alertShown ? (
                 <DismissableAlert
                   text={t("Manually add your card to Apple Pay & Google Pay to make contactless payments.")}
@@ -188,6 +188,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                   }}
                 />
               ) : null}
+
               <XStack alignSelf="center">
                 <Pressable onPress={onClose} hitSlop={20}>
                   <Text emphasized footnote color="$interactiveTextBrandDefault">
