@@ -653,5 +653,5 @@ This webhook is currently triggered when a user adds their card to a digital wal
 | body.last4 | string | last 4 digits of the card | 7392 |
 | body.limit.amount | number | spending limit amount | 1000000 |
 | body.limit.frequency | "per24HourPeriod" \| "per7DayPeriod" \| "per30DayPeriod" \| "perYearPeriod" | frequency of the spending limit | per7DayPeriod |
-| body.status | "ACTIVE" \| "FROZEN" \| "DELETED" \| "INACTIVE" | current status of the card | ACTIVE |
+| body.status | "ACTIVE" \| "LOCKED" \| "DELETED" \| "INACTIVE" | current status of the card | ACTIVE |
 | body.tokenWallets | ["Apple"] \| ["Google Pay"] \| undefined | array of token wallets | ["Apple"] |
