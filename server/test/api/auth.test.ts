@@ -437,7 +437,13 @@ describe("authentication", () => {
     expect(customer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
-        customer: { id, tags: [{ name: "source", value: "12345", type: "string" }] },
+        customer: {
+          id,
+          tags: [
+            { name: "source", value: "12345", type: "string" },
+            { name: "auth_method", value: "siwe", type: "string" },
+          ],
+        },
       }),
     );
 
@@ -463,7 +469,13 @@ describe("authentication", () => {
     expect(customer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
-        customer: { id, tags: [{ name: "source", value: "EXA", type: "string" }] },
+        customer: {
+          id,
+          tags: [
+            { name: "source", value: "EXA", type: "string" },
+            { name: "auth_method", value: "siwe", type: "string" },
+          ],
+        },
       }),
     );
 
@@ -704,7 +716,13 @@ describe("registration", () => {
     expect(customer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
-        customer: { id, tags: [{ name: "source", value: "EXA", type: "string" }] },
+        customer: {
+          id,
+          tags: [
+            { name: "source", value: "EXA", type: "string" },
+            { name: "auth_method", value: "siwe", type: "string" },
+          ],
+        },
       }),
     );
 
@@ -775,7 +793,13 @@ describe("registration", () => {
     expect(customer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
-        customer: { id: "dGVzdC1jcmVkLWlk2", tags: [{ name: "source", value: "12345", type: "string" }] },
+        customer: {
+          id: "dGVzdC1jcmVkLWlk2",
+          tags: [
+            { name: "source", value: "12345", type: "string" },
+            { name: "auth_method", value: "webauthn", type: "string" },
+          ],
+        },
       }),
     );
 
@@ -850,7 +874,13 @@ describe("registration", () => {
     expect(customer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
-        customer: { id: "YW5vdGhlci1jcmVkLWlk2", tags: [{ name: "source", value: "EXA", type: "string" }] },
+        customer: {
+          id: "YW5vdGhlci1jcmVkLWlk2",
+          tags: [
+            { name: "source", value: "EXA", type: "string" },
+            { name: "auth_method", value: "webauthn", type: "string" },
+          ],
+        },
       }),
     );
     const credential = await database.query.credentials.findFirst({
