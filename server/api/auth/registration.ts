@@ -45,6 +45,7 @@ import createCredential from "../../utils/createCredential";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import { IpAddressHeader } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
 import { walletExtension } from "../../utils/walletExtension";
@@ -263,6 +264,7 @@ export default new Hono()
         object({
           "Client-Fid": optional(pipe(string(), maxLength(36))),
           "Client-Platform": optional(literal("ios")),
+          "do-connecting-ip": IpAddressHeader,
         }),
       ),
     ),
@@ -387,6 +389,7 @@ export default new Hono()
           factory,
           webauthn,
           source: c.req.header("Client-Fid"),
+          ip: c.req.valid("header")?.["do-connecting-ip"],
         });
         const account = deriveAddress(result.factory, { x: result.x, y: result.y });
         const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
