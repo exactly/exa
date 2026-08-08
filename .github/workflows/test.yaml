@@ -45,6 +45,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+        env: { GITHUB_STEP_SUMMARY: /dev/null }
       - run: pnpm nx run-many -t test
 
       - uses: codecov/codecov-action@v6
@@ -111,6 +112,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+        env: { GITHUB_STEP_SUMMARY: /dev/null }
       - run: |
           pnpm nx run-many -t build -p mobile e2e
           pnpm nx generate:app server
@@ -122,7 +124,7 @@ jobs:
             sleep 1
           done
           CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml --format junit --output .maestro/junit.xml
-        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
+        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e, GITHUB_STEP_SUMMARY: /dev/null }
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true

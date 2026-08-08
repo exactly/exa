@@ -3,7 +3,7 @@
   "version": "0.2.107",
   "private": true,
   "scripts": {
-    "build": "pkgroll --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
+    "build": "pkgroll --clean-dist --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
     "prepare": "nx prepare server",
     "prepare:generated": "mkdir -p generated",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
@@ -20,6 +20,15 @@
     "dev": "tsx --watch --env-file=.env --require=./instrument.cjs index.ts"
   },
   "bin": "./dist/index.cjs",
+  "exports": {
+    "./api": {
+      "types": "./api/index.ts"
+    },
+    "./api/*": {
+      "types": "./api/*.ts"
+    },
+    "./workers/*/bin": "./dist/workers/*/bin.cjs"
+  },
   "files": [
     "app",
     "dist",
@@ -32,6 +41,7 @@
   "dependencies": {
     "@account-kit/infra": "catalog:",
     "@exactly/lib": "^0.1.0",
+    "@google-cloud/secret-manager": "^6.3.0",
     "@hono/node-server": "catalog:",
     "@hono/sentry": "^1.2.2",
     "@hono/valibot-validator": "^0.5.3",
