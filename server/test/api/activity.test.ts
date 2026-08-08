@@ -437,7 +437,7 @@ describe.concurrent("authenticated", () => {
     it("returns statement pdf", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
-        { query: { maturity } },
+        { query: { maturity, include: ["card", "repay"] } },
         { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
       );
 
@@ -476,7 +476,7 @@ describe.concurrent("authenticated", () => {
           },
         ]);
         const response = await appClient.index.$get(
-          { query: { maturity } },
+          { query: { maturity, include: ["card", "repay"] } },
           { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
         );
 
@@ -492,7 +492,7 @@ describe.concurrent("authenticated", () => {
     it("returns statement pdf for combined accept header", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
-        { query: { maturity } },
+        { query: { maturity, include: ["card", "repay"] } },
         { headers: { "test-credential-id": "bob", accept: "application/pdf, */*" } },
       );
 
@@ -512,6 +512,32 @@ describe.concurrent("authenticated", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/json");
       expect(Array.isArray(await response.json())).toBe(true);
+    });
+
+    it("returns account statement pdf without maturity", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        {},
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
+      const body = await response.arrayBuffer();
+      expect(body.byteLength).toBeGreaterThan(0);
+    });
+
+    it("returns account statement pdf with maturity", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
+      const body = await response.arrayBuffer();
+      expect(body.byteLength).toBeGreaterThan(0);
     });
 
     it("scopes maturity transaction lookup to user cards", async () => {

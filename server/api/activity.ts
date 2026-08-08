@@ -55,6 +55,7 @@ import { effectiveRate, WAD } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database";
 import auth from "../middleware/auth";
+import AccountStatement from "../utils/AccountStatement";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -288,7 +289,7 @@ export default new Hono().get(
 
     const accept = accepts(c, {
       header: "Accept",
-      supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
+      supports: ["application/json", "application/pdf"],
       default: "application/json",
     });
     const pdf = accept === "application/pdf";
@@ -432,6 +433,74 @@ export default new Hono().get(
       .filter(<T>(value: T | undefined): value is T => value !== undefined)
       .filter((item) => chain.id === anvil.id || !("status" in item && item.status === "declined"))
       .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+
+    if (pdf && include === undefined) {
+      const maturityDate = maturity === undefined ? undefined : new Date(maturity * 1000);
+      const period =
+        maturityDate === undefined
+          ? undefined
+          : `${maturityDate.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}, ${maturityDate.getUTCFullYear()}`;
+      const mask = (address: string) => `${address.slice(0, 6)}...${address.slice(-6)}`;
+      const activities = response.map((item) =>
+        "merchant" in item
+          ? {
+              id: item.id,
+              timestamp: item.timestamp,
+              amount: -item.usdAmount,
+              title: item.merchant.name,
+              detail: `${-item.usdAmount > 0 ? "Refund" : "mode" in item && item.mode > 0 ? "Credit purchase" : "Debit purchase"} - Card **** ${item.lastFour}`,
+            }
+          : item.type === "received"
+            ? {
+                id: item.id,
+                timestamp: item.timestamp,
+                amount: item.usdAmount,
+                title: "Funds added",
+                detail: `${item.amount} ${item.currency}`,
+              }
+            : item.type === "repay"
+              ? {
+                  id: item.id,
+                  timestamp: item.timestamp,
+                  amount: -item.usdAmount,
+                  title: "Debit payment",
+                  detail: `${item.amount} ${item.currency}`,
+                }
+              : {
+                  id: item.id,
+                  timestamp: item.timestamp,
+                  amount: -item.usdAmount,
+                  title: `Sent to ${mask(item.receiver)}`,
+                  detail: `${item.amount} ${item.currency}`,
+                },
+      );
+      const cardSummaries = [
+        ...Map.groupBy(
+          response.filter((item) => "merchant" in item),
+          ({ cardId }) => cardId,
+        ),
+      ].map(([cardId, items]) => ({
+        ...items.reduce((summary, { lastFour, usdAmount }) => ({ amount: summary.amount + usdAmount, lastFour }), {
+          amount: 0,
+          lastFour: "",
+        }),
+        cardId,
+      }));
+      return c.body(
+        new Uint8Array(
+          await renderToBuffer(
+            AccountStatement({
+              account: mask(account),
+              activities,
+              cards: cardSummaries,
+              period,
+            }),
+          ),
+        ),
+        200,
+        { "content-type": "application/pdf" },
+      );
+    }
 
     if (maturity !== undefined && pdf) {
       const purchasesByCard = Map.groupBy(

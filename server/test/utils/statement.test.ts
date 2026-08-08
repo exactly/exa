@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
+import AccountStatement from "../../utils/AccountStatement";
 import Statement, { format } from "../../utils/Statement";
 
 const directory = path.join("node_modules/@exactly/.runtime");
@@ -246,6 +247,67 @@ describe("statement rendering", () => {
     const text = collectText(Statement(statement));
     expect(text).not.toContain("discount");
     expect(text).not.toContain("penalty");
+  });
+
+  it("renders account statement with all activity types", async () => {
+    const statement = {
+      account: "0x92bD...e82AB8",
+      period: "December, 2025",
+      cards: [{ amount: 1407, cardId: "card-6789", lastFour: "6789" }],
+      activities: [
+        {
+          id: "purchase-1",
+          timestamp: "2025-12-19T11:35:11.030Z",
+          amount: -50.25,
+          title: "grocery store",
+          detail: "Debit purchase - Card **** 1234",
+        },
+        {
+          id: "deposit-1",
+          timestamp: "2025-12-19T11:35:11.030Z",
+          amount: 100,
+          title: "Funds added",
+          detail: "1.45 ETH",
+        },
+        {
+          id: "repay-1",
+          timestamp: "2025-12-19T11:35:11.030Z",
+          amount: -30,
+          title: "Debt payment",
+          detail: "942.63 USDC",
+        },
+        {
+          id: "withdraw-1",
+          timestamp: "2025-12-19T11:35:11.030Z",
+          amount: -20,
+          title: "Sent to 0x92bD...e82AB8",
+          detail: "200 USD",
+        },
+      ],
+    };
+    const pdf = await renderToBuffer(AccountStatement(statement));
+    expect(pdf.byteLength).toBeGreaterThan(0);
+    await writeFile(path.join(directory, `account-statement-${Date.now()}.pdf`), new Uint8Array(pdf)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact
+    const text = collectText(AccountStatement(statement));
+    expect(text).toContain("Account balance");
+    expect(text).toContain("Card **** 6789");
+    expect(text).toContain("Debit purchases in the period");
+    expect(text).toContain("$1,407.00");
+    expect(text).toContain("Account movements");
+    expect(text).toContain("grocery store");
+    expect(text).toContain("Debit purchase - Card **** 1234");
+    expect(text).toContain("-$50.25");
+    expect(text).toContain("Funds added");
+    expect(text).toContain("1.45 ETH");
+    expect(text).toContain("$100.00");
+    expect(text).toContain("Debt payment");
+    expect(text).toContain("942.63 USDC");
+    expect(text).toContain("-$30.00");
+    expect(text).toContain("Sent to 0x92bD...e82AB8");
+    expect(text).toContain("200 USD");
+    expect(text).toContain("-$20.00");
+    expect(text).toContain("TOTAL BALANCE");
+    expect(text).toContain("-$0.25");
   });
 });
 
