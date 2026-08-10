@@ -38,6 +38,20 @@
       ]
     },
     {
+      "owner": "pulumi",
+      "pattern": [
+        {
+          "regexp": "^(?:\\x1b\\[[\\d;]*m)*\\s*([^\\s].+\\([^)]+\\)):(?:\\x1b\\[[\\d;]*m)*$",
+          "code": 1
+        },
+        {
+          "regexp": "^(?:\\x1b\\[[\\d;]*m)*\\s*(?:\\x1b\\[[\\d;]*m)*(error|warning)(?:\\x1b\\[[\\d;]*m)*:(?!(?:\\s|\\x1b\\[[\\d;]*m)*(?:(?:preview|update) failed|\\d+ errors? occurred):?(?:\\s|\\x1b\\[[\\d;]*m)*$)\\s*(?:\\x1b\\[[\\d;]*m)*(.+?)(?:\\x1b\\[[\\d;]*m)*$",
+          "severity": 1,
+          "message": 2
+        }
+      ]
+    },
+    {
       "owner": "forge-fmt",
       "pattern": [{ "regexp": "^(Diff in (.+)):$", "file": 2, "message": 1 }]
     },
