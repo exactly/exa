@@ -13,17 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     env: { NX_DAEMON: false }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "^24.14.1"
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.5.1
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
@@ -32,8 +32,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
         env: { REDISMS_DISABLE_POSTINSTALL: "true" }
       - run: pnpm nx build docs
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/dist
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5
         id: pages
