@@ -7,6 +7,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AddFundsOption({
+  badge,
   icon,
   title,
   subtitle,
@@ -14,11 +15,12 @@ export default function AddFundsOption({
   loading,
   onPress,
 }: {
+  badge?: string;
   disabled?: boolean;
   icon: React.ReactElement;
   loading?: boolean;
   onPress: () => void;
-  subtitle: string;
+  subtitle?: string;
   title: string;
 }) {
   return (
@@ -50,11 +52,25 @@ export default function AddFundsOption({
             <Text emphasized headline primary>
               {title}
             </Text>
-            <Text footnote secondary>
-              {subtitle}
-            </Text>
+            {!!subtitle && (
+              <Text footnote secondary>
+                {subtitle}
+              </Text>
+            )}
           </YStack>
         </XStack>
+        {!!badge && (
+          <View
+            backgroundColor="$interactiveBaseSuccessDefault"
+            borderRadius="$r2"
+            paddingHorizontal="$s2"
+            paddingVertical="$s1"
+          >
+            <Text emphasized caption2 color="$interactiveOnBaseSuccessDefault" textTransform="uppercase">
+              {badge}
+            </Text>
+          </View>
+        )}
         <View>
           {loading ? (
             <Spinner size="small" color="$uiBrandSecondary" />

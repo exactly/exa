@@ -1,0 +1,213 @@
+import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Pressable } from "react-native";
+
+import { useRouter } from "expo-router";
+
+import { ArrowLeft, CircleHelp, Info, Search } from "@tamagui/lucide-icons";
+import { ScrollView, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
+
+import chain, { allowlists } from "@exactly/common/generated/chain";
+
+import AddFundsOption from "./AddFundsOption";
+import EducationSheet from "./EducationSheet";
+import { presentArticle } from "../../utils/intercom";
+import { lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
+import reportError from "../../utils/reportError";
+import useMarkets from "../../utils/useMarkets";
+import AssetLogo from "../shared/AssetLogo";
+import IconButton from "../shared/IconButton";
+import SafeView from "../shared/SafeView";
+import Skeleton from "../shared/Skeleton";
+import Text from "../shared/Text";
+import View from "../shared/View";
+import TokenSelectModal from "../swaps/SelectorModal";
+
+export default function Assets() {
+  const router = useRouter();
+  const { t } = useTranslation();
+  const { markets, supportedAssets, isPending } = useMarkets();
+  const { data: tokens } = useQuery(lifiTokensOptions);
+  const [collateralShown, setCollateralShown] = useState(false);
+  const [otherShown, setOtherShown] = useState(false);
+  const [moreShown, setMoreShown] = useState(false);
+  const assets = useMemo(() => {
+    if (!markets) return [];
+    const excluded = new Set(["USDC.e", "DAI"]);
+    const available = markets
+      .filter((market) => !excluded.has(market.symbol.slice(3)))
+      .map((market) =>
+        market.symbol.slice(3) === "WETH"
+          ? { symbol: "ETH", name: "Ether" }
+          : { symbol: market.symbol.slice(3), name: market.assetName },
+      );
+    const pinned = ["USDC", "ETH", "WBTC", "wstETH", "OP"];
+    return [
+      ...pinned.flatMap((symbol) => available.find((asset) => asset.symbol === symbol) ?? []),
+      ...available.filter((asset) => !pinned.includes(asset.symbol)),
+    ];
+  }, [markets]);
+  const others = useMemo(() => {
+    if (!tokens || !markets) return [];
+    const underlying = new Set(markets.map((market) => market.asset.toLowerCase()));
+    const excluded = new Set(supportedAssets);
+    const bySymbol = new Map<string, (typeof tokens)[number]>();
+    for (const token of tokens) {
+      const home = token.chainId === (chain.id as (typeof token)["chainId"]);
+      const allowed = allowlists[String(token.chainId)];
+      if (!allowed?.some((address) => address.toLowerCase() === token.address.toLowerCase())) continue;
+      if (home && underlying.has(token.address.toLowerCase())) continue;
+      const correlated =
+        token.symbol in tokenCorrelation ? tokenCorrelation[token.symbol as keyof typeof tokenCorrelation] : undefined;
+      if (excluded.has(token.symbol) || (correlated && excluded.has(correlated))) continue;
+      const current = bySymbol.get(token.symbol);
+      if (!current || (home && current.chainId !== token.chainId)) bySymbol.set(token.symbol, token);
+    }
+    return [...bySymbol.values()];
+  }, [tokens, markets, supportedAssets]);
+  const visibleOthers = others.slice(0, 4);
+  return (
+    <SafeView fullScreen backgroundColor="$backgroundMild">
+      <View gap="$s6" fullScreen padded>
+        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+          <IconButton
+            icon={ArrowLeft}
+            aria-label={t("Back")}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/add-funds");
+              }
+            }}
+          />
+          <Text emphasized subHeadline primary>
+            {t("Cryptocurrencies")}
+          </Text>
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
+            onPress={() => {
+              presentArticle("8950801").catch(reportError);
+            }}
+          />
+        </XStack>
+        <ScrollView flex={1} showsVerticalScrollIndicator={false}>
+          <YStack gap="$s7">
+            <YStack gap="$s4">
+              <XStack gap="$s2" alignItems="center">
+                <Text emphasized primary headline>
+                  {t("Supported assets")}
+                </Text>
+                <Pressable hitSlop={15} onPress={() => setCollateralShown(true)}>
+                  <Info size={16} color="$uiBrandSecondary" />
+                </Pressable>
+              </XStack>
+              <YStack gap="$s3_5">
+                {isPending
+                  ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} width="100%" height={82} />)
+                  : assets.map(({ symbol, name }) => (
+                      <AddFundsOption
+                        key={symbol}
+                        icon={<AssetLogo symbol={symbol} width={24} height={24} />}
+                        title={symbol}
+                        subtitle={name}
+                        onPress={() => {
+                          router.push({ pathname: "/add-funds/network", params: { asset: symbol } });
+                        }}
+                      />
+                    ))}
+              </YStack>
+            </YStack>
+            {others.length > 0 && (
+              <YStack gap="$s4">
+                <XStack gap="$s2" alignItems="center">
+                  <Text emphasized primary headline>
+                    {t("Other assets")}
+                  </Text>
+                  <Pressable hitSlop={15} onPress={() => setOtherShown(true)}>
+                    <Info size={16} color="$uiBrandSecondary" />
+                  </Pressable>
+                </XStack>
+                <YStack gap="$s3_5">
+                  {visibleOthers.map((token) => (
+                    <AddFundsOption
+                      key={token.address}
+                      icon={<AssetLogo symbol={token.symbol} uri={token.logoURI} width={24} height={24} />}
+                      title={token.symbol}
+                      subtitle={token.name}
+                      onPress={() => {
+                        router.push({ pathname: "/add-funds/network", params: { asset: token.symbol } });
+                      }}
+                    />
+                  ))}
+                  {others.length > 4 && (
+                    <AddFundsOption
+                      icon={<Search size={24} color="$iconBrandDefault" />}
+                      title={t("More assets")}
+                      onPress={() => setMoreShown(true)}
+                    />
+                  )}
+                </YStack>
+              </YStack>
+            )}
+          </YStack>
+        </ScrollView>
+        <EducationSheet
+          open={collateralShown}
+          onClose={() => {
+            setCollateralShown(false);
+          }}
+          title={t("Supported assets")}
+          article="8950805"
+        >
+          <XStack
+            backgroundColor="$backgroundMild"
+            borderRadius="$r4"
+            padding="$s4_5"
+            justifyContent="center"
+            flexWrap="wrap"
+            gap="$s3_5"
+          >
+            {isPending
+              ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} height={40} width={40} radius="round" />)
+              : supportedAssets.map((symbol) => <AssetLogo key={symbol} symbol={symbol} width={40} height={40} />)}
+          </XStack>
+          <Text subHeadline secondary>
+            {t(
+              "Only {{assets}} on {{chain}} serve as collateral, earn yield while held, and increase your Exa Card credit limit.",
+              { assets: supportedAssets.join(", "), chain: chain.name },
+            )}
+          </Text>
+        </EducationSheet>
+        <EducationSheet
+          open={otherShown}
+          onClose={() => {
+            setOtherShown(false);
+          }}
+          title={t("Other assets")}
+          article="8950805"
+        >
+          <Text subHeadline secondary>
+            {t(
+              "You can hold these assets, but they don't earn yield or increase your Exa Card credit limit. Go to your Portfolio to swap or bridge them to a supported asset on {{chain}}.",
+              { chain: chain.name },
+            )}
+          </Text>
+        </EducationSheet>
+        <TokenSelectModal
+          open={moreShown}
+          tokens={others}
+          title={t("Select asset")}
+          onSelect={(token) => {
+            setMoreShown(false);
+            router.push({ pathname: "/add-funds/network", params: { asset: token.symbol } });
+          }}
+          onClose={() => setMoreShown(false)}
+        />
+      </View>
+    </SafeView>
+  );
+}

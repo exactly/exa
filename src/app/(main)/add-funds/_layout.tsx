@@ -10,9 +10,11 @@ export default function AddFundsLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="add-crypto" />
+      <Stack.Screen name="assets" />
       <Stack.Screen name="bridge" />
       <Stack.Screen name="fees" />
       <Stack.Screen name="kyc" />
+      <Stack.Screen name="network" />
       <Stack.Screen name="onboard" />
       <Stack.Screen name="ramp" />
       <Stack.Screen name="status" />
