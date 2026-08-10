@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.108
+
+### Patch Changes
+
+- [#1165](https://github.com/exactly/exa/pull/1165) [`cf89de2`](https://github.com/exactly/exa/commit/cf89de2004132dcb79e95486bf2d0d0d41b999d6) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ support offramp transfer reference
+
+- [#1176](https://github.com/exactly/exa/pull/1176) [`41803d9`](https://github.com/exactly/exa/commit/41803d97914b7c7962810c802e28fda21e9d29ec) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add auth method to sardine
+
+- [#1165](https://github.com/exactly/exa/pull/1165) [`6cb4196`](https://github.com/exactly/exa/commit/6cb4196f024ed7e78e3be51398073c6885443d2b) Thanks [@mainqueg](https://github.com/mainqueg)! - ♻️ create offramp transfer on external account
+
 ## 0.2.107
 
 ### Patch Changes
