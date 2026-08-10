@@ -3,7 +3,7 @@
   "version": "0.1.5",
   "private": true,
   "scripts": {
-    "prepare": "nx prepare docs",
+    "prepare": "GITHUB_STEP_SUMMARY= nx prepare docs",
     "generate:astro": "astro sync",
     "test": "nx test docs",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",

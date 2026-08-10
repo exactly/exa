@@ -3,7 +3,7 @@
   "version": "0.0.16",
   "private": true,
   "scripts": {
-    "prepare": "nx prepare common",
+    "prepare": "GITHUB_STEP_SUMMARY= nx prepare common",
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
     "generate:wagmi": "wagmi generate",
     "git:unshallow": "git fetch --unshallow || true",

@@ -112,8 +112,8 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: |
-          pnpm nx run-many -t build -p mobile e2e
-          pnpm nx generate:app server
+          GITHUB_STEP_SUMMARY= pnpm nx run-many -t build -p mobile e2e
+          GITHUB_STEP_SUMMARY= pnpm nx generate:app server
           pnpm nx e2e server > server.log 2>&1 &
           pnpm dlx serve server/app -l 8081 -snL &
           for i in {1..420}; do
