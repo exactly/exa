@@ -21,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
+      - run: echo ::add-matcher::.github/matcher.json
       - id: account
         run: echo "email=github-$STACK@$(yq -er '.config."gcp:project"' "infra/Pulumi.$STACK.yaml").iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v3
