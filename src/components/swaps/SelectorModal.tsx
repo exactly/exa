@@ -7,6 +7,7 @@ import { XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
+import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
@@ -102,6 +103,7 @@ export default function TokenSelectModal({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const { assets } = usePortfolio();
+  const { markets } = useMarkets();
   const {
     t,
     i18n: { language },
@@ -111,10 +113,13 @@ export default function TokenSelectModal({
     const map = new Map<string, PortfolioAsset>();
     for (const asset of assets) {
       const address = (asset.type === "protocol" ? asset.asset : asset.address).toLowerCase();
+      if (map.get(address)?.type === "protocol") continue;
       map.set(address, asset);
     }
     return map;
   }, [assets]);
+
+  const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => asset.toLowerCase())), [markets]);
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -122,15 +127,17 @@ export default function TokenSelectModal({
       fields.some((field) => field?.toLowerCase().includes(query));
     return tokens.filter((token) => {
       if (withBalanceOnly) {
-        const asset = assetByAddress.get(token.address.toLowerCase());
+        const address = token.address.toLowerCase();
+        const asset = assetByAddress.get(address);
         if (!asset) return false;
-        return asset.type === "protocol"
-          ? asset.floatingDepositAssets > 0n && matchesQuery(asset.symbol, asset.assetName, asset.asset)
-          : (asset.amount ?? 0n) > 0n && matchesQuery(asset.symbol, asset.name, asset.address);
+        if (asset.type === "protocol")
+          return asset.floatingDepositAssets > 0n && matchesQuery(asset.symbol, asset.assetName, asset.asset);
+        if (marketAssets.has(address)) return false;
+        return (asset.amount ?? 0n) > 0n && matchesQuery(asset.symbol, asset.name, asset.address);
       }
       return matchesQuery(token.symbol, token.name, token.address);
     });
-  }, [searchQuery, tokens, withBalanceOnly, assetByAddress]);
+  }, [searchQuery, tokens, withBalanceOnly, assetByAddress, marketAssets]);
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>

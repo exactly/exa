@@ -30,6 +30,7 @@ import { use as configI18n } from "i18next";
 import { WagmiProvider } from "wagmi";
 
 import domain from "@exactly/common/domain";
+import { isBase } from "@exactly/common/generated/chain";
 
 import SplineSansRegular from "../assets/fonts/SplineSans-Regular.otf";
 import SplineSansSemiBold from "../assets/fonts/SplineSans-SemiBold.otf";
@@ -95,7 +96,7 @@ const userFeedback = feedbackIntegration({
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#12A594",
+      backgroundColor: isBase ? "#0000FF" : "#12A594",
     },
     cancelButton: {
       height: 50,
