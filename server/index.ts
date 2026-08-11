@@ -10,6 +10,7 @@ import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import links from "@exactly/common/generated/links";
 
 import createApi from "./api";
 import database from "./database";
@@ -150,8 +151,12 @@ app.route("/hooks/manteca", mantecaHook.app);
 app.route("/hooks/panda", pandaHook.app);
 app.route("/hooks/persona", personaHook.app);
 
+const appID = "665NDX7LBZ.app.exactly";
 app.get("/.well-known/apple-app-site-association", (c) =>
-  c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
+  c.json({
+    applinks: { apps: [], details: [{ appID, paths: ["/", ...links.flatMap((path) => [path, `${path}/*`])] }] },
+    webcredentials: { apps: [appID] },
+  }),
 );
 app.get("/.well-known/assetlinks.json", (c) =>
   c.json([
