@@ -42,14 +42,15 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
-import createCredential from "../../utils/createCredential";
-import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
-import { walletExtension } from "../../utils/walletExtension";
+
+import type createCredentialFactory from "../../utils/createCredential";
+import type createIntercom from "../../utils/intercom";
+import type createWalletExtension from "../../utils/walletExtension";
+import type { Redis } from "ioredis";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -150,264 +151,284 @@ const RegistrationOptions = variant("method", [
   ),
 ]);
 
-export default new Hono()
-  .get(
-    "/",
-    describeRoute({
-      summary: "Get registration options",
-      description:
-        "Initiates WebAuthn registration by generating credential creation options for a new user. Sets a session HTTP-only cookie.",
-      responses: {
-        200: {
-          description:
-            "WebAuthn registration options containing challenge, relying party info, and credential parameters for client-side credential creation",
-          content: {
-            "application/json": { schema: resolver(RegistrationOptions, { errorMode: "ignore" }) },
+export default function route({
+  createCredential,
+  intercom,
+  redis,
+  walletExtension,
+}: {
+  createCredential: ReturnType<typeof createCredentialFactory>;
+  intercom: ReturnType<typeof createIntercom>;
+  redis: Redis;
+  walletExtension: ReturnType<typeof createWalletExtension>;
+}) {
+  return new Hono()
+    .get(
+      "/",
+      describeRoute({
+        summary: "Get registration options",
+        description:
+          "Initiates WebAuthn registration by generating credential creation options for a new user. Sets a session HTTP-only cookie.",
+        responses: {
+          200: {
+            description:
+              "WebAuthn registration options containing challenge, relying party info, and credential parameters for client-side credential creation",
+            content: {
+              "application/json": { schema: resolver(RegistrationOptions, { errorMode: "ignore" }) },
+            },
           },
         },
-      },
-      tags: ["Credential"],
-      validateResponse: true,
-    }),
-    vValidator(
-      "query",
-      optional(
-        object({
-          credentialId: optional(
-            pipe(
-              Address,
-              title("Ethereum address"),
-              description("Address to register with, if using Sign-in with Ethereum."),
+        tags: ["Credential"],
+        validateResponse: true,
+      }),
+      vValidator(
+        "query",
+        optional(
+          object({
+            credentialId: optional(
+              pipe(
+                Address,
+                title("Ethereum address"),
+                description("Address to register with, if using Sign-in with Ethereum."),
+              ),
             ),
-          ),
-        }),
+          }),
+        ),
+        validatorHook({ code: "bad credential" }),
       ),
-      validatorHook({ code: "bad credential" }),
-    ),
-    async (c) => {
-      const timeout = 5 * 60_000;
-      const sessionId = generateSiweNonce();
-      const issuedAt = new Date();
-      const expires = new Date(issuedAt.getTime() + timeout);
-      setCookie(c, "session_id", sessionId, {
-        path: "/",
-        expires,
-        httpOnly: true,
-        ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
-      });
-      c.header("X-Session-Id", sessionId);
-      const query = c.req.valid("query");
-      if (query?.credentialId) {
-        const message = createSiweMessage({
-          resources: ["https://exactly.github.io/exa"],
-          statement: "Sign-in to the Exa App",
-          expirationTime: expires,
-          address: query.credentialId,
-          chainId: chain.id,
-          nonce: sessionId,
-          uri: appOrigin,
-          version: "1",
-          issuedAt,
-          domain,
-          scheme,
+      async (c) => {
+        const timeout = 5 * 60_000;
+        const sessionId = generateSiweNonce();
+        const issuedAt = new Date();
+        const expires = new Date(issuedAt.getTime() + timeout);
+        setCookie(c, "session_id", sessionId, {
+          path: "/",
+          expires,
+          httpOnly: true,
+          ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
         });
-        await redis.set(sessionId, message, "PX", timeout);
-        return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
-      }
-      const userName = new Date().toISOString().slice(0, 16);
-      const options = await generateRegistrationOptions({
-        rpID: domain,
-        rpName: "exactly",
-        userName,
-        userDisplayName: userName,
-        supportedAlgorithmIDs: [cose.COSEALG.ES256],
-        authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
-        // TODO excludeCredentials?
-        timeout,
-      });
-      await redis.set(sessionId, options.challenge, "PX", timeout);
-      return c.json(
-        {
-          method: "webauthn" as const,
-          ...options,
-          extensions: options.extensions as Extract<
-            InferOutput<typeof RegistrationOptions>,
-            { method: "webauthn" }
-          >["extensions"],
-        } satisfies InferOutput<typeof RegistrationOptions>,
-        200,
-      );
-    },
-  )
-  .post(
-    "/",
-    describeRoute({
-      summary: "Register",
-      description: "Registers a new WebAuthn credential for a user.",
-      responses: {
-        200: {
-          description: "WebAuthn registration response containing credential identifier and factory address.",
-          content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
-        },
-      },
-      tags: ["Credential"],
-      validateResponse: true,
-    }),
-    // http-only cookie
-    vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
-      "cookie",
-      Cookie,
-      validatorHook({ code: "bad session" }),
-    ),
-    vValidator(
-      "header",
-      optional(
-        object({
-          "Client-Fid": optional(pipe(string(), maxLength(36))),
-          "Client-Platform": optional(literal("ios")),
-          "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
-        }),
-      ),
-    ),
-    vValidator(
-      "query",
-      optional(
-        object({
-          factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
-        }),
-      ),
-      validatorHook({ code: "bad factory" }),
-    ),
-    vValidator(
-      "json",
-      variant("method", [
-        pipe(
-          object({
-            method: pipe(literal("siwe"), title("Method"), description("Sign-in with Ethereum.")),
-            id: pipe(Address, title("Address"), description("Address to sign in with.")),
-            signature: pipe(Hex, title("Signature"), description("Signature of the cryptographic challenge message.")),
-          }),
-          title("Sign-in with Ethereum"),
-        ),
-        pipe(
-          object({
-            method: pipe(optional(literal("webauthn")), title("Method"), description("WebAuthn.")),
-            id: pipe(
-              Base64URL,
-              title("Credential identifier"),
-              description("Unique identifier for the authenticator."),
-            ),
-            rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
-            response: object({
-              clientDataJSON: pipe(Base64URL, title("Client data"), description("Registration data from the client.")),
-              attestationObject: pipe(
-                Base64URL,
-                title("Attestation data"),
-                description("Data from the authenticator."),
-              ),
-              transports: nullish(
-                array(pipe(string(), title("Transport methods"), description("How the authenticator can be used."))),
-              ),
-            }),
-            clientExtensionResults: pipe(
-              any(),
-              title("Extension results"),
-              description("Results of optional features enabled during registration."),
-            ),
-            type: pipe(
-              literal("public-key"),
-              title("Credential type"),
-              description("Always `public-key` for WebAuthn."),
-            ),
-          }),
-          title("WebAuthn"),
-        ),
-      ]),
-      validatorHook({ code: "bad registration" }),
-    ),
-    async (c) => {
-      const attestation = c.req.valid("json");
-      const factory = c.req.valid("query")?.factory ?? undefined;
-      const headers = c.req.valid("header");
-      const platform = safeParse(optional(literal("ios")), headers?.["Client-Platform"]);
-      if (!platform.success) return c.json({ code: "bad client platform" }, 400);
-      setContext("auth", attestation);
-      const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
-      if (!sessionId) return c.json({ code: "bad session" }, 400);
-      if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-      const challenge = await redis.getdel(sessionId);
-      if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
-
-      let webauthn: undefined | WebAuthnCredential;
-      try {
-        switch (attestation.method) {
-          case "siwe": {
-            const message = parseSiweMessage(challenge);
-            if (
-              !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
-              !(await publicClient.verifySiweMessage({
-                message: challenge,
-                address: attestation.id,
-                signature: attestation.signature,
-              }))
-            ) {
-              return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
-            }
-            break;
-          }
-          default: {
-            const { verified, registrationInfo } = await verifyRegistrationResponse({
-              response: {
-                ...attestation,
-                response: {
-                  ...attestation.response,
-                  transports:
-                    (attestation.response.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
-                },
-              },
-              expectedRPID: domain,
-              expectedOrigin: [appOrigin, ...androidOrigins],
-              expectedChallenge: challenge,
-              supportedAlgorithmIDs: [cose.COSEALG.ES256],
-            });
-            if (!verified) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
-            const { credential, credentialDeviceType } = registrationInfo;
-            if (credential.id !== attestation.id) {
-              return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
-            }
-            if (credentialDeviceType !== "multiDevice") {
-              return c.json({ code: "backup eligibility required", legacy: "backup eligibility required" }, 400); // TODO improve ux
-            }
-            webauthn = credential;
-          }
+        c.header("X-Session-Id", sessionId);
+        const query = c.req.valid("query");
+        if (query?.credentialId) {
+          const message = createSiweMessage({
+            resources: ["https://exactly.github.io/exa"],
+            statement: "Sign-in to the Exa App",
+            expirationTime: expires,
+            address: query.credentialId,
+            chainId: chain.id,
+            nonce: sessionId,
+            uri: appOrigin,
+            version: "1",
+            issuedAt,
+            domain,
+            scheme,
+          });
+          await redis.set(sessionId, message, "PX", timeout);
+          return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
         }
-      } catch (error) {
-        captureException(error, { level: "error", tags: { unhandled: true } });
-        return c.json({ code: "ouch", legacy: "ouch" }, 500);
-      }
-
-      try {
-        const result = await createCredential(c, attestation.id, {
-          factory,
-          webauthn,
-          source: headers?.["Client-Fid"],
-          ip: headers?.["do-connecting-ip"],
+        const userName = new Date().toISOString().slice(0, 16);
+        const options = await generateRegistrationOptions({
+          rpID: domain,
+          rpName: "exactly",
+          userName,
+          userDisplayName: userName,
+          supportedAlgorithmIDs: [cose.COSEALG.ES256],
+          authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+          // TODO excludeCredentials?
+          timeout,
         });
-        const account = deriveAddress(result.factory, { x: result.x, y: result.y });
-        const intercomToken = await getIntercomToken(account, new Date(Date.now() + AUTH_EXPIRY));
+        await redis.set(sessionId, options.challenge, "PX", timeout);
         return c.json(
           {
-            ...result,
-            intercomToken,
-            ...(platform.output === "ios" ? await walletExtension(attestation.id) : {}),
-          } satisfies InferOutput<typeof Authentication>,
+            method: "webauthn" as const,
+            ...options,
+            extensions: options.extensions as Extract<
+              InferOutput<typeof RegistrationOptions>,
+              { method: "webauthn" }
+            >["extensions"],
+          } satisfies InferOutput<typeof RegistrationOptions>,
           200,
         );
-      } catch (error) {
-        captureException(error, { level: "error", tags: { unhandled: true } });
-        return c.json({ code: "ouch", legacy: "ouch" }, 500);
-      }
-    },
-  );
+      },
+    )
+    .post(
+      "/",
+      describeRoute({
+        summary: "Register",
+        description: "Registers a new WebAuthn credential for a user.",
+        responses: {
+          200: {
+            description: "WebAuthn registration response containing credential identifier and factory address.",
+            content: { "application/json": { schema: resolver(Authentication, { errorMode: "ignore" }) } },
+          },
+        },
+        tags: ["Credential"],
+        validateResponse: true,
+      }),
+      // http-only cookie
+      vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
+        "cookie",
+        Cookie,
+        validatorHook({ code: "bad session" }),
+      ),
+      vValidator(
+        "header",
+        optional(
+          object({
+            "Client-Fid": optional(pipe(string(), maxLength(36))),
+            "Client-Platform": optional(literal("ios")),
+            "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+          }),
+        ),
+      ),
+      vValidator(
+        "query",
+        optional(
+          object({
+            factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+          }),
+        ),
+        validatorHook({ code: "bad factory" }),
+      ),
+      vValidator(
+        "json",
+        variant("method", [
+          pipe(
+            object({
+              method: pipe(literal("siwe"), title("Method"), description("Sign-in with Ethereum.")),
+              id: pipe(Address, title("Address"), description("Address to sign in with.")),
+              signature: pipe(
+                Hex,
+                title("Signature"),
+                description("Signature of the cryptographic challenge message."),
+              ),
+            }),
+            title("Sign-in with Ethereum"),
+          ),
+          pipe(
+            object({
+              method: pipe(optional(literal("webauthn")), title("Method"), description("WebAuthn.")),
+              id: pipe(
+                Base64URL,
+                title("Credential identifier"),
+                description("Unique identifier for the authenticator."),
+              ),
+              rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
+              response: object({
+                clientDataJSON: pipe(
+                  Base64URL,
+                  title("Client data"),
+                  description("Registration data from the client."),
+                ),
+                attestationObject: pipe(
+                  Base64URL,
+                  title("Attestation data"),
+                  description("Data from the authenticator."),
+                ),
+                transports: nullish(
+                  array(pipe(string(), title("Transport methods"), description("How the authenticator can be used."))),
+                ),
+              }),
+              clientExtensionResults: pipe(
+                any(),
+                title("Extension results"),
+                description("Results of optional features enabled during registration."),
+              ),
+              type: pipe(
+                literal("public-key"),
+                title("Credential type"),
+                description("Always `public-key` for WebAuthn."),
+              ),
+            }),
+            title("WebAuthn"),
+          ),
+        ]),
+        validatorHook({ code: "bad registration" }),
+      ),
+      async (c) => {
+        const attestation = c.req.valid("json");
+        const factory = c.req.valid("query")?.factory ?? undefined;
+        const headers = c.req.valid("header");
+        const platform = safeParse(optional(literal("ios")), headers?.["Client-Platform"]);
+        if (!platform.success) return c.json({ code: "bad client platform" }, 400);
+        setContext("auth", attestation);
+        const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
+        if (!sessionId) return c.json({ code: "bad session" }, 400);
+        if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
+        const challenge = await redis.getdel(sessionId);
+        if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
+
+        let webauthn: undefined | WebAuthnCredential;
+        try {
+          switch (attestation.method) {
+            case "siwe": {
+              const message = parseSiweMessage(challenge);
+              if (
+                !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
+                !(await publicClient.verifySiweMessage({
+                  message: challenge,
+                  address: attestation.id,
+                  signature: attestation.signature,
+                }))
+              ) {
+                return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
+              }
+              break;
+            }
+            default: {
+              const { verified, registrationInfo } = await verifyRegistrationResponse({
+                response: {
+                  ...attestation,
+                  response: {
+                    ...attestation.response,
+                    transports:
+                      (attestation.response.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
+                  },
+                },
+                expectedRPID: domain,
+                expectedOrigin: [appOrigin, ...androidOrigins],
+                expectedChallenge: challenge,
+                supportedAlgorithmIDs: [cose.COSEALG.ES256],
+              });
+              if (!verified) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
+              const { credential, credentialDeviceType } = registrationInfo;
+              if (credential.id !== attestation.id) {
+                return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
+              }
+              if (credentialDeviceType !== "multiDevice") {
+                return c.json({ code: "backup eligibility required", legacy: "backup eligibility required" }, 400); // TODO improve ux
+              }
+              webauthn = credential;
+            }
+          }
+        } catch (error) {
+          captureException(error, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "ouch", legacy: "ouch" }, 500);
+        }
+
+        try {
+          const result = await createCredential(c, attestation.id, {
+            factory,
+            webauthn,
+            source: headers?.["Client-Fid"],
+            ip: headers?.["do-connecting-ip"],
+          });
+          const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+          const intercomToken = await intercom(account, new Date(Date.now() + AUTH_EXPIRY));
+          return c.json(
+            {
+              ...result,
+              intercomToken,
+              ...(platform.output === "ios" ? await walletExtension.create(attestation.id) : {}),
+            } satisfies InferOutput<typeof Authentication>,
+            200,
+          );
+        } catch (error) {
+          captureException(error, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "ouch", legacy: "ouch" }, 500);
+        }
+      },
+    );
+}
 
 const scheme = domain === "localhost" ? "http" : "https";

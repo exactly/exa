@@ -16,11 +16,17 @@ import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/c
 import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
-import { sendPushNotification } from "./onesignal";
+import createOnesignal from "./onesignal";
 import publicClient from "./publicClient";
 import { bullmq as connection } from "./redis";
 import database, { credentials } from "../database";
 import t from "../i18n";
+
+export function setup(onesignalKey: string) {
+  ({ sendPushNotification } = createOnesignal(onesignalKey));
+}
+
+let sendPushNotification: ReturnType<typeof createOnesignal>["sendPushNotification"];
 
 const queueName = "maturity";
 const notificationQueueName = "maturity-notifications";

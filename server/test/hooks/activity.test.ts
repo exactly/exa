@@ -1,14 +1,17 @@
-import "../mocks/alchemy";
+import { createWebhook as createWebhookMock, findWebhook as findWebhookMock } from "../mocks/alchemy";
 import "../mocks/deployments";
-import "../mocks/onesignal";
+import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { Redis } from "ioredis";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import {
   BaseError,
-  bytesToHex,
   ContractFunctionRevertedError,
   encodeErrorResult,
   hexToBigInt,
@@ -22,37 +25,41 @@ import {
   type withRetry,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
-import app from "../../hooks/activity";
+import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
+import { setWebhookId, webhookId } from "../../utils/activityWebhook";
 import { NETWORKS } from "../../utils/alchemy";
-import * as decodePublicKey from "../../utils/decodePublicKey";
-import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
+import * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
-import * as keeperUtilities from "../../utils/wallet";
+import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
-const appClient = testClient(app);
+const executor = privateKeyToAccount(padHex("0x69"));
 const waitForReceipt = publicClient.waitForTransactionReceipt;
-let keeper: ReturnType<typeof keeperUtilities.default>;
+
+const hook = createHook("activity");
+const appClient = testClient(hook.app);
+
+beforeAll(() => hook.ready);
+afterAll(() => hook.close());
 
 describe("address activity", () => {
+  let keeper: ReturnType<typeof wallet>;
   let owner: PrivateKeyAccount;
   let account: Address;
 
   beforeEach(async () => {
-    keeper = keeperUtilities.default(privateKeyToAccount(padHex("0x69")));
-    vi.mocked(keeperUtilities.default).mockReset().mockReturnValue(keeper);
+    keeper = wallet(executor);
+    vi.mocked(wallet).mockReset().mockReturnValue(keeper);
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
-    vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
     vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
       waitForReceipt({ ...parameters, pollingInterval: 10 }),
     );
@@ -70,6 +77,37 @@ describe("address activity", () => {
   afterEach(async () => {
     const keys = await redis.keys("lifi:tokens:*");
     if (keys.length > 0) await redis.del(...keys);
+  });
+
+  it("fails when a supported network disappears before handling", async () => {
+    const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(NETWORKS, "get").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- unreachable branch
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [...activityPayload.json.event.activity] },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported activity network" }));
+  });
+
+  it("ignores transfers to unknown accounts", async () => {
+    const sendPushNotification = sendPushNotificationMock;
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [...activityPayload.json.event.activity] },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
   it("captures no balance once after retries", async () => {
@@ -108,11 +146,11 @@ describe("address activity", () => {
   it("fails with unexpected error", async () => {
     const chain = NETWORKS.get("ANVIL");
     if (!chain) throw new Error("missing anvil");
-    const wallet = keeperUtilities.default(privateKeyToAccount(padHex("0x69")), chain);
-    const getCode = vi.fn<typeof wallet.getCode>().mockRejectedValueOnce(new Error("Unexpected"));
-    const createWallet = vi.mocked(keeperUtilities.default);
+    const current = wallet(executor, chain);
+    const getCode = vi.fn<typeof current.getCode>().mockRejectedValueOnce(new Error("Unexpected"));
+    const createWallet = vi.mocked(wallet);
     createWallet.mockClear();
-    createWallet.mockReturnValueOnce({ ...wallet, getCode });
+    createWallet.mockReturnValueOnce({ ...current, getCode });
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -134,26 +172,18 @@ describe("address activity", () => {
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
     ).toHaveLength(0);
-
     expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
   });
 
   it("fails with transaction timeout", async () => {
-    const { sendRawTransaction } = publicClient;
-    const waitForPokeReceipt = vi
-      .fn<typeof publicClient.waitForTransactionReceipt>()
+    const exaSend = keeper.exaSend;
+    const poke = vi
+      .fn<typeof keeper.exaSend>()
       .mockRejectedValue(new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }));
-    let deployed = false;
-    vi.spyOn(publicClient, "sendRawTransaction").mockImplementation((parameters) =>
-      deployed ? Promise.resolve(zeroHash) : sendRawTransaction(parameters),
+    vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions, call, options) =>
+      spanOptions.op === "exa.poke" ? poke(spanOptions, call, options) : exaSend(spanOptions, call, options),
     );
-    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation(async (parameters) => {
-      if (deployed) return waitForPokeReceipt(parameters);
-      const receipt = await waitForReceipt({ ...parameters, pollingInterval: 10 });
-      deployed = true;
-      return receipt;
-    });
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -169,17 +199,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForPokeReceipt.mock.calls.length === 6, 26_666);
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.filter(
-            ([, hint]) =>
-              (hint as undefined | { fingerprint?: string[] })?.fingerprint?.join(":") === "{{ default }}:unknown",
-          ).length >= 12,
-      26_666,
-    );
+    await vi.waitUntil(() => poke.mock.calls.length === 6, 26_666);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
@@ -196,6 +216,7 @@ describe("address activity", () => {
   it("fingerprints poke revert by error name", async () => {
     const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
     failPoke(
+      keeper,
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({
           abi: revertAbi,
@@ -237,6 +258,7 @@ describe("address activity", () => {
 
   it("fingerprints poke revert by reason", async () => {
     failPoke(
+      keeper,
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke", message: "custom reason" }),
       }),
@@ -273,7 +295,10 @@ describe("address activity", () => {
   });
 
   it("fingerprints poke revert as unknown", async () => {
-    failPoke(new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke" }) }));
+    failPoke(
+      keeper,
+      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke" }) }),
+    );
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -307,6 +332,7 @@ describe("address activity", () => {
 
   it("fingerprints poke revert by signature", async () => {
     failPoke(
+      keeper,
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({
           abi: [],
@@ -349,6 +375,7 @@ describe("address activity", () => {
   it("fingerprints shouldRetry by error name", async () => {
     const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
     failPoke(
+      keeper,
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({
           abi: revertAbi,
@@ -390,6 +417,7 @@ describe("address activity", () => {
 
   it("fingerprints shouldRetry by reason", async () => {
     failPoke(
+      keeper,
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
       }),
@@ -427,6 +455,7 @@ describe("address activity", () => {
 
   it("fingerprints shouldRetry by signature", async () => {
     failPoke(
+      keeper,
       new BaseError("test", {
         cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
       }),
@@ -463,7 +492,10 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry as unknown revert", async () => {
-    failPoke(new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }));
+    failPoke(
+      keeper,
+      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
+    );
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -496,7 +528,7 @@ describe("address activity", () => {
   });
 
   it("fingerprints shouldRetry as unknown", async () => {
-    failPoke(new Error("unexpected"));
+    failPoke(keeper, new Error("unexpected"));
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -526,6 +558,25 @@ describe("address activity", () => {
     ).toHaveLength(0);
     expect(setUser).toHaveBeenCalledWith({ id: account });
     expect(response.status).toBe(200);
+  });
+
+  it("ignores zero raw values when value is missing", async () => {
+    const sendPushNotification = sendPushNotificationMock;
+    const { value: _, ...transfer } = activityPayload.json.event.activity[1];
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...transfer, toAddress: account, rawContract: { address: inject("WETH"), rawValue: "0x0" } }],
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
   it("pokes eth", async () => {
@@ -744,7 +795,7 @@ describe("address activity", () => {
 
   it("ignores token without value and zero rawValue", async () => {
     const exaSend = vi.spyOn(keeper, "exaSend");
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
 
     const token = activityPayload.json.event.activity[1];
     const transfer = {
@@ -855,15 +906,15 @@ describe("address activity", () => {
   });
 
   it("deploys on the event network without claiming yield", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const chain = NETWORKS.get("ETH_MAINNET");
     if (!chain) throw new Error("missing mainnet");
-    const wallet = keeperUtilities.default(privateKeyToAccount(padHex("0x69")), chain);
-    const getCode = vi.fn<typeof wallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
-    const eventExaSend = vi.fn<typeof wallet.exaSend>().mockResolvedValue(null);
-    const createWallet = vi.mocked(keeperUtilities.default);
+    const eventWallet = wallet(executor, chain);
+    const getCode = vi.fn<typeof eventWallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
+    const eventExaSend = vi.fn<typeof eventWallet.exaSend>().mockResolvedValue(null);
+    const createWallet = vi.mocked(wallet);
     createWallet.mockClear();
-    createWallet.mockReturnValueOnce({ ...wallet, getCode, exaSend: eventExaSend });
+    createWallet.mockReturnValueOnce({ ...eventWallet, getCode, exaSend: eventExaSend });
     const keeperSend = vi.spyOn(keeper, "exaSend");
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
@@ -909,16 +960,7 @@ describe("address activity", () => {
   });
 
   it("omits the formatted amount when value is 0", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const chain = NETWORKS.get("ETH_MAINNET");
-    if (!chain) throw new Error("missing mainnet");
-    const wallet = keeperUtilities.default(privateKeyToAccount(padHex("0x69")), chain);
-    const getCode = vi.fn<typeof wallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
-    const eventExaSend = vi.fn<typeof wallet.exaSend>().mockResolvedValue(null);
-    const createWallet = vi.mocked(keeperUtilities.default);
-    createWallet.mockClear();
-    createWallet.mockReturnValueOnce({ ...wallet, getCode, exaSend: eventExaSend });
-    const keeperSend = vi.spyOn(keeper, "exaSend");
+    const sendPushNotification = sendPushNotificationMock;
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
     const response = await appClient.index.$post({
@@ -940,20 +982,6 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
-
-    expect(getCode).toHaveBeenCalledWith({ address: account });
-    expect(createWallet).toHaveBeenCalledWith(expect.anything(), chain);
-    expect(eventExaSend).toHaveBeenCalledWith(
-      expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
-      expect.objectContaining({
-        abi: exaAccountFactoryAbi,
-        address: inject("ExaAccountFactory") as Address,
-        functionName: "createAccount",
-      }),
-      { fees: "auto" },
-    );
-    expect(keeperSend.mock.calls.some(([options]) => options.attributes?.account === account)).toBe(false);
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
@@ -964,7 +992,7 @@ describe("address activity", () => {
   });
 
   it("sends translated notification without symbol when asset is missing", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const amount = parseEther(String(activityPayload.json.event.activity[1].value));
     await anvilClient.writeContract({
       account: null,
@@ -1007,7 +1035,7 @@ describe("address activity", () => {
 
   it("captures funds received notification errors", async () => {
     const error = new Error("push failed");
-    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockRejectedValueOnce(error);
     const amount = parseEther(String(activityPayload.json.event.activity[1].value));
     await anvilClient.writeContract({
       account: null,
@@ -1044,7 +1072,7 @@ describe("address activity", () => {
   });
 
   it("activates credit mode and sends translated notification when auto credit applies", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     await database.insert(cards).values([{ id: "auto-credit", credentialId: account, lastFour: "1234", mode: 0 }]);
     await anvilClient.writeContract({
       account: null,
@@ -1080,6 +1108,11 @@ describe("address activity", () => {
         ),
       15_000,
     );
+    await vi.waitUntil(async () =>
+      database.query.cards
+        .findFirst({ columns: { mode: true }, where: eq(cards.id, "auto-credit") })
+        .then((card) => card?.mode === 1),
+    );
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
       headings: t("Card mode changed"),
@@ -1093,10 +1126,7 @@ describe("address activity", () => {
 
   it("captures auto credit notification errors", async () => {
     const error = new Error("push failed");
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    sendPushNotification
-      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>)
-      .mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockResolvedValueOnce({}).mockRejectedValueOnce(error);
     await database
       .insert(cards)
       .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
@@ -1136,7 +1166,7 @@ describe("address activity", () => {
 
   it("captures auto credit errors", async () => {
     const error = new Error("auto credit");
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockRejectedValue(error);
+    const autoCredit = vi.spyOn(Panda, "autoCredit").mockRejectedValue(error);
     await database
       .insert(cards)
       .values([{ id: "auto-credit-error", credentialId: account, lastFour: "4321", mode: 0 }]);
@@ -1176,7 +1206,7 @@ describe("address activity", () => {
   });
 
   it("doesn't send a notification for market shares", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -1229,7 +1259,7 @@ describe("address activity", () => {
     }
 
     it("fetches from lifi on cache miss and sends notification for known token", async () => {
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
 
       const response = await appClient.index.$post(lifiPayload(account));
@@ -1252,7 +1282,7 @@ describe("address activity", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       await redis.multi().sadd(optKey, tokenAddress).expire(optKey, 120).exec(); // cspell:ignore sadd
 
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const response = await appClient.index.$post(lifiPayload(account));
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
@@ -1267,7 +1297,7 @@ describe("address activity", () => {
     });
 
     it("suppresses notification for unknown token when cache is initialized", async () => {
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
 
       await redis.multi().sadd(optKey, "0x2222222222222222222222222222222222222222").expire(optKey, 120).exec(); // cspell:ignore sadd
 
@@ -1280,7 +1310,7 @@ describe("address activity", () => {
     it("fails open and captures exception when lifi fetch throws", async () => {
       const fetchError = new Error("network failure");
       mockLifiTokens(fetchError);
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
 
@@ -1297,7 +1327,7 @@ describe("address activity", () => {
 
     it("fails open and captures exception when lifi returns non ok", async () => {
       mockLifiTokens(Response.json({}, { status: 503 }));
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
 
@@ -1316,10 +1346,10 @@ describe("address activity", () => {
 
     it("fails open and captures exception when redis errors", async () => {
       const redisError = new Error("redis connection refused");
-      vi.spyOn(redis, "pipeline").mockImplementationOnce(() => {
+      vi.spyOn(Redis.prototype, "pipeline").mockImplementationOnce(() => {
         throw redisError;
       });
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
 
@@ -1336,7 +1366,7 @@ describe("address activity", () => {
 
     it("fails open when lifi returns empty token list", async () => {
       mockLifiTokens({});
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
 
@@ -1357,7 +1387,7 @@ describe("address activity", () => {
       await redis.multi().sadd(arbKey, tokenAddress).expire(arbKey, 120).exec(); // cspell:ignore sadd
 
       mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
 
@@ -1377,13 +1407,13 @@ describe("address activity", () => {
   });
 });
 
-function failPoke(error: Error) {
-  const { simulateContract } = publicClient;
+function failPoke(keeper: ReturnType<typeof wallet>, error: Error) {
+  const { exaSend } = keeper;
   let failed = false;
-  vi.spyOn(publicClient, "simulateContract").mockImplementation((parameters) => {
-    if (failed || parameters.functionName !== "pokeETH") return simulateContract(parameters);
+  vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions, call, options) => {
+    if (failed || spanOptions.op !== "exa.poke") return exaSend(spanOptions, call, options);
     failed = true;
-    throw error;
+    return Promise.reject(error);
   });
 }
 
@@ -1394,8 +1424,7 @@ async function getWETHMarket(account: Address) {
     abi: previewerAbi,
     args: [account],
   });
-
-  return exactly.find((m) => m.asset === inject("WETH"));
+  return exactly.find((market) => market.asset === inject("WETH"));
 }
 
 async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint) {
@@ -1439,6 +1468,16 @@ function mockLifiTokens(response: Error | Record<string, { address: string }[]> 
     return originalFetch(input, init);
   });
 }
+
+const mockERC20Abi = [
+  {
+    type: "function",
+    name: "mint",
+    inputs: [{ type: "address" }, { type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
 
 const activityPayload = {
   header: {},
@@ -1506,12 +1545,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const mockERC20Abi = [
-  {
-    type: "function",
-    name: "mint",
-    inputs: [{ type: "address" }, { type: "uint256" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-] as const;
+it("sets the existing activity webhook id", async () => {
+  setWebhookId("activity");
+  findWebhookMock.mockResolvedValueOnce({
+    id: "existing-hook-id",
+    is_active: true,
+    network: "OPT_SEPOLIA",
+    signing_key: "existing-signing-key",
+    webhook_type: "ADDRESS_ACTIVITY",
+    webhook_url: "https://webhook.test",
+  });
+  const current = createHook("activity");
+  onTestFinished(() => current.close().then(() => undefined));
+
+  await current.ready;
+
+  expect(createWebhookMock).not.toHaveBeenCalled();
+  expect(webhookId).toBe("existing-hook-id");
+});
+
+function createHook(activityKey?: string) {
+  return activity({
+    alchemyKey: "webhooks",
+    activityKey,
+    executor,
+    onesignalKey: "onesignal",
+    postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+    redisUrl: parse(pipe(string(), nonEmpty()), env.REDIS_URL),
+    segmentKey: "segment",
+  });
+}

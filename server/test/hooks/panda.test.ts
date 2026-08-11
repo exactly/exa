@@ -1,7 +1,8 @@
 import "../mocks/deployments";
-import "../mocks/onesignal";
+import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/panda";
 import "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
@@ -9,7 +10,8 @@ import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { createHmac, randomBytes } from "node:crypto";
-import { object, parse, string } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, object, parse, pipe, string } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
@@ -31,7 +33,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -47,10 +49,9 @@ import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
-import app from "../../hooks/panda";
+import createHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
-import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
+import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import * as sardine from "../../utils/sardine";
 import * as segment from "../../utils/segment";
@@ -58,15 +59,44 @@ import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
+import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
+
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const panda = createPanda(pandaConfig);
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+const hook = createHook({
+  issuer: privateKeyToAccount(padHex("0x420")),
+  onesignalKey: "onesignal",
+  pandaKey: pandaConfig.key,
+  pandaUrl: pandaConfig.url,
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  sardineKey: sardineConfig.key,
+  sardineUrl: sardineConfig.url,
+  segmentKey: "segment",
+  settler: owner.account,
+});
+const app = hook.app;
+
+vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
+  const original = await importOriginal<{ drizzle: typeof Drizzle }>();
+  let instance: ReturnType<typeof original.drizzle> | undefined;
+  return {
+    ...original,
+    drizzle: ((...args: Parameters<typeof original.drizzle>) =>
+      (instance ??= original.drizzle(...args))) as typeof original.drizzle,
+  };
+});
+
 let keeper: ReturnType<typeof wallet>;
 
 const appClient = testClient(app);
-const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
 
 beforeAll(async () => {
   keeper = wallet(privateKeyToAccount(padHex("0x69")));
   await Promise.all([
+    hook.ready,
     database.transaction(async (tx) => {
       await tx
         .insert(credentials)
@@ -75,6 +105,10 @@ beforeAll(async () => {
     }),
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
   ]);
+});
+
+afterAll(async () => {
+  await hook.close();
 });
 
 describe("validation", () => {
@@ -111,7 +145,7 @@ describe("card operations", () => {
         );
       });
 
-      afterEach(() => panda.getMutex(account)?.release());
+      afterEach(() => Panda.getMutex(account)?.release());
 
       it("fails with InsufficientAccountLiquidity", async () => {
         const currentFunds = await publicClient.readContract({
@@ -275,7 +309,7 @@ describe("card operations", () => {
       it("authorizes debit when risk assessment times out", async () => {
         const error = new Error("timeout");
         error.name = "TimeoutError";
-        vi.spyOn(sardine, "default").mockRejectedValueOnce(error);
+        vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
         await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -356,6 +390,7 @@ describe("card operations", () => {
             transaction: { id: "authorization-negative-amount" },
             feedback: { type: "authorization", status: "approved" },
           }),
+          sardineConfig,
         );
       });
 
@@ -420,7 +455,7 @@ describe("card operations", () => {
       it("fails with mutex timeout", async () => {
         const cardId = "rc-mutex";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0003" }]);
-        const mutex = panda.createMutex(account);
+        const mutex = Panda.createMutex(account);
         await mutex.acquire();
         try {
           const response = await appClient.index.$post({
@@ -442,7 +477,7 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
         const cardId = "rc-ouch";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
 
@@ -462,7 +497,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk authorization", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -486,7 +521,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk verification", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -515,7 +550,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk refund", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -746,7 +781,7 @@ describe("card operations", () => {
       });
 
       it("sends locale-aware card purchase notification", async () => {
-        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+        const sendPushNotification = sendPushNotificationMock;
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -782,7 +817,7 @@ describe("card operations", () => {
 
       it("captures card purchase notification errors", async () => {
         const error = new Error("push failed");
-        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        sendPushNotificationMock.mockRejectedValueOnce(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -882,50 +917,56 @@ describe("card operations", () => {
           functionName: "collectCredit",
           args: [expect.any(BigInt), 600_000n, expect.any(BigInt), expect.any(BigInt), expect.any(String)],
         });
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "TransactionRejected",
-          properties: {
-            cardMode: 6,
-            declinedReason: "collection:created:collectCredit:timeout",
-            id: cardId,
-            reasonName: "Error",
-            source: null,
-            updated: false,
-            usdAmount: 0.6,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "TransactionRejected",
+            properties: {
+              cardMode: 6,
+              declinedReason: "collection:created:collectCredit:timeout",
+              id: cardId,
+              reasonName: "Error",
+              source: null,
+              updated: false,
+              usdAmount: 0.6,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
             },
           },
-        });
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: {
-            action: "created",
-            amount: 60,
-            authorizedAmount: authorization.json.body.spend.authorizedAmount,
-            cardMode: 6,
-            functionName: "collectCredit",
-            id: cardId,
-            knownTransaction: true,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+          expect.anything(),
+        );
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: {
+              action: "created",
+              amount: 60,
+              authorizedAmount: authorization.json.body.spend.authorizedAmount,
+              cardMode: 6,
+              functionName: "collectCredit",
+              id: cardId,
+              knownTransaction: true,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
+              reason: "timeout",
+              reasonName: "Error",
+              settlement: false,
+              usdAmount: 0.6,
+              source: null,
+              webhookId: authorization.json.id,
             },
-            reason: "timeout",
-            reasonName: "Error",
-            settlement: false,
-            usdAmount: 0.6,
-            source: null,
-            webhookId: authorization.json.id,
           },
-        });
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledExactlyOnceWith(error, expect.objectContaining({ level: "fatal" }));
         expect(transaction).toBeDefined();
         expect(transaction?.hashes).toContain(zeroHash);
@@ -1139,7 +1180,7 @@ describe("card operations", () => {
       afterEach(() => vi.restoreAllMocks());
 
       it("handles reversal", async () => {
-        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+        const sendPushNotification = sendPushNotificationMock;
         const amount = 2073;
         const cardId = "card";
         await keeper.exaSend(
@@ -1211,7 +1252,7 @@ describe("card operations", () => {
 
       it("captures refund notification errors", async () => {
         const error = new Error("push failed");
-        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        sendPushNotificationMock.mockRejectedValueOnce(error);
         const amount = 2073;
         const cardId = "refund-notify-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
@@ -1779,50 +1820,56 @@ describe("card operations", () => {
         expect(completeResponse.status).toBe(569);
         expect(updateUser).not.toHaveBeenCalled();
         expect(pandaLogger).not.toHaveBeenCalledWith("suspicious-user:%j", expect.anything());
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "TransactionRejected",
-          properties: {
-            cardMode: 0,
-            declinedReason: "collection:completed:collectDebit:settlement failed",
-            id: cardId,
-            reasonName: "Error",
-            source: null,
-            updated: true,
-            usdAmount: capture / 100,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "TransactionRejected",
+            properties: {
+              cardMode: 0,
+              declinedReason: "collection:completed:collectDebit:settlement failed",
+              id: cardId,
+              reasonName: "Error",
+              source: null,
+              updated: true,
+              usdAmount: capture / 100,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
             },
           },
-        });
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: {
-            action: "completed",
-            amount: capture,
-            authorizedAmount: hold,
-            cardMode: 0,
-            functionName: "collectDebit",
-            id: cardId,
-            knownTransaction: true,
-            merchant: {
-              name: authorization.json.body.spend.merchantName,
-              category: authorization.json.body.spend.merchantCategory,
-              city: authorization.json.body.spend.merchantCity,
-              country: authorization.json.body.spend.merchantCountry,
+          expect.anything(),
+        );
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: {
+              action: "completed",
+              amount: capture,
+              authorizedAmount: hold,
+              cardMode: 0,
+              functionName: "collectDebit",
+              id: cardId,
+              knownTransaction: true,
+              merchant: {
+                name: authorization.json.body.spend.merchantName,
+                category: authorization.json.body.spend.merchantCategory,
+                city: authorization.json.body.spend.merchantCity,
+                country: authorization.json.body.spend.merchantCountry,
+              },
+              reason: "settlement failed",
+              reasonName: "Error",
+              settlement: true,
+              usdAmount: capture / 100,
+              source: null,
+              webhookId: authorization.json.id,
             },
-            reason: "settlement failed",
-            reasonName: "Error",
-            settlement: true,
-            usdAmount: capture / 100,
-            source: null,
-            webhookId: authorization.json.id,
           },
-        });
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "settlement failed" }),
           expect.objectContaining({
@@ -1954,19 +2001,22 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(569);
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: expect.objectContaining({
-            action: "updated",
-            functionName: "collectCredit",
-            id: cardId,
-            knownTransaction: false,
-            reason: "collection failed",
-            reasonName: "Error",
-            settlement: false,
-          }) as unknown,
-        });
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: expect.objectContaining({
+              action: "updated",
+              functionName: "collectCredit",
+              id: cardId,
+              knownTransaction: false,
+              reason: "collection failed",
+              reasonName: "Error",
+              settlement: false,
+            }) as unknown,
+          },
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledWith(
           lookupError,
           expect.objectContaining({
@@ -2044,18 +2094,21 @@ describe("card operations", () => {
 
         expect(response.status).toBe(569);
         expect(updateUser).not.toHaveBeenCalled();
-        expect(track).toHaveBeenCalledWith({
-          userId: account,
-          event: "PandaCollectionFailed",
-          properties: expect.objectContaining({
-            action: "completed",
-            id: cardId,
-            knownTransaction: false,
-            reason: "settlement failed",
-            reasonName: "Error",
-            settlement: true,
-          }) as unknown,
-        });
+        expect(track).toHaveBeenCalledWith(
+          {
+            userId: account,
+            event: "PandaCollectionFailed",
+            properties: expect.objectContaining({
+              action: "completed",
+              id: cardId,
+              knownTransaction: false,
+              reason: "settlement failed",
+              reasonName: "Error",
+              settlement: true,
+            }) as unknown,
+          },
+          expect.anything(),
+        );
         expect(captureException).toHaveBeenCalledWith(
           lookupError,
           expect.objectContaining({
@@ -2636,7 +2689,7 @@ describe("concurrency", () => {
   });
 
   it("releases mutex when authorization is declined", async () => {
-    const getMutex = vi.spyOn(panda, "getMutex");
+    const getMutex = vi.spyOn(Panda, "getMutex");
     const cardId = `${account2}-card`;
     const spendAuthorization = await appClient.index.$post({
       ...authorization,
@@ -2912,7 +2965,7 @@ describe("concurrency", () => {
     afterEach(() => vi.useRealTimers());
 
     it("times out when mutex is locked", async () => {
-      const getMutex = vi.spyOn(panda, "getMutex");
+      const getMutex = vi.spyOn(Panda, "getMutex");
       const cardId = `${account2}-card`;
       const promises = Promise.all([
         appClient.index.$post({
@@ -2965,7 +3018,7 @@ describe("concurrency", () => {
 
   describe("push notifications", () => {
     it("sends notification when the declined transaction is created", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = "insufficient-liquidity-notification-test";
 
       const maxWithdraw = await publicClient.readContract({
@@ -3024,7 +3077,7 @@ describe("concurrency", () => {
 
     it("captures declined notification errors", async () => {
       const error = new Error("push failed");
-      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      sendPushNotificationMock.mockRejectedValueOnce(error);
       const txId = `declined-notification-error-${crypto.randomUUID()}`;
 
       const response = await appClient.index.$post({
@@ -3050,7 +3103,7 @@ describe("concurrency", () => {
     });
 
     it("uses a generic reason for malformed saved payloads", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `malformed-saved-payload-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3090,7 +3143,7 @@ describe("concurrency", () => {
     });
 
     it("uses a generic reason when the saved payload has no requested body", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `missing-requested-body-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3133,7 +3186,7 @@ describe("concurrency", () => {
     });
 
     it("uses the legacy requested reason when the nested reason is absent", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `legacy-requested-reason-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3183,7 +3236,7 @@ describe("concurrency", () => {
     });
 
     it("recovers a local decline reason and ignores duplicate created events", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = "local-decline-reason-notification-test";
       const createdEvent = {
@@ -3238,7 +3291,7 @@ describe("concurrency", () => {
     });
 
     it("does not notify for declined updated events", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = `updated-declined-${crypto.randomUUID()}`;
       const updatedEvent = {
         ...authorization.json,
@@ -3306,7 +3359,7 @@ describe("concurrency", () => {
       ["webhook declined", "transaction declined"],
       ["unknown provider decline", "transaction declined"],
     ])("stores raw %s and notifies with %s", async (declinedReason, notificationReason) => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = crypto.randomUUID();
 
       expect(
@@ -3352,7 +3405,7 @@ describe("concurrency", () => {
     });
 
     it("does not send duplicate notifications for concurrent declined transactions", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
 
       const cardId = `${account2}-card`;
       const txId = `concurrent-declined-${crypto.randomUUID()}`;
@@ -3382,7 +3435,7 @@ describe("concurrency", () => {
     });
 
     it("does not send notification for unknown error", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
 
       vi.spyOn(traceClient, "traceCall").mockRejectedValueOnce(new Error("unexpected trace error"));
 

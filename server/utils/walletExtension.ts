@@ -3,15 +3,18 @@ import { jwtVerify, SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
 import { literal, object, parse, string } from "valibot";
 
-const { WALLET_EXTENSION_SECRET } = process.env;
-
-if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
-
-const key = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
-if ((key.symmetricKeySize ?? 0) < 32) throw new Error("wallet extension secret too short for HS256");
 const issuer = "exa-server";
 
-export async function walletExtension(credentialId: string) {
+export default function walletExtension(secret: string) {
+  const key = createSecretKey(Buffer.from(secret, "utf8"));
+  if ((key.symmetricKeySize ?? 0) < 32) throw new Error("wallet extension secret too short for HS256");
+  return {
+    create: (credentialId: string) => create(credentialId, key),
+    verify: (token: string) => verify(token, key),
+  };
+}
+
+async function create(credentialId: string, key: ReturnType<typeof createSecretKey>) {
   const expire = Date.now() + 60 * 24 * 60 * 60_000;
 
   return {
@@ -28,11 +31,12 @@ export async function walletExtension(credentialId: string) {
   };
 }
 
-export function verifyToken(token: string) {
-  return jwtVerify(token, key, { algorithms: ["HS256"], audience: "wallet-extension", issuer })
-    .then(({ payload }) => parse(object({ credentialId: string(), scope: literal("card:provisioning") }), payload))
-    .catch((error: unknown) => {
-      captureException(error, { level: "warning" });
-      return null;
-    });
+async function verify(token: string, key: ReturnType<typeof createSecretKey>) {
+  try {
+    const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"], audience: "wallet-extension", issuer });
+    return parse(object({ credentialId: string(), scope: literal("card:provisioning") }), payload);
+  } catch (error) {
+    captureException(error, { level: "warning" });
+    return null;
+  }
 }

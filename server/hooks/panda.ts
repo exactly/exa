@@ -12,6 +12,7 @@ import {
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { createHmac } from "node:crypto";
 import * as v from "valibot";
@@ -31,6 +32,7 @@ import {
   toBytes,
   withRetry,
   zeroHash,
+  type LocalAccount,
   type TransactionReceipt,
 } from "viem";
 
@@ -51,35 +53,32 @@ import {
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import revertReason from "@exactly/common/revertReason";
-import { Address, Hex, type Hash } from "@exactly/common/validation";
+import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
-import database, { cards, credentials, transactions } from "../database/index";
+import * as schema from "../database/schema";
+import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
-import { sendPushNotification } from "../utils/onesignal";
-import {
+import createOnesignal from "../utils/onesignal";
+import createPanda, {
   collectors,
   createMutex,
   declineMessage,
   getMutex,
-  getUser,
-  headerValidator,
+  Payload,
   signIssuerOp,
-  updateUser,
-  verifyPandaSignature,
+  type Transaction,
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
-import risk, { feedback } from "../utils/sardine";
-import { track } from "../utils/segment";
+import createSardine from "../utils/sardine";
+import createSegment from "../utils/segment";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
-import createWallet, { legacy } from "../utils/wallet";
+import createWallet from "../utils/wallet";
 
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
-
-const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
-const keeper = createWallet(legacy("keeper")); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -87,984 +86,899 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 const debugWebhook = createDebug("exa:webhook");
 Object.assign(debugWebhook, { inspectOpts: { depth: undefined } });
 
-const BaseTransaction = v.object({
-  id: v.string(),
-  type: v.literal("spend"),
-  spend: v.object({
-    amount: v.number(),
-    currency: v.literal("usd"),
-    cardId: v.string(),
-    cardType: v.literal("virtual"),
-    localAmount: v.number(),
-    localCurrency: v.pipe(v.string(), v.length(3)),
-    merchantCity: v.nullish(v.string()),
-    merchantCountry: v.pipe(v.string(), v.length(2)),
-    merchantCategory: v.nullish(v.string()),
-    merchantCategoryCode: v.string(),
-    merchantName: v.string(),
-    merchantId: v.nullish(v.string()),
-    authorizedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
-    authorizedAmount: v.nullish(v.number()),
-    authorizationMethod: v.optional(v.string()),
-    userId: v.string(),
-    signature: v.optional(Hex),
-    timestamp: v.optional(v.number()),
-  }),
-});
+export default function hook({
+  issuer,
+  onesignalKey,
+  pandaKey,
+  pandaUrl,
+  postgresUrl,
+  sardineKey,
+  sardineUrl,
+  segmentKey,
+  settler,
+}: {
+  issuer: LocalAccount;
+  onesignalKey: string;
+  pandaKey: string;
+  pandaUrl: string;
+  postgresUrl: string;
+  sardineKey: string;
+  sardineUrl: string;
+  segmentKey: string;
+  settler: LocalAccount;
+}) {
+  const wallet = createWallet(settler);
+  const database = drizzle(postgresUrl, { schema });
+  const onesignal = createOnesignal(onesignalKey);
+  const panda = createPanda({ key: pandaKey, url: pandaUrl });
+  const sardine = createSardine(sardineKey, sardineUrl);
+  const segment = createSegment(segmentKey);
+  const app = new Hono().post(
+    "/",
+    panda.headerValidator,
+    vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
+    async (c) => {
+      const payload = c.req.valid("json");
+      getActiveSpan()?.setAttributes({ "panda.event": payload.id, "panda.transaction": payload.body.id });
+      setTag("panda.resource", payload.resource);
+      setTag("panda.action", payload.action);
+      const jsonBody = await c.req.json(); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+      setContext("panda", jsonBody); // eslint-disable-line @typescript-eslint/no-unsafe-argument
+      getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
-const Transaction = v.variant("action", [
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("created"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        status: v.picklist(["pending", "declined"]),
-        declinedReason: v.optional(v.string()),
-        exchangeRate: v.optional(v.number()),
-      }),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("updated"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        authorizationUpdateAmount: v.number(),
-        authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
-        status: v.picklist(["declined", "pending", "reversed"]),
-        declinedReason: v.nullish(v.string()),
-        enrichedMerchantIcon: v.nullish(v.string()),
-        enrichedMerchantName: v.nullish(v.string()),
-        enrichedMerchantCategory: v.nullish(v.string()),
-      }),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("requested"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      id: v.optional(v.string()),
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        authorizedAmount: v.number(),
-        status: v.literal("pending"),
-      }),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("transaction"),
-    action: v.literal("completed"),
-    body: v.object({
-      ...BaseTransaction.entries,
-      spend: v.object({
-        ...BaseTransaction.entries.spend.entries,
-        authorizedAt: v.pipe(v.string(), v.isoTimestamp()),
-        postedAt: v.pipe(v.string(), v.isoTimestamp()),
-        status: v.literal("completed"),
-        enrichedMerchantIcon: v.nullish(v.string()),
-        enrichedMerchantName: v.nullish(v.string()),
-        enrichedMerchantCategory: v.nullish(v.string()),
-        exchangeRate: v.optional(v.number()),
-      }),
-    }),
-  }),
-]);
-
-const Card = v.variant("action", [
-  v.object({
-    id: v.string(),
-    resource: v.literal("card"),
-    action: v.literal("updated"),
-    body: v.object({
-      expirationMonth: v.pipe(v.string(), v.minLength(1), v.maxLength(2)),
-      expirationYear: v.pipe(v.string(), v.length(4)),
-      id: v.string(),
-      last4: v.pipe(v.string(), v.length(4)),
-      limit: v.object({
-        amount: v.number(),
-        frequency: v.picklist([
-          "per24HourPeriod",
-          "per7DayPeriod",
-          "per30DayPeriod",
-          "perYearPeriod",
-          "allTime",
-          "perAuthorization",
-        ]),
-      }),
-      status: v.picklist(["notActivated", "active", "locked", "canceled"]),
-      tokenWallets: v.optional(v.union([v.array(v.literal("Apple")), v.array(v.literal("Google Pay"))])),
-      type: v.literal("virtual"),
-      userId: v.string(),
-    }),
-  }),
-  v.object({
-    id: v.string(),
-    resource: v.literal("card"),
-    action: v.literal("notification"),
-    body: v.object({
-      id: v.string(),
-      card: v.object({ id: v.string(), userId: v.nullable(v.string()) }),
-      tokenWallet: v.string(),
-      reasonCode: v.literal("PROVISIONING_DECLINED"),
-      decisionReason: v.optional(v.object({ code: v.string(), description: v.optional(v.string()) })),
-    }),
-  }),
-]);
-
-const Payload = v.variant("resource", [
-  Transaction,
-  Card,
-  v.object({
-    resource: v.literal("dispute"),
-    action: v.string(),
-    body: v.looseObject({ id: v.string() }),
-    id: v.string(),
-  }),
-  v.object({
-    resource: v.literal("user"),
-    action: v.literal("updated"),
-    body: v.object({
-      applicationReason: v.string(),
-      applicationStatus: v.picklist([
-        "approved",
-        "pending",
-        "needsInformation",
-        "needsVerification",
-        "manualReview",
-        "denied",
-        "locked",
-        "canceled",
-      ]),
-      firstName: v.string(),
-      id: v.string(),
-      isActive: v.boolean(),
-      isTermsOfServiceAccepted: v.boolean(),
-      lastName: v.string(),
-    }),
-    id: v.string(),
-  }),
-]);
-
-export default new Hono().post(
-  "/",
-  headerValidator(),
-  vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
-  async (c) => {
-    const payload = c.req.valid("json");
-    getActiveSpan()?.setAttributes({ "panda.event": payload.id, "panda.transaction": payload.body.id });
-    setTag("panda.resource", payload.resource);
-    setTag("panda.action", payload.action);
-    const jsonBody = await c.req.json(); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-    setContext("panda", jsonBody); // eslint-disable-line @typescript-eslint/no-unsafe-argument
-    getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
-
-    if (payload.resource !== "transaction") {
-      if (payload.resource === "dispute") return c.json({ code: "ok" });
-      const pandaId =
-        payload.resource === "card"
-          ? payload.action === "updated"
-            ? payload.body.userId
-            : payload.body.card.userId
-          : payload.body.id;
-      if (pandaId) {
-        const user = await database.query.credentials.findFirst({
-          columns: { account: true },
-          where: eq(credentials.pandaId, pandaId),
-        });
-        if (user) setUser({ id: user.account });
-        startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
-          (error: unknown) => captureException(error, { level: "error" }),
-        );
-      }
-      return c.json({ code: "ok" });
-    }
-
-    setTag("panda.status", payload.body.spend.status);
-    getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.tx.${payload.action}`);
-
-    switch (payload.action) {
-      case "requested": {
-        const card = await database.query.cards.findFirst({
-          columns: { mode: true, status: true },
-          where: eq(cards.id, payload.body.spend.cardId),
-          with: { credential: { columns: { account: true, id: true, source: true } } },
-        });
-        if (!card) {
-          return c.json({ code: "card not found", rejectionCode: "UNKNOWN" }, 404);
-        }
-
-        const account = v.parse(Address, card.credential.account);
-        setUser({ id: account });
-
-        if (card.status === "FROZEN") {
-          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card");
-
-          await reject(payload, jsonBody, "frozenCard");
-
-          return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
-        }
-
-        if (card.status !== "ACTIVE") {
-          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "card-not-active");
-          return c.json({ code: "card not active", rejectionCode: "NOT_PERMITTED" }, 403);
-        }
-        const assess = () => {
-          return risk({
-            sessionKey: payload.body.id ?? payload.id,
-            customerId: card.credential.id,
-            transaction: {
-              id: payload.body.id ?? payload.id,
-              currencyCode: payload.body.spend.localCurrency,
-              amount: Math.abs(payload.body.spend.localAmount) / 100,
-              type: payload.body.spend.amount < 0 ? "return" : "purchase",
-              merchant: {
-                mcc: payload.body.spend.merchantCategoryCode,
-                name: payload.body.spend.merchantName,
-                ...(payload.body.spend.merchantId && { id: payload.body.spend.merchantId }),
-              },
-              terminal: { type: payload.body.spend.authorizationMethod },
-              address: { countryCode: payload.body.spend.merchantCountry },
-              status: "pending",
-            },
-            card: { id: payload.body.spend.cardId },
-          }).catch((error: unknown) => {
-            captureException(error, { level: "error" });
-            return {
-              status: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "error",
-              level: "unknown",
-              score: 0,
-            };
+      if (payload.resource !== "transaction") {
+        if (payload.resource === "dispute") return c.json({ code: "ok" });
+        const pandaId =
+          payload.resource === "card"
+            ? payload.action === "updated"
+              ? payload.body.userId
+              : payload.body.card.userId
+            : payload.body.id;
+        if (pandaId) {
+          const user = await database.query.credentials.findFirst({
+            columns: { account: true },
+            where: eq(credentials.pandaId, pandaId),
           });
-        };
-
-        if (payload.body.spend.amount < 0) {
-          startSpan({ name: "assess risk", op: "tx.risk.refund" }, async (span) => {
-            const assessment = await assess();
-            span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-            if (assessment.level === "high" || assessment.level === "very_high") {
-              captureException(new Error("high risk refund"), { level: "error" });
-            }
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
-          return c.json({ code: "ok" });
+          if (user) setUser({ id: user.account });
+          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload, database)).catch(
+            (error: unknown) => captureException(error, { level: "error" }),
+          );
         }
-        const mutex = getMutex(account) ?? createMutex(account);
-        try {
-          await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () => mutex.acquire());
-        } catch (error: unknown) {
-          if (error === E_TIMEOUT) {
-            captureException(error, { level: "fatal", tags: { unhandled: true } });
-            trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "mutex-timeout");
-            return c.json({ code: "mutex timeout", rejectionCode: "UNKNOWN" }, 554 as UnofficialStatusCode);
+        return c.json({ code: "ok" });
+      }
+
+      setTag("panda.status", payload.body.spend.status);
+      getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.tx.${payload.action}`);
+
+      switch (payload.action) {
+        case "requested": {
+          const card = await database.query.cards.findFirst({
+            columns: { mode: true, status: true },
+            where: eq(cards.id, payload.body.spend.cardId),
+            with: { credential: { columns: { account: true, id: true, source: true } } },
+          });
+          if (!card) {
+            return c.json({ code: "card not found", rejectionCode: "UNKNOWN" }, 404);
           }
-          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unknown-error");
-          throw error;
-        }
-        setContext("mutex", { locked: mutex.isLocked() });
 
-        try {
-          const { amount, call, transaction } = await prepareCollection(card, payload);
-          const authorize = () => {
-            trackAuthorized(account, payload, card.mode, card.credential.source);
-            return c.json({ code: "ok" });
+          const account = v.parse(Address, card.credential.account);
+          setUser({ id: account });
+
+          if (card.status === "FROZEN") {
+            trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card", segment);
+
+            await reject(payload, jsonBody, "frozenCard", database);
+
+            return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
+          }
+
+          if (card.status !== "ACTIVE") {
+            trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "card-not-active", segment);
+            return c.json({ code: "card not active", rejectionCode: "NOT_PERMITTED" }, 403);
+          }
+          const assess = async () => {
+            try {
+              return await sardine.risk({
+                sessionKey: payload.body.id ?? payload.id,
+                customerId: card.credential.id,
+                transaction: {
+                  id: payload.body.id ?? payload.id,
+                  currencyCode: payload.body.spend.localCurrency,
+                  amount: Math.abs(payload.body.spend.localAmount) / 100,
+                  type: payload.body.spend.amount < 0 ? "return" : "purchase",
+                  merchant: {
+                    mcc: payload.body.spend.merchantCategoryCode,
+                    name: payload.body.spend.merchantName,
+                    ...(payload.body.spend.merchantId && { id: payload.body.spend.merchantId }),
+                  },
+                  terminal: { type: payload.body.spend.authorizationMethod },
+                  address: { countryCode: payload.body.spend.merchantCountry },
+                  status: "pending",
+                },
+                card: { id: payload.body.spend.cardId },
+              });
+            } catch (error) {
+              captureException(error, { level: "error" });
+              return {
+                status: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "error",
+                level: "unknown",
+                score: 0,
+              };
+            }
           };
-          if (!transaction) {
-            startSpan({ name: "assess risk", op: "tx.risk.verification" }, async (span) => {
+
+          if (payload.body.spend.amount < 0) {
+            startSpan({ name: "assess risk", op: "tx.risk.refund" }, async (span) => {
               const assessment = await assess();
               span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
               if (assessment.level === "high" || assessment.level === "very_high") {
-                captureException(new Error("high risk verification"), { level: "error" });
+                captureException(new Error("high risk refund"), { level: "error" });
               }
             }).catch((error: unknown) => captureException(error, { level: "error" }));
-            return authorize();
-          }
-
-          startSpan({ name: "assess risk", op: "tx.risk.authorization" }, async (span) => {
-            const assessment = await assess();
-            span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
-            if (assessment.level === "high" || assessment.level === "very_high") {
-              captureException(new Error("high risk authorization"), { level: "error" });
-            }
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
-          try {
-            const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
-              traceClient.traceCall({
-                from: account,
-                to: exaPreviewerAddress,
-                data: transaction.data,
-                stateOverride: [
-                  {
-                    address: exaPluginAddress,
-                    stateDiff: [
-                      {
-                        slot: keccak256(
-                          encodeAbiParameters(
-                            [{ type: "address" }, { type: "bytes32" }],
-                            [
-                              exaPreviewerAddress,
-                              keccak256(
-                                encodeAbiParameters(
-                                  [{ type: "bytes32" }, { type: "uint256" }],
-                                  [keccak256(toBytes("KEEPER_ROLE")), 0n],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        value: encodeAbiParameters([{ type: "uint256" }], [1n]),
-                      },
-                    ],
-                  },
-                ],
-              }),
-            );
-
-            setContext("tx", { call, trace });
-            if (trace.output) {
-              const contractError = getContractError(new RawContractError({ data: trace.output }), {
-                abi: [
-                  ...exaPluginAbi,
-                  ...issuerCheckerAbi,
-                  ...proposalManagerAbi,
-                  ...upgradeableModularAccountAbi,
-                  ...auditorAbi,
-                  ...marketAbi,
-                ],
-                ...call,
-              });
-              trackAuthorizationRejected(
-                account,
-                payload,
-                card.mode,
-                card.credential.source,
-                contractError.shortMessage,
-              );
-              if (contractError instanceof BaseError && contractError.cause instanceof ContractFunctionRevertedError) {
-                switch (contractError.cause.data?.errorName) {
-                  case "InsufficientAccountLiquidity":
-                    throw new PandaError(
-                      "InsufficientAccountLiquidity",
-                      557 as UnofficialStatusCode,
-                      "INSUFFICIENT_FUNDS",
-                    );
-                  case "Replay":
-                    throw new PandaError("Replay", 558 as UnofficialStatusCode);
-                }
-              }
-              captureException(contractError, {
-                contexts: { tx: { call, trace } },
-                fingerprint: revertFingerprint(contractError),
-              });
-              throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
-            }
-            if (
-              usdcTransfersToCollectors(trace).reduce(
-                (total, { topics, data }) =>
-                  total + decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics, data }).args.value,
-                0n,
-              ) !== amount
-            ) {
-              debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
-              withScope((scope) => {
-                scope.addEventProcessor((event) => {
-                  if (event.exception?.values?.[0]) event.exception.values[0].type = "bad collection";
-                  return event;
-                });
-                captureException(new Error("bad collection"), {
-                  level: "warning",
-                  fingerprint: ["{{ default }}", "bad collection"],
-                  contexts: { tx: { call, trace } },
-                });
-              });
-              throw new PandaError("bad collection", 551 as UnofficialStatusCode);
-            }
-            return authorize();
-          } catch (error: unknown) {
-            if (error instanceof PandaError) throw error;
-            captureException(error, { contexts: { tx: { call } } });
-            throw new PandaError("unexpected error", 569 as UnofficialStatusCode);
-          }
-        } catch (error: unknown) {
-          mutex.release();
-          setContext("mutex", { locked: mutex.isLocked() });
-          if (error instanceof PandaError) {
-            error.message !== "tx reverted" &&
-              trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "panda-error");
-            if (error.statusCode !== (557 as UnofficialStatusCode)) {
-              captureException(error, { level: "error", tags: { unhandled: true } });
-            }
-
-            if (error.message !== "Replay" && error.message !== "tx reverted") {
-              await reject(payload, jsonBody, error.message);
-            }
-
-            return c.json(
-              { code: error.message, rejectionCode: error.rejectionCode },
-              error.statusCode as UnofficialStatusCode,
-            );
-          }
-          trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unexpected-error");
-          captureException(error, { level: "error", tags: { unhandled: true } });
-
-          await reject(payload, jsonBody, error instanceof Error ? error.message : "unexpected error");
-
-          return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
-        }
-      }
-      case "completed":
-      // falls through
-      case "updated":
-        if (
-          payload.body.spend.status === "reversed" ||
-          (payload.body.spend.status === "completed" &&
-            (payload.body.spend.amount < 0 ||
-              (payload.body.spend.authorizedAmount && payload.body.spend.amount < payload.body.spend.authorizedAmount)))
-        ) {
-          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.refund");
-          const refundAmountUsd =
-            (() => {
-              if (payload.body.spend.status === "reversed") return -payload.body.spend.authorizationUpdateAmount;
-              if (payload.body.spend.amount < 0) return -payload.body.spend.amount;
-              if (!payload.body.spend.authorizedAmount) throw new Error("authorized amount not found");
-              getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.partial");
-              return payload.body.spend.authorizedAmount - payload.body.spend.amount;
-            })() / 100;
-          const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
-          const [card, user] = await Promise.all([
-            database.query.cards.findFirst({
-              columns: { mode: true },
-              where: eq(cards.id, payload.body.spend.cardId),
-              with: { credential: { columns: { account: true, id: true, source: true } } },
-            }),
-            getUser(payload.body.spend.userId),
-          ]);
-          if (!card) throw new Error("card not found");
-          const account = v.parse(Address, card.credential.account);
-          setUser({ id: account });
-          if (!user.isActive) throw new Error("user is not active");
-
-          const tx = await database.query.transactions.findFirst({
-            where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-          });
-          if (!tx && payload.body.spend.status === "reversed") {
-            return c.json({ code: "transaction not found" }, 553 as UnofficialStatusCode);
-          }
-          const timestamp = // TODO use update timestamp when provided
-            Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
-            Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
-          const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }, issuer); // TODO replace with payload signature
-          if (payload.body.spend.signature) {
-            await startSpan(
-              {
-                name: "panda.signature",
-                op: "panda.signature",
-                attributes: {
-                  "signature.account": account,
-                  "signature.amount": String(-refundAmount),
-                  "signature.timestamp": String(payload.body.spend.timestamp ?? 0),
-                },
-              },
-              (span) => {
-                if (!payload.body.spend.signature) throw new Error("signature not found");
-                if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-                return verifyPandaSignature(
-                  {
-                    account,
-                    amount: -refundAmount,
-                    timestamp: payload.body.spend.timestamp,
-                    signature: payload.body.spend.signature,
-                  },
-                  issuer,
-                ).then((valid) => {
-                  span.setAttribute("signature.valid", valid);
-                  if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
-                });
-              },
-            ).catch((error: unknown) => captureException(error, { level: "error" }));
-          }
-          try {
-            await keeper.exaSend(
-              { name: "exa.refund", op: "exa.refund", attributes: { account } },
-              {
-                address: v.parse(Address, refunderAddress),
-                functionName: "refund",
-                args: [account, refundAmount, timestamp, signature],
-                abi: [
-                  ...auditorAbi,
-                  ...exaPluginAbi,
-                  ...issuerCheckerAbi,
-                  ...marketAbi,
-                  ...refunderAbi,
-                  ...upgradeableModularAccountAbi,
-                ],
-              },
-              {
-                async onHash(hash) {
-                  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-                  await (tx
-                    ? database
-                        .update(transactions)
-                        .set({
-                          hashes: [...tx.hashes, hash],
-                          payload: {
-                            ...(tx.payload as object),
-                            bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
-                          },
-                        })
-                        .where(
-                          and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-                        )
-                    : database.insert(transactions).values([
-                        {
-                          id: payload.body.id,
-                          cardId: payload.body.spend.cardId,
-                          hashes: [hash],
-                          payload: {
-                            bodies: [{ ...jsonBody, createdAt }],
-                            type: "panda",
-                          },
-                        },
-                      ]));
-                },
-                onReceipt: (receipt) =>
-                  startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () =>
-                    publish(payload, receipt),
-                  ).catch((error: unknown) => captureException(error, { level: "error" })),
-              },
-            );
-            sendPushNotification({
-              userId: account,
-              headings: t("Refund processed"),
-              contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
-                refundAmount: f(refundAmountUsd),
-                merchantName: payload.body.spend.merchantName.trim(),
-              }),
-            }).catch((error: unknown) => captureException(error));
-            trackRefund(account, refundAmountUsd, payload, card.credential.source);
-            if (payload.action === "completed") {
-              if (payload.body.spend.amount < 0) {
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id },
-                  feedback: { type: "settlement", status: "refund" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-              } else {
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
-                  feedback: { type: "settlement", status: "settled" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-              }
-            }
             return c.json({ code: "ok" });
+          }
+          const mutex = getMutex(account) ?? createMutex(account);
+          try {
+            await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () => mutex.acquire());
           } catch (error: unknown) {
-            if (
-              error instanceof BaseError &&
-              error.cause instanceof ContractFunctionRevertedError &&
-              error.cause.data?.errorName === "Replay"
-            ) {
-              getActiveSpan()?.setAttributes({ "panda.replay": true });
-              return c.json({ code: "ok" });
+            if (error === E_TIMEOUT) {
+              captureException(error, { level: "fatal", tags: { unhandled: true } });
+              trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "mutex-timeout", segment);
+              return c.json({ code: "mutex timeout", rejectionCode: "UNKNOWN" }, 554 as UnofficialStatusCode);
             }
-            const reason = revertReason(error, { fallback: "message" });
-            const reasonName = revertReason(error, { fallback: "name" });
-            track({
-              userId: account,
-              event: "TransactionRejected",
-              properties: {
-                cardMode: card.mode,
-                declinedReason: `refund:${reason}`,
-                id: payload.body.id,
-                reasonName,
-                source: card.credential.source,
-                updated: payload.action === "updated",
-                usdAmount: payload.body.spend.amount / 100,
-                merchant: {
-                  name: payload.body.spend.merchantName,
-                  category: payload.body.spend.merchantCategory,
-                  city: payload.body.spend.merchantCity,
-                  country: payload.body.spend.merchantCountry,
-                },
-              },
-            });
-            captureException(error, {
-              level: "fatal",
-              fingerprint: ["{{ default }}", "panda.refund", ...revertFingerprint(error).slice(1)],
-              tags: {
-                unhandled: true,
-                "panda.failure": "refund",
-                "panda.reason": reason,
-                "panda.reasonName": reasonName,
-              },
-              contexts: {
-                pandaRefund: {
-                  action: payload.action,
-                  amount: payload.body.spend.amount,
-                  authorizedAmount: payload.body.spend.authorizedAmount ?? null,
-                  cardId: payload.body.spend.cardId,
-                  refundAmount: String(refundAmount),
-                  refundAmountUsd,
-                  transactionId: payload.body.id,
-                  webhookId: payload.id,
-                },
-              },
-            });
-            return c.json(
-              { code: error instanceof Error ? error.message : String(error) },
-              569 as UnofficialStatusCode,
+            trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "unknown-error", segment);
+            throw error;
+          }
+          setContext("mutex", { locked: mutex.isLocked() });
+
+          try {
+            const { amount, call, transaction } = await prepareCollection(
+              card,
+              payload,
+              database,
+              issuer,
+              panda,
+              wallet,
             );
-          }
-        }
-      // falls through
-      case "created": {
-        const card = await database.query.cards.findFirst({
-          columns: { mode: true },
-          where: eq(cards.id, payload.body.spend.cardId),
-          with: { credential: { columns: { account: true, id: true, source: true } } },
-        });
-        if (!card) return c.json({ code: "card not found" }, 404);
+            const authorize = () => {
+              trackAuthorized(account, payload, card.mode, card.credential.source, segment);
+              return c.json({ code: "ok" });
+            };
+            if (!transaction) {
+              startSpan({ name: "assess risk", op: "tx.risk.verification" }, async (span) => {
+                const assessment = await assess();
+                span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+                if (assessment.level === "high" || assessment.level === "very_high") {
+                  captureException(new Error("high risk verification"), { level: "error" });
+                }
+              }).catch((error: unknown) => captureException(error, { level: "error" }));
+              return authorize();
+            }
 
-        const account = v.parse(Address, card.credential.account);
-        setUser({ id: account });
+            startSpan({ name: "assess risk", op: "tx.risk.authorization" }, async (span) => {
+              const assessment = await assess();
+              span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+              if (assessment.level === "high" || assessment.level === "very_high") {
+                captureException(new Error("high risk authorization"), { level: "error" });
+              }
+            }).catch((error: unknown) => captureException(error, { level: "error" }));
+            try {
+              const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
+                traceClient.traceCall({
+                  from: account,
+                  to: exaPreviewerAddress,
+                  data: transaction.data,
+                  stateOverride: [
+                    {
+                      address: exaPluginAddress,
+                      stateDiff: [
+                        {
+                          slot: keccak256(
+                            encodeAbiParameters(
+                              [{ type: "address" }, { type: "bytes32" }],
+                              [
+                                exaPreviewerAddress,
+                                keccak256(
+                                  encodeAbiParameters(
+                                    [{ type: "bytes32" }, { type: "uint256" }],
+                                    [keccak256(toBytes("KEEPER_ROLE")), 0n],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          value: encodeAbiParameters([{ type: "uint256" }], [1n]),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              );
 
-        if (payload.body.spend.status === "declined") {
-          getActiveSpan()?.setAttributes({
-            [SEMANTIC_ATTRIBUTE_SENTRY_OP]: "panda.tx.declined",
-            ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
-          });
-          const mutex = getMutex(account);
-          mutex?.release();
-          setContext("mutex", { locked: mutex?.isLocked() });
+              setContext("tx", { call, trace });
+              if (trace.output) {
+                const contractError = getContractError(new RawContractError({ data: trace.output }), {
+                  abi: [
+                    ...exaPluginAbi,
+                    ...issuerCheckerAbi,
+                    ...proposalManagerAbi,
+                    ...upgradeableModularAccountAbi,
+                    ...auditorAbi,
+                    ...marketAbi,
+                  ],
+                  ...call,
+                });
+                trackAuthorizationRejected(
+                  account,
+                  payload,
+                  card.mode,
+                  card.credential.source,
+                  contractError.shortMessage,
+                  segment,
+                );
+                if (
+                  contractError instanceof BaseError &&
+                  contractError.cause instanceof ContractFunctionRevertedError
+                ) {
+                  switch (contractError.cause.data?.errorName) {
+                    case "InsufficientAccountLiquidity":
+                      throw new PandaError(
+                        "InsufficientAccountLiquidity",
+                        557 as UnofficialStatusCode,
+                        "INSUFFICIENT_FUNDS",
+                      );
+                    case "Replay":
+                      throw new PandaError("Replay", 558 as UnofficialStatusCode);
+                  }
+                }
+                captureException(contractError, {
+                  contexts: { tx: { call, trace } },
+                  fingerprint: revertFingerprint(contractError),
+                });
+                throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
+              }
+              if (
+                usdcTransfersToCollectors(trace).reduce(
+                  (total, { topics, data }) =>
+                    total + decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics, data }).args.value,
+                  0n,
+                ) !== amount
+              ) {
+                debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
+                withScope((scope) => {
+                  scope.addEventProcessor((event) => {
+                    if (event.exception?.values?.[0]) event.exception.values[0].type = "bad collection";
+                    return event;
+                  });
+                  captureException(new Error("bad collection"), {
+                    level: "warning",
+                    fingerprint: ["{{ default }}", "bad collection"],
+                    contexts: { tx: { call, trace } },
+                  });
+                });
+                throw new PandaError("bad collection", 551 as UnofficialStatusCode);
+              }
+              return authorize();
+            } catch (error: unknown) {
+              if (error instanceof PandaError) throw error;
+              captureException(error, { contexts: { tx: { call } } });
+              throw new PandaError("unexpected error", 569 as UnofficialStatusCode);
+            }
+          } catch (error: unknown) {
+            mutex.release();
+            setContext("mutex", { locked: mutex.isLocked() });
+            if (error instanceof PandaError) {
+              error.message !== "tx reverted" &&
+                trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "panda-error", segment);
+              if (error.statusCode !== (557 as UnofficialStatusCode)) {
+                captureException(error, { level: "error", tags: { unhandled: true } });
+              }
 
-          const requestedReason =
-            payload.body.spend.declinedReason?.toLowerCase() === "webhook declined"
-              ? await getRequestedDeclineReason(payload.body.id, payload.body.spend.cardId)
-              : undefined;
-          const rawDeclineReason = requestedReason ?? payload.body.spend.declinedReason;
-          if (
-            (await reject(payload, jsonBody, rawDeclineReason ?? "transaction declined")) &&
-            payload.action === "created"
-          ) {
-            sendDeclinedNotification(
+              if (error.message !== "Replay" && error.message !== "tx reverted") {
+                await reject(payload, jsonBody, error.message, database);
+              }
+
+              return c.json(
+                { code: error.message, rejectionCode: error.rejectionCode },
+                error.statusCode as UnofficialStatusCode,
+              );
+            }
+            trackAuthorizationRejected(
               account,
-              payload.body.spend,
-              declineMessage(rawDeclineReason) ?? "transaction declined",
-            ).catch((error: unknown) => captureException(error, { level: "error" }));
+              payload,
+              card.mode,
+              card.credential.source,
+              "unexpected-error",
+              segment,
+            );
+            captureException(error, { level: "error", tags: { unhandled: true } });
+
+            await reject(payload, jsonBody, error instanceof Error ? error.message : "unexpected error", database);
+
+            return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
           }
-
-          trackRejected(account, payload, card.mode, card.credential.source);
-          feedback({
-            kind: "issuing",
-            customer: { id: card.credential.id },
-            transaction: { id: payload.body.id },
-            feedback: {
-              type: "authorization",
-              status: "network_declined",
-              reason: payload.body.spend.declinedReason ?? "unknown",
-            },
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
-          if (requestedReason) payload.body.spend.declinedReason = requestedReason;
-          startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () => publish(payload)).catch(
-            (error: unknown) => captureException(error, { level: "error" }),
-          );
-          return c.json({ code: "ok" });
         }
-        if (payload.body.spend.amount < 0) {
-          feedback({
-            kind: "issuing",
-            customer: { id: card.credential.id },
-            transaction: { id: payload.body.id },
-            feedback: { type: "authorization", status: "approved" },
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
+        case "completed":
+        // falls through
+        case "updated":
+          if (
+            payload.body.spend.status === "reversed" ||
+            (payload.body.spend.status === "completed" &&
+              (payload.body.spend.amount < 0 ||
+                (payload.body.spend.authorizedAmount &&
+                  payload.body.spend.amount < payload.body.spend.authorizedAmount)))
+          ) {
+            getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.refund");
+            const refundAmountUsd =
+              (() => {
+                if (payload.body.spend.status === "reversed") return -payload.body.spend.authorizationUpdateAmount;
+                if (payload.body.spend.amount < 0) return -payload.body.spend.amount;
+                if (!payload.body.spend.authorizedAmount) throw new Error("authorized amount not found");
+                getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.partial");
+                return payload.body.spend.authorizedAmount - payload.body.spend.amount;
+              })() / 100;
+            const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
+            const [card, user] = await Promise.all([
+              database.query.cards.findFirst({
+                columns: { mode: true },
+                where: eq(cards.id, payload.body.spend.cardId),
+                with: { credential: { columns: { account: true, id: true, source: true } } },
+              }),
+              panda.getUser(payload.body.spend.userId),
+            ]);
+            if (!card) throw new Error("card not found");
+            const account = v.parse(Address, card.credential.account);
+            setUser({ id: account });
+            if (!user.isActive) throw new Error("user is not active");
 
-          startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload)).catch(
-            (error: unknown) => captureException(error, { level: "error" }),
-          );
-
-          return c.json({ code: "ok" });
-        }
-        if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
-        getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
-
-        try {
-          const { call } = await prepareCollection(card, payload);
-          if (!call) {
             const tx = await database.query.transactions.findFirst({
               where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
             });
-            if (!tx) throw new Error("transaction not found");
-            await database
-              .update(transactions)
-              .set({
-                hashes: [...tx.hashes, zeroHash],
-                payload: {
-                  ...(tx.payload as object),
-                  bodies: [
-                    ...v.parse(TransactionPayload, tx.payload).bodies,
-                    { ...jsonBody, createdAt: new Date().toISOString() },
+            if (!tx && payload.body.spend.status === "reversed") {
+              return c.json({ code: "transaction not found" }, 553 as UnofficialStatusCode);
+            }
+            const timestamp = // TODO use update timestamp when provided
+              Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
+              Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
+            const signature = await signIssuerOp({ account, amount: -refundAmount, timestamp }, issuer); // TODO replace with payload signature
+            if (payload.body.spend.signature) {
+              await startSpan(
+                {
+                  name: "panda.signature",
+                  op: "panda.signature",
+                  attributes: {
+                    "signature.account": account,
+                    "signature.amount": String(-refundAmount),
+                    "signature.timestamp": String(payload.body.spend.timestamp ?? 0),
+                  },
+                },
+                async (span) => {
+                  if (!payload.body.spend.signature) throw new Error("signature not found");
+                  if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
+                  const valid = await panda.verifyPandaSignature(
+                    {
+                      account,
+                      amount: -refundAmount,
+                      timestamp: payload.body.spend.timestamp,
+                      signature: payload.body.spend.signature,
+                    },
+                    issuer,
+                  );
+                  span.setAttribute("signature.valid", valid);
+                  if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
+                },
+              ).catch((error: unknown) => captureException(error, { level: "error" }));
+            }
+            try {
+              await wallet.exaSend(
+                { name: "exa.refund", op: "exa.refund", attributes: { account } },
+                {
+                  address: refunderAddress,
+                  functionName: "refund",
+                  args: [account, refundAmount, timestamp, signature],
+                  abi: [
+                    ...auditorAbi,
+                    ...exaPluginAbi,
+                    ...issuerCheckerAbi,
+                    ...marketAbi,
+                    ...refunderAbi,
+                    ...upgradeableModularAccountAbi,
                   ],
                 },
+                {
+                  async onHash(hash) {
+                    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+                    await (tx
+                      ? database
+                          .update(transactions)
+                          .set({
+                            hashes: [...tx.hashes, hash],
+                            payload: {
+                              ...(tx.payload as object),
+                              bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
+                            },
+                          })
+                          .where(
+                            and(
+                              eq(transactions.id, payload.body.id),
+                              eq(transactions.cardId, payload.body.spend.cardId),
+                            ),
+                          )
+                      : database.insert(transactions).values([
+                          {
+                            id: payload.body.id,
+                            cardId: payload.body.spend.cardId,
+                            hashes: [hash],
+                            payload: {
+                              bodies: [{ ...jsonBody, createdAt }],
+                              type: "panda",
+                            },
+                          },
+                        ]));
+                  },
+                  onReceipt: (receipt) =>
+                    startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () =>
+                      publish(payload, database, receipt),
+                    ).catch((error: unknown) => captureException(error, { level: "error" })),
+                },
+              );
+              onesignal
+                .sendPushNotification({
+                  userId: account,
+                  headings: t("Refund processed"),
+                  contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+                    refundAmount: f(refundAmountUsd),
+                    merchantName: payload.body.spend.merchantName.trim(),
+                  }),
+                })
+                .catch((error: unknown) => captureException(error));
+              trackRefund(account, refundAmountUsd, payload, card.credential.source, segment);
+              if (payload.action === "completed") {
+                if (payload.body.spend.amount < 0) {
+                  sardine
+                    .feedback({
+                      kind: "issuing",
+                      customer: { id: card.credential.id },
+                      transaction: { id: payload.body.id },
+                      feedback: { type: "settlement", status: "refund" },
+                    })
+                    .catch((error: unknown) => captureException(error, { level: "error" }));
+                } else {
+                  sardine
+                    .feedback({
+                      kind: "issuing",
+                      customer: { id: card.credential.id },
+                      transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
+                      feedback: { type: "settlement", status: "settled" },
+                    })
+                    .catch((error: unknown) => captureException(error, { level: "error" }));
+                }
+              }
+              return c.json({ code: "ok" });
+            } catch (error: unknown) {
+              if (
+                error instanceof BaseError &&
+                error.cause instanceof ContractFunctionRevertedError &&
+                error.cause.data?.errorName === "Replay"
+              ) {
+                getActiveSpan()?.setAttributes({ "panda.replay": true });
+                return c.json({ code: "ok" });
+              }
+              const reason = revertReason(error, { fallback: "message" });
+              const reasonName = revertReason(error, { fallback: "name" });
+              segment.track({
+                userId: account,
+                event: "TransactionRejected",
+                properties: {
+                  cardMode: card.mode,
+                  declinedReason: `refund:${reason}`,
+                  id: payload.body.id,
+                  reasonName,
+                  source: card.credential.source,
+                  updated: payload.action === "updated",
+                  usdAmount: payload.body.spend.amount / 100,
+                  merchant: {
+                    name: payload.body.spend.merchantName,
+                    category: payload.body.spend.merchantCategory,
+                    city: payload.body.spend.merchantCity,
+                    country: payload.body.spend.merchantCountry,
+                  },
+                },
+              });
+              captureException(error, {
+                level: "fatal",
+                fingerprint: ["{{ default }}", "panda.refund", ...revertFingerprint(error).slice(1)],
+                tags: {
+                  unhandled: true,
+                  "panda.failure": "refund",
+                  "panda.reason": reason,
+                  "panda.reasonName": reasonName,
+                },
+                contexts: {
+                  pandaRefund: {
+                    action: payload.action,
+                    amount: payload.body.spend.amount,
+                    authorizedAmount: payload.body.spend.authorizedAmount ?? null,
+                    cardId: payload.body.spend.cardId,
+                    refundAmount: String(refundAmount),
+                    refundAmountUsd,
+                    transactionId: payload.body.id,
+                    webhookId: payload.id,
+                  },
+                },
+              });
+              return c.json(
+                { code: error instanceof Error ? error.message : String(error) },
+                569 as UnofficialStatusCode,
+              );
+            }
+          }
+        // falls through
+        case "created": {
+          const card = await database.query.cards.findFirst({
+            columns: { mode: true },
+            where: eq(cards.id, payload.body.spend.cardId),
+            with: { credential: { columns: { account: true, id: true, source: true } } },
+          });
+          if (!card) return c.json({ code: "card not found" }, 404);
+
+          const account = v.parse(Address, card.credential.account);
+          setUser({ id: account });
+
+          if (payload.body.spend.status === "declined") {
+            getActiveSpan()?.setAttributes({
+              [SEMANTIC_ATTRIBUTE_SENTRY_OP]: "panda.tx.declined",
+              ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
+            });
+            const mutex = getMutex(account);
+            mutex?.release();
+            setContext("mutex", { locked: mutex?.isLocked() });
+
+            const requestedReason =
+              payload.body.spend.declinedReason?.toLowerCase() === "webhook declined"
+                ? await getRequestedDeclineReason(payload.body.id, payload.body.spend.cardId, database)
+                : undefined;
+            const rawDeclineReason = requestedReason ?? payload.body.spend.declinedReason;
+            if (
+              (await reject(payload, jsonBody, rawDeclineReason ?? "transaction declined", database)) &&
+              payload.action === "created"
+            ) {
+              sendDeclinedNotification(
+                account,
+                payload.body.spend,
+                declineMessage(rawDeclineReason) ?? "transaction declined",
+                onesignal,
+              ).catch((error: unknown) => captureException(error, { level: "error" }));
+            }
+
+            trackRejected(account, payload, card.mode, card.credential.source, segment);
+            sardine
+              .feedback({
+                kind: "issuing",
+                customer: { id: card.credential.id },
+                transaction: { id: payload.body.id },
+                feedback: {
+                  type: "authorization",
+                  status: "network_declined",
+                  reason: payload.body.spend.declinedReason ?? "unknown",
+                },
               })
-              .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)));
+              .catch((error: unknown) => captureException(error, { level: "error" }));
+            if (requestedReason) payload.body.spend.declinedReason = requestedReason;
+            startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () =>
+              publish(payload, database),
+            ).catch((error: unknown) => captureException(error, { level: "error" }));
+            return c.json({ code: "ok" });
+          }
+          if (payload.body.spend.amount < 0) {
+            sardine
+              .feedback({
+                kind: "issuing",
+                customer: { id: card.credential.id },
+                transaction: { id: payload.body.id },
+                feedback: { type: "authorization", status: "approved" },
+              })
+              .catch((error: unknown) => captureException(error, { level: "error" }));
 
-            feedback({
-              kind: "issuing",
-              customer: { id: card.credential.id },
-              transaction: { id: payload.body.id },
-              feedback: {
-                ...(payload.action === "created" || payload.action === "updated"
-                  ? { type: "authorization", status: "approved" }
-                  : { type: "settlement", status: "settled" }),
-              },
-            }).catch((error: unknown) => captureException(error, { level: "error" }));
-
-            startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () => publish(payload)).catch(
+            startSpan({ name: "webhook", op: `panda.webhook.${payload.id}` }, () => publish(payload, database)).catch(
               (error: unknown) => captureException(error, { level: "error" }),
             );
 
             return c.json({ code: "ok" });
           }
-          try {
-            await keeper.exaSend(
-              { name: "collect credit", op: "exa.collect", attributes: { account } },
-              {
-                address: account,
-                abi: [
-                  ...exaPluginAbi,
-                  ...issuerCheckerAbi,
-                  ...upgradeableModularAccountAbi,
-                  ...auditorAbi,
-                  ...marketAbi,
-                ],
-                ...call,
-              },
-              {
-                async onHash(hash) {
-                  const tx = await database.query.transactions.findFirst({
-                    where: and(
-                      eq(transactions.id, payload.body.id),
-                      eq(transactions.cardId, payload.body.spend.cardId),
-                    ),
-                  });
-                  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-                  await (tx
-                    ? database
-                        .update(transactions)
-                        .set({
-                          hashes: [...tx.hashes, hash],
-                          payload: {
-                            ...(tx.payload as object),
-                            bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
-                          },
-                        })
-                        .where(
-                          and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-                        )
-                    : database.insert(transactions).values([
-                        {
-                          id: payload.body.id,
-                          cardId: payload.body.spend.cardId,
-                          hashes: [hash],
-                          payload: {
-                            bodies: [{ ...jsonBody, createdAt }],
-                            type: "panda",
-                          },
-                        },
-                      ]));
-                },
-                onReceipt: (receipt) =>
-                  startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () =>
-                    publish(payload, receipt),
-                  ).catch((error: unknown) => captureException(error, { level: "error" })),
-              },
-            );
+          if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
+          getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
 
-            if (
-              payload.action === "created" ||
-              (payload.action === "completed" && payload.body.spend.amount > 0 && !payload.body.spend.authorizedAmount) // force capture
-            ) {
-              sendPushNotification({
-                userId: account,
-                headings: t("Card purchase"),
-                contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
-                  count: card.mode,
-                  amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
-                  merchantName: payload.body.spend.merchantName.trim(),
-                }),
-              }).catch((error: unknown) => captureException(error, { level: "error" }));
-            }
-            switch (payload.action) {
-              case "created":
-              case "updated":
-                feedback({
+          try {
+            const { call } = await prepareCollection(card, payload, database, issuer, panda, wallet);
+            if (!call) {
+              const tx = await database.query.transactions.findFirst({
+                where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+              });
+              if (!tx) throw new Error("transaction not found");
+              await database
+                .update(transactions)
+                .set({
+                  hashes: [...tx.hashes, zeroHash],
+                  payload: {
+                    ...(tx.payload as object),
+                    bodies: [
+                      ...v.parse(TransactionPayload, tx.payload).bodies,
+                      { ...jsonBody, createdAt: new Date().toISOString() },
+                    ],
+                  },
+                })
+                .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)));
+
+              sardine
+                .feedback({
                   kind: "issuing",
                   customer: { id: card.credential.id },
                   transaction: { id: payload.body.id },
-                  feedback: { type: "authorization", status: "approved" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-                break;
-              case "completed":
-                feedback({
-                  kind: "issuing",
-                  customer: { id: card.credential.id },
-                  transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
-                  feedback: { type: "settlement", status: "settled" },
-                }).catch((error: unknown) => captureException(error, { level: "error" }));
-                break;
-            }
-            return c.json({ code: "ok" });
-          } catch (error: unknown) {
-            if (
-              error instanceof BaseError &&
-              error.cause instanceof ContractFunctionRevertedError &&
-              error.cause.data?.errorName === "Replay"
-            ) {
-              getActiveSpan()?.setAttributes({ "panda.replay": true });
+                  feedback: {
+                    ...(payload.action === "created" || payload.action === "updated"
+                      ? { type: "authorization", status: "approved" }
+                      : { type: "settlement", status: "settled" }),
+                  },
+                })
+                .catch((error: unknown) => captureException(error, { level: "error" }));
+
+              startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () =>
+                publish(payload, database),
+              ).catch((error: unknown) => captureException(error, { level: "error" }));
+
               return c.json({ code: "ok" });
             }
-            const settlement = payload.action === "completed";
-            const transaction = await database.query.transactions
-              .findFirst({
-                where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-              })
-              .then((tx) => ({ failed: false, tx }))
-              .catch((lookupError: unknown) => {
-                captureException(lookupError, {
-                  level: "error",
-                  tags: {
-                    unhandled: true,
-                    "panda.failure": "collection",
-                    "panda.query": "transaction",
+            try {
+              await wallet.exaSend(
+                { name: "collect credit", op: "exa.collect", attributes: { account } },
+                {
+                  address: account,
+                  abi: [
+                    ...exaPluginAbi,
+                    ...issuerCheckerAbi,
+                    ...upgradeableModularAccountAbi,
+                    ...auditorAbi,
+                    ...marketAbi,
+                  ],
+                  ...call,
+                },
+                {
+                  async onHash(hash) {
+                    const tx = await database.query.transactions.findFirst({
+                      where: and(
+                        eq(transactions.id, payload.body.id),
+                        eq(transactions.cardId, payload.body.spend.cardId),
+                      ),
+                    });
+                    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+                    await (tx
+                      ? database
+                          .update(transactions)
+                          .set({
+                            hashes: [...tx.hashes, hash],
+                            payload: {
+                              ...(tx.payload as object),
+                              bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
+                            },
+                          })
+                          .where(
+                            and(
+                              eq(transactions.id, payload.body.id),
+                              eq(transactions.cardId, payload.body.spend.cardId),
+                            ),
+                          )
+                      : database.insert(transactions).values([
+                          {
+                            id: payload.body.id,
+                            cardId: payload.body.spend.cardId,
+                            hashes: [hash],
+                            payload: {
+                              bodies: [{ ...jsonBody, createdAt }],
+                              type: "panda",
+                            },
+                          },
+                        ]));
                   },
-                  contexts: { tx: { call } },
+                  onReceipt: (receipt) =>
+                    startSpan({ name: "webhook", op: `panda.webhook.${payload.body.id}` }, () =>
+                      publish(payload, database, receipt),
+                    ).catch((error: unknown) => captureException(error, { level: "error" })),
+                },
+              );
+
+              if (
+                payload.action === "created" ||
+                (payload.action === "completed" &&
+                  payload.body.spend.amount > 0 &&
+                  !payload.body.spend.authorizedAmount) // force capture
+              ) {
+                onesignal
+                  .sendPushNotification({
+                    userId: account,
+                    headings: t("Card purchase"),
+                    contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
+                      count: card.mode,
+                      amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
+                      merchantName: payload.body.spend.merchantName.trim(),
+                    }),
+                  })
+                  .catch((error: unknown) => captureException(error, { level: "error" }));
+              }
+              switch (payload.action) {
+                case "created":
+                case "updated":
+                  sardine
+                    .feedback({
+                      kind: "issuing",
+                      customer: { id: card.credential.id },
+                      transaction: { id: payload.body.id },
+                      feedback: { type: "authorization", status: "approved" },
+                    })
+                    .catch((error: unknown) => captureException(error, { level: "error" }));
+                  break;
+                case "completed":
+                  sardine
+                    .feedback({
+                      kind: "issuing",
+                      customer: { id: card.credential.id },
+                      transaction: { id: payload.body.id, amount: payload.body.spend.amount / 100 },
+                      feedback: { type: "settlement", status: "settled" },
+                    })
+                    .catch((error: unknown) => captureException(error, { level: "error" }));
+                  break;
+              }
+              return c.json({ code: "ok" });
+            } catch (error: unknown) {
+              if (
+                error instanceof BaseError &&
+                error.cause instanceof ContractFunctionRevertedError &&
+                error.cause.data?.errorName === "Replay"
+              ) {
+                getActiveSpan()?.setAttributes({ "panda.replay": true });
+                return c.json({ code: "ok" });
+              }
+              const settlement = payload.action === "completed";
+              const transaction = await database.query.transactions
+                .findFirst({
+                  where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+                })
+                .then((tx) => ({ failed: false, tx }))
+                .catch((lookupError: unknown) => {
+                  captureException(lookupError, {
+                    level: "error",
+                    tags: {
+                      unhandled: true,
+                      "panda.failure": "collection",
+                      "panda.query": "transaction",
+                    },
+                    contexts: { tx: { call } },
+                  });
+                  return { failed: true, tx: null };
                 });
-                return { failed: true, tx: null };
+              const tx = transaction.tx;
+              const reason = revertReason(error, { fallback: "message" });
+              const reasonName = revertReason(error, { fallback: "name" });
+              const merchant = {
+                name: payload.body.spend.merchantName,
+                category: payload.body.spend.merchantCategory,
+                city: payload.body.spend.merchantCity,
+                country: payload.body.spend.merchantCountry,
+              };
+              segment.track({
+                userId: account,
+                event: "TransactionRejected",
+                properties: {
+                  cardMode: card.mode,
+                  declinedReason: `collection:${payload.action}:${call.functionName}:${reason}`,
+                  id: payload.body.id,
+                  reasonName,
+                  source: card.credential.source,
+                  updated: payload.action !== "created",
+                  usdAmount: payload.body.spend.amount / 100,
+                  merchant,
+                },
               });
-            const tx = transaction.tx;
-            const reason = revertReason(error, { fallback: "message" });
-            const reasonName = revertReason(error, { fallback: "name" });
-            const merchant = {
-              name: payload.body.spend.merchantName,
-              category: payload.body.spend.merchantCategory,
-              city: payload.body.spend.merchantCity,
-              country: payload.body.spend.merchantCountry,
-            };
-            track({
-              userId: account,
-              event: "TransactionRejected",
-              properties: {
-                cardMode: card.mode,
-                declinedReason: `collection:${payload.action}:${call.functionName}:${reason}`,
-                id: payload.body.id,
-                reasonName,
-                source: card.credential.source,
-                updated: payload.action !== "created",
-                usdAmount: payload.body.spend.amount / 100,
-                merchant,
-              },
-            });
-            track({
-              userId: account,
-              event: "PandaCollectionFailed",
-              properties: {
-                action: payload.action,
-                amount: payload.body.spend.amount,
-                authorizedAmount: payload.body.spend.authorizedAmount ?? null,
-                cardMode: card.mode,
-                functionName: call.functionName,
-                id: payload.body.id,
-                knownTransaction: Boolean(tx),
-                merchant,
-                reason,
-                reasonName,
-                settlement,
-                source: card.credential.source,
-                usdAmount: payload.body.spend.amount / 100,
-                webhookId: payload.id,
-              },
-            });
-            captureException(error, {
-              level: "fatal",
-              fingerprint: [
-                "{{ default }}",
-                "panda.collection",
-                payload.action,
-                call.functionName,
-                ...revertFingerprint(error).slice(1),
-              ],
-              tags: {
-                unhandled: true,
-                "panda.failure": "collection",
-                "panda.function": call.functionName,
-                "panda.reason": reason,
-                "panda.reasonName": reasonName,
-                "panda.settlement": String(settlement),
-              },
-              contexts: {
-                tx: { call },
-                pandaCollection: {
+              segment.track({
+                userId: account,
+                event: "PandaCollectionFailed",
+                properties: {
                   action: payload.action,
-                  cardId: payload.body.spend.cardId,
-                  transactionId: payload.body.id,
                   amount: payload.body.spend.amount,
                   authorizedAmount: payload.body.spend.authorizedAmount ?? null,
-                  authorizationMethod: payload.body.spend.authorizationMethod ?? null,
+                  cardMode: card.mode,
+                  functionName: call.functionName,
+                  id: payload.body.id,
                   knownTransaction: Boolean(tx),
+                  merchant,
                   reason,
                   reasonName,
+                  settlement,
+                  source: card.credential.source,
+                  usdAmount: payload.body.spend.amount / 100,
                   webhookId: payload.id,
                 },
-              },
-            });
-            const revert =
-              error instanceof BaseError ? error.walk((r) => r instanceof ContractFunctionRevertedError) : undefined;
-            if (
-              settlement &&
-              revert instanceof ContractFunctionRevertedError &&
-              revert.data?.errorName === "InsufficientAccountLiquidity"
-            ) {
-              debug("suspicious-user:%j", {
-                eventId: payload.id,
-                transactionId: payload.body.id,
-                userId: payload.body.spend.userId,
-                account,
-                amount: payload.body.spend.amount,
               });
-              await updateUser({ id: payload.body.spend.userId, isActive: false });
-              getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
-              return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
+              captureException(error, {
+                level: "fatal",
+                fingerprint: [
+                  "{{ default }}",
+                  "panda.collection",
+                  payload.action,
+                  call.functionName,
+                  ...revertFingerprint(error).slice(1),
+                ],
+                tags: {
+                  unhandled: true,
+                  "panda.failure": "collection",
+                  "panda.function": call.functionName,
+                  "panda.reason": reason,
+                  "panda.reasonName": reasonName,
+                  "panda.settlement": String(settlement),
+                },
+                contexts: {
+                  tx: { call },
+                  pandaCollection: {
+                    action: payload.action,
+                    cardId: payload.body.spend.cardId,
+                    transactionId: payload.body.id,
+                    amount: payload.body.spend.amount,
+                    authorizedAmount: payload.body.spend.authorizedAmount ?? null,
+                    authorizationMethod: payload.body.spend.authorizationMethod ?? null,
+                    knownTransaction: Boolean(tx),
+                    reason,
+                    reasonName,
+                    webhookId: payload.id,
+                  },
+                },
+              });
+              const revert =
+                error instanceof BaseError ? error.walk((r) => r instanceof ContractFunctionRevertedError) : undefined;
+              if (
+                settlement &&
+                revert instanceof ContractFunctionRevertedError &&
+                revert.data?.errorName === "InsufficientAccountLiquidity"
+              ) {
+                debug("suspicious-user:%j", {
+                  eventId: payload.id,
+                  transactionId: payload.body.id,
+                  userId: payload.body.spend.userId,
+                  account,
+                  amount: payload.body.spend.amount,
+                });
+                await panda.updateUser({ id: payload.body.spend.userId, isActive: false });
+                getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
+                return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
+              }
+              return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
             }
-            return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
+          } finally {
+            const mutex = getMutex(account);
+            if (payload.action === "created" || payload.action === "updated") mutex?.release();
+            setContext("mutex", { locked: mutex?.isLocked() });
           }
-        } finally {
-          const mutex = getMutex(account);
-          if (payload.action === "created" || payload.action === "updated") mutex?.release();
-          setContext("mutex", { locked: mutex?.isLocked() });
         }
+        default:
+          return c.json({ code: "ok" });
       }
-      default:
-        return c.json({ code: "ok" });
-    }
-  },
-);
+    },
+  );
+  let closing: Promise<unknown> | undefined;
+  return {
+    app,
+    close: () => (closing ??= Promise.all([database.$client.end(), segment.close()])),
+    ready: Promise.resolve(),
+  };
+}
 
 function trackAuthorized(
   account: Address,
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
   source: null | string,
+  segment: ReturnType<typeof createSegment>,
 ): void {
-  track({
+  segment.track({
     userId: account,
     event: "TransactionAuthorized",
     properties: {
@@ -1088,8 +1002,9 @@ function trackAuthorizationRejected(
   cardMode: number,
   source: null | string,
   declinedReason: string,
+  segment: ReturnType<typeof createSegment>,
 ): void {
-  track({
+  segment.track({
     userId: account,
     event: "AuthorizationRejected",
     properties: {
@@ -1112,12 +1027,13 @@ function trackRejected(
   payload: v.InferOutput<typeof Transaction>,
   cardMode: number,
   source: null | string,
+  segment: ReturnType<typeof createSegment>,
 ): void {
   if (payload.action !== "created" && payload.action !== "updated") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
     return;
   }
-  track({
+  segment.track({
     userId: account,
     event: "TransactionRejected",
     properties: {
@@ -1142,12 +1058,13 @@ function trackRefund(
   refundAmountUsd: number,
   payload: v.InferOutput<typeof Transaction>,
   source: null | string,
+  segment: ReturnType<typeof createSegment>,
 ): void {
   if (payload.action === "requested") {
     captureException(new Error("unsupported transaction type"), { contexts: { payload } });
     return;
   }
-  track({
+  segment.track({
     userId: account,
     event: "TransactionRefund",
     properties: {
@@ -1181,6 +1098,10 @@ function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | unde
 async function prepareCollection(
   card: { credential: { account: string }; mode: number },
   payload: v.InferOutput<typeof Transaction>,
+  database: NodePgDatabase<typeof schema>,
+  issuer: LocalAccount,
+  panda: ReturnType<typeof createPanda>,
+  wallet: ReturnType<typeof createWallet>,
 ) {
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
@@ -1228,10 +1149,10 @@ async function prepareCollection(
             "signature.timestamp": String(payload.body.spend.timestamp ?? 0),
           },
         },
-        (span) => {
+        async (span) => {
           if (!payload.body.spend.signature) throw new Error("signature not found");
           if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-          return verifyPandaSignature(
+          const valid = await panda.verifyPandaSignature(
             {
               account,
               amount,
@@ -1239,10 +1160,9 @@ async function prepareCollection(
               signature: payload.body.spend.signature,
             },
             issuer,
-          ).then((valid) => {
-            span.setAttribute("signature.valid", valid);
-            if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
-          });
+          );
+          span.setAttribute("signature.valid", valid);
+          if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
         },
       ).catch((error: unknown) => captureException(error, { level: "error" }));
     }
@@ -1300,7 +1220,7 @@ async function prepareCollection(
     amount,
     call,
     transaction: {
-      from: keeper.account.address,
+      from: wallet.account.address,
       to: account,
       data: encodeFunctionData({ abi: exaPluginAbi, ...call }),
     } as const,
@@ -1346,7 +1266,11 @@ const TransactionPayload = v.object(
   "invalid transaction payload",
 );
 
-async function getRequestedDeclineReason(transactionId: string, cardId: string) {
+async function getRequestedDeclineReason(
+  transactionId: string,
+  cardId: string,
+  database: NodePgDatabase<typeof schema>,
+) {
   const transaction = await database.query.transactions.findFirst({
     columns: { payload: true },
     where: and(eq(transactions.id, transactionId), eq(transactions.cardId, cardId)),
@@ -1374,8 +1298,9 @@ async function sendDeclinedNotification(
   account: Address,
   spend: v.InferOutput<typeof Transaction>["body"]["spend"],
   reason: string,
+  onesignal: ReturnType<typeof createOnesignal>,
 ) {
-  await sendPushNotification({
+  await onesignal.sendPushNotification({
     userId: account,
     headings: t("Exa Card purchase rejected"),
     contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
@@ -1386,7 +1311,12 @@ async function sendDeclinedNotification(
   });
 }
 
-async function reject(payload: v.InferOutput<typeof Transaction>, jsonBody: unknown, declineReason: string) {
+async function reject(
+  payload: v.InferOutput<typeof Transaction>,
+  jsonBody: unknown,
+  declineReason: string,
+  database: NodePgDatabase<typeof schema>,
+) {
   const { spend } = payload.body;
   const transactionId = payload.body.id ?? payload.id;
 
@@ -1434,7 +1364,11 @@ async function reject(payload: v.InferOutput<typeof Transaction>, jsonBody: unkn
     });
 }
 
-async function publish(payload: v.InferOutput<typeof Payload>, receipt?: TransactionReceipt) {
+async function publish(
+  payload: v.InferOutput<typeof Payload>,
+  database: NodePgDatabase<typeof schema>,
+  receipt?: TransactionReceipt,
+) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
   if (receipt?.status === "reverted") return;
   if (payload.resource === "dispute") return;

@@ -1,7 +1,18 @@
 import { vi } from "vitest";
 
-vi.mock("../../utils/pax", async (importOriginal) => ({
-  ...(await importOriginal()),
-  addCapita: vi.fn<(data: { internalId: string }) => Promise<Record<string, never>>>().mockResolvedValue({}),
-  removeCapita: vi.fn<(internalId: string) => Promise<void>>().mockResolvedValue(),
-}));
+import type * as Pax from "../../utils/pax";
+
+vi.mock("../../utils/pax", async (importOriginal) => {
+  const pax = await importOriginal<typeof Pax>();
+  const module = {
+    ...pax,
+    addCapita: vi.fn<typeof pax.addCapita>().mockResolvedValue({}),
+    removeCapita: vi.fn<(internalId: string) => Promise<void>>().mockResolvedValue(),
+  };
+  return Object.assign(module, {
+    default: () => ({
+      addCapita: (data: Parameters<typeof pax.addCapita>[0]) => module.addCapita(data),
+      deriveAssociateId: (account: Parameters<typeof pax.deriveAssociateId>[0]) => module.deriveAssociateId(account),
+    }),
+  });
+});
