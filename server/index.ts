@@ -9,6 +9,7 @@ import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import links from "@exactly/common/links";
 
 import api from "./api";
 import database from "./database";
@@ -36,8 +37,12 @@ app.route("/hooks/manteca", manteca);
 app.route("/hooks/panda", panda);
 app.route("/hooks/persona", persona);
 
+const appID = "665NDX7LBZ.app.exactly";
 app.get("/.well-known/apple-app-site-association", (c) =>
-  c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
+  c.json({
+    applinks: { apps: [], details: [{ appID, paths: links.flatMap((path) => [path, `${path}/*`]) }] },
+    webcredentials: { apps: [appID] },
+  }),
 );
 app.get("/.well-known/assetlinks.json", (c) =>
   c.json([
