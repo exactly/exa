@@ -27,51 +27,51 @@ import domain from "@exactly/common/domain";
 
 import ServiceError from "./ServiceError";
 
-if (!process.env.SARDINE_API_KEY) throw new Error("missing sardine api key");
-if (!process.env.SARDINE_API_URL) throw new Error("missing sardine api url");
+export default function sardine(key: string, url: string) {
+  return { customer, feedback, risk };
 
-const key = Buffer.from(process.env.SARDINE_API_KEY).toString("base64");
-const baseURL = process.env.SARDINE_API_URL;
+  async function customer(data: InferInput<typeof CustomerRequest>, timeout = 10_000) {
+    return await request(CustomerResponse, "/v1/customers", {}, parse(CustomerRequest, data), "POST", timeout);
+  }
+
+  async function feedback(data: InferInput<typeof FeedbackRequest>) {
+    return await request(FeedbackResponse, "/v1/feedbacks", {}, parse(FeedbackRequest, data), "POST", 10_000);
+  }
+
+  async function risk(data: InferInput<typeof RiskRequest>) {
+    return await request(RiskResponse, "/v1/issuing/risks", {}, parse(RiskRequest, data), "POST", 500);
+  }
+
+  async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
+    schema: BaseSchema<TInput, TOutput, TIssue>,
+    path: `/${string}`,
+    headers = {},
+    body?: unknown,
+    method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+    timeout = 10_000,
+  ) {
+    const response = await fetch(`${url}${path}`, {
+      method,
+      headers: {
+        ...headers,
+        Authorization: `Basic ${Buffer.from(key).toString("base64")}`,
+        "X-Request-Id": crypto.randomUUID(),
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeout),
+    });
+
+    if (!response.ok) throw new ServiceError("Sardine", response.status, await response.text());
+    const rawBody = await response.arrayBuffer();
+    if (rawBody.byteLength === 0) throw new Error(`Empty response body from ${path}`);
+    return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+  }
+}
 
 export const IpAddress = pipe(string(), ip(), brand("IpAddress"));
 export type IpAddress = InferOutput<typeof IpAddress>;
-
-export async function customer(data: InferInput<typeof CustomerRequest>, timeout = 10_000) {
-  return await request(CustomerResponse, "/v1/customers", {}, parse(CustomerRequest, data), "POST", timeout);
-}
-export async function feedback(data: InferInput<typeof FeedbackRequest>) {
-  return await request(FeedbackResponse, "/v1/feedbacks", {}, parse(FeedbackRequest, data), "POST");
-}
-export default async function risk(data: InferInput<typeof RiskRequest>) {
-  return await request(RiskResponse, "/v1/issuing/risks", {}, parse(RiskRequest, data), "POST", 500);
-}
-
-async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
-  schema: BaseSchema<TInput, TOutput, TIssue>,
-  url: `/${string}`,
-  headers = {},
-  body?: unknown,
-  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
-  timeout = 10_000,
-) {
-  const response = await fetch(`${baseURL}${url}`, {
-    method,
-    headers: {
-      ...headers,
-      Authorization: `Basic ${key}`,
-      "X-Request-Id": crypto.randomUUID(),
-      accept: "application/json",
-      "content-type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(timeout),
-  });
-
-  if (!response.ok) throw new ServiceError("Sardine", response.status, await response.text());
-  const rawBody = await response.arrayBuffer();
-  if (rawBody.byteLength === 0) throw new Error(`Empty response body from ${url}`);
-  return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
-}
 
 const CustomerRequest = object({
   flow: object({

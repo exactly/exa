@@ -1,10 +1,15 @@
-import "../mocks/onesignal";
+import "../mocks/bridge";
+import sendPushNotificationMock from "../mocks/onesignal";
+import "../mocks/persona";
+import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 
 import { captureEvent, captureException } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -12,13 +17,26 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
-import app from "../../hooks/bridge";
+import createBridgeHook from "../../hooks/bridge";
 import t, { f } from "../../i18n";
-import * as onesignal from "../../utils/onesignal";
-import * as persona from "../../utils/persona";
-import * as bridge from "../../utils/ramps/bridge";
-import * as segment from "../../utils/segment";
+import createOnesignal from "../../utils/onesignal";
+import createPersona from "../../utils/persona";
+import createBridge from "../../utils/ramps/bridge";
+import createSegment from "../../utils/segment";
 
+const bridgeConfig = { key: "bridge", url: "https://bridge.test" };
+const personaConfig = { key: "persona", url: "https://persona.test" };
+const bridge = createBridge(bridgeConfig.key, bridgeConfig.url);
+const persona = createPersona(personaConfig.key, personaConfig.url);
+const bridgeHook = createBridgeHook({
+  bridge,
+  bridgeWebhookKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_WEBHOOK_PUBLIC_KEY),
+  database,
+  onesignal: createOnesignal("onesignal"),
+  persona,
+  segment: createSegment("segment"),
+});
+const app = bridgeHook.app;
 const appClient = testClient(app);
 
 describe("bridge hook", () => {
@@ -141,7 +159,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without side effects for non-payment virtual account types", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(fundsReceived) },
       json: fundsReceived as never,
@@ -168,7 +186,7 @@ describe("bridge hook", () => {
 
   it("sends push notification on payment_submitted virtual account", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(paymentSubmitted) },
       json: paymentSubmitted as never,
@@ -186,7 +204,7 @@ describe("bridge hook", () => {
   it("captures payment_submitted notification errors", async () => {
     const error = new Error("push failed");
     vi.spyOn(segment, "track").mockReturnValue();
-    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockRejectedValueOnce(error);
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(paymentSubmitted) },
       json: paymentSubmitted as never,
@@ -201,7 +219,7 @@ describe("bridge hook", () => {
 
   it("tracks onramp for payment_processed virtual account", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(paymentProcessed) },
       json: paymentProcessed as never,
@@ -220,7 +238,7 @@ describe("bridge hook", () => {
 
   it("returns 200 with credential not found when bridgeId does not match", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = {
       ...fundsReceived,
       event_object: { ...fundsReceived.event_object, customer_id: "unknown-customer" },
@@ -255,7 +273,7 @@ describe("bridge hook", () => {
 
   it("resolves credential via persona email fallback on status_transitioned", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "fallback-bridge-id",
       email: "fallback@example.com",
@@ -303,7 +321,10 @@ describe("bridge hook", () => {
   });
 
   it("returns 500 when fallback credential already paired", async () => {
-    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+    vi.spyOn(
+      Reflect.getPrototypeOf(database.query.credentials) as typeof database.query.credentials,
+      "findFirst",
+    ).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "conflict-bridge-id",
       email: "conflict@example.com",
@@ -404,7 +425,7 @@ describe("bridge hook", () => {
 
   it("tracks RampAccount and sends notification on status_transitioned to active", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(statusTransitioned) },
       json: statusTransitioned as never,
@@ -427,7 +448,7 @@ describe("bridge hook", () => {
   it("captures status_transitioned notification errors", async () => {
     const error = new Error("push failed");
     vi.spyOn(segment, "track").mockReturnValue();
-    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockRejectedValueOnce(error);
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(statusTransitioned) },
       json: statusTransitioned as never,
@@ -442,7 +463,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for status_transitioned to non-active", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = {
       ...statusTransitioned,
       event_object: { ...statusTransitioned.event_object, status: "incomplete" },
@@ -460,7 +481,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for customer.updated events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "customer.updated", event_object: { id: "bridgeCustomerId", status: "active" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -510,7 +531,7 @@ describe("bridge hook", () => {
 
   it("sends push notification on drain payment_submitted", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(drain) },
       json: drain as never,
@@ -528,7 +549,7 @@ describe("bridge hook", () => {
   it("captures drain payment_submitted notification errors", async () => {
     const error = new Error("push failed");
     vi.spyOn(segment, "track").mockReturnValue();
-    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockRejectedValueOnce(error);
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(drain) },
       json: drain as never,
@@ -543,7 +564,7 @@ describe("bridge hook", () => {
 
   it("returns 200 with credential not found for drain with unknown customer", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { ...drain, event_object: { ...drain.event_object, customer_id: "unknown-customer" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -572,7 +593,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for liquidation_address.drain.updated events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "liquidation_address.drain.updated", event_object: { id: "drain_123" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -588,7 +609,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for customer.created events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "customer.created", event_object: { id: "bridgeCustomerId" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -604,7 +625,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for liquidation_address.drain.created events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "liquidation_address.drain.created", event_object: { id: "drain_123" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -620,7 +641,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for virtual_account.activity.updated events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "virtual_account.activity.updated", event_object: { id: "evt_123" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -636,7 +657,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for drain non-payment_submitted state", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { ...drain, event_object: { ...drain.event_object, state: "funds_received" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -652,7 +673,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for transfer.created events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "transfer.created", event_object: { id: "tr_1" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -668,7 +689,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for transfer.updated events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "transfer.updated", event_object: { id: "tr_1" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -684,7 +705,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for external_account.created events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "external_account.created", event_object: { id: "ext_1" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -700,7 +721,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for external_account.updated events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = { event_type: "external_account.updated", event_object: { id: "ext_1" } };
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(payload) },
@@ -716,7 +737,7 @@ describe("bridge hook", () => {
 
   it("tracks offramp and notifies on transfer payment_processed", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(transferProcessed) },
       json: transferProcessed as never,
@@ -739,7 +760,7 @@ describe("bridge hook", () => {
 
   it("notifies on transfer funds_received without tracking", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(transferFundsReceived) },
       json: transferFundsReceived as never,
@@ -759,7 +780,7 @@ describe("bridge hook", () => {
   it("captures transfer funds_received notification errors", async () => {
     const error = new Error("push failed");
     vi.spyOn(segment, "track").mockReturnValue();
-    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockRejectedValueOnce(error);
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(transferFundsReceived) },
       json: transferFundsReceived as never,
@@ -776,7 +797,7 @@ describe("bridge hook", () => {
   it("captures transfer payment_processed notification errors", async () => {
     const error = new Error("push failed");
     vi.spyOn(segment, "track").mockReturnValue();
-    vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockRejectedValueOnce(error);
     const response = await appClient.index.$post({
       header: { "x-webhook-signature": createSignature(transferProcessed) },
       json: transferProcessed as never,
@@ -796,7 +817,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for transfer non-payment_processed state", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = {
       ...transferProcessed,
       event_object: { ...transferProcessed.event_object, state: "payment_submitted" },
@@ -815,7 +836,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for transfer without external_account_id", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = {
       ...transferProcessed,
       event_object: {
@@ -837,7 +858,7 @@ describe("bridge hook", () => {
 
   it("returns 200 without tracking for transfer payment_processed without receipt", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const { receipt: _receipt, ...rest } = transferProcessed.event_object;
     const payload = { ...transferProcessed, event_object: rest };
     const response = await appClient.index.$post({
@@ -854,7 +875,7 @@ describe("bridge hook", () => {
 
   it("returns 200 with credential not found for transfer with unknown on_behalf_of", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const sendPushNotification = sendPushNotificationMock;
     const payload = {
       ...transferProcessed,
       event_object: { ...transferProcessed.event_object, on_behalf_of: "unknown-customer" },

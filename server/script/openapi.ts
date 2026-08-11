@@ -1,42 +1,44 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { generateSpecs } from "hono-openapi";
+import { Redis } from "ioredis";
 import { writeFile } from "node:fs/promises";
-import { padHex, zeroHash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import { zeroHash } from "viem";
 
+import * as schema from "../database/schema";
 import { version } from "../package.json";
-
-process.env.ALCHEMY_ACTIVITY_ID = "activity";
-process.env.ALCHEMY_WEBHOOKS_KEY = "webhooks";
-process.env.AUTH_SECRET = zeroHash;
-process.env.BRIDGE_API_KEY = "bridge";
-process.env.BRIDGE_API_URL = "https://bridge.test";
-process.env.EXPO_PUBLIC_ALCHEMY_API_KEY = " ";
-process.env.INTERCOM_IDENTITY_KEY = "intercom";
-process.env.ISSUER_PRIVATE_KEY = padHex("0x420");
-process.env.KEEPER_PRIVATE_KEY = padHex("0x420");
-process.env.MANTECA_API_KEY = "manteca";
-process.env.MANTECA_API_URL = "https://manteca.test";
-process.env.MANTECA_WEBHOOKS_KEY = "manteca";
-process.env.PANDA_API_KEY = "panda";
-process.env.PANDA_API_URL = "https://panda.test";
-process.env.ISSUER_ADDRESS = privateKeyToAddress(padHex("0x420"));
-process.env.PAX_API_KEY = "pax";
-process.env.PAX_API_URL = "https://pax.test";
-process.env.PAX_ASSOCIATE_ID_KEY = "pax";
-process.env.PERSONA_API_KEY = "persona";
-process.env.PERSONA_URL = "https://persona.test";
-process.env.PERSONA_WEBHOOK_SECRET = "persona";
-process.env.POSTGRES_URL = "postgres";
-process.env.REDIS_URL = "redis";
-process.env.SARDINE_API_KEY = "sardine";
-process.env.SARDINE_API_URL = "https://api.sardine.ai";
-process.env.SEGMENT_WRITE_KEY = "segment";
-process.env.WALLET_EXTENSION_SECRET = zeroHash;
+import createAlchemy from "../utils/alchemy";
+import createIntercom from "../utils/intercom";
+import createPanda from "../utils/panda";
+import createPax from "../utils/pax";
+import createPersona from "../utils/persona";
+import createBridge from "../utils/ramps/bridge";
+import createManteca from "../utils/ramps/manteca";
+import createSardine from "../utils/sardine";
+import createSegment from "../utils/segment";
+import createWalletExtension from "../utils/walletExtension";
 
 /* eslint-disable n/no-process-exit, unicorn/no-process-exit, no-console -- cli */
 import("../api")
   .then(async ({ default: api }) => {
-    const spec = await generateSpecs(api, {
+    const database = drizzle("postgres", { schema });
+    const redis = new Redis({ lazyConnect: true });
+    const segment = createSegment("segment");
+    const handle = api({
+      alchemy: createAlchemy("webhooks"),
+      authSecret: zeroHash,
+      bridge: createBridge("bridge", "https://bridge.test"),
+      database,
+      intercom: createIntercom("intercom"),
+      manteca: createManteca("manteca", "https://manteca.test"),
+      panda: createPanda({ key: "panda", url: "https://panda.test" }),
+      pax: createPax({ associateKey: "pax", key: "pax", url: "https://pax.test" }),
+      persona: createPersona("persona", "https://persona.test"),
+      redis,
+      sardine: createSardine("sardine", "https://api.sardine.ai"),
+      segment,
+      walletExtension: createWalletExtension(zeroHash),
+    });
+    const spec = await generateSpecs(handle.app, {
       documentation: {
         info: { version, title: "Exa API" },
         servers: [
@@ -57,6 +59,8 @@ import("../api")
       },
     });
     await writeFile("generated/openapi.json", JSON.stringify(spec, null, 2));
+    redis.disconnect();
+    await Promise.all([database.$client.end(), segment.close()]);
     process.exit(0);
   })
   .catch((error: unknown) => {

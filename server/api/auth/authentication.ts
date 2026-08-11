@@ -42,19 +42,21 @@ import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 
-import database, { credentials } from "../../database";
+import { credentials } from "../../database/schema";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
-import authSecret from "../../utils/authSecret";
-import createCredential from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
-import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
-import { walletExtension } from "../../utils/walletExtension";
+
+import type * as schema from "../../database/schema";
+import type createCredentialFactory from "../../utils/createCredential";
+import type createIntercom from "../../utils/intercom";
+import type createWalletExtension from "../../utils/walletExtension";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Redis } from "ioredis";
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -136,108 +138,123 @@ export const LegacyAuthentication = object({
   ),
 });
 
-export default new Hono()
-  .get(
-    "/",
-    describeRoute({
-      summary: "Get authentication options",
-      description: `
+export default function route({
+  authSecret,
+  createCredential,
+  database,
+  intercom,
+  redis,
+  walletExtension,
+}: {
+  authSecret: string;
+  createCredential: ReturnType<typeof createCredentialFactory>;
+  database: NodePgDatabase<typeof schema>;
+  intercom: ReturnType<typeof createIntercom>;
+  redis: Redis;
+  walletExtension: ReturnType<typeof createWalletExtension>;
+}) {
+  return new Hono()
+    .get(
+      "/",
+      describeRoute({
+        summary: "Get authentication options",
+        description: `
 Initiates WebAuthn authentication by generating authentication options for a user. Sets a session HTTP-only cookie. This endpoint provides the necessary challenge, relying party info, and credential parameters required for client-side WebAuthn authentication.
 
 **SIWE Flow**
 
 When called with an Ethereum address as \`credentialId\`, this endpoint creates a SIWE challenge message that proves ownership of the address. The server generates a cryptographic nonce, sets it as a short-lived HTTP-only \`session_id\` cookie, and returns a formatted SIWE message containing the challenge, domain, and expiration time.
 `,
-      responses: {
-        200: {
-          description: "WebAuthn authentication options",
-          content: {
-            "application/json": { schema: resolver(AuthenticationOptions, { errorMode: "ignore" }) },
+        responses: {
+          200: {
+            description: "WebAuthn authentication options",
+            content: {
+              "application/json": { schema: resolver(AuthenticationOptions, { errorMode: "ignore" }) },
+            },
           },
         },
-      },
-      tags: ["Credential"],
-      validateResponse: true,
-    }),
-    vValidator(
-      "query",
-      object({
-        credentialId: optional(
-          union([
-            pipe(
-              Address,
-              title("Ethereum address"),
-              description("Address to sign in with. Required for Sign-in with Ethereum."),
-            ),
-            pipe(
-              Base64URL,
-              title("Credential identifier"),
-              description("Credential identifier to sign in with. Optional for WebAuthn."),
-            ),
-          ]),
-        ),
+        tags: ["Credential"],
+        validateResponse: true,
       }),
-      validatorHook({ code: "bad credential" }),
-    ),
-    async (c) => {
-      const timeout = 5 * 60_000;
-      const sessionId = generateSiweNonce();
-      const issuedAt = new Date();
-      const expires = new Date(issuedAt.getTime() + timeout);
-      setCookie(c, "session_id", sessionId, {
-        path: "/",
-        expires,
-        httpOnly: true,
-        ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
-      });
-      c.header("X-Session-Id", sessionId);
-      const { credentialId } = c.req.valid("query");
-      if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
-        const message = createSiweMessage({
-          resources: ["https://exactly.github.io/exa"],
-          statement: "Sign-in to the Exa App",
-          expirationTime: expires,
-          address: credentialId,
-          chainId: chain.id,
-          nonce: sessionId,
-          uri: appOrigin,
-          version: "1",
-          issuedAt,
-          domain,
-          scheme,
+      vValidator(
+        "query",
+        object({
+          credentialId: optional(
+            union([
+              pipe(
+                Address,
+                title("Ethereum address"),
+                description("Address to sign in with. Required for Sign-in with Ethereum."),
+              ),
+              pipe(
+                Base64URL,
+                title("Credential identifier"),
+                description("Credential identifier to sign in with. Optional for WebAuthn."),
+              ),
+            ]),
+          ),
+        }),
+        validatorHook({ code: "bad credential" }),
+      ),
+      async (c) => {
+        const timeout = 5 * 60_000;
+        const sessionId = generateSiweNonce();
+        const issuedAt = new Date();
+        const expires = new Date(issuedAt.getTime() + timeout);
+        setCookie(c, "session_id", sessionId, {
+          path: "/",
+          expires,
+          httpOnly: true,
+          ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
         });
-        await redis.set(sessionId, message, "PX", timeout);
+        c.header("X-Session-Id", sessionId);
+        const { credentialId } = c.req.valid("query");
+        if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
+          const message = createSiweMessage({
+            resources: ["https://exactly.github.io/exa"],
+            statement: "Sign-in to the Exa App",
+            expirationTime: expires,
+            address: credentialId,
+            chainId: chain.id,
+            nonce: sessionId,
+            uri: appOrigin,
+            version: "1",
+            issuedAt,
+            domain,
+            scheme,
+          });
+          await redis.set(sessionId, message, "PX", timeout);
+          return c.json(
+            { method: "siwe" as const, address: credentialId, message } satisfies InferOutput<
+              typeof AuthenticationOptions
+            >,
+            200,
+          );
+        }
+        const options = await generateAuthenticationOptions({
+          rpID: domain,
+          allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
+          timeout,
+        });
+        await redis.set(sessionId, options.challenge, "PX", timeout);
         return c.json(
-          { method: "siwe" as const, address: credentialId, message } satisfies InferOutput<
-            typeof AuthenticationOptions
-          >,
+          {
+            method: "webauthn" as const,
+            ...options,
+            extensions: options.extensions as Extract<
+              InferOutput<typeof AuthenticationOptions>,
+              { method: "webauthn" }
+            >["extensions"],
+          } satisfies InferOutput<typeof AuthenticationOptions>,
           200,
         );
-      }
-      const options = await generateAuthenticationOptions({
-        rpID: domain,
-        allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
-        timeout,
-      });
-      await redis.set(sessionId, options.challenge, "PX", timeout);
-      return c.json(
-        {
-          method: "webauthn" as const,
-          ...options,
-          extensions: options.extensions as Extract<
-            InferOutput<typeof AuthenticationOptions>,
-            { method: "webauthn" }
-          >["extensions"],
-        } satisfies InferOutput<typeof AuthenticationOptions>,
-        200,
-      );
-    },
-  )
-  .post(
-    "/",
-    describeRoute({
-      summary: "Authenticate",
-      description: `
+      },
+    )
+    .post(
+      "/",
+      describeRoute({
+        summary: "Authenticate",
+        description: `
 Authenticates a user using a WebAuthn credential. This endpoint verifies the authentication response from the client and sets a signed cookie for the authenticated session.
 
 **SIWE Authentication**
@@ -245,151 +262,120 @@ Authenticates a user using a WebAuthn credential. This endpoint verifies the aut
 Submit the signed SIWE message to prove ownership of an Ethereum address. The server validates the signature against the original challenge message, verifies the domain and nonce match the session, and checks the message hasn't expired. On successful verification, a signed HTTP-only \`credential_id\` cookie is set for authenticated API access.
 
 `,
-      responses: {
-        200: {
-          description: "Authentication response with session expiry",
-          content: { "application/json": { schema: resolver(LegacyAuthentication, { errorMode: "ignore" }) } },
+        responses: {
+          200: {
+            description: "Authentication response with session expiry",
+            content: { "application/json": { schema: resolver(LegacyAuthentication, { errorMode: "ignore" }) } },
+          },
         },
-      },
-      tags: ["Credential"],
-      validateResponse: true,
-    }),
-    // http-only cookie
-    vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
-      "cookie",
-      Cookie,
-      validatorHook({ code: "bad session" }),
-    ),
-    vValidator(
-      "header",
-      optional(
-        object({
-          "Client-Fid": optional(pipe(string(), maxLength(36))),
-          "Client-Platform": optional(literal("ios")),
-          "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
-        }),
+        tags: ["Credential"],
+        validateResponse: true,
+      }),
+      // http-only cookie
+      vValidator<typeof Cookie, "cookie", Env, "/", undefined, InferOutput<typeof Cookie>>(
+        "cookie",
+        Cookie,
+        validatorHook({ code: "bad session" }),
       ),
-    ),
-    vValidator(
-      "query",
-      optional(
-        object({
-          factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
-        }),
-      ),
-      validatorHook({ code: "bad factory" }),
-    ),
-    vValidator(
-      "json",
-      variant("method", [
-        pipe(
+      vValidator(
+        "header",
+        optional(
           object({
-            method: pipe(literal("siwe"), title("Method"), description("Sign-in with Ethereum.")),
-            id: pipe(Address, title("Address"), description("Address to sign in with.")),
-            signature: pipe(Hex, title("Signature"), description("Signature of the cryptographic challenge message.")),
+            "Client-Fid": optional(pipe(string(), maxLength(36))),
+            "Client-Platform": optional(literal("ios")),
+            "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
-          title("Sign-in with Ethereum"),
         ),
-        pipe(
+      ),
+      vValidator(
+        "query",
+        optional(
           object({
-            method: pipe(optional(literal("webauthn"), "webauthn"), title("Method"), description("WebAuthn.")),
-            id: pipe(
-              Base64URL,
-              title("Credential identifier"),
-              description("Unique identifier for the authenticator."),
-            ),
-            rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
-            response: object({
-              clientDataJSON: pipe(
-                Base64URL,
-                title("Client data"),
-                description("Authentication data from the client."),
-              ),
-              authenticatorData: pipe(
-                Base64URL,
-                title("Authenticator data"),
-                description("Data from the authenticator."),
-              ),
-              signature: pipe(Base64URL, title("Signature"), description("Cryptographic signature of the challenge.")),
-              userHandle: optional(
-                pipe(Base64URL, title("User handle"), description("Optional identifier for the user.")),
+            factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+          }),
+        ),
+        validatorHook({ code: "bad factory" }),
+      ),
+      vValidator(
+        "json",
+        variant("method", [
+          pipe(
+            object({
+              method: pipe(literal("siwe"), title("Method"), description("Sign-in with Ethereum.")),
+              id: pipe(Address, title("Address"), description("Address to sign in with.")),
+              signature: pipe(
+                Hex,
+                title("Signature"),
+                description("Signature of the cryptographic challenge message."),
               ),
             }),
-            clientExtensionResults: pipe(
-              any(),
-              title("Extension results"),
-              description("Results of optional features enabled during authentication."),
-            ),
-            type: pipe(
-              literal("public-key"),
-              title("Credential type"),
-              description("Always `public-key` for WebAuthn."),
-            ),
+            title("Sign-in with Ethereum"),
+          ),
+          pipe(
+            object({
+              method: pipe(optional(literal("webauthn"), "webauthn"), title("Method"), description("WebAuthn.")),
+              id: pipe(
+                Base64URL,
+                title("Credential identifier"),
+                description("Unique identifier for the authenticator."),
+              ),
+              rawId: pipe(Base64URL, title("Raw identifier"), description("Raw bytes of the credential identifier.")),
+              response: object({
+                clientDataJSON: pipe(
+                  Base64URL,
+                  title("Client data"),
+                  description("Authentication data from the client."),
+                ),
+                authenticatorData: pipe(
+                  Base64URL,
+                  title("Authenticator data"),
+                  description("Data from the authenticator."),
+                ),
+                signature: pipe(
+                  Base64URL,
+                  title("Signature"),
+                  description("Cryptographic signature of the challenge."),
+                ),
+                userHandle: optional(
+                  pipe(Base64URL, title("User handle"), description("Optional identifier for the user.")),
+                ),
+              }),
+              clientExtensionResults: pipe(
+                any(),
+                title("Extension results"),
+                description("Results of optional features enabled during authentication."),
+              ),
+              type: pipe(
+                literal("public-key"),
+                title("Credential type"),
+                description("Always `public-key` for WebAuthn."),
+              ),
+            }),
+            title("WebAuthn"),
+          ),
+        ]),
+        validatorHook({ code: "bad authentication" }),
+      ),
+      async (c) => {
+        const assertion = c.req.valid("json");
+        const headers = c.req.valid("header");
+        const factory = c.req.valid("query")?.factory ?? undefined;
+        const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
+        if (!platform.success) return c.json({ code: "bad client platform" }, 400);
+        setContext("auth", assertion);
+        const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
+        if (!sessionId) return c.json({ code: "bad session" }, 400);
+        const [credential, challenge] = await Promise.all([
+          database.query.credentials.findFirst({
+            columns: { publicKey: true, account: true, factory: true, transports: true },
+            where: eq(credentials.id, assertion.id),
           }),
-          title("WebAuthn"),
-        ),
-      ]),
-      validatorHook({ code: "bad authentication" }),
-    ),
-    async (c) => {
-      const assertion = c.req.valid("json");
-      const headers = c.req.valid("header");
-      const factory = c.req.valid("query")?.factory ?? undefined;
-      const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
-      if (!platform.success) return c.json({ code: "bad client platform" }, 400);
-      setContext("auth", assertion);
-      const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
-      if (!sessionId) return c.json({ code: "bad session" }, 400);
-      const [credential, challenge] = await Promise.all([
-        database.query.credentials.findFirst({
-          columns: { publicKey: true, account: true, factory: true, transports: true },
-          where: eq(credentials.id, assertion.id),
-        }),
-        redis.getdel(sessionId),
-      ]);
-      if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
-      if (!credential) {
-        if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
-        try {
-          const message = parseSiweMessage(challenge);
-          if (
-            !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
-            !(await publicClient.verifySiweMessage({
-              message: challenge,
-              address: assertion.id,
-              signature: assertion.signature,
-            }))
-          ) {
-            return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
-          }
-          if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-          const result = await createCredential(c, assertion.id, {
-            factory,
-            source: c.req.header("Client-Fid"),
-            ip: headers?.["do-connecting-ip"],
-          });
-          const account = deriveAddress(result.factory, { x: result.x, y: result.y });
-          const intercomToken = await getIntercomToken(account, result.auth);
-          return c.json(
-            {
-              ...result,
-              expires: result.auth,
-              intercomToken,
-              ...(platform.output === "ios" ? await walletExtension(assertion.id) : {}),
-            } satisfies InferOutput<typeof LegacyAuthentication>,
-            200,
-          );
-        } catch (error) {
-          captureException(error, { level: "error", tags: { unhandled: true } });
-          return c.json({ code: "ouch", legacy: "ouch" }, 500);
-        }
-      }
-      if (factory && factory !== parse(Address, credential.factory)) return c.json({ code: "bad factory" }, 400);
-      setUser({ id: parse(Address, credential.account) });
-
-      try {
-        switch (assertion.method) {
-          case "siwe": {
+          redis.getdel(sessionId),
+        ]);
+        if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
+        if (!credential) {
+          if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
+          try {
             const message = parseSiweMessage(challenge);
             if (
               !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
@@ -401,56 +387,96 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             ) {
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
-            break;
-          }
-          default: {
-            const { verified, authenticationInfo } = await verifyAuthenticationResponse({
-              response: assertion,
-              expectedRPID: domain,
-              expectedOrigin: [appOrigin, ...androidOrigins],
-              expectedChallenge: challenge,
-              credential: {
-                id: assertion.id,
-                publicKey: credential.publicKey,
-                transports: (credential.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
-                counter: 0,
-              },
+            if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
+            const result = await createCredential(c, assertion.id, {
+              factory,
+              source: c.req.header("Client-Fid"),
+              ip: headers?.["do-connecting-ip"],
             });
-            if (!verified || authenticationInfo.credentialID !== assertion.id) {
-              return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
-            }
+            const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+            const intercomToken = await intercom(account, result.auth);
+            return c.json(
+              {
+                ...result,
+                expires: result.auth,
+                intercomToken,
+                ...(platform.output === "ios" ? await walletExtension.create(assertion.id) : {}),
+              } satisfies InferOutput<typeof LegacyAuthentication>,
+              200,
+            );
+          } catch (error) {
+            captureException(error, { level: "error", tags: { unhandled: true } });
+            return c.json({ code: "ouch", legacy: "ouch" }, 500);
           }
         }
-      } catch (error) {
-        captureException(error, { level: "error", tags: { unhandled: true } });
-        return c.json({ code: "ouch", legacy: "ouch" }, 500);
-      }
+        if (factory && factory !== parse(Address, credential.factory)) return c.json({ code: "bad factory" }, 400);
+        setUser({ id: parse(Address, credential.account) });
 
-      const expires = new Date(Date.now() + AUTH_EXPIRY);
-      const [intercomToken] = await Promise.all([
-        getIntercomToken(parse(Address, credential.account), expires),
-        setSignedCookie(c, "credential_id", assertion.id, authSecret, {
-          expires,
-          httpOnly: true,
-          ...(domain === "localhost"
-            ? { sameSite: "lax", secure: false }
-            : { domain, sameSite: "none", secure: true, partitioned: true }),
-        }),
-      ]);
+        try {
+          switch (assertion.method) {
+            case "siwe": {
+              const message = parseSiweMessage(challenge);
+              if (
+                !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
+                !(await publicClient.verifySiweMessage({
+                  message: challenge,
+                  address: assertion.id,
+                  signature: assertion.signature,
+                }))
+              ) {
+                return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
+              }
+              break;
+            }
+            default: {
+              const { verified, authenticationInfo } = await verifyAuthenticationResponse({
+                response: assertion,
+                expectedRPID: domain,
+                expectedOrigin: [appOrigin, ...androidOrigins],
+                expectedChallenge: challenge,
+                credential: {
+                  id: assertion.id,
+                  publicKey: credential.publicKey,
+                  transports: (credential.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
+                  counter: 0,
+                },
+              });
+              if (!verified || authenticationInfo.credentialID !== assertion.id) {
+                return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
+              }
+            }
+          }
+        } catch (error) {
+          captureException(error, { level: "error", tags: { unhandled: true } });
+          return c.json({ code: "ouch", legacy: "ouch" }, 500);
+        }
 
-      return c.json(
-        {
-          credentialId: assertion.id,
-          factory: parse(Address, credential.factory),
-          ...decodePublicKey(credential.publicKey),
-          auth: expires.getTime(),
-          expires: expires.getTime(),
-          intercomToken,
-          ...(platform.output === "ios" ? await walletExtension(assertion.id) : {}),
-        } satisfies InferOutput<typeof LegacyAuthentication>,
-        200,
-      );
-    },
-  );
+        const expires = new Date(Date.now() + AUTH_EXPIRY);
+        const [intercomToken] = await Promise.all([
+          intercom(parse(Address, credential.account), expires),
+          setSignedCookie(c, "credential_id", assertion.id, authSecret, {
+            expires,
+            httpOnly: true,
+            ...(domain === "localhost"
+              ? { sameSite: "lax", secure: false }
+              : { domain, sameSite: "none", secure: true, partitioned: true }),
+          }),
+        ]);
+
+        return c.json(
+          {
+            credentialId: assertion.id,
+            factory: parse(Address, credential.factory),
+            ...decodePublicKey(credential.publicKey),
+            auth: expires.getTime(),
+            expires: expires.getTime(),
+            intercomToken,
+            ...(platform.output === "ios" ? await walletExtension.create(assertion.id) : {}),
+          } satisfies InferOutput<typeof LegacyAuthentication>,
+          200,
+        );
+      },
+    );
+}
 
 const scheme = domain === "localhost" ? "http" : "https";

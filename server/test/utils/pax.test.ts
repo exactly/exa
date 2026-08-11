@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
-import * as pax from "../../utils/pax";
+import createPax from "../../utils/pax";
 import ServiceError from "../../utils/ServiceError";
+
+const pax = createPax({ associateKey: "pax", key: "pax", url: "https://pax.test" });
 
 describe("pax integration", () => {
   beforeEach(() => {

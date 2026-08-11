@@ -8,29 +8,83 @@ import registration from "./auth/registration";
 import card from "./card";
 import kyc from "./kyc";
 import passkey from "./passkey";
-import pax from "./pax";
+import paxRoute from "./pax";
 import ramp from "./ramp";
 import webhook from "./webhook";
+import createAuth from "../middleware/auth";
+import createOrg from "../middleware/org";
 import appOrigin from "../utils/appOrigin";
-import auth from "../utils/auth";
+import createBetterAuth from "../utils/auth";
+import createCredential from "../utils/createCredential";
 
-const api = new Hono()
-  .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
-  .use((c, next) => {
-    if (c.req.method.toUpperCase() === "OPTIONS") return next();
-    if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
-    return csrf({ origin: [appOrigin, "http://localhost:8081"] })(c, next);
-  })
-  .route("/auth/registration", registration)
-  .route("/auth/authentication", authentication)
-  .route("/activity", activity)
-  .route("/card", card)
-  .route("/kyc", kyc)
-  .route("/passkey", passkey) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
-  .route("/pax", pax)
-  .route("/ramp", ramp)
-  .route("/webhook", webhook)
-  .on(["POST", "GET"], "/auth/*", (c) => auth.handler(c.req.raw));
+import type * as schema from "../database/schema";
+import type createAlchemy from "../utils/alchemy";
+import type createIntercom from "../utils/intercom";
+import type createPanda from "../utils/panda";
+import type createPax from "../utils/pax";
+import type createPersona from "../utils/persona";
+import type createBridge from "../utils/ramps/bridge";
+import type createManteca from "../utils/ramps/manteca";
+import type createSardine from "../utils/sardine";
+import type createSegment from "../utils/segment";
+import type createWalletExtension from "../utils/walletExtension";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Redis } from "ioredis";
 
-export default api;
-export type ExaAPI = typeof api;
+export default function api({
+  alchemy,
+  authSecret,
+  bridge,
+  database,
+  intercom,
+  manteca,
+  panda,
+  pax,
+  persona,
+  redis,
+  sardine,
+  segment,
+  walletExtension,
+}: {
+  alchemy: ReturnType<typeof createAlchemy>;
+  authSecret: string;
+  bridge: ReturnType<typeof createBridge>;
+  database: NodePgDatabase<typeof schema>;
+  intercom: ReturnType<typeof createIntercom>;
+  manteca: ReturnType<typeof createManteca>;
+  panda: ReturnType<typeof createPanda>;
+  pax: ReturnType<typeof createPax>;
+  persona: ReturnType<typeof createPersona>;
+  redis: Redis;
+  sardine: ReturnType<typeof createSardine>;
+  segment: ReturnType<typeof createSegment>;
+  walletExtension: ReturnType<typeof createWalletExtension>;
+}) {
+  const betterAuth = createBetterAuth(database, authSecret);
+  const auth = createAuth(authSecret);
+  const org = createOrg(betterAuth);
+  const credential = createCredential({ alchemy, authSecret, database, sardine, segment });
+  const app = new Hono()
+    .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
+    .use((c, next) => {
+      if (c.req.method.toUpperCase() === "OPTIONS") return next();
+      if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
+      return csrf({ origin: [appOrigin, "http://localhost:8081"] })(c, next);
+    })
+    .route("/auth/registration", registration({ createCredential: credential, intercom, redis, walletExtension }))
+    .route(
+      "/auth/authentication",
+      authentication({ authSecret, createCredential: credential, database, intercom, redis, walletExtension }),
+    )
+    .route("/activity", activity({ auth, database }))
+    .route("/card", card({ auth, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/kyc", kyc({ auth, database, panda, persona }))
+    .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
+    .route("/pax", paxRoute({ auth, database, pax }))
+    .route("/ramp", ramp({ auth, bridge, database, manteca, persona }))
+    .route("/webhook", webhook({ betterAuth, database, org }))
+    .on(["POST", "GET"], "/auth/*", (c) => betterAuth.handler(c.req.raw));
+  return { app, ready: Promise.resolve() };
+}
+
+export type ExaAPI = ReturnType<typeof api>["app"];
