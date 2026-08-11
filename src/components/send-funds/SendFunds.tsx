@@ -20,7 +20,6 @@ import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
 import RampButton from "../ramp/RampButton";
-import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -137,7 +136,7 @@ export default function SendFunds() {
                   title={t("Cryptocurrencies")}
                   subtitle={t("Multiple networks and wallets")}
                   onPress={() => {
-                    router.push({ pathname: "/send-funds", params: { type: "crypto" } });
+                    router.push("/send-funds/asset");
                   }}
                 />
                 {hasFiat !== false && chain.id !== base.id && (
@@ -176,16 +175,6 @@ export default function SendFunds() {
                   />
                 )}
               </>
-            )}
-            {type === "crypto" && (
-              <AddFundsOption
-                icon={<ChainLogo size={24} borderRadius="$r3" />}
-                title={t("On chain")}
-                subtitle={t("Send to any wallet on {{chain}}", { chain: chain.name })}
-                onPress={() => {
-                  router.push("/send-funds/receiver");
-                }}
-              />
             )}
             {type === "fiat" && renderProviders("fiat")}
           </YStack>

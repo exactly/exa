@@ -11,7 +11,14 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { bigint, check, parse, pipe, safeParse } from "valibot";
-import { encodeFunctionData, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
+import {
+  encodeFunctionData,
+  erc20Abi,
+  formatUnits,
+  getAddress,
+  parseUnits,
+  zeroAddress as viemZeroAddress,
+} from "viem";
 import { useEstimateGas, useSendCalls, useSimulateContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
@@ -25,6 +32,7 @@ import { Address, type Credential } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import ReviewSheet from "./ReviewSheet";
+import { getRouteFrom, statusOptions } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -53,14 +61,20 @@ export default function Amount() {
   } = useTranslation();
   const [reviewOpen, setReviewOpen] = useState(false);
 
-  const { asset: assetAddress, receiver: receiverAddress, amount } = useLocalSearchParams();
+  const { asset: assetAddress, receiver: receiverAddress, amount, toChain, toToken } = useLocalSearchParams();
   const withdrawAssetParse = safeParse(Address, assetAddress);
   const withdrawReceiverParse = safeParse(Address, receiverAddress);
   const zeroAddress = parse(Address, viemZeroAddress);
   const withdrawAsset = withdrawAssetParse.success ? withdrawAssetParse.output : undefined;
-  const receiver = withdrawReceiverParse.success ? withdrawReceiverParse.output : undefined;
+  const receiver = typeof receiverAddress === "string" ? receiverAddress : "";
+  const receiverHex = withdrawReceiverParse.success ? withdrawReceiverParse.output : undefined;
+  const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
+  const destinationToken = typeof toToken === "string" ? toToken : undefined;
 
-  const { market, externalAsset: external, available, isFetching } = useAsset(withdrawAsset ?? zeroAddress);
+  const { market, externalAsset: external, available, isFetching, markets } = useAsset(withdrawAsset ?? zeroAddress);
+  const assetIn = market?.asset ?? external?.address;
+  const routed =
+    !!destinationToken && (destinationChain !== chain.id || destinationToken.toLowerCase() !== assetIn?.toLowerCase());
 
   const form = useForm({ defaultValues: { amount: typeof amount === "string" ? BigInt(amount) : 0n } });
   const formAmount = useStore(form.store, (state) => state.values.amount);
@@ -80,8 +94,61 @@ export default function Amount() {
     amount: formAmount,
     market: market?.market,
     proposalType: ProposalType.Withdraw,
-    receiver,
-    enabled: !!market && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,
+    receiver: receiverHex,
+    enabled: !routed && !!market && !!address && formAmount > 0n && !!receiverHex && receiverHex !== zeroAddress,
+  });
+
+  const {
+    data: route,
+    error: routeError,
+    isFetching: isRouteFetching,
+  } = useQuery({
+    queryKey: [
+      "lifi",
+      "route",
+      "send",
+      address,
+      assetIn,
+      destinationChain,
+      destinationToken,
+      receiver,
+      String(formAmount),
+    ],
+    queryFn: () => {
+      if (!address || !assetIn || !destinationToken) throw new Error("missing route parameters");
+      return getRouteFrom({
+        fromChainId: chain.id,
+        toChainId: destinationChain,
+        fromTokenAddress: assetIn,
+        toTokenAddress: destinationToken,
+        fromAmount: formAmount,
+        fromAddress: address,
+        toAddress: receiver,
+      });
+    },
+    enabled: routed && !!address && !!assetIn && !!destinationToken && formAmount > 0n,
+    refetchInterval: 20_000,
+    retry: false,
+    meta: { warnError: () => true },
+  });
+
+  const neutralAsset = useMemo(() => {
+    const { success, output } = safeParse(
+      Address,
+      markets?.find(({ asset }) => asset.toLowerCase() !== assetIn?.toLowerCase())?.asset,
+    );
+    return success ? output : undefined;
+  }, [markets, assetIn]);
+
+  const { request: bridgePropose, error: bridgeProposeError } = useSimulateProposal({
+    account: address,
+    amount: formAmount,
+    market: market?.market,
+    proposalType: ProposalType.Swap,
+    assetOut: neutralAsset,
+    minAmountOut: 0n,
+    route: route?.data,
+    enabled: routed && !!market && !!address && !!route && !!neutralAsset && formAmount > 0n,
   });
 
   const externalAddress = useMemo(() => {
@@ -96,19 +163,32 @@ export default function Amount() {
     chainId: chain.id,
     abi: erc20Abi,
     functionName: "transfer",
-    args: receiver ? [receiver, formAmount] : undefined,
+    args: receiverHex ? [receiverHex, formAmount] : undefined,
     query: {
       enabled:
-        !!external && !isNativeTransfer && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,
+        !routed &&
+        !!external &&
+        !isNativeTransfer &&
+        !!address &&
+        formAmount > 0n &&
+        !!receiverHex &&
+        receiverHex !== zeroAddress,
     },
   });
 
   const { data: nativeTransferEstimate } = useEstimateGas({
     chainId: chain.id,
-    to: receiver,
+    to: receiverHex,
     value: formAmount,
     query: {
-      enabled: !!external && isNativeTransfer && !!address && formAmount > 0n && !!receiver && receiver !== zeroAddress,
+      enabled:
+        !routed &&
+        !!external &&
+        isNativeTransfer &&
+        !!address &&
+        formAmount > 0n &&
+        !!receiverHex &&
+        receiverHex !== zeroAddress,
     },
   });
 
@@ -138,11 +218,33 @@ export default function Amount() {
   } = useMutation({
     async mutationFn() {
       if (!sendReady || !receiver) throw new Error("not ready");
+      if (routed) {
+        if (!route || !assetIn) throw new Error("no route ready");
+        if (bridgePropose) {
+          const { address: to, abi, functionName, args } = bridgePropose;
+          return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
+        }
+        return sendCalls([
+          ...(isNativeTransfer
+            ? []
+            : [
+                {
+                  to: getAddress(assetIn),
+                  data: encodeFunctionData({
+                    abi: erc20Abi,
+                    functionName: "approve",
+                    args: [getAddress(route.estimate.approvalAddress), BigInt(route.estimate.fromAmount)],
+                  }),
+                },
+              ]),
+          { to: route.to, data: route.data, value: route.value },
+        ]);
+      }
       if (proposeSimulation) {
         const { address: to, abi, functionName, args } = proposeSimulation;
         return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
       }
-      if (isNativeTransfer) return sendCalls([{ to: receiver, value: formAmount }]);
+      if (isNativeTransfer && receiverHex) return sendCalls([{ to: receiverHex, value: formAmount }]);
       if (erc20TransferSimulation) {
         const { address: to, abi, functionName, args } = erc20TransferSimulation.request;
         return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
@@ -154,22 +256,27 @@ export default function Amount() {
     },
   });
 
-  const sendReady = useMemo(
-    () =>
-      formAmount > 0n &&
-      (market
-        ? !!proposeSimulation
-        : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation)),
-    [
-      external,
-      formAmount,
-      isNativeTransfer,
-      market,
-      nativeTransferEstimate,
-      proposeSimulation,
-      erc20TransferSimulation,
-    ],
-  );
+  const sendReady = useMemo(() => {
+    if (formAmount <= 0n) return false;
+    if (routed) return !!route && (market ? !!bridgePropose : !!assetIn);
+    return market
+      ? !!proposeSimulation
+      : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation);
+  }, [
+    assetIn,
+    bridgePropose,
+    external,
+    formAmount,
+    isNativeTransfer,
+    market,
+    nativeTransferEstimate,
+    proposeSimulation,
+    route,
+    routed,
+    erc20TransferSimulation,
+  ]);
+
+  const { data: routeStatus } = useQuery(statusOptions(routed ? hash : undefined, destinationChain, route?.tool));
 
   const details: {
     amount: string;
@@ -201,14 +308,14 @@ export default function Amount() {
   const isFirstSend = !recentContacts?.some((contact) => contact.address === receiver);
 
   useEffect(() => {
-    if (success && receiver && !recentContacts?.some((contact) => contact.address === receiver)) {
+    if (success && receiverHex && !recentContacts?.some((contact) => contact.address === receiverHex)) {
       queryClient.setQueryData<undefined | { address: Address; ens: string }[]>(["contacts", "recent"], (old) =>
-        [{ address: receiver, ens: "" }, ...(old ?? [])].slice(0, 3),
+        [{ address: receiverHex, ens: "" }, ...(old ?? [])].slice(0, 3),
       );
     }
-  }, [success, receiver, recentContacts]);
+  }, [success, receiverHex, recentContacts]);
 
-  const invalidReceiver = !receiver || receiver === zeroAddress;
+  const invalidReceiver = !receiver || receiverHex === zeroAddress;
   const invalidAsset = !withdrawAsset;
   if (invalidReceiver || invalidAsset) {
     return (
@@ -318,6 +425,30 @@ export default function Amount() {
                     </XStack>
                   )}
                 </XStack>
+                {routed && (
+                  <YStack gap="$s2" padding="$s3" borderRadius="$r2" backgroundColor="$backgroundMild">
+                    <Text caption mono color="$uiNeutralPlaceholder">
+                      {`in  ${assetIn ?? "?"} @ ${chain.id}\nout ${destinationToken} @ ${destinationChain}\nvia ${market ? `swap proposal · assetOut ${neutralAsset ?? "?"} · minAmountOut 0` : "approve + call"}`}
+                    </Text>
+                    <Text caption mono color="$uiNeutralPlaceholder">
+                      {route
+                        ? `tool ${route.tool ?? "?"} · out ${route.toAmount} · min ${route.estimate.toAmountMin} · ~${route.estimate.executionDuration}s · value ${route.value}`
+                        : isRouteFetching
+                          ? "quoting…"
+                          : "no route"}
+                    </Text>
+                    {!!routeError && (
+                      <Text caption mono color="$uiErrorSecondary">
+                        {`quote: ${reason(routeError)}`}
+                      </Text>
+                    )}
+                    {!!bridgeProposeError && (
+                      <Text caption mono color="$uiErrorSecondary">
+                        {`simulation: ${reason(bridgeProposeError)}`}
+                      </Text>
+                    )}
+                  </YStack>
+                )}
               </View>
               <form.Field
                 name="amount"
@@ -459,6 +590,13 @@ export default function Amount() {
           </YStack>
         </YStack>
         {(success || sendError) && <TransactionDetails hash={hash} />}
+        {routed && success && (
+          <Text caption mono color="$uiNeutralPlaceholder" padding="$s3">
+            {
+              `destination ${destinationChain} · ${routeStatus?.status ?? "pending"} ${routeStatus?.substatus ?? ""}` /* cspell:ignore substatus */
+            }
+          </Text>
+        )}
       </View>
       {!pending && (
         <YStack flex={2} justifyContent="flex-end" gap="$s5">
@@ -492,4 +630,31 @@ export default function Amount() {
       )}
     </GradientScrollView>
   );
+}
+
+function reason(error: unknown) {
+  const texts = new Set<string>();
+  let current = error;
+  while (current && typeof current === "object") {
+    const { cause, details, message, responseBody, shortMessage } = current as {
+      cause?: unknown;
+      details?: string;
+      message?: string;
+      responseBody?: {
+        code?: number;
+        errors?: { filteredOut?: { reason?: string; tool?: string }[] };
+        message?: string;
+      };
+      shortMessage?: string;
+    };
+    if (responseBody?.message) texts.add(`${responseBody.code ?? ""} ${responseBody.message}`.trim());
+    for (const { reason: filtered, tool } of responseBody?.errors?.filteredOut ?? []) {
+      texts.add(`${tool ?? "?"}: ${filtered ?? "filtered out"}`);
+    }
+    if (shortMessage) texts.add(shortMessage);
+    if (details) texts.add(details);
+    if (message) texts.add(message.split("\n")[0] ?? message);
+    current = cause;
+  }
+  return [...texts].join(" · ").slice(0, 300) || "unknown error";
 }

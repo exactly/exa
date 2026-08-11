@@ -6,16 +6,17 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
+import { ChainType } from "@lifi/sdk";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
 
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
 import { presentArticle } from "../../utils/intercom";
+import { lifiChainsOptions } from "../../utils/lifi";
+import receiverSchema from "../../utils/receiverSchema";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
@@ -24,10 +25,16 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Address } from "@exactly/common/validation";
+
 export default function ReceiverSelection() {
   const router = useRouter();
-  const { receiver, asset } = useLocalSearchParams();
+  const { receiver, asset, toChain, toToken } = useLocalSearchParams();
   const { t } = useTranslation();
+  const destination = typeof toChain === "string" ? Number(toChain) : chain.id;
+  const { data: chains } = useQuery(lifiChainsOptions);
+  const destinationChain = chains?.find((item) => item.id === destination);
+  const evm = !destinationChain || destinationChain.chainType === ChainType.EVM;
 
   const { data: recentContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
     queryKey: ["contacts", "recent"],
@@ -40,15 +47,10 @@ export default function ReceiverSelection() {
   const form = useForm({
     defaultValues: { receiver: typeof receiver === "string" ? receiver : "" },
     onSubmit: ({ value }) => {
-      const presetAsset = safeParse(Address, asset);
-      if (presetAsset.success) {
-        router.push({
-          pathname: "/send-funds/amount",
-          params: { receiver: value.receiver, asset: presetAsset.output },
-        });
-        return;
-      }
-      router.push({ pathname: "/send-funds/asset", params: { receiver: value.receiver } });
+      router.push({
+        pathname: "/send-funds/amount",
+        params: { receiver: value.receiver, asset, toChain, toToken },
+      });
     },
   });
 
@@ -76,13 +78,13 @@ export default function ReceiverSelection() {
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
           <YStack flex={1} justifyContent="space-between">
             <YStack gap="$s5">
-              <form.Field name="receiver" validators={{ onChange: Address }}>
+              <form.Field name="receiver" validators={{ onChange: receiverSchema(destination) }}>
                 {({ state: { value, meta }, handleChange }) => (
                   <YStack gap="$s2">
                     <XStack flexDirection="row">
                       <Input
                         flex={1}
-                        placeholder={t("Enter {{chain}} address", { chain: chain.name })}
+                        placeholder={t("Enter address")}
                         borderColor="$uiNeutralTertiary"
                         borderTopRightRadius={0}
                         borderBottomRightRadius={0}
@@ -103,7 +105,7 @@ export default function ReceiverSelection() {
                         borderTopLeftRadius={0}
                         borderBottomLeftRadius={0}
                         onPress={() => {
-                          router.push("/send-funds/qr");
+                          router.push({ pathname: "/send-funds/qr", params: { asset, toChain, toToken } });
                         }}
                       >
                         <Button.Icon>
@@ -116,10 +118,13 @@ export default function ReceiverSelection() {
                         {meta.errors[0]?.message.split(",")[0]}
                       </Text>
                     ) : undefined}
+                    <Text padding="$s3" caption color="$uiNeutralPlaceholder" mono>
+                      {`${destinationChain?.name ?? destination} · ${destinationChain?.chainType ?? "?"} · ${typeof toToken === "string" ? toToken : "?"}`}
+                    </Text>
                   </YStack>
                 )}
               </form.Field>
-              {(recentContacts ?? savedContacts) && (
+              {evm && (recentContacts ?? savedContacts) && (
                 <ScrollView maxHeight={350} gap="$s4" showsVerticalScrollIndicator={false}>
                   {recentContacts && recentContacts.length > 0 && (
                     <RecentContacts
@@ -147,7 +152,7 @@ export default function ReceiverSelection() {
               <Text color="$uiNeutralPlaceholder" fontSize={13} textAlign="justify">
                 {t(
                   "Make sure that the receiving address is compatible with {{chain}} network. Sending assets on other networks may result in irreversible loss of funds.",
-                  { chain: chain.name },
+                  { chain: destinationChain?.name ?? chain.name },
                 )}
                 <Text
                   color="$uiBrandSecondary"

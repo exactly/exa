@@ -4,16 +4,16 @@ import { Linking, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 
-import { parse, safeParse } from "valibot";
-import { zeroAddress } from "viem";
+import { safeParse } from "valibot";
 
-import { Address } from "@exactly/common/validation";
+import chain from "@exactly/common/generated/chain";
 
+import receiverSchema from "../../utils/receiverSchema";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
 import Button from "../shared/StyledButton";
@@ -25,6 +25,8 @@ export default function QR() {
   const { height, width } = useWindowDimensions();
 
   const router = useRouter();
+  const { asset, toChain, toToken } = useLocalSearchParams();
+  const destination = typeof toChain === "string" ? Number(toChain) : chain.id;
 
   const [active, setActive] = useState(true);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
@@ -141,11 +143,13 @@ export default function QR() {
       {active && (
         <CameraView
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          onBarcodeScanned={({ data: receiver }) => {
-            const result = safeParse(Address, receiver);
+          onBarcodeScanned={({ data }) => {
+            const result = safeParse(receiverSchema(destination), scanned(data));
             if (!result.success) return;
-            if (result.output === parse(Address, zeroAddress)) return;
-            router.dismissTo({ pathname: "/send-funds/asset", params: { receiver: result.output } });
+            router.replace({
+              pathname: "/send-funds/receiver",
+              params: { receiver: result.output, asset, toChain, toToken },
+            });
           }}
           facing={cameraFacing}
           style={styles.cameraView}
@@ -187,6 +191,12 @@ export default function QR() {
       </View>
     </View>
   );
+}
+
+function scanned(data: string) {
+  const target = data.split("?")[0] ?? "";
+  const withoutScheme = target.includes(":") ? target.slice(target.lastIndexOf(":") + 1) : target;
+  return withoutScheme.split("@")[0] ?? "";
 }
 
 const styles = StyleSheet.create({ cameraView: { flex: 1 } });

@@ -19,6 +19,8 @@ export default function SendFundsLayout() {
       <Stack.Screen name="review" />
       <Stack.Screen name="qr" />
       <Stack.Screen name="asset" />
+      <Stack.Screen name="destination" />
+      <Stack.Screen name="token" />
       <Stack.Screen name="amount" />
     </Stack>
   );

@@ -17,8 +17,6 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Address } from "@exactly/common/validation";
-
 export default function ReviewSheet({
   amount,
   isFirstSend,
@@ -35,7 +33,7 @@ export default function ReviewSheet({
   onClose: () => void;
   onSend: () => void;
   open: boolean;
-  receiver?: Address;
+  receiver?: string;
   sendReady: boolean;
   symbol?: string;
   usdValue: string;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Platform } from "react-native";
 
 import { Image } from "expo-image";
@@ -12,7 +12,6 @@ import chain from "@exactly/common/generated/chain";
 import Text from "./Text";
 import { getTokenLogoURI } from "../../utils/assetLogos";
 import { lifiTokensOptions } from "../../utils/lifi";
-import reportError from "../../utils/reportError";
 
 const StyledImage = styled(Image, {
   name: "AssetLogo",
@@ -22,16 +21,6 @@ const StyledImage = styled(Image, {
   placeholderContentFit: "cover",
   borderRadius: "$r_0",
   overflow: "hidden",
-  onError: ({ error }) => {
-    if (
-      // cspell:ignore javax
-      !/internet connection appears to be offline|request timed out|could not connect to the server|tls error|java\.net\.|javax\.net\./i.test(
-        error,
-      )
-    ) {
-      reportError(new Error(error));
-    }
-  },
 });
 
 export default function AssetLogo({
@@ -47,8 +36,9 @@ export default function AssetLogo({
   uri?: string;
   width: number;
 }) {
+  const [failed, setFailed] = useState<string>();
   const { data: tokens = [] } = useQuery({ ...lifiTokensOptions, enabled: !defaultUri });
-  const uri =
+  const source =
     defaultUri ??
     (symbol
       ? getTokenLogoURI(
@@ -56,6 +46,7 @@ export default function AssetLogo({
           symbol,
         )
       : undefined);
+  const uri = source === failed ? undefined : source;
   if (!uri) {
     return (
       <View
@@ -72,5 +63,14 @@ export default function AssetLogo({
       </View>
     );
   }
-  return <StyledImage source={{ uri }} width={width} height={height} />;
+  return (
+    <StyledImage
+      source={{ uri }}
+      width={width}
+      height={height}
+      onError={() => {
+        setFailed(uri);
+      }}
+    />
+  );
 }

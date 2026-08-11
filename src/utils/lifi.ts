@@ -5,14 +5,17 @@ import {
   EVM,
   getChains,
   getQuote,
+  getStatus,
   getToken,
   getTokens,
+  getTools,
+  type ChainId,
   type Estimate,
   type ExtendedChain,
   type Token,
   type TokenAmount,
 } from "@lifi/sdk";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, skipToken } from "@tanstack/react-query";
 import { array, boolean, nullish, number, object, optional, parse, string, union, unknown } from "valibot";
 import { encodeFunctionData, formatUnits, getAddress, zeroAddress, type Address } from "viem";
 import { anvil } from "viem/chains";
@@ -26,6 +29,8 @@ import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";
 
+export const chainTypes = [ChainType.EVM, ChainType.MVM, ChainType.SVM, ChainType.TVM, ChainType.UTXO]; // cspell:ignore UTXO
+
 export const lifiChainsOptions = queryOptions({
   queryKey: ["lifi", "chains"],
   staleTime: Infinity,
@@ -35,11 +40,30 @@ export const lifiChainsOptions = queryOptions({
     if (chain.testnet || chain.id === anvil.id) return [];
     try {
       ensureConfig();
-      return await getChains({ chainTypes: [ChainType.EVM] });
+      return await getChains({ chainTypes });
     } catch (error) {
       reportError(error);
       return [];
     }
+  },
+});
+
+export const destinationsOptions = queryOptions({
+  queryKey: ["lifi", "destinations"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  enabled: !chain.testnet && chain.id !== anvil.id,
+  queryFn: async () => {
+    if (chain.testnet || chain.id === anvil.id) return [];
+    ensureConfig();
+    const { bridges } = await getTools();
+    const reachable = new Set<number>([chain.id]);
+    for (const { supportedChains } of bridges) {
+      for (const { fromChainId, toChainId } of supportedChains) {
+        if (fromChainId === (chain.id as ChainId)) reachable.add(toChainId);
+      }
+    }
+    return [...reachable];
   },
 });
 
@@ -52,7 +76,7 @@ export const lifiTokensOptions = queryOptions({
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
     ensureConfig();
-    const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+    const { tokens } = await getTokens({ chainTypes });
     const allTokens = Object.values(tokens).flat();
     if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
       throw new Error("missing destination tokens");
@@ -125,6 +149,20 @@ export function bridgeSourcesOptions(account: Address | undefined, protocolSymbo
   });
 }
 
+export function statusOptions(txHash: string | undefined, toChain: number | undefined, bridge: string | undefined) {
+  return queryOptions({
+    queryKey: ["lifi", "status", txHash, toChain, bridge],
+    queryFn:
+      txHash && !chain.testnet && chain.id !== anvil.id
+        ? () => {
+            ensureConfig();
+            return getStatus({ txHash, fromChain: chain.id, toChain, bridge });
+          }
+        : skipToken,
+    refetchInterval: ({ state }) => (state.data?.status === "DONE" || state.data?.status === "FAILED" ? false : 10_000),
+  });
+}
+
 let configured = false;
 function ensureConfig() {
   if (configured || chain.testnet || chain.id === anvil.id) return;
@@ -135,7 +173,7 @@ function ensureConfig() {
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
     rpcUrls: Object.fromEntries(Object.entries(alchemyURLs).map(([id, url]) => [id, [url]])),
   });
-  config.loading = getChains({ chainTypes: [ChainType.EVM] })
+  config.loading = getChains({ chainTypes })
     .then((availableChains) => {
       config.setChains(availableChains);
       queryClient.setQueryData(lifiChainsOptions.queryKey, availableChains);
@@ -267,7 +305,7 @@ export async function getRouteFrom({
   fromAmount: bigint;
   fromChainId?: number;
   fromTokenAddress: string;
-  toAddress: Address;
+  toAddress: string;
   toChainId?: number;
   toTokenAddress: string;
 }): Promise<RouteFrom> {
@@ -290,7 +328,7 @@ export async function getRouteFrom({
       data: encodeFunctionData({
         abi: mockSwapperAbi,
         functionName: "swapExactAmountIn",
-        args: [from, fromAmount, to, toAmount, toAddress],
+        args: [from, fromAmount, to, toAmount, getAddress(toAddress)],
       }),
       estimate: {
         tool: "mockSwapper",

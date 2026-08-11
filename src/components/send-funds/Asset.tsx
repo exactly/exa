@@ -1,44 +1,20 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Pressable } from "react-native";
+import { Pressable } from "react-native";
 
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
-import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
-import { Avatar, ScrollView, XStack } from "tamagui";
+import { ArrowLeft } from "@tamagui/lucide-icons";
+import { ScrollView } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-import { safeParse } from "valibot";
-
-import shortenHex from "@exactly/common/shortenHex";
-import { Address } from "@exactly/common/validation";
-
-import queryClient from "../../utils/queryClient";
 import AssetSelector from "../shared/AssetSelector";
-import Blocky from "../shared/Blocky";
 import SafeView from "../shared/SafeView";
-import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AssetSelection() {
   const router = useRouter();
-  const { receiver: receiverAddress } = useLocalSearchParams();
-  const parsed = safeParse(Address, receiverAddress);
   const { t } = useTranslation();
-
-  const { data: savedContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
-    queryKey: ["contacts", "saved"],
-  });
-
-  if (!parsed.success) return <Redirect href="/send-funds/receiver" />;
-  const receiver = parsed.output;
-
-  const handleSubmit = (asset: Address, external: boolean) => {
-    router.push({ pathname: "/send-funds/amount", params: { receiver, asset, external: String(external) } });
-  };
-
-  const hasContact = savedContacts?.find((contact) => contact.address === receiver);
 
   return (
     <SafeView fullScreen>
@@ -63,55 +39,9 @@ export default function AssetSelection() {
         </View>
         <ScrollView flex={1}>
           <View flex={1} gap="$s5">
-            <XStack
-              alignItems="center"
-              backgroundColor="$backgroundBrandSoft"
-              borderRadius="$r2"
-              justifyContent="space-between"
-              paddingVertical="$s2"
-              paddingHorizontal="$s2"
-            >
-              <XStack alignItems="center" gap="$s3" paddingHorizontal="$s1">
-                <Avatar size={32} backgroundColor="$interactiveBaseBrandDefault" borderRadius="$r_0">
-                  <Blocky seed={receiver} />
-                </Avatar>
-                <Text emphasized callout color="$uiNeutralSecondary">
-                  {t("To:")}
-                </Text>
-                <Text callout color="$uiNeutralPrimary" mono>
-                  {shortenHex(receiver)}
-                </Text>
-              </XStack>
-              <Button
-                secondary={!hasContact}
-                dangerSecondary={!!hasContact}
-                minHeight={0}
-                padding="$s3_5"
-                onPress={() => {
-                  queryClient.setQueryData<undefined | { address: Address; ens: string; name: string }[]>(
-                    ["contacts", "saved"],
-                    (old) => {
-                      if (hasContact) {
-                        return old?.filter((contact) => contact.address !== receiver);
-                      }
-                      const newContact = { name: t("New Contact"), address: receiver, ens: "" };
-                      return [...(old ?? []), newContact];
-                    },
-                  );
-                  Alert.alert(
-                    hasContact ? t("Contact removed") : t("Contact added"),
-                    hasContact
-                      ? t("This address has been removed from your contacts list.")
-                      : t("This address has been added to your contacts list."),
-                  );
-                }}
-              >
-                <Button.Icon>{hasContact ? <UserMinus size={24} /> : <UserPlus size={24} />}</Button.Icon>
-              </Button>
-            </XStack>
             <AssetSelector
-              onSubmit={(market, external) => {
-                handleSubmit(market, external);
+              onSubmit={(asset, external) => {
+                router.push({ pathname: "/send-funds/destination", params: { asset, external: String(external) } });
               }}
             />
           </View>
