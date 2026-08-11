@@ -45,7 +45,7 @@ import database, { credentials } from "../../database";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
-import createCredential from "../../utils/createCredential";
+import createCredential, { credentialSalt } from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
@@ -271,10 +271,22 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       "query",
       optional(
         object({
+          accountType: optional(
+            pipe(
+              literal("business"),
+              title("Account type"),
+              description("Creates a business credential. Omit for an individual credential."),
+            ),
+          ),
           factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
         }),
       ),
-      validatorHook({ code: "bad factory" }),
+      (result, c) => {
+        const accountType = c.req.query("accountType");
+        return validatorHook({
+          code: accountType !== undefined && accountType !== "business" ? "bad account type" : "bad factory",
+        })(result, c);
+      },
     ),
     vValidator(
       "json",
@@ -359,7 +371,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
           }
           if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-          const result = await createCredential(c, assertion.id, { factory, source: c.req.header("Client-Fid") });
+          const result = await createCredential(c, assertion.id, {
+            factory,
+            salt: credentialSalt(c.req.valid("query")?.accountType),
+            source: c.req.header("Client-Fid"),
+          });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
           const intercomToken = await getIntercomToken(account, result.auth);
           return c.json(

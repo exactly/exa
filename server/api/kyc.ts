@@ -4,7 +4,21 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { array, literal, metadata, number, object, optional, parse, picklist, pipe, string, union } from "valibot";
+import {
+  array,
+  literal,
+  metadata,
+  minLength,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  pipe,
+  strictObject,
+  string,
+  union,
+} from "valibot";
 import { getAddress, sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
@@ -19,11 +33,20 @@ import { Address, Hex } from "@exactly/common/validation";
 
 import database, { credentials, walletAddresses } from "../database/index";
 import auth from "../middleware/auth";
+import { isBusinessSalt } from "../utils/createCredential";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
   Application,
   UpdateApplicationRequest as ApplicationUpdate,
+  BusinessApplicationError,
+  businessApplicationFromPersona,
+  CompanyApplicationResponse,
+  CompanyApplicationStatusResponse,
+  createCompanyApplication,
+  createMutex,
   getApplicationStatus,
+  getCompanyApplicationStatus,
+  getMutex,
   submitApplication,
   updateApplication,
 } from "../utils/panda";
@@ -63,6 +86,8 @@ const BadRequestCodes = {
   BAD_REQUEST: "bad request",
 } as const;
 
+const failedKycStatus = new Set(["denied", "locked", "canceled"]);
+
 function buildBaseResponse(example = "string") {
   return object({
     code: pipe(string(), metadata({ examples: [example] })),
@@ -78,7 +103,7 @@ export default new Hono()
       "query",
       object({
         countryCode: optional(literal("true")),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca"])),
       }),
       validatorHook(),
     ),
@@ -95,6 +120,9 @@ export default new Hono()
       const account = parse(Address, credential.account);
       setUser({ id: account });
       setContext("exa", { credential });
+      if ((scope === "business") !== isBusinessSalt(parse(Address, credential.salt))) {
+        return c.json({ code: "not supported" }, 400);
+      }
 
       if (scope === "cardLimit") {
         const unknownAccount = c.req.valid("query").countryCode
@@ -163,7 +191,7 @@ export default new Hono()
         throw error;
       }
       if (!inquiryTemplateId) {
-        if (c.req.valid("query").countryCode) {
+        if (scope !== "business" && c.req.valid("query").countryCode) {
           const personaAccount = await getAccount(credentialId, scope).catch((error: unknown) => {
             captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
           });
@@ -203,7 +231,7 @@ export default new Hono()
       "json",
       object({
         redirectURI: optional(string()),
-        scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+        scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca"])),
       }),
       validatorHook({ debug }),
     ),
@@ -213,12 +241,15 @@ export default new Hono()
       const scope = payload.scope ?? "basic";
       const redirectURI = payload.redirectURI;
       const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true },
+        columns: { id: true, account: true, pandaId: true, salt: true },
         where: eq(credentials.id, credentialId),
       });
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
+      if ((scope === "business") !== isBusinessSalt(parse(Address, credential.salt))) {
+        return c.json({ code: "not supported" }, 400);
+      }
 
       if (scope === "cardLimit") {
         const cardLimit = await getCardLimitStatus(credentialId);
@@ -237,17 +268,15 @@ export default new Hono()
             const basicAccount = await getAccount(credentialId, "basic").catch((error: unknown) => {
               captureException(error, { level: "error", contexts: { details: { credentialId, scope: "cardLimit" } } });
             });
-            const { data } = await createInquiry(
-              credentialId,
-              CARD_LIMIT_TEMPLATE,
-              redirectURI,
-              basicAccount
+            const { data } = await createInquiry(credentialId, CARD_LIMIT_TEMPLATE, {
+              fields: basicAccount
                 ? {
                     "name-first": basicAccount.attributes["name-first"],
                     "name-last": basicAccount.attributes["name-last"],
                   }
                 : undefined,
-            );
+              redirectURI,
+            });
             return c.json(await generateInquiryTokens(data.id), 200);
           }
           case "completed":
@@ -280,7 +309,17 @@ export default new Hono()
 
       const inquiry = await getInquiry(credentialId, inquiryTemplateId);
       if (!inquiry) {
-        const { data } = await createInquiry(credentialId, inquiryTemplateId, redirectURI);
+        const { data } = await createInquiry(credentialId, inquiryTemplateId, {
+          ...(scope === "business"
+            ? {
+                accountTypeId: parse(
+                  pipe(string(), minLength(1, "missing persona business account type id")),
+                  process.env.PERSONA_BUSINESS_ACCOUNT_TYPE_ID,
+                ),
+              }
+            : {}),
+          redirectURI,
+        });
         return c.json(await generateInquiryTokens(data.id), 200);
       }
 
@@ -410,7 +449,10 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           description: "KYC application submitted successfully",
           content: {
             "application/json": {
-              schema: resolver(object({ status: string() }), { errorMode: "ignore" }),
+              schema: resolver(
+                union([object({ status: string() }), CompanyApplicationStatusResponse, CompanyApplicationResponse]),
+                { errorMode: "ignore" },
+              ),
             },
           },
         },
@@ -421,8 +463,10 @@ The admin should add a member using [addMember method](https://www.better-auth.c
               schema: resolver(
                 union([
                   object({ code: picklist(["invalid encryption", "no account", "bad chain"]), message: string() }),
+                  object({ code: literal("not supported") }),
                   object({
-                    ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
+                    code: picklist(["bad kyc", "bad request", "not started", "processing"]),
+                    legacy: picklist(["bad request", "kyc not approved", "kyc not started"]),
                     message: optional(array(string())),
                   }),
                 ]),
@@ -477,25 +521,81 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       },
       validateResponse: true,
     }),
+    vValidator("query", optional(object({ type: optional(literal("business")) })), validatorHook({ debug })),
     vValidator(
       "json",
-      union([
-        object({
-          ...Application.entries,
-          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-        }),
-        object({
-          key: string(),
-          iv: string(),
-          ciphertext: string(),
-          tag: string(),
-          verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
-        }),
-      ]),
+      optional(
+        union([
+          object({
+            ...Application.entries,
+            verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+          }),
+          object({
+            key: string(),
+            iv: string(),
+            ciphertext: string(),
+            tag: string(),
+            verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
+          }),
+          strictObject({}),
+        ]),
+      ),
       validatorHook({ debug }),
     ),
     async (c) => {
       const payload = c.req.valid("json");
+      const isBusiness = c.req.valid("query")?.type === "business";
+      const { credentialId } = c.req.valid("cookie");
+      const accountCredential = await database.query.credentials.findFirst({
+        columns: { account: true, salt: true },
+        where: eq(credentials.id, credentialId),
+      });
+      if (!accountCredential) return c.json({ code: "no credential" }, 500);
+      if (isBusiness !== isBusinessSalt(parse(Address, accountCredential.salt))) {
+        return c.json({ code: "not supported" }, 400);
+      }
+      if (isBusiness) {
+        if (payload && "verify" in payload) {
+          return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
+        }
+
+        const account = parse(Address, accountCredential.account);
+        return (getMutex(account) ?? createMutex(account)).runExclusive(async () => {
+          const applicationCredential = await database.query.credentials.findFirst({
+            columns: { pandaCompanyId: true, pandaId: true },
+            where: eq(credentials.id, credentialId),
+          });
+          if (!applicationCredential) return c.json({ code: "no credential" }, 500);
+          try {
+            if (applicationCredential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+            const application = applicationCredential.pandaCompanyId
+              ? await getCompanyApplicationStatus(applicationCredential.pandaCompanyId)
+              : await createCompanyApplication(
+                  await businessApplicationFromPersona(credentialId, account, c.req.header("do-connecting-ip")),
+                  { idempotencyKey: `business-application:${credentialId}` },
+                ).then(async (result) => {
+                  await database
+                    .update(credentials)
+                    .set({ pandaCompanyId: result.id })
+                    .where(eq(credentials.id, credentialId));
+                  return result;
+                });
+            if (failedKycStatus.has(application.applicationStatus)) {
+              return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
+            }
+            setUser({ id: account });
+            return c.json(application, 200);
+          } catch (error) {
+            if (error instanceof BusinessApplicationError)
+              return c.json({ code: error.code, legacy: error.legacy, message: [error.message] }, 400);
+            throw error;
+          }
+        });
+      }
+      if (!payload || !("verify" in payload)) {
+        return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
+      }
+
       const { message, signature, walletAddress: address } = payload.verify;
 
       if (!(await verifyMessage({ address, message, signature }))) {
@@ -522,7 +622,6 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       if (member.role !== "admin" && member.role !== "owner") return c.json({ code: "no permission" }, 403);
       if (member.organization.role !== "kyc") return c.json({ code: "no permission" }, 403);
 
-      const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         columns: { id: true, account: true, pandaId: true },
         where: eq(credentials.id, credentialId),
@@ -681,12 +780,21 @@ The admin should add a member using [addMember method](https://www.better-auth.c
     async (c) => {
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
-        columns: { id: true, account: true, pandaId: true },
+        columns: { id: true, account: true, pandaCompanyId: true, pandaId: true, salt: true },
         where: eq(credentials.id, credentialId),
       });
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
       setContext("exa", { credential });
+      if (isBusinessSalt(parse(Address, credential.salt))) {
+        if (!credential.pandaCompanyId)
+          return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
+        const status = await getCompanyApplicationStatus(credential.pandaCompanyId);
+        return c.json(
+          { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason ?? "unknown" },
+          200,
+        );
+      }
       if (!credential.pandaId) {
         return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
       }

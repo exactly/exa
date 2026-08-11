@@ -22,6 +22,7 @@ import app, { Authentication } from "../../api/auth/authentication";
 import registrationApp from "../../api/auth/registration";
 import database, { credentials } from "../../database";
 import authSecret from "../../utils/authSecret";
+import { isBusinessSalt } from "../../utils/createCredential";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import validFactories from "../../utils/validFactories";
@@ -452,10 +453,45 @@ describe("authentication", () => {
 
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, id),
-      columns: { source: true },
+      columns: { salt: true, source: true },
     });
+    expect(credential?.salt).toBe(zeroAddress);
     expect(credential?.source).toBe("12345");
     await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("creates a business credential from the account type using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0x2234567890123456789012345678901234567890";
+    const response = await appClient.index.$post(
+      {
+        json: { method: "siwe", id, signature: "0xdeadbeef" },
+        query: { accountType: "business" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    assert.ok(credential);
+    expect(isBusinessSalt(parse(Address, credential.salt))).toBe(true);
+  });
+
+  it("rejects an explicit individual account type during authentication", async () => {
+    const response = await appClient.index.$post(
+      {
+        json: { method: "siwe", id: "0x4234567890123456789012345678901234567890", signature: "0xdeadbeef" },
+        query: { accountType: "individual" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "bad account type" });
+    await expect(redis.exists("test-session")).resolves.toBe(1);
   });
 
   it("creates a credential using siwe", async () => {
@@ -742,6 +778,35 @@ describe("registration", () => {
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
+  it("creates a business credential from the account type during siwe registration", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0x3234567890123456789012345678901234567890";
+    const response = await registrationAppClient.index.$post(
+      {
+        json: { method: "siwe", id, signature: "0xdeadbeef" },
+        query: { accountType: "business" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(isBusinessSalt(parse(Address, parse(Authentication, await response.json()).salt))).toBe(true);
+  });
+
+  it("rejects an explicit individual account type during registration", async () => {
+    const response = await registrationAppClient.index.$post(
+      {
+        json: { method: "siwe", id: "0x5234567890123456789012345678901234567890", signature: "0xdeadbeef" },
+        query: { accountType: "individual" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "bad account type" });
+    await expect(redis.exists("test-session")).resolves.toBe(1);
+  });
+
   it("rejects siwe registration on optimism", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const id = "0x1234567890123456789012345678901234567899";
@@ -813,8 +878,9 @@ describe("registration", () => {
 
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, "dGVzdC1jcmVkLWlk2"),
-      columns: { source: true },
+      columns: { salt: true, source: true },
     });
+    expect(credential?.salt).toBe(zeroAddress);
     expect(credential?.source).toBe("12345");
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });

@@ -169,6 +169,32 @@ describe("is missing or null util", () => {
   });
 });
 
+describe("createInquiry", () => {
+  it("selects the configured Persona account type when provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "created", "reference-id": "reference-id" },
+        },
+      }),
+    );
+
+    await persona.createInquiry("reference-id", "template-id", { accountTypeId: "acttp_company" }); // cspell:ignore acttp
+
+    const body = fetchSpy.mock.calls[0]?.[1]?.body;
+    if (typeof body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(body)).toMatchObject({
+      meta: {
+        "auto-create-account": true,
+        "auto-create-account-reference-id": "reference-id",
+        "auto-create-account-type-id": "acttp_company", // cspell:ignore acttp
+      },
+    });
+  });
+});
+
 describe("evaluateAccount", () => {
   let fetchSpy: MockInstance<typeof fetch>;
   beforeEach(() => {
@@ -177,6 +203,7 @@ describe("evaluateAccount", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("throws when scope is not supported", async () => {
@@ -571,6 +598,55 @@ describe("evaluateAccount", () => {
       );
 
       expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+    });
+  });
+
+  describe("business", () => {
+    it.each(["approved", "completed"])(
+      "uses the configured template when the %s inquiry has no account",
+      async (status) => {
+        const template = "itmpl_custom";
+        vi.stubEnv("PERSONA_BUSINESS_TEMPLATE_ID", template);
+        const inquiry = { id: "inquiry-id", type: "inquiry", attributes: { status, "reference-id": "reference-id" } };
+        fetchSpy.mockResolvedValueOnce(Response.json({ data: status === "approved" ? [inquiry] : [] }));
+        if (status === "completed") fetchSpy.mockResolvedValueOnce(Response.json({ data: [inquiry] }));
+        fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+        await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBe(template);
+      },
+    );
+
+    it.each(["approved", "completed"])("returns undefined when the %s inquiry has an account", async (status) => {
+      vi.stubEnv("PERSONA_BUSINESS_TEMPLATE_ID", "itmpl_custom");
+      const inquiry = { id: "inquiry-id", type: "inquiry", attributes: { status, "reference-id": "reference-id" } };
+      fetchSpy.mockResolvedValueOnce(Response.json({ data: status === "approved" ? [inquiry] : [] }));
+      if (status === "completed") fetchSpy.mockResolvedValueOnce(Response.json({ data: [inquiry] }));
+      fetchSpy.mockResolvedValueOnce(Response.json({ data: [{ id: "account-id", type: "account", attributes: {} }] }));
+
+      await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBeUndefined();
+    });
+
+    it("returns the configured business template when an account is not found", async () => {
+      vi.stubEnv("PERSONA_BUSINESS_TEMPLATE_ID", "itmpl_custom");
+
+      await expect(persona.evaluateAccount({ data: [] }, "business")).resolves.toBe("itmpl_custom");
+    });
+
+    it("uses the configured business template", () => {
+      const template = "itmpl_custom";
+      vi.stubEnv("PERSONA_BUSINESS_TEMPLATE_ID", template);
+
+      expect(persona.getBusinessTemplate()).toBe(template);
+    });
+
+    it("rejects an invalid configured business template", () => {
+      vi.stubEnv("PERSONA_BUSINESS_TEMPLATE_ID", "invalid");
+
+      expect(() => persona.getBusinessTemplate()).toThrow();
+    });
+
+    it("returns undefined when a business account exists", async () => {
+      await expect(persona.evaluateAccount(emptyAccount, "business")).resolves.toBeUndefined();
     });
   });
 

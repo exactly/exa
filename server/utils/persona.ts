@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   array,
   boolean,
+  brand,
   flatten,
   literal,
   minValue,
@@ -13,8 +14,11 @@ import {
   number,
   object,
   optional,
+  parse,
   picklist,
   pipe,
+  record,
+  regex,
   safeParse,
   string,
   unknown,
@@ -40,6 +44,7 @@ export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; //
 export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
+export const PANDA_BUSINESS_TEMPLATE = "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
 export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
@@ -77,18 +82,25 @@ export function resumeInquiry(inquiryId: string) {
 export function createInquiry(
   referenceId: string,
   templateId: string,
-  redirectURI?: string,
-  fields?: { "name-first": string; "name-last": string },
+  options: {
+    accountTypeId?: string;
+    fields?: { "name-first": string; "name-last": string };
+    redirectURI?: string;
+  } = {},
 ) {
   return request(CreateInquiryResponse, "/inquiries", {
     data: {
       attributes: {
         "inquiry-template-id": templateId,
-        "redirect-uri": `${redirectURI ?? appOrigin}/card`,
-        ...(fields && { fields }),
+        "redirect-uri": `${options.redirectURI ?? appOrigin}/card`,
+        ...(options.fields && { fields: options.fields }),
       },
     },
-    meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
+    meta: {
+      "auto-create-account": true,
+      "auto-create-account-reference-id": referenceId,
+      ...(options.accountTypeId && { "auto-create-account-type-id": options.accountTypeId }),
+    },
   });
 }
 
@@ -313,6 +325,7 @@ const accountScopeSchemas = {
   manteca: object({ data: array(MantecaAccount) }),
   document: object({ data: array(DocumentAccount) }),
   cardLimit: object({ data: array(CardLimitAccount) }),
+  business: UnknownAccount,
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
@@ -386,14 +399,30 @@ export function getUnknownAccount(referenceId: string) {
 }
 
 export async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
+  if (scope === "business") {
+    const template = getBusinessTemplate();
+    const inquiry = await getInquiry(referenceId, template);
+    if (!inquiry || (inquiry.attributes.status !== "approved" && inquiry.attributes.status !== "completed"))
+      return template;
+  }
   const unknownAccount = await getUnknownAccount(referenceId);
   return evaluateAccount(unknownAccount, scope);
+}
+
+export function getBusinessTemplate() {
+  return process.env.PERSONA_BUSINESS_TEMPLATE_ID
+    ? parse(
+        pipe(string(), regex(/^itmpl_[\dA-Za-z]+$/), brand("BusinessTemplate")), // cspell:ignore itmpl
+        process.env.PERSONA_BUSINESS_TEMPLATE_ID,
+      )
+    : PANDA_BUSINESS_TEMPLATE;
 }
 
 export async function evaluateAccount(
   unknownAccount: InferOutput<typeof UnknownAccount>,
   scope: AccountScope,
 ): Promise<
+  | ReturnType<typeof getBusinessTemplate>
   | typeof CARD_LIMIT_TEMPLATE
   | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
   | typeof MANTECA_TEMPLATE_WITH_ID_CLASS
@@ -405,6 +434,8 @@ export async function evaluateAccount(
       throw new Error("document account scope not supported");
     case "cardLimit":
       return (await evaluateAccount(unknownAccount, "basic")) ?? CARD_LIMIT_TEMPLATE;
+    case "business":
+      return unknownAccount.data[0] ? undefined : getBusinessTemplate();
     case "basic": {
       const result = safeParse(accountScopeSchemas[scope], unknownAccount);
       if (!result.success) {
@@ -479,6 +510,7 @@ export const Inquiry = object({
   attributes: object({
     status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
     "reference-id": string(),
+    fields: optional(record(string(), object({ value: unknown() }))),
   }),
 });
 

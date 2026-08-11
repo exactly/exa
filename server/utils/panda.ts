@@ -1,4 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
+import { setContext } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import { eq } from "drizzle-orm";
 import {
@@ -6,6 +7,8 @@ import {
   boolean,
   check,
   email,
+  flatten,
+  ip,
   ipv4,
   ipv6,
   length,
@@ -22,10 +25,15 @@ import {
   partial,
   picklist,
   pipe,
+  record,
   regex,
+  safeParse,
   string,
   transform,
   union,
+  unknown,
+  url as urlValidator,
+  ValiError,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
@@ -47,6 +55,7 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { getAccount, getBusinessTemplate, getInquiry } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 import database, { credentials } from "../database";
@@ -63,6 +72,11 @@ if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
 
 export default key;
+
+function requireSubtenant() {
+  if (!process.env.PANDA_SUBTENANT_ID) throw new Error("missing panda subtenant id");
+  return process.env.PANDA_SUBTENANT_ID;
+}
 
 export async function createCard(
   userId: string,
@@ -103,6 +117,33 @@ export async function createUser(user: {
   personaShareToken: string;
 }) {
   return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST");
+}
+
+export function createCompanyApplication(
+  application: InferInput<typeof CreateCompanyApplicationRequest>,
+  options: { idempotencyKey?: string } = {},
+) {
+  return request(
+    CompanyApplicationResponse,
+    "/issuing/applications/company",
+    options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {},
+    parse(CreateCompanyApplicationRequest, application),
+    "POST",
+    10_000,
+    requireSubtenant(),
+  );
+}
+
+export function getCompanyApplicationStatus(companyId: string) {
+  return request(
+    CompanyApplicationStatusResponse,
+    `/issuing/applications/company/${companyId}`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    requireSubtenant(),
+  );
 }
 
 export async function updateUser(user: {
@@ -227,12 +268,14 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  subtenantId?: string,
 ) {
   const response = await fetch(`${baseURL}${url}`, {
     method,
     headers: {
       ...headers,
       "Api-Key": key,
+      ...(subtenantId && { "Sub-Tenant-Id": subtenantId }),
       accept: "application/json",
       "content-type": "application/json",
     },
@@ -517,6 +560,207 @@ const AddressSchema = object({
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
 });
 
+const birthDate = pipe(
+  string(),
+  regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD format"),
+  check((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, "must be a valid date"),
+);
+
+const CorporatePerson = object({
+  firstName: pipe(string(), maxLength(50)),
+  lastName: pipe(string(), maxLength(50)),
+  birthDate,
+  nationalId: pipe(string(), maxLength(50)),
+  countryOfIssue: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+  email: pipe(string(), email()),
+  address: AddressSchema,
+  id: optional(string()),
+  phoneCountryCode: optional(pipe(string(), minLength(1), maxLength(3), regex(/^\d+$/))),
+  phoneNumber: optional(pipe(string(), minLength(1), maxLength(15), regex(/^\d{1,15}$/))),
+});
+
+export const CreateCompanyApplicationRequest = object({
+  initialUser: object({
+    ...CorporatePerson.entries,
+    ipAddress: pipe(string(), maxLength(50), ip()),
+    isTermsOfServiceAccepted: pipe(boolean(), literal(true)),
+    role: optional(pipe(string(), maxLength(50))),
+    walletAddress: Address,
+    solanaAddress: optional(pipe(string(), regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/))),
+    stellarAddress: optional(pipe(string(), maxLength(255))),
+  }),
+  name: pipe(string(), minLength(1), maxLength(100)),
+  address: AddressSchema,
+  entity: object({
+    name: pipe(string(), minLength(1), maxLength(100)),
+    description: pipe(string(), minLength(1), maxLength(500)),
+    industry: pipe(string(), regex(/^\d{6}$/)),
+    registrationNumber: pipe(string(), minLength(1), maxLength(100)),
+    taxId: pipe(string(), minLength(1), maxLength(100)),
+    website: optional(pipe(string(), minLength(1), maxLength(255), urlValidator())),
+    type: pipe(string(), minLength(1), maxLength(100)),
+    expectedSpend: pipe(string(), minLength(1), maxLength(100)),
+  }),
+  representatives: array(CorporatePerson),
+  ultimateBeneficialOwners: array(CorporatePerson),
+  chainId: optional(pipe(string(), minLength(1), maxLength(50))),
+  contractAddress: optional(pipe(string(), regex(/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/))),
+  sourceKey: optional(pipe(string(), minLength(1), maxLength(24))),
+  externalId: optional(pipe(string(), minLength(1), maxLength(255))),
+});
+
+const businessKeys = {
+  companyName: "i_company_name",
+  companyDescription: "company_description",
+  companyIndustry: "company_industry",
+  companyRegistrationNumber: "company_registration_number",
+  companyTaxId: "company_tax_id",
+  companyWebsite: "company_website",
+  companyType: "company_type",
+  companyExpectedSpend: "company_expected_spend",
+  userFirstName: "i_auth_user_name",
+  userLastName: "i_auth_user_last_name",
+  userBirthDate: "birth_date",
+  userNationalId: "id_number",
+  userCountryOfIssue: "id_country",
+  userEmail: "collected_email_address",
+  termsOfServiceAccepted: "terms_and_conditions",
+};
+
+export class BusinessApplicationError extends Error {
+  constructor(
+    message: string,
+    readonly code: "bad kyc" | "bad request" | "not started" | "processing",
+    readonly legacy: "bad request" | "kyc not approved" | "kyc not started",
+  ) {
+    super(message);
+  }
+}
+
+function requiredBusinessField(fields: Record<string, { value: unknown }> | undefined, name: string) {
+  const field = fields?.[name];
+  if (field?.value == null)
+    throw new BusinessApplicationError("business account is not complete", "processing", "kyc not approved");
+  return field.value;
+}
+
+function businessAddress(fields: Record<string, { value: unknown }> | undefined, suffix = "") {
+  const field = (name: string) => requiredBusinessField(fields, `${name}${suffix}`);
+  const line2 = fields?.[`street_2${suffix}`]?.value;
+  return {
+    line1: field("street_1"),
+    line2: line2 == null || line2 === "" ? undefined : line2,
+    city: field("city"),
+    region: field("subdivision"),
+    postalCode: field("postal_code"),
+    countryCode: field("country_code"),
+  };
+}
+
+export async function businessApplicationFromPersona(
+  credentialId: string,
+  accountAddress: Address,
+  ipAddress?: string,
+) {
+  try {
+    parse(pipe(string(), ip()), ipAddress);
+  } catch {
+    throw new BusinessApplicationError("missing valid client IP address", "bad request", "bad request");
+  }
+  const inquiry = await getInquiry(credentialId, getBusinessTemplate());
+  if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started", "kyc not started");
+  if (inquiry.attributes["reference-id"] !== credentialId)
+    throw new BusinessApplicationError("business inquiry does not match credential", "bad request", "bad request");
+  switch (inquiry.attributes.status) {
+    case "created":
+    case "expired":
+    case "pending":
+      throw new BusinessApplicationError("business inquiry is not started", "not started", "kyc not started");
+    case "failed":
+    case "declined":
+      throw new BusinessApplicationError("business inquiry failed", "bad kyc", "kyc not approved");
+    case "needs_review":
+      throw new BusinessApplicationError("business inquiry is not complete", "processing", "kyc not approved");
+    case "approved":
+    case "completed":
+      break;
+  }
+  const account = await getAccount(credentialId, "business");
+  if (!account) throw new BusinessApplicationError("business account not started", "not started", "kyc not started");
+  const fields = (() => {
+    try {
+      const output = parse(
+        object({
+          "reference-id": string(),
+          fields: record(string(), object({ value: unknown() })),
+        }),
+        account.attributes,
+      );
+      if (output["reference-id"] !== credentialId)
+        throw new BusinessApplicationError("business account is not complete", "processing", "kyc not approved");
+      return output.fields;
+    } catch (error) {
+      if (error instanceof BusinessApplicationError) throw error;
+      if (error instanceof ValiError)
+        throw new BusinessApplicationError("business account is not complete", "processing", "kyc not approved");
+      throw error;
+    }
+  })();
+  for (const [inquiryName, inquiryField] of Object.entries(inquiry.attributes.fields ?? {})) {
+    const accountName = inquiryName.replaceAll("-", "_");
+    if (fields[accountName]?.value == null && inquiryField.value != null) fields[accountName] = inquiryField;
+  }
+  const field = (name: keyof typeof businessKeys) => requiredBusinessField(fields, businessKeys[name]);
+  const expectedSpend = field("companyExpectedSpend");
+  if (typeof expectedSpend !== "string" && typeof expectedSpend !== "number")
+    throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");
+  const website = fields[businessKeys.companyWebsite]?.value;
+  const initialUser = {
+    firstName: field("userFirstName"),
+    lastName: field("userLastName"),
+    birthDate: field("userBirthDate"),
+    nationalId: field("userNationalId"),
+    countryOfIssue: field("userCountryOfIssue"),
+    email: field("userEmail"),
+    address: businessAddress(fields, "_1"),
+    ipAddress,
+    isTermsOfServiceAccepted: field("termsOfServiceAccepted"),
+    walletAddress: accountAddress,
+  };
+  const companyPerson = {
+    firstName: initialUser.firstName,
+    lastName: initialUser.lastName,
+    birthDate: initialUser.birthDate,
+    nationalId: initialUser.nationalId,
+    countryOfIssue: initialUser.countryOfIssue,
+    email: initialUser.email,
+    address: initialUser.address,
+  };
+  const result = safeParse(CreateCompanyApplicationRequest, {
+    initialUser,
+    name: field("companyName"),
+    address: businessAddress(fields),
+    entity: {
+      name: field("companyName"),
+      description: field("companyDescription"),
+      industry: field("companyIndustry"),
+      registrationNumber: field("companyRegistrationNumber"),
+      taxId: field("companyTaxId"),
+      website: website == null || website === "" ? undefined : website,
+      type: field("companyType"),
+      expectedSpend: String(expectedSpend),
+    },
+    representatives: [companyPerson],
+    ultimateBeneficialOwners: [companyPerson],
+  });
+  if (result.success) return result.output;
+  setContext("validation", { ...result, flatten: flatten(result.issues) });
+  throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");
+}
+
 export const Application = object({
   email: pipe(
     string(),
@@ -526,15 +770,7 @@ export const Application = object({
   lastName: pipe(string(), maxLength(50), metadata({ description: "The person's last name" })),
   firstName: pipe(string(), maxLength(50), metadata({ description: "The person's first name" })),
   nationalId: pipe(string(), maxLength(50), metadata({ description: "The person's national ID" })),
-  birthDate: pipe(
-    string(),
-    regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD format"),
-    check((value) => {
-      const date = new Date(value);
-      return !Number.isNaN(date.getTime());
-    }, "must be a valid date"),
-    metadata({ description: "Birth date (YYYY-MM-DD)", examples: ["1970-01-01"] }),
-  ),
+  birthDate: pipe(birthDate, metadata({ description: "Birth date (YYYY-MM-DD)", examples: ["1970-01-01"] })),
   countryOfIssue: pipe(
     string(),
     length(2),
@@ -597,6 +833,37 @@ export const kycStatus = [
   "denied",
   "locked",
 ] as const;
+
+const ApplicationLink = object({ url: pipe(string(), urlValidator()), params: unknown() });
+const ApplicationReview = {
+  applicationReason: optional(string()),
+  applicationCompletionLink: optional(ApplicationLink),
+  applicationExternalVerificationLink: optional(ApplicationLink),
+};
+
+export const CompanyApplicationStatusResponse = object({
+  id: string(),
+  applicationStatus: picklist(kycStatus),
+  ...ApplicationReview,
+});
+
+export const CompanyApplicationResponse = object({
+  id: string(),
+  name: string(),
+  address: AddressSchema,
+  applicationStatus: picklist(kycStatus),
+  ultimateBeneficialOwners: optional(
+    array(
+      object({
+        id: string(),
+        ...ApplicationReview,
+      }),
+    ),
+  ),
+  externalId: optional(string()),
+  sourceKey: optional(string()),
+  ...ApplicationReview,
+});
 
 const ApplicationStatusResponse = object({
   id: string(),

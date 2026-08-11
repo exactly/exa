@@ -41,7 +41,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
-import createCredential from "../../utils/createCredential";
+import createCredential, { credentialSalt } from "../../utils/createCredential";
 import getIntercomToken from "../../utils/intercom";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
@@ -270,10 +270,22 @@ export default new Hono()
       "query",
       optional(
         object({
+          accountType: optional(
+            pipe(
+              literal("business"),
+              title("Account type"),
+              description("Creates a business credential. Omit for an individual credential."),
+            ),
+          ),
           factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
         }),
       ),
-      validatorHook({ code: "bad factory" }),
+      (result, c) => {
+        const accountType = c.req.query("accountType");
+        return validatorHook({
+          code: accountType !== undefined && accountType !== "business" ? "bad account type" : "bad factory",
+        })(result, c);
+      },
     ),
     vValidator(
       "json",
@@ -386,6 +398,7 @@ export default new Hono()
         const result = await createCredential(c, attestation.id, {
           factory,
           webauthn,
+          salt: credentialSalt(c.req.valid("query")?.accountType),
           source: c.req.header("Client-Fid"),
         });
         const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });

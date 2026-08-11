@@ -1,12 +1,20 @@
 import "../mocks/sentry";
 
+import { setContext } from "@sentry/node";
+import { parse, type InferInput } from "valibot";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address } from "@exactly/common/validation";
 
 import * as panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 const chainMock = vi.hoisted(() => ({ id: 0 }));
 
@@ -16,6 +24,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
     rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
   }),
 }));
+vi.mock("@sentry/node", { spy: true });
 
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {
@@ -198,5 +207,207 @@ describe("siwe", () => {
       expect.stringContaining("/issuing/users/e5cd86bb-a19e-4a66-9728-9e6c5d97e616/signatures/verify"),
       expect.objectContaining({ method: "PUT", body: JSON.stringify(payload) }),
     );
+  });
+});
+
+describe("corporate applications", () => {
+  const address = { line1: "1 Main St", city: "New York", region: "NY", postalCode: "10001", countryCode: "US" };
+  const person = {
+    firstName: "Jane",
+    lastName: "Doe",
+    birthDate: "1990-01-01",
+    nationalId: "123456789",
+    countryOfIssue: "US",
+    email: "jane@example.com",
+    address,
+  };
+  const initialUser = {
+    ...person,
+    ipAddress: "127.0.0.1",
+    isTermsOfServiceAccepted: true,
+    walletAddress: "0x0000000000000000000000000000000000000001",
+  };
+
+  const accountFields = {
+    i_company_name: { value: "Account Acme" },
+    company_description: { value: null },
+    company_industry: { value: "541511" },
+    company_registration_number: { value: "123" },
+    company_tax_id: { value: "456" },
+    company_website: { value: "" },
+    company_type: { value: "corporation" },
+    company_expected_spend: { value: 1000 },
+    i_auth_user_name: { value: "Jane" },
+    i_auth_user_last_name: { value: "Doe" },
+    birth_date: { value: "1990-01-01" },
+    id_number: { value: "123456789" },
+    id_country: { value: "US" },
+    collected_email_address: { value: "jane@example.com" },
+    terms_and_conditions: { value: true },
+    street_1: { value: address.line1 },
+    street_2: { value: "" },
+    city: { value: address.city },
+    subdivision: { value: address.region },
+    postal_code: { value: address.postalCode },
+    country_code: { value: address.countryCode },
+    street_1_1: { value: address.line1 },
+    street_2_1: { value: "" },
+    city_1: { value: address.city },
+    subdivision_1: { value: address.region },
+    postal_code_1: { value: address.postalCode },
+    country_code_1: { value: address.countryCode },
+  };
+
+  it("rejects calendar-invalid birth dates", () => {
+    expect(() =>
+      parse(panda.CreateCompanyApplicationRequest.entries.initialUser, { ...initialUser, birthDate: "2025-02-29" }),
+    ).toThrow();
+    expect(() => parse(panda.Application.entries.birthDate, "2025-02-29")).toThrow();
+  });
+
+  it("accepts leap-year birth dates", () => {
+    expect(() =>
+      parse(panda.CreateCompanyApplicationRequest.entries.initialUser, { ...initialUser, birthDate: "2024-02-29" }),
+    ).not.toThrow();
+    expect(() => parse(panda.Application.entries.birthDate, "2024-02-29")).not.toThrow();
+  });
+
+  it.each([
+    { label: "empty", value: "" },
+    { label: "null", value: null },
+  ])("prefers Account fields and omits $label optional fields", async ({ value }) => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "inquiry-id",
+              type: "inquiry",
+              attributes: {
+                status: "approved",
+                "reference-id": "reference-id",
+                fields: { "company-description": { value: "Inquiry software" } },
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "account-id",
+              type: "account",
+              attributes: {
+                "reference-id": "reference-id",
+                fields: {
+                  ...accountFields,
+                  company_website: { value },
+                  street_2: { value },
+                  street_2_1: { value },
+                },
+              },
+            },
+          ],
+        }),
+      );
+
+    const application = await panda.businessApplicationFromPersona(
+      "reference-id",
+      parse(Address, "0x0000000000000000000000000000000000000001"),
+      "127.0.0.1",
+    );
+
+    expect(application).toMatchObject({
+      name: "Account Acme",
+      address: { line2: undefined },
+      entity: { name: "Account Acme", description: "Inquiry software", industry: "541511" },
+      initialUser: { address: { line2: undefined } },
+    });
+    expect(application.entity.website).toBeUndefined();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports invalid Persona fields to Sentry", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "inquiry-id",
+              type: "inquiry",
+              attributes: {
+                status: "approved",
+                "reference-id": "reference-id",
+                fields: { "company-description": { value: "Inquiry software" } },
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "account-id",
+              type: "account",
+              attributes: {
+                "reference-id": "reference-id",
+                fields: { ...accountFields, street_1: { value: 1 } },
+              },
+            },
+          ],
+        }),
+      );
+
+    await expect(
+      panda.businessApplicationFromPersona(
+        "reference-id",
+        parse(Address, "0x0000000000000000000000000000000000000001"),
+        "127.0.0.1",
+      ),
+    ).rejects.toMatchObject({ message: "invalid business Persona fields" });
+    expect(setContext).toHaveBeenCalledExactlyOnceWith("validation", expect.anything());
+  });
+
+  it("creates a company application in the configured subtenant", async () => {
+    vi.stubEnv("PANDA_SUBTENANT_ID", "subtenant_123");
+    const response = { id: "company_123", name: "Acme", address, applicationStatus: "pending" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(Response.json(response)));
+    const application = {
+      initialUser,
+      name: "Acme",
+      address,
+      entity: {
+        name: "Acme Inc",
+        description: "Software",
+        industry: "541511",
+        registrationNumber: "123",
+        taxId: "456",
+        type: "corporation",
+        expectedSpend: "1000",
+      },
+      representatives: [person],
+      ultimateBeneficialOwners: [person],
+    } satisfies InferInput<typeof panda.CreateCompanyApplicationRequest>;
+
+    await expect(
+      panda.createCompanyApplication(application, { idempotencyKey: "application_123" }),
+    ).resolves.toStrictEqual(response);
+    const [url, options] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe("https://panda.test/issuing/applications/company");
+    expect(options?.method).toBe("POST");
+    expect(new Headers(options?.headers).get("Idempotency-Key")).toBe("application_123");
+    expect(new Headers(options?.headers).get("Sub-Tenant-Id")).toBe("subtenant_123");
+    if (typeof options?.body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(options.body)).toStrictEqual(parse(panda.CreateCompanyApplicationRequest, application));
+
+    await expect(panda.getCompanyApplicationStatus("company_123")).resolves.toStrictEqual({
+      id: "company_123",
+      applicationStatus: "pending",
+    });
+    const statusOptions = fetchSpy.mock.calls[1]?.[1];
+    expect(new Headers(statusOptions?.headers).get("Sub-Tenant-Id")).toBe("subtenant_123");
   });
 });

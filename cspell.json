@@ -1,9 +1,6 @@
 {
   "language": "en",
-  "import": [
-    "@cspell/dict-es-es/cspell-ext.json",
-    "@cspell/dict-pt-br/cspell-ext.json"
-  ],
+  "import": ["@cspell/dict-es-es/cspell-ext.json", "@cspell/dict-pt-br/cspell-ext.json"],
   "ignorePaths": [
     "*.svg",
     "*.local.yaml",
@@ -172,6 +169,8 @@
     "subproject",
     "subprojects",
     "substreams",
+    "subtenant",
+
     "surl",
     "tamagui",
     "tanstack",
@@ -183,6 +182,7 @@
     "undeployed",
     "underspecified",
     "unshallow",
+    "unstub",
     "valibot",
     "valierror",
     "valkey",
@@ -307,15 +307,8 @@
     {
       "filename": "**/i18n/**/pt.json",
       "language": "en,pt",
-      "words": [
-        "autocustódia",
-        "criptomoedas"
-      ]
+      "words": ["autocustódia", "criptomoedas"]
     }
   ],
-  "ignoreRegExpList": [
-    "\\bitmpl_\\w+\\b",
-    "\\b(w|stat)?aBas\\w+\\b",
-    "\\baOpt\\w+\\b"
-  ]
+  "ignoreRegExpList": ["\\bitmpl_\\w+\\b", "\\b(w|stat)?aBas\\w+\\b", "\\baOpt\\w+\\b"]
 }
