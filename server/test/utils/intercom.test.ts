@@ -2,7 +2,9 @@ import { decodeJwt } from "jose";
 import { generatePrivateKey, privateKeyToAccount, type Address } from "viem/accounts";
 import { assert, beforeEach, describe, expect, it } from "vitest";
 
-import getIntercomToken from "../../utils/intercom";
+import intercom from "../../utils/intercom";
+
+const getIntercomToken = intercom("intercom");
 
 describe("intercom", () => {
   let account: Address;

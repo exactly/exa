@@ -53,446 +53,450 @@ import { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
-import database, { cards, credentials, transactions } from "../database";
-import auth from "../middleware/auth";
+import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
+import type db from "../database";
+import type { Auth } from "../middleware/auth";
+
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
 
-export default new Hono().get(
-  "/",
-  auth(),
-  vValidator(
-    "query",
-    optional(
-      object({
-        include: optional(union([ActivityTypes, array(ActivityTypes)])),
-        maturity: optional(pipe(string(), digits(), transform(Number))),
-      }),
-      {},
+export default function route({ auth, database }: { auth: Auth; database: typeof db }) {
+  return new Hono().get(
+    "/",
+    auth,
+    vValidator(
+      "query",
+      optional(
+        object({
+          include: optional(union([ActivityTypes, array(ActivityTypes)])),
+          maturity: optional(pipe(string(), digits(), transform(Number))),
+        }),
+        {},
+      ),
+      validatorHook(),
     ),
-    validatorHook(),
-  ),
-  async (c) => {
-    const { include, maturity } = c.req.valid("query");
-    if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
-    function ignore(type: InferInput<typeof ActivityTypes>) {
-      return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
-    }
+    async (c) => {
+      const { include, maturity } = c.req.valid("query");
+      if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
+      function ignore(type: InferInput<typeof ActivityTypes>) {
+        return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
+      }
 
-    const { credentialId } = c.req.valid("cookie");
-    const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, credentialId),
-      columns: { account: true },
-      with: {
-        cards: {
-          columns: { id: true, lastFour: true },
-          with: { transactions: { columns: { hashes: true, payload: true } } },
-          limit: ignore("card") || maturity !== undefined ? 0 : undefined,
+      const { credentialId } = c.req.valid("cookie");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true },
+        with: {
+          cards: {
+            columns: { id: true, lastFour: true },
+            with: { transactions: { columns: { hashes: true, payload: true } } },
+            limit: ignore("card") || maturity !== undefined ? 0 : undefined,
+          },
         },
-      },
-    });
-    if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-    const account = parse(Address, credential.account);
-    setUser({ id: account });
+      });
+      if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
+      const account = parse(Address, credential.account);
+      setUser({ id: account });
 
-    const [markets, plugins] = await Promise.all([
-      publicClient
-        .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
-        .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
-      !ignore("repay") || !ignore("sent") || !ignore("received")
-        ? publicClient
-            .getContractEvents({
-              abi: upgradeableModularAccountAbi,
-              eventName: "PluginInstalled",
-              address: account,
+      const [markets, plugins] = await Promise.all([
+        publicClient
+          .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
+          .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
+        !ignore("repay") || !ignore("sent") || !ignore("received")
+          ? publicClient
+              .getContractEvents({
+                abi: upgradeableModularAccountAbi,
+                eventName: "PluginInstalled",
+                address: account,
+                toBlock: "latest",
+                fromBlock: 0n,
+                strict: true,
+              })
+              .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
+          : Promise.resolve(forbid(new Set<Hex>())),
+      ]);
+
+      const market = (address: Hex) => {
+        const found = markets.get(address.toLowerCase() as Hex);
+        if (!found) throw new Error("market not found");
+        return found;
+      };
+
+      const repayPromise =
+        !ignore("repay") || !ignore("received")
+          ? publicClient.getContractEvents({
+              abi: marketAbi,
+              eventName: "RepayAtMaturity",
+              address: [...markets.keys()],
+              args: { caller: [...plugins, debtManagerAddress], borrower: account },
               toBlock: "latest",
               fromBlock: 0n,
               strict: true,
             })
-            .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
-        : Promise.resolve(forbid(new Set<Hex>())),
-    ]);
+          : Promise.resolve(forbid([]));
 
-    const market = (address: Hex) => {
-      const found = markets.get(address.toLowerCase() as Hex);
-      if (!found) throw new Error("market not found");
-      return found;
-    };
-
-    const repayPromise =
-      !ignore("repay") || !ignore("received")
-        ? publicClient.getContractEvents({
-            abi: marketAbi,
-            eventName: "RepayAtMaturity",
-            address: [...markets.keys()],
-            args: { caller: [...plugins, debtManagerAddress], borrower: account },
-            toBlock: "latest",
-            fromBlock: 0n,
-            strict: true,
-          })
-        : Promise.resolve(forbid([]));
-
-    const [deposits, repays, withdraws, borrows] = await Promise.all([
-      ignore("received")
-        ? []
-        : Promise.all([
-            publicClient
-              .getContractEvents({
+      const [deposits, repays, withdraws, borrows] = await Promise.all([
+        ignore("received")
+          ? []
+          : Promise.all([
+              publicClient
+                .getContractEvents({
+                  abi: marketAbi,
+                  eventName: "Deposit",
+                  address: [...markets.keys()],
+                  args: { caller: account, owner: account },
+                  toBlock: "latest",
+                  fromBlock: 0n,
+                  strict: true,
+                })
+                .then((logs) =>
+                  logs.map((log) =>
+                    parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                      typeof DepositActivity
+                    >),
+                  ),
+                ),
+              repayPromise,
+            ]).then(([deposit, repay]) =>
+              deposit.filter(
+                ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
+              ),
+            ),
+        ignore("repay")
+          ? []
+          : repayPromise.then((logs) =>
+              logs
+                .filter(({ args }) => maturity === undefined || Number(args.maturity) === maturity)
+                .map((log) =>
+                  parse(RepayActivity, {
+                    ...log,
+                    market: market(log.address),
+                  } satisfies InferInput<typeof RepayActivity>),
+                ),
+            ),
+        ignore("sent")
+          ? []
+          : Promise.all([
+              publicClient.getContractEvents({
                 abi: marketAbi,
-                eventName: "Deposit",
+                eventName: "Withdraw",
                 address: [...markets.keys()],
                 args: { caller: account, owner: account },
                 toBlock: "latest",
                 fromBlock: 0n,
                 strict: true,
+              }),
+              publicClient.getContractEvents({
+                abi: proposalManagerAbi,
+                eventName: "Proposed",
+                address: proposalManagerAddress,
+                args: { account, market: marketWETHAddress },
+                toBlock: "latest",
+                fromBlock: 0n,
+                strict: true,
+              }),
+            ]).then(([withdraw, proposed]) =>
+              Promise.all(
+                withdraw.map(async (log) => {
+                  const receiver = log.args.receiver.toLowerCase() as Hex;
+                  if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
+                    return log;
+                  }
+                  if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
+                    const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
+                    if (data === "0x3ccfd60b") return log;
+                    const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
+                    if (functionName !== "executeProposal") return;
+                    const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
+                    if (!proposal) return;
+                    return {
+                      ...log,
+                      args: {
+                        caller: account,
+                        receiver: decodeWithdraw(proposal.args.data),
+                        owner: account,
+                        assets: proposal.args.amount,
+                        shares: -1n,
+                      },
+                    } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
+                  }
+                }),
+              ).then((logs) =>
+                logs
+                  .filter((log) => !!log)
+                  .map((log) =>
+                    parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                      typeof WithdrawActivity
+                    >),
+                  ),
+              ),
+            ),
+        ignore("card")
+          ? undefined
+          : publicClient
+              .getContractEvents({
+                abi: marketAbi,
+                eventName: "BorrowAtMaturity",
+                address: marketUSDCAddress,
+                args: { borrower: account },
+                toBlock: "latest",
+                fromBlock: 0n,
+                strict: true,
               })
               .then((logs) =>
-                logs.map((log) =>
-                  parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                    typeof DepositActivity
-                  >),
-                ),
+                logs.reduce((map, { args, transactionHash, blockNumber }) => {
+                  const data = map.get(transactionHash);
+                  if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
+                  data.events.push(args);
+                  return map;
+                }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
               ),
-            repayPromise,
-          ]).then(([deposit, repay]) =>
-            deposit.filter(
-              ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
-            ),
+      ]);
+      const blocks = await Promise.all(
+        [
+          ...new Set(
+            [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? [])].map(({ blockNumber }) => blockNumber),
           ),
-      ignore("repay")
-        ? []
-        : repayPromise.then((logs) =>
-            logs
-              .filter(({ args }) => maturity === undefined || Number(args.maturity) === maturity)
-              .map((log) =>
-                parse(RepayActivity, {
-                  ...log,
-                  market: market(log.address),
-                } satisfies InferInput<typeof RepayActivity>),
-              ),
-          ),
-      ignore("sent")
-        ? []
-        : Promise.all([
-            publicClient.getContractEvents({
-              abi: marketAbi,
-              eventName: "Withdraw",
-              address: [...markets.keys()],
-              args: { caller: account, owner: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            }),
-            publicClient.getContractEvents({
-              abi: proposalManagerAbi,
-              eventName: "Proposed",
-              address: proposalManagerAddress,
-              args: { account, market: marketWETHAddress },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            }),
-          ]).then(([withdraw, proposed]) =>
-            Promise.all(
-              withdraw.map(async (log) => {
-                const receiver = log.args.receiver.toLowerCase() as Hex;
-                if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
-                  return log;
-                }
-                if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
-                  const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
-                  if (data === "0x3ccfd60b") return log;
-                  const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
-                  if (functionName !== "executeProposal") return;
-                  const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
-                  if (!proposal) return;
-                  return {
-                    ...log,
-                    args: {
-                      caller: account,
-                      receiver: decodeWithdraw(proposal.args.data),
-                      owner: account,
-                      assets: proposal.args.amount,
-                      shares: -1n,
-                    },
-                  } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
-                }
-              }),
-            ).then((logs) =>
-              logs
-                .filter((log) => !!log)
-                .map((log) =>
-                  parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                    typeof WithdrawActivity
-                  >),
-                ),
-            ),
-          ),
-      ignore("card")
-        ? undefined
-        : publicClient
-            .getContractEvents({
-              abi: marketAbi,
-              eventName: "BorrowAtMaturity",
-              address: marketUSDCAddress,
-              args: { borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-            .then((logs) =>
-              logs.reduce((map, { args, transactionHash, blockNumber }) => {
-                const data = map.get(transactionHash);
-                if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
-                data.events.push(args);
-                return map;
-              }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
-            ),
-    ]);
-    const blocks = await Promise.all(
-      [
-        ...new Set(
-          [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? [])].map(({ blockNumber }) => blockNumber),
-        ),
-      ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
-    );
-    const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
-    const purchases =
-      !ignore("card") && borrows && maturity !== undefined
-        ? await (() => {
-            const hashes = borrows
-              .entries()
-              .filter(([_, { events }]) => events.some(({ maturity: m }) => Number(m) === maturity))
-              .map(([hash]) => hash)
-              .toArray();
-            if (hashes.length === 0) return [];
-            return database.query.cards.findMany({
-              where: eq(cards.credentialId, credentialId),
-              columns: { id: true, lastFour: true },
-              with: {
-                transactions: {
-                  columns: { hashes: true, payload: true },
-                  where: arrayOverlaps(transactions.hashes, hashes),
+        ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
+      );
+      const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
+      const purchases =
+        !ignore("card") && borrows && maturity !== undefined
+          ? await (() => {
+              const hashes = borrows
+                .entries()
+                .filter(([_, { events }]) => events.some(({ maturity: m }) => Number(m) === maturity))
+                .map(([hash]) => hash)
+                .toArray();
+              if (hashes.length === 0) return [];
+              return database.query.cards.findMany({
+                where: eq(cards.credentialId, credentialId),
+                columns: { id: true, lastFour: true },
+                with: {
+                  transactions: {
+                    columns: { hashes: true, payload: true },
+                    where: arrayOverlaps(transactions.hashes, hashes),
+                  },
                 },
-              },
+              });
+            })()
+          : credential.cards;
+
+      const accept = accepts(c, {
+        header: "Accept",
+        supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
+        default: "application/json",
+      });
+      const pdf = accept === "application/pdf";
+
+      const response = [
+        ...purchases.flatMap(({ id: cardId, lastFour, transactions: txs }) =>
+          txs.map(({ hashes, payload }) => {
+            const panda = safeParse(PandaActivity, {
+              ...(payload as object),
+              hashes,
+              borrows: hashes.map((h) => {
+                const b = borrows?.get(h as Hash);
+                if (!b) return null;
+                const filtered =
+                  maturity === undefined ? b.events : b.events.filter(({ maturity: m }) => Number(m) === maturity);
+                if (filtered.length === 0) return null;
+                return {
+                  events: maturity !== undefined && b.events.length > 1 ? b.events : filtered,
+                  timestamp: b.blockNumber && timestamps.get(b.blockNumber),
+                };
+              }),
             });
-          })()
-        : credential.cards;
-
-    const accept = accepts(c, {
-      header: "Accept",
-      supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
-      default: "application/json",
-    });
-    const pdf = accept === "application/pdf";
-
-    const response = [
-      ...purchases.flatMap(({ id: cardId, lastFour, transactions: txs }) =>
-        txs.map(({ hashes, payload }) => {
-          const panda = safeParse(PandaActivity, {
-            ...(payload as object),
-            hashes,
-            borrows: hashes.map((h) => {
-              const b = borrows?.get(h as Hash);
-              if (!b) return null;
-              const filtered =
-                maturity === undefined ? b.events : b.events.filter(({ maturity: m }) => Number(m) === maturity);
-              if (filtered.length === 0) return null;
-              return {
-                events: maturity !== undefined && b.events.length > 1 ? b.events : filtered,
-                timestamp: b.blockNumber && timestamps.get(b.blockNumber),
-              };
-            }),
-          });
-          if (panda.success) {
-            if (maturity === undefined || pdf) return { ...panda.output, cardId, lastFour };
-            const operations: typeof panda.output.operations = [];
-            for (const operation of panda.output.operations) {
-              if (!("borrow" in operation)) continue;
-              const { borrow } = operation;
-              if (!("installments" in borrow)) {
-                const event = borrows?.get(operation.transactionHash)?.events[0];
-                if (event && Number(event.maturity) === maturity) operations.push(operation);
-                continue;
+            if (panda.success) {
+              if (maturity === undefined || pdf) return { ...panda.output, cardId, lastFour };
+              const operations: typeof panda.output.operations = [];
+              for (const operation of panda.output.operations) {
+                if (!("borrow" in operation)) continue;
+                const { borrow } = operation;
+                if (!("installments" in borrow)) {
+                  const event = borrows?.get(operation.transactionHash)?.events[0];
+                  if (event && Number(event.maturity) === maturity) operations.push(operation);
+                  continue;
+                }
+                const raw = borrows?.get(operation.transactionHash)?.events;
+                if (!raw) continue;
+                const sorted = raw.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
+                const installments = sorted.flatMap((event, n) => {
+                  const installment = borrow.installments[n];
+                  if (Number(event.maturity) !== maturity || !installment) return [];
+                  return [installment];
+                });
+                if (installments.length === 0) continue;
+                const usdAmount = raw.reduce(
+                  (sum, { assets, maturity: m }) => (Number(m) === maturity ? sum + Number(assets) / 1e6 : sum),
+                  0,
+                );
+                const exchangeRate = operation.usdAmount === 0 ? 1 : operation.amount / operation.usdAmount;
+                operations.push({
+                  ...operation,
+                  amount: usdAmount * exchangeRate,
+                  borrow: {
+                    ...operation.borrow,
+                    fee: installments.reduce((sum, { fee }) => sum + fee, 0),
+                    rate: installments.reduce((sum, { rate }) => sum + rate, 0) / installments.length,
+                    installments,
+                  },
+                  usdAmount,
+                });
               }
-              const raw = borrows?.get(operation.transactionHash)?.events;
-              if (!raw) continue;
-              const sorted = raw.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
-              const installments = sorted.flatMap((event, n) => {
-                const installment = borrow.installments[n];
+              if (operations.length === 0) return;
+              return {
+                ...panda.output,
+                amount: operations.reduce((sum, { amount }) => sum + amount, 0),
+                cardId,
+                lastFour,
+                operations,
+                usdAmount: operations.reduce((sum, { usdAmount }) => sum + usdAmount, 0),
+              };
+            }
+
+            if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
+            const hash = hashes[0];
+            const borrow = borrows?.get(hash as Hash);
+            const filtered =
+              maturity === undefined || !borrow
+                ? borrow?.events
+                : borrow.events.filter(({ maturity: m }) => Number(m) === maturity);
+            if (maturity !== undefined && borrow && filtered?.length === 0) return;
+            const events = !borrow || maturity === undefined || borrow.events.length <= 1 ? filtered : borrow.events;
+            const cryptomate = safeParse(
+              { 0: DebitActivity, 1: CreditActivity }[events?.length ?? 0] ?? InstallmentsActivity,
+              {
+                ...(payload as object),
+                hash,
+                events,
+                blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
+              },
+            );
+            if (cryptomate.success) {
+              if (maturity === undefined || pdf) return { ...cryptomate.output, cardId, lastFour };
+              if (!borrow) return;
+              if (borrow.events.length <= 1) return { ...cryptomate.output, cardId, lastFour };
+              if (!("borrow" in cryptomate.output) || !("installments" in cryptomate.output.borrow))
+                return { ...cryptomate.output, cardId, lastFour };
+              const { borrow: outputBorrow } = cryptomate.output;
+              const sortedEvents = borrow.events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
+              const installments = sortedEvents.flatMap((event, n) => {
+                const installment = outputBorrow.installments[n];
                 if (Number(event.maturity) !== maturity || !installment) return [];
                 return [installment];
               });
-              if (installments.length === 0) continue;
-              const usdAmount = raw.reduce(
+              if (installments.length === 0) return;
+              const usdAmount = borrow.events.reduce(
                 (sum, { assets, maturity: m }) => (Number(m) === maturity ? sum + Number(assets) / 1e6 : sum),
                 0,
               );
-              const exchangeRate = operation.usdAmount === 0 ? 1 : operation.amount / operation.usdAmount;
-              operations.push({
-                ...operation,
+              const exchangeRate =
+                cryptomate.output.usdAmount === 0 ? 1 : cryptomate.output.amount / cryptomate.output.usdAmount;
+              return {
+                ...cryptomate.output,
                 amount: usdAmount * exchangeRate,
                 borrow: {
-                  ...operation.borrow,
+                  ...outputBorrow,
                   fee: installments.reduce((sum, { fee }) => sum + fee, 0),
                   rate: installments.reduce((sum, { rate }) => sum + rate, 0) / installments.length,
                   installments,
                 },
+                cardId,
+                lastFour,
                 usdAmount,
-              });
+              };
             }
-            if (operations.length === 0) return;
-            return {
-              ...panda.output,
-              amount: operations.reduce((sum, { amount }) => sum + amount, 0),
-              cardId,
-              lastFour,
-              operations,
-              usdAmount: operations.reduce((sum, { usdAmount }) => sum + usdAmount, 0),
-            };
-          }
-
-          if (hashes.length !== 1) throw new Error("cryptomate transactions need to have only one hash");
-          const hash = hashes[0];
-          const borrow = borrows?.get(hash as Hash);
-          const filtered =
-            maturity === undefined || !borrow
-              ? borrow?.events
-              : borrow.events.filter(({ maturity: m }) => Number(m) === maturity);
-          if (maturity !== undefined && borrow && filtered?.length === 0) return;
-          const events = !borrow || maturity === undefined || borrow.events.length <= 1 ? filtered : borrow.events;
-          const cryptomate = safeParse(
-            { 0: DebitActivity, 1: CreditActivity }[events?.length ?? 0] ?? InstallmentsActivity,
-            {
-              ...(payload as object),
-              hash,
-              events,
-              blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
-            },
-          );
-          if (cryptomate.success) {
-            if (maturity === undefined || pdf) return { ...cryptomate.output, cardId, lastFour };
-            if (!borrow) return;
-            if (borrow.events.length <= 1) return { ...cryptomate.output, cardId, lastFour };
-            if (!("borrow" in cryptomate.output) || !("installments" in cryptomate.output.borrow))
-              return { ...cryptomate.output, cardId, lastFour };
-            const { borrow: outputBorrow } = cryptomate.output;
-            const sortedEvents = borrow.events.toSorted((a, b) => Number(a.maturity) - Number(b.maturity));
-            const installments = sortedEvents.flatMap((event, n) => {
-              const installment = outputBorrow.installments[n];
-              if (Number(event.maturity) !== maturity || !installment) return [];
-              return [installment];
-            });
-            if (installments.length === 0) return;
-            const usdAmount = borrow.events.reduce(
-              (sum, { assets, maturity: m }) => (Number(m) === maturity ? sum + Number(assets) / 1e6 : sum),
-              0,
-            );
-            const exchangeRate =
-              cryptomate.output.usdAmount === 0 ? 1 : cryptomate.output.amount / cryptomate.output.usdAmount;
-            return {
-              ...cryptomate.output,
-              amount: usdAmount * exchangeRate,
-              borrow: {
-                ...outputBorrow,
-                fee: installments.reduce((sum, { fee }) => sum + fee, 0),
-                rate: installments.reduce((sum, { rate }) => sum + rate, 0) / installments.length,
-                installments,
+            captureException(new Error("bad transaction"), {
+              level: "error",
+              contexts: {
+                cryptomate: { success: cryptomate.success, ...flatten(cryptomate.issues) },
+                panda: { success: panda.success, ...flatten(panda.issues) },
               },
-              cardId,
-              lastFour,
-              usdAmount,
-            };
-          }
-          captureException(new Error("bad transaction"), {
+            });
+          }),
+        ),
+        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
+          const timestamp = timestamps.get(blockNumber);
+          if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
+          captureException(new Error("block not found"), {
             level: "error",
-            contexts: {
-              cryptomate: { success: cryptomate.success, ...flatten(cryptomate.issues) },
-              panda: { success: panda.success, ...flatten(panda.issues) },
-            },
+            contexts: { event: { ...event, timestamp } },
           });
         }),
-      ),
-      ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
-        const timestamp = timestamps.get(blockNumber);
-        if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
-        captureException(new Error("block not found"), {
-          level: "error",
-          contexts: { event: { ...event, timestamp } },
-        });
-      }),
-    ]
-      .filter(<T>(value: T | undefined): value is T => value !== undefined)
-      .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+      ]
+        .filter(<T>(value: T | undefined): value is T => value !== undefined)
+        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
 
-    if (maturity !== undefined && pdf) {
-      const purchasesByCard = Map.groupBy(
-        response.flatMap((item) => {
-          if (item.type !== "panda" && (item.type !== "card" || !("borrow" in item))) return [];
-          const installments = (item.type === "panda" ? item.operations : [item])
-            .reduce((accumulator, operation) => {
-              if (!("borrow" in operation)) return accumulator;
-              const { borrow } = operation;
-              for (const { amount, current, total } of "installments" in borrow
-                ? borrow.installments.flatMap((installment) =>
-                    installment.maturity === maturity ? [{ ...installment, total: borrow.installments.length }] : [],
-                  )
-                : [{ amount: borrow.amount, current: 1, total: 1 }]) {
-                const status = accumulator.get(`${current}/${total}`) ?? { current, total, amount: 0 };
-                status.amount += amount;
-                accumulator.set(`${current}/${total}`, status);
-              }
-              return accumulator;
-            }, new Map<string, { amount: number; current: number; total: number }>())
-            .values()
-            .toArray();
-          return [
-            {
-              cardId: item.cardId,
-              id: item.id,
-              timestamp: item.timestamp,
-              description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
-              installments,
-            },
-          ];
-        }),
-        ({ cardId }) => cardId,
-      );
-      const statement = {
-        account: `${account.slice(0, 6)}...${account.slice(-6)}`,
-        maturity,
-        cards: purchases
-          .filter(({ id }) => purchasesByCard.has(id))
-          .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-          .map(({ id, lastFour }) => ({
-            id,
-            lastFour,
-            purchases: (purchasesByCard.get(id) ?? []).map(({ cardId: _, ...rest }) => rest),
-          })),
-        payments: response
-          .filter((item) => item.type === "repay")
-          .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
-          .map(({ id, timestamp, amount, positionAmount }) => ({
-            id,
-            timestamp,
-            amount,
-            positionAmount,
-          })),
-      };
-      return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
-        "content-type": "application/pdf",
-      });
-    }
-    return c.json(response, 200);
-  },
-);
+      if (maturity !== undefined && pdf) {
+        const purchasesByCard = Map.groupBy(
+          response.flatMap((item) => {
+            if (item.type !== "panda" && (item.type !== "card" || !("borrow" in item))) return [];
+            const installments = (item.type === "panda" ? item.operations : [item])
+              .reduce((accumulator, operation) => {
+                if (!("borrow" in operation)) return accumulator;
+                const { borrow } = operation;
+                for (const { amount, current, total } of "installments" in borrow
+                  ? borrow.installments.flatMap((installment) =>
+                      installment.maturity === maturity ? [{ ...installment, total: borrow.installments.length }] : [],
+                    )
+                  : [{ amount: borrow.amount, current: 1, total: 1 }]) {
+                  const status = accumulator.get(`${current}/${total}`) ?? { current, total, amount: 0 };
+                  status.amount += amount;
+                  accumulator.set(`${current}/${total}`, status);
+                }
+                return accumulator;
+              }, new Map<string, { amount: number; current: number; total: number }>())
+              .values()
+              .toArray();
+            return [
+              {
+                cardId: item.cardId,
+                id: item.id,
+                timestamp: item.timestamp,
+                description: `${item.merchant.name}${item.merchant.city ? `, ${item.merchant.city}` : ""}`,
+                installments,
+              },
+            ];
+          }),
+          ({ cardId }) => cardId,
+        );
+        const statement = {
+          account: `${account.slice(0, 6)}...${account.slice(-6)}`,
+          maturity,
+          cards: purchases
+            .filter(({ id }) => purchasesByCard.has(id))
+            .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+            .map(({ id, lastFour }) => ({
+              id,
+              lastFour,
+              purchases: (purchasesByCard.get(id) ?? []).map(({ cardId: _, ...rest }) => rest),
+            })),
+          payments: response
+            .filter((item) => item.type === "repay")
+            .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
+            .map(({ id, timestamp, amount, positionAmount }) => ({
+              id,
+              timestamp,
+              amount,
+              positionAmount,
+            })),
+        };
+        return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
+          "content-type": "application/pdf",
+        });
+      }
+      return c.json(response, 200);
+    },
+  );
+}
 
 const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 

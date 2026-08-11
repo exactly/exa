@@ -2,6 +2,7 @@ import { vValidator } from "@hono/valibot-validator";
 import { captureEvent, captureException, setUser } from "@sentry/core";
 import createDebug from "debug";
 import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import {
@@ -22,24 +23,20 @@ import {
 
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../database";
+import * as schema from "../database/schema";
+import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
-import { sendPushNotification } from "../utils/onesignal";
-import {
-  convertBalanceToUsdc,
+import createOnesignal from "../utils/onesignal";
+import createManteca, {
   ErrorCodes,
   OrderStatus,
   UserOnboardingTasks,
   UserStatus,
-  withdrawBalance,
   WithdrawStatus,
 } from "../utils/ramps/manteca";
-import { track } from "../utils/segment";
+import createSegment from "../utils/segment";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
-
-const webhooksKey = process.env.MANTECA_WEBHOOKS_KEY;
-if (!webhooksKey) throw new Error("missing manteca webhooks key");
 
 const debug = createDebug("exa:manteca");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -140,123 +137,159 @@ const Payload = variant("event", [
   object({ event: literal("SYSTEM_NOTICE"), data: unknown() }),
 ]);
 
-export default new Hono().post(
-  "/",
-  vValidator("json", Payload, validatorHook({ code: "bad manteca", status: 200, debug })),
-  headerValidator(new Set([webhooksKey])),
-  async (c) => {
-    const payload = c.req.valid("json");
+export default function hook({
+  mantecaKey,
+  mantecaUrl,
+  mantecaWebhookKey,
+  onesignalKey,
+  postgresUrl,
+  segmentKey,
+}: {
+  mantecaKey: string;
+  mantecaUrl: string;
+  mantecaWebhookKey: string;
+  onesignalKey: string;
+  postgresUrl: string;
+  segmentKey: string;
+}) {
+  const database = drizzle(postgresUrl, { schema });
+  const manteca = createManteca(mantecaKey, mantecaUrl);
+  const onesignal = createOnesignal(onesignalKey);
+  const segment = createSegment(segmentKey);
+  const app = new Hono().post(
+    "/",
+    vValidator("json", Payload, validatorHook({ code: "bad manteca", status: 200, debug })),
+    headerValidator(mantecaWebhookKey),
+    async (c) => {
+      const payload = c.req.valid("json");
 
-    if (payload.event === "USER_STATUS_UPDATE") {
-      return c.json({ code: "deprecated" }, 200);
-    }
+      if (payload.event === "USER_STATUS_UPDATE") {
+        return c.json({ code: "deprecated" }, 200);
+      }
 
-    if (payload.event === "SYSTEM_NOTICE") {
-      captureEvent({ message: "MantecaSystemNotice", level: "info" });
-      return c.json({ code: "ok" }, 200);
-    }
-
-    if (payload.event === "COMPLIANCE_NOTICE") {
-      // TODO evaluate send a push notification
-      captureEvent({ message: "MantecaComplianceNotice", level: "info" });
-      return c.json({ code: "ok" }, 200);
-    }
-
-    if (payload.event === "PAYMENT_REFUND") {
-      // TODO retrieve the userExternalId from manteca to continue with the flow
-      captureEvent({ message: "MantecaPaymentRefund", level: "info" });
-      return c.json({ code: "ok" }, 200);
-    }
-
-    const rawAccount = `0x${payload.data.userExternalId}`;
-    const result = safeParse(Address, rawAccount);
-    if (!result.success) {
-      captureException(new Error("invalid account address"), { level: "error", contexts: { details: { rawAccount } } });
-      return c.json({ code: "invalid account address" }, 200);
-    }
-    const account = result.output;
-    setUser({ id: account });
-
-    const credential = await database.query.credentials.findFirst({
-      columns: { account: true, source: true },
-      where: eq(credentials.account, account),
-    });
-    if (!credential) {
-      captureException(new Error("credential not found"), { level: "error", contexts: { details: { account } } });
-      return c.json({ code: "credential not found" }, 200);
-    }
-
-    switch (payload.event) {
-      case "DEPOSIT_DETECTED":
-        await handleDepositDetected(payload.data, account);
+      if (payload.event === "SYSTEM_NOTICE") {
+        captureEvent({ message: "MantecaSystemNotice", level: "info" });
         return c.json({ code: "ok" }, 200);
-      case "ORDER_STATUS_UPDATE":
-        if (payload.data.status === "CANCELLED") {
-          captureException(new Error("order cancelled"), { level: "error", contexts: { details: { account } } });
-          await convertBalanceToUsdc(payload.data.userNumberId, payload.data.against);
+      }
+
+      if (payload.event === "COMPLIANCE_NOTICE") {
+        // TODO evaluate send a push notification
+        captureEvent({ message: "MantecaComplianceNotice", level: "info" });
+        return c.json({ code: "ok" }, 200);
+      }
+
+      if (payload.event === "PAYMENT_REFUND") {
+        // TODO retrieve the userExternalId from manteca to continue with the flow
+        captureEvent({ message: "MantecaPaymentRefund", level: "info" });
+        return c.json({ code: "ok" }, 200);
+      }
+
+      const rawAccount = `0x${payload.data.userExternalId}`;
+      const result = safeParse(Address, rawAccount);
+      if (!result.success) {
+        captureException(new Error("invalid account address"), {
+          level: "error",
+          contexts: { details: { rawAccount } },
+        });
+        return c.json({ code: "invalid account address" }, 200);
+      }
+      const account = result.output;
+      setUser({ id: account });
+
+      const credential = await database.query.credentials.findFirst({
+        columns: { account: true, source: true },
+        where: eq(credentials.account, account),
+      });
+      if (!credential) {
+        captureException(new Error("credential not found"), { level: "error", contexts: { details: { account } } });
+        return c.json({ code: "credential not found" }, 200);
+      }
+
+      switch (payload.event) {
+        case "DEPOSIT_DETECTED":
+          await handleDepositDetected(payload.data, account, manteca, onesignal);
           return c.json({ code: "ok" }, 200);
-        }
-        if (payload.data.status === "COMPLETED") {
-          track({
-            userId: account,
-            event: "Onramp",
-            properties: {
-              currency: payload.data.against,
-              amount: Number(payload.data.assetAmount) * Number(payload.data.effectivePrice),
-              provider: "manteca",
-              source: credential.source,
-              usdcAmount: Number(payload.data.assetAmount),
-            },
-          });
-          await withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
+        case "ORDER_STATUS_UPDATE":
+          if (payload.data.status === "CANCELLED") {
+            captureException(new Error("order cancelled"), { level: "error", contexts: { details: { account } } });
+            await manteca.convertBalanceToUsdc(payload.data.userNumberId, payload.data.against);
+            return c.json({ code: "ok" }, 200);
+          }
+          if (payload.data.status === "COMPLETED") {
+            segment.track({
+              userId: account,
+              event: "Onramp",
+              properties: {
+                currency: payload.data.against,
+                amount: Number(payload.data.assetAmount) * Number(payload.data.effectivePrice),
+                provider: "manteca",
+                source: credential.source,
+                usdcAmount: Number(payload.data.assetAmount),
+              },
+            });
+            await manteca.withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
+            return c.json({ code: "ok" }, 200);
+          }
           return c.json({ code: "ok" }, 200);
-        }
-        return c.json({ code: "ok" }, 200);
-      case "WITHDRAW_STATUS_UPDATE":
-        if (payload.data.status === "CANCELLED") {
-          await withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
+        case "WITHDRAW_STATUS_UPDATE":
+          if (payload.data.status === "CANCELLED") {
+            await manteca.withdrawBalance(payload.data.userNumberId, payload.data.asset, account);
+            return c.json({ code: "ok" }, 200);
+          }
           return c.json({ code: "ok" }, 200);
-        }
-        return c.json({ code: "ok" }, 200);
-      case "USER_ONBOARDING_UPDATE":
-        if (
-          payload.data.user.status === "ACTIVE" &&
-          payload.data.updatedTasks.includes("IDENTITY_VALIDATION") &&
-          payload.data.user.onboarding.IDENTITY_VALIDATION?.status === "COMPLETED"
-        ) {
-          track({
-            userId: account,
-            event: "RampAccount",
-            properties: { provider: "manteca", source: credential.source },
-          });
-          sendPushNotification({
-            userId: credential.account,
-            headings: t("Fiat onramp activated"),
-            contents: t("Your fiat onramp account has been activated"),
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
-        }
-        return c.json({ code: "ok" }, 200);
-      default:
-        return c.json({ code: "ok" }, 200);
-    }
-  },
-);
+        case "USER_ONBOARDING_UPDATE":
+          if (
+            payload.data.user.status === "ACTIVE" &&
+            payload.data.updatedTasks.includes("IDENTITY_VALIDATION") &&
+            payload.data.user.onboarding.IDENTITY_VALIDATION?.status === "COMPLETED"
+          ) {
+            segment.track({
+              userId: account,
+              event: "RampAccount",
+              properties: { provider: "manteca", source: credential.source },
+            });
+            onesignal
+              .sendPushNotification({
+                userId: credential.account,
+                headings: t("Fiat onramp activated"),
+                contents: t("Your fiat onramp account has been activated"),
+              })
+              .catch((error: unknown) => captureException(error, { level: "error" }));
+          }
+          return c.json({ code: "ok" }, 200);
+        default:
+          return c.json({ code: "ok" }, 200);
+      }
+    },
+  );
+  let closing: Promise<unknown> | undefined;
+  return {
+    app,
+    close: () => (closing ??= Promise.all([database.$client.end(), segment.close()])),
+    ready: Promise.resolve(),
+  };
+}
 
-async function handleDepositDetected(data: InferInput<typeof DepositDetectedData>, account: Address) {
+async function handleDepositDetected(
+  data: InferInput<typeof DepositDetectedData>,
+  account: Address,
+  manteca: ReturnType<typeof createManteca>,
+  onesignal: ReturnType<typeof createOnesignal>,
+) {
   switch (rampDirection(data.asset)) {
     case "offramp":
       break;
     case "onramp":
-      await convertBalanceToUsdc(data.userNumberId, data.asset)
+      await manteca
+        .convertBalanceToUsdc(data.userNumberId, data.asset)
         .then(() => {
-          sendPushNotification({
-            userId: account,
-            headings: t("Deposited funds"),
-            contents: t("{{amount}} {{asset}} deposited", {
-              amount: f(data.amount),
-              asset: data.asset,
-            }),
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
+          onesignal
+            .sendPushNotification({
+              userId: account,
+              headings: t("Deposited funds"),
+              contents: t("{{amount}} {{asset}} deposited", { amount: f(data.amount), asset: data.asset }),
+            })
+            .catch((error: unknown) => captureException(error, { level: "error" }));
         })
         .catch((error: unknown) => {
           if (error instanceof Error && error.message.includes(ErrorCodes.INVALID_ORDER_SIZE)) {
@@ -278,12 +311,10 @@ function rampDirection(asset: string): "offramp" | "onramp" {
   }
 }
 
-function headerValidator(signingKeys: (() => Set<string>) | Set<string>) {
+function headerValidator(signingKey: string) {
   return validator("header", async ({ "md-webhook-signature": signature }, c) => {
-    for (const signingKey of typeof signingKeys === "function" ? signingKeys() : signingKeys) {
-      const payload = await c.req.arrayBuffer();
-      if (verifySignature({ signature, signingKey, payload })) return;
-    }
+    const payload = await c.req.arrayBuffer();
+    if (verifySignature({ signature, signingKey, payload })) return;
     return c.json({ code: "unauthorized", legacy: "unauthorized" }, 401);
   });
 }

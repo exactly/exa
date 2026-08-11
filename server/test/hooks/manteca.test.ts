@@ -1,23 +1,43 @@
-import "../mocks/onesignal";
+import "../mocks/manteca";
+import sendPushNotificationMock from "../mocks/onesignal";
+import "../mocks/segment";
 import "../mocks/sentry";
 
+import { Analytics } from "@segment/analytics-node";
 import { captureException } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { credentials } from "../../database";
-import app from "../../hooks/manteca";
+import createHook from "../../hooks/manteca";
 import t, { f } from "../../i18n";
-import * as onesignal from "../../utils/onesignal";
-import * as manteca from "../../utils/ramps/manteca";
+import createManteca from "../../utils/ramps/manteca";
 import * as segment from "../../utils/segment";
 
-const appClient = testClient(app);
+const provider = { key: "manteca", url: "https://manteca.test" };
+const manteca = createManteca(provider.key, provider.url);
+const hook = createHook({
+  mantecaKey: provider.key,
+  mantecaUrl: provider.url,
+  mantecaWebhookKey: "manteca",
+  onesignalKey: "onesignal",
+  postgresUrl: parse(pipe(string(), nonEmpty()), env.POSTGRES_URL),
+  segmentKey: "segment",
+});
+const appClient = testClient(hook.app);
+
+afterAll(() => {
+  const closing = hook.close();
+  if (hook.close() !== closing) throw new Error("close is not idempotent");
+  return closing;
+});
 
 function createSignature(payload: object) {
   return createHmac("sha256", "manteca")
@@ -175,7 +195,7 @@ describe("manteca hook", () => {
   describe("when a deposit is detected", () => {
     it("converts to USDC", async () => {
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const payload = {
         event: "DEPOSIT_DETECTED",
         data: {
@@ -277,7 +297,7 @@ describe("manteca hook", () => {
     it("captures deposit notification errors", async () => {
       const error = new Error("push failed");
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
-      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      sendPushNotificationMock.mockRejectedValueOnce(error);
       const payload = {
         event: "DEPOSIT_DETECTED",
         data: {
@@ -378,11 +398,14 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(segment.track).toHaveBeenCalledWith({
-        userId: account,
-        event: "Onramp",
-        properties: { currency: "ARS", amount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
-      });
+      expect(segment.track).toHaveBeenCalledWith(
+        {
+          userId: account,
+          event: "Onramp",
+          properties: { currency: "ARS", amount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
+        },
+        expect.any(Analytics),
+      );
       expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });
 
@@ -484,7 +507,7 @@ describe("manteca hook", () => {
   describe("when a user onboarding is updated", () => {
     it("tracks and notifies when user is active and identity validation is completed", async () => {
       vi.spyOn(segment, "track").mockReturnValue();
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -506,11 +529,10 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(segment.track).toHaveBeenCalledWith({
-        userId: account,
-        event: "RampAccount",
-        properties: { provider: "manteca", source: null },
-      });
+      expect(segment.track).toHaveBeenCalledWith(
+        { userId: account, event: "RampAccount", properties: { provider: "manteca", source: null } },
+        expect.any(Analytics),
+      );
       expect(sendPushNotification).toHaveBeenCalledWith({
         userId: account,
         headings: t("Fiat onramp activated"),
@@ -521,7 +543,7 @@ describe("manteca hook", () => {
     it("captures onboarding notification errors", async () => {
       const error = new Error("push failed");
       vi.spyOn(segment, "track").mockReturnValue();
-      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      sendPushNotificationMock.mockRejectedValueOnce(error);
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -550,7 +572,7 @@ describe("manteca hook", () => {
 
     it("does not track or notify when updated task is not identity validation", async () => {
       vi.spyOn(segment, "track").mockReturnValue();
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -578,7 +600,7 @@ describe("manteca hook", () => {
 
     it("does not track or notify when identity validation task is not completed", async () => {
       vi.spyOn(segment, "track").mockReturnValue();
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -606,7 +628,7 @@ describe("manteca hook", () => {
 
     it("does not track or notify when identity validation is missing from onboarding", async () => {
       vi.spyOn(segment, "track").mockReturnValue();
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
@@ -634,7 +656,7 @@ describe("manteca hook", () => {
 
     it("does not track or notify when user status is not active", async () => {
       vi.spyOn(segment, "track").mockReturnValue();
-      const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotification = sendPushNotificationMock;
       const payload = {
         event: "USER_ONBOARDING_UPDATE",
         data: {
