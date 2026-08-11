@@ -1,11 +1,15 @@
 // cspell:ignore SEPA, SPEI, GABCDEFGHIJ
 import "../mocks/auth";
+import "../mocks/bridge";
 import "../mocks/deployments";
+import "../mocks/manteca";
+import "../mocks/persona";
 import "../mocks/sentry";
 
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
@@ -13,12 +17,42 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
-import app from "../../api/ramp";
+import route from "../../api/ramp";
 import database, { credentials } from "../../database";
-import * as persona from "../../utils/persona";
-import * as bridge from "../../utils/ramps/bridge";
-import * as manteca from "../../utils/ramps/manteca";
+import authenticate from "../../middleware/auth";
+import createPersona, * as Persona from "../../utils/persona";
+import createBridge, * as Bridge from "../../utils/ramps/bridge";
+import createManteca, * as Manteca from "../../utils/ramps/manteca";
 
+const bridge = Object.assign(
+  createBridge(
+    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  ),
+  Bridge,
+);
+const manteca = Object.assign(
+  createManteca(
+    parse(pipe(string(), nonEmpty()), env.MANTECA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.MANTECA_API_URL),
+  ),
+  Manteca,
+);
+const persona = Object.assign(
+  createPersona(
+    parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  ),
+  Persona,
+);
+
+const app = route({
+  auth: authenticate(""),
+  bridge,
+  database,
+  manteca,
+  persona,
+});
 const appClient = testClient(app);
 
 describe("ramp api", () => {
@@ -149,6 +183,7 @@ describe("ramp api", () => {
       expect(mantecaSpy).toHaveBeenCalledOnce();
       expect(bridgeSpy).toHaveBeenCalledWith(
         expect.objectContaining({ redirectURL: "https://app.example.com/callback" }),
+        persona,
       );
     });
 
@@ -916,7 +951,7 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-        expect(manteca.onboarding).toHaveBeenCalledWith(account, "ramp-test");
+        expect(manteca.onboarding).toHaveBeenCalledWith(account, "ramp-test", persona);
       });
 
       it("returns 400 with new inquiry for invalid legal id when no existing inquiry", async () => {
@@ -1032,11 +1067,11 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-        expect(bridge.onboarding).toHaveBeenCalledWith({
-          credentialId: "ramp-test",
-          customerId: null,
-          acceptedTermsId: "terms_123",
-        });
+        expect(bridge.onboarding).toHaveBeenCalledWith(
+          { credentialId: "ramp-test", customerId: null, acceptedTermsId: "terms_123" },
+          database,
+          persona,
+        );
       });
 
       it("passes existing bridgeId as customerId", async () => {
@@ -1049,11 +1084,11 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-        expect(bridge.onboarding).toHaveBeenCalledWith({
-          credentialId: "ramp-bridge",
-          customerId: "bridge-customer-123",
-          acceptedTermsId: "terms_456",
-        });
+        expect(bridge.onboarding).toHaveBeenCalledWith(
+          { credentialId: "ramp-bridge", customerId: "bridge-customer-123", acceptedTermsId: "terms_456" },
+          database,
+          persona,
+        );
       });
 
       it("returns 400 when already onboarded", async () => {
