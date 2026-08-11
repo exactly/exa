@@ -72,12 +72,12 @@ export default function Settings() {
                 onPress={() => {
                   if (!connector) return;
                   Promise.all([queryClient.cancelQueries(), logoutIntercom()])
-                    .then(() => {
+                    .then(async () => {
                       logoutOnesignal();
-                      queryClient.clear();
+                      queryClient.getMutationCache().clear();
+                      await queryClient.resetQueries({ queryKey: ["credential"] });
                       queryClient.unmount();
                       disconnectAccount({ connector });
-                      router.replace("/(auth)");
                     })
                     .catch(reportError);
                 }}

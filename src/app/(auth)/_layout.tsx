@@ -1,56 +1,15 @@
 import "../../utils/server";
 
-import React, { useCallback, useEffect } from "react";
+import React from "react";
 import { Platform } from "react-native";
 
-import { SplashScreen, Stack, useFocusEffect, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import Head from "expo-router/head";
 
-import { sdk } from "@farcaster/miniapp-sdk";
-import { useQuery } from "@tanstack/react-query";
-import { getConnection } from "@wagmi/core";
-import { proxy } from "comlink";
-
-import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
 import useBackgroundColor from "../../utils/useBackgroundColor";
-import exaConfig from "../../utils/wagmi/exa";
-
-import type { Credential } from "@exactly/common/validation";
 
 export default function OnboardingLayout() {
   useBackgroundColor();
-  const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
-  const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isLoading || !isFetched) return;
-    if (isMiniApp) {
-      sdk.actions
-        .ready(
-          // @ts-expect-error ready takes no arguments
-          proxy({
-            getAddress: () => getConnection(exaConfig).address,
-            hasCard: () =>
-              queryClient
-                .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000 })
-                .then((card) => !!card)
-                .catch(() => undefined),
-          }),
-        )
-        .catch(reportError);
-    }
-    SplashScreen.hideAsync().catch(reportError);
-  }, [isFetched, isLoading, isMiniApp]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (isLoading || !isFetched) return;
-      if (credential) router.replace("/(main)/(home)");
-    }, [isLoading, isFetched, credential, router]),
-  );
-
   return (
     <>
       {Platform.OS === "web" && (

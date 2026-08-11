@@ -74,7 +74,7 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "kyc", "card", "pax", "lifi"].includes(queryKey[0] as string) &&
+    !["activity", "externalAssets", "kyc", "card", "deeplink", "pax", "lifi"].includes(queryKey[0] as string) &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens"),
 };
 
@@ -103,6 +103,7 @@ queryClient.setQueryDefaults(["credential"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["deeplink"], { staleTime: Infinity, gcTime: isServer ? Infinity : 30 * 60_000 });
 queryClient.setQueryDefaults(["getBytecode"], { staleTime: (query) => (query.state.data ? Infinity : 0) });
 queryClient.setQueryDefaults(["readContract"], {
   queryFn: () => {

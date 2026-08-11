@@ -1,7 +1,7 @@
 import "../utils/onesignal";
 import "../utils/server";
 
-import React, { useLayoutEffect as useClientLayoutEffect, useEffect } from "react";
+import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,11 +10,13 @@ import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { useFonts, type FontSource } from "expo-font";
 import { getLocales } from "expo-localization";
-import { SplashScreen, Stack, useNavigationContainerRef } from "expo-router";
+import { SplashScreen, Stack, useNavigationContainerRef, useRouter, useUnstableGlobalHref } from "expo-router";
+import type { Href } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 
 import { ToastProvider } from "@tamagui/toast";
 
+import { sdk } from "@farcaster/miniapp-sdk";
 import {
   ErrorBoundary,
   feedbackIntegration,
@@ -23,9 +25,11 @@ import {
   reactNavigationIntegration,
   wrap,
 } from "@sentry/react-native";
+import { useQuery } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { reconnect } from "@wagmi/core";
+import { getConnection, reconnect } from "@wagmi/core";
+import { proxy } from "comlink";
 import { use as configI18n } from "i18next";
 import { WagmiProvider } from "wagmi";
 
@@ -48,6 +52,8 @@ import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig from "../utils/wagmi/owner";
+
+import type { Credential } from "@exactly/common/validation";
 
 SplashScreen.preventAutoHideAsync().catch(reportError);
 
@@ -233,10 +239,7 @@ export default wrap(function RootLayout() {
                   />
                 )}
               >
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(main)" />
-                </Stack>
+                <Navigator />
               </ErrorBoundary>
             </ThemeProvider>
           </SafeAreaProvider>
@@ -246,3 +249,60 @@ export default wrap(function RootLayout() {
     </WagmiProvider>
   );
 });
+
+function Navigator() {
+  const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
+  const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
+  const ready = !isLoading && isFetched;
+  const authenticated = ready && !!credential;
+  const href = useUnstableGlobalHref();
+  const authenticatedRef = useRef(authenticated);
+  const signedRef = useRef(false);
+  const router = useRouter();
+  useEffect(() => {
+    if (!authenticated) {
+      if (authenticatedRef.current)
+        queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
+      authenticatedRef.current = false;
+      if (!signedRef.current && href.split(/[/?#]/)[1])
+        queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
+      return;
+    }
+    const path = queryClient.getQueryData<string>(["deeplink"]);
+    if (path) {
+      queryClient.removeQueries({ queryKey: ["deeplink"] });
+      if (!authenticatedRef.current) router.replace(path as Href);
+    }
+    authenticatedRef.current = true;
+    signedRef.current = true;
+  }, [authenticated, href, router]);
+  useEffect(() => {
+    if (!ready) return;
+    if (isMiniApp) {
+      sdk.actions
+        .ready(
+          // @ts-expect-error ready takes no arguments
+          proxy({
+            getAddress: () => getConnection(exaConfig).address,
+            hasCard: () =>
+              queryClient
+                .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000 })
+                .then((card) => !!card)
+                .catch(() => undefined),
+          }),
+        )
+        .catch(reportError);
+    }
+    SplashScreen.hideAsync().catch(reportError);
+  }, [ready, isMiniApp]);
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Protected guard={!authenticated}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+      <Stack.Protected guard={authenticated}>
+        <Stack.Screen name="(main)" />
+      </Stack.Protected>
+    </Stack>
+  );
+}
