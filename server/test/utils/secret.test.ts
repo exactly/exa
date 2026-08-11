@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { env } from "node:process";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
@@ -20,10 +21,10 @@ describe("secret", () => {
     vi.resetModules();
     mocks.accessSecretVersion.mockReset().mockResolvedValue([{ payload: { data: Buffer.from("secret-value") } }]);
     mocks.getProjectId.mockReset().mockResolvedValue("exa-test");
-    delete process.env.APP_DOMAIN;
-    process.env.APP_STACK = "sandbox";
-    delete process.env.EXPO_PUBLIC_DOMAIN;
-    delete process.env.EXPO_PUBLIC_STACK;
+    delete env.APP_DOMAIN;
+    env.APP_STACK = "sandbox";
+    delete env.EXPO_PUBLIC_DOMAIN;
+    delete env.EXPO_PUBLIC_STACK;
   });
 
   it("loads secret manager values through adc project detection and app stack", async () => {
@@ -36,7 +37,7 @@ describe("secret", () => {
   });
 
   it("loads production stack secrets", async () => {
-    process.env.APP_STACK = "production";
+    env.APP_STACK = "production";
 
     const secret = await load();
     await secret("account-alchemy-webhooks-key");
@@ -47,7 +48,7 @@ describe("secret", () => {
   });
 
   it("loads preview stack secrets", async () => {
-    process.env.APP_STACK = "preview";
+    env.APP_STACK = "preview";
 
     const secret = await load();
     await secret("redis-url");
@@ -58,8 +59,8 @@ describe("secret", () => {
   });
 
   it("loads public stack secrets before app stack secrets", async () => {
-    process.env.APP_STACK = "sandbox";
-    process.env.EXPO_PUBLIC_STACK = "preview";
+    env.APP_STACK = "sandbox";
+    env.EXPO_PUBLIC_STACK = "preview";
 
     const secret = await load();
     await secret("redis-url");
@@ -70,8 +71,8 @@ describe("secret", () => {
   });
 
   it("loads legacy domain fallback secrets", async () => {
-    delete process.env.APP_STACK;
-    process.env.APP_DOMAIN = "web.exactly.app";
+    delete env.APP_STACK;
+    env.APP_DOMAIN = "web.exactly.app";
 
     const secret = await load();
     await secret("redis-url");
@@ -89,8 +90,8 @@ describe("secret", () => {
   });
 
   it("fails when legacy domain fallback is not stack shaped", async () => {
-    delete process.env.APP_STACK;
-    process.env.APP_DOMAIN = "api.sandbox.exactly.app";
+    delete env.APP_STACK;
+    env.APP_DOMAIN = "api.sandbox.exactly.app";
 
     await expect(load()).rejects.toThrow("missing app stack");
     expect(mocks.accessSecretVersion).not.toHaveBeenCalled();
