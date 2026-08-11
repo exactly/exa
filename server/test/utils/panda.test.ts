@@ -10,6 +10,7 @@ import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda
 import { Address } from "@exactly/common/validation";
 
 import createPanda, * as Panda from "../../utils/panda";
+import createPersona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
@@ -22,6 +23,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
 }));
 
 const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
+const persona = createPersona("persona", "https://persona.test");
 
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {
@@ -68,6 +70,58 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/cards?userId=e5cd86bb-a19e-4a66-9728-9e6c5d97e616&limit=100"),
       expect.objectContaining({ method: "GET" }),
     );
+  });
+});
+
+describe("business application", () => {
+  it("prefers account fields over inquiry fields", async () => {
+    const account = parse(Address, padHex("0xb0b", { size: 20 }));
+    const fields = {
+      i_company_name: { value: "Account Acme" },
+      company_description: { value: "Account software" },
+      company_industry: { value: "541511" },
+      company_registration_number: { value: "123" },
+      company_tax_id: { value: "456" },
+      company_website: { value: "https://example.com" },
+      company_type: { value: "corporation" },
+      company_expected_spend: { value: 1000 },
+      i_auth_user_name: { value: "Jane" },
+      i_auth_user_last_name: { value: "Doe" },
+      birth_date: { value: "1990-01-01" },
+      id_number: { value: "123456789" },
+      id_country: { value: "US" },
+      collected_email_address: { value: "jane@example.com" },
+      terms_and_conditions: { value: true },
+      street_1: { value: "1 Main St" },
+      city: { value: "New York" },
+      subdivision: { value: "NY" },
+      postal_code: { value: "10001" },
+      country_code: { value: "US" },
+      street_1_1: { value: "1 Main St" },
+      city_1: { value: "New York" },
+      subdivision_1: { value: "NY" },
+      postal_code_1: { value: "10001" },
+      country_code_1: { value: "US" },
+    };
+    vi.spyOn(persona, "getInquiry").mockResolvedValue({
+      id: "inquiry-id",
+      type: "inquiry",
+      attributes: {
+        status: "completed",
+        "reference-id": "reference-id",
+        fields: { "company-description": { value: "Inquiry software" } },
+      },
+    });
+    vi.spyOn(persona, "getAccount").mockResolvedValue({
+      id: "account-id",
+      type: "account",
+      attributes: { "reference-id": "reference-id", fields },
+      relationships: { "account-type": { data: { id: "acttp_company" } } },
+    });
+
+    const application = await panda.businessApplication("reference-id", account, "127.0.0.1", persona);
+
+    expect(application.entity.description).toBe("Account software");
   });
 });
 

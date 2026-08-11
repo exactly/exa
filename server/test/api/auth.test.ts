@@ -254,6 +254,73 @@ describe("authentication", () => {
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
   });
 
+  it("rejects malformed structured authentication challenges", async () => {
+    await redis.set("test-session", JSON.stringify({ accountType: "business" }));
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad authentication", legacy: "bad authentication" });
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("rejects account type mismatch between challenge and request", async () => {
+    await redis.set("test-session", JSON.stringify({ challenge: "test-challenge", accountType: "business" }));
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad account type" });
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("rejects business auth for a credential without business salt", async () => {
+    await redis.set("test-session", JSON.stringify({ challenge: "test-challenge", accountType: "business" }));
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { accountType: "business" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad account type" });
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
   it("returns 400 for missing credential with non-siwe assertion", async () => {
     const response = await appClient.index.$post(
       {

@@ -43,6 +43,7 @@ import createPersona, {
   headerValidator,
   MANTECA_TEMPLATE_EXTRA_FIELDS,
   MANTECA_TEMPLATE_WITH_ID_CLASS,
+  PANDA_BUSINESS_TEMPLATE,
   PANDA_TEMPLATE,
 } from "../utils/persona";
 import createSardine from "../utils/sardine";
@@ -266,6 +267,7 @@ export default function hook({
                             CARD_LIMIT_TEMPLATE,
                             CRYPTOMATE_TEMPLATE,
                             MANTECA_TEMPLATE_EXTRA_FIELDS,
+                            PANDA_BUSINESS_TEMPLATE,
                           ]),
                         }),
                       }),

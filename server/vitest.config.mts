@@ -49,6 +49,7 @@ VuNOZKwaXFtqgA==
       PAX_API_URL: "https://pax.test",
       PAX_ASSOCIATE_ID_KEY: "pax",
       PERSONA_API_KEY: "persona",
+      PERSONA_BUSINESS_ACCOUNT_TYPE_ID: "acttp_company", // cspell:ignore acttp
       PERSONA_URL: "https://persona.test",
       BRIDGE_WEBHOOK_PUBLIC_KEY: `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4f9QAuHfZxnrz+xXumvm
