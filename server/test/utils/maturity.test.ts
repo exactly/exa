@@ -1,4 +1,4 @@
-import "../mocks/onesignal";
+import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 
 import { addBreadcrumb, captureException } from "@sentry/node";
@@ -13,8 +13,7 @@ import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import database, { credentials } from "../../database";
-import { closeQueue, reminders } from "../../utils/maturity";
-import * as onesignal from "../../utils/onesignal";
+import { closeQueue, reminders, setup } from "../../utils/maturity";
 import { bullmq, close as closeRedis } from "../../utils/redis";
 
 const mocks = vi.hoisted(() => ({
@@ -22,6 +21,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../utils/publicClient", () => ({ default: { readContract: mocks.readContract } }));
+
+setup("onesignal");
 
 type Window = "1h" | "24h";
 type CheckDebts = { window: Window };
@@ -44,10 +45,9 @@ function insertAccounts(accounts: Address[]) {
   return database.insert(credentials).values(accounts.map((account, index) => credential(account, index)));
 }
 
-function storedAccounts() {
-  return database.query.credentials
-    .findMany({ columns: { account: true }, orderBy: credentials.account })
-    .then((rows) => rows.map(({ account }) => parse(Address, account)));
+async function storedAccounts() {
+  const rows = await database.query.credentials.findMany({ columns: { account: true }, orderBy: credentials.account });
+  return rows.map(({ account }) => parse(Address, account));
 }
 
 function credential(account: Address, index: number) {
@@ -229,7 +229,7 @@ async function waitForScanJobs(maturity: number, window: Window) {
 }
 
 describe("worker", () => {
-  const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+  const sendPushNotification = sendPushNotificationMock;
 
   function expectSentReminder(userId: Address, maturity: number, window: Window, ttl?: number) {
     const [notification] = sendPushNotification.mock.lastCall ?? [];

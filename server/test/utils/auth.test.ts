@@ -9,14 +9,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import betterAuth from "../../utils/auth";
+import database from "../../database";
+import createAuth from "../../utils/auth";
+import authSecret from "../../utils/authSecret";
 import publicClient from "../../utils/publicClient";
 
 import type { SIWEPluginOptions } from "better-auth/plugins/siwe";
 
 vi.mock("@sentry/core", { spy: true });
 
-const verifySiweMessage = betterAuth.options.plugins.find((plugin) => plugin.id === "siwe")?.options.verifyMessage;
+const auth = createAuth(database, authSecret);
+const verifySiweMessage = auth.options.plugins.find((plugin) => plugin.id === "siwe")?.options.verifyMessage;
 if (!verifySiweMessage) throw new Error("siwe plugin not registered");
 
 const account = privateKeyToAccount(padHex("0xa11ce"));

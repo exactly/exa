@@ -18,8 +18,9 @@ import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { marketAbi } from "@exactly/common/generated/chain";
 
-import app, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
+import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
+import authenticate from "../../middleware/auth";
 import anvilClient from "../anvilClient";
 
 function httpSerialize<T>(object: T): T {
@@ -40,7 +41,7 @@ function removeUndefined(object: unknown): unknown {
   return result;
 }
 
-const appClient = testClient(app);
+const appClient = testClient(route({ auth: authenticate(""), database }));
 const account = deriveAddress(inject("ExaAccountFactory"), {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
   y: zeroHash,

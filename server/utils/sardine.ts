@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -27,23 +28,30 @@ import domain from "@exactly/common/domain";
 
 import ServiceError from "./ServiceError";
 
-if (!process.env.SARDINE_API_KEY) throw new Error("missing sardine api key");
-if (!process.env.SARDINE_API_URL) throw new Error("missing sardine api url");
-
-const key = Buffer.from(process.env.SARDINE_API_KEY).toString("base64");
-const baseURL = process.env.SARDINE_API_URL;
+export default function sardine(key: string, url: string) {
+  const client = { key, url };
+  return {
+    customer: (data: InferInput<typeof CustomerRequest>, timeout = 10_000) => customer(data, timeout, client),
+    feedback: (data: InferInput<typeof FeedbackRequest>) => feedback(data, client),
+    risk: (data: InferInput<typeof RiskRequest>) => risk(data, client),
+  };
+}
 
 export const IpAddress = pipe(string(), ip(), brand("IpAddress"));
 export type IpAddress = InferOutput<typeof IpAddress>;
 
-export async function customer(data: InferInput<typeof CustomerRequest>, timeout = 10_000) {
-  return await request(CustomerResponse, "/v1/customers", {}, parse(CustomerRequest, data), "POST", timeout);
+export async function customer(
+  data: InferInput<typeof CustomerRequest>,
+  timeout = 10_000,
+  client = getDefaultClient(),
+) {
+  return await request(CustomerResponse, "/v1/customers", {}, parse(CustomerRequest, data), "POST", timeout, client);
 }
-export async function feedback(data: InferInput<typeof FeedbackRequest>) {
-  return await request(FeedbackResponse, "/v1/feedbacks", {}, parse(FeedbackRequest, data), "POST");
+export async function feedback(data: InferInput<typeof FeedbackRequest>, client = getDefaultClient()) {
+  return await request(FeedbackResponse, "/v1/feedbacks", {}, parse(FeedbackRequest, data), "POST", 10_000, client);
 }
-export default async function risk(data: InferInput<typeof RiskRequest>) {
-  return await request(RiskResponse, "/v1/issuing/risks", {}, parse(RiskRequest, data), "POST", 500);
+export async function risk(data: InferInput<typeof RiskRequest>, client = getDefaultClient()) {
+  return await request(RiskResponse, "/v1/issuing/risks", {}, parse(RiskRequest, data), "POST", 500, client);
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
@@ -53,12 +61,13 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   body?: unknown,
   method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
   timeout = 10_000,
+  client = getDefaultClient(),
 ) {
-  const response = await fetch(`${baseURL}${url}`, {
+  const response = await fetch(`${client.url}${url}`, {
     method,
     headers: {
       ...headers,
-      Authorization: `Basic ${key}`,
+      Authorization: `Basic ${Buffer.from(client.key).toString("base64")}`,
       "X-Request-Id": crypto.randomUUID(),
       accept: "application/json",
       "content-type": "application/json",
@@ -72,6 +81,14 @@ async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   if (rawBody.byteLength === 0) throw new Error(`Empty response body from ${url}`);
   return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
 }
+
+function getDefaultClient(): Client {
+  if (!env.SARDINE_API_KEY) throw new Error("missing sardine api key");
+  if (!env.SARDINE_API_URL) throw new Error("missing sardine api url");
+  return { key: env.SARDINE_API_KEY, url: env.SARDINE_API_URL };
+}
+
+type Client = { key: string; url: string };
 
 const CustomerRequest = object({
   flow: object({

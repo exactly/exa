@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
-import * as panda from "../../utils/panda";
+import createPanda, * as Panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0 }));
@@ -16,6 +16,8 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
     rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
   }),
 }));
+
+const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
 
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {

@@ -1,4 +1,4 @@
-import { captureException, setUser } from "@sentry/core";
+import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
@@ -10,64 +10,82 @@ import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import { updateWebhookAddresses } from "./alchemy";
-import authSecret from "./authSecret";
+import { webhookId } from "./activityWebhook";
 import decodePublicKey from "./decodePublicKey";
-import { customer, type IpAddress } from "./sardine";
-import { identify } from "./segment";
-import database from "../database";
 import { credentials } from "../database/schema";
-import { webhookId } from "../hooks/activity";
 
+import type createAlchemy from "./alchemy";
+import type { IpAddress } from "./sardine";
+import type createSardine from "./sardine";
+import type createSegment from "./segment";
+import type db from "../database";
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { Context } from "hono";
 
-export default async function createCredential<C extends string>(
-  c: Context,
-  credentialId: C,
-  options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
-) {
-  if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
-  const factory = options?.factory ?? exaAccountFactoryAddress;
-  const publicKey =
-    options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
-  if (!publicKey) throw new Error("bad credential");
-  const { x, y } = decodePublicKey(publicKey);
-  const account = deriveAddress(factory, { x, y });
+export default function createCredential({
+  alchemy,
+  authSecret,
+  database,
+  sardine,
+  segment,
+}: {
+  alchemy: ReturnType<typeof createAlchemy>;
+  authSecret: string;
+  database: typeof db;
+  sardine: ReturnType<typeof createSardine>;
+  segment: ReturnType<typeof createSegment>;
+}) {
+  return async function credential<C extends string>(
+    c: Context,
+    credentialId: C,
+    options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
+  ) {
+    if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
+    const factory = options?.factory ?? exaAccountFactoryAddress;
+    const publicKey =
+      options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
+    if (!publicKey) throw new Error("bad credential");
+    const { x, y } = decodePublicKey(publicKey);
+    const account = deriveAddress(factory, { x, y });
 
-  setUser({ id: account });
-  const expires = new Date(Date.now() + AUTH_EXPIRY);
-  await database.insert(credentials).values([
-    {
-      account,
-      id: credentialId,
-      publicKey,
-      factory,
-      transports: options?.webauthn?.transports,
-      source: options?.source,
-    },
-  ]);
-  await Promise.all([
-    setSignedCookie(c, "credential_id", credentialId, authSecret, {
-      expires,
-      httpOnly: true,
-      ...(domain === "localhost"
-        ? { sameSite: "lax", secure: false }
-        : { domain, sameSite: "none", secure: true, partitioned: true }),
-    }),
-    updateWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
-    customer({
-      flow: { name: "signup", type: "signup" },
-      customer: {
+    setUser({ id: account });
+    const expires = new Date(Date.now() + AUTH_EXPIRY);
+    await database.insert(credentials).values([
+      {
+        account,
         id: credentialId,
-        tags: [
-          { name: "source", value: options?.source ?? "EXA", type: "string" },
-          { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
-        ],
+        publicKey,
+        factory,
+        transports: options?.webauthn?.transports,
+        source: options?.source,
       },
-      ...(options?.ip ? { device: { ip: options.ip } } : {}),
-    }).catch((error: unknown) => captureException(error, { level: "error" })),
-  ]);
-  identify({ userId: account });
-  return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
+    ]);
+
+    await Promise.all([
+      setSignedCookie(c, "credential_id", credentialId, authSecret, {
+        expires,
+        httpOnly: true,
+        ...(domain === "localhost"
+          ? { sameSite: "lax", secure: false }
+          : { domain, sameSite: "none", secure: true, partitioned: true }),
+      }),
+      alchemy.addWebhookAddresses(webhookId, [account]).catch((error: unknown) => captureException(error)),
+      sardine
+        .customer({
+          flow: { name: "signup", type: "signup" },
+          customer: {
+            id: credentialId,
+            tags: [
+              { name: "source", value: options?.source ?? "EXA", type: "string" },
+              { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
+            ],
+          },
+          ...(options?.ip ? { device: { ip: options.ip } } : {}),
+        })
+        .catch((error: unknown) => captureException(error, { level: "error" })),
+    ]);
+
+    segment.identify({ userId: account });
+    return { credentialId, factory: parse(Address, factory), x, y, auth: expires.getTime() };
+  };
 }
