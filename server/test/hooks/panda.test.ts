@@ -1,7 +1,8 @@
 import "../mocks/deployments";
-import "../mocks/onesignal";
+import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/panda";
-import "../mocks/sardine";
+import * as sardine from "../mocks/sardine";
+import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
@@ -47,26 +48,53 @@ import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
-import app from "../../hooks/panda";
+import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
-import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
+import createOnesignal from "../../utils/onesignal";
+import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
-import * as sardine from "../../utils/sardine";
-import * as segment from "../../utils/segment";
+import createSardine from "../../utils/sardine";
+import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
+import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
+
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const panda = createPanda(pandaConfig);
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+const pandaHook = createPandaHook({
+  database,
+  issuer: privateKeyToAccount(padHex("0x420")),
+  onesignal: createOnesignal("onesignal"),
+  panda,
+  sardine: createSardine(sardineConfig.key, sardineConfig.url),
+  segment: createSegment("segment"),
+  settler: owner.account,
+});
+const app = pandaHook.app;
+
+vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
+  const original = await importOriginal<{ drizzle: typeof Drizzle }>();
+  let instance: ReturnType<typeof original.drizzle> | undefined;
+  return {
+    ...original,
+    drizzle: ((...args: Parameters<typeof original.drizzle>) =>
+      (instance ??= original.drizzle(...args))) as typeof original.drizzle,
+  };
+});
+
 let keeper: ReturnType<typeof wallet>;
 
 const appClient = testClient(app);
-const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
 
 beforeAll(async () => {
   keeper = wallet(privateKeyToAccount(padHex("0x69")));
   await Promise.all([
+    pandaHook.ready,
     database.transaction(async (tx) => {
       await tx
         .insert(credentials)
@@ -111,7 +139,7 @@ describe("card operations", () => {
         );
       });
 
-      afterEach(() => panda.getMutex(account)?.release());
+      afterEach(() => Panda.getMutex(account)?.release());
 
       it("fails with InsufficientAccountLiquidity", async () => {
         const currentFunds = await publicClient.readContract({
@@ -275,7 +303,7 @@ describe("card operations", () => {
       it("authorizes debit when risk assessment times out", async () => {
         const error = new Error("timeout");
         error.name = "TimeoutError";
-        vi.spyOn(sardine, "default").mockRejectedValueOnce(error);
+        vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
         await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -420,7 +448,7 @@ describe("card operations", () => {
       it("fails with mutex timeout", async () => {
         const cardId = "rc-mutex";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0003" }]);
-        const mutex = panda.createMutex(account);
+        const mutex = Panda.createMutex(account);
         await mutex.acquire();
         try {
           const response = await appClient.index.$post({
@@ -442,7 +470,7 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
         const cardId = "rc-ouch";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
 
@@ -462,7 +490,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk authorization", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -486,7 +514,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk verification", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -515,7 +543,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk refund", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -746,7 +774,7 @@ describe("card operations", () => {
       });
 
       it("sends locale-aware card purchase notification", async () => {
-        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+        const sendPushNotification = sendPushNotificationMock;
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -782,7 +810,7 @@ describe("card operations", () => {
 
       it("captures card purchase notification errors", async () => {
         const error = new Error("push failed");
-        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        sendPushNotificationMock.mockRejectedValueOnce(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -814,7 +842,7 @@ describe("card operations", () => {
 
       it("captures card purchase feedback errors", async () => {
         const error = new Error("feedback failed");
-        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -1139,7 +1167,7 @@ describe("card operations", () => {
       afterEach(() => vi.restoreAllMocks());
 
       it("handles reversal", async () => {
-        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+        const sendPushNotification = sendPushNotificationMock;
         const amount = 2073;
         const cardId = "card";
         await keeper.exaSend(
@@ -1211,8 +1239,8 @@ describe("card operations", () => {
 
       it("captures refund notification errors", async () => {
         const error = new Error("push failed");
-        const notification = Promise.withResolvers<Awaited<ReturnType<typeof onesignal.sendPushNotification>>>();
-        vi.spyOn(onesignal, "sendPushNotification").mockReturnValueOnce(notification.promise);
+        const notification = Promise.withResolvers<Awaited<ReturnType<typeof sendPushNotificationMock>>>();
+        sendPushNotificationMock.mockReturnValueOnce(notification.promise);
         const amount = 2073;
         const cardId = "refund-notify-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
@@ -1249,7 +1277,7 @@ describe("card operations", () => {
           },
         });
 
-        expect(onesignal.sendPushNotification).toHaveBeenCalledWith({
+        expect(sendPushNotificationMock).toHaveBeenCalledWith({
           userId: account,
           headings: t("Refund processed"),
           contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
@@ -1292,7 +1320,7 @@ describe("card operations", () => {
             },
           },
         });
-        vi.spyOn(sardine, "feedback").mockImplementation(
+        vi.spyOn(sardine, "feedback").mockImplementationOnce(
           () =>
             ({
               catch(handler: (reason: unknown) => unknown) {
@@ -1330,7 +1358,7 @@ describe("card operations", () => {
 
       it("captures partial refund feedback errors", async () => {
         const error = new Error("feedback failed");
-        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         const cardId = "partial-refund-feedback-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
         await keeper.exaSend(
@@ -2283,7 +2311,7 @@ describe("card operations", () => {
         const hold = 25;
         const capture = 30;
 
-        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         const cardId = "over-capture-feedback-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
         await appClient.index.$post({
@@ -2612,7 +2640,7 @@ describe("concurrency", () => {
     });
 
     it("releases mutex when authorization is declined", async () => {
-      const getMutex = vi.spyOn(panda, "getMutex");
+      const getMutex = vi.spyOn(Panda, "getMutex");
       const cardId = `${account2}-card`;
       const spendAuthorization = await appClient.index.$post({
         ...authorization,
@@ -2897,7 +2925,7 @@ describe("concurrency", () => {
       afterEach(() => vi.useRealTimers());
 
       it("times out when mutex is locked", async () => {
-        const getMutex = vi.spyOn(panda, "getMutex");
+        const getMutex = vi.spyOn(Panda, "getMutex");
         const cardId = `${account2}-card`;
         const promises = Promise.all([
           appClient.index.$post({
@@ -2951,7 +2979,7 @@ describe("concurrency", () => {
 
   describe("push notifications", () => {
     it("sends notification when the declined transaction is created", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = "insufficient-liquidity-notification-test";
 
       const maxWithdraw = await publicClient.readContract({
@@ -3010,7 +3038,7 @@ describe("concurrency", () => {
 
     it("captures declined notification errors", async () => {
       const error = new Error("push failed");
-      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      sendPushNotificationMock.mockRejectedValueOnce(error);
       const txId = `declined-notification-error-${crypto.randomUUID()}`;
 
       const response = await appClient.index.$post({
@@ -3036,7 +3064,7 @@ describe("concurrency", () => {
     });
 
     it("uses a generic reason for malformed saved payloads", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `malformed-saved-payload-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3076,7 +3104,7 @@ describe("concurrency", () => {
     });
 
     it("uses a generic reason when the saved payload has no requested body", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `missing-requested-body-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3119,7 +3147,7 @@ describe("concurrency", () => {
     });
 
     it("uses the legacy requested reason when the nested reason is absent", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `legacy-requested-reason-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3169,7 +3197,7 @@ describe("concurrency", () => {
     });
 
     it("recovers a local decline reason and ignores duplicate created events", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = "local-decline-reason-notification-test";
       const createdEvent = {
@@ -3224,7 +3252,7 @@ describe("concurrency", () => {
     });
 
     it("does not notify for declined updated events", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = `updated-declined-${crypto.randomUUID()}`;
       const updatedEvent = {
         ...authorization.json,
@@ -3292,7 +3320,7 @@ describe("concurrency", () => {
       ["webhook declined", "transaction declined"],
       ["unknown provider decline", "transaction declined"],
     ])("stores raw %s and notifies with %s", async (declinedReason, notificationReason) => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = crypto.randomUUID();
 
       expect(
@@ -3338,7 +3366,7 @@ describe("concurrency", () => {
     });
 
     it("does not send duplicate notifications for concurrent declined transactions", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
 
       const cardId = `${account2}-card`;
       const txId = `concurrent-declined-${crypto.randomUUID()}`;
@@ -3368,7 +3396,7 @@ describe("concurrency", () => {
     });
 
     it("does not send notification for unknown error", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
 
       vi.spyOn(traceClient, "traceCall").mockRejectedValueOnce(new Error("unexpected trace error"));
 

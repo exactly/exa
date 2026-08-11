@@ -4,35 +4,142 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import api from "./api";
+import createApi from "./api";
 import database from "./database";
-import activityHook from "./hooks/activity";
-import block from "./hooks/block";
-import bridge from "./hooks/bridge";
-import manteca from "./hooks/manteca";
-import panda from "./hooks/panda";
-import persona from "./hooks/persona";
+import createActivityHook from "./hooks/activity";
+import createBlockHook from "./hooks/block";
+import createBridgeHook from "./hooks/bridge";
+import createMantecaHook from "./hooks/manteca";
+import createPandaHook from "./hooks/panda";
+import createPersonaHook from "./hooks/persona";
 import supervise, { own } from "./supervise";
+import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
-import { closeQueue as closeMaturity, reminders } from "./utils/maturity";
-import { close as closeRedis } from "./utils/redis";
-import { closeAndFlush as closeSegment } from "./utils/segment";
+import createIntercom from "./utils/intercom";
+import { closeQueue as closeMaturity, reminders, setup as setupMaturity } from "./utils/maturity";
+import createOnesignal from "./utils/onesignal";
+import createPanda from "./utils/panda";
+import createPax from "./utils/pax";
+import createPersona from "./utils/persona";
+import createBridge from "./utils/ramps/bridge";
+import createManteca from "./utils/ramps/manteca";
+import redis, { close as closeRedis } from "./utils/redis";
+import createSardine from "./utils/sardine";
+import createSegment from "./utils/segment";
+import { legacy } from "./utils/wallet";
+import createWalletExtension from "./utils/walletExtension";
+
+const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
+const bridge = createBridge(
+  parse(pipe(string("bridge key"), nonEmpty("bridge key")), env.BRIDGE_API_KEY),
+  parse(pipe(string("bridge url"), nonEmpty("bridge url")), env.BRIDGE_API_URL),
+);
+const intercom = createIntercom(parse(pipe(string("intercom"), nonEmpty("intercom")), env.INTERCOM_IDENTITY_KEY));
+const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const keeper = legacy("keeper"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const manteca = createManteca(
+  parse(pipe(string("manteca key"), nonEmpty("manteca key")), env.MANTECA_API_KEY),
+  parse(pipe(string("manteca url"), nonEmpty("manteca url")), env.MANTECA_API_URL),
+);
+const onesignal = createOnesignal(parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY));
+const panda = createPanda({
+  key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
+  url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
+});
+const pax = createPax({
+  associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
+  key: parse(pipe(string("pax key"), nonEmpty("pax key")), env.PAX_API_KEY),
+  url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
+});
+const persona = createPersona(
+  parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
+  parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
+);
+const sardine = createSardine(
+  parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
+  parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
+);
+const segment = createSegment(parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY));
+const walletExtension = createWalletExtension(
+  parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
+);
+setupMaturity(onesignal);
+const api = createApi({
+  alchemy,
+  authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
+  bridge,
+  database,
+  intercom,
+  manteca,
+  panda,
+  pax,
+  persona,
+  redis,
+  sardine,
+  segment,
+  walletExtension,
+});
+
+const activityHook = createActivityHook({
+  alchemy,
+  activityKey: env.ALCHEMY_ACTIVITY_KEY,
+  database,
+  executor: keeper,
+  onesignal,
+  redis,
+  segment,
+});
+const blockHook = createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis });
+const bridgeHook = createBridgeHook({
+  bridge,
+  bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
+  database,
+  onesignal,
+  persona,
+  segment,
+});
+const mantecaHook = createMantecaHook({
+  database,
+  manteca,
+  mantecaWebhookKey: parse(pipe(string("manteca webhook"), nonEmpty("manteca webhook")), env.MANTECA_WEBHOOKS_KEY),
+  onesignal,
+  segment,
+});
+const pandaHook = createPandaHook({
+  database,
+  issuer,
+  onesignal,
+  panda,
+  sardine,
+  segment,
+  settler: keeper,
+});
+const personaHook = createPersonaHook({
+  database,
+  panda,
+  pax,
+  persona,
+  personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
+  sardine,
+});
 
 const app = new Hono();
 app.use(trimTrailingSlash());
-app.route("/api", api);
-app.route("/hooks/activity", activityHook);
-app.route("/hooks/block", block);
-app.route("/hooks/bridge", bridge);
-app.route("/hooks/manteca", manteca);
-app.route("/hooks/panda", panda);
-app.route("/hooks/persona", persona);
+app.route("/api", api.app);
+app.route("/hooks/activity", activityHook.app);
+app.route("/hooks/block", blockHook.app);
+app.route("/hooks/bridge", bridgeHook.app);
+app.route("/hooks/manteca", mantecaHook.app);
+app.route("/hooks/panda", pandaHook.app);
+app.route("/hooks/persona", personaHook.app);
 
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
@@ -284,7 +391,23 @@ export const close = supervise(
   "server",
   Promise.resolve(
     own(
-      own({ app, ready: reminders().catch(reminders) }, closeMaturity, closeSegment),
+      own(
+        {
+          app,
+          ready: Promise.all([
+            api.ready,
+            activityHook.ready,
+            blockHook.ready,
+            bridgeHook.ready,
+            mantecaHook.ready,
+            pandaHook.ready,
+            personaHook.ready,
+            reminders().catch(reminders),
+          ]),
+        },
+        closeMaturity,
+        () => segment.close(),
+      ),
       () => database.$client.end(),
       closeRedis,
     ),

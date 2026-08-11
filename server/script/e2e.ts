@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { env } from "node:process";
 
 const vitest = spawn(
   "node",
@@ -6,12 +7,13 @@ const vitest = spawn(
     "-e",
     `
 const { spawn } = require("node:child_process");
+const { env } = require("node:process");
 
 process.on("uncaughtException", () => null);
 process.stdout.on("error", () => null);
 process.stderr.on("error", () => null);
 
-const v = spawn("vitest", ["run"], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, FORCE_COLOR: "1" } });
+const v = spawn("vitest", ["run"], { stdio: ["ignore", "pipe", "pipe"], env: { ...env, FORCE_COLOR: "1" } });
 
 v.stdout.pipe(process.stdout);
 v.stderr.pipe(process.stderr);
@@ -32,7 +34,7 @@ process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 `,
   ],
-  { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, NODE_ENV: "e2e" }, detached: true },
+  { stdio: ["pipe", "pipe", "pipe"], env: { ...env, NODE_ENV: "e2e" }, detached: true },
 );
 
 vitest.unref();

@@ -9,223 +9,272 @@ import { literal, nullish, object, optional, parse, picklist, string, unknown, v
 
 import { Address } from "@exactly/common/validation";
 
-import database, { credentials } from "../database";
+import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
-import { sendPushNotification } from "../utils/onesignal";
-import { searchAccounts } from "../utils/persona";
-import { BridgeCurrency, getCustomer, publicKey } from "../utils/ramps/bridge";
-import { track } from "../utils/segment";
+import { BridgeCurrency, publicKey } from "../utils/ramps/bridge";
 import validatorHook from "../utils/validatorHook";
+
+import type * as schema from "../database/schema";
+import type createOnesignal from "../utils/onesignal";
+import type createPersona from "../utils/persona";
+import type createBridge from "../utils/ramps/bridge";
+import type createSegment from "../utils/segment";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const debug = createDebug("exa:bridge");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
-export default new Hono().post(
-  "/",
-  headerValidator(publicKey),
-  vValidator(
-    "json",
-    variant("event_type", [
-      object({ event_type: literal("customer.created"), event_object: unknown() }),
-      object({
-        event_type: literal("customer.updated.status_transitioned"),
-        event_object: object({
-          id: string(),
-          status: picklist([
-            "active",
-            "awaiting_questionnaire",
-            "awaiting_ubo",
-            "incomplete",
-            "not_started",
-            "offboarded",
-            "paused",
-            "rejected",
-            "under_review",
-          ]),
-        }),
-      }),
-      object({ event_type: literal("customer.updated"), event_object: unknown() }),
-      object({ event_type: literal("liquidation_address.drain.created"), event_object: unknown() }),
-      object({
-        event_type: literal("liquidation_address.drain.updated"),
-        event_object: unknown(),
-      }),
-      object({
-        event_type: literal("liquidation_address.drain.updated.status_transitioned"),
-        event_object: object({
-          currency: picklist(BridgeCurrency),
-          customer_id: string(),
-          id: string(),
-          state: picklist(["funds_received", "funds_scheduled", "payment_submitted", "payment_processed"]),
-          receipt: object({ initial_amount: string(), outgoing_amount: string() }),
-        }),
-      }),
-      object({
-        event_type: literal("virtual_account.activity.created"),
-        event_object: variant("type", [
-          object({ type: literal("account_update"), id: string(), customer_id: string() }),
-          object({ type: literal("activation"), id: string(), customer_id: string() }),
-          object({ type: literal("deactivation"), id: string(), customer_id: string() }),
-          object({ type: literal("funds_received"), id: string(), customer_id: string() }),
-          object({ type: literal("funds_scheduled"), id: string(), customer_id: string() }),
-          object({ type: literal("in_review"), id: string(), customer_id: string() }),
-          object({ type: literal("microdeposit"), id: string(), customer_id: string() }), // cspell:ignore microdeposit
-          object({
-            customer_id: string(),
-            currency: picklist(BridgeCurrency),
+export default function hook({
+  bridge,
+  bridgeWebhookKey = publicKey,
+  database,
+  onesignal,
+  persona,
+  segment,
+}: {
+  bridge: ReturnType<typeof createBridge>;
+  bridgeWebhookKey?: string;
+  database: NodePgDatabase<typeof schema>;
+  onesignal: ReturnType<typeof createOnesignal>;
+  persona: ReturnType<typeof createPersona>;
+  segment: ReturnType<typeof createSegment>;
+}) {
+  const app = new Hono().post(
+    "/",
+    headerValidator(bridgeWebhookKey),
+    vValidator(
+      "json",
+      variant("event_type", [
+        object({ event_type: literal("customer.created"), event_object: unknown() }),
+        object({
+          event_type: literal("customer.updated.status_transitioned"),
+          event_object: object({
             id: string(),
-            type: literal("payment_processed"),
-            receipt: object({ initial_amount: string(), final_amount: string() }),
+            status: picklist([
+              "active",
+              "awaiting_questionnaire",
+              "awaiting_ubo",
+              "incomplete",
+              "not_started",
+              "offboarded",
+              "paused",
+              "rejected",
+              "under_review",
+            ]),
           }),
-          object({
-            customer_id: string(),
-            currency: picklist(BridgeCurrency),
-            id: string(),
-            type: literal("payment_submitted"),
-            receipt: object({ initial_amount: string() }),
-          }),
-          object({ type: literal("refund"), id: string(), customer_id: string() }),
-        ]),
-      }),
-      object({ event_type: literal("virtual_account.activity.updated"), event_object: unknown() }),
-      object({ event_type: literal("external_account.created"), event_object: unknown() }),
-      object({ event_type: literal("external_account.updated"), event_object: unknown() }),
-      object({ event_type: literal("transfer.created"), event_object: unknown() }),
-      object({ event_type: literal("transfer.updated"), event_object: unknown() }),
-      object({
-        event_type: literal("transfer.updated.status_transitioned"),
-        event_object: object({
-          currency: picklist(BridgeCurrency),
-          destination: object({ external_account_id: nullish(string()) }),
-          id: string(),
-          on_behalf_of: string(),
-          receipt: optional(object({ initial_amount: string(), final_amount: string() })),
-          state: picklist([
-            "awaiting_funds",
-            "canceled",
-            "funds_received",
-            "in_review",
-            "payment_processed",
-            "payment_submitted",
-            "refund_failed",
-            "refund_in_flight",
-            "refunded",
-            "returned",
-            "undeliverable",
-          ]),
         }),
-      }),
-    ]),
-    validatorHook({ code: "bad bridge", status: 200, debug }),
-  ),
-  async (c) => {
-    const payload = c.req.valid("json");
-    switch (payload.event_type) {
-      case "customer.created":
-      case "customer.updated":
-      case "liquidation_address.drain.created":
-      case "liquidation_address.drain.updated":
-      case "virtual_account.activity.updated":
-      case "external_account.created":
-      case "external_account.updated":
-      case "transfer.created":
-      case "transfer.updated":
-        return c.json({ code: "ok" }, 200);
-    }
-
-    const bridgeId =
-      payload.event_type === "customer.updated.status_transitioned"
-        ? payload.event_object.id
-        : payload.event_type === "transfer.updated.status_transitioned"
-          ? payload.event_object.on_behalf_of
-          : payload.event_object.customer_id;
-    let credential = await database.query.credentials.findFirst({
-      columns: { account: true, source: true },
-      where: eq(credentials.bridgeId, bridgeId),
-    });
-    if (!credential && payload.event_type === "customer.updated.status_transitioned") {
-      credential = await getCustomer(bridgeId)
-        .then((customer) => (customer ? searchAccounts(customer.email) : undefined))
-        .then((accounts) => {
-          if (accounts && accounts.length > 1)
-            captureException(new Error("multiple persona accounts found"), {
-              level: "fatal",
-              contexts: { details: { bridgeId, matches: accounts.length } },
-            });
-          return accounts?.length === 1 ? accounts[0]?.attributes["reference-id"] : undefined;
-        })
-        .then((referenceId) =>
-          referenceId
-            ? database
-                .update(credentials)
-                .set({ bridgeId })
-                .where(and(eq(credentials.id, referenceId), isNull(credentials.bridgeId)))
-                .returning({ account: credentials.account, source: credentials.source })
-                .then(([updated]) => {
-                  if (!updated) throw new Error("no match found when pairing bridge id");
-                  captureEvent({
-                    message: "bridge credential paired",
-                    level: "warning",
-                    contexts: { details: { bridgeId, referenceId } },
-                  });
-                  return updated;
-                })
-                .catch((error: unknown): undefined => {
-                  if (
-                    error instanceof DrizzleQueryError &&
-                    error.cause &&
-                    "code" in error.cause &&
-                    error.cause.code === "23505"
-                  ) {
-                    captureEvent({
-                      message: "bridge credential already paired",
-                      level: "fatal",
-                      contexts: { details: { bridgeId } },
-                    });
-                    return;
-                  }
-                  throw error;
-                })
-            : undefined,
-        );
-    }
-    if (!credential) {
-      captureException(new Error("credential not found"), {
-        level: "error",
-        contexts: { details: { bridgeId } },
-      });
-      return c.json({ code: "credential not found" }, 200);
-    }
-    const account = parse(Address, credential.account);
-    setUser({ id: account });
-
-    switch (payload.event_type) {
-      case "customer.updated.status_transitioned":
-        if (payload.event_object.status !== "active") return c.json({ code: "ok" }, 200);
-        track({
-          userId: account,
-          event: "RampAccount",
-          properties: { provider: "bridge", source: credential.source },
-        });
-        sendPushNotification({
-          userId: account,
-          headings: t("Fiat onramp activated"),
-          contents: t("Your fiat onramp account has been activated"),
-        }).catch((error: unknown) => captureException(error, { level: "error" }));
-        return c.json({ code: "ok" }, 200);
-      case "virtual_account.activity.created":
-        if (payload.event_object.type === "payment_submitted") {
-          sendPushNotification({
-            userId: account,
-            headings: t("Deposited funds"),
-            contents: t("{{amount}} {{asset}} deposited", {
-              amount: f(payload.event_object.receipt.initial_amount),
-              asset: payload.event_object.currency.toUpperCase(),
+        object({ event_type: literal("customer.updated"), event_object: unknown() }),
+        object({ event_type: literal("liquidation_address.drain.created"), event_object: unknown() }),
+        object({
+          event_type: literal("liquidation_address.drain.updated"),
+          event_object: unknown(),
+        }),
+        object({
+          event_type: literal("liquidation_address.drain.updated.status_transitioned"),
+          event_object: object({
+            currency: picklist(BridgeCurrency),
+            customer_id: string(),
+            id: string(),
+            state: picklist(["funds_received", "funds_scheduled", "payment_submitted", "payment_processed"]),
+            receipt: object({ initial_amount: string(), outgoing_amount: string() }),
+          }),
+        }),
+        object({
+          event_type: literal("virtual_account.activity.created"),
+          event_object: variant("type", [
+            object({ type: literal("account_update"), id: string(), customer_id: string() }),
+            object({ type: literal("activation"), id: string(), customer_id: string() }),
+            object({ type: literal("deactivation"), id: string(), customer_id: string() }),
+            object({ type: literal("funds_received"), id: string(), customer_id: string() }),
+            object({ type: literal("funds_scheduled"), id: string(), customer_id: string() }),
+            object({ type: literal("in_review"), id: string(), customer_id: string() }),
+            object({ type: literal("microdeposit"), id: string(), customer_id: string() }), // cspell:ignore microdeposit
+            object({
+              customer_id: string(),
+              currency: picklist(BridgeCurrency),
+              id: string(),
+              type: literal("payment_processed"),
+              receipt: object({ initial_amount: string(), final_amount: string() }),
             }),
-          }).catch((error: unknown) => captureException(error, { level: "error" }));
-        }
-        if (payload.event_object.type === "payment_processed") {
-          track({
+            object({
+              customer_id: string(),
+              currency: picklist(BridgeCurrency),
+              id: string(),
+              type: literal("payment_submitted"),
+              receipt: object({ initial_amount: string() }),
+            }),
+            object({ type: literal("refund"), id: string(), customer_id: string() }),
+          ]),
+        }),
+        object({ event_type: literal("virtual_account.activity.updated"), event_object: unknown() }),
+        object({ event_type: literal("external_account.created"), event_object: unknown() }),
+        object({ event_type: literal("external_account.updated"), event_object: unknown() }),
+        object({ event_type: literal("transfer.created"), event_object: unknown() }),
+        object({ event_type: literal("transfer.updated"), event_object: unknown() }),
+        object({
+          event_type: literal("transfer.updated.status_transitioned"),
+          event_object: object({
+            currency: picklist(BridgeCurrency),
+            destination: object({ external_account_id: nullish(string()) }),
+            id: string(),
+            on_behalf_of: string(),
+            receipt: optional(object({ initial_amount: string(), final_amount: string() })),
+            state: picklist([
+              "awaiting_funds",
+              "canceled",
+              "funds_received",
+              "in_review",
+              "payment_processed",
+              "payment_submitted",
+              "refund_failed",
+              "refund_in_flight",
+              "refunded",
+              "returned",
+              "undeliverable",
+            ]),
+          }),
+        }),
+      ]),
+      validatorHook({ code: "bad bridge", status: 200, debug }),
+    ),
+    async (c) => {
+      const payload = c.req.valid("json");
+      switch (payload.event_type) {
+        case "customer.created":
+        case "customer.updated":
+        case "liquidation_address.drain.created":
+        case "liquidation_address.drain.updated":
+        case "virtual_account.activity.updated":
+        case "external_account.created":
+        case "external_account.updated":
+        case "transfer.created":
+        case "transfer.updated":
+          return c.json({ code: "ok" }, 200);
+      }
+
+      const bridgeId =
+        payload.event_type === "customer.updated.status_transitioned"
+          ? payload.event_object.id
+          : payload.event_type === "transfer.updated.status_transitioned"
+            ? payload.event_object.on_behalf_of
+            : payload.event_object.customer_id;
+      let credential = await database.query.credentials.findFirst({
+        columns: { account: true, source: true },
+        where: eq(credentials.bridgeId, bridgeId),
+      });
+      if (!credential && payload.event_type === "customer.updated.status_transitioned") {
+        credential = await bridge
+          .getCustomer(bridgeId)
+          .then((customer) => (customer ? persona.searchAccounts(customer.email) : undefined))
+          .then((accounts) => {
+            if (accounts && accounts.length > 1)
+              captureException(new Error("multiple persona accounts found"), {
+                level: "fatal",
+                contexts: { details: { bridgeId, matches: accounts.length } },
+              });
+            return accounts?.length === 1 ? accounts[0]?.attributes["reference-id"] : undefined;
+          })
+          .then((referenceId) =>
+            referenceId
+              ? database
+                  .update(credentials)
+                  .set({ bridgeId })
+                  .where(and(eq(credentials.id, referenceId), isNull(credentials.bridgeId)))
+                  .returning({ account: credentials.account, source: credentials.source })
+                  .then(([updated]) => {
+                    if (!updated) throw new Error("no match found when pairing bridge id");
+                    captureEvent({
+                      message: "bridge credential paired",
+                      level: "warning",
+                      contexts: { details: { bridgeId, referenceId } },
+                    });
+                    return updated;
+                  })
+                  .catch((error: unknown): undefined => {
+                    if (
+                      error instanceof DrizzleQueryError &&
+                      error.cause &&
+                      "code" in error.cause &&
+                      error.cause.code === "23505"
+                    ) {
+                      captureEvent({
+                        message: "bridge credential already paired",
+                        level: "fatal",
+                        contexts: { details: { bridgeId } },
+                      });
+                      return;
+                    }
+                    throw error;
+                  })
+              : undefined,
+          );
+      }
+      if (!credential) {
+        captureException(new Error("credential not found"), {
+          level: "error",
+          contexts: { details: { bridgeId } },
+        });
+        return c.json({ code: "credential not found" }, 200);
+      }
+      const account = parse(Address, credential.account);
+      setUser({ id: account });
+
+      switch (payload.event_type) {
+        case "customer.updated.status_transitioned":
+          if (payload.event_object.status !== "active") return c.json({ code: "ok" }, 200);
+          segment.track({
+            userId: account,
+            event: "RampAccount",
+            properties: { provider: "bridge", source: credential.source },
+          });
+          onesignal
+            .sendPushNotification({
+              userId: account,
+              headings: t("Fiat onramp activated"),
+              contents: t("Your fiat onramp account has been activated"),
+            })
+            .catch((error: unknown) => captureException(error, { level: "error" }));
+          return c.json({ code: "ok" }, 200);
+        case "virtual_account.activity.created":
+          if (payload.event_object.type === "payment_submitted") {
+            onesignal
+              .sendPushNotification({
+                userId: account,
+                headings: t("Deposited funds"),
+                contents: t("{{amount}} {{asset}} deposited", {
+                  amount: f(payload.event_object.receipt.initial_amount),
+                  asset: payload.event_object.currency.toUpperCase(),
+                }),
+              })
+              .catch((error: unknown) => captureException(error, { level: "error" }));
+          }
+          if (payload.event_object.type === "payment_processed") {
+            segment.track({
+              userId: account,
+              event: "Onramp",
+              properties: {
+                currency: payload.event_object.currency,
+                amount: Number(payload.event_object.receipt.initial_amount),
+                provider: "bridge",
+                source: credential.source,
+                usdcAmount: Number(payload.event_object.receipt.final_amount),
+              },
+            });
+          }
+          return c.json({ code: "ok" }, 200);
+        case "liquidation_address.drain.updated.status_transitioned":
+          if (payload.event_object.state !== "payment_submitted") return c.json({ code: "ok" }, 200);
+          onesignal
+            .sendPushNotification({
+              userId: account,
+              headings: t("Deposited funds"),
+              contents: t("{{amount}} {{asset}} deposited", {
+                amount: f(payload.event_object.receipt.initial_amount),
+                asset: payload.event_object.currency.toUpperCase(),
+              }),
+            })
+            .catch((error: unknown) => captureException(error, { level: "error" }));
+          segment.track({
             userId: account,
             event: "Onramp",
             properties: {
@@ -233,73 +282,56 @@ export default new Hono().post(
               amount: Number(payload.event_object.receipt.initial_amount),
               provider: "bridge",
               source: credential.source,
-              usdcAmount: Number(payload.event_object.receipt.final_amount),
+              usdcAmount: Number(payload.event_object.receipt.outgoing_amount),
             },
           });
-        }
-        return c.json({ code: "ok" }, 200);
-      case "liquidation_address.drain.updated.status_transitioned":
-        if (payload.event_object.state !== "payment_submitted") return c.json({ code: "ok" }, 200);
-        sendPushNotification({
-          userId: account,
-          headings: t("Deposited funds"),
-          contents: t("{{amount}} {{asset}} deposited", {
-            amount: f(payload.event_object.receipt.initial_amount),
-            asset: payload.event_object.currency.toUpperCase(),
-          }),
-        }).catch((error: unknown) => captureException(error, { level: "error" }));
-        track({
-          userId: account,
-          event: "Onramp",
-          properties: {
-            currency: payload.event_object.currency,
-            amount: Number(payload.event_object.receipt.initial_amount),
-            provider: "bridge",
-            source: credential.source,
-            usdcAmount: Number(payload.event_object.receipt.outgoing_amount),
-          },
-        });
-        return c.json({ code: "ok" }, 200);
-      case "transfer.updated.status_transitioned":
-        if (!payload.event_object.destination.external_account_id) return c.json({ code: "ok" }, 200);
-        switch (payload.event_object.state) {
-          case "funds_received":
-            sendPushNotification({
-              userId: account,
-              headings: t("Withdrawal in progress"),
-              contents: t("Your funds are on the way to your bank"),
-            }).catch((error: unknown) => captureException(error, { level: "error" }));
-            return c.json({ code: "ok" }, 200);
-          case "payment_processed":
-            if (!payload.event_object.receipt) return c.json({ code: "ok" }, 200);
-            sendPushNotification({
-              userId: account,
-              headings: t("Withdraw completed"),
-              contents: t("{{amount}} {{asset}} withdrawn", {
-                amount: f(payload.event_object.receipt.final_amount),
-                asset: payload.event_object.currency.toUpperCase(),
-              }),
-            }).catch((error: unknown) => captureException(error, { level: "error" }));
-            track({
-              userId: account,
-              event: "Offramp",
-              properties: {
-                currency: payload.event_object.currency,
-                amount: Number(payload.event_object.receipt.final_amount),
-                provider: "bridge",
-                source: credential.source,
-                usdcAmount: Number(payload.event_object.receipt.initial_amount),
-              },
-            });
-            return c.json({ code: "ok" }, 200);
-          default:
-            return c.json({ code: "ok" }, 200);
-        }
-    }
-  },
-);
+          return c.json({ code: "ok" }, 200);
+        case "transfer.updated.status_transitioned":
+          if (!payload.event_object.destination.external_account_id) return c.json({ code: "ok" }, 200);
+          switch (payload.event_object.state) {
+            case "funds_received":
+              onesignal
+                .sendPushNotification({
+                  userId: account,
+                  headings: t("Withdrawal in progress"),
+                  contents: t("Your funds are on the way to your bank"),
+                })
+                .catch((error: unknown) => captureException(error, { level: "error" }));
+              return c.json({ code: "ok" }, 200);
+            case "payment_processed":
+              if (!payload.event_object.receipt) return c.json({ code: "ok" }, 200);
+              onesignal
+                .sendPushNotification({
+                  userId: account,
+                  headings: t("Withdraw completed"),
+                  contents: t("{{amount}} {{asset}} withdrawn", {
+                    amount: f(payload.event_object.receipt.final_amount),
+                    asset: payload.event_object.currency.toUpperCase(),
+                  }),
+                })
+                .catch((error: unknown) => captureException(error, { level: "error" }));
+              segment.track({
+                userId: account,
+                event: "Offramp",
+                properties: {
+                  currency: payload.event_object.currency,
+                  amount: Number(payload.event_object.receipt.final_amount),
+                  provider: "bridge",
+                  source: credential.source,
+                  usdcAmount: Number(payload.event_object.receipt.initial_amount),
+                },
+              });
+              return c.json({ code: "ok" }, 200);
+            default:
+              return c.json({ code: "ok" }, 200);
+          }
+      }
+    },
+  );
+  return { app, ready: Promise.resolve() };
+}
 
-function headerValidator(key: string) {
+function headerValidator(webhookKey: string) {
   return validator("header", async ({ "x-webhook-signature": signature }, c) => {
     if (typeof signature !== "string") return c.json({ code: "unauthorized" }, 401);
     const match = /^t=(\d+),v0=(.+)$/.exec(signature);
@@ -311,7 +343,7 @@ function headerValidator(key: string) {
     const digest = createHash("sha256").update(`${timestamp}.${body}`).digest();
     const verifier = createVerify("RSA-SHA256");
     verifier.update(digest);
-    if (!verifier.verify(key, Buffer.from(base64Signature, "base64"))) {
+    if (!verifier.verify(webhookKey, Buffer.from(base64Signature, "base64"))) {
       return c.json({ code: "unauthorized" }, 401);
     }
   });

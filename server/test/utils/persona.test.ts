@@ -1,4 +1,3 @@
-import "../mocks/persona";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -6,7 +5,7 @@ import { array, minLength, number, object, optional, pipe, safeParse, string, un
 import { baseSepolia, optimism } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
-import * as persona from "../../utils/persona";
+import createPersona, * as Persona from "../../utils/persona";
 
 const chainMock = vi.hoisted(() => ({ id: 10 }));
 
@@ -18,6 +17,8 @@ vi.mock("../../utils/panda");
 vi.mock("../../utils/pax");
 
 vi.mock("@sentry/node", { spy: true });
+
+const persona = { ...Persona, ...createPersona("persona", "https://persona.test") };
 
 describe("is missing or null util", () => {
   const schema = object({
@@ -180,7 +181,7 @@ describe("evaluateAccount", () => {
   });
 
   it("throws when scope is not supported", async () => {
-    await expect(persona.evaluateAccount({ data: [] }, "invalid" as persona.AccountScope)).rejects.toThrow(
+    await expect(persona.evaluateAccount({ data: [] }, "invalid" as Persona.AccountScope)).rejects.toThrow(
       "unhandled account scope: invalid",
     );
   });

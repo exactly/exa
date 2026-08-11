@@ -13,8 +13,8 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
-import * as persona from "../../utils/persona";
-import * as bridge from "../../utils/ramps/bridge";
+import createPersona, * as Persona from "../../utils/persona";
+import createBridge, * as Bridge from "../../utils/ramps/bridge";
 
 const chainMock = vi.hoisted(() => ({ id: 10 }));
 
@@ -23,6 +23,15 @@ vi.mock("@exactly/common/generated/chain", () => ({
 }));
 
 vi.mock("@sentry/core", { spy: true });
+
+const persona = { ...Persona, ...createPersona("persona", "https://persona.test") };
+const ramp = createBridge("bridge", "https://bridge.test");
+const bridge = {
+  ...Bridge,
+  ...ramp,
+  getProvider: (params: Parameters<typeof ramp.getProvider>[0]) => ramp.getProvider(params, persona),
+  onboarding: (params: Parameters<typeof ramp.onboarding>[0]) => ramp.onboarding(params, database, persona),
+};
 
 describe("bridge utils", () => {
   const owner = privateKeyToAddress(padHex("0xb1d"));
@@ -3453,7 +3462,7 @@ describe("bridge utils", () => {
     };
 
     it("rejects USD input without state at the schema level", () => {
-      const result = safeParse(bridge.ExternalAccountInput, {
+      const result = safeParse(Bridge.ExternalAccountInput, {
         currency: "USD",
         accountOwnerName: "John Doe",
         accountNumber: "1210002481111",
@@ -3465,7 +3474,7 @@ describe("bridge utils", () => {
     });
 
     it("accepts non-USD input without state at the schema level", () => {
-      const result = safeParse(bridge.ExternalAccountInput, {
+      const result = safeParse(Bridge.ExternalAccountInput, {
         currency: "EUR",
         accountOwnerName: "Jane Doe",
         accountOwnerType: "individual",
@@ -4269,19 +4278,19 @@ describe("bridge utils", () => {
     });
 
     it("rejects empty update payloads at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, { currency: "USD" });
+      const result = safeParse(Bridge.UpdateExternalAccountInput, { currency: "USD" });
       expect(result.success).toBe(false);
       expect(result.issues?.[0]?.message).toBe("address or account is required");
     });
 
     it("rejects account-only updates with no fields at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, { currency: "USD", account: {} });
+      const result = safeParse(Bridge.UpdateExternalAccountInput, { currency: "USD", account: {} });
       expect(result.success).toBe(false);
       expect(result.issues?.[0]?.message).toBe("account requires at least one field");
     });
 
     it("rejects non-us updates without address at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, {
+      const result = safeParse(Bridge.UpdateExternalAccountInput, {
         currency: "EUR",
         account: { routingNumber: "121000248" },
       });
@@ -4290,7 +4299,7 @@ describe("bridge utils", () => {
     });
 
     it("drops account for non-us updates at the schema level", () => {
-      const result = safeParse(bridge.UpdateExternalAccountInput, {
+      const result = safeParse(Bridge.UpdateExternalAccountInput, {
         currency: "EUR",
         address,
         account: { routingNumber: "121000248" },

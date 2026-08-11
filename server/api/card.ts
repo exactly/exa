@@ -39,40 +39,21 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
-import database, { cards, credentials } from "../database";
-import t from "../i18n";
-import auth from "../middleware/auth";
-import { sendPushNotification } from "../utils/onesignal";
-import {
-  autoCredit,
-  createCard,
-  getApplicationStatus,
-  getCard,
-  getCards,
-  getNonce,
-  getPIN,
-  getProcessorDetails,
-  getSecrets,
-  getUser,
-  setPIN,
-  updateCard,
-  verify,
-} from "../utils/panda";
-import { addCapita, deriveAssociateId } from "../utils/pax";
-import { getAccount } from "../utils/persona";
+import { cards, credentials } from "../database/schema";
+import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
-import { customer } from "../utils/sardine";
-import { track } from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
-import { verifyToken } from "../utils/walletExtension";
 
-const mutexes = new Map<string, Mutex>();
-function createMutex(credentialId: string) {
-  const mutex = new Mutex();
-  mutexes.set(credentialId, mutex);
-  return mutex;
-}
+import type * as schema from "../database/schema";
+import type { Auth } from "../middleware/auth";
+import type createPanda from "../utils/panda";
+import type createPax from "../utils/pax";
+import type createPersona from "../utils/persona";
+import type createSardine from "../utils/sardine";
+import type createSegment from "../utils/segment";
+import type createWalletExtension from "../utils/walletExtension";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const CardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
@@ -167,36 +148,61 @@ const UpdatedCardResponse = union([
 
 const Scopes = picklist(["provisioning", "siwe", "webauthn"]);
 
-export default new Hono()
-  .get(
-    "/",
-    vValidator(
-      "header",
-      object({ sessionid: optional(string()) }),
-      validatorHook({ code: "bad session id", status: 400 }),
-    ),
-    vValidator(
-      "query",
-      optional(
-        object({
-          scope: optional(
-            union([
-              Scopes,
-              pipe(
-                array(Scopes),
-                check((scopes) => !(scopes.includes("siwe") && scopes.includes("webauthn")), "bad scope"),
-              ),
-            ]),
-          ),
-        }),
-        {},
+export default function route({
+  auth,
+  database,
+  panda,
+  pax,
+  persona,
+  sardine,
+  segment,
+  walletExtension,
+}: {
+  auth: Auth;
+  database: NodePgDatabase<typeof schema>;
+  panda: ReturnType<typeof createPanda>;
+  pax: ReturnType<typeof createPax>;
+  persona: ReturnType<typeof createPersona>;
+  sardine: ReturnType<typeof createSardine>;
+  segment: ReturnType<typeof createSegment>;
+  walletExtension: ReturnType<typeof createWalletExtension>;
+}) {
+  const mutexes = new Map<string, Mutex>();
+  function createMutex(credentialId: string) {
+    const mutex = new Mutex();
+    mutexes.set(credentialId, mutex);
+    return mutex;
+  }
+  return new Hono()
+    .get(
+      "/",
+      vValidator(
+        "header",
+        object({ sessionid: optional(string()) }),
+        validatorHook({ code: "bad session id", status: 400 }),
       ),
-      validatorHook(),
-    ),
-    auth(),
-    describeRoute({
-      summary: "Get card information",
-      description: `
+      vValidator(
+        "query",
+        optional(
+          object({
+            scope: optional(
+              union([
+                Scopes,
+                pipe(
+                  array(Scopes),
+                  check((scopes) => !(scopes.includes("siwe") && scopes.includes("webauthn")), "bad scope"),
+                ),
+              ]),
+            ),
+          }),
+          {},
+        ),
+        validatorHook(),
+      ),
+      auth,
+      describeRoute({
+        summary: "Get card information",
+        description: `
 Retrieve the card profile, encrypted card data, and (optionally) a signature challenge for an authenticated user.
 
 The \`sessionid\` header and the \`scope\` query parameter are independent and may be used together or separately:
@@ -259,76 +265,450 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
 \`\`\`
 
       `,
-      tags: ["Card"],
-      security: [{ credentialAuth: [] }],
-      validateResponse: true,
-      responses: {
-        200: {
-          description: "Card information",
-          content: { "application/json": { schema: resolver(CardResponse, { errorMode: "ignore" }) } },
-        },
-        400: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([object({ code: literal("bad request") }), object({ code: literal("bad session id") })]),
-                { errorMode: "ignore" },
-              ),
+        tags: ["Card"],
+        security: [{ credentialAuth: [] }],
+        validateResponse: true,
+        responses: {
+          200: {
+            description: "Card information",
+            content: { "application/json": { schema: resolver(CardResponse, { errorMode: "ignore" }) } },
+          },
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([object({ code: literal("bad request") }), object({ code: literal("bad session id") })]),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+          403: {
+            description: "Forbidden",
+            content: {
+              "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+            },
+          },
+          404: {
+            description: "Not found",
+            content: {
+              "application/json": {
+                schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }),
+              },
             },
           },
         },
-        403: {
-          description: "Forbidden",
-          content: {
-            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
-          },
-        },
-        404: {
-          description: "Not found",
-          content: {
-            "application/json": {
-              schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }),
+      }),
+      async (c) => {
+        const { scope } = c.req.valid("query");
+        function include(type: InferInput<typeof Scopes>) {
+          return Array.isArray(scope) ? scope.includes(type) : scope === type;
+        }
+        const { credentialId } = c.req.valid("cookie");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true, pandaId: true },
+          with: {
+            cards: {
+              columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
+              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
             },
           },
-        },
+        });
+        if (!credential) return c.json({ code: "no credential" }, 500);
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
+        if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+        const sessionid = c.req.valid("header").sessionid;
+        if (credential.cards.length > 0 && credential.cards[0]) {
+          const { id, lastFour, status, mode, productId } = credential.cards[0];
+          if (status === "DELETED") throw new Error("card deleted");
+          const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] =
+            await Promise.all([
+              panda.getCard(id),
+              sessionid && panda.getSecrets(id, sessionid),
+              panda.getUser(credential.pandaId).catch((error: unknown) => {
+                const issue = noUser(error);
+                if (!issue) throw error;
+                const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+                if (shouldCapture) {
+                  withScope((s) => {
+                    s.addEventProcessor((event) => {
+                      if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                      return event;
+                    });
+                    captureException(issue.error, {
+                      level: "warning",
+                      fingerprint: ["{{ default }}", issue.type],
+                      extra: {
+                        cardId: id,
+                        credentialId,
+                        pandaId: credential.pandaId,
+                        status,
+                        shouldCapture,
+                        userIssue: issue.type,
+                      },
+                    });
+                  });
+                }
+                return null;
+              }),
+              sessionid && panda.getPIN(id, sessionid),
+              (async () => {
+                if (include("siwe")) {
+                  if (!credential.pandaId) return;
+                  return panda.getNonce(credential.pandaId).then(({ nonce }) =>
+                    createSiweMessage({
+                      domain,
+                      address: parse(Address, credentialId),
+                      statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
+                      uri: `https://${domain}`,
+                      version: "1",
+                      chainId: chain.id,
+                      nonce,
+                    }),
+                  );
+                } else if (include("webauthn")) {
+                  return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
+                }
+              })(),
+              include("provisioning")
+                ? panda.getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+                    id: processorCardId,
+                    secret: timeBasedSecret,
+                  }))
+                : undefined,
+            ]);
+          if (!user) return c.json({ code: "no panda" }, 403);
+          if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
+
+          return c.json(
+            {
+              ...(pan && { ...pan }),
+              ...(pin && { ...pin }),
+              cardId: id,
+              displayName: `${user.firstName} ${user.lastName}`,
+              expirationMonth,
+              expirationYear,
+              lastFour,
+              mode,
+              provider: "panda" as const,
+              status,
+              limit,
+              productId: parse(CardResponse.entries.productId, productId),
+              ...(challenge && { challenge }),
+              ...(provisioning && { provisioning }),
+            } satisfies InferOutput<typeof CardResponse>,
+            200,
+          );
+        } else return c.json({ code: "no card" }, 404);
       },
-    }),
-    async (c) => {
-      const { scope } = c.req.valid("query");
-      function include(type: InferInput<typeof Scopes>) {
-        return Array.isArray(scope) ? scope.includes(type) : scope === type;
-      }
-      const { credentialId } = c.req.valid("cookie");
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, credentialId),
-        columns: { account: true, pandaId: true },
-        with: {
-          cards: {
-            columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+    )
+    .get(
+      "/provisioning",
+      describeRoute({
+        summary: "Get wallet extension card provisioning information",
+        description: `
+Retrieve push-provisioning credentials for Apple Wallet Extension callers.
+
+This endpoint only accepts Wallet Extension bearer access. It does not accept \`credential_id\` cookies, Better Auth sessions, or \`sessionid\`.
+    `,
+        tags: ["Card"],
+        security: [{ extensionAuth: [] }],
+        validateResponse: true,
+        responses: {
+          200: {
+            description: "Card provisioning information",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  object({
+                    id: pipe(string(), metadata({ examples: ["card_abc123"] })),
+                    secret: pipe(string(), metadata({ examples: ["otp_xyz"] })),
+                  }),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+          401: {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: resolver(object({ code: literal("unauthorized") }), { errorMode: "ignore" }),
+              },
+            },
+          },
+          403: {
+            description: "Forbidden",
+            content: {
+              "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+            },
+          },
+          404: {
+            description: "Not found",
+            content: {
+              "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
+            },
           },
         },
-      });
-      if (!credential) return c.json({ code: "no credential" }, 500);
-      const account = parse(Address, credential.account);
-      setUser({ id: account });
-      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-      const sessionid = c.req.valid("header").sessionid;
-      if (credential.cards.length > 0 && credential.cards[0]) {
-        const { id, lastFour, status, mode, productId } = credential.cards[0];
-        if (status === "DELETED") throw new Error("card deleted");
-        const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] = await Promise.all(
-          [
-            getCard(id),
-            sessionid && getSecrets(id, sessionid),
-            getUser(credential.pandaId).catch((error: unknown) => {
+      }),
+      createMiddleware<{
+        Variables: { walletExtension: NonNullable<Awaited<ReturnType<(typeof walletExtension)["verify"]>>> };
+      }>(async (c, next) => {
+        const authorization = c.req.header("authorization");
+        if (!authorization) return c.json({ code: "unauthorized" }, 401);
+        if (!/^Bearer \S+$/i.test(authorization)) return c.json({ code: "unauthorized" }, 401);
+        if (c.req.header("cookie") || c.req.header("sessionid")) return c.json({ code: "unauthorized" }, 401);
+        const verified = await walletExtension.verify(authorization.slice("Bearer ".length));
+        if (!verified) return c.json({ code: "unauthorized" }, 401);
+        c.set("walletExtension", verified);
+        await next();
+      }),
+      async (c) => {
+        c.header("Cache-Control", "no-store");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, c.get("walletExtension").credentialId),
+          columns: { pandaId: true },
+          with: {
+            cards: {
+              columns: { id: true },
+              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+            },
+          },
+        });
+        if (!credential) return c.json({ code: "unauthorized" }, 401);
+        const [card] = credential.cards;
+        if (!card) return c.json({ code: "no card" }, 404);
+        if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+        const provider = await panda.getCard(card.id).catch((error: unknown) => {
+          if (error instanceof ServiceError && error.status === 404) return null;
+          throw error;
+        });
+        if (!provider) return c.json({ code: "no card" }, 404);
+        if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
+        if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
+        try {
+          const { processorCardId, timeBasedSecret } = await panda.getProcessorDetails(card.id);
+          return c.json(
+            {
+              id: processorCardId,
+              secret: timeBasedSecret,
+            } satisfies InferOutput<typeof CardResponse>["provisioning"],
+            200,
+          );
+        } catch (error) {
+          if (error instanceof ServiceError && error.status === 404) return c.json({ code: "no card" }, 404);
+          if (error instanceof ServiceError && error.status === 403) return c.json({ code: "no panda" }, 403);
+          throw error;
+        }
+      },
+    )
+    .post(
+      "/",
+      auth,
+      describeRoute({
+        summary: "Create card",
+        tags: ["Card"],
+        validateResponse: true,
+        security: [{ credentialAuth: [] }],
+        responses: {
+          200: {
+            description: "Card created",
+            content: { "application/json": { schema: resolver(CreatedCardResponse, { errorMode: "ignore" }) } },
+          },
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([object({ code: literal("bad request") }), object({ code: literal("already created") })]),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+          403: {
+            description: "Forbidden",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([object({ code: literal("no panda") }), object({ code: literal("kyc not approved") })]),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+          409: {
+            description: "Conflict",
+            content: {
+              "application/json": {
+                schema: resolver(object({ code: literal("card limit reached") }), { errorMode: "ignore" }),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
+        return mutex
+          .runExclusive(async () => {
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.id, credentialId),
+              columns: { account: true, pandaId: true, source: true },
+              with: {
+                cards: {
+                  columns: { id: true, status: true, productId: true },
+                  where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                },
+              },
+            });
+            if (!credential) return c.json({ code: "no credential" }, 500);
+            const account = parse(Address, credential.account);
+            setUser({ id: account });
+
+            if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+            const pandaId = credential.pandaId;
+
+            let isUpgradeFromPlatinum = credential.cards.some(
+              ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
+            );
+
+            const activeCards = credential.cards.filter(({ status }) => status === "ACTIVE" || status === "FROZEN");
+
+            let cardCount = activeCards.length;
+            for (const card of activeCards) {
+              try {
+                await panda.getCard(parse(CardUUID, card.id));
+              } catch (error) {
+                if (
+                  (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
+                  (error instanceof ServiceError && error.status === 404)
+                ) {
+                  await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
+                  cardCount--;
+                  setContext("cryptomate card deleted", { id: card.id });
+                  if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
+                } else {
+                  throw error;
+                }
+              }
+            }
+            if (cardCount > 0) return c.json({ code: "already created" }, 400);
+            try {
+              const kyc = await panda.getApplicationStatus(pandaId);
+              if (kyc.applicationStatus !== "approved") {
+                return c.json({ code: "kyc not approved" }, 403);
+              }
+              const productId =
+                chain.id === base.id
+                  ? credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG" // cspell:ignore azbh
+                    ? SIGNATURE_PRODUCT_ID
+                    : BASE_PRODUCT_ID
+                  : SIGNATURE_PRODUCT_ID;
+              const card = await panda
+                .getCards(pandaId)
+                .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
+                .then(async (orphan) => {
+                  if (orphan) {
+                    captureException(new Error("orphan card adopted"), {
+                      level: "warning",
+                      fingerprint: ["orphan-card-adopted"],
+                      extra: {
+                        credentialId,
+                        pandaId,
+                        cardId: orphan.id,
+                      },
+                    });
+                    return orphan;
+                  } else {
+                    return panda.createCard(
+                      pandaId,
+                      productId,
+                      await persona
+                        .getAccount(credentialId, "cardLimit")
+                        .then((profile) =>
+                          profile?.attributes.fields.card_limit_usd?.value == null
+                            ? undefined
+                            : profile.attributes.fields.card_limit_usd.value * 100,
+                        )
+                        .catch((error: unknown): undefined => {
+                          captureException(error, {
+                            level: "error",
+                            contexts: { details: { credentialId, scope: "cardLimit" } },
+                          });
+                        }),
+                    );
+                  }
+                });
+
+              let mode = 0;
+              try {
+                if (await autoCredit(account)) mode = 1;
+              } catch (error) {
+                captureException(error);
+              }
+              await database
+                .insert(cards)
+                .values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId }]);
+              segment.track({
+                event: "CardIssued",
+                userId: account,
+                properties: { productId, source: credential.source },
+              });
+
+              if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
+
+              sardine
+                .customer({
+                  flow: { name: "card.issued", type: "payment_method_link" },
+                  customer: { id: credentialId, type: "customer" },
+                  transaction: {
+                    id: card.id,
+                    paymentMethod: {
+                      type: "card",
+                      card: {
+                        hash: card.id,
+                        last4: card.last4,
+                        expiryMonth: card.expirationMonth,
+                        expiryYear: card.expirationYear,
+                      },
+                    },
+                  },
+                })
+                .catch((error: unknown) => captureException(error, { level: "error" }));
+
+              return c.json(
+                {
+                  lastFour: card.last4,
+                  status: "ACTIVE",
+                  cardId: card.id,
+                  productId,
+                } satisfies InferOutput<typeof CreatedCardResponse>,
+                200,
+              );
+            } catch (error) {
+              if (
+                error instanceof ServiceError &&
+                error.status === 400 &&
+                error.message.includes("maximum number of cards allowed")
+              ) {
+                captureException(error, {
+                  level: "warning",
+                  fingerprint: ["card-limit-reached"],
+                  extra: { credentialId, pandaId },
+                });
+                return c.json({ code: "card limit reached" }, 409);
+              }
               const issue = noUser(error);
               if (!issue) throw error;
-              const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+              const hasCardHistory = credential.cards.length > 0;
+              const shouldCapture = issue.error.status === 404 || hasCardHistory;
               if (shouldCapture) {
-                withScope((s) => {
-                  s.addEventProcessor((event) => {
+                withScope((scope) => {
+                  scope.addEventProcessor((event) => {
                     if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
                     return event;
                   });
@@ -336,408 +716,32 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                     level: "warning",
                     fingerprint: ["{{ default }}", issue.type],
                     extra: {
-                      cardId: id,
                       credentialId,
-                      pandaId: credential.pandaId,
-                      status,
-                      shouldCapture,
+                      hasCardHistory,
+                      pandaId,
+                      statuses: credential.cards.map(({ status }) => status),
                       userIssue: issue.type,
                     },
                   });
                 });
               }
-              return null;
-            }),
-            sessionid && getPIN(id, sessionid),
-            (async () => {
-              if (include("siwe")) {
-                if (!credential.pandaId) return;
-                return getNonce(credential.pandaId).then(({ nonce }) =>
-                  createSiweMessage({
-                    domain,
-                    address: parse(Address, credentialId),
-                    statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
-                    uri: `https://${domain}`,
-                    version: "1",
-                    chainId: chain.id,
-                    nonce,
-                  }),
-                );
-              } else if (include("webauthn")) {
-                return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
-              }
-            })(),
-            include("provisioning")
-              ? getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
-                  id: processorCardId,
-                  secret: timeBasedSecret,
-                }))
-              : undefined,
-          ],
-        );
-        if (!user) return c.json({ code: "no panda" }, 403);
-        if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
-
-        return c.json(
-          {
-            ...(pan && { ...pan }),
-            ...(pin && { ...pin }),
-            cardId: id,
-            displayName: `${user.firstName} ${user.lastName}`,
-            expirationMonth,
-            expirationYear,
-            lastFour,
-            mode,
-            provider: "panda" as const,
-            status,
-            limit,
-            productId: parse(CardResponse.entries.productId, productId),
-            ...(challenge && { challenge }),
-            ...(provisioning && { provisioning }),
-          } satisfies InferOutput<typeof CardResponse>,
-          200,
-        );
-      } else return c.json({ code: "no card" }, 404);
-    },
-  )
-  .get(
-    "/provisioning",
-    describeRoute({
-      summary: "Get wallet extension card provisioning information",
-      description: `
-Retrieve push-provisioning credentials for Apple Wallet Extension callers.
-
-This endpoint only accepts Wallet Extension bearer access. It does not accept \`credential_id\` cookies, Better Auth sessions, or \`sessionid\`.
-    `,
-      tags: ["Card"],
-      security: [{ extensionAuth: [] }],
-      validateResponse: true,
-      responses: {
-        200: {
-          description: "Card provisioning information",
-          content: {
-            "application/json": {
-              schema: resolver(
-                object({
-                  id: pipe(string(), metadata({ examples: ["card_abc123"] })),
-                  secret: pipe(string(), metadata({ examples: ["otp_xyz"] })),
-                }),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
-        401: {
-          description: "Unauthorized",
-          content: {
-            "application/json": {
-              schema: resolver(object({ code: literal("unauthorized") }), { errorMode: "ignore" }),
-            },
-          },
-        },
-        403: {
-          description: "Forbidden",
-          content: {
-            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
-          },
-        },
-        404: {
-          description: "Not found",
-          content: {
-            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
-          },
-        },
-      },
-    }),
-    createMiddleware<{
-      Variables: { walletExtension: NonNullable<Awaited<ReturnType<typeof verifyToken>>> };
-    }>(async (c, next) => {
-      const authorization = c.req.header("authorization");
-      if (!authorization) return c.json({ code: "unauthorized" }, 401);
-      if (!/^Bearer \S+$/i.test(authorization)) return c.json({ code: "unauthorized" }, 401);
-      if (c.req.header("cookie") || c.req.header("sessionid")) return c.json({ code: "unauthorized" }, 401);
-      const verified = await verifyToken(authorization.slice("Bearer ".length));
-      if (!verified) return c.json({ code: "unauthorized" }, 401);
-      c.set("walletExtension", verified);
-      await next();
-    }),
-    async (c) => {
-      c.header("Cache-Control", "no-store");
-      const credential = await database.query.credentials.findFirst({
-        where: eq(credentials.id, c.get("walletExtension").credentialId),
-        columns: { pandaId: true },
-        with: {
-          cards: {
-            columns: { id: true },
-            where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
-          },
-        },
-      });
-      if (!credential) return c.json({ code: "unauthorized" }, 401);
-      const [card] = credential.cards;
-      if (!card) return c.json({ code: "no card" }, 404);
-      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-      const provider = await getCard(card.id).catch((error: unknown) => {
-        if (error instanceof ServiceError && error.status === 404) return null;
-        throw error;
-      });
-      if (!provider) return c.json({ code: "no card" }, 404);
-      if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
-      if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
-      try {
-        const { processorCardId, timeBasedSecret } = await getProcessorDetails(card.id);
-        return c.json(
-          {
-            id: processorCardId,
-            secret: timeBasedSecret,
-          } satisfies InferOutput<typeof CardResponse>["provisioning"],
-          200,
-        );
-      } catch (error) {
-        if (error instanceof ServiceError && error.status === 404) return c.json({ code: "no card" }, 404);
-        if (error instanceof ServiceError && error.status === 403) return c.json({ code: "no panda" }, 403);
-        throw error;
-      }
-    },
-  )
-  .post(
-    "/",
-    auth(),
-    describeRoute({
-      summary: "Create card",
-      tags: ["Card"],
-      validateResponse: true,
-      security: [{ credentialAuth: [] }],
-      responses: {
-        200: {
-          description: "Card created",
-          content: { "application/json": { schema: resolver(CreatedCardResponse, { errorMode: "ignore" }) } },
-        },
-        400: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([object({ code: literal("bad request") }), object({ code: literal("already created") })]),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
-        403: {
-          description: "Forbidden",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([object({ code: literal("no panda") }), object({ code: literal("kyc not approved") })]),
-                { errorMode: "ignore" },
-              ),
-            },
-          },
-        },
-        409: {
-          description: "Conflict",
-          content: {
-            "application/json": {
-              schema: resolver(object({ code: literal("card limit reached") }), { errorMode: "ignore" }),
-            },
-          },
-        },
-      },
-    }),
-    async (c) => {
-      const { credentialId } = c.req.valid("cookie");
-      const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
-      return mutex
-        .runExclusive(async () => {
-          const credential = await database.query.credentials.findFirst({
-            where: eq(credentials.id, credentialId),
-            columns: { account: true, pandaId: true, source: true },
-            with: {
-              cards: {
-                columns: { id: true, status: true, productId: true },
-                where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
-              },
-            },
+              return c.json({ code: "no panda" }, 403);
+            }
+          })
+          .finally(() => {
+            if (!mutex.isLocked()) mutexes.delete(credentialId);
           });
-          if (!credential) return c.json({ code: "no credential" }, 500);
-          const account = parse(Address, credential.account);
-          setUser({ id: account });
-
-          if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-          const pandaId = credential.pandaId;
-
-          let isUpgradeFromPlatinum = credential.cards.some(
-            ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
-          );
-
-          const activeCards = credential.cards.filter(({ status }) => status === "ACTIVE" || status === "FROZEN");
-
-          let cardCount = activeCards.length;
-          for (const card of activeCards) {
-            try {
-              await getCard(parse(CardUUID, card.id));
-            } catch (error) {
-              if (
-                (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
-                (error instanceof ServiceError && error.status === 404)
-              ) {
-                await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
-                cardCount--;
-                setContext("cryptomate card deleted", { id: card.id });
-                if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
-              } else {
-                throw error;
-              }
-            }
-          }
-          if (cardCount > 0) return c.json({ code: "already created" }, 400);
-          try {
-            const kyc = await getApplicationStatus(pandaId);
-            if (kyc.applicationStatus !== "approved") {
-              return c.json({ code: "kyc not approved" }, 403);
-            }
-            const productId =
-              chain.id === base.id
-                ? credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG" // cspell:ignore azbh
-                  ? SIGNATURE_PRODUCT_ID
-                  : BASE_PRODUCT_ID
-                : SIGNATURE_PRODUCT_ID;
-            const card = await getCards(pandaId)
-              .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
-              .then(async (orphan) => {
-                if (orphan) {
-                  captureException(new Error("orphan card adopted"), {
-                    level: "warning",
-                    fingerprint: ["orphan-card-adopted"],
-                    extra: {
-                      credentialId,
-                      pandaId,
-                      cardId: orphan.id,
-                    },
-                  });
-                  return orphan;
-                } else {
-                  return createCard(
-                    pandaId,
-                    productId,
-                    await getAccount(credentialId, "cardLimit")
-                      .then((persona) =>
-                        persona?.attributes.fields.card_limit_usd?.value == null
-                          ? undefined
-                          : persona.attributes.fields.card_limit_usd.value * 100,
-                      )
-                      .catch((error: unknown): undefined => {
-                        captureException(error, {
-                          level: "error",
-                          contexts: { details: { credentialId, scope: "cardLimit" } },
-                        });
-                      }),
-                  );
-                }
-              });
-
-            let mode = 0;
-            try {
-              if (await autoCredit(account)) mode = 1;
-            } catch (error) {
-              captureException(error);
-            }
-            await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, mode, productId }]);
-            track({
-              event: "CardIssued",
-              userId: account,
-              properties: { productId, source: credential.source },
-            });
-
-            if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account);
-
-            customer({
-              flow: { name: "card.issued", type: "payment_method_link" },
-              customer: { id: credentialId, type: "customer" },
-              transaction: {
-                id: card.id,
-                paymentMethod: {
-                  type: "card",
-                  card: {
-                    hash: card.id,
-                    last4: card.last4,
-                    expiryMonth: card.expirationMonth,
-                    expiryYear: card.expirationYear,
-                  },
-                },
-              },
-            }).catch((error: unknown) => captureException(error, { level: "error" }));
-
-            if (mode) {
-              sendPushNotification({
-                userId: account,
-                headings: t("Card mode"),
-                contents: t("Credit mode is active"),
-              }).catch((error: unknown) => captureException(error));
-            }
-            return c.json(
-              {
-                lastFour: card.last4,
-                status: "ACTIVE",
-                cardId: card.id,
-                productId,
-              } satisfies InferOutput<typeof CreatedCardResponse>,
-              200,
-            );
-          } catch (error) {
-            if (
-              error instanceof ServiceError &&
-              error.status === 400 &&
-              error.message.includes("maximum number of cards allowed")
-            ) {
-              captureException(error, {
-                level: "warning",
-                fingerprint: ["card-limit-reached"],
-                extra: { credentialId, pandaId },
-              });
-              return c.json({ code: "card limit reached" }, 409);
-            }
-            const issue = noUser(error);
-            if (!issue) throw error;
-            const hasCardHistory = credential.cards.length > 0;
-            const shouldCapture = issue.error.status === 404 || hasCardHistory;
-            if (shouldCapture) {
-              withScope((scope) => {
-                scope.addEventProcessor((event) => {
-                  if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
-                  return event;
-                });
-                captureException(issue.error, {
-                  level: "warning",
-                  fingerprint: ["{{ default }}", issue.type],
-                  extra: {
-                    credentialId,
-                    hasCardHistory,
-                    pandaId,
-                    statuses: credential.cards.map(({ status }) => status),
-                    userIssue: issue.type,
-                  },
-                });
-              });
-            }
-            return c.json({ code: "no panda" }, 403);
-          }
-        })
-        .finally(() => {
-          if (!mutex.isLocked()) mutexes.delete(credentialId);
-        });
-    },
-  )
-  .patch(
-    "/",
-    auth(),
-    describeRoute({
-      summary: "Update card",
-      tags: ["Card"],
-      validateResponse: true,
-      security: [{ credentialAuth: [] }],
-      description: `
+      },
+    )
+    .patch(
+      "/",
+      auth,
+      describeRoute({
+        summary: "Update card",
+        tags: ["Card"],
+        validateResponse: true,
+        security: [{ credentialAuth: [] }],
+        description: `
 Update the card status, installments mode, or PIN, or submit a signed challenge to bind the card to the authenticated user.
 
 **Updating the card status**
@@ -793,169 +797,174 @@ async function encryptPIN(pin: string) {
 \`\`\`
 
 `,
-      responses: {
-        200: {
-          description: "Card updated",
-          content: { "application/json": { schema: resolver(UpdatedCardResponse, { errorMode: "ignore" }) } },
-        },
-        400: {
-          description: "Bad request",
-          content: {
-            "application/json": {
-              schema: resolver(
-                union([
-                  object({ code: literal("bad request") }),
-                  object({ code: literal("bad signature") }),
-                  object({ code: literal("already set"), mode: number() }),
-                  object({ code: literal("already set"), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
-                  object({ code: literal("weak pin") }),
-                ]),
-                { errorMode: "ignore" },
-              ),
-            },
+        responses: {
+          200: {
+            description: "Card updated",
+            content: { "application/json": { schema: resolver(UpdatedCardResponse, { errorMode: "ignore" }) } },
           },
-        },
-        403: {
-          description: "Forbidden",
-          content: {
-            "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
-          },
-        },
-        404: {
-          description: "Not found",
-          content: {
-            "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
-          },
-        },
-      },
-    }),
-    vValidator("json", UpdateCard, validatorHook()),
-    async (c) => {
-      const patch = c.req.valid("json");
-      const { credentialId } = c.req.valid("cookie");
-      const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
-      return mutex
-        .runExclusive(async () => {
-          const credential = await database.query.credentials.findFirst({
-            columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true, transports: true },
-            where: eq(credentials.id, credentialId),
-            with: {
-              cards: {
-                columns: { id: true, mode: true, status: true, lastFour: true },
-                where: ne(cards.status, "DELETED"),
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  union([
+                    object({ code: literal("bad request") }),
+                    object({ code: literal("bad signature") }),
+                    object({ code: literal("already set"), mode: number() }),
+                    object({ code: literal("already set"), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
+                    object({ code: literal("weak pin") }),
+                  ]),
+                  { errorMode: "ignore" },
+                ),
               },
             },
-          });
-          if (!credential) return c.json({ code: "no credential" }, 500);
-          const account = parse(Address, credential.account);
-          setUser({ id: account });
-          if (credential.cards.length === 0 || !credential.cards[0]) {
-            return c.json({ code: "no card" }, 404);
-          }
-          const card = credential.cards[0];
-          switch (patch.type) {
-            case "mode": {
-              const { mode } = patch;
-              if (card.mode === mode) return c.json({ code: "already set", mode }, 400);
-              await database.update(cards).set({ mode }).where(eq(cards.id, card.id));
-              return c.json({ mode } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+          },
+          403: {
+            description: "Forbidden",
+            content: {
+              "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+            },
+          },
+          404: {
+            description: "Not found",
+            content: {
+              "application/json": { schema: resolver(object({ code: literal("no card") }), { errorMode: "ignore" }) },
+            },
+          },
+        },
+      }),
+      vValidator("json", UpdateCard, validatorHook()),
+      async (c) => {
+        const patch = c.req.valid("json");
+        const { credentialId } = c.req.valid("cookie");
+        const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
+        return mutex
+          .runExclusive(async () => {
+            const credential = await database.query.credentials.findFirst({
+              columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true, transports: true },
+              where: eq(credentials.id, credentialId),
+              with: {
+                cards: {
+                  columns: { id: true, mode: true, status: true, lastFour: true },
+                  where: ne(cards.status, "DELETED"),
+                },
+              },
+            });
+            if (!credential) return c.json({ code: "no credential" }, 500);
+            const account = parse(Address, credential.account);
+            setUser({ id: account });
+            if (credential.cards.length === 0 || !credential.cards[0]) {
+              return c.json({ code: "no card" }, 404);
             }
-            case "status": {
-              const { status } = patch;
-              if (card.status === status) return c.json({ code: "already set", status }, 400);
-              switch (status) {
-                case "ACTIVE":
-                  track({ userId: account, event: "CardUnfrozen", properties: { source: credential.source } });
-                  break;
-                case "DELETED":
-                  await updateCard({ id: card.id, status: "canceled" });
-                  track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
-                  break;
-                case "FROZEN":
-                  track({ userId: account, event: "CardFrozen", properties: { source: credential.source } });
-                  break;
+            const card = credential.cards[0];
+            switch (patch.type) {
+              case "mode": {
+                const { mode } = patch;
+                if (card.mode === mode) return c.json({ code: "already set", mode }, 400);
+                await database.update(cards).set({ mode }).where(eq(cards.id, card.id));
+                return c.json({ mode } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
-              await database.update(cards).set({ status }).where(eq(cards.id, card.id));
-              return c.json({ status } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
-            }
-            case "pin": {
-              const { sessionId, data, iv } = patch;
-              try {
-                await setPIN(card.id, sessionId, { data, iv });
-              } catch (error) {
-                if (error instanceof Error && error.message.includes("Weak PIN")) {
-                  return c.json({ code: "weak pin" }, 400);
+              case "status": {
+                const { status } = patch;
+                if (card.status === status) return c.json({ code: "already set", status }, 400);
+                switch (status) {
+                  case "ACTIVE":
+                    segment.track({
+                      userId: account,
+                      event: "CardUnfrozen",
+                      properties: { source: credential.source },
+                    });
+                    break;
+                  case "DELETED":
+                    await panda.updateCard({ id: card.id, status: "canceled" });
+                    segment.track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
+                    break;
+                  case "FROZEN":
+                    segment.track({ userId: account, event: "CardFrozen", properties: { source: credential.source } });
+                    break;
                 }
-                throw error;
+                await database.update(cards).set({ status }).where(eq(cards.id, card.id));
+                return c.json({ status } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
-              return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
-            }
-            case "signature": {
-              if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-              const statement = `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${credential.pandaId})`;
-              switch (patch.method) {
-                case "siwe": {
-                  const verified = await Promise.resolve()
-                    .then(() => parseSiweMessage(patch.message))
-                    .then((m) => {
-                      if (m.statement !== statement || m.chainId !== chain.id || m.domain !== domain) {
+              case "pin": {
+                const { sessionId, data, iv } = patch;
+                try {
+                  await panda.setPIN(card.id, sessionId, { data, iv });
+                } catch (error) {
+                  if (error instanceof Error && error.message.includes("Weak PIN")) {
+                    return c.json({ code: "weak pin" }, 400);
+                  }
+                  throw error;
+                }
+                return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+              }
+              case "signature": {
+                if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+                const statement = `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${credential.pandaId})`;
+                switch (patch.method) {
+                  case "siwe": {
+                    const verified = await Promise.resolve()
+                      .then(() => parseSiweMessage(patch.message))
+                      .then((m) => {
+                        if (m.statement !== statement || m.chainId !== chain.id || m.domain !== domain) {
+                          return false;
+                        }
+                        return verifySiweMessage(publicClient, {
+                          address: parse(Address, credentialId),
+                          domain,
+                          message: patch.message,
+                          signature: patch.signature,
+                        });
+                      })
+                      .catch((error: unknown) => {
+                        captureException(error, { level: "error" });
                         return false;
-                      }
-                      return verifySiweMessage(publicClient, {
-                        address: parse(Address, credentialId),
-                        domain,
+                      });
+                    if (!verified) return c.json({ code: "bad signature" }, 400);
+                    try {
+                      await panda.verify(credential.pandaId, {
                         message: patch.message,
                         signature: patch.signature,
+                        authType: "siwe",
                       });
-                    })
-                    .catch((error: unknown) => {
-                      captureException(error, { level: "error" });
-                      return false;
-                    });
-                  if (!verified) return c.json({ code: "bad signature" }, 400);
-                  try {
-                    await verify(credential.pandaId, {
-                      message: patch.message,
-                      signature: patch.signature,
-                      authType: "siwe",
-                    });
-                  } catch (error) {
-                    if (error instanceof ServiceError && error.status === 401) {
-                      return c.json({ code: "bad signature" }, 400);
+                    } catch (error) {
+                      if (error instanceof ServiceError && error.status === 401) {
+                        return c.json({ code: "bad signature" }, 400);
+                      }
+                      throw error;
                     }
-                    throw error;
+                    return c.json({ verification: "OK" } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
                   }
-                  return c.json({ verification: "OK" } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
-                }
 
-                case "webauthn":
-                  try {
-                    await verify(credential.pandaId, {
-                      authType: "webauthn",
-                      credential: {
-                        publicKey: { type: "Buffer", data: [...credential.publicKey] },
-                        transports: credential.transports,
-                      },
-                      assertion: patch.assertion,
-                      factory: credential.factory,
-                      statement,
-                    });
-                  } catch (error) {
-                    if (error instanceof ServiceError && error.status === 401) {
-                      return c.json({ code: "bad signature" }, 400);
+                  case "webauthn":
+                    try {
+                      await panda.verify(credential.pandaId, {
+                        authType: "webauthn",
+                        credential: {
+                          publicKey: { type: "Buffer", data: [...credential.publicKey] },
+                          transports: credential.transports,
+                        },
+                        assertion: patch.assertion,
+                        factory: credential.factory,
+                        statement,
+                      });
+                    } catch (error) {
+                      if (error instanceof ServiceError && error.status === 401) {
+                        return c.json({ code: "bad signature" }, 400);
+                      }
+                      throw error;
                     }
-                    throw error;
-                  }
-                  return c.json({ verification: "OK" } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+                    return c.json({ verification: "OK" } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
+                }
               }
             }
-          }
-        })
-        .finally(() => {
-          if (!mutex.isLocked()) mutexes.delete(credentialId);
-        });
-    },
-  );
+          })
+          .finally(() => {
+            if (!mutex.isLocked()) mutexes.delete(credentialId);
+          });
+      },
+    );
+}
 
 const CardUUID = pipe(string(), uuid());
 
@@ -971,22 +980,28 @@ function noUser(error: unknown) {
   }
 }
 
-function handlePlatinumUpgrade(credentialId: string, account: InferOutput<typeof Address>) {
-  getAccount(credentialId, "basic")
+function handlePlatinumUpgrade(
+  credentialId: string,
+  account: InferOutput<typeof Address>,
+  pax: ReturnType<typeof createPax>,
+  persona: ReturnType<typeof createPersona>,
+) {
+  persona
+    .getAccount(credentialId, "basic")
     .then((personaAccount) => {
       if (!personaAccount) throw new Error("no persona account found");
       const attributes = personaAccount.attributes;
       const documents = attributes.fields.documents.value;
       if (!documents[0]) throw new Error("no identity document found");
 
-      return addCapita({
+      return pax.addCapita({
         firstName: attributes["name-first"],
         lastName: attributes["name-last"],
         birthdate: attributes.birthdate,
         document: documents[0].value.id_number.value,
         email: attributes["email-address"],
         phone: attributes["phone-number"],
-        internalId: deriveAssociateId(account),
+        internalId: pax.deriveAssociateId(account),
         product: "travel insurance",
       });
     })

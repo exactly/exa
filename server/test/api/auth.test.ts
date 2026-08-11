@@ -1,6 +1,8 @@
 import "../expect";
 
-import customer from "../mocks/sardine";
+import { addWebhookAddresses } from "../mocks/alchemy";
+import sardineCustomer from "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -9,7 +11,8 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
-import { parse, type InferOutput } from "valibot";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
 import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
@@ -18,24 +21,44 @@ import * as derive from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import app, { Authentication } from "../../api/auth/authentication";
-import registrationApp from "../../api/auth/registration";
+import authentication, { Authentication } from "../../api/auth/authentication";
+import registration from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import createAlchemy from "../../utils/alchemy";
 import authSecret from "../../utils/authSecret";
+import createCredentialFactory from "../../utils/createCredential";
+import createIntercom from "../../utils/intercom";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import createSardine from "../../utils/sardine";
+import createSegment from "../../utils/segment";
 import validFactories from "../../utils/validFactories";
-import { verifyToken } from "../../utils/walletExtension";
+import createWalletExtension from "../../utils/walletExtension";
 
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
 
-const appClient = testClient(app);
-const registrationAppClient = testClient(registrationApp);
 const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 
 vi.mock("@sentry/node", { spy: true });
+
+const walletExtension = createWalletExtension(parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET));
+const createCredential = createCredentialFactory({
+  alchemy: createAlchemy(parse(pipe(string(), nonEmpty()), env.ALCHEMY_WEBHOOKS_KEY)),
+  authSecret,
+  database,
+  sardine: createSardine(
+    parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+  ),
+  segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
+});
+const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
+const appClient = testClient(
+  authentication({ authSecret, createCredential, database, intercom, redis, walletExtension }),
+);
+const registrationAppClient = testClient(registration({ createCredential, intercom, redis, walletExtension }));
 
 function expectWalletExtensionExpire(expire: number, auth: number, start: number) {
   expect(expire).toBeGreaterThan(auth);
@@ -93,7 +116,7 @@ describe("authentication", () => {
     expect(payload.sub).toBe(zeroAddress);
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
-    expect(customer).not.toHaveBeenCalled();
+    expect(sardineCustomer).not.toHaveBeenCalled();
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
@@ -122,7 +145,7 @@ describe("authentication", () => {
     const payload = decodeJwt(token);
     const header = decodeProtectedHeader(token);
     expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
-    await expect(verifyToken(token)).resolves.toStrictEqual({
+    await expect(walletExtension.verify(token)).resolves.toStrictEqual({
       credentialId: "dGVzdC1jcmVkLWlk",
       scope: "card:provisioning",
     });
@@ -137,20 +160,13 @@ describe("authentication", () => {
   });
 
   it("captures invalid wallet extension token verification", async () => {
-    await expect(verifyToken("invalid")).resolves.toBeNull();
+    await expect(walletExtension.verify("invalid")).resolves.toBeNull();
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), { level: "warning" });
   });
 
-  it("rejects short wallet extension secrets", async () => {
-    const secret = process.env.WALLET_EXTENSION_SECRET;
-    vi.resetModules();
-    vi.stubEnv("WALLET_EXTENSION_SECRET", "short");
-
-    await expect(import("../../utils/walletExtension")).rejects.toThrow("wallet extension secret too short for HS256");
-
-    vi.stubEnv("WALLET_EXTENSION_SECRET", secret);
-    vi.resetModules();
+  it("rejects short wallet extension secrets", () => {
+    expect(() => createWalletExtension("short")).toThrow("wallet extension secret too short for HS256");
   });
 
   it("returns wallet extension token on ios siwe signup", async () => {
@@ -168,7 +184,7 @@ describe("authentication", () => {
 
     assert.ok(authResponse.walletExtension);
     expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
-    await expect(verifyToken(authResponse.walletExtension.token)).resolves.toStrictEqual({
+    await expect(walletExtension.verify(authResponse.walletExtension.token)).resolves.toStrictEqual({
       credentialId: id,
       scope: "card:provisioning",
     });
@@ -441,7 +457,7 @@ describe("authentication", () => {
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith(
+    expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
         customer: {
@@ -473,7 +489,7 @@ describe("authentication", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(customer).toHaveBeenCalledWith({
+    expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
       customer: {
         id,
@@ -496,7 +512,7 @@ describe("authentication", () => {
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith(
+    expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
         customer: {
@@ -511,9 +527,31 @@ describe("authentication", () => {
 
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, id),
-      columns: { id: true },
+      columns: { account: true, id: true },
     });
     expect(credential?.id).toBe(id);
+    expect(addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("activity", [credential?.account]);
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("captures activity subscription failures", async () => {
+    const error = new Error("alchemy failed");
+    addWebhookAddresses.mockRejectedValueOnce(error);
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = "0x2234567890123456789012345678901234567890";
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { account: true },
+    });
+    expect(response.status).toBe(200);
+    expect(addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("activity", [credential?.account]);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
@@ -743,7 +781,7 @@ describe("registration", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(customer).toHaveBeenCalledWith(
+    expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
         customer: {
@@ -784,7 +822,7 @@ describe("registration", () => {
       expect.objectContaining({ message: "siwe registration disabled" }),
       { level: "error", tags: { unhandled: true } },
     );
-    expect(customer).not.toHaveBeenCalled();
+    expect(sardineCustomer).not.toHaveBeenCalled();
     await expect(
       database.query.credentials.findFirst({ where: eq(credentials.id, id), columns: { id: true } }),
     ).resolves.toBeUndefined();
@@ -829,7 +867,7 @@ describe("registration", () => {
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith({
+    expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
       customer: {
         id,
@@ -858,7 +896,7 @@ describe("registration", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(customer).toHaveBeenCalledWith({
+    expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
       customer: {
         id,
@@ -920,7 +958,7 @@ describe("registration", () => {
 
     expect(response.status).toBe(200);
 
-    expect(customer).toHaveBeenCalledWith(
+    expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
         customer: {
