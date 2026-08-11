@@ -4,6 +4,8 @@ import type { FontProps } from "expo-font/plugin/build/withFonts";
 import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
 import { env } from "node:process";
 
+import links from "@exactly/common/generated/links";
+
 import metadata from "./package.json";
 import versionCode from "./src/generated/versionCode.js";
 
@@ -15,6 +17,8 @@ if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
 env.EXPO_PUBLIC_INTERCOM_APP_ID ??= env.APP_DOMAIN === "web.exactly.app" ? "eknd6y0s" : "pxd0wo85"; // cspell:ignore eknd6y0s
 
+const appDomain = env.APP_DOMAIN || "sandbox.exactly.app"; // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
+
 export default {
   name: "Exa",
   slug: "exactly",
@@ -24,6 +28,20 @@ export default {
   android: {
     package: "app.exactly",
     adaptiveIcon: { foregroundImage: "src/assets/icon-adaptive.png", backgroundColor: "#1D1D1D" },
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        category: ["BROWSABLE", "DEFAULT"], // cspell:ignore browsable
+        data: [
+          { scheme: "https", host: appDomain, path: "/" },
+          ...links.flatMap((path) => [
+            { scheme: "https", host: appDomain, path },
+            { scheme: "https", host: appDomain, pathPrefix: `${path}/` },
+          ]),
+        ],
+      },
+    ],
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
     versionCode,
@@ -37,7 +55,7 @@ export default {
   ios: {
     icon: "src/assets/icon.png",
     bundleIdentifier: "app.exactly",
-    associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
+    associatedDomains: [`applinks:${appDomain}`, `webcredentials:${appDomain}`],
     supportsTablet: false,
     buildNumber: String(versionCode),
     infoPlist: {
