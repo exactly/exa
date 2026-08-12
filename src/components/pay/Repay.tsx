@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useReducer, useState } from "re
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
@@ -582,7 +582,7 @@ export default function Repay() {
     return t("Confirm payment");
   };
 
-  if (!maturity) return;
+  if (!maturity) return <Redirect href="/(main)/(home)" />;
   if (!isPending && !isSuccess && !writeError)
     return (
       <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
