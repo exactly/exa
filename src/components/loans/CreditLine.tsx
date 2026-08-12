@@ -12,7 +12,6 @@ import { useBytecode } from "wagmi";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { borrowLimit } from "@exactly/lib";
 
-import queryClient, { type Loan } from "../../utils/queryClient";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
@@ -76,14 +75,7 @@ export default function CreditLine() {
           <Button
             aria-label={t("Explore funding options")}
             onPress={() => {
-              queryClient.setQueryData<Loan>(["loan"], () => ({
-                market: marketUSDCAddress,
-                amount: undefined,
-                installments: undefined,
-                maturity: undefined,
-                receiver: undefined,
-              }));
-              router.push("/loan/amount");
+              router.push({ pathname: "/loan/amount", params: { market: marketUSDCAddress } });
             }}
             primary
           >

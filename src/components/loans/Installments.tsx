@@ -1,18 +1,18 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { parse } from "valibot";
 
 import LoanSummary from "./LoanSummary";
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
+import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
+import useAsset from "../../utils/useAsset";
 import IconButton from "../shared/IconButton";
 import InstallmentSelector from "../shared/InstallmentSelector";
 import SafeView from "../shared/SafeView";
@@ -20,22 +20,13 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Loan } from "../../utils/queryClient";
-
 export default function Installments() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { address } = useAccount();
-  const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const disabled = !loan?.installments;
+  const { market, amount, installments } = parse(Loan, useLocalSearchParams());
+  const { market: asset, markets } = useAsset(market);
 
-  useEffect(() => {
-    return () => {
-      queryClient.setQueryData<Loan>(["loan"], (old) => {
-        return { ...old, installments: undefined, maturity: undefined, receiver: undefined };
-      });
-    };
-  }, []);
+  if (!market || !amount || (markets && !asset)) return <Redirect href="/loan" />;
   return (
     <SafeView fullScreen>
       <View
@@ -54,7 +45,7 @@ export default function Installments() {
               router.back();
               return;
             }
-            router.replace("/loan/amount");
+            router.replace({ pathname: "/loan/amount", params: { market, amount: String(amount) } });
           }}
         />
         <IconButton
@@ -77,29 +68,30 @@ export default function Installments() {
                 <Text primary emphasized body>
                   {t("Select your funding installment plan")}
                 </Text>
-                {loan?.market && loan.amount ? (
-                  <InstallmentSelector
-                    value={loan.installments ?? 0}
-                    onSelect={(installments) => {
-                      queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, installments }));
-                    }}
-                    totalAmount={loan.amount}
-                    market={loan.market}
-                  />
-                ) : null}
+                <InstallmentSelector
+                  value={installments ?? 0}
+                  onSelect={(value) => {
+                    router.setParams({ installments: String(value) });
+                  }}
+                  totalAmount={amount}
+                  market={market}
+                />
               </YStack>
             </YStack>
           </YStack>
         </YStack>
       </ScrollView>
       <YStack gap="$s4" padding="$s4" backgroundColor="$backgroundSoft">
-        {loan?.installments ? <LoanSummary loan={loan} /> : null}
+        {installments ? <LoanSummary market={market} amount={amount} installments={installments} /> : null}
         <Button
           onPress={() => {
-            router.push("/loan/maturity");
+            router.push({
+              pathname: "/loan/maturity",
+              params: { market, amount: String(amount), installments: String(installments) },
+            });
           }}
           primary
-          disabled={disabled}
+          disabled={!installments}
         >
           <Button.Text>{t("Continue")}</Button.Text>
           <Button.Icon>

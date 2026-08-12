@@ -15,7 +15,6 @@ import release from "../generated/release";
 
 import type { Activity } from "./server";
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
-import type { Address } from "viem";
 
 const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "pax"]);
 export const isServer = typeof window === "undefined";
@@ -177,13 +176,6 @@ queryClient.setQueryDefaults(["contacts", "recent"], {
     throw new Error("don't refetch");
   },
 });
-queryClient.setQueryDefaults(["loan"], {
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: () => {
-    throw new Error("don't refetch");
-  },
-});
 queryClient.setQueryDefaults(["card-upgrade"], {
   initialData: undefined,
   retry: false,
@@ -332,14 +324,6 @@ export type EmbeddingContext =
   | "unknown"
   | null;
 export type ActivityItem = Activity[number];
-
-export type Loan = {
-  amount?: bigint;
-  installments?: number;
-  market?: Address;
-  maturity?: bigint;
-  receiver?: Address;
-};
 
 export default queryClient;
 

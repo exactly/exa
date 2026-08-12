@@ -1,22 +1,22 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useLocalSearchParams } from "expo-router";
+
 import { X } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { parse } from "valibot";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
-import useAccount from "../../utils/useAccount";
+import Loan from "../../utils/Loan";
 import useAsset from "../../utils/useAsset";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
-
-import type { Loan } from "../../utils/queryClient";
 
 export default function PaymentScheduleSheet({
   open,
@@ -27,9 +27,8 @@ export default function PaymentScheduleSheet({
   onClose: () => void;
   open: boolean;
 }) {
-  const { address } = useAccount();
-  const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const { market } = useAsset(loan?.market);
+  const { market: loanMarket, installments, maturity } = parse(Loan, useLocalSearchParams());
+  const { market } = useAsset(loanMarket);
   const {
     t,
     i18n: { language },
@@ -60,12 +59,12 @@ export default function PaymentScheduleSheet({
                 )}
               </Text>
 
-              {loan?.installments && loan.maturity && market && symbol ? (
+              {installments && maturity && market && symbol ? (
                 <YStack gap="$s5">
-                  {Array.from({ length: loan.installments }).map((_, index) => {
-                    const maturity = Number(loan.maturity) + index * MATURITY_INTERVAL;
+                  {Array.from({ length: installments }).map((_, index) => {
+                    const due = Number(maturity) + index * MATURITY_INTERVAL;
                     return (
-                      <XStack key={maturity} gap="$s2" alignItems="center" justifyContent="space-between">
+                      <XStack key={due} gap="$s2" alignItems="center" justifyContent="space-between">
                         <XStack gap="$s3" alignItems="center">
                           <Text emphasized title3>
                             {index + 1}
@@ -79,7 +78,7 @@ export default function PaymentScheduleSheet({
                           </Text>
                         </XStack>
                         <Text title3>
-                          {new Date(maturity * 1000).toLocaleDateString(language, {
+                          {new Date(due * 1000).toLocaleDateString(language, {
                             year: "numeric",
                             month: "short",
                             day: "numeric",

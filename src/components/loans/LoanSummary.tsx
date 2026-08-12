@@ -16,9 +16,19 @@ import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
-import type { Loan } from "../../utils/queryClient";
+import type { Address } from "@exactly/common/validation";
 
-export default function LoanSummary({ loan }: { loan: Loan }) {
+export default function LoanSummary({
+  market,
+  amount,
+  installments,
+  maturity,
+}: {
+  amount?: bigint;
+  installments?: number;
+  market?: Address;
+  maturity?: bigint;
+}) {
   const {
     t,
     i18n: { language },
@@ -29,35 +39,34 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
     chainId: chain.id,
     query: { enabled: !!address },
   });
-  const { market, timestamp, isFetching: isMarketFetching } = useAsset(loan.market);
-  const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
-  const isBorrow = loan.installments === 1;
+  const { market: asset, timestamp, isFetching: isMarketFetching } = useAsset(market);
+  const symbol = asset?.symbol.slice(3) === "WETH" ? "ETH" : asset?.symbol.slice(3);
+  const decimals = asset?.decimals ?? 6;
+  const isBorrow = installments === 1;
   const {
-    data: installments,
+    data: split,
     firstMaturity,
     isFetching: isInstallmentsPending,
   } = useInstallments({
-    totalAmount: loan.amount ?? 0n,
-    installments: loan.installments ?? 1,
-    marketAddress: market?.market,
+    totalAmount: amount ?? 0n,
+    installments: installments ?? 1,
+    marketAddress: market,
   });
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
     chainId: chain.id,
-    args: loan.market && loan.amount ? [loan.market, loan.maturity ?? BigInt(firstMaturity), loan.amount] : undefined,
+    args: market && amount ? [market, maturity ?? BigInt(firstMaturity), amount] : undefined,
     query: {
-      enabled: isBorrow && !!loan.amount && !!loan.market && !!address && !!bytecode,
+      enabled: isBorrow && !!amount && !!market && !!address && !!bytecode,
     },
   });
   const pending = isMarketFetching || isInstallmentsPending || isBorrowPending;
   const apr = useMemo(() => {
     const value =
-      !isBorrow && installments
-        ? Number(installments.effectiveRate) / 1e18
-        : borrow && loan.amount && loan.amount > 0n && borrow.maturity > timestamp
-          ? Number(
-              ((borrow.assets - loan.amount) * WAD * 31_536_000n) / (loan.amount * (borrow.maturity - timestamp)),
-            ) / 1e18
+      !isBorrow && split
+        ? Number(split.effectiveRate) / 1e18
+        : borrow && amount && amount > 0n && borrow.maturity > timestamp
+          ? Number(((borrow.assets - amount) * WAD * 31_536_000n) / (amount * (borrow.maturity - timestamp))) / 1e18
           : null;
     return (
       value?.toLocaleString(language, {
@@ -66,7 +75,7 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
         maximumFractionDigits: 2,
       }) ?? "N/A"
     );
-  }, [borrow, installments, isBorrow, language, loan.amount, timestamp]);
+  }, [amount, borrow, isBorrow, language, split, timestamp]);
   return (
     <YStack gap="$s1">
       <XStack justifyContent="space-between" alignItems="center">
@@ -79,14 +88,14 @@ export default function LoanSummary({ loan }: { loan: Loan }) {
           <XStack alignItems="center" gap="$s2">
             <AssetLogo height={16} symbol={symbol} width={16} />
             <Text title3>
-              {!isBorrow && installments
-                ? (Number(installments.installments.reduce((a, b) => a + b, 0n)) / 1e6).toLocaleString(language, {
+              {!isBorrow && split
+                ? (Number(split.installments.reduce((a, b) => a + b, 0n)) / 10 ** decimals).toLocaleString(language, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })
                 : borrow?.assets == null
                   ? "N/A"
-                  : (Number(borrow.assets) / 1e6).toLocaleString(language, {
+                  : (Number(borrow.assets) / 10 ** decimals).toLocaleString(language, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}

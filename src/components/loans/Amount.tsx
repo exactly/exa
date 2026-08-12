@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons";
 import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { parse } from "valibot";
 import { formatUnits } from "viem";
 import { useBytecode } from "wagmi";
 
@@ -14,7 +14,7 @@ import chain from "@exactly/common/generated/chain";
 
 import AmountSelector from "./AmountSelector";
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
+import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -25,8 +25,6 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Loan } from "../../utils/queryClient";
-
 export default function Amount() {
   const router = useRouter();
   const { address } = useAccount();
@@ -36,24 +34,18 @@ export default function Amount() {
   } = useTranslation();
   const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { markets } = useMarkets({ enabled: !!bytecode });
-  const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const { market, borrowAvailable } = useAsset(loan?.market);
+  const { market, amount: preset } = parse(Loan, useLocalSearchParams());
+  const { market: asset, borrowAvailable } = useAsset(market);
 
   const [acknowledged, setAcknowledged] = useState(false);
 
-  const [state, setState] = useState<{ amount: bigint; warning: boolean }>({
-    amount: loan?.amount ?? 0n,
-    warning: false,
-  });
+  const [amount, setAmount] = useState(preset ?? 0n);
 
-  const insufficient = Number(state.amount) > borrowAvailable;
-  const disabled = !loan?.market || state.amount <= 0n || insufficient || (state.warning && !acknowledged);
+  const warning = amount > 0n && amount >= (borrowAvailable * 75n) / 100n;
+  const insufficient = amount > borrowAvailable;
+  const disabled = amount <= 0n || insufficient || (warning && !acknowledged);
 
-  useEffect(() => {
-    return () => {
-      queryClient.setQueryData<Loan>(["loan"], undefined);
-    };
-  }, []);
+  if (!market || (markets && !asset)) return <Redirect href="/loan" />;
   return (
     <SafeView fullScreen>
       <View
@@ -68,12 +60,10 @@ export default function Amount() {
           icon={ArrowLeft}
           aria-label={t("Back")}
           onPress={() => {
-            queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, amount: undefined }));
             if (router.canGoBack()) {
               router.back();
               return;
             }
-            queryClient.resetQueries({ queryKey: ["loan"] }).catch(reportError);
             router.replace("/loan");
           }}
         />
@@ -97,12 +87,12 @@ export default function Amount() {
                 <Text primary emphasized body>
                   {t("Select amount")}
                 </Text>
-                {markets && market && loan?.market && (
+                {markets && asset && (
                   <XStack alignItems="center" gap="$s2">
                     <Text footnote color="$uiNeutralPlaceholder">
                       {t("Available funding")}
                       {": "}
-                      {Number(formatUnits(borrowAvailable, market.decimals)).toLocaleString(language, {
+                      {Number(formatUnits(borrowAvailable, asset.decimals)).toLocaleString(language, {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -119,15 +109,16 @@ export default function Amount() {
                   </XStack>
                 )}
               </YStack>
-              {loan?.market && (
-                <AmountSelector
-                  market={loan.market}
-                  onChange={(amount, warning) => {
-                    setState({ amount, warning });
-                    setAcknowledged(false);
-                  }}
-                />
-              )}
+              <AmountSelector
+                market={market}
+                value={amount}
+                warning={warning}
+                onChange={(value) => {
+                  setAmount(value);
+                  setAcknowledged(false);
+                }}
+              />
+
               {insufficient && (
                 <XStack gap="$s3" flex={1} alignItems="center">
                   <TriangleAlert size={16} color="$uiErrorSecondary" />
@@ -139,7 +130,7 @@ export default function Amount() {
             </YStack>
           </YStack>
           <YStack gap="$s4_5">
-            {state.warning && !insufficient && (
+            {warning && !insufficient && (
               <XStack
                 gap="$s3"
                 flex={1}
@@ -166,11 +157,13 @@ export default function Amount() {
             )}
             <Button
               onPress={() => {
-                queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, amount: state.amount }));
-                router.push("/loan/installments");
+                router.push({
+                  pathname: "/loan/installments",
+                  params: { market, amount: String(amount) },
+                });
               }}
-              primary={!state.warning || !acknowledged}
-              dangerSecondary={state.warning && acknowledged}
+              primary={!warning || !acknowledged}
+              dangerSecondary={warning && acknowledged}
               disabled={disabled}
             >
               <Button.Text>{t("Continue")}</Button.Text>

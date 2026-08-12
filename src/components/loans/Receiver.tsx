@@ -1,72 +1,76 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { getStringAsync } from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { parse } from "valibot";
+import { parse, safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
+import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
+import ExaSpinner from "../shared/Spinner";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-import type { Loan } from "../../utils/queryClient";
 
 export default function Receiver() {
   const router = useRouter();
   const { t } = useTranslation();
   const toast = useToastController();
-  const { address } = useAccount();
-  const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const { market } = useAsset(loan?.market);
-  const symbol = market?.symbol.slice(3) === "WETH" ? "ETH" : market?.symbol.slice(3);
+  const { address, isConnecting, isReconnecting } = useAccount();
+  const { market, amount, installments, maturity, receiver: preset } = parse(Loan, useLocalSearchParams());
+  const { market: asset, markets } = useAsset(market);
+  const symbol = asset?.symbol.slice(3) === "WETH" ? "ETH" : asset?.symbol.slice(3);
 
-  const [receiverType, setReceiverType] = useState<"external" | "internal">("internal");
+  const [selected, setSelected] = useState<boolean>();
+  const external = selected ?? (preset !== undefined && preset !== address);
 
   const form = useForm({
-    defaultValues: { receiver: address ?? "" },
+    defaultValues: { receiver: preset ?? "" },
     onSubmit: ({ value }) => {
-      try {
-        const receiver = parse(Address, value.receiver);
-        queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver }));
-        router.push("/loan/review");
-      } catch {
-        toast.show(t("Invalid address"), {
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
+      const parsed = safeParse(Address, external ? value.receiver : address);
+      if (!parsed.success) {
+        toast.show(t("Invalid address"), { duration: 1000, burntOptions: { haptic: "error", preset: "error" } });
+        return;
       }
+      router.push({
+        pathname: "/loan/review",
+        params: {
+          market,
+          amount: String(amount),
+          installments: String(installments),
+          maturity: String(maturity),
+          receiver: parsed.output,
+        },
+      });
     },
   });
 
   const receiver = useStore(form.store, (state) => state.values.receiver);
   const isValid = useStore(form.store, (state) => state.isValid);
 
-  const displayInput = receiverType === "external";
-  useEffect(() => {
-    return () => {
-      queryClient.setQueryData<Loan>(["loan"], (old) => {
-        return { ...old, receiver: undefined };
-      });
-    };
-  }, []);
+  if (!market || !amount || !installments || !maturity || (markets && !asset)) return <Redirect href="/loan" />;
+  if (preset !== undefined && !address && (isConnecting || isReconnecting)) {
+    return (
+      <SafeView fullScreen justifyContent="center" alignItems="center">
+        <ExaSpinner backgroundColor="transparent" />
+      </SafeView>
+    );
+  }
   return (
     <SafeView fullScreen>
       <View
@@ -81,12 +85,19 @@ export default function Receiver() {
           icon={ArrowLeft}
           aria-label={t("Back")}
           onPress={() => {
-            queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, receiver: undefined }));
             if (router.canGoBack()) {
               router.back();
               return;
             }
-            router.replace("/loan/installments");
+            router.replace({
+              pathname: "/loan/maturity",
+              params: {
+                market,
+                amount: String(amount),
+                installments: String(installments),
+                maturity: String(maturity),
+              },
+            });
           }}
         />
         <IconButton
@@ -110,11 +121,9 @@ export default function Receiver() {
               </Text>
               <YStack gap="$s3">
                 <XStack
-                  backgroundColor={receiverType === "internal" ? "$interactiveBaseBrandSoftDefault" : "$backgroundSoft"}
+                  backgroundColor={external ? "$backgroundSoft" : "$interactiveBaseBrandSoftDefault"}
                   onPress={() => {
-                    setReceiverType("internal");
-                    form.setFieldValue("receiver", address ?? "");
-                    form.validateAllFields("change").catch(reportError);
+                    setSelected(false);
                   }}
                   minHeight={72}
                   borderRadius="$r4"
@@ -125,14 +134,14 @@ export default function Receiver() {
                   cursor="pointer"
                 >
                   <XStack
-                    backgroundColor={receiverType === "internal" ? "$interactiveBaseBrandDefault" : "$backgroundStrong"}
+                    backgroundColor={external ? "$backgroundStrong" : "$interactiveBaseBrandDefault"}
                     width={20}
                     height={20}
                     borderRadius={12}
                     alignItems="center"
                     justifyContent="center"
                   >
-                    {receiverType === "internal" && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
+                    {!external && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                   </XStack>
                   <YStack gap="$s1" flex={1}>
                     <Text headline>{t("Your Exa account")}</Text>
@@ -142,9 +151,9 @@ export default function Receiver() {
                   </YStack>
                 </XStack>
                 <XStack
-                  backgroundColor={receiverType === "external" ? "$interactiveBaseBrandSoftDefault" : "$backgroundSoft"}
+                  backgroundColor={external ? "$interactiveBaseBrandSoftDefault" : "$backgroundSoft"}
                   onPress={() => {
-                    setReceiverType("external");
+                    setSelected(true);
                     form.setFieldValue("receiver", "");
                   }}
                   minHeight={72}
@@ -156,14 +165,14 @@ export default function Receiver() {
                   cursor="pointer"
                 >
                   <XStack
-                    backgroundColor={receiverType === "external" ? "$interactiveBaseBrandDefault" : "$backgroundStrong"}
+                    backgroundColor={external ? "$interactiveBaseBrandDefault" : "$backgroundStrong"}
                     width={20}
                     height={20}
                     borderRadius={12}
                     alignItems="center"
                     justifyContent="center"
                   >
-                    {receiverType === "external" && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
+                    {external && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
                   </XStack>
                   <YStack gap="$s1" flex={1}>
                     <Text headline>{t("External address on {{chain}}", { chain: chain.name })}</Text>
@@ -172,7 +181,7 @@ export default function Receiver() {
                     </Text>
                   </YStack>
                 </XStack>
-                {displayInput && (
+                {external && (
                   <form.Field name="receiver" validators={{ onChange: Address }}>
                     {({ state: { value }, handleChange, setValue }) => {
                       return (
@@ -217,7 +226,7 @@ export default function Receiver() {
             </YStack>
           </YStack>
           <YStack gap="$s4_5">
-            {displayInput && (
+            {external && (
               <YStack gap="$s4_5">
                 <Separator borderColor="$borderNeutralSoft" />
                 <XStack gap="$s3" alignItems="center">
@@ -249,7 +258,7 @@ export default function Receiver() {
               onPress={() => {
                 form.handleSubmit().catch(reportError);
               }}
-              disabled={!receiver || !isValid}
+              disabled={external ? !receiver || !isValid : !address}
             >
               <Button.Text>{t("Review loan terms")}</Button.Text>
               <Button.Icon>

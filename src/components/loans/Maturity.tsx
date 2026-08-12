@@ -1,29 +1,26 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { parse } from "valibot";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import LoanSummary from "./LoanSummary";
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
+import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
-import useMarkets from "../../utils/useMarkets";
+import useAsset from "../../utils/useAsset";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-import type { Loan } from "../../utils/queryClient";
 
 export default function Maturity() {
   const router = useRouter();
@@ -31,19 +28,10 @@ export default function Maturity() {
     t,
     i18n: { language },
   } = useTranslation();
-  const { address } = useAccount();
-  const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
-  const { firstMaturity } = useMarkets();
+  const { market, amount, installments, maturity } = parse(Loan, useLocalSearchParams());
+  const { market: asset, markets, firstMaturity } = useAsset(market);
 
-  const disabled = !loan?.maturity;
-
-  useEffect(() => {
-    return () => {
-      queryClient.setQueryData<Loan>(["loan"], (old) => {
-        return { ...old, maturity: undefined, receiver: undefined };
-      });
-    };
-  }, []);
+  if (!market || !amount || !installments || (markets && !asset)) return <Redirect href="/loan" />;
   return (
     <SafeView fullScreen>
       <View
@@ -58,12 +46,14 @@ export default function Maturity() {
           icon={ArrowLeft}
           aria-label={t("Back")}
           onPress={() => {
-            queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, maturity: undefined }));
             if (router.canGoBack()) {
               router.back();
               return;
             }
-            router.replace("/loan");
+            router.replace({
+              pathname: "/loan/installments",
+              params: { market, amount: String(amount), installments: String(installments) },
+            });
           }}
         />
         <IconButton
@@ -88,15 +78,15 @@ export default function Maturity() {
                 </Text>
                 <YStack gap="$s3">
                   {Array.from({ length: MAX_INSTALLMENTS }).map((_, index) => {
-                    const maturity = firstMaturity + index * MATURITY_INTERVAL;
-                    const selected = maturity === Number(loan?.maturity);
-                    const invalid = index + Number(loan?.installments) > MAX_INSTALLMENTS;
+                    const option = firstMaturity + index * MATURITY_INTERVAL;
+                    const selected = option === Number(maturity);
+                    const invalid = index + installments > MAX_INSTALLMENTS;
                     return (
                       <XStack
-                        key={maturity}
+                        key={option}
                         onPress={() => {
                           if (invalid) return;
-                          queryClient.setQueryData<Loan>(["loan"], (old) => ({ ...old, maturity: BigInt(maturity) }));
+                          router.setParams({ maturity: String(option) });
                         }}
                         flex={1}
                         gap="$s4"
@@ -126,7 +116,7 @@ export default function Maturity() {
                         </XStack>
                         <YStack>
                           <Text headline color={invalid ? "$interactiveOnDisabled" : "$uiNeutralPrimary"}>
-                            {new Date(maturity * 1000).toLocaleDateString(language, {
+                            {new Date(option * 1000).toLocaleDateString(language, {
                               year: "numeric",
                               month: "short",
                               day: "numeric",
@@ -148,13 +138,21 @@ export default function Maturity() {
         </YStack>
       </ScrollView>
       <YStack gap="$s4" padding="$s4" backgroundColor="$backgroundSoft">
-        {loan && <LoanSummary loan={loan} />}
+        <LoanSummary market={market} amount={amount} installments={installments} maturity={maturity} />
         <Button
           onPress={() => {
-            router.push("/loan/receiver");
+            router.push({
+              pathname: "/loan/receiver",
+              params: {
+                market,
+                amount: String(amount),
+                installments: String(installments),
+                maturity: String(maturity),
+              },
+            });
           }}
           primary
-          disabled={disabled}
+          disabled={!maturity}
         >
           <Button.Text>{t("Continue")}</Button.Text>
           <Button.Icon>

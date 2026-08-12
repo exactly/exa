@@ -1,31 +1,34 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { encodeAbiParameters, encodeFunctionData, maxUint256, zeroAddress, type Address, type Hex } from "viem";
+import { parse } from "valibot";
+import { encodeAbiParameters, encodeFunctionData, maxUint256, type Address, type Hex } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { exaPluginAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadPreviewerPreviewBorrowAtMaturity,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
 import { presentArticle } from "../../utils/intercom";
+import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
@@ -41,7 +44,6 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Loan } from "../../utils/queryClient";
 import type { Credential } from "@exactly/common/validation";
 
 export default function Review() {
@@ -52,21 +54,15 @@ export default function Review() {
   } = useTranslation();
   const { address } = useAccount();
   const [paymentScheduleShown, setPaymentScheduleShown] = useState(false);
-  const { data: loan } = useQuery<Loan>({ queryKey: ["loan"], enabled: !!address });
+  const { amount, installments: count, maturity, market, receiver } = parse(Loan, useLocalSearchParams());
   const {
-    amount,
-    installments: count,
-    maturity,
-    market,
-    receiver,
-  } = loan ?? {
-    amount: 0n,
-    installments: 0,
-    maturity: 0n,
-    market: zeroAddress,
-    receiver: "",
-  };
-  const { market: assetMarket, timestamp, isFetching: isAssetPending } = useAsset(market);
+    market: assetMarket,
+    markets,
+    timestamp,
+    firstMaturity,
+    borrowAvailable,
+    isFetching: isAssetPending,
+  } = useAsset(market);
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
   const singleInstallment = count === 1;
@@ -77,7 +73,7 @@ export default function Review() {
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
     chainId: chain.id,
-    args: [marketUSDCAddress, maturity ?? 0n, amount ?? 0n],
+    args: market && maturity && amount ? [market, maturity, amount] : undefined,
     query: { enabled: !!address && !!bytecode && !!maturity && !!amount && singleInstallment },
   });
 
@@ -115,7 +111,7 @@ export default function Review() {
       const calls: { data: Hex; to: Address }[] = [];
       for (let index = 0; index < (count ?? 0); index++) {
         const borrowAmount = singleInstallment ? amount : split?.amounts[index];
-        const borrowMaturity = BigInt(Number(loan?.maturity) + index * MATURITY_INTERVAL);
+        const borrowMaturity = BigInt(Number(maturity) + index * MATURITY_INTERVAL);
         if (!borrowAmount) return;
         const data = encodeFunctionData({
           functionName: "propose",
@@ -179,7 +175,7 @@ export default function Review() {
     pending ||
     !address ||
     !receiver ||
-    !market ||
+    !assetMarket ||
     !bytecode ||
     (!singleInstallment && !split) ||
     (singleInstallment && !borrow);
@@ -198,7 +194,18 @@ export default function Review() {
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 
+  if (!market || !amount || !count || !maturity || !receiver || (markets && !assetMarket))
+    return <Redirect href="/loan" />;
   if (!processing && !error && !success) {
+    const maturityIndex = (Number(maturity) - firstMaturity) / MATURITY_INTERVAL;
+    if (markets && (maturityIndex < 0 || maturityIndex + count > MAX_INSTALLMENTS))
+      return (
+        <Redirect
+          href={{ pathname: "/loan/maturity", params: { market, amount: String(amount), installments: String(count) } }}
+        />
+      );
+    if (markets && amount > borrowAvailable)
+      return <Redirect href={{ pathname: "/loan/amount", params: { market, amount: String(amount) } }} />;
     return (
       <SafeView fullScreen>
         <View
@@ -217,7 +224,16 @@ export default function Review() {
                 router.back();
                 return;
               }
-              router.replace("/loan/receiver");
+              router.replace({
+                pathname: "/loan/receiver",
+                params: {
+                  market,
+                  amount: String(amount),
+                  installments: String(count),
+                  maturity: String(maturity),
+                  receiver,
+                },
+              });
             }}
           />
           <IconButton
@@ -245,7 +261,7 @@ export default function Review() {
                 <XStack alignItems="center" gap="$s2">
                   <AssetLogo height={16} symbol={symbol} width={16} />
                   <Text title3 color="$uiNeutralPrimary">
-                    {(Number(amount ?? 0n) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
+                    {(Number(amount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -356,7 +372,7 @@ export default function Review() {
                   {t("Receiving address")}
                 </Text>
                 <Text headline color="$uiNeutralPrimary">
-                  {receiver === address ? t("Your Exa account") : shortenHex(receiver ?? "", 6, 8)}
+                  {receiver === address ? t("Your Exa account") : shortenHex(receiver, 6, 8)}
                 </Text>
               </XStack>
             </YStack>
