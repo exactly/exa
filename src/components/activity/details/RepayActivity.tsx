@@ -8,9 +8,9 @@ import TransactionDetails from "./TransactionDetails";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
 
-import type { RepayActivity as RepayActivityType } from "@exactly/server/api/activity";
+import type { ActivityItem } from "../../../utils/queryClient";
 
-export default function RepayActivity({ item }: { item: Omit<RepayActivityType, "blockNumber"> }) {
+export default function RepayActivity({ item }: { item: Extract<ActivityItem, { type: "repay" }> }) {
   const { amount, usdAmount, currency } = item;
   const {
     t,
@@ -42,7 +42,7 @@ export default function RepayActivity({ item }: { item: Omit<RepayActivityType, 
         </YStack>
       </YStack>
       <YStack flex={1} gap="$s7">
-        <TransactionDetails />
+        <TransactionDetails item={item} />
       </YStack>
     </>
   );

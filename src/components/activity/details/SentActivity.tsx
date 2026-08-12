@@ -10,9 +10,9 @@ import TransactionDetails from "./TransactionDetails";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
 
-import type { WithdrawActivity } from "@exactly/server/api/activity";
+import type { ActivityItem } from "../../../utils/queryClient";
 
-export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "blockNumber"> }) {
+export default function SentActivity({ item }: { item: Extract<ActivityItem, { type: "sent" }> }) {
   const { amount, usdAmount, currency } = item;
   const {
     t,
@@ -48,7 +48,7 @@ export default function SentActivity({ item }: { item: Omit<WithdrawActivity, "b
         </YStack>
       </YStack>
       <YStack flex={1} gap="$s7">
-        <TransactionDetails />
+        <TransactionDetails item={item} />
       </YStack>
     </>
   );

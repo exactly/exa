@@ -71,13 +71,13 @@ export default function CardActivity({
                 {item.usdAmount > 0 && <PaymentDetails item={operation} />}
               </YStack>
             ))}
-            <TransactionDetails source={item.operations[0]} />
+            {item.operations[0] && <TransactionDetails item={item.operations[0]} />}
           </>
         ) : (
           <>
             <PurchaseDetails item={item} />
             <PaymentDetails item={item} />
-            <TransactionDetails />
+            <TransactionDetails item={item} />
           </>
         )}
       </YStack>

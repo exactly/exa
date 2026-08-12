@@ -8,9 +8,9 @@ import TransactionDetails from "./TransactionDetails";
 import AssetLogo from "../../shared/AssetLogo";
 import Text from "../../shared/Text";
 
-import type { DepositActivity } from "@exactly/server/api/activity";
+import type { ActivityItem } from "../../../utils/queryClient";
 
-export default function ReceivedActivity({ item }: { item: Omit<DepositActivity, "blockNumber"> }) {
+export default function ReceivedActivity({ item }: { item: Extract<ActivityItem, { type: "received" }> }) {
   const { amount, usdAmount, currency } = item;
   const {
     t,
@@ -42,7 +42,7 @@ export default function ReceivedActivity({ item }: { item: Omit<DepositActivity,
         </YStack>
       </YStack>
       <YStack flex={1} gap="$s7">
-        <TransactionDetails />
+        <TransactionDetails item={item} />
       </YStack>
     </>
   );

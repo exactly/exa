@@ -7,7 +7,6 @@ import { Copy } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import chain from "@exactly/common/generated/chain";
@@ -22,14 +21,12 @@ import type { ActivityItem } from "../../../utils/queryClient";
 import type { CreditActivity, DebitActivity, InstallmentsActivity } from "@exactly/server/api/activity";
 
 export default function TransactionDetails({
-  source,
+  item,
 }: {
-  source?: CreditActivity | DebitActivity | InstallmentsActivity;
+  item: ActivityItem | CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
   const toast = useToastController();
-  const query = useQuery<ActivityItem>({ queryKey: ["activity", "details"] });
   const { t } = useTranslation();
-  const item = source ?? query.data;
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -58,7 +55,7 @@ export default function TransactionDetails({
             <ChainLogo size={20} />
           </XStack>
         </XStack>
-        {item?.type === "sent" && (
+        {item.type === "sent" && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
               {t("To")}
@@ -84,7 +81,7 @@ export default function TransactionDetails({
             </XStack>
           </XStack>
         )}
-        {item?.timestamp && item.type !== "card" && (
+        {item.timestamp && item.type !== "card" && (
           <>
             <XStack justifyContent="space-between">
               <Text emphasized footnote color="$uiNeutralSecondary">
@@ -104,7 +101,7 @@ export default function TransactionDetails({
             </XStack>
           </>
         )}
-        {item?.type !== "panda" && item?.transactionHash && (
+        {item.type !== "panda" && (
           <XStack justifyContent="space-between">
             <Text emphasized footnote color="$uiNeutralSecondary">
               {t("Transaction hash")}

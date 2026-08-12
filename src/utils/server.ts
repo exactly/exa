@@ -301,14 +301,6 @@ queryClient.setQueryDefaults(["activity", "card"], {
     return activity.filter((item): item is CardActivity => item.type === "card" || item.type === "panda");
   },
 });
-queryClient.setQueryDefaults(["activity", "details"], {
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: () => {
-    throw new Error("don't refetch");
-  },
-});
-
 let authenticating: Promise<void> | undefined;
 export async function auth() {
   if (authenticating) return authenticating;

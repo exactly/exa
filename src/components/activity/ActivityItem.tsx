@@ -23,10 +23,10 @@ import pt from "i18n-iso-countries/langs/pt.json";
 import { titleCase } from "title-case";
 
 import isProcessing from "../../utils/isProcessing";
-import queryClient, { type ActivityItem as Item } from "../../utils/queryClient";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
 
+import type { ActivityItem as Item } from "../../utils/queryClient";
 import type { TFunction } from "i18next";
 
 registerLocale(en);
@@ -62,8 +62,7 @@ export default function ActivityItem({
       cursor="pointer"
       onPress={() => {
         if (["card", "received", "sent", "repay", "panda"].includes(item.type)) {
-          queryClient.setQueryData(["activity", "details"], item);
-          router.push("/activity-details");
+          router.push({ pathname: "/activity-details", params: { id: item.id } });
         }
       }}
       backgroundColor="$backgroundMild"
