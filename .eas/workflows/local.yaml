@@ -40,8 +40,9 @@ jobs:
     environment: development
     runs_on: linux-large-nested-virtualization
     image: latest
-    env: { CHAIN_ID: "31337" }
+    env: { CHAIN_ID: "31337", REDISMS_SYSTEM_BINARY: /usr/bin/redis-server }
     steps:
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
       - uses: eas/install_node_modules
       - uses: eas/install_maestro
@@ -135,8 +136,9 @@ jobs:
     environment: development
     runs_on: macos-large
     image: latest
-    env: { CHAIN_ID: "31337" }
+    env: { CHAIN_ID: "31337", REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server }
     steps:
+      - run: brew install redis
       - uses: eas/checkout
       - uses: eas/install_node_modules
       - uses: eas/install_maestro
