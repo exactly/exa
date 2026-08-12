@@ -16,7 +16,6 @@ import { Address } from "@exactly/common/validation";
 import Contacts from "./Contacts";
 import RecentContacts from "./RecentContacts";
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
@@ -62,7 +61,6 @@ export default function ReceiverSelection() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                queryClient.setQueryData(["withdrawal"], { receiver: undefined, market: undefined, amount: 0n });
                 if (router.canGoBack()) {
                   router.back();
                 } else {
