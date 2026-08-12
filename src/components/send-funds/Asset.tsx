@@ -2,13 +2,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Pressable } from "react-native";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
 import { Avatar, ScrollView, XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { parse } from "valibot";
+import { safeParse } from "valibot";
 
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
@@ -24,12 +24,15 @@ import View from "../shared/View";
 export default function AssetSelection() {
   const router = useRouter();
   const { receiver: receiverAddress } = useLocalSearchParams();
-  const receiver = parse(Address, receiverAddress);
+  const parsed = safeParse(Address, receiverAddress);
   const { t } = useTranslation();
 
   const { data: savedContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
     queryKey: ["contacts", "saved"],
   });
+
+  if (!parsed.success) return <Redirect href="/send-funds/receiver" />;
+  const receiver = parsed.output;
 
   const handleSubmit = (asset: Address, external: boolean) => {
     router.push({ pathname: "/send-funds/amount", params: { receiver, asset, external: String(external) } });
