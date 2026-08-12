@@ -18,6 +18,7 @@ import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
 
 const auditor = loadDeployment("Auditor");
+const debtManager = loadDeployment("DebtRoller", false)?.address ?? loadDeployment("DebtManager").address;
 const marketUSDC = loadDeployment("MarketUSDC");
 const marketWETH = loadDeployment("MarketWETH");
 const integrationPreviewer = loadDeployment("IntegrationPreviewer");
@@ -96,6 +97,7 @@ export default defineConfig([
       addresses(
         {
           auditor: auditor.address,
+          debtManager,
           exaPlugin: exaPlugin.contractAddress,
           exaPreviewer: exaPreviewer.contractAddress,
           integrationPreviewer: integrationPreviewer.address,
@@ -240,6 +242,7 @@ function loadDeployment<R extends boolean = true>(
         {
           Auditor: 1,
           Balancer2Vault: 23,
+          DebtManager: 24,
           Firewall: 33,
           MarketUSDC: 11,
           MarketWETH: 18,

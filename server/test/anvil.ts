@@ -286,6 +286,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
 
   provide("Auditor", auditor);
   provide("Balancer2Vault", balancer);
+  provide("DebtManager", debtManager);
   provide("ExaPreviewer", exaPreviewer);
   provide("EXA", exa);
   provide("ExaAccountFactory", exaAccountFactory);
@@ -366,6 +367,7 @@ declare module "vitest" {
   export interface ProvidedContext {
     Auditor: Address;
     Balancer2Vault: Address;
+    DebtManager: Address;
     EXA: Address;
     ExaAccountFactory: Address;
     ExaPlugin: Address;

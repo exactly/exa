@@ -38,6 +38,7 @@ import { decodeFunctionData, zeroHash, type Log } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
+  debtManagerAddress,
   exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerAddress,
@@ -131,7 +132,7 @@ export default new Hono().get(
             abi: marketAbi,
             eventName: "RepayAtMaturity",
             address: [...markets.keys()],
-            args: { caller: [...plugins], borrower: account },
+            args: { caller: [...plugins, debtManagerAddress], borrower: account },
             toBlock: "latest",
             fromBlock: 0n,
             strict: true,
