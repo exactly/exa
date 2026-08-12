@@ -151,13 +151,13 @@ importers:
         specifier: 'catalog:'
         version: 4.86.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.3.6))
       '@exactly/common':
-        specifier: workspace:^0.0.16
+        specifier: workspace:^0.0.17
         version: link:common
       '@exactly/lib':
         specifier: ^0.1.0
         version: 0.1.0
       '@exactly/server':
-        specifier: workspace:^0.2.107
+        specifier: workspace:^0.2.109
         version: link:server
       '@expo/metro-runtime':
         specifier: ~55.0.6
@@ -539,7 +539,7 @@ importers:
   .maestro:
     devDependencies:
       '@exactly/common':
-        specifier: workspace:^0.0.16
+        specifier: workspace:^0.0.17
         version: link:../common
       '@noble/curves':
         specifier: ^2.0.1
@@ -739,10 +739,10 @@ importers:
         specifier: ^8.0.3
         version: 8.0.3
       '@exactly/common':
-        specifier: workspace:^0.0.16
+        specifier: workspace:^0.0.17
         version: link:../common
       '@exactly/server':
-        specifier: workspace:^0.2.105
+        specifier: workspace:^0.2.109
         version: link:../server
       astro:
         specifier: ^7.1.1
@@ -878,7 +878,7 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3(eslint@9.39.4)
       '@exactly/common':
-        specifier: workspace:^0.0.16
+        specifier: workspace:^0.0.17
         version: link:../common
       '@exactly/plugin':
         specifier: workspace:^1.1.0

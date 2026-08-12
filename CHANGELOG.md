@@ -1,5 +1,59 @@
 # @exactly/mobile
 
+## 1.2.20
+
+### Patch Changes
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`7065dc5`](https://github.com/exactly/exa/commit/7065dc5b669addfd5a4703c9e8221d973d9e4aef) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 hide defi section
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`b821883`](https://github.com/exactly/exa/commit/b8218836d411d7a0130529865e5ee6b97cd6ae14) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ restructure add funds root menu
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`26a663f`](https://github.com/exactly/exa/commit/26a663fdd98aa88e17fd69e92c8ceeb94664522b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add swap and bridge swap guide sheets
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`256483b`](https://github.com/exactly/exa/commit/256483b37b5d27c46849257a49279435880b37ad) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ resolve ens name for owner address
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`c01f52a`](https://github.com/exactly/exa/commit/c01f52aa2d57300a04a6342bdaf0afe52e4d0bc0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ cache deployed bytecode indefinitely
+
+- [#1141](https://github.com/exactly/exa/pull/1141) [`ec1bda2`](https://github.com/exactly/exa/commit/ec1bda261e8a0facd00dc5dbeb03c2da6fb4c73e) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add declined reason translations
+
+- [#1112](https://github.com/exactly/exa/pull/1112) [`9e8e64a`](https://github.com/exactly/exa/commit/9e8e64a0d492e1450dba3d91be7a586baf7debd8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 implement app theme for base
+
+- [#1201](https://github.com/exactly/exa/pull/1201) [`6df47d5`](https://github.com/exactly/exa/commit/6df47d509b3e98146c8028440260dadecfc86d55) Thanks [@franm91](https://github.com/franm91)! - ✨ support offramp transfer reference
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`f7993bf`](https://github.com/exactly/exa/commit/f7993bf2a463bcd7153f17702dbc04a2571a562d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add cryptocurrencies asset list
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`3ea4c82`](https://github.com/exactly/exa/commit/3ea4c828b653232518763088ce29f1703906ae7a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ display allowlisted assets per network
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`e060e0b`](https://github.com/exactly/exa/commit/e060e0b86d8fece645c6b8fb2b8dab438e0dc375) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add supported asset match sheet
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`e7d1661`](https://github.com/exactly/exa/commit/e7d166141d88986093a44539a0c27eddb80b7395) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 redesign copy address sheet
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`c0c8297`](https://github.com/exactly/exa/commit/c0c8297385549128b597750d1f1677a4c95d83e3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add request sent screen
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`1172058`](https://github.com/exactly/exa/commit/11720582cce0fd60e9a93217fd530be4f610f986) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ redesign crypto receive screen
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`64d36bd`](https://github.com/exactly/exa/commit/64d36bd95ef3c6a046a025357eb28d6b79e7bbff) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add bridge education sheet
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`027cf1e`](https://github.com/exactly/exa/commit/027cf1e5ca4a2250378b642afbe938f187cc88ac) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 redesign bridge quote screen
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`5fb6f57`](https://github.com/exactly/exa/commit/5fb6f57b1bda2100454fb95b92223f3ee46de763) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add network filter to asset select sheet
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`83e7761`](https://github.com/exactly/exa/commit/83e7761efb6113aafd09f79b39c3789b9e18a5a9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add network section info sheets
+
+- [#1112](https://github.com/exactly/exa/pull/1112) [`289ed58`](https://github.com/exactly/exa/commit/289ed581e9a7b3a1552c0429d0ff29ff30874040) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix swap token selection
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`d7b1c10`](https://github.com/exactly/exa/commit/d7b1c10ac7bac799e83f145cdc0046a7c8de8b8a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 toggle qr inline on receive screen
+
+- [#903](https://github.com/exactly/exa/pull/903) [`02fce6d`](https://github.com/exactly/exa/commit/02fce6de1e78078083decba783e5fd10f21d27f4) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add card limit kyc flow
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`724b7a5`](https://github.com/exactly/exa/commit/724b7a580ce04c1792cb3ca0915ae67341dfaedf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ list allowlisted assets on add funds
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`d7a8180`](https://github.com/exactly/exa/commit/d7a8180638089c5401bede0dc304efe219d18da3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add network selection to receive flow
+
+- Updated dependencies [[`ac11aec`](https://github.com/exactly/exa/commit/ac11aecf33ad423575c24260be86c09ccac1377b), [`f3fb01d`](https://github.com/exactly/exa/commit/f3fb01d4b080d634f887964a4adf206316409862), [`e667ea3`](https://github.com/exactly/exa/commit/e667ea3da6175ac2ccc29d3927d0a024dbcb8413), [`5f1b1ca`](https://github.com/exactly/exa/commit/5f1b1ca59fd95f5e823c35259c78f1855d62c2fd)]:
+  - @exactly/server@0.2.109
+  - @exactly/common@0.0.17
+
 ## 1.2.19
 
 ### Patch Changes

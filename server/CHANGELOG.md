@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.2.109
+
+### Patch Changes
+
+- [`ac11aec`](https://github.com/exactly/exa/commit/ac11aecf33ad423575c24260be86c09ccac1377b) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add signup ip to sardine
+
+- [#1023](https://github.com/exactly/exa/pull/1023) [`e667ea3`](https://github.com/exactly/exa/commit/e667ea3da6175ac2ccc29d3927d0a024dbcb8413) Thanks [@aguxez](https://github.com/aguxez)! - 🚩 show declined transactions activity
+
+- [#1141](https://github.com/exactly/exa/pull/1141) [`5f1b1ca`](https://github.com/exactly/exa/commit/5f1b1ca59fd95f5e823c35259c78f1855d62c2fd) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add friendly decline reasons
+
 ## 0.2.108
 
 ### Patch Changes

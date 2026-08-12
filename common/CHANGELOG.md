@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.17
+
+### Patch Changes
+
+- [#1181](https://github.com/exactly/exa/pull/1181) [`f3fb01d`](https://github.com/exactly/exa/commit/f3fb01d4b080d634f887964a4adf206316409862) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔨 codegen allowlists for all chains
+
 ## 0.0.16
 
 ### Patch Changes
