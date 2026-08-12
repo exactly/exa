@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
@@ -10,7 +10,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { nonEmpty, pipe, safeParse, string } from "valibot";
+import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
 import { encodeFunctionData } from "viem";
 import { useSendCalls } from "wagmi";
 
@@ -46,13 +46,12 @@ export default function Pay() {
   const router = useRouter();
   const { market: exaUSDC, timestamp } = useAsset(marketUSDCAddress);
   const { success, output: repayMaturity } = safeParse(
-    pipe(string(), nonEmpty("no maturity")),
+    pipe(string(), nonEmpty("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
     useLocalSearchParams().maturity,
   );
 
-  const now = Number(timestamp);
-  const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-  const borrowMaturity = Number(repayMaturity) < now ? nextMaturity : Number(repayMaturity) + MATURITY_INTERVAL;
+  const nextMaturity = timestamp - (timestamp % interval) + interval;
+  const borrowMaturity = !success || repayMaturity < timestamp ? nextMaturity : repayMaturity + interval;
   const repayLabel = useMemo(
     () =>
       new Date(Number(repayMaturity) * 1000).toLocaleDateString(language, {
@@ -64,20 +63,26 @@ export default function Pay() {
   );
   const borrowLabel = useMemo(
     () =>
-      new Date(borrowMaturity * 1000).toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" }),
+      new Date(Number(borrowMaturity) * 1000).toLocaleDateString(language, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
     [borrowMaturity, language],
   );
-  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(success ? repayMaturity : 0));
-  const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === BigInt(borrowMaturity));
+  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === repayMaturity);
+  const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === borrowMaturity);
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
     chainId: chain.id,
-    args: [marketUSDCAddress, BigInt(borrowMaturity), borrow?.previewValue ?? 0n],
+    args: [marketUSDCAddress, borrowMaturity, borrow?.previewValue ?? 0n],
     query: { enabled: !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });
 
-  if (!success || !exaUSDC || !borrow) return null;
+  if (!success) return <Redirect href="/(main)/(home)" />;
+  if (!exaUSDC) return null;
+  if (!borrow) return <Redirect href="/(main)/(home)" />;
 
   const previewValue = (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals);
   const existingDebtPreviewValue =
@@ -202,11 +207,7 @@ export default function Pay() {
           </View>
         </ScrollView>
         <View padded paddingBottom={insets.bottom} marginBottom="$s4">
-          <RolloverButton
-            repayMaturity={BigInt(repayMaturity)}
-            borrowMaturity={BigInt(borrowMaturity)}
-            borrow={borrow}
-          />
+          <RolloverButton repayMaturity={repayMaturity} borrowMaturity={borrowMaturity} borrow={borrow} />
         </View>
       </View>
     </SafeView>
@@ -323,3 +324,5 @@ function RolloverButton({
     </Button>
   );
 }
+
+const interval = BigInt(MATURITY_INTERVAL);
