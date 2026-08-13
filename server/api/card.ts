@@ -557,7 +557,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, credentialId),
-              columns: { account: true, pandaId: true, source: true },
+              columns: { account: true, cardArtId: true, pandaId: true, source: true },
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
@@ -640,6 +640,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                             contexts: { details: { credentialId, scope: "cardLimit" } },
                           });
                         }),
+                      credential.cardArtId ?? undefined,
                     );
                   }
                 });

@@ -6,7 +6,7 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import { usdcAddress } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import createPanda, * as Panda from "../../utils/panda";
@@ -211,6 +211,28 @@ describe("create card", () => {
           status: "active",
           limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
           configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "398c4919514b4ec4927e6a9114a4c816" },
+        }),
+      }),
+    );
+  });
+
+  it("sends configured card art", async () => {
+    chainMock.id = base.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
+    } as Response);
+
+    await expect(panda.createCard("user-id", BASE_PRODUCT_ID, 1_000_000, "custom-art")).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: BASE_PRODUCT_ID, virtualCardArt: "custom-art" },
         }),
       }),
     );
