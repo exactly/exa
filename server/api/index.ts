@@ -93,7 +93,10 @@ export default function api({
       }),
     )
     .route("/activity", activity({ auth, database }))
-    .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route(
+      "/card",
+      card({ auth, businessSalt, credit, database, panda, pax, persona, sardine, segment, walletExtension }),
+    )
     .route("/kyc", kyc({ auth, businessSalt, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))

@@ -12,7 +12,7 @@ import {
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import {
@@ -46,6 +46,7 @@ import {
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import revertReason from "@exactly/common/revertReason";
 import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
@@ -53,13 +54,18 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
 import {
+  activeStatuses,
+  cardLimit,
   collectors,
   createMutex,
   declineMessage,
   getMutex,
+  isCardLocked,
+  issuanceKey,
   Payload,
   signIssuerOp,
   TransactionPayload,
+  withMutex,
   type Transaction,
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -73,8 +79,10 @@ import { name as refundName } from "../workers/refund/job";
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createPanda from "../utils/panda";
+import type createPersona from "../utils/persona";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
+import type createCredit from "../workers/credit/queue";
 import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -84,20 +92,26 @@ const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default function hook({
+  businessSalt,
+  credit,
   database,
   issuer,
   onesignal,
   panda,
+  persona,
   refund,
   sardine,
   segment,
   settler,
   webhook,
 }: {
+  businessSalt: string;
+  credit: ReturnType<typeof createCredit>;
   database: Database;
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  persona: ReturnType<typeof createPersona>;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -119,6 +133,102 @@ export default function hook({
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
       if (payload.resource !== "transaction") {
+        if (payload.resource === "application") return c.json({ code: "ok" });
+        if (payload.resource === "company") {
+          if (payload.body.applicationStatus !== "approved") return c.json({ code: "ok" });
+          const company = await panda.getCompany(payload.body.id);
+          if (!company?.externalId) return c.json({ code: "ok" });
+          const credential = await database.query.credentials.findFirst({
+            columns: { account: true, id: true, salt: true },
+            where: eq(credentials.id, company.externalId),
+          });
+          if (!credential) return c.json({ code: "retry" }, 500);
+          if (v.parse(Address, credential.salt) === v.parse(Address, businessSalt)) {
+            const account = v.parse(Address, credential.account);
+            setUser({ id: account });
+            await withMutex(account, async () => {
+              const row = await database.query.credentials.findFirst({
+                columns: { pandaId: true, source: true },
+                where: eq(credentials.id, credential.id),
+              });
+              if (!row) return;
+              const existingCards = await database.query.cards.findMany({
+                columns: { id: true, status: true },
+                where: eq(cards.credentialId, credential.id),
+              });
+              const localCard = existingCards.find(({ status }) => activeStatuses.includes(status));
+              const users = await panda.getCompanyUsers(payload.body.id);
+              if (row.pandaId && !users.some(({ id }) => id === row.pandaId)) throw new Error("company user not found");
+              if (!row.pandaId) {
+                const user = users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase());
+                if (!user) throw new Error("company user not found");
+                await database
+                  .update(credentials)
+                  .set({ pandaId: user.id })
+                  .where(and(eq(credentials.id, credential.id), isNull(credentials.pandaId)));
+              }
+              const userId =
+                row.pandaId ??
+                (await database.query.credentials
+                  .findFirst({ columns: { pandaId: true }, where: eq(credentials.id, credential.id) })
+                  .then((current) => current?.pandaId));
+              if (!userId) throw new Error("company user not found");
+              if (localCard) {
+                await credit.enqueue(account, `business-approval:${credential.id}:${localCard.id}`);
+                return;
+              }
+              const card = await panda.createCard(userId, SIGNATURE_PRODUCT_ID, {
+                amount: await cardLimit(credential.id, persona).catch((error: unknown) => {
+                  captureException(error, {
+                    level: "error",
+                    contexts: { details: { credentialId: credential.id, scope: "cardLimit" } },
+                  });
+                  throw error;
+                }),
+                idempotencyKey: issuanceKey(credential.id, existingCards),
+              });
+              const [inserted] = await database
+                .insert(cards)
+                .values({
+                  id: card.id,
+                  lastFour: card.last4,
+                  credentialId: credential.id,
+                  productId: SIGNATURE_PRODUCT_ID,
+                })
+                .onConflictDoNothing()
+                .returning({ id: cards.id });
+              if (!inserted) {
+                await credit.enqueue(account, `business-approval:${credential.id}:${card.id}`);
+                return;
+              }
+              segment.track({
+                event: "CardIssued",
+                userId: account,
+                properties: { productId: SIGNATURE_PRODUCT_ID, source: row.source },
+              });
+              sardine
+                .customer({
+                  flow: { name: "card.issued", type: "payment_method_link" },
+                  customer: { id: credential.id, type: "customer" },
+                  transaction: {
+                    id: card.id,
+                    paymentMethod: {
+                      type: "card",
+                      card: {
+                        hash: card.id,
+                        last4: card.last4,
+                        expiryMonth: card.expirationMonth,
+                        expiryYear: card.expirationYear,
+                      },
+                    },
+                  },
+                })
+                .catch((error: unknown) => captureException(error, { level: "error" }));
+              await credit.enqueue(account, `business-approval:${credential.id}:${card.id}`);
+            });
+          }
+          return c.json({ code: "ok" });
+        }
         if (payload.resource === "dispute") return c.json({ code: "ok" });
         const pandaId =
           payload.resource === "card"
@@ -513,7 +623,7 @@ export default function hook({
               ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
             });
             const mutex = getMutex(account);
-            mutex?.release();
+            if (!isCardLocked(account)) mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
 
             const provider = payload.body.spend.declinedReason === "" ? undefined : payload.body.spend.declinedReason;
@@ -893,7 +1003,8 @@ export default function hook({
             }
           } finally {
             const mutex = getMutex(account);
-            if (payload.action === "created" || payload.action === "updated") mutex?.release();
+            if ((payload.action === "created" || payload.action === "updated") && !isCardLocked(account))
+              mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
           }
         }

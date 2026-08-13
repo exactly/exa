@@ -127,10 +127,13 @@ const mantecaHook = createMantecaHook({
   segment,
 });
 const pandaHook = createPandaHook({
+  businessSalt: parse(pipe(string("business salt"), nonEmpty("business salt")), env.BUSINESS_SALT),
+  credit,
   database,
   issuer,
   onesignal,
   panda,
+  persona,
   refund,
   sardine,
   segment,
