@@ -40,6 +40,14 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { isBusinessSalt } from "../utils/createCredential";
+import {
+  cardLimit,
+  createMutex as createAccountMutex,
+  finalizeBusinessApproval,
+  getMutex,
+  notifyCardIssued,
+} from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -555,12 +563,17 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       }),
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
-        const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
+        const mutexAccount = await database.query.credentials
+          .findFirst({ columns: { account: true, salt: true }, where: eq(credentials.id, credentialId) })
+          .then((row) => (row && isBusinessSalt(parse(Address, row.salt)) ? parse(Address, row.account) : undefined));
+        const mutex = mutexAccount
+          ? (getMutex(mutexAccount) ?? createAccountMutex(mutexAccount))
+          : (mutexes.get(credentialId) ?? createMutex(credentialId));
         return mutex
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, credentialId),
-              columns: { account: true, pandaId: true, source: true },
+              columns: { account: true, pandaCompanyId: true, pandaId: true, salt: true, source: true },
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
@@ -599,11 +612,29 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 }
               }
             }
-            if (cardCount > 0) return c.json({ code: "already created" }, 400);
+            if (cardCount > 0) {
+              if (mutexAccount && credential.pandaCompanyId)
+                await finalizeBusinessApproval(credentialId, credential.pandaCompanyId, account, database, panda, {
+                  credit,
+                  persona,
+                  sardine,
+                  segment,
+                });
+              return c.json({ code: "already created" }, 400);
+            }
             try {
-              const kyc = await panda.getApplicationStatus(pandaId);
+              const kyc = mutexAccount
+                ? credential.pandaCompanyId
+                  ? await panda.getCompanyStatus(credential.pandaCompanyId)
+                  : undefined
+                : await panda.getApplicationStatus(pandaId);
+              if (!kyc) return c.json({ code: "no panda" }, 403);
               if (kyc.applicationStatus !== "approved") {
                 return c.json({ code: "kyc not approved" }, 403);
+              }
+              if (mutexAccount && credential.pandaCompanyId) {
+                const users = await panda.getCompanyUsers(credential.pandaCompanyId);
+                if (!users.some(({ id }) => id === pandaId)) return c.json({ code: "no panda" }, 403);
               }
               const productId =
                 chain.id === base.id
@@ -627,34 +658,22 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                     });
                     return orphan;
                   } else {
-                    return panda.createCard(
-                      pandaId,
-                      productId,
-                      await persona
-                        .getAccount(credentialId, "cardLimit")
-                        .then((profile) =>
-                          profile?.attributes.fields.card_limit_usd?.value == null
-                            ? undefined
-                            : profile.attributes.fields.card_limit_usd.value * 100,
-                        )
-                        .catch((error: unknown): undefined => {
-                          captureException(error, {
-                            level: "error",
-                            contexts: { details: { credentialId, scope: "cardLimit" } },
-                          });
-                        }),
-                    );
+                    return panda.createCard(pandaId, productId, {
+                      amount: await cardLimit(credentialId, persona).catch((error: unknown): undefined => {
+                        if (mutexAccount) throw error;
+                        captureException(error, {
+                          level: "error",
+                          contexts: { details: { credentialId, scope: "cardLimit" } },
+                        });
+                      }),
+                      ...(mutexAccount && {
+                        idempotencyKey: `business-approval:${credentialId}:${credential.cards.filter(({ status }) => status === "DELETED").length + activeCards.length - cardCount}`,
+                      }),
+                    });
                   }
                 });
 
               await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
-              await credit.enqueue(account).catch((error: unknown) =>
-                captureException(error, {
-                  level: "error",
-                  tags: { queue: creditName, job: creditName },
-                  extra: { account },
-                }),
-              );
               segment.track({
                 event: "CardIssued",
                 userId: account,
@@ -663,24 +682,17 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
 
               if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
 
-              sardine
-                .customer({
-                  flow: { name: "card.issued", type: "payment_method_link" },
-                  customer: { id: credentialId, type: "customer" },
-                  transaction: {
-                    id: card.id,
-                    paymentMethod: {
-                      type: "card",
-                      card: {
-                        hash: card.id,
-                        last4: card.last4,
-                        expiryMonth: card.expirationMonth,
-                        expiryYear: card.expirationYear,
-                      },
-                    },
-                  },
-                })
-                .catch((error: unknown) => captureException(error, { level: "error" }));
+              notifyCardIssued(sardine, { credentialId, card });
+
+              await (mutexAccount
+                ? credit.enqueue(account, `business-approval:${credentialId}:${card.id}`)
+                : credit.enqueue(account).catch((error: unknown) =>
+                    captureException(error, {
+                      level: "error",
+                      tags: { queue: creditName, job: creditName },
+                      extra: { account },
+                    }),
+                  ));
 
               return c.json(
                 {

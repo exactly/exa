@@ -1,5 +1,7 @@
 import "../mocks/sentry";
 
+import { Hono } from "hono";
+import { createHmac } from "node:crypto";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -71,6 +73,49 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/cards?userId=e5cd86bb-a19e-4a66-9728-9e6c5d97e616&limit=100"),
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("lists company users through the parent tenant", async () => {
+    const users = [{ id: "user-id", companyId: "company-id", walletAddress: "0x1234" }];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(users));
+
+    await expect(panda.getCompanyUsers("company-id")).resolves.toStrictEqual(users);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/users?companyId=company-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+});
+
+describe("panda webhook signature", () => {
+  const payload = JSON.stringify({ id: "hook-id" });
+  const primary = createPanda({ key: "primary", url: "https://panda.test" });
+  const primaryApp = new Hono().post("/", primary.headerValidator, (c) => c.text("ok"));
+
+  it("accepts the primary signature", async () => {
+    const response = await primaryApp.request("/", {
+      method: "POST",
+      headers: { signature: createHmac("sha256", "primary").update(payload).digest("hex") },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects a missing signature", async () => {
+    const response = await primaryApp.request("/", { method: "POST", body: payload });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects an invalid signature", async () => {
+    const response = await primaryApp.request("/", {
+      method: "POST",
+      headers: { signature: createHmac("sha256", "invalid").update(payload).digest("hex") },
+      body: payload,
+    });
+
+    expect(response.status).toBe(401);
   });
 });
 
@@ -319,6 +364,31 @@ describe("create card", () => {
         }),
       }),
     );
+  });
+
+  it("sends an idempotency key and custom limit", async () => {
+    chainMock.id = baseSepolia.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
+    } as Response);
+
+    await expect(
+      panda.createCard("user-id", SIGNATURE_PRODUCT_ID, { amount: 123, idempotencyKey: "approval-key" }),
+    ).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 123, frequency: "per7DayPeriod" },
+          configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "0c515d7eb0a140fa8f938f8242b0780a" },
+        }),
+      }),
+    );
+    const [, init] = fetchSpy.mock.lastCall ?? [];
+    expect(init?.headers).toMatchObject({ "Idempotency-Key": "approval-key" });
   });
 
   it("sends sandbox card art on optimism sepolia", async () => {
