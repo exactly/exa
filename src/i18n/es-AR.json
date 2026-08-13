@@ -34,6 +34,7 @@
   "Couldn't create the account. Please try again.": "No se pudo crear la cuenta. Intentá de nuevo.",
   "Couldn't delete the contact. Please try again.": "No se pudo eliminar el contacto. Intentá de nuevo.",
   "Couldn't load the exchange rate. Please try again.": "No se pudo cargar el tipo de cambio. Intentá de nuevo.",
+  "Couldn't load this activity. Please try again.": "No se pudo cargar esta actividad. Intentá de nuevo.",
   "Couldn't load your contacts. Please try again.": "No se pudieron cargar tus contactos. Intentá de nuevo.",
   "Couldn't update the contact. Please try again.": "No se pudo actualizar el contacto. Intentá de nuevo.",
   "Deposit {{symbol}} directly to an external wallet": "Depositá {{symbol}} directamente en una billetera externa",

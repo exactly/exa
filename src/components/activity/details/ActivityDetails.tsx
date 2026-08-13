@@ -21,6 +21,7 @@ import IconButton from "../../shared/IconButton";
 import SafeView from "../../shared/SafeView";
 import ExaSpinner from "../../shared/Spinner";
 import Button from "../../shared/StyledButton";
+import Text from "../../shared/Text";
 
 import type { Activity } from "../../../utils/server";
 
@@ -32,6 +33,8 @@ export default function ActivityDetails() {
     isPending,
     isFetching,
     isPlaceholderData,
+    isError,
+    refetch,
   } = useQuery<Activity>({
     queryKey: ["activity"],
     staleTime: 0,
@@ -44,6 +47,26 @@ export default function ActivityDetails() {
         <Back />
         <YStack flex={1} justifyContent="center" alignItems="center">
           <ExaSpinner backgroundColor="transparent" />
+        </YStack>
+      </SafeView>
+    );
+  }
+  if (!item && isError) {
+    return (
+      <SafeView fullScreen padded>
+        <Back />
+        <YStack flex={1} justifyContent="center" alignItems="center" gap="$s4">
+          <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
+            {t("Couldn't load this activity. Please try again.")}
+          </Text>
+          <Button
+            outlined
+            onPress={() => {
+              refetch().catch(reportError);
+            }}
+          >
+            <Button.Text>{t("Retry")}</Button.Text>
+          </Button>
         </YStack>
       </SafeView>
     );
