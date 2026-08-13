@@ -1,6 +1,6 @@
 name: server/sandbox
 on:
-  push: { branches: [sandbox] }
+  push: { branches: [refund] }
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
