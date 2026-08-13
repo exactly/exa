@@ -27,8 +27,11 @@ const mock = vi.hoisted(() => {
         current().getApplicationStatus(...parameters),
       getCard: (...parameters: Parameters<Panda["getCard"]>) => current().getCard(...parameters),
       getCards: (...parameters: Parameters<Panda["getCards"]>) => current().getCards(...parameters),
+      getCompany: (...parameters: Parameters<Panda["getCompany"]>) => current().getCompany(...parameters),
       getCompanyApplication: (...parameters: Parameters<Panda["getCompanyApplication"]>) =>
         current().getCompanyApplication(...parameters),
+      getCompanyUsers: (...parameters: Parameters<Panda["getCompanyUsers"]>) =>
+        current().getCompanyUsers(...parameters),
       getNonce: (...parameters: Parameters<Panda["getNonce"]>) => current().getNonce(...parameters),
       getPIN: (...parameters: Parameters<Panda["getPIN"]>) => current().getPIN(...parameters),
       getProcessorDetails: (...parameters: Parameters<Panda["getProcessorDetails"]>) =>

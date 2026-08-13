@@ -63,7 +63,9 @@ export default function panda({ key, url }: { key: string; url: string }) {
     createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompany,
     getCompanyApplication,
+    getCompanyUsers,
     getCard,
     getCards,
     getNonce,
@@ -86,12 +88,13 @@ export default function panda({ key, url }: { key: string; url: string }) {
   async function createCard(
     userId: string,
     productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-    amount = 1_000_000,
+    options: number | { amount?: number; idempotencyKey?: string } = 1_000_000,
   ) {
+    const { amount = 1_000_000, idempotencyKey } = typeof options === "number" ? { amount: options } : options;
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
-      {},
+      idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
       parse(CreateCardRequest, {
         type: "virtual",
         status: "active",
@@ -136,6 +139,24 @@ export default function panda({ key, url }: { key: string; url: string }) {
       10_000,
     );
   }
+  function getCompany(companyId: string) {
+    return request(
+      object({ externalId: optional(nullable(string())), id: string() }),
+      `/issuing/companies/${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    )
+      .catch((error: unknown) => {
+        if (error instanceof ServiceError && error.status === 404) return;
+        throw error;
+      })
+      .then((company) => {
+        if (company && company.id !== companyId) throw new Error("panda company id mismatch");
+        return company;
+      });
+  }
   async function getCompanyApplication(externalId: string) {
     const application = await request(
       CompanyApplicationStatusResponse,
@@ -152,6 +173,16 @@ export default function panda({ key, url }: { key: string; url: string }) {
     if (application.externalId != null && application.externalId !== externalId)
       throw new Error("panda company external id mismatch");
     return application;
+  }
+  function getCompanyUsers(companyId: string) {
+    return request(
+      array(object({ companyId: optional(string()), id: string(), walletAddress: optional(string()) })),
+      `/issuing/users?companyId=${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -558,9 +589,33 @@ const Card = variant("action", [
   }),
 ]);
 
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
 export const Payload = variant("resource", [
   Transaction,
   Card,
+  object({
+    resource: literal("company"),
+    action: string(),
+    body: looseObject({ applicationStatus: optional(nullable(picklist(kycStatus))), id: string() }),
+    id: string(),
+  }),
+  object({
+    resource: literal("application"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
   object({
     resource: literal("dispute"),
     action: string(),
@@ -858,7 +913,7 @@ const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
   const mutex = withTimeout(
     new Mutex(),
-    (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
+    ((proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default) * 1000,
   );
   mutexes.set(address, mutex);
   return mutex;
@@ -1024,18 +1079,6 @@ const ApplicationReview = {
   applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
   applicationReason: optional(nullable(string())),
 };
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 export const CompanyApplicationStatusResponse = object({
   ...ApplicationReview,
