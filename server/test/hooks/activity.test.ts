@@ -40,6 +40,7 @@ import redis from "../../utils/redis";
 import anvilClient from "../anvilClient";
 
 const appClient = testClient(app);
+const waitForReceipt = publicClient.waitForTransactionReceipt;
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
@@ -49,6 +50,9 @@ describe("address activity", () => {
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
+      waitForReceipt({ ...parameters, pollingInterval: 10 }),
+    );
 
     await database.insert(credentials).values([
       {
@@ -131,9 +135,10 @@ describe("address activity", () => {
   });
 
   it("fails with transaction timeout", async () => {
-    vi.spyOn(publicClient, "waitForTransactionReceipt").mockRejectedValue(
-      new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }),
-    );
+    vi.spyOn(publicClient, "sendRawTransaction").mockResolvedValue(zeroHash);
+    const waitForTransactionReceipt = vi
+      .spyOn(publicClient, "waitForTransactionReceipt")
+      .mockRejectedValue(new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }));
 
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
@@ -149,7 +154,17 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await vi.waitUntil(() => waitForTransactionReceipt.mock.calls.length === 6, 26_666);
+    await vi.waitUntil(
+      () =>
+        vi
+          .mocked(captureException)
+          .mock.calls.filter(
+            ([, hint]) =>
+              (hint as undefined | { fingerprint?: string[] })?.fingerprint?.join(":") === "{{ default }}:unknown",
+          ).length >= 12,
+      26_666,
+    );
 
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
@@ -190,7 +205,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -225,7 +243,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -258,7 +279,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -297,7 +321,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -322,6 +349,9 @@ describe("address activity", () => {
       }),
     );
 
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -333,7 +363,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -353,6 +386,9 @@ describe("address activity", () => {
       }),
     );
 
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -364,7 +400,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -384,6 +423,9 @@ describe("address activity", () => {
       }),
     );
 
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -395,7 +437,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -413,6 +458,9 @@ describe("address activity", () => {
       new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
     );
 
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -424,7 +472,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -440,6 +491,9 @@ describe("address activity", () => {
   it("fingerprints shouldRetry as unknown", async () => {
     vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected"));
 
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
     const response = await appClient.index.$post({
       ...activityPayload,
       json: {
@@ -451,7 +505,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666);
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
+      waitForWETHMarket(account, deposit),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "unexpected" }),
@@ -594,10 +651,13 @@ describe("address activity", () => {
     await anvilClient.setBalance({ address: account, value: eth });
 
     const weth = parseEther("2");
-    await keeper.exaSend(
-      { name: "mint", op: "tx.mint" },
-      { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
-    );
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, weth],
+    });
 
     const [response, market] = await Promise.all([
       appClient.index.$post({
@@ -629,10 +689,13 @@ describe("address activity", () => {
   it("pokes token without value", async () => {
     const exaSend = vi.spyOn(keeper, "exaSend");
     const weth = parseEther("2");
-    await keeper.exaSend(
-      { name: "mint", op: "tx.mint" },
-      { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, weth] },
-    );
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, weth],
+    });
 
     const token = activityPayload.json.event.activity[1];
     const transfer = {
@@ -891,6 +954,14 @@ describe("address activity", () => {
 
   it("sends translated notification without symbol when asset is missing", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    const amount = parseEther(String(activityPayload.json.event.activity[1].value));
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, amount],
+    });
 
     const { asset: _, ...tokenWithoutAsset } = activityPayload.json.event.activity[1];
     const response = await appClient.index.$post({
@@ -910,7 +981,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
+    await Promise.all([
+      vi.waitUntil(() => sendPushNotification.mock.calls.length > 0),
+      waitForWETHMarket(account, amount),
+    ]);
 
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
@@ -923,6 +997,14 @@ describe("address activity", () => {
   it("captures funds received notification errors", async () => {
     const error = new Error("push failed");
     vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+    const amount = parseEther(String(activityPayload.json.event.activity[1].value));
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, amount],
+    });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -941,7 +1023,10 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+    await Promise.all([
+      vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error)),
+      waitForWETHMarket(account, amount),
+    ]);
 
     expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
     expect(response.status).toBe(200);
@@ -949,8 +1034,14 @@ describe("address activity", () => {
 
   it("activates credit mode and sends translated notification when auto credit applies", async () => {
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockResolvedValue(true);
     await database.insert(cards).values([{ id: "auto-credit", credentialId: account, lastFour: "1234", mode: 0 }]);
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
+    });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -969,7 +1060,6 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 26_666);
     await vi.waitUntil(
       () =>
         sendPushNotification.mock.calls.some(
@@ -984,6 +1074,9 @@ describe("address activity", () => {
       headings: t("Card mode changed"),
       contents: t("Credit mode activated"),
     });
+    expect(vi.mocked(captureException).mock.calls.some(([error, hint]) => isNoBalance(error, hint, "warning"))).toBe(
+      false,
+    );
     expect(response.status).toBe(200);
   });
 
@@ -993,10 +1086,16 @@ describe("address activity", () => {
     sendPushNotification
       .mockResolvedValueOnce({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>)
       .mockRejectedValueOnce(error);
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockResolvedValue(true);
     await database
       .insert(cards)
       .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
+    });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -1015,10 +1114,12 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 15_000);
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
 
     expect(captureException).toHaveBeenCalledWith(error);
+    expect(
+      vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
+    ).toBe(false);
     expect(response.status).toBe(200);
   });
 
@@ -1028,6 +1129,13 @@ describe("address activity", () => {
     await database
       .insert(cards)
       .values([{ id: "auto-credit-error", credentialId: account, lastFour: "4321", mode: 0 }]);
+    await anvilClient.writeContract({
+      account: null,
+      address: inject("WETH"),
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
+    });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -1050,6 +1158,9 @@ describe("address activity", () => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
 
     expect(captureException).toHaveBeenCalledWith(error);
+    expect(
+      vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
+    ).toBe(false);
     expect(response.status).toBe(200);
   });
 
@@ -1360,7 +1471,14 @@ vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
 vi.mock("viem", async (importOriginal) => {
   const original = await importOriginal<typeof viem>();
-  return { ...original, createPublicClient: vi.fn(original.createPublicClient) };
+  return {
+    ...original,
+    createPublicClient: vi.fn(original.createPublicClient),
+    withRetry: (
+      callback: Parameters<typeof original.withRetry>[0],
+      options: Parameters<typeof original.withRetry>[1],
+    ) => original.withRetry(callback, { ...options, delay: 1 }),
+  };
 });
 
 afterEach(() => {

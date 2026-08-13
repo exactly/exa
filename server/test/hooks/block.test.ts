@@ -1018,8 +1018,7 @@ describe("proposal", () => {
       if (block.timestamp <= maxUnlock) {
         await anvilClient.mine({ blocks: 1, interval: Number(maxUnlock - block.timestamp + 1n) });
       }
-      const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(maxUnlock + 10n) * 1000));
     });
 
     afterEach(() => vi.useRealTimers());

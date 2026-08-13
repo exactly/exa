@@ -935,7 +935,7 @@ describe("card operations", () => {
         const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
         const waitForReceipt = vi
           .spyOn(publicClient, "waitForTransactionReceipt")
-          .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 1100 }));
+          .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 110 }));
         const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction").mockResolvedValue("0x");
         const exaSend = vi.spyOn(keeper, "exaSend");
 

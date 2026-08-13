@@ -20,6 +20,10 @@ import type { Hex } from "viem";
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
+    const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
+      waitForTransactionReceipt({ ...parameters, pollingInterval: 10, retryDelay: 10 }),
+    );
     const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
     sendRawTransaction.mockRejectedValueOnce(new Error("send"));
     const onHash = vi.fn<() => void>();
@@ -54,7 +58,7 @@ describe("fault tolerance", () => {
   it("times out if can't send transaction", async () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
     vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
-      waitForTransactionReceipt({ ...parameters, timeout: 1100 }),
+      waitForTransactionReceipt({ ...parameters, timeout: 320 }),
     );
     const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
     sendRawTransaction.mockResolvedValue("0x");
@@ -98,7 +102,7 @@ describe("fault tolerance", () => {
 
     const mockWaitForTransactionReceipt = vi
       .spyOn(publicClient, "waitForTransactionReceipt")
-      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 1100 }));
+      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 320 }));
 
     const blockedHashes: Hex[] = [];
     const first = keeper.exaSend(
@@ -155,7 +159,7 @@ describe("fault tolerance", () => {
 
     const mockWaitForTransactionReceipt = vi
       .spyOn(publicClient, "waitForTransactionReceipt")
-      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 1100 }));
+      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 320 }));
 
     const first = keeper.exaSend(
       { name: "test transfer 0", op: "test.transfer[0]" },
@@ -363,7 +367,7 @@ vi.mock("@sentry/node", { spy: true });
 vi.mock("@exactly/common/attribution", () => ({ dataSuffix: "0xdeadbeef" }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
-  return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(500, ...arguments_.slice(1)) };
+  return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(150, ...arguments_.slice(1)) };
 });
 
 afterEach(() => vi.restoreAllMocks());

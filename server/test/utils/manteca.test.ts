@@ -12,7 +12,20 @@ import * as manteca from "../../utils/ramps/manteca";
 import { ErrorCodes } from "../../utils/ramps/manteca";
 import ServiceError from "../../utils/ServiceError";
 
+import type * as viem from "viem";
+
 const chainMock = vi.hoisted(() => ({ id: 10 }));
+
+vi.mock("viem", async (importOriginal) => {
+  const original = await importOriginal<typeof viem>();
+  return {
+    ...original,
+    withRetry: (
+      callback: Parameters<typeof original.withRetry>[0],
+      options: Parameters<typeof original.withRetry>[1],
+    ) => original.withRetry(callback, { ...options, delay: 1 }),
+  };
+});
 
 vi.mock("@exactly/common/generated/chain", () => ({
   default: chainMock,
@@ -41,6 +54,8 @@ describe("manteca utils", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       status: 200,
+      body: new ReadableStream(),
+      headers: new Headers(),
       json: () => Promise.resolve({}),
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
       text: () => Promise.resolve(""),
