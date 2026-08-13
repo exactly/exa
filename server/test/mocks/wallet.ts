@@ -3,6 +3,7 @@ import {
   createWalletClient,
   http,
   keccak256,
+  publicActions,
   toBytes,
   type Chain,
   type LocalAccount,
@@ -31,14 +32,12 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
   const create = (network: Chain = chain) => {
     const url = network.rpcUrls.alchemy?.http[0];
     if (!url) throw new Error("missing alchemy rpc url");
-    return createWalletClient({
-      chain: network,
-      transport: http(`${url}/${alchemyAPIKey}`),
-      account,
-    }).extend((closureClient) => {
-      walletClient = closureClient;
-      return { ...original.extender(closureClient), getCode: publicClient.getCode };
-    });
+    return createWalletClient({ chain: network, transport: http(`${url}/${alchemyAPIKey}`), account })
+      .extend(publicActions)
+      .extend((wallet) => {
+        walletClient = wallet;
+        return original.extender(wallet, { publicClient });
+      });
   };
   const keeper = create();
   return {

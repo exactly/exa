@@ -108,6 +108,7 @@ export default defineConfig([
           proposalManager: proposalManager.contractAddress,
           ratePreviewer: ratePreviewer.address,
           refunder: refunder.contractAddress,
+          simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
           swapper,
           usdc: usdc.address,
           weth: weth.address,
