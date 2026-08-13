@@ -44,12 +44,13 @@ export default define({
       secrets: [
         "onesignal-api-key",
         "panda-api-key",
+        "persona-api-key",
         "postgres-url",
         "sardine-api-key",
         "segment-write-key",
         "webhooks-key",
       ],
-      shared: ["panda-api-url", "sardine-api-url"],
+      shared: ["panda-api-url", "persona-api-url", "sardine-api-url"],
       signers: ["settler", "issuer"],
     },
     persona: {

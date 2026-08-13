@@ -61,7 +61,9 @@ export default function panda({ key, url }: { key: string; url: string }) {
     createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompany,
     getCompanyApplication,
+    getCompanyUsers,
     getCard,
     getCards,
     getContracts,
@@ -84,12 +86,17 @@ export default function panda({ key, url }: { key: string; url: string }) {
   async function createCard(
     userId: string,
     productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-    amount = 1_000_000,
+    options: number | { amount?: number; idempotencyKey?: string; virtualCardArt?: string } = 1_000_000,
   ) {
+    const {
+      amount = 1_000_000,
+      idempotencyKey,
+      virtualCardArt,
+    } = typeof options === "number" ? { amount: options } : options;
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
-      {},
+      idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
       parse(CreateCardRequest, {
         type: "virtual",
         status: "active",
@@ -99,11 +106,12 @@ export default function panda({ key, url }: { key: string; url: string }) {
           virtualCardArt:
             chain.id === baseSepolia.id || chain.id === optimismSepolia.id
               ? "0c515d7eb0a140fa8f938f8242b0780a"
-              : {
+              : (virtualCardArt ??
+                {
                   [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
                   [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
                   [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-                }[productId],
+                }[productId]),
         },
       }),
       "POST",
@@ -134,6 +142,24 @@ export default function panda({ key, url }: { key: string; url: string }) {
       10_000,
     );
   }
+  function getCompany(companyId: string) {
+    return request(
+      object({ externalId: optional(nullable(string())), id: string() }),
+      `/issuing/companies/${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    )
+      .catch((error: unknown) => {
+        if (error instanceof ServiceError && error.status === 404) return;
+        throw error;
+      })
+      .then((company) => {
+        if (company && company.id !== companyId) throw new Error("panda company id mismatch");
+        return company;
+      });
+  }
   async function getCompanyApplication(externalId: string) {
     const application = await request(
       CompanyApplicationStatusResponse,
@@ -150,6 +176,16 @@ export default function panda({ key, url }: { key: string; url: string }) {
     if (application.externalId != null && application.externalId !== externalId)
       throw new Error("panda company external id mismatch");
     return application;
+  }
+  function getCompanyUsers(companyId: string) {
+    return request(
+      array(object({ companyId: optional(string()), id: string(), walletAddress: optional(string()) })),
+      `/issuing/users?companyId=${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -556,9 +592,33 @@ const Card = variant("action", [
   }),
 ]);
 
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
 export const Payload = variant("resource", [
   Transaction,
   Card,
+  object({
+    resource: literal("company"),
+    action: string(),
+    body: looseObject({ applicationStatus: optional(nullable(picklist(kycStatus))), id: string() }),
+    id: string(),
+  }),
+  object({
+    resource: literal("application"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
   object({
     resource: literal("dispute"),
     action: string(),
@@ -856,7 +916,7 @@ const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
   const mutex = withTimeout(
     new Mutex(),
-    (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
+    ((proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default) * 1000,
   );
   mutexes.set(address, mutex);
   return mutex;
@@ -1020,18 +1080,6 @@ const ApplicationReview = {
   applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
   applicationReason: optional(nullable(string())),
 };
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 export const CompanyApplicationStatusResponse = object({
   ...ApplicationReview,
