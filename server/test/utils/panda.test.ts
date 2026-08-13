@@ -1,5 +1,7 @@
 import "../mocks/sentry";
 
+import { Hono } from "hono";
+import { createHmac } from "node:crypto";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -71,6 +73,79 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/cards?userId=e5cd86bb-a19e-4a66-9728-9e6c5d97e616&limit=100"),
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("lists company users through the parent tenant", async () => {
+    const users = [{ id: "user-id", walletAddress: "0x1234" }];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(users));
+
+    await expect(panda.getCompanyUsers("company-id")).resolves.toStrictEqual(users);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/users?companyId=company-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("resolves a company external id by company id", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ externalId: "reference-id" }));
+
+    await expect(panda.getCompany("company-id")).resolves.toStrictEqual({ externalId: "reference-id" });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/companies/company-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("returns nothing when the company does not exist", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
+
+    await expect(panda.getCompany("company-id")).resolves.toBeUndefined();
+  });
+
+  it("rethrows a company lookup failure that is not a not-found", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response('{"message":"Internal Server Error","error":"ServerError","statusCode":500}', { status: 500 }),
+    );
+
+    const rejection = panda.getCompany("company-id");
+    await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+    await expect(rejection).rejects.toMatchObject({
+      name: "PandaServer",
+      status: 500,
+      message: "Internal Server Error",
+    });
+  });
+});
+
+describe("panda webhook signature", () => {
+  const payload = "payload";
+  const primary = createPanda({ key: "primary", url: "https://panda.test" });
+  const primaryApp = new Hono().post("/", primary.headerValidator, (c) => c.text("ok"));
+
+  it("accepts the primary signature", async () => {
+    const response = await primaryApp.request("/", {
+      method: "POST",
+      headers: { signature: createHmac("sha256", "primary").update(payload).digest("hex") },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects a missing signature", async () => {
+    const response = await primaryApp.request("/", { method: "POST" });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects an invalid signature", async () => {
+    const response = await primaryApp.request("/", {
+      method: "POST",
+      headers: { signature: createHmac("sha256", "invalid").update(payload).digest("hex") },
+      body: payload,
+    });
+
+    expect(response.status).toBe(401);
   });
 });
 
@@ -482,6 +557,26 @@ describe("create card", () => {
         }),
       }),
     );
+  });
+
+  it("sends an idempotency key and custom limit", async () => {
+    chainMock.id = baseSepolia.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
+
+    await panda.createCard("user-id", SIGNATURE_PRODUCT_ID, { amount: 123, idempotencyKey: "approval-key" });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 123, frequency: "per7DayPeriod" },
+          configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "0c515d7eb0a140fa8f938f8242b0780a" },
+        }),
+      }),
+    );
+    const [, init] = fetchSpy.mock.lastCall ?? [];
+    expect(init?.headers).toMatchObject({ "Idempotency-Key": "approval-key" });
   });
 
   it("sends sandbox card art on optimism sepolia", async () => {

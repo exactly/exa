@@ -126,10 +126,12 @@ const mantecaHook = createMantecaHook({
   segment,
 });
 const pandaHook = createPandaHook({
+  credit,
   database,
   issuer,
   onesignal,
   panda,
+  persona,
   refund,
   sardine,
   segment,
