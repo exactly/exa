@@ -1,7 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
 import { setContext } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   array,
   boolean,
@@ -55,10 +55,11 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { isBusinessSalt } from "./createCredential";
 import { getAccount, getBusinessTemplate, getInquiry } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
-import database, { credentials } from "../database";
+import database, { cards, credentials } from "../database";
 import publicClient from "../utils/publicClient";
 
 import type { Hex } from "@exactly/common/validation";
@@ -70,40 +71,52 @@ const baseURL = process.env.PANDA_API_URL;
 
 if (!process.env.PANDA_API_KEY) throw new Error("missing panda api key");
 const key = process.env.PANDA_API_KEY;
+const secondaryKey = process.env.PANDA_API_KEY_SECONDARY;
 
 export default key;
 
-function requireSubtenant() {
+export function requireSubtenant() {
   if (!process.env.PANDA_SUBTENANT_ID) throw new Error("missing panda subtenant id");
   return process.env.PANDA_SUBTENANT_ID;
 }
 
-export async function createCard(
+export function subtenant(salt: string) {
+  return isBusinessSalt(parse(Address, salt)) ? requireSubtenant() : undefined;
+}
+
+export function createCard(
   userId: string,
   productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-  amount = 1_000_000,
+  options: { amount?: number; idempotencyKey?: string; subtenantId?: string; virtualCardArt?: null | string } = {},
 ) {
-  return await request(
+  return request(
     CardResponse,
     `/issuing/users/${userId}/cards`,
-    {},
+    options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {},
     parse(CreateCardRequest, {
       type: "virtual",
       status: "active",
-      limit: { amount, frequency: "per7DayPeriod" },
+      limit: { amount: options.amount ?? 1_000_000, frequency: "per7DayPeriod" },
       configuration: {
         productId,
-        virtualCardArt:
-          chain.id === baseSepolia.id || chain.id === optimismSepolia.id
-            ? "0c515d7eb0a140fa8f938f8242b0780a"
-            : {
-                [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-                [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-                [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-              }[productId],
+        ...(options.virtualCardArt === null
+          ? {}
+          : {
+              virtualCardArt:
+                options.virtualCardArt ??
+                (chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+                  ? "0c515d7eb0a140fa8f938f8242b0780a"
+                  : {
+                      [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                      [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                      [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                    }[productId]),
+            }),
       },
     }),
     "POST",
+    10_000,
+    options.subtenantId,
   );
 }
 
@@ -121,7 +134,7 @@ export async function createUser(user: {
 
 export function createCompanyApplication(
   application: InferInput<typeof CreateCompanyApplicationRequest>,
-  options: { idempotencyKey?: string } = {},
+  options: { idempotencyKey?: string; subtenantId?: string } = {},
 ) {
   return request(
     CompanyApplicationResponse,
@@ -130,11 +143,58 @@ export function createCompanyApplication(
     parse(CreateCompanyApplicationRequest, application),
     "POST",
     10_000,
-    requireSubtenant(),
+    (options.subtenantId === "" ? undefined : options.subtenantId) ?? requireSubtenant(),
   );
 }
 
-export function getCompanyApplicationStatus(companyId: string) {
+export async function finalizeBusinessApproval(credentialId: string, companyId: string, account: Address) {
+  const row = await database.query.credentials.findFirst({
+    columns: { pandaCompanyId: true, pandaId: true, salt: true },
+    where: eq(credentials.id, credentialId),
+  });
+  if (row?.pandaCompanyId !== companyId || !isBusinessSalt(parse(Address, row.salt))) return;
+  const userId =
+    row.pandaId ??
+    (await (async () => {
+      const user = await request(
+        array(object({ id: string(), companyId: optional(string()), walletAddress: optional(string()) })),
+        `/issuing/users?companyId=${companyId}`,
+        {},
+        undefined,
+        "GET",
+        10_000,
+        requireSubtenant(),
+      ).then((users) => users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase()));
+      if (!user) throw new Error("company user not found");
+      return database
+        .update(credentials)
+        .set({ pandaId: user.id })
+        .where(
+          and(eq(credentials.id, credentialId), eq(credentials.pandaCompanyId, companyId), isNull(credentials.pandaId)),
+        )
+        .returning({ id: credentials.id })
+        .then(([updated]) => (updated ? user.id : undefined));
+    })());
+  if (!userId) return;
+
+  const localCard = await database.query.cards.findFirst({
+    columns: { id: true },
+    where: and(eq(cards.credentialId, credentialId), inArray(cards.status, ["ACTIVE", "FROZEN"])),
+  });
+  if (localCard) return { userId, cardId: localCard.id };
+  const card = await createCard(userId, SIGNATURE_PRODUCT_ID, {
+    idempotencyKey: `business-approval:${credentialId}`,
+    subtenantId: requireSubtenant(),
+    virtualCardArt: null,
+  });
+  await database
+    .insert(cards)
+    .values({ id: card.id, lastFour: card.last4, credentialId, productId: SIGNATURE_PRODUCT_ID })
+    .onConflictDoNothing();
+  return { userId, cardId: card.id };
+}
+
+export function getCompanyApplicationStatus(companyId: string, subtenantId?: string) {
   return request(
     CompanyApplicationStatusResponse,
     `/issuing/applications/company/${companyId}`,
@@ -142,78 +202,105 @@ export function getCompanyApplicationStatus(companyId: string) {
     undefined,
     "GET",
     10_000,
-    requireSubtenant(),
+    (subtenantId === "" ? undefined : subtenantId) ?? requireSubtenant(),
   );
 }
 
-export async function updateUser(user: {
-  address?: {
-    city: string;
-    country?: string;
-    countryCode: string;
-    line1: string;
-    line2?: string;
-    postalCode: string;
-    region: string;
-  };
-  email?: string;
-  firstName?: string;
-  id: string;
-  isActive?: boolean;
-  lastName?: string;
-  phoneCountryCode?: string;
-  phoneNumber?: string;
-}) {
-  return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH");
+export function updateUser(
+  user: {
+    address?: {
+      city: string;
+      country?: string;
+      countryCode: string;
+      line1: string;
+      line2?: string;
+      postalCode: string;
+      region: string;
+    };
+    email?: string;
+    firstName?: string;
+    id: string;
+    isActive?: boolean;
+    lastName?: string;
+    phoneCountryCode?: string;
+    phoneNumber?: string;
+  },
+  subtenantId?: string,
+) {
+  return request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH", 10_000, subtenantId);
 }
 
-export async function getUser(userId: string) {
-  return await request(UserResponse, `/issuing/users/${userId}`);
+export function getUser(userId: string, subtenantId?: string) {
+  return request(UserResponse, `/issuing/users/${userId}`, {}, undefined, "GET", 10_000, subtenantId);
 }
 
-export async function getCard(cardId: string) {
-  return await request(CardResponse, `/issuing/cards/${cardId}`);
+export function getCard(cardId: string, subtenantId?: string) {
+  return request(CardResponse, `/issuing/cards/${cardId}`, {}, undefined, "GET", 10_000, subtenantId);
 }
 
-export async function getCards(userId: string) {
-  return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`);
+export function getCards(userId: string, subtenantId?: string) {
+  return request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`, {}, undefined, "GET", 10_000, subtenantId);
 }
 
-export function getProcessorDetails(cardId: string) {
+export function getProcessorDetails(cardId: string, subtenantId?: string) {
   return request(
     object({ processorCardId: string(), timeBasedSecret: string() }),
     `/issuing/cards/${cardId}/processorDetails`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    subtenantId,
   );
 }
 
-export async function updateCard(card: {
-  billing?: {
-    city: string;
-    country?: string;
-    countryCode: string;
-    line1: string;
-    line2?: string;
-    postalCode: string;
-    region: string;
-  };
-  configuration?: { virtualCardArt: string };
-  id: string;
-  limit?: {
-    amount: number;
-    frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
-  };
-  status?: "active" | "canceled" | "locked" | "notActivated";
-}) {
-  return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH");
+export function updateCard(
+  card: {
+    billing?: {
+      city: string;
+      country?: string;
+      countryCode: string;
+      line1: string;
+      line2?: string;
+      postalCode: string;
+      region: string;
+    };
+    configuration?: { virtualCardArt: string };
+    id: string;
+    limit?: {
+      amount: number;
+      frequency: "per7DayPeriod" | "per24HourPeriod" | "per30DayPeriod" | "perYearPeriod";
+    };
+    status?: "active" | "canceled" | "locked" | "notActivated";
+  },
+  subtenantId?: string,
+) {
+  return request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH", 10_000, subtenantId);
 }
 
-export async function getSecrets(cardId: string, sessionId: string) {
-  return await request(PANResponse, `/issuing/cards/${cardId}/secrets`, { SessionId: sessionId });
+export function getSecrets(cardId: string, sessionId: string, subtenantId?: string) {
+  return request(
+    PANResponse,
+    `/issuing/cards/${cardId}/secrets`,
+    { SessionId: sessionId },
+    undefined,
+    "GET",
+    10_000,
+    subtenantId,
+  );
 }
 
-export async function getPIN(cardId: string, sessionId: string) {
+export async function getPIN(cardId: string, sessionId: string, subtenantId?: string) {
   try {
-    return await request(PINResponse, `/issuing/cards/${cardId}/pin`, { SessionId: sessionId });
+    return await request(
+      PINResponse,
+      `/issuing/cards/${cardId}/pin`,
+      { SessionId: sessionId },
+      undefined,
+      "GET",
+      10_000,
+      subtenantId,
+    );
   } catch (error) {
     if (error instanceof ServiceError && error.message.includes("Failed to get PIN, card does not have PIN set")) {
       return parse(PINResponse, { encryptedPin: null });
@@ -222,18 +309,28 @@ export async function getPIN(cardId: string, sessionId: string) {
   }
 }
 
-export async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
-  return await request(
+export function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }, subtenantId?: string) {
+  return request(
     object({}),
     `/issuing/cards/${cardId}/pin`,
     { SessionId: sessionId },
     { encryptedPin: pin },
     "PUT",
+    10_000,
+    subtenantId,
   );
 }
 
-export function getNonce(userId: string) {
-  return request(object({ nonce: string() }), `/issuing/users/${userId}/signatures/generate-nonce`);
+export function getNonce(userId: string, subtenantId?: string) {
+  return request(
+    object({ nonce: string() }),
+    `/issuing/users/${userId}/signatures/generate-nonce`,
+    {},
+    undefined,
+    "GET",
+    10_000,
+    subtenantId,
+  );
 }
 
 export function verify(
@@ -257,16 +354,17 @@ export function verify(
         statement: string;
       }
     | { authType: "siwe"; message: string; signature: string },
+  subtenantId?: string,
 ) {
-  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT");
+  return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT", 10_000, subtenantId);
 }
 
 async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
   schema: BaseSchema<TInput, TOutput, TIssue>,
   url: `/${string}`,
   headers = {},
-  body?: unknown,
-  method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+  body: unknown,
+  method: "GET" | "PATCH" | "POST" | "PUT",
   timeout = 10_000,
   subtenantId?: string,
 ) {
@@ -339,7 +437,7 @@ const CreateCardRequest = object({
   }),
   configuration: object({
     productId: picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    virtualCardArt: string(),
+    virtualCardArt: optional(string()),
   }),
 });
 
@@ -434,12 +532,32 @@ export async function autoCredit(account: Address) {
 }
 
 export function headerValidator() {
-  return vValidator("header", object({ signature: string() }), async (r, c) => {
-    if (!r.success) return c.text("bad request", 400);
-    const payload = await c.req.arrayBuffer();
-    if (verifySignature({ signature: r.output.signature, signingKey: key, payload })) return;
-    return c.text("unauthorized", 401);
-  });
+  return vValidator(
+    "header",
+    pipe(
+      object({ signature: optional(string()), "secondary-signature": optional(string()) }),
+      check(
+        ({ signature, "secondary-signature": secondarySignature }) => Boolean(signature ?? secondarySignature),
+        "missing signature",
+      ),
+    ),
+    async (r, c) => {
+      if (!r.success) return c.text("bad request", 400);
+      const payload = await c.req.arrayBuffer();
+      if (
+        (r.output.signature && verifySignature({ signature: r.output.signature, signingKey: key, payload })) ||
+        (r.output["secondary-signature"] &&
+          secondaryKey &&
+          verifySignature({
+            signature: r.output["secondary-signature"],
+            signingKey: secondaryKey,
+            payload,
+          }))
+      )
+        return;
+      return c.text("unauthorized", 401);
+    },
+  );
 }
 
 export const collectors: Address[] = (
@@ -535,7 +653,7 @@ export async function submitApplication(payload: InferInput<typeof SubmitApplica
   );
 }
 
-export async function getApplicationStatus(applicationId: string) {
+export function getApplicationStatus(applicationId: string, subtenantId?: string) {
   return request(
     ApplicationStatusResponse,
     `/issuing/applications/user/${applicationId}`,
@@ -543,6 +661,7 @@ export async function getApplicationStatus(applicationId: string) {
     undefined,
     "GET",
     10_000,
+    subtenantId,
   );
 }
 
@@ -660,16 +779,7 @@ function businessAddress(fields: Record<string, { value: unknown }> | undefined,
   };
 }
 
-export async function businessApplicationFromPersona(
-  credentialId: string,
-  accountAddress: Address,
-  ipAddress?: string,
-) {
-  try {
-    parse(pipe(string(), ip()), ipAddress);
-  } catch {
-    throw new BusinessApplicationError("missing valid client IP address", "bad request", "bad request");
-  }
+async function businessFields(credentialId: string) {
   const inquiry = await getInquiry(credentialId, getBusinessTemplate());
   if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started", "kyc not started");
   if (inquiry.attributes["reference-id"] !== credentialId)
@@ -701,7 +811,7 @@ export async function businessApplicationFromPersona(
       );
       if (output["reference-id"] !== credentialId)
         throw new BusinessApplicationError("business account is not complete", "processing", "kyc not approved");
-      return output.fields;
+      return { ...output.fields };
     } catch (error) {
       if (error instanceof BusinessApplicationError) throw error;
       if (error instanceof ValiError)
@@ -713,6 +823,16 @@ export async function businessApplicationFromPersona(
     const accountName = inquiryName.replaceAll("-", "_");
     if (fields[accountName]?.value == null && inquiryField.value != null) fields[accountName] = inquiryField;
   }
+  return fields;
+}
+
+export async function businessApplicationFromPersona(credentialId: string, account: Address, ipAddress?: string) {
+  try {
+    parse(pipe(string(), ip()), ipAddress);
+  } catch {
+    throw new BusinessApplicationError("missing valid client IP address", "bad request", "bad request");
+  }
+  const fields = await businessFields(credentialId);
   const field = (name: keyof typeof businessKeys) => requiredBusinessField(fields, businessKeys[name]);
   const expectedSpend = field("companyExpectedSpend");
   if (typeof expectedSpend !== "string" && typeof expectedSpend !== "number")
@@ -728,7 +848,7 @@ export async function businessApplicationFromPersona(
     address: businessAddress(fields, "_1"),
     ipAddress,
     isTermsOfServiceAccepted: field("termsOfServiceAccepted"),
-    walletAddress: accountAddress,
+    walletAddress: account,
   };
   const companyPerson = {
     firstName: initialUser.firstName,
@@ -739,7 +859,7 @@ export async function businessApplicationFromPersona(
     email: initialUser.email,
     address: initialUser.address,
   };
-  const result = safeParse(CreateCompanyApplicationRequest, {
+  const application = {
     initialUser,
     name: field("companyName"),
     address: businessAddress(fields),
@@ -755,7 +875,8 @@ export async function businessApplicationFromPersona(
     },
     representatives: [companyPerson],
     ultimateBeneficialOwners: [companyPerson],
-  });
+  };
+  const result = safeParse(CreateCompanyApplicationRequest, application);
   if (result.success) return result.output;
   setContext("validation", { ...result, flatten: flatten(result.issues) });
   throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");

@@ -583,10 +583,13 @@ describe("card limit case", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
-      id: "case-card",
-      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-    });
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
+      {
+        id: "case-card",
+        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+      },
+      undefined, // eslint-disable-line unicorn/no-useless-undefined
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -605,10 +608,13 @@ describe("card limit case", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
-      id: "case-card",
-      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-    });
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
+      {
+        id: "case-card",
+        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+      },
+      undefined, // eslint-disable-line unicorn/no-useless-undefined
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -653,10 +659,13 @@ describe("card limit case", () => {
 
     expect(response.status).toBe(500);
     expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
-    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
-      id: "case-card",
-      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
-    });
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith(
+      {
+        id: "case-card",
+        limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+      },
+      undefined, // eslint-disable-line unicorn/no-useless-undefined
+    );
     expect(captureException).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: "panda api error" }),
       expect.objectContaining({

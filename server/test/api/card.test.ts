@@ -18,7 +18,7 @@ import { checksumAddress, hexToBigInt, padHex, parseEther, zeroAddress, zeroHash
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
@@ -46,6 +46,8 @@ if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret")
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
 
 describe("authenticated", () => {
+  let previousSubtenant: string | undefined;
+
   beforeAll(async () => {
     const owner = privateKeyToAddress(padHex("0xbeef"));
     const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
@@ -108,6 +110,15 @@ describe("authenticated", () => {
         factory: inject("ExaAccountFactory"),
         pandaId: "frozen",
       },
+      {
+        id: "card-business",
+        publicKey,
+        account: padHex("0x9", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaCompanyId: "card-business-company",
+        pandaId: "card-business-user",
+        salt: padHex("0x99", { size: 20 }),
+      },
     ]);
     await database.insert(cards).values([
       { id: "543c1771-beae-4f26-b662-44ea48b40dc6", credentialId: "default", lastFour: "1234" },
@@ -142,8 +153,18 @@ describe("authenticated", () => {
     );
   });
 
-  afterEach(() => vi.resetAllMocks());
+  afterEach(() => {
+    vi.resetAllMocks();
+    if (previousSubtenant === undefined) delete process.env.PANDA_SUBTENANT_ID;
+    else process.env.PANDA_SUBTENANT_ID = previousSubtenant;
+  });
+  afterAll(async () => {
+    await database.delete(cards).where(eq(cards.credentialId, "card-business"));
+    await database.delete(credentials).where(eq(credentials.id, "card-business"));
+  });
   beforeEach(() => {
+    previousSubtenant = process.env.PANDA_SUBTENANT_ID;
+    process.env.PANDA_SUBTENANT_ID = "subtenant";
     vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(panda, "getCards").mockResolvedValue([]);
   });
@@ -250,7 +271,7 @@ describe("authenticated", () => {
       productId: PLATINUM_PRODUCT_ID,
       provisioning: { id: "proc-default", secret: "secret-default" },
     });
-    expect(processorDetails).toHaveBeenCalledExactlyOnceWith("543c1771-beae-4f26-b662-44ea48b40dc6");
+    expect(processorDetails).toHaveBeenCalledExactlyOnceWith("543c1771-beae-4f26-b662-44ea48b40dc6", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
   });
 
   it("returns panda card with signature product id", async () => {
@@ -498,6 +519,23 @@ describe("authenticated", () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ code: "kyc not approved" });
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("uses the company application status for business card provisioning", async () => {
+    const getApplicationStatus = vi.spyOn(panda, "getApplicationStatus");
+    const getCompanyApplicationStatus = vi
+      .spyOn(panda, "getCompanyApplicationStatus")
+      .mockResolvedValueOnce({ id: "card-business-company", applicationStatus: "approved" });
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({
+      ...cardTemplate,
+      id: "00000000-0000-4000-8000-0000000000ab",
+    });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": "card-business" } });
+
+    expect(response.status).toBe(200);
+    expect(getCompanyApplicationStatus).toHaveBeenCalledExactlyOnceWith("card-business-company");
+    expect(getApplicationStatus).not.toHaveBeenCalled();
   });
 
   it("throws when createCard fails with empty-body 403", async () => {
@@ -1031,7 +1069,10 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": "base-default" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("base-default-panda", BASE_PRODUCT_ID, undefined);
+      expect(createCard).toHaveBeenCalledWith("base-default-panda", BASE_PRODUCT_ID, {
+        amount: undefined,
+        subtenantId: undefined,
+      });
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "4081",
@@ -1059,7 +1100,10 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": "base-signature" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("base-signature-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCard).toHaveBeenCalledWith("base-signature-panda", SIGNATURE_PRODUCT_ID, {
+        amount: undefined,
+        subtenantId: undefined,
+      });
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "4242",
@@ -1087,7 +1131,10 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": "optimism-credential" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("optimism-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCard).toHaveBeenCalledWith("optimism-panda", SIGNATURE_PRODUCT_ID, {
+        amount: undefined,
+        subtenantId: undefined,
+      });
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "1010",
@@ -1459,7 +1506,7 @@ describe("authenticated", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(panda.getProcessorDetails).toHaveBeenCalledWith("543c1771-beae-4f26-b662-44ea48b40dc6");
+    expect(panda.getProcessorDetails).toHaveBeenCalledWith("543c1771-beae-4f26-b662-44ea48b40dc6", undefined);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -1512,7 +1559,7 @@ describe("authenticated", () => {
           nonce: "Db2ItfTPLuZ2dV0ZQ",
           issuedAt: expect.any(Date), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
         });
-        expect(nonceSpy).toHaveBeenCalledWith("siwe-ok-panda");
+        expect(nonceSpy).toHaveBeenCalledWith("siwe-ok-panda", undefined);
       });
 
       it("returns 403 on message when credential has no panda id", async () => {
@@ -1556,7 +1603,7 @@ describe("authenticated", () => {
         );
 
         expect(response.status).toBe(500);
-        expect(nonceSpy).toHaveBeenCalledWith("siwe-nonce-fail-panda");
+        expect(nonceSpy).toHaveBeenCalledWith("siwe-nonce-fail-panda", undefined);
         expect(captureException).not.toHaveBeenCalled();
       });
 
@@ -1592,7 +1639,11 @@ describe("authenticated", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
-        expect(verifySpy).toHaveBeenCalledWith("siwe-verify-panda", { message, signature, authType: "siwe" });
+        expect(verifySpy).toHaveBeenCalledWith(
+          "siwe-verify-panda",
+          { message, signature, authType: "siwe" },
+          undefined,
+        );
       });
 
       it("rejects siwe message with non-canonical statement", async () => {
@@ -1804,7 +1855,11 @@ describe("authenticated", () => {
 
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
-        expect(verifySpy).toHaveBeenCalledWith("siwe-panda-401-panda", { message, signature, authType: "siwe" });
+        expect(verifySpy).toHaveBeenCalledWith(
+          "siwe-panda-401-panda",
+          { message, signature, authType: "siwe" },
+          undefined,
+        );
       });
 
       it("propagates non-401 panda errors from siwe verify", async () => {
@@ -1840,7 +1895,11 @@ describe("authenticated", () => {
         });
 
         expect(response.status).toBe(500);
-        expect(verifySpy).toHaveBeenCalledWith("siwe-panda-503-panda", { message, signature, authType: "siwe" });
+        expect(verifySpy).toHaveBeenCalledWith(
+          "siwe-panda-503-panda",
+          { message, signature, authType: "siwe" },
+          undefined,
+        );
       });
     });
 
@@ -1943,17 +2002,21 @@ describe("authenticated", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
-        expect(verifySpy).toHaveBeenCalledWith("webauthn-verify-panda", {
-          authType: "webauthn",
-          credential: {
-            publicKey: { type: "Buffer", data: [1, 2, 3] },
-            transports: ["internal"],
+        expect(verifySpy).toHaveBeenCalledWith(
+          "webauthn-verify-panda",
+          {
+            authType: "webauthn",
+            credential: {
+              publicKey: { type: "Buffer", data: [1, 2, 3] },
+              transports: ["internal"],
+            },
+            assertion,
+            factory,
+            salt,
+            statement,
           },
-          assertion,
-          factory,
-          salt,
-          statement,
-        });
+          "subtenant",
+        );
       });
 
       it("forwards null transports verbatim", async () => {
@@ -1979,14 +2042,18 @@ describe("authenticated", () => {
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
-        expect(verifySpy).toHaveBeenCalledWith("webauthn-null-panda", {
-          authType: "webauthn",
-          credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null },
-          assertion,
-          factory,
-          salt: zeroAddress,
-          statement,
-        });
+        expect(verifySpy).toHaveBeenCalledWith(
+          "webauthn-null-panda",
+          {
+            authType: "webauthn",
+            credential: { publicKey: { type: "Buffer", data: [9, 8, 7] }, transports: null },
+            assertion,
+            factory,
+            salt: zeroAddress,
+            statement,
+          },
+          undefined,
+        );
       });
 
       it("returns 403 on verify when credential has no panda id", async () => {
@@ -2036,14 +2103,18 @@ describe("authenticated", () => {
 
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: "bad signature" });
-        expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-401-panda", {
-          authType: "webauthn",
-          credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"] },
-          assertion,
-          factory,
-          salt: zeroAddress,
-          statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 4141 for my user (webauthn-panda-401-panda)`,
-        });
+        expect(verifySpy).toHaveBeenCalledWith(
+          "webauthn-panda-401-panda",
+          {
+            authType: "webauthn",
+            credential: { publicKey: { type: "Buffer", data: [1, 2, 3] }, transports: ["internal"] },
+            assertion,
+            factory,
+            salt: zeroAddress,
+            statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 4141 for my user (webauthn-panda-401-panda)`,
+          },
+          undefined,
+        );
       });
 
       it("propagates non-401 panda errors from webauthn verify", async () => {
@@ -2070,14 +2141,18 @@ describe("authenticated", () => {
         });
 
         expect(response.status).toBe(500);
-        expect(verifySpy).toHaveBeenCalledWith("webauthn-panda-503-panda", {
-          authType: "webauthn",
-          credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"] },
-          assertion,
-          factory,
-          salt: zeroAddress,
-          statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 5151 for my user (webauthn-panda-503-panda)`,
-        });
+        expect(verifySpy).toHaveBeenCalledWith(
+          "webauthn-panda-503-panda",
+          {
+            authType: "webauthn",
+            credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: ["internal"] },
+            assertion,
+            factory,
+            salt: zeroAddress,
+            statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 5151 for my user (webauthn-panda-503-panda)`,
+          },
+          undefined,
+        );
       });
     });
 
@@ -2130,7 +2205,10 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, {
+        amount: 2_000_000,
+        subtenantId: undefined,
+      });
     });
 
     it("uses default limit when persona account has no card limit", async () => {
@@ -2159,7 +2237,10 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, {
+        amount: undefined,
+        subtenantId: undefined,
+      });
     });
 
     it("falls back to default limit and captures when getAccount fails", async () => {
@@ -2185,7 +2266,10 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, {
+        amount: undefined,
+        subtenantId: undefined,
+      });
       expect(captureException).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
@@ -2482,8 +2566,8 @@ describe("wallet extension", () => {
       secret: "secret-wallet-extension",
     });
     expect(getUser).not.toHaveBeenCalled();
-    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
-    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
     expect(panda.getPIN).not.toHaveBeenCalled();
     expect(panda.getSecrets).not.toHaveBeenCalled();
   });
@@ -2513,8 +2597,8 @@ describe("wallet extension", () => {
       id: "proc-wallet-extension-frozen",
       secret: "secret-wallet-extension-frozen",
     });
-    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-frozen-card");
-    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-frozen-card");
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-frozen-card", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-frozen-card", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
     expect(panda.getPIN).not.toHaveBeenCalled();
     expect(panda.getSecrets).not.toHaveBeenCalled();
   });
@@ -2530,7 +2614,7 @@ describe("wallet extension", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
-    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
     expect(panda.getProcessorDetails).not.toHaveBeenCalled();
   });
 
@@ -2552,7 +2636,7 @@ describe("wallet extension", () => {
     expect(response.status).toBe(status);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     await expect(response.json()).resolves.toStrictEqual({ code });
-    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card", undefined); // eslint-disable-line unicorn/no-useless-undefined -- assert optional argument propagation
   });
 
   it("rejects bearer card secret when credential is missing", async () => {

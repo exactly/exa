@@ -27,7 +27,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../database/index";
-import { createUser, updateCard } from "../utils/panda";
+import { createUser, subtenant, updateCard } from "../utils/panda";
 import { addCapita, deriveAssociateId } from "../utils/pax";
 import {
   addDocument,
@@ -256,7 +256,7 @@ export default new Hono().post(
       if (!inquiryId) return c.json({ code: "no inquiry" }, 200);
       const referenceId = await getInquiryById(inquiryId).then((r) => r.data.attributes["reference-id"]);
       const credential = await database.query.credentials.findFirst({
-        columns: { pandaId: true },
+        columns: { pandaId: true, salt: true },
         where: eq(credentials.id, referenceId),
         with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
       });
@@ -279,10 +279,13 @@ export default new Hono().post(
         throw error;
       });
       if (credential.pandaId && credential.cards[0]) {
-        await updateCard({
-          id: credential.cards[0].id,
-          limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
-        }).catch((error: unknown) => {
+        await updateCard(
+          {
+            id: credential.cards[0].id,
+            limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
+          },
+          subtenant(credential.salt),
+        ).catch((error: unknown) => {
           captureException(error, {
             level: "error",
             contexts: {

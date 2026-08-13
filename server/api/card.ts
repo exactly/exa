@@ -42,6 +42,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import database, { cards, credentials } from "../database";
 import t from "../i18n";
 import auth from "../middleware/auth";
+import { isBusinessSalt } from "../utils/createCredential";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   autoCredit,
@@ -49,12 +50,14 @@ import {
   getApplicationStatus,
   getCard,
   getCards,
+  getCompanyApplicationStatus,
   getNonce,
   getPIN,
   getProcessorDetails,
   getSecrets,
   getUser,
   setPIN,
+  subtenant,
   updateCard,
   verify,
 } from "../utils/panda";
@@ -302,7 +305,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, credentialId),
-        columns: { account: true, pandaId: true },
+        columns: { account: true, pandaId: true, salt: true },
         with: {
           cards: {
             columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
@@ -312,6 +315,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
       });
       if (!credential) return c.json({ code: "no credential" }, 500);
       const account = parse(Address, credential.account);
+      const subtenantId = subtenant(credential.salt);
       setUser({ id: account });
       if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
       const sessionid = c.req.valid("header").sessionid;
@@ -320,9 +324,9 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         if (status === "DELETED") throw new Error("card deleted");
         const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] = await Promise.all(
           [
-            getCard(id),
-            sessionid && getSecrets(id, sessionid),
-            getUser(credential.pandaId).catch((error: unknown) => {
+            getCard(id, subtenantId),
+            sessionid && getSecrets(id, sessionid, subtenantId),
+            getUser(credential.pandaId, subtenantId).catch((error: unknown) => {
               const issue = noUser(error);
               if (!issue) throw error;
               const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
@@ -348,11 +352,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               }
               return null;
             }),
-            sessionid && getPIN(id, sessionid),
+            sessionid && getPIN(id, sessionid, subtenantId),
             (async () => {
               if (include("siwe")) {
                 if (!credential.pandaId) return;
-                return getNonce(credential.pandaId).then(({ nonce }) =>
+                return getNonce(credential.pandaId, subtenantId).then(({ nonce }) =>
                   createSiweMessage({
                     domain,
                     address: parse(Address, credentialId),
@@ -368,7 +372,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               }
             })(),
             include("provisioning")
-              ? getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+              ? getProcessorDetails(id, subtenantId).then(({ processorCardId, timeBasedSecret }) => ({
                   id: processorCardId,
                   secret: timeBasedSecret,
                 }))
@@ -465,7 +469,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       c.header("Cache-Control", "no-store");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, c.get("walletExtension").credentialId),
-        columns: { pandaId: true },
+        columns: { pandaId: true, salt: true },
         with: {
           cards: {
             columns: { id: true },
@@ -474,10 +478,11 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
         },
       });
       if (!credential) return c.json({ code: "unauthorized" }, 401);
+      const subtenantId = subtenant(credential.salt);
       const [card] = credential.cards;
       if (!card) return c.json({ code: "no card" }, 404);
       if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-      const provider = await getCard(card.id).catch((error: unknown) => {
+      const provider = await getCard(card.id, subtenantId).catch((error: unknown) => {
         if (error instanceof ServiceError && error.status === 404) return null;
         throw error;
       });
@@ -485,7 +490,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
       if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
       try {
-        const { processorCardId, timeBasedSecret } = await getProcessorDetails(card.id);
+        const { processorCardId, timeBasedSecret } = await getProcessorDetails(card.id, subtenantId);
         return c.json(
           {
             id: processorCardId,
@@ -552,7 +557,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
         .runExclusive(async () => {
           const credential = await database.query.credentials.findFirst({
             where: eq(credentials.id, credentialId),
-            columns: { account: true, pandaId: true, source: true },
+            columns: { account: true, pandaCompanyId: true, pandaId: true, salt: true, source: true },
             with: {
               cards: {
                 columns: { id: true, status: true, productId: true },
@@ -562,6 +567,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           });
           if (!credential) return c.json({ code: "no credential" }, 500);
           const account = parse(Address, credential.account);
+          const subtenantId = subtenant(credential.salt);
           setUser({ id: account });
 
           if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
@@ -576,7 +582,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           let cardCount = activeCards.length;
           for (const card of activeCards) {
             try {
-              await getCard(parse(CardUUID, card.id));
+              await getCard(parse(CardUUID, card.id), subtenantId);
             } catch (error) {
               if (
                 (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
@@ -593,7 +599,12 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           }
           if (cardCount > 0) return c.json({ code: "already created" }, 400);
           try {
-            const kyc = await getApplicationStatus(pandaId);
+            const kyc = isBusinessSalt(parse(Address, credential.salt))
+              ? credential.pandaCompanyId
+                ? await getCompanyApplicationStatus(credential.pandaCompanyId)
+                : undefined
+              : await getApplicationStatus(pandaId);
+            if (!kyc) return c.json({ code: "no panda" }, 403);
             if (kyc.applicationStatus !== "approved") {
               return c.json({ code: "kyc not approved" }, 403);
             }
@@ -603,7 +614,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   ? SIGNATURE_PRODUCT_ID
                   : BASE_PRODUCT_ID
                 : SIGNATURE_PRODUCT_ID;
-            const card = await getCards(pandaId)
+            const card = await getCards(pandaId, subtenantId)
               .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
               .then(async (orphan) => {
                 if (orphan) {
@@ -618,10 +629,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   });
                   return orphan;
                 } else {
-                  return createCard(
-                    pandaId,
-                    productId,
-                    await getAccount(credentialId, "cardLimit")
+                  return createCard(pandaId, productId, {
+                    amount: await getAccount(credentialId, "cardLimit")
                       .then((persona) =>
                         persona?.attributes.fields.card_limit_usd?.value == null
                           ? undefined
@@ -633,7 +642,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                           contexts: { details: { credentialId, scope: "cardLimit" } },
                         });
                       }),
-                  );
+                    subtenantId,
+                  });
                 }
               });
 
@@ -856,6 +866,7 @@ async function encryptPIN(pin: string) {
           });
           if (!credential) return c.json({ code: "no credential" }, 500);
           const account = parse(Address, credential.account);
+          const subtenantId = subtenant(credential.salt);
           setUser({ id: account });
           if (credential.cards.length === 0 || !credential.cards[0]) {
             return c.json({ code: "no card" }, 404);
@@ -876,7 +887,7 @@ async function encryptPIN(pin: string) {
                   track({ userId: account, event: "CardUnfrozen", properties: { source: credential.source } });
                   break;
                 case "DELETED":
-                  await updateCard({ id: card.id, status: "canceled" });
+                  await updateCard({ id: card.id, status: "canceled" }, subtenantId);
                   track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
                   break;
                 case "FROZEN":
@@ -889,7 +900,7 @@ async function encryptPIN(pin: string) {
             case "pin": {
               const { sessionId, data, iv } = patch;
               try {
-                await setPIN(card.id, sessionId, { data, iv });
+                await setPIN(card.id, sessionId, { data, iv }, subtenantId);
               } catch (error) {
                 if (error instanceof Error && error.message.includes("Weak PIN")) {
                   return c.json({ code: "weak pin" }, 400);
@@ -922,11 +933,15 @@ async function encryptPIN(pin: string) {
                     });
                   if (!verified) return c.json({ code: "bad signature" }, 400);
                   try {
-                    await verify(credential.pandaId, {
-                      message: patch.message,
-                      signature: patch.signature,
-                      authType: "siwe",
-                    });
+                    await verify(
+                      credential.pandaId,
+                      {
+                        message: patch.message,
+                        signature: patch.signature,
+                        authType: "siwe",
+                      },
+                      subtenantId,
+                    );
                   } catch (error) {
                     if (error instanceof ServiceError && error.status === 401) {
                       return c.json({ code: "bad signature" }, 400);
@@ -938,17 +953,21 @@ async function encryptPIN(pin: string) {
 
                 case "webauthn":
                   try {
-                    await verify(credential.pandaId, {
-                      authType: "webauthn",
-                      credential: {
-                        publicKey: { type: "Buffer", data: [...credential.publicKey] },
-                        transports: credential.transports,
+                    await verify(
+                      credential.pandaId,
+                      {
+                        authType: "webauthn",
+                        credential: {
+                          publicKey: { type: "Buffer", data: [...credential.publicKey] },
+                          transports: credential.transports,
+                        },
+                        assertion: patch.assertion,
+                        factory: credential.factory,
+                        salt: parse(Address, credential.salt),
+                        statement,
                       },
-                      assertion: patch.assertion,
-                      factory: credential.factory,
-                      salt: parse(Address, credential.salt),
-                      statement,
-                    });
+                      subtenantId,
+                    );
                   } catch (error) {
                     if (error instanceof ServiceError && error.status === 401) {
                       return c.json({ code: "bad signature" }, 400);
