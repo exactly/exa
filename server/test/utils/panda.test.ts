@@ -80,6 +80,40 @@ describe("panda request", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("lists company users through the parent tenant", async () => {
+    const users = [{ id: "user-id", walletAddress: "0x1234" }];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(users));
+
+    await expect(panda.getCompanyUsers("company-id")).resolves.toStrictEqual(users);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/users?companyId=company-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("resolves a company external id by company id", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ externalId: "reference-id", id: "company-id" }));
+
+    await expect(panda.getCompany("company-id")).resolves.toStrictEqual({
+      externalId: "reference-id",
+      id: "company-id",
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/companies/company-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("rejects a company response for another company", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ externalId: "reference-id", id: "other-company-id" }),
+    );
+
+    await expect(panda.getCompany("company-id")).rejects.toThrow("panda company id mismatch");
+  });
 });
 
 describe("business application", () => {
@@ -571,6 +605,25 @@ describe("create card", () => {
         }),
       }),
     );
+  });
+
+  it("sends an idempotency key and custom limit", async () => {
+    chainMock.id = baseSepolia.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
+
+    await panda.createCard("user-id", SIGNATURE_PRODUCT_ID, { amount: 123, idempotencyKey: "approval-key" });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 123, frequency: "per7DayPeriod" },
+          configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "0c515d7eb0a140fa8f938f8242b0780a" },
+        }),
+      }),
+    );
+    expect(fetchSpy.mock.calls.at(-1)?.[1]?.headers).toMatchObject({ "Idempotency-Key": "approval-key" });
   });
 
   it("sends sandbox card art on optimism sepolia", async () => {

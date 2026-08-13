@@ -30,6 +30,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
@@ -526,7 +527,11 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             content: {
               "application/json": {
                 schema: resolver(
-                  union([object({ code: literal("bad request") }), object({ code: literal("already created") })]),
+                  union([
+                    object({ code: literal("bad request") }),
+                    object({ code: literal("already created") }),
+                    object({ code: literal("not supported") }),
+                  ]),
                   { errorMode: "ignore" },
                 ),
               },
@@ -560,7 +565,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, credentialId),
-              columns: { account: true, pandaId: true, source: true },
+              columns: { account: true, pandaId: true, salt: true, source: true },
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
@@ -569,6 +574,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               },
             });
             if (!credential) return c.json({ code: "no credential" }, 500);
+            if (parse(Address, credential.salt) !== parse(Address, zeroAddress))
+              return c.json({ code: "not supported" }, 400);
             const account = parse(Address, credential.account);
             setUser({ id: account });
 
