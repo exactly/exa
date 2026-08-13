@@ -44,6 +44,7 @@ import {
   CompanyApplicationStatusResponse,
   createCompanyApplication,
   createMutex,
+  finalizeBusinessApproval,
   getApplicationStatus,
   getCompanyApplicationStatus,
   getMutex,
@@ -583,6 +584,8 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             if (failedKycStatus.has(application.applicationStatus)) {
               return c.json({ code: "bad kyc", legacy: "kyc not approved" }, 400);
             }
+            if (application.applicationStatus === "approved")
+              await finalizeBusinessApproval(credentialId, application.id, account);
             setUser({ id: account });
             return c.json(application, 200);
           } catch (error) {

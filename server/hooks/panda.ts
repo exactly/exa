@@ -56,15 +56,20 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import database, { cards, credentials, transactions } from "../database/index";
 import t, { f } from "../i18n";
+import { isBusinessSalt } from "../utils/createCredential";
 import keeper from "../utils/keeper";
 import { sendPushNotification } from "../utils/onesignal";
 import {
   collectors,
   createMutex,
+  finalizeBusinessApproval,
+  getCompanyApplicationStatus,
   getMutex,
   getUser,
   headerValidator,
+  kycStatus,
   signIssuerOp,
+  subtenant,
   updateUser,
   verifyPandaSignature,
 } from "../utils/panda";
@@ -220,6 +225,21 @@ const Payload = v.variant("resource", [
   Transaction,
   Card,
   v.object({
+    resource: v.literal("company"),
+    action: v.literal("updated"),
+    body: v.looseObject({
+      id: v.string(),
+      applicationStatus: v.optional(v.picklist(kycStatus)),
+    }),
+    id: v.string(),
+  }),
+  v.object({
+    resource: v.literal("application"),
+    action: v.string(),
+    body: v.looseObject({ id: v.string() }),
+    id: v.string(),
+  }),
+  v.object({
     resource: v.literal("dispute"),
     action: v.string(),
     body: v.looseObject({ id: v.string() }),
@@ -230,16 +250,7 @@ const Payload = v.variant("resource", [
     action: v.literal("updated"),
     body: v.object({
       applicationReason: v.string(),
-      applicationStatus: v.picklist([
-        "approved",
-        "pending",
-        "needsInformation",
-        "needsVerification",
-        "manualReview",
-        "denied",
-        "locked",
-        "canceled",
-      ]),
+      applicationStatus: v.picklist(kycStatus),
       firstName: v.string(),
       id: v.string(),
       isActive: v.boolean(),
@@ -264,6 +275,28 @@ export default new Hono().post(
     getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
     if (payload.resource !== "transaction") {
+      if (payload.resource === "company" || payload.resource === "application") {
+        if (
+          payload.resource === "application" &&
+          (await getCompanyApplicationStatus(payload.body.id).then(({ applicationStatus }) => applicationStatus)) !==
+            "approved"
+        )
+          return c.json({ code: "ok" });
+        if (payload.resource === "company" && payload.body.applicationStatus !== "approved")
+          return c.json({ code: "ok" });
+        const credential = await database.query.credentials.findFirst({
+          columns: { account: true, id: true, salt: true },
+          where: eq(credentials.pandaCompanyId, payload.body.id),
+        });
+        if (credential && isBusinessSalt(v.parse(Address, credential.salt))) {
+          const account = v.parse(Address, credential.account);
+          setUser({ id: account });
+          await (getMutex(account) ?? createMutex(account)).runExclusive(() =>
+            finalizeBusinessApproval(credential.id, payload.body.id, account),
+          );
+        }
+        return c.json({ code: "ok" });
+      }
       if (payload.resource === "dispute") return c.json({ code: "ok" });
       const pandaId =
         payload.resource === "card"
@@ -292,7 +325,7 @@ export default new Hono().post(
         const card = await database.query.cards.findFirst({
           columns: { mode: true, status: true },
           where: eq(cards.id, payload.body.spend.cardId),
-          with: { credential: { columns: { account: true, id: true, source: true } } },
+          with: { credential: { columns: { account: true, id: true, salt: true, source: true } } },
         });
         if (!card) {
           return c.json({ code: "card not found", rejectionCode: "UNKNOWN" }, 404);
@@ -534,16 +567,14 @@ export default new Hono().post(
               return payload.body.spend.authorizedAmount - payload.body.spend.amount;
             })() / 100;
           const refundAmount = BigInt(Math.round(refundAmountUsd * 1e6));
-          const [card, user] = await Promise.all([
-            database.query.cards.findFirst({
-              columns: { mode: true },
-              where: eq(cards.id, payload.body.spend.cardId),
-              with: { credential: { columns: { account: true, id: true, source: true } } },
-            }),
-            getUser(payload.body.spend.userId),
-          ]);
+          const card = await database.query.cards.findFirst({
+            columns: { mode: true },
+            where: eq(cards.id, payload.body.spend.cardId),
+            with: { credential: { columns: { account: true, id: true, salt: true, source: true } } },
+          });
           if (!card) throw new Error("card not found");
           const account = v.parse(Address, card.credential.account);
+          const user = await getUser(payload.body.spend.userId, subtenant(card.credential.salt));
           setUser({ id: account });
           if (!user.isActive) throw new Error("user is not active");
 
@@ -723,7 +754,7 @@ export default new Hono().post(
         const card = await database.query.cards.findFirst({
           columns: { mode: true },
           where: eq(cards.id, payload.body.spend.cardId),
-          with: { credential: { columns: { account: true, id: true, source: true } } },
+          with: { credential: { columns: { account: true, id: true, salt: true, source: true } } },
         });
         if (!card) return c.json({ code: "card not found" }, 404);
 
@@ -1018,7 +1049,7 @@ export default new Hono().post(
                 account,
                 amount: payload.body.spend.amount,
               });
-              await updateUser({ id: payload.body.spend.userId, isActive: false });
+              await updateUser({ id: payload.body.spend.userId, isActive: false }, subtenant(card.credential.salt));
               getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
               return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
             }
@@ -1392,7 +1423,10 @@ async function reject(
     });
 }
 
-async function publish(payload: v.InferOutput<typeof Payload>, receipt?: TransactionReceipt) {
+async function publish(
+  payload: Exclude<v.InferOutput<typeof Payload>, { resource: "application" | "company" }>,
+  receipt?: TransactionReceipt,
+) {
   if (payload.resource === "transaction" && payload.action === "requested") return;
   if (receipt?.status === "reverted") return;
   if (payload.resource === "dispute") return;

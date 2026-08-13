@@ -2142,6 +2142,34 @@ describe("authenticated", () => {
             });
           });
 
+          it("finalizes an approved company application", async () => {
+            const approved = { ...application, applicationStatus: "approved" } satisfies InferOutput<
+              typeof panda.CompanyApplicationResponse
+            >;
+            vi.spyOn(panda, "createCompanyApplication").mockResolvedValueOnce(approved);
+            const finalizeBusinessApproval = vi
+              .spyOn(panda, "finalizeBusinessApproval")
+              .mockResolvedValueOnce({ userId: "company-user-id", cardId: "business-card-id" });
+
+            const response = await appClient.application.$post(
+              { query: { type: "business" } },
+              {
+                headers: {
+                  "test-credential-id": businessAccount,
+                  SessionID: "fakeSession",
+                  "do-connecting-ip": "127.0.0.1",
+                },
+              },
+            );
+
+            expect(response.status).toBe(200);
+            expect(finalizeBusinessApproval).toHaveBeenCalledExactlyOnceWith(
+              businessAccount,
+              "company-id",
+              businessPayload.initialUser.walletAddress,
+            );
+          });
+
           it("returns an existing company application", async () => {
             await database
               .update(credentials)
@@ -2170,6 +2198,38 @@ describe("authenticated", () => {
               applicationStatus: "pending",
               applicationCompletionLink: { url: "https://panda.test/company", params: {} },
             });
+          });
+
+          it("finalizes an existing approved company application", async () => {
+            await database
+              .update(credentials)
+              .set({ pandaCompanyId: "company-id" })
+              .where(eq(credentials.id, businessAccount));
+            vi.spyOn(panda, "getCompanyApplicationStatus").mockResolvedValueOnce({
+              id: "company-id",
+              applicationStatus: "approved",
+            });
+            const finalizeBusinessApproval = vi
+              .spyOn(panda, "finalizeBusinessApproval")
+              .mockResolvedValueOnce({ userId: "company-user-id", cardId: "business-card-id" });
+
+            const response = await appClient.application.$post(
+              { query: { type: "business" } },
+              {
+                headers: {
+                  "test-credential-id": businessAccount,
+                  SessionID: "fakeSession",
+                  "do-connecting-ip": "127.0.0.1",
+                },
+              },
+            );
+
+            expect(response.status).toBe(200);
+            expect(finalizeBusinessApproval).toHaveBeenCalledExactlyOnceWith(
+              businessAccount,
+              "company-id",
+              businessPayload.initialUser.walletAddress,
+            );
           });
 
           it.each<InferOutput<typeof panda.CompanyApplicationStatusResponse>["applicationStatus"]>([

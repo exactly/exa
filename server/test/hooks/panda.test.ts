@@ -42,6 +42,7 @@ import chain, {
   marketAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
@@ -61,6 +62,25 @@ import anvilClient from "../anvilClient";
 const appClient = testClient(app);
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
+const requestUrl = (url: Request | string | URL) =>
+  typeof url === "string" ? url : url instanceof Request ? url.url : url.href;
+const pandaResponse = (body: unknown, status = 200) => {
+  return Response.json(body, { headers: { "content-type": "application/json" }, status });
+};
+const mockPandaFetch = (
+  routes: { match: (url: string) => boolean; response: () => Promise<Response> | Response }[],
+) => {
+  const fetch = globalThis.fetch;
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    const stringUrl = requestUrl(url);
+    if (stringUrl.startsWith("https://panda.test")) {
+      const route = routes.find((candidate) => candidate.match(stringUrl));
+      if (!route) throw new Error(`unexpected panda request: ${init?.method ?? "GET"} ${stringUrl}`);
+      return route.response();
+    }
+    return fetch(url, init);
+  });
+};
 
 beforeAll(async () => {
   await Promise.all([
@@ -1897,7 +1917,7 @@ describe("card operations", () => {
 
         expect(createResponse.status).toBe(200);
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, undefined);
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -2342,7 +2362,7 @@ describe("card operations", () => {
         });
 
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, undefined);
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -2402,7 +2422,7 @@ describe("card operations", () => {
         });
 
         expect(completeResponse.status).toBe(556);
-        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false });
+        expect(updateUser).toHaveBeenCalledWith({ id: account, isActive: false }, undefined);
         expect(pandaLogger).toHaveBeenCalledWith("suspicious-user:%j", {
           eventId: authorization.json.id,
           transactionId: cardId,
@@ -3169,7 +3189,325 @@ describe("webhooks", () => {
     ]);
   });
 
-  afterEach(() => vi.resetAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    { name: "missing status", body: { id: "company-missing-status" } },
+    { name: "pending status", body: { id: "company-pending", applicationStatus: "pending" } },
+    { name: "not started status", body: { id: "company-not-started", applicationStatus: "notStarted" } },
+  ] satisfies { body: { applicationStatus?: "notStarted" | "pending"; id: string }; name: string }[])(
+    "ignores company.updated with $name",
+    async ({ body }) => {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: { id: `ignored-${body.id}`, resource: "company", action: "updated", body },
+      });
+
+      expect(response.status).toBe(200);
+    },
+  );
+
+  it("rejects company.updated with an invalid application status", async () => {
+    const response = await app.request("/", {
+      body: JSON.stringify({
+        id: "company-invalid-status",
+        resource: "company",
+        action: "updated",
+        body: { id: "company-invalid-status", applicationStatus: "approvedLater" },
+      }),
+      headers: { "content-type": "application/json", signature: "panda-signature" },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("adopts the company user and issues the card for an approved company", async () => {
+    const companyId = "business-company";
+    const cardId = "business-card";
+    const previousSubtenant = process.env.PANDA_SUBTENANT_ID;
+    process.env.PANDA_SUBTENANT_ID = "subtenant";
+    await database
+      .update(credentials)
+      .set({ pandaCompanyId: companyId, pandaId: null, salt: padHex("0x42", { size: 20 }) })
+      .where(eq(credentials.id, webhookAccount));
+    await database
+      .update(cards)
+      .set({ status: "DELETED" })
+      .where(eq(cards.id, `${webhookAccount}-card`));
+    const mockFetch = mockPandaFetch([
+      {
+        match: (url) => url.startsWith("https://panda.test/issuing/users?companyId="),
+        response: () =>
+          pandaResponse([
+            {
+              id: "business-user",
+              companyId,
+              walletAddress: webhookAccount,
+            },
+          ]),
+      },
+      {
+        match: (url) => url.endsWith("/issuing/users/business-user/cards"),
+        response: () =>
+          pandaResponse({
+            id: cardId,
+            userId: "business-user",
+            type: "virtual",
+            status: "active",
+            limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+            last4: "1234",
+            expirationMonth: "12",
+            expirationYear: "2030",
+          }),
+      },
+    ]);
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, webhookAccount) });
+      const card = await database.query.cards.findFirst({ where: eq(cards.id, cardId) });
+      expect(response.status).toBe(200);
+      const lookupCall = mockFetch.mock.calls.find(([url]) =>
+        requestUrl(url).startsWith("https://panda.test/issuing/users?companyId="),
+      );
+      expect(lookupCall).toBeDefined();
+      const cardCall = mockFetch.mock.calls.find(([url]) =>
+        requestUrl(url).endsWith("/issuing/users/business-user/cards"),
+      );
+      expect(cardCall).toBeDefined();
+      expect(new Headers(cardCall?.[1]?.headers).get("Idempotency-Key")).toBe(`business-approval:${webhookAccount}`);
+      expect(credential?.pandaId).toBe("business-user");
+      expect(card).toMatchObject({
+        id: cardId,
+        credentialId: webhookAccount,
+        lastFour: "1234",
+        productId: SIGNATURE_PRODUCT_ID,
+      });
+    } finally {
+      await database.delete(cards).where(eq(cards.id, cardId));
+      await database
+        .update(cards)
+        .set({ status: "ACTIVE" })
+        .where(eq(cards.id, `${webhookAccount}-card`));
+      await database
+        .update(credentials)
+        .set({ pandaCompanyId: null, pandaId: webhookAccount, salt: zeroAddress })
+        .where(eq(credentials.id, webhookAccount));
+      if (previousSubtenant === undefined) delete process.env.PANDA_SUBTENANT_ID;
+      else process.env.PANDA_SUBTENANT_ID = previousSubtenant;
+    }
+  });
+
+  it("does not duplicate the company user or the card for repeated approved events", async () => {
+    const companyId = "business-company-duplicate";
+    const previousSubtenant = process.env.PANDA_SUBTENANT_ID;
+    process.env.PANDA_SUBTENANT_ID = "subtenant";
+    await database
+      .update(credentials)
+      .set({ pandaCompanyId: companyId, pandaId: null, salt: padHex("0x43", { size: 20 }) })
+      .where(eq(credentials.id, webhookAccount));
+    await database.delete(cards).where(eq(cards.id, `${webhookAccount}-card`));
+    const cardStarted = Promise.withResolvers<true>();
+    const cardReleased = Promise.withResolvers<true>();
+    const mockFetch = mockPandaFetch([
+      {
+        match: (url) => url.startsWith("https://panda.test/issuing/users?companyId="),
+        response: () =>
+          pandaResponse([
+            {
+              id: "business-user-duplicate",
+              companyId,
+              walletAddress: webhookAccount,
+            },
+          ]),
+      },
+      {
+        match: (url) => url.endsWith("/issuing/users/business-user-duplicate/cards"),
+        response: async () => {
+          cardStarted.resolve(true);
+          await cardReleased.promise;
+          return pandaResponse({
+            id: "business-card-duplicate",
+            userId: "business-user-duplicate",
+            type: "virtual",
+            status: "active",
+            limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+            last4: "1234",
+            expirationMonth: "12",
+            expirationYear: "2030",
+          });
+        },
+      },
+    ]);
+
+    const payload = {
+      header: { signature: "panda-signature" },
+      json: {
+        id: "company-duplicate",
+        resource: "company",
+        action: "updated",
+        body: { id: companyId, applicationStatus: "approved" },
+      },
+    } satisfies {
+      header: { signature: string };
+      json: { action: "updated"; body: { applicationStatus: "approved"; id: string }; id: string; resource: "company" };
+    };
+    try {
+      const first = appClient.index.$post(payload);
+      await cardStarted.promise;
+      const second = appClient.index.$post(payload);
+      cardReleased.resolve(true);
+      const responses = await Promise.all([first, second]);
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, webhookAccount) });
+      const card = await database.query.cards.findFirst({ where: eq(cards.id, "business-card-duplicate") });
+      const lookupCalls = mockFetch.mock.calls.filter(([url]) =>
+        requestUrl(url).startsWith("https://panda.test/issuing/users?companyId="),
+      );
+      const cardCalls = mockFetch.mock.calls.filter(([url]) =>
+        requestUrl(url).endsWith("/issuing/users/business-user-duplicate/cards"),
+      );
+      expect(responses.map(({ status }) => status)).toStrictEqual([200, 200]);
+      expect(lookupCalls).toHaveLength(1);
+      expect(cardCalls).toHaveLength(1);
+      expect(credential?.pandaId).toBe("business-user-duplicate");
+      expect(card).toMatchObject({ id: "business-card-duplicate", credentialId: webhookAccount, lastFour: "1234" });
+    } finally {
+      await database.delete(cards).where(eq(cards.id, "business-card-duplicate"));
+      await database
+        .insert(cards)
+        .values([{ id: `${webhookAccount}-card`, credentialId: webhookAccount, lastFour: "1234", mode: 0 }])
+        .onConflictDoNothing();
+      await database
+        .update(credentials)
+        .set({ pandaCompanyId: null, pandaId: webhookAccount, salt: zeroAddress })
+        .where(eq(credentials.id, webhookAccount));
+      if (previousSubtenant === undefined) delete process.env.PANDA_SUBTENANT_ID;
+      else process.env.PANDA_SUBTENANT_ID = previousSubtenant;
+    }
+  });
+
+  it("adopts the company user even when the company has several users", async () => {
+    const companyId = "business-company-failed";
+    const previousSubtenant = process.env.PANDA_SUBTENANT_ID;
+    process.env.PANDA_SUBTENANT_ID = "subtenant";
+    await database
+      .update(credentials)
+      .set({ pandaCompanyId: companyId, pandaId: null, salt: padHex("0x44", { size: 20 }) })
+      .where(eq(credentials.id, webhookAccount));
+    await database.delete(cards).where(eq(cards.id, `${webhookAccount}-card`));
+    mockPandaFetch([
+      {
+        match: (url) => url.startsWith("https://panda.test/issuing/users?companyId="),
+        response: () =>
+          pandaResponse([
+            {
+              id: "other-business-user",
+              companyId,
+              walletAddress: "0x0000000000000000000000000000000000000001",
+            },
+            {
+              id: "existing-business-user",
+              companyId,
+              walletAddress: webhookAccount,
+            },
+          ]),
+      },
+      {
+        match: (url) => url.endsWith("/issuing/users/existing-business-user/cards"),
+        response: () =>
+          pandaResponse({
+            id: "business-card-adopted",
+            userId: "existing-business-user",
+            type: "virtual",
+            status: "active",
+            limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+            last4: "1234",
+            expirationMonth: "12",
+            expirationYear: "2030",
+          }),
+      },
+    ]);
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-failed",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, webhookAccount) });
+      const card = await database.query.cards.findFirst({ where: eq(cards.id, "business-card-adopted") });
+      expect(response.status).toBe(200);
+      expect(credential?.pandaId).toBe("existing-business-user");
+      expect(card).toMatchObject({ id: "business-card-adopted", credentialId: webhookAccount });
+    } finally {
+      await database.delete(cards).where(eq(cards.id, "business-card-adopted"));
+      await database
+        .insert(cards)
+        .values([{ id: `${webhookAccount}-card`, credentialId: webhookAccount, lastFour: "1234", mode: 0 }])
+        .onConflictDoNothing();
+      await database
+        .update(credentials)
+        .set({ pandaCompanyId: null, pandaId: webhookAccount, salt: zeroAddress })
+        .where(eq(credentials.id, webhookAccount));
+      if (previousSubtenant === undefined) delete process.env.PANDA_SUBTENANT_ID;
+      else process.env.PANDA_SUBTENANT_ID = previousSubtenant;
+    }
+  });
+
+  it("returns a retryable error when the company has no users", async () => {
+    const companyId = "business-company-failed";
+    const previousSubtenant = process.env.PANDA_SUBTENANT_ID;
+    process.env.PANDA_SUBTENANT_ID = "subtenant";
+    await database
+      .update(credentials)
+      .set({ pandaCompanyId: companyId, pandaId: null, salt: padHex("0x44", { size: 20 }) })
+      .where(eq(credentials.id, webhookAccount));
+    mockPandaFetch([
+      {
+        match: (url) => url.startsWith("https://panda.test/issuing/users?companyId="),
+        response: () => pandaResponse([]),
+      },
+    ]);
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-failed",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, webhookAccount) });
+      expect(response.status).toBe(500);
+      expect(credential?.pandaId).toBeNull();
+    } finally {
+      await database
+        .update(credentials)
+        .set({ pandaCompanyId: null, pandaId: webhookAccount, salt: zeroAddress })
+        .where(eq(credentials.id, webhookAccount));
+      if (previousSubtenant === undefined) delete process.env.PANDA_SUBTENANT_ID;
+      else process.env.PANDA_SUBTENANT_ID = previousSubtenant;
+    }
+  });
 
   it("forwards transaction created with exchangeRate", async () => {
     const cardId = `${webhookAccount}-card`;
@@ -3420,7 +3758,7 @@ describe("webhooks", () => {
       },
     });
 
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => mockFetch.mock.calls.some(([url]) => url === "https://exa.test"), 10_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
@@ -3447,7 +3785,7 @@ describe("webhooks", () => {
       },
     });
 
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => mockFetch.mock.calls.some(([url]) => url === "https://exa.test"), 10_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
@@ -3474,7 +3812,7 @@ describe("webhooks", () => {
       },
     });
 
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => mockFetch.mock.calls.some(([url]) => url === "https://exa.test"), 10_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     const headers = parse(object({ Signature: string() }), options?.headers);
 
@@ -3482,7 +3820,7 @@ describe("webhooks", () => {
   });
 
   it("logs text on webhook ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("OK"));
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
     await appClient.index.$post({
       ...cardUpdated,
@@ -3504,7 +3842,9 @@ describe("webhooks", () => {
   });
 
   it("logs json on webhook ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ status: 200, message: "OK" }));
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(Response.json({ status: 200, message: "OK" })),
+    );
 
     await appClient.index.$post({
       ...cardUpdated,
@@ -3547,7 +3887,7 @@ describe("webhooks", () => {
       },
     });
 
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
+    await vi.waitUntil(() => mockFetch.mock.calls.some(([url]) => url === "https://exa.test"), 10_000);
     const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
     expect(options).toStrictEqual(expect.objectContaining({ redirect: "error" }));
   });
