@@ -1,6 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
-import { setContext } from "@sentry/node";
+import { captureException, setContext } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   array,
   boolean,
@@ -42,6 +43,7 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 import { recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -51,17 +53,25 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { isBusinessSalt } from "./createCredential";
 import { PANDA_BUSINESS_TEMPLATE } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
+import { cards, credentials } from "../database/schema";
 
 import type createPersona from "./persona";
+import type createSardine from "./sardine";
+import type createSegment from "./segment";
+import type * as schema from "../database/schema";
+import type createCredit from "../workers/credit/queue";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
     createCard,
     createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompanyUsers,
     getCompanyStatus,
     getCard,
     getCards,
@@ -86,12 +96,12 @@ export default function panda({ key, url }: { key: string; url: string }) {
   async function createCard(
     userId: string,
     productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-    amount = 1_000_000,
+    { amount = 1_000_000, idempotencyKey }: { amount?: number; idempotencyKey?: string } = {},
   ) {
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
-      {},
+      idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
       parse(CreateCardRequest, {
         type: "virtual",
         status: "active",
@@ -133,6 +143,16 @@ export default function panda({ key, url }: { key: string; url: string }) {
       options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {},
       parse(CreateCompanyApplicationRequest, application),
       "POST",
+      10_000,
+    );
+  }
+  function getCompanyUsers(companyId: string) {
+    return request(
+      array(object({ id: string(), companyId: optional(string()), walletAddress: optional(string()) })),
+      `/issuing/users?companyId=${companyId}`,
+      {},
+      undefined,
+      "GET",
       10_000,
     );
   }
@@ -553,9 +573,33 @@ const Card = variant("action", [
   }),
 ]);
 
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
 export const Payload = variant("resource", [
   Transaction,
   Card,
+  object({
+    resource: literal("company"),
+    action: literal("updated"),
+    body: looseObject({ id: string(), applicationStatus: optional(nullable(picklist(kycStatus))) }),
+    id: string(),
+  }),
+  object({
+    resource: literal("application"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
   object({
     resource: literal("dispute"),
     action: string(),
@@ -643,6 +687,8 @@ const CardResponse = object({
   expirationMonth: pipe(string(), minLength(1), maxLength(2)),
   expirationYear: pipe(string(), length(4)),
 });
+
+type PandaCard = InferOutput<typeof CardResponse>;
 
 const CardsResponse = array(
   object({
@@ -819,6 +865,127 @@ async function businessApplication(
 }
 
 const mutexes = new Map<Address, MutexInterface>();
+export const activeCardStatuses: (typeof cards.$inferSelect.status)[] = ["ACTIVE", "FROZEN"];
+
+export async function finalizeBusinessApproval(
+  credentialId: string,
+  companyId: string,
+  account: Address,
+  database: NodePgDatabase<typeof schema>,
+  client: ReturnType<typeof panda>,
+  {
+    credit,
+    persona,
+    sardine,
+    segment,
+  }: {
+    credit: ReturnType<typeof createCredit>;
+    persona: ReturnType<typeof createPersona>;
+    sardine: ReturnType<typeof createSardine>;
+    segment: ReturnType<typeof createSegment>;
+  },
+) {
+  const row = await database.query.credentials.findFirst({
+    columns: { pandaCompanyId: true, pandaId: true, salt: true, source: true },
+    where: eq(credentials.id, credentialId),
+  });
+  if (row?.pandaCompanyId !== companyId || !isBusinessSalt(parse(Address, row.salt))) return;
+  const existingCards = await database.query.cards.findMany({
+    columns: { id: true, status: true },
+    where: eq(cards.credentialId, credentialId),
+  });
+  const localCard = existingCards.find(({ status }) => activeCardStatuses.includes(status));
+  const users = await client.getCompanyUsers(companyId);
+  if (row.pandaId && !users.some(({ id }) => id === row.pandaId)) throw new Error("company user not found");
+  let userId: null | string | undefined = row.pandaId;
+  if (!userId) {
+    const user = users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase());
+    if (!user) throw new Error("company user not found");
+    const [updated] = await database
+      .update(credentials)
+      .set({ pandaId: user.id })
+      .where(
+        and(eq(credentials.id, credentialId), eq(credentials.pandaCompanyId, companyId), isNull(credentials.pandaId)),
+      )
+      .returning({ pandaId: credentials.pandaId });
+    userId =
+      updated?.pandaId ??
+      (await database.query.credentials
+        .findFirst({ columns: { pandaId: true }, where: eq(credentials.id, credentialId) })
+        .then((current) => current?.pandaId));
+  }
+  if (!userId) return;
+  if (localCard) {
+    await credit.enqueue(account, `business-approval:${credentialId}:${localCard.id}`);
+    return;
+  }
+  const card = await client.createCard(userId, SIGNATURE_PRODUCT_ID, {
+    amount: await cardLimit(credentialId, persona).catch((error: unknown) => {
+      captureException(error, {
+        level: "error",
+        contexts: { details: { credentialId, scope: "cardLimit" } },
+      });
+      throw error;
+    }),
+    idempotencyKey: `business-approval:${credentialId}:${existingCards.filter(({ status }) => status === "DELETED").length}`,
+  });
+  const [inserted] = await database
+    .insert(cards)
+    .values({ id: card.id, lastFour: card.last4, credentialId, productId: SIGNATURE_PRODUCT_ID })
+    .onConflictDoNothing()
+    .returning({ id: cards.id });
+  if (!inserted) {
+    const existing = await database.query.cards.findFirst({ columns: { id: true }, where: eq(cards.id, card.id) });
+    if (!existing) return;
+    await credit.enqueue(account, `business-approval:${credentialId}:${existing.id}`);
+    return;
+  }
+  segment.track({
+    event: "CardIssued",
+    userId: account,
+    properties: { productId: SIGNATURE_PRODUCT_ID, source: row.source },
+  });
+  notifyCardIssued(sardine, { credentialId, card });
+  await credit.enqueue(account, `business-approval:${credentialId}:${card.id}`);
+}
+
+export function cardLimit(credentialId: string, persona: ReturnType<typeof createPersona>) {
+  return persona
+    .getAccount(credentialId, "cardLimit")
+    .then((profile) =>
+      profile?.attributes.fields.card_limit_usd?.value == null
+        ? undefined
+        : profile.attributes.fields.card_limit_usd.value * 100,
+    );
+}
+
+export function notifyCardIssued(
+  sardine: ReturnType<typeof createSardine>,
+  {
+    card,
+    credentialId,
+  }: { card: Pick<PandaCard, "expirationMonth" | "expirationYear" | "id" | "last4">; credentialId: string },
+) {
+  sardine
+    .customer({
+      flow: { name: "card.issued", type: "payment_method_link" },
+      customer: { id: credentialId, type: "customer" },
+      transaction: {
+        id: card.id,
+        paymentMethod: {
+          type: "card",
+          card: {
+            hash: card.id,
+            last4: card.last4,
+            expiryMonth: card.expirationMonth,
+            expiryYear: card.expirationYear,
+          },
+        },
+      },
+    })
+    .catch((error: unknown) => captureException(error, { level: "error" }));
+}
+
 export function createMutex(address: Address) {
   const mutex = withTimeout(
     new Mutex(),
@@ -1062,18 +1229,6 @@ const ApplicationResponse = object({
   id: pipe(string(), maxLength(50)),
   applicationStatus: pipe(string(), maxLength(50)),
 });
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 const ApplicationStatusResponse = object({
   id: string(),

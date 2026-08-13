@@ -1,6 +1,6 @@
 import { captureException, setContext, setUser, startSpan } from "@sentry/node";
 import createDebug from "debug";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
@@ -30,16 +30,18 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { Address, Hex } from "@exactly/common/validation";
 
-import { credentials, walletAddresses } from "../database/schema";
+import { cards, credentials, walletAddresses } from "../database/schema";
 import { isBusinessSalt } from "../utils/createCredential";
 import decodePublicKey from "../utils/decodePublicKey";
 import {
+  activeCardStatuses,
   Application,
   UpdateApplicationRequest as ApplicationUpdate,
   BusinessApplicationError,
   CompanyApplicationResponse,
   CompanyApplicationStatusResponse,
   createMutex,
+  finalizeBusinessApproval,
   getMutex,
 } from "../utils/panda";
 import {
@@ -59,6 +61,9 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type createPanda from "../utils/panda";
 import type createPersona from "../utils/persona";
+import type createSardine from "../utils/sardine";
+import type createSegment from "../utils/segment";
+import type createCredit from "../workers/credit/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const debug = createDebug("exa:kyc");
@@ -88,14 +93,20 @@ function buildBaseResponse(example = "string") {
 
 export default function route({
   auth,
+  credit,
   database,
   panda,
   persona,
+  sardine,
+  segment,
 }: {
   auth: Auth;
+  credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
   persona: ReturnType<typeof createPersona>;
+  sardine: ReturnType<typeof createSardine>;
+  segment: ReturnType<typeof createSegment>;
 }) {
   return new Hono()
     .get(
@@ -546,9 +557,8 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       ),
       async (c) => {
         const payload = c.req.valid("json");
-        const isBusiness = c.req.valid("query")?.accountType === "business";
         const credentialId = c.req.valid("cookie").credentialId;
-        if (isBusiness) {
+        if (c.req.valid("query")?.accountType === "business") {
           const credential = await database.query.credentials.findFirst({
             columns: { account: true, salt: true },
             where: eq(credentials.id, credentialId),
@@ -565,12 +575,35 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             });
             if (!current) return c.json({ code: "no credential" }, 500);
             try {
-              if (current.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+              if (current.pandaId) {
+                const existing = await database.query.cards.findFirst({
+                  columns: { id: true },
+                  where: and(eq(cards.credentialId, credentialId), inArray(cards.status, activeCardStatuses)),
+                });
+                if (existing) {
+                  if (current.pandaCompanyId) {
+                    const application = await panda.getCompanyStatus(current.pandaCompanyId);
+                    if (application.applicationStatus === "approved")
+                      await finalizeBusinessApproval(credentialId, current.pandaCompanyId, account, database, panda, {
+                        credit,
+                        persona,
+                        sardine,
+                        segment,
+                      });
+                  }
+                  return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+                }
+              }
               const application = current.pandaCompanyId
                 ? await panda.getCompanyStatus(current.pandaCompanyId)
                 : await panda
                     .createCompanyApplication(
-                      await panda.businessApplication(credentialId, account, c.req.header("do-connecting-ip"), persona),
+                      await panda.businessApplication(
+                        credentialId,
+                        account,
+                        c.req.header("do-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim(),
+                        persona,
+                      ),
                       { idempotencyKey: `business-application:${credentialId}` },
                     )
                     .then(async (result) => {
@@ -585,6 +618,14 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                 ["denied", "locked", "canceled"].includes(application.applicationStatus)
               )
                 return c.json({ code: "bad kyb", legacy: "kyb not approved" }, 400);
+              if (application.applicationStatus === "approved") {
+                await finalizeBusinessApproval(credentialId, application.id, account, database, panda, {
+                  credit,
+                  persona,
+                  sardine,
+                  segment,
+                });
+              }
               setUser({ id: account });
               return c.json(application, 200);
             } catch (error) {
