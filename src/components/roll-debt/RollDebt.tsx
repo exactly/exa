@@ -34,6 +34,7 @@ import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import Skeleton from "../shared/Skeleton";
+import ExaSpinner from "../shared/Spinner";
 import Button from "../shared/StyledButton";
 
 export default function Pay() {
@@ -44,7 +45,7 @@ export default function Pay() {
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { market: exaUSDC, timestamp } = useAsset(marketUSDCAddress);
+  const { market: exaUSDC, timestamp, isFetching } = useAsset(marketUSDCAddress);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
     useLocalSearchParams().maturity,
@@ -81,7 +82,13 @@ export default function Pay() {
   });
 
   if (!success) return <Redirect href="/(main)/(home)" />;
-  if (!exaUSDC) return null;
+  if (!address || !exaUSDC || (!borrow && isFetching)) {
+    return (
+      <SafeView fullScreen justifyContent="center" alignItems="center">
+        <ExaSpinner backgroundColor="transparent" />
+      </SafeView>
+    );
+  }
   if (!borrow) return <Redirect href="/(main)/(home)" />;
 
   const previewValue = (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals);
