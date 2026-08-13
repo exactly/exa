@@ -15,10 +15,13 @@ import {
   InvalidInputRpcError,
   isHash,
   keccak256,
+  parseSignature,
+  publicActions,
   RawContractError,
   rpcSchema,
   WaitForTransactionReceiptTimeoutError,
   withRetry,
+  type AuthorizationRequest,
   type Chain,
   type LocalAccount,
   type MaybePromise,
@@ -30,6 +33,7 @@ import {
   type WriteContractParameters,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { hashAuthorization } from "viem/utils";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import { dataSuffix } from "@exactly/common/attribution";
@@ -60,10 +64,9 @@ export default function wallet(account: LocalAccount, network: Chain = chain) {
     transport,
     rpcSchema: rpcSchema<RpcSchema>(),
   }).extend(traceActions);
-  return createWalletClient({ chain: network, transport, account }).extend((client) => ({
-    ...extender(client, { publicClient, traceClient: publicClient }),
-    getCode: publicClient.getCode,
-  }));
+  return createWalletClient({ chain: network, transport, account })
+    .extend(publicActions)
+    .extend((keeper) => extender(keeper, { publicClient, traceClient: publicClient }));
 }
 
 export function extender(
@@ -235,7 +238,7 @@ export function extender(
   };
 }
 
-export async function signer(name: string): Promise<LocalAccount> {
+export async function signer(name: string) {
   const kmsClient = new KeyManagementServiceClient();
   const account = await withRetry(
     async () =>
@@ -267,8 +270,18 @@ export async function signer(name: string): Promise<LocalAccount> {
           ["NetworkError", "TimeoutError"].includes(error.name)),
     },
   );
-  account.nonceManager = nonceManager;
-  return account;
+  let { signAuthorization } = account;
+  if (!signAuthorization) {
+    const { sign } = account;
+    if (!sign) throw new Error("signer cannot sign");
+    signAuthorization = async (authorization: AuthorizationRequest) => ({
+      address: authorization.contractAddress ?? authorization.address,
+      chainId: authorization.chainId,
+      nonce: authorization.nonce,
+      ...parseSignature(await sign({ hash: hashAuthorization(authorization) })),
+    });
+  }
+  return Object.assign(account, { nonceManager, signAuthorization });
 }
 
 /** @deprecated remove with the monolith */
