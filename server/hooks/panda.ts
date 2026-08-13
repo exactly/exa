@@ -52,14 +52,18 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
+import { isBusinessSalt } from "../utils/createCredential";
 import {
   collectors,
   createMutex,
   declineMessage,
+  finalizeApproval,
   getMutex,
+  isCardLocked,
   Payload,
   signIssuerOp,
   TransactionPayload,
+  withMutex,
   type Transaction,
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -73,8 +77,10 @@ import { name as refundName } from "../workers/refund/job";
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createPanda from "../utils/panda";
+import type createPersona from "../utils/persona";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
+import type createCredit from "../workers/credit/queue";
 import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -84,20 +90,24 @@ const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default function hook({
+  credit,
   database,
   issuer,
   onesignal,
   panda,
+  persona,
   refund,
   sardine,
   segment,
   settler,
   webhook,
 }: {
+  credit: ReturnType<typeof createCredit>;
   database: Database;
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  persona: ReturnType<typeof createPersona>;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -119,6 +129,31 @@ export default function hook({
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
       if (payload.resource !== "transaction") {
+        if (payload.resource === "application") return c.json({ code: "ok" });
+        if (payload.resource === "company") {
+          if (payload.body.applicationStatus !== "approved") return c.json({ code: "ok" });
+          const company = await panda.getCompany(payload.body.id);
+          const credential = company?.externalId
+            ? await database.query.credentials.findFirst({
+                columns: { account: true, id: true, salt: true },
+                where: eq(credentials.id, company.externalId),
+              })
+            : undefined;
+          if (!credential) return c.json({ code: "retry" }, 500);
+          if (isBusinessSalt(v.parse(Address, credential.salt))) {
+            const account = v.parse(Address, credential.account);
+            setUser({ id: account });
+            await withMutex(account, () =>
+              finalizeApproval(credential.id, payload.body.id, account, database, panda, {
+                credit,
+                persona,
+                sardine,
+                segment,
+              }),
+            );
+          }
+          return c.json({ code: "ok" });
+        }
         if (payload.resource === "dispute") return c.json({ code: "ok" });
         const pandaId =
           payload.resource === "card"
@@ -513,7 +548,7 @@ export default function hook({
               ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
             });
             const mutex = getMutex(account);
-            mutex?.release();
+            if (!isCardLocked(account)) mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
 
             const provider = payload.body.spend.declinedReason === "" ? undefined : payload.body.spend.declinedReason;
@@ -893,7 +928,8 @@ export default function hook({
             }
           } finally {
             const mutex = getMutex(account);
-            if (payload.action === "created" || payload.action === "updated") mutex?.release();
+            if ((payload.action === "created" || payload.action === "updated") && !isCardLocked(account))
+              mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
           }
         }

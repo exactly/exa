@@ -42,8 +42,16 @@ export default define({
       shared: ["manteca-api-url"],
     },
     panda: {
-      secrets: ["onesignal-api-key", "panda-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
-      shared: ["panda-api-url", "sardine-api-url"],
+      env: { BUSINESS_SALT: "businessSalt" },
+      secrets: [
+        "onesignal-api-key",
+        "panda-api-key",
+        "persona-api-key",
+        "postgres-url",
+        "sardine-api-key",
+        "segment-write-key",
+      ],
+      shared: ["panda-api-url", "persona-api-url", "sardine-api-url"],
       signers: ["settler", "issuer"],
     },
     persona: {
