@@ -721,6 +721,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                 schema: resolver(
                   union([
                     buildBaseResponse(BadRequestCodes.NOT_STARTED),
+                    object({ code: literal("not supported") }),
                     object({
                       ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
                       legacy: optional(pipe(string(), metadata({ examples: [BadRequestCodes.BAD_REQUEST] }))),
@@ -740,12 +741,15 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         const { credentialId } = c.req.valid("cookie");
         const payload = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true },
+          columns: { id: true, account: true, pandaId: true, salt: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
         setUser({ id: parse(Address, credential.account) });
         setContext("exa", { credential });
+        if (parse(Address, credential.salt) !== parse(Address, zeroAddress)) {
+          return c.json({ code: "not supported" }, 400);
+        }
         if (!credential.pandaId) {
           return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
         }

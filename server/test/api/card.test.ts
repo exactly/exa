@@ -546,6 +546,34 @@ describe("authenticated", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("rejects business card issuance", async () => {
+    const credentialId = "card-business";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x99", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "card-business-user",
+      salt: parse(Address, padHex("0x7e", { size: 20 })),
+    });
+    const getApplicationStatus = vi.spyOn(panda, "getApplicationStatus");
+    const getCards = vi.spyOn(panda, "getCards");
+    const createCard = vi.spyOn(panda, "createCard");
+
+    try {
+      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+      expect(getApplicationStatus).not.toHaveBeenCalled();
+      expect(getCards).not.toHaveBeenCalled();
+      expect(createCard).not.toHaveBeenCalled();
+      expect(credit.enqueue).not.toHaveBeenCalled();
+    } finally {
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
   it("throws when createCard fails with empty-body 403", async () => {
     const credentialId = "not-approved-empty";
     await database.insert(credentials).values({

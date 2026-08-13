@@ -12,11 +12,12 @@ import {
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import {
   BaseError,
+  bytesToHex,
   ContractFunctionRevertedError,
   decodeEventLog,
   encodeAbiParameters,
@@ -29,16 +30,18 @@ import {
   padHex,
   RawContractError,
   toBytes,
+  zeroAddress,
   zeroHash,
   type LocalAccount,
 } from "viem";
 
-import {
+import chain, {
   auditorAbi,
   exaPluginAbi,
   exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  firewallAddress,
   issuerCheckerAbi,
   marketAbi,
   proposalManagerAbi,
@@ -46,6 +49,7 @@ import {
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import revertReason from "@exactly/common/revertReason";
 import { Address, type Hash, type Hex } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
@@ -73,8 +77,10 @@ import { name as refundName } from "../workers/refund/job";
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createPanda from "../utils/panda";
+import type createPersona from "../utils/persona";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
+import type createAllow from "../workers/allow/queue";
 import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -84,20 +90,24 @@ const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default function hook({
+  allow,
   database,
   issuer,
   onesignal,
   panda,
+  persona,
   refund,
   sardine,
   segment,
   settler,
   webhook,
 }: {
+  allow: ReturnType<typeof createAllow>;
   database: Database;
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  persona: ReturnType<typeof createPersona>;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -119,6 +129,106 @@ export default function hook({
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
       if (payload.resource !== "transaction") {
+        if (payload.resource === "application") return c.json({ code: "ok" });
+        if (payload.resource === "company") {
+          if (payload.body.applicationStatus !== "approved") return c.json({ code: "ok" });
+          const company = await panda.getCompany(payload.body.id);
+          if (!company?.externalId) return c.json({ code: "ok" });
+          const credential = await database.query.credentials.findFirst({
+            columns: {
+              account: true,
+              factory: true,
+              id: true,
+              pandaId: true,
+              publicKey: true,
+              salt: true,
+              source: true,
+            },
+            where: eq(credentials.id, company.externalId),
+          });
+          if (!credential) return c.json({ code: "retry" }, 500);
+          const salt = v.parse(Address, credential.salt);
+          if (salt === v.parse(Address, zeroAddress)) return c.json({ code: "ok" });
+          const account = v.parse(Address, credential.account);
+          setUser({ id: account });
+          let userId = credential.pandaId;
+          if (!userId) {
+            const user = await panda
+              .getCompanyUsers(payload.body.id)
+              .then((users) =>
+                users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase()),
+              );
+            if (!user) throw new Error("company user not found");
+            await database.update(credentials).set({ pandaId: user.id }).where(eq(credentials.id, credential.id));
+            userId = user.id;
+          }
+          const localCard = await database.query.cards.findFirst({
+            columns: { id: true },
+            where: and(eq(cards.credentialId, credential.id), inArray(cards.status, ["ACTIVE", "FROZEN"])),
+          });
+          if (localCard) return c.json({ code: "ok" });
+          if (firewallAddress)
+            await allow.enqueue({
+              account,
+              chainId: chain.id,
+              factory: v.parse(Address, credential.factory),
+              publicKey: bytesToHex(credential.publicKey),
+              salt,
+              source: credential.source,
+            });
+          const card = await panda.createCard(userId, SIGNATURE_PRODUCT_ID, {
+            amount: await persona
+              .getAccount(credential.id, "cardLimit")
+              .then((profile) =>
+                profile?.attributes.fields.card_limit_usd?.value == null
+                  ? undefined
+                  : profile.attributes.fields.card_limit_usd.value * 100,
+              )
+              .catch((error: unknown) => {
+                captureException(error, {
+                  level: "error",
+                  contexts: { details: { credentialId: credential.id, scope: "cardLimit" } },
+                });
+                throw error;
+              }),
+            idempotencyKey: `business-card:${credential.id}:${payload.id}`,
+          });
+          const [inserted] = await database
+            .insert(cards)
+            .values({
+              id: card.id,
+              lastFour: card.last4,
+              credentialId: credential.id,
+              productId: SIGNATURE_PRODUCT_ID,
+            })
+            .onConflictDoNothing()
+            .returning({ id: cards.id });
+          if (!inserted) return c.json({ code: "ok" });
+          segment.track({
+            event: "CardIssued",
+            userId: account,
+            properties: { productId: SIGNATURE_PRODUCT_ID, source: credential.source },
+          });
+          sardine
+            .customer({
+              flow: { name: "card.issued", type: "payment_method_link" },
+              customer: { id: credential.id, type: "customer" },
+              transaction: {
+                id: card.id,
+                paymentMethod: {
+                  type: "card",
+                  card: {
+                    hash: card.id,
+                    last4: card.last4,
+                    expiryMonth: card.expirationMonth,
+                    expiryYear: card.expirationYear,
+                  },
+                },
+              },
+            })
+            .catch((error: unknown) => captureException(error, { level: "error" }));
+          return c.json({ code: "ok" });
+        }
         if (payload.resource === "dispute") return c.json({ code: "ok" });
         const pandaId =
           payload.resource === "card"
