@@ -2,9 +2,11 @@ import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/panda";
 import "../mocks/persona";
+import "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, setUser } from "@sentry/node";
 import canonicalize from "canonicalize";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -18,10 +20,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, i
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import route from "../../api/kyc";
-import database, { credentials, organizations, sources } from "../../database";
+import database, { cards, credentials, organizations, sources } from "../../database";
 import authenticate from "../../middleware/auth";
 import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
@@ -29,8 +32,12 @@ import createPanda, * as Panda from "../../utils/panda";
 import createPersona, * as Persona from "../../utils/persona";
 import { BusinessApplicationError, scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
+import createSardine from "../../utils/sardine";
+import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 
+import type createAllow from "../../workers/allow/queue";
+import type createCredit from "../../workers/credit/queue";
 import type * as v from "valibot";
 
 const auth = createAuth(database, authSecret);
@@ -48,11 +55,23 @@ const persona = Object.assign(
   ),
   Persona,
 );
+const allow = {
+  close: vi.fn(() => Promise.resolve()),
+  enqueue: vi.fn(() => Promise.resolve()),
+} satisfies ReturnType<typeof createAllow>;
+const credit = {
+  close: vi.fn(() => Promise.resolve()),
+  enqueue: vi.fn(() => Promise.resolve()),
+} satisfies ReturnType<typeof createCredit>;
 const app = route({
+  allow,
   auth: authenticate(""),
+  credit,
   database,
   panda,
   persona,
+  sardine: createSardine("sardine", "https://sardine.test"),
+  segment: createSegment("segment"),
 });
 const appClient = testClient(app);
 
@@ -2587,8 +2606,8 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
     });
 
     describe("business application", () => {
-      const businessId = "bob-business";
-      const businessAccount = parse(Address, padHex("0xb0d", { size: 20 }));
+      const businessId = "business-kyc";
+      const businessAccount = parse(Address, padHex("0xb055", { size: 20 }));
       const businessSalt = parse(Address, env.BUSINESS_SALT);
       const businessFields = {
         business_name_2: "Account Acme",
@@ -2667,6 +2686,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
       });
 
       afterEach(async () => {
+        await database.delete(cards).where(eq(cards.credentialId, businessId));
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, businessId));
       });
 
@@ -2681,6 +2701,20 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual(pendingApplication);
+      });
+
+      it("rejects individual application updates", async () => {
+        const update = vi.spyOn(panda, "updateApplication");
+        await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, businessId));
+
+        const response = await appClient.application.$patch(
+          { json: { firstName: "john-updated" } },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(update).not.toHaveBeenCalled();
       });
 
       it("serializes business inquiry creation", async () => {
@@ -2772,15 +2806,20 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
       it("returns conflict when a business application already started", async () => {
         await database.update(credentials).set({ pandaId: "panda-id" }).where(eq(credentials.id, businessId));
+        await database.insert(cards).values({
+          id: "business-conflict-card",
+          credentialId: businessId,
+          lastFour: "1234",
+        });
         const businessApplication = vi.spyOn(panda, "businessApplication");
-        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication");
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
         const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
 
         const response = await postApplication();
 
         expect(response.status).toBe(409);
         expect(businessApplication).not.toHaveBeenCalled();
-        expect(getCompanyApplication).not.toHaveBeenCalled();
+        expect(getCompanyApplication).toHaveBeenCalledExactlyOnceWith(businessId);
         expect(createCompanyApplication).not.toHaveBeenCalled();
         await expect(response.json()).resolves.toStrictEqual({ code: "already started" });
       });
@@ -2800,8 +2839,8 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
       });
 
       it("returns bad request for a Panda validation error", async () => {
-        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
         mockProfile();
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
         vi.spyOn(panda, "createCompanyApplication").mockRejectedValueOnce(
           new ServiceError("Panda", 400, '{"message":"invalid company"}', undefined, "invalid company"),
         );
@@ -2813,6 +2852,129 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
           code: "bad request",
           message: ["invalid company"],
         });
+      });
+
+      it("finalizes an approved company application", async () => {
+        mockProfile();
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+          id: "account-id",
+          type: "account",
+          attributes: { fields: {} },
+        } as Persona.AccountOutput<"cardLimit">);
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(panda, "createCompanyApplication").mockResolvedValue({
+          id: "company-approved",
+          name: "Account Acme",
+          address: {
+            line1: "1 Main St",
+            city: "New York",
+            region: "NY",
+            postalCode: "10001",
+            countryCode: "US",
+          },
+          applicationStatus: "approved",
+        });
+        vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user", walletAddress: businessAccount }]);
+        vi.spyOn(panda, "getCards").mockResolvedValue([]);
+        const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+          id: "business-card",
+          userId: "business-user",
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          last4: "1234",
+          expirationMonth: "12",
+          expirationYear: "2030",
+        });
+
+        const response = await postApplication({ "do-connecting-ip": "127.0.0.1", "account-type": "business" });
+
+        const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, businessId) });
+        const card = await database.query.cards.findFirst({ where: eq(cards.id, "business-card") });
+        expect(response.status).toBe(200);
+        expect(card).toMatchObject({
+          credentialId: businessId,
+          lastFour: "1234",
+          productId: SIGNATURE_PRODUCT_ID,
+        });
+        expect(credential).toMatchObject({ pandaId: "business-user" });
+        expect(createCard.mock.calls[0]?.slice(0, 2)).toStrictEqual(["business-user", SIGNATURE_PRODUCT_ID]);
+      });
+
+      it("sets sentry user before business finalization failures", async () => {
+        vi.mocked(captureException).mockClear();
+        vi.mocked(setUser).mockClear();
+        await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, businessId));
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: "company-approved",
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user" }]);
+        vi.spyOn(panda, "getCards").mockResolvedValue([]);
+        const error = new Error("persona unavailable");
+        vi.spyOn(persona, "getAccount").mockRejectedValue(error);
+
+        const response = await postApplication({ "do-connecting-ip": "127.0.0.1", "account-type": "business" });
+
+        expect(response.status).toBe(500);
+        expect(captureException).toHaveBeenCalledWith(
+          error,
+          expect.objectContaining({ contexts: { details: { credentialId: businessId, scope: "cardLimit" } } }),
+        );
+        expect(setUser).toHaveBeenCalledWith({ id: businessAccount });
+        expect(vi.mocked(setUser).mock.invocationCallOrder[0]).toBeLessThan(
+          vi.mocked(captureException).mock.invocationCallOrder[0] ?? 0,
+        );
+      });
+
+      it("resumes finalization when the panda user exists without a card", async () => {
+        await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, businessId));
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: "company-approved",
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user" }]);
+        vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(panda, "getCards").mockResolvedValue([]);
+        const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+          id: "business-card",
+          userId: "business-user",
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          last4: "1234",
+          expirationMonth: "12",
+          expirationYear: "2030",
+        });
+
+        const response = await postApplication({ "do-connecting-ip": "127.0.0.1", "account-type": "business" });
+
+        const card = await database.query.cards.findFirst({ where: eq(cards.id, "business-card") });
+        expect(response.status).toBe(200);
+        expect(createCard).toHaveBeenCalled();
+        expect(card).toMatchObject({ credentialId: businessId });
+      });
+
+      it("retries credit when an approved business card already exists", async () => {
+        await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, businessId));
+        await database.insert(cards).values({ id: "business-retry-card", credentialId: businessId, lastFour: "1234" });
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: "company-approved",
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user" }]);
+        credit.enqueue.mockClear();
+
+        const response = await postApplication({ "account-type": "business" });
+
+        expect(response.status).toBe(409);
+        expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+          businessAccount,
+          "business-approval:business-kyc:business-retry-card",
+        );
       });
 
       it("returns bad request when a business application includes a verify payload", async () => {
@@ -2924,7 +3086,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
       it("returns company application status", async () => {
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
           id: businessId,
-          applicationStatus: "approved",
+          applicationStatus: "pending",
           applicationReason: "",
         });
 
@@ -2938,9 +3100,136 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
         await expect(response.json()).resolves.toStrictEqual({
           code: "ok",
           legacy: "ok",
+          status: "pending",
+          reason: "",
+        });
+      });
+
+      it("finalizes an approved company when the status is polled", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: "company-approved",
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        const getCompanyUsers = vi
+          .spyOn(panda, "getCompanyUsers")
+          .mockResolvedValue([{ id: "business-user", walletAddress: businessAccount }]);
+        vi.spyOn(panda, "getCards").mockResolvedValue([]);
+        vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+          id: "polled-card",
+          userId: "business-user",
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          last4: "1234",
+          expirationMonth: "12",
+          expirationYear: "2030",
+        });
+        allow.enqueue.mockClear();
+        credit.enqueue.mockClear();
+
+        const response = await appClient.application.$get(
+          { query: {} },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "ok",
+          legacy: "ok",
           status: "approved",
           reason: "",
         });
+        expect(getCompanyUsers).toHaveBeenCalledExactlyOnceWith("company-approved");
+        expect(createCard).toHaveBeenCalledWith("business-user", SIGNATURE_PRODUCT_ID, expect.anything());
+        expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({ account: businessAccount, salt: businessSalt }),
+        );
+        expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+          businessAccount,
+          "business-approval:business-kyc:polled-card",
+        );
+        await expect(
+          database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, businessId) }),
+        ).resolves.toMatchObject({ pandaId: "business-user" });
+      });
+
+      it("retries credit when polling an approved company that already has an active card", async () => {
+        await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, businessId));
+        await database.insert(cards).values({ id: "business-poll-card", credentialId: businessId, lastFour: "1234" });
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: "company-approved",
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user" }]);
+        const createCard = vi.spyOn(panda, "createCard");
+        credit.enqueue.mockClear();
+
+        const response = await appClient.application.$get(
+          { query: {} },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "ok",
+          legacy: "ok",
+          status: "approved",
+          reason: "",
+        });
+        expect(getCompanyUsers).toHaveBeenCalledExactlyOnceWith("company-approved");
+        expect(createCard).not.toHaveBeenCalled();
+        expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+          businessAccount,
+          "business-approval:business-kyc:business-poll-card",
+        );
+      });
+
+      it("finalizes an approved company once when a webhook finalization is concurrent", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: "company-approved-race",
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        const getCompanyUsers = vi
+          .spyOn(panda, "getCompanyUsers")
+          .mockResolvedValue([{ id: "business-user", walletAddress: businessAccount }]);
+        vi.spyOn(panda, "getCards").mockResolvedValue([]);
+        vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+          id: "raced-card",
+          userId: "business-user",
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          last4: "1234",
+          expirationMonth: "12",
+          expirationYear: "2030",
+        });
+        credit.enqueue.mockClear();
+
+        const webhook = Panda.withMutex(businessAccount, async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          await Panda.finalizeApproval(businessId, "company-approved-race", businessAccount, database, panda, {
+            allow,
+            credit,
+            persona,
+            sardine: createSardine("sardine", "https://sardine.test"),
+            segment: createSegment("segment"),
+          });
+        });
+        await vi.waitUntil(() => Panda.getMutex(businessAccount) !== undefined, 26_666);
+        const poll = await appClient.application.$get(
+          { query: {} },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+        await webhook;
+
+        expect(poll.status).toBe(500);
+        expect(createCard).toHaveBeenCalledTimes(1);
+        expect(getCompanyUsers).toHaveBeenCalledTimes(1);
       });
 
       it("returns company application verification links", async () => {

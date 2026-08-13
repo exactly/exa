@@ -86,6 +86,7 @@ const walletExtension = createWalletExtension(
 );
 setupMaturity(onesignal);
 const api = createApi({
+  allow,
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
   credit,
@@ -126,10 +127,13 @@ const mantecaHook = createMantecaHook({
   segment,
 });
 const pandaHook = createPandaHook({
+  allow,
+  credit,
   database,
   issuer,
   onesignal,
   panda,
+  persona,
   refund,
   sardine,
   segment,

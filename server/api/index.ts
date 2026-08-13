@@ -27,12 +27,14 @@ import type createManteca from "../utils/ramps/manteca";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
+import type createAllow from "../workers/allow/queue";
 import type createCredit from "../workers/credit/queue";
 import type createSubscribe from "../workers/subscribe/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
 export default function api({
+  allow,
   authSecret,
   bridge,
   credit,
@@ -48,6 +50,7 @@ export default function api({
   subscribe,
   walletExtension,
 }: {
+  allow: ReturnType<typeof createAllow>;
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
   credit: ReturnType<typeof createCredit>;
@@ -80,8 +83,8 @@ export default function api({
       authentication({ authSecret, createCredential: credential, database, intercom, redis, walletExtension }),
     )
     .route("/activity", activity({ auth, database }))
-    .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
-    .route("/kyc", kyc({ auth, database, panda, persona }))
+    .route("/card", card({ allow, auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/kyc", kyc({ allow, auth, credit, database, panda, persona, sardine, segment }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
     .route("/ramp", ramp({ auth, bridge, database, manteca, persona }))

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as Supervise from "../../supervise";
 
+const allow = { close: vi.fn<() => Promise<void>>() };
 const bridge = {};
 const credit = { close: vi.fn<() => Promise<void>>() };
 const database = { $client: { end: vi.fn<() => Promise<void>>() } };
@@ -16,6 +17,7 @@ const segment = { close: vi.fn<() => Promise<void>>() };
 const subscribe = { close: vi.fn<() => Promise<void>>() };
 const walletExtension = {};
 const mocks = {
+  allow: vi.fn<(bullmq: object) => typeof allow>(),
   api: vi.fn<(config: Record<string, unknown>) => Hook>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
   credit: vi.fn<(bullmq: object) => typeof credit>(),
@@ -43,6 +45,7 @@ beforeEach(() => {
     app: new Hono().get("/", (c) => c.json({ status: "ok" })),
     ready: Promise.resolve(),
   });
+  mocks.allow.mockReset().mockReturnValue(allow);
   mocks.bridge.mockReset().mockReturnValue(bridge);
   mocks.credit.mockReset().mockReturnValue(credit);
   mocks.drizzle.mockReset().mockReturnValue(database);
@@ -81,6 +84,7 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/walletExtension", () => ({ default: mocks.walletExtension }));
+  vi.doMock("../../workers/allow/queue", () => ({ default: mocks.allow }));
   vi.doMock("../../workers/credit/queue", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/subscribe/queue", () => ({ default: mocks.subscribe }));
 });
@@ -115,6 +119,7 @@ describe("api bin", () => {
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith({
+      allow,
       authSecret: "api-auth-secret",
       bridge,
       credit,
