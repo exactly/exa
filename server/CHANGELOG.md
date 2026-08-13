@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.110
+
+### Patch Changes
+
+- [#1218](https://github.com/exactly/exa/pull/1218) [`eb174ec`](https://github.com/exactly/exa/commit/eb174ecd67c3d288da1a1364dc5405fefafb2c6a) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 include debt manager repays
+
 ## 0.2.109
 
 ### Patch Changes

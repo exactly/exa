@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.2.21
+
+### Patch Changes
+
+- [#1221](https://github.com/exactly/exa/pull/1221) [`6b5f87a`](https://github.com/exactly/exa/commit/6b5f87a9e36e2dea91eaa0fec163657837a79dd8) Thanks [@franm91](https://github.com/franm91)! - 🌐 fix literal ramp translations
+
+- Updated dependencies [[`eb174ec`](https://github.com/exactly/exa/commit/eb174ecd67c3d288da1a1364dc5405fefafb2c6a), [`eb174ec`](https://github.com/exactly/exa/commit/eb174ecd67c3d288da1a1364dc5405fefafb2c6a)]:
+  - @exactly/server@0.2.110
+  - @exactly/common@0.0.18
+
 ## 1.2.20
 
 ### Patch Changes

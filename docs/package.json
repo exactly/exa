@@ -18,8 +18,8 @@
   "devDependencies": {
     "@astrojs/starlight": "^0.41.3",
     "@eslint/markdown": "^8.0.3",
-    "@exactly/common": "workspace:^0.0.17",
-    "@exactly/server": "workspace:^0.2.109",
+    "@exactly/common": "workspace:^0.0.18",
+    "@exactly/server": "workspace:^0.2.110",
     "astro": "^7.1.1",
     "astro-mermaid": "^2.1.0",
     "eslint": "catalog:",
