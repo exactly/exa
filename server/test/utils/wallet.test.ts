@@ -8,6 +8,7 @@ import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
 import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, padHex, RawContractError } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { recoverAuthorizationAddress } from "viem/utils";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import { dataSuffix } from "@exactly/common/attribution";
@@ -80,6 +81,23 @@ describe("legacy", () => {
 });
 
 describe("signer", () => {
+  it("adds authorization signing", async () => {
+    const account = privateKeyToAccount(padHex("0x1234"));
+    mocks.gcpHsmToAccount.mockResolvedValue({ ...account, signAuthorization: undefined, source: "gcpHsm" });
+    vi.stubEnv("GCP_KMS_LOCATION", "us-west1");
+
+    const loaded = await source.signer("allower", kms);
+    const authorization = await loaded.signAuthorization({
+      chainId: chain.id,
+      contractAddress: account.address,
+      nonce: 0,
+    });
+
+    await expect(recoverAuthorizationAddress({ authorization })).resolves.toBe(account.address);
+    expect(loaded.nonceManager).toBe(nonceManager);
+    expect(loaded.source).toBe("gcpHsm");
+  });
+
   it.each([
     ["configured", "42", "42"],
     ["empty", "", "1"],
