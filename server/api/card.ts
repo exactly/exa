@@ -40,6 +40,18 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { isBusinessSalt } from "../utils/createCredential";
+import {
+  activeStatuses,
+  adoptOrphanCard,
+  cardLimit,
+  createMutex as createAccountMutex,
+  deleteMutex as deleteAccountMutex,
+  finalizeApproval,
+  getMutex,
+  issuanceKey,
+  notifyCardIssued,
+} from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -175,6 +187,23 @@ export default function route({
     const mutex = new Mutex();
     mutexes.set(credentialId, mutex);
     return mutex;
+  }
+  async function cardMutex(credentialId: string) {
+    const account = await database.query.credentials
+      .findFirst({ columns: { account: true, salt: true }, where: eq(credentials.id, credentialId) })
+      .then((row) => (row && isBusinessSalt(parse(Address, row.salt)) ? parse(Address, row.account) : undefined));
+    const mutex = account
+      ? (getMutex(account) ?? createAccountMutex(account))
+      : (mutexes.get(credentialId) ?? createMutex(credentialId));
+    return {
+      account,
+      mutex,
+      release: () => {
+        if (mutex.isLocked()) return;
+        if (account) deleteAccountMutex(account);
+        else mutexes.delete(credentialId);
+      },
+    };
   }
   return new Hono()
     .get(
@@ -555,12 +584,12 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       }),
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
-        const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
+        const { account: mutexAccount, mutex, release } = await cardMutex(credentialId);
         return mutex
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, credentialId),
-              columns: { account: true, pandaId: true, source: true },
+              columns: { account: true, pandaId: true, salt: true, source: true },
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
@@ -579,7 +608,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
             );
 
-            const activeCards = credential.cards.filter(({ status }) => status === "ACTIVE" || status === "FROZEN");
+            const activeCards = credential.cards.filter(({ status }) => activeStatuses.includes(status));
 
             let cardCount = activeCards.length;
             for (const card of activeCards) {
@@ -599,62 +628,62 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 }
               }
             }
-            if (cardCount > 0) return c.json({ code: "already created" }, 400);
+            if (cardCount > 0) {
+              if (mutexAccount) {
+                const application = await panda.getCompanyApplication(credentialId);
+                if (application?.applicationStatus === "approved")
+                  await finalizeApproval(credentialId, application.id, account, database, panda, {
+                    credit,
+                    persona,
+                    sardine,
+                    segment,
+                  });
+              }
+              return c.json({ code: "already created" }, 400);
+            }
             try {
-              const kyc = await panda.getApplicationStatus(pandaId);
+              const kyc = mutexAccount
+                ? await panda.getCompanyApplication(credentialId)
+                : await panda.getApplicationStatus(pandaId);
+              if (!kyc) return c.json({ code: "no panda" }, 403);
               if (kyc.applicationStatus !== "approved") {
                 return c.json({ code: "kyc not approved" }, 403);
               }
+              if (mutexAccount) {
+                const users = await panda.getCompanyUsers(kyc.id);
+                if (!users.some(({ id }) => id === pandaId)) return c.json({ code: "no panda" }, 403);
+              }
               const productId =
-                chain.id === base.id
-                  ? credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG" // cspell:ignore azbh
-                    ? SIGNATURE_PRODUCT_ID
-                    : BASE_PRODUCT_ID
+                chain.id === base.id && !mutexAccount && credential.source !== "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG" // cspell:ignore azbh
+                  ? BASE_PRODUCT_ID
                   : SIGNATURE_PRODUCT_ID;
-              const card = await panda
-                .getCards(pandaId)
-                .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
-                .then(async (orphan) => {
-                  if (orphan) {
-                    captureException(new Error("orphan card adopted"), {
-                      level: "warning",
-                      fingerprint: ["orphan-card-adopted"],
-                      extra: {
-                        credentialId,
-                        pandaId,
-                        cardId: orphan.id,
-                      },
+              const card =
+                (await adoptOrphanCard(panda, { credentialId, userId: pandaId })) ??
+                (await panda.createCard(pandaId, productId, {
+                  amount: await cardLimit(credentialId, persona).catch((error: unknown): undefined => {
+                    if (mutexAccount) throw error;
+                    captureException(error, {
+                      level: "error",
+                      contexts: { details: { credentialId, scope: "cardLimit" } },
                     });
-                    return orphan;
-                  } else {
-                    return panda.createCard(
-                      pandaId,
-                      productId,
-                      await persona
-                        .getAccount(credentialId, "cardLimit")
-                        .then((profile) =>
-                          profile?.attributes.fields.card_limit_usd?.value == null
-                            ? undefined
-                            : profile.attributes.fields.card_limit_usd.value * 100,
-                        )
-                        .catch((error: unknown): undefined => {
-                          captureException(error, {
-                            level: "error",
-                            contexts: { details: { credentialId, scope: "cardLimit" } },
-                          });
-                        }),
-                    );
-                  }
-                });
+                  }),
+                  ...(mutexAccount && {
+                    idempotencyKey: issuanceKey(credentialId, credential.cards, activeCards.length - cardCount),
+                  }),
+                }));
 
-              await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
-              await credit.enqueue(account).catch((error: unknown) =>
-                captureException(error, {
-                  level: "error",
-                  tags: { queue: creditName, job: creditName },
-                  extra: { account },
-                }),
-              );
+              const [inserted] = await database
+                .insert(cards)
+                .values([{ id: card.id, credentialId, lastFour: card.last4, productId }])
+                .onConflictDoNothing()
+                .returning({ id: cards.id });
+              if (!inserted)
+                return c.json(
+                  { lastFour: card.last4, status: "ACTIVE", cardId: card.id, productId } satisfies InferOutput<
+                    typeof CreatedCardResponse
+                  >,
+                  200,
+                );
               segment.track({
                 event: "CardIssued",
                 userId: account,
@@ -663,24 +692,17 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
 
               if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
 
-              sardine
-                .customer({
-                  flow: { name: "card.issued", type: "payment_method_link" },
-                  customer: { id: credentialId, type: "customer" },
-                  transaction: {
-                    id: card.id,
-                    paymentMethod: {
-                      type: "card",
-                      card: {
-                        hash: card.id,
-                        last4: card.last4,
-                        expiryMonth: card.expirationMonth,
-                        expiryYear: card.expirationYear,
-                      },
-                    },
-                  },
-                })
-                .catch((error: unknown) => captureException(error, { level: "error" }));
+              notifyCardIssued(sardine, { credentialId, card });
+
+              await (mutexAccount
+                ? credit.enqueue(account, `business-approval:${credentialId}:${card.id}`)
+                : credit.enqueue(account).catch((error: unknown) =>
+                    captureException(error, {
+                      level: "error",
+                      tags: { queue: creditName, job: creditName },
+                      extra: { account },
+                    }),
+                  ));
 
               return c.json(
                 {
@@ -730,9 +752,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               return c.json({ code: "no panda" }, 403);
             }
           })
-          .finally(() => {
-            if (!mutex.isLocked()) mutexes.delete(credentialId);
-          });
+          .finally(release);
       },
     )
     .patch(
@@ -839,7 +859,7 @@ async function encryptPIN(pin: string) {
       async (c) => {
         const patch = c.req.valid("json");
         const { credentialId } = c.req.valid("cookie");
-        const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
+        const { mutex, release } = await cardMutex(credentialId);
         return mutex
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
@@ -970,9 +990,7 @@ async function encryptPIN(pin: string) {
               }
             }
           })
-          .finally(() => {
-            if (!mutex.isLocked()) mutexes.delete(credentialId);
-          });
+          .finally(release);
       },
     );
 }
