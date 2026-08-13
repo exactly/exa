@@ -52,10 +52,9 @@ jobs:
           rust=$!
           mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
           streamingfast=""
-          for source in firehose-ethereum:latest substreams:latest; do
-            repo="${source%%:*}"
-            release="${source#*:}"
-            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/streamingfast/$repo/releases/$release | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("linux_" + $arch)) | .browser_download_url')" | tar zxf - --exclude=LICENSE --exclude=README.md &
+          arch=$(uname -m | sed "s/aarch64/arm64/")
+          for repo in firehose-ethereum substreams; do
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/streamingfast/$repo/releases/latest/download/${repo}_linux_$arch.tar.gz" | tar zxf - --exclude=LICENSE --exclude=README.md &
             streamingfast="$streamingfast $!"
           done
           for pid in $streamingfast; do wait "$pid" || exit 1; done
@@ -148,10 +147,9 @@ jobs:
           rust=$!
           mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
           streamingfast=""
-          for source in firehose-ethereum:latest substreams:latest; do
-            repo="${source%%:*}"
-            release="${source#*:}"
-            curl --retry 5 --retry-all-errors --retry-delay 2 -L "$(curl --retry 5 --retry-all-errors --retry-delay 2 -sH "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/streamingfast/$repo/releases/$release | jq --arg arch "$(uname -m | sed 's/aarch64/arm64/')" -r '.assets[] | select(.browser_download_url | test("darwin_" + $arch)) | .browser_download_url')" | tar zxf - --exclude=LICENSE --exclude=README.md &
+          arch=$(uname -m | sed "s/aarch64/arm64/")
+          for repo in firehose-ethereum substreams; do
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/streamingfast/$repo/releases/latest/download/${repo}_darwin_$arch.tar.gz" | tar zxf - --exclude=LICENSE --exclude=README.md &
             streamingfast="$streamingfast $!"
           done
           for pid in $streamingfast; do wait "$pid" || exit 1; done
