@@ -56,6 +56,7 @@ import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
 import type createPersona from "./persona";
+import type { cards } from "../database/schema";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
     businessApplication,
@@ -63,7 +64,9 @@ export default function panda({ key, url }: { key: string; url: string }) {
     createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompany,
     getCompanyApplication,
+    getCompanyUsers,
     getCard,
     getCards,
     getNonce,
@@ -86,12 +89,12 @@ export default function panda({ key, url }: { key: string; url: string }) {
   async function createCard(
     userId: string,
     productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-    amount = 1_000_000,
+    { amount = 1_000_000, idempotencyKey }: { amount?: number; idempotencyKey?: string } = {},
   ) {
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
-      {},
+      idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
       parse(CreateCardRequest, {
         type: "virtual",
         status: "active",
@@ -136,6 +139,24 @@ export default function panda({ key, url }: { key: string; url: string }) {
       10_000,
     );
   }
+  function getCompany(companyId: string) {
+    return request(
+      object({ externalId: optional(nullable(string())), id: string() }),
+      `/issuing/companies/${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    )
+      .catch((error: unknown) => {
+        if (error instanceof ServiceError && error.status === 404) return;
+        throw error;
+      })
+      .then((company) => {
+        if (company && company.id !== companyId) throw new Error("panda company id mismatch");
+        return company;
+      });
+  }
   async function getCompanyApplication(externalId: string) {
     const application = await request(
       CompanyApplicationStatusResponse,
@@ -152,6 +173,16 @@ export default function panda({ key, url }: { key: string; url: string }) {
     if (application.externalId != null && application.externalId !== externalId)
       throw new Error("panda company external id mismatch");
     return application;
+  }
+  function getCompanyUsers(companyId: string) {
+    return request(
+      array(object({ companyId: optional(string()), id: string(), walletAddress: optional(string()) })),
+      `/issuing/users?companyId=${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -558,9 +589,33 @@ const Card = variant("action", [
   }),
 ]);
 
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
 export const Payload = variant("resource", [
   Transaction,
   Card,
+  object({
+    resource: literal("company"),
+    action: string(),
+    body: looseObject({ applicationStatus: optional(nullable(picklist(kycStatus))), id: string() }),
+    id: string(),
+  }),
+  object({
+    resource: literal("application"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
   object({
     resource: literal("dispute"),
     action: string(),
@@ -808,10 +863,32 @@ function businessApplication(
 }
 
 const mutexes = new Map<Address, MutexInterface>();
+export const activeStatuses: (typeof cards.$inferSelect.status)[] = ["ACTIVE", "FROZEN"];
+
+export function cardLimit(credentialId: string, persona: ReturnType<typeof createPersona>) {
+  return persona
+    .getAccount(credentialId, "cardLimit")
+    .then((profile) =>
+      profile?.attributes.fields.card_limit_usd?.value == null
+        ? undefined
+        : profile.attributes.fields.card_limit_usd.value * 100,
+    );
+}
+
+const cardLocks = new Set<Address>();
+
+export function markCardLock(address: Address, locked: boolean) {
+  if (locked) cardLocks.add(address);
+  else cardLocks.delete(address);
+}
+export function isCardLocked(address: Address) {
+  return cardLocks.has(address);
+}
+
 export function createMutex(address: Address) {
   const mutex = withTimeout(
     new Mutex(),
-    (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
+    ((proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default) * 1000,
   );
   mutexes.set(address, mutex);
   return mutex;
@@ -819,11 +896,23 @@ export function createMutex(address: Address) {
 export function getMutex(address: Address) {
   return mutexes.get(address);
 }
+export function deleteMutex(address: Address) {
+  mutexes.delete(address);
+}
 export function withMutex<T>(address: Address, task: () => Promise<T>) {
   const mutex = getMutex(address) ?? createMutex(address);
-  return mutex.runExclusive(task).finally(() => {
-    if (!mutex.isLocked()) mutexes.delete(address);
-  });
+  return mutex
+    .runExclusive(async () => {
+      markCardLock(address, true);
+      try {
+        return await task();
+      } finally {
+        markCardLock(address, false);
+      }
+    })
+    .finally(() => {
+      if (!mutex.isLocked()) mutexes.delete(address);
+    });
 }
 
 const AddressSchema = object({
@@ -962,18 +1051,6 @@ const ApplicationReview = {
   applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
   applicationReason: optional(nullable(string())),
 };
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 export const CompanyApplicationStatusResponse = object({
   ...ApplicationReview,
