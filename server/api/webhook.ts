@@ -63,6 +63,7 @@ const PatchResponse = object({
 
 const WebhookConfig = object({
   type: picklist(["integrator", "uphold"]),
+  cardArtId: optional(string()),
   webhooks: record(string(), object({ ...BaseWebhook.entries, secret: string() })),
 });
 
@@ -506,7 +507,7 @@ export default new Hono()
         const config = parse(WebhookConfig, source.config);
         if (!config.webhooks[name]) return c.json({ code: "not found" as const }, 404);
         const { [name]: _, ...remainingWebhooks } = config.webhooks;
-        await (Object.keys(remainingWebhooks).length === 0
+        await (Object.keys(remainingWebhooks).length === 0 && config.cardArtId === undefined
           ? database.delete(sources).where(eq(sources.id, id))
           : database
               .update(sources)

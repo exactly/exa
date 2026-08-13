@@ -558,6 +558,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 columns: { id: true, status: true, productId: true },
                 where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
               },
+              sourceConfig: { columns: { config: true } },
             },
           });
           if (!credential) return c.json({ code: "no credential" }, 500);
@@ -633,6 +634,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                           contexts: { details: { credentialId, scope: "cardLimit" } },
                         });
                       }),
+                    parse(object({ cardArtId: optional(string()) }), credential.sourceConfig?.config ?? {}).cardArtId,
                   );
                 }
               });

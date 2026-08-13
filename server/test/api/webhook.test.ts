@@ -373,6 +373,22 @@ describe("webhook", () => {
         expect((after?.config as { webhooks: { test: { secret: string } } }).webhooks.test.secret).toBe(originalSecret);
       });
 
+      it("preserves card art when updating a webhook", async () => {
+        await database.insert(sources).values({
+          id,
+          config: { type: "integrator", cardArtId: "ambassador-art", webhooks: {} },
+        });
+        await seedWebhook();
+
+        const response = await appClient[":name"].$patch(
+          { param: { name: "test" }, json: { url: "https://test.updated.com" } },
+          { headers: { cookie } },
+        );
+        expect(response.status).toBe(200);
+        const after = await database.query.sources.findFirst({ where: eq(sources.id, id) });
+        expect(after?.config).toMatchObject({ cardArtId: "ambassador-art" });
+      });
+
       it("keeps the stored url when omitted", async () => {
         await seedWebhook();
         const response = await appClient[":name"].$patch(
@@ -528,6 +544,19 @@ describe("webhook", () => {
 
         const source = await database.query.sources.findFirst({ where: eq(sources.id, id) });
         expect(source).toBeUndefined();
+      });
+
+      it("preserves card art when the last webhook is deleted", async () => {
+        await database.insert(sources).values({
+          id,
+          config: { type: "integrator", cardArtId: "ambassador-art", webhooks: {} },
+        });
+        await seedWebhook();
+
+        const response = await appClient[":name"].$delete({ param: { name: "test" } }, { headers: { cookie } });
+        expect(response.status).toBe(200);
+        const source = await database.query.sources.findFirst({ where: eq(sources.id, id) });
+        expect(source?.config).toStrictEqual({ type: "integrator", cardArtId: "ambassador-art", webhooks: {} });
       });
 
       it("keeps the integrator when other webhooks remain", async () => {

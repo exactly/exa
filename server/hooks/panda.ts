@@ -1696,6 +1696,7 @@ const Webhook = v.variant("resource", [
 
 const webhookConfig = v.object({
   type: v.picklist(["integrator", "uphold"]),
+  cardArtId: v.optional(v.string()),
   webhooks: v.record(
     v.string(),
     v.object({

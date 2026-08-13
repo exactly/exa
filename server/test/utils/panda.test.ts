@@ -3,7 +3,7 @@ import "../mocks/sentry";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
 import * as panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
@@ -160,6 +160,27 @@ describe("create card", () => {
           status: "active",
           limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
           configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "398c4919514b4ec4927e6a9114a4c816" },
+        }),
+      }),
+    );
+  });
+
+  it("sends configured card art", async () => {
+    chainMock.id = base.id;
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
+
+    await expect(panda.createCard("user-id", BASE_PRODUCT_ID, 1_000_000, "ambassador-art")).resolves.toStrictEqual(
+      card,
+    );
+    expect(globalThis.fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: BASE_PRODUCT_ID, virtualCardArt: "ambassador-art" },
         }),
       }),
     );
