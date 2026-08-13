@@ -222,6 +222,9 @@ export default wrap(function RootLayout() {
           <SafeAreaProvider>
             <ThemeProvider>
               <ErrorBoundary
+                onError={() => {
+                  SplashScreen.hideAsync().catch(reportError);
+                }}
                 fallback={(data) => (
                   <Error
                     resetError={() => {
