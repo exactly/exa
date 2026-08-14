@@ -1046,15 +1046,27 @@ describe("worker", () => {
   it("processes delayed 24h planner jobs", async () => {
     const account = parse(Address, "0x1234567890123456789012345678901234567890");
     const maturity = nextMaturity();
+    const later = maturity + MATURITY_INTERVAL;
     vi.spyOn(Date, "now").mockReturnValue((maturity - 6 * 3600) * 1000);
     try {
       await notificationQueue.pause();
+      await notificationQueue.add(
+        "send-maturity-reminders",
+        { accounts: [account], maturity: later, window: "1h" },
+        { jobId: reminderChunkJobId(later, "1h", 0) },
+      );
       await insertAccounts([account]);
       mockFixedBorrowPositions(account, [100n * USDC, 0n]);
 
       await checkDone("check-debts", { window: "24h" });
 
-      expect(await notificationJobs()).toHaveLength(1);
+      expect(
+        await notificationJobs().then((jobs) =>
+          jobs
+            .filter((job) => job.data.maturity === maturity && job.data.window === "24h")
+            .flatMap((job) => job.data.accounts),
+        ),
+      ).toStrictEqual([account]);
       expect(sendPushNotification).not.toHaveBeenCalled();
     } finally {
       vi.mocked(Date.now).mockRestore();
