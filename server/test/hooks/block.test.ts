@@ -123,8 +123,12 @@ describe("proposal", () => {
         },
       ];
       const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, anotherWithdraw.args.nonce]);
+      const proposalRemovals = waitForProposalRemovals([
+        { account: withdraw.args.account, nonce: withdraw.args.nonce },
+        { account: anotherWithdraw.args.account, nonce: anotherWithdraw.args.nonce },
+      ]);
 
-      const [, receipts] = await Promise.all([
+      const [, receipts, removals] = await Promise.all([
         appClient.index.$post({
           ...withdrawProposal,
           json: {
@@ -149,6 +153,7 @@ describe("proposal", () => {
           },
         }),
         proposalExecutions,
+        proposalRemovals,
       ]);
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 2, 26_666);
@@ -172,6 +177,7 @@ describe("proposal", () => {
         }),
       });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
+      expect(removals).toStrictEqual([1, 1]);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
   });
@@ -189,8 +195,10 @@ describe("proposal", () => {
 
     it("increments nonce", async () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-      await Promise.all([
+      const proposalRemovals = waitForProposalRemovals([
+        { account: withdraw.args.account, nonce: withdraw.args.nonce },
+      ]);
+      const [, removals] = await Promise.all([
         appClient.index.$post({
           ...withdrawProposal,
           json: {
@@ -207,12 +215,10 @@ describe("proposal", () => {
             },
           },
         }),
-        vi.waitUntil(
-          () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
-          26_666,
-        ),
+        proposalRemovals,
       ]);
 
+      expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
           address: inject("ProposalManager"),
@@ -238,36 +244,37 @@ describe("proposal", () => {
     it("increments nonce", async () => {
       const revert = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const proposalRemovals = waitForProposalRemovals([{ account: revert.args.account, nonce: revert.args.nonce }]);
 
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: revert.topics, data: revert.data, account: { address: revert.address } }],
+      const [, removals] = await Promise.all([
+        appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: [{ topics: revert.topics, data: revert.data, account: { address: revert.address } }],
+                },
               },
             },
           },
-        },
-      });
+        }),
+        proposalRemovals,
+      ]);
 
-      await vi.waitUntil(
-        async () =>
-          (await publicClient.readContract({
-            address: inject("ProposalManager"),
-            abi: proposalManagerAbi,
-            functionName: "nonces",
-            args: [bobAccount],
-          })) ===
-          revert.args.nonce + 1n,
-        26_666,
-      );
-
+      expect(removals).toStrictEqual([1]);
+      await expect(
+        publicClient.readContract({
+          address: inject("ProposalManager"),
+          abi: proposalManagerAbi,
+          functionName: "nonces",
+          args: [bobAccount],
+        }),
+      ).resolves.toBe(revert.args.nonce + 1n);
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       expect(captureExceptionCalls).toEqual(
         expect.arrayContaining([
@@ -2247,6 +2254,26 @@ function waitForSuccessfulProposalExecutions(expectedNonces: bigint[]) {
         return receipt;
       }),
     );
+}
+
+function waitForProposalRemovals(expected: { account: Address; nonce: bigint }[]) {
+  const remove = redis.zrem.bind(redis);
+  const removals = expected.map(({ account, nonce }) => ({
+    ...Promise.withResolvers<number>(),
+    match: matchProposal(account, nonce),
+  }));
+  vi.spyOn(redis, "zrem").mockImplementation(async (...args) => {
+    const removal = removals.find(({ match }) => match.zrem(args));
+    try {
+      const count = await remove(...args);
+      removal?.resolve(count);
+      return count;
+    } catch (error) {
+      removal?.reject(error);
+      throw error;
+    }
+  });
+  return Promise.all(removals.map(({ promise }) => promise));
 }
 
 function execute(calldata: Hex) {
