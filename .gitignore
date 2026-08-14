@@ -45,6 +45,7 @@ lcov.info
 expo-env.d.ts
 .metro-health-check*
 .DS_Store
+.nvmrc
 
 # HACK istanbul + reanimated
 valueUnpacker
