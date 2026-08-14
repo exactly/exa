@@ -22,7 +22,7 @@
     "test": "nx test mobile",
     "test:spell": "cspell --gitignore '**' '.agents/**' '.changeset/**' '.do/**' '.eas/**' '.github/**' '.maestro/**'",
     "test:deps": "pnpm dlx pnpm@latest --pm-on-fail=ignore audit",
-    "test:build": "EXPO_NO_TELEMETRY=1 expo export --platform web && test -s dist/index.html",
+    "test:build": "EXPO_NO_TELEMETRY=1 expo export --platform web --no-minify && test -s dist/index.html",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
     "test:markdown": "markdownlint-cli2 --config package.json --configPointer /markdownlint-cli2",
     "test:changeset": "changeset status --since origin/main"
