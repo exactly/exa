@@ -2,7 +2,7 @@ import "../mocks/onesignal";
 import "../mocks/sentry";
 
 import { Queue, type Job } from "bullmq";
-import { like } from "drizzle-orm";
+import { inArray, like } from "drizzle-orm";
 import { parse } from "valibot";
 import { decodeFunctionData, encodeFunctionData, encodeFunctionResult, multicall3Abi } from "viem";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -550,8 +550,8 @@ describe("worker", () => {
   });
 
   it("does not duplicate queued reminders on planner retry", async () => {
-    const first = parse(Address, "0x1234567890123456789012345678901234567890");
-    const second = parse(Address, "0x1234567890123456789012345678901234567891");
+    const [first, second] = testAccounts(2);
+    if (!first || !second) throw new Error("accounts missing");
     const window = "24h";
     const maturity = nextMaturity();
 
@@ -598,7 +598,13 @@ describe("worker", () => {
 
     await notificationQueue.pause();
     await insertAccounts(accounts);
-    const snapshot = await storedAccounts();
+    const expected = await database.query.credentials
+      .findMany({
+        columns: { account: true },
+        where: inArray(credentials.account, accounts),
+        orderBy: credentials.account,
+      })
+      .then((rows) => rows.map(({ account }) => parse(Address, account)));
     mockFixedBorrowPositionsMany(accounts.map((account) => [account, [100n * USDC, 0n]]));
 
     await checkDoneAt("check-debts", maturity, window);
@@ -610,11 +616,19 @@ describe("worker", () => {
     const jobs = scans
       .filter(isScanJob)
       .filter((job) => job.data.maturity === maturity && job.data.window === window)
-      .toSorted((first, second) => String(first.id).localeCompare(String(second.id)));
-    const chunks = [snapshot];
+      .toSorted((first, second) => first.data.chunkIndex - second.data.chunkIndex);
+    const scheduled = jobs.flatMap((job) => job.data.accounts);
+    const chunks = Array.from({ length: Math.ceil(scheduled.length / 768) }, (_, index) =>
+      scheduled.slice(index * 768, (index + 1) * 768),
+    );
+    const selected = new Set(scheduled);
     expect(jobs.map((job) => job.id)).toStrictEqual(chunks.map((_, index) => scanJobId(maturity, window, index)));
+    expect(jobs.map((job) => job.data.chunkIndex)).toStrictEqual(chunks.map((_, index) => index));
     expect(jobs.map((job) => job.data.accounts)).toStrictEqual(chunks);
-    expect(jobs.flatMap((job) => job.data.accounts)).not.toContain(extra);
+    expect(scheduled.filter((account) => accounts.includes(account))).toStrictEqual(expected);
+    expect(selected.size).toBe(scheduled.length);
+    expect(accounts.every((account) => scheduled.includes(account))).toBe(true);
+    expect(scheduled).not.toContain(extra);
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
