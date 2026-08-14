@@ -19,7 +19,13 @@ import * as schema from "../database/schema";
 export default async function setup() {
   const databaseDir = "node_modules/@exactly/.postgres"; // eslint-disable-line unicorn/prevent-abbreviations
   await rm(databaseDir, { recursive: true, force: true });
-  const postgres = new EmbeddedPostgres({ databaseDir, port: 8432, password: "postgres", onLog: () => null });
+  const postgres = new EmbeddedPostgres({
+    databaseDir,
+    port: 8432,
+    password: "postgres",
+    createPostgresUser: process.getuid?.() === 0,
+    onLog: () => null,
+  });
   await postgres.initialise(); // cspell:ignore initialise
   await postgres.start();
   const postgresProcess = (postgres as unknown as { process: ChildProcess }).process;
