@@ -426,3 +426,33 @@ export async function deleteExternalAccount(id: string) {
   }
   return response.json();
 }
+
+export async function preflightChat(token: string) {
+  await auth();
+  const response = await api.chat.$get({ query: { token } });
+  const body = await response.json();
+  if (!response.ok && body.code !== "whatsapp taken" && body.code !== "whatsapp associated") {
+    throw new APIError(response.status, body.code);
+  }
+  return body;
+}
+
+export async function sendChatCode(token: string) {
+  await auth();
+  const response = await api.chat.$post({ json: { token } });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError(response.status, code);
+  }
+  return response.json();
+}
+
+export async function associateChat(code: string) {
+  await auth();
+  const response = await api.chat.$post({ json: { code } });
+  if (!response.ok) {
+    const { code: error } = await response.json();
+    throw new APIError(response.status, error);
+  }
+  return response.json();
+}
