@@ -10,7 +10,7 @@ import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { parse, type InferOutput } from "valibot";
-import { getAddress, padHex, zeroAddress } from "viem";
+import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
@@ -155,7 +155,7 @@ describe("authentication", () => {
 
   it("returns wallet extension token on ios siwe signup", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0x1234567890123456789012345678901234567888";
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:ios-siwe-signup")), 12)));
     const start = Date.now();
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
@@ -427,7 +427,7 @@ describe("authentication", () => {
 
   it("creates a credential with source and ip using siwe", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0x1234567890123456789012345678901234567890";
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-source-ip")), 12)));
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
       {
@@ -465,7 +465,7 @@ describe("authentication", () => {
 
   it("omits an invalid signup ip from Sardine", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0x1234567890123456789012345678901234567892";
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-invalid-ip")), 12)));
 
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
@@ -487,7 +487,7 @@ describe("authentication", () => {
 
   it("creates a credential using siwe", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0xaBcDef1234567890123456789012345678901234";
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-authentication")), 12)));
 
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
@@ -553,7 +553,7 @@ describe("authentication", () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
     assert.ok(factory);
-    const id = "0xFace000000000000000000000000000000000001";
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-factory")), 12)));
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: { factory } },
       { headers: { cookie: "session_id=test-session" } },
@@ -735,7 +735,7 @@ describe("registration", () => {
 
   it("creates a credential using siwe", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0x1234567890123456789012345678901234567895";
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-registration")), 12)));
 
     const response = await registrationAppClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
@@ -811,11 +811,11 @@ describe("registration", () => {
   });
 
   it.each([
-    ["203.0.113.42", "dGVzdC1jcmVkLWlk2", "0x1234567890123456789012345678901234567893"],
-    ["2001:db8::42", "aXB2Ni1jcmVkLWlk", "0x1234567890123456789012345678901234567891"],
-  ])("creates a credential using webauthn from %s", async (ip, id, account) => {
-    const parsedAccount = parse(Address, account);
-    vi.spyOn(derive, "default").mockReturnValue(parsedAccount);
+    ["203.0.113.42", "dGVzdC1jcmVkLWlk2"],
+    ["2001:db8::42", "aXB2Ni1jcmVkLWlk"],
+  ])("creates a credential using webauthn from %s", async (ip, id) => {
+    own(id);
+    vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       {
@@ -850,9 +850,8 @@ describe("registration", () => {
   });
 
   it("omits an invalid signup ip from Sardine", async () => {
-    const id = "aW52YWxpZC1pcC1pZA";
-    const account = parse(Address, "0xcccccccccccccccccccccccccccccccccccccccc");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+    const id = own("aW52YWxpZC1pcC1pZA");
+    vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session", "do-connecting-ip": "not-an-ip" } },
@@ -872,9 +871,8 @@ describe("registration", () => {
   });
 
   it("does not return wallet extension token on ios webauthn registration", async () => {
-    const id = "aW9zLXJlZ2lzdHJhdGlvbg"; // cspell:ignore Glvbg
-    const account = parse(Address, "0x1234567890123456789012345678901234567894");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+    const id = own("aW9zLXJlZ2lzdHJhdGlvbg"); // cspell:ignore Glvbg
+    vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
@@ -888,9 +886,8 @@ describe("registration", () => {
   });
 
   it("omits wallet extension token without client platform webauthn registration", async () => {
-    const id = "bm8tcGxhdGZvcm0tcmVnaXN0cmF0aW9u"; // cspell:ignore bm8tcGxhdGZvcm0tcmVnaXN0cmF0aW9u
-    const account = parse(Address, "0x1234567890123456789012345678901234567897");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+    const id = own("bm8tcGxhdGZvcm0tcmVnaXN0cmF0aW9u"); // cspell:ignore bm8tcGxhdGZvcm0tcmVnaXN0cmF0aW9u
+    vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session" } },
@@ -903,9 +900,8 @@ describe("registration", () => {
   });
 
   it("rejects unknown client platform webauthn registration", async () => {
-    const id = "ZGVza3RvcC1yZWdpc3RyYXRpb24"; // cspell:ignore ZGVza3RvcC1yZWdpc3RyYXRpb24
-    const account = parse(Address, "0x1234567890123456789012345678901234567898");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+    const id = own("ZGVza3RvcC1yZWdpc3RyYXRpb24"); // cspell:ignore ZGVza3RvcC1yZWdpc3RyYXRpb24
+    vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
@@ -915,11 +911,11 @@ describe("registration", () => {
   });
 
   it("creates a credential using webauthn", async () => {
-    const account = parse(Address, "0x1234567890123456789012345678901234567892");
-    vi.spyOn(derive, "default").mockReturnValue(account);
+    const id = own("YW5vdGhlci1jcmVkLWlk2"); // cspell:ignore YW5vdGhlci1jcmVkLWlk2
+    vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await postRegistrationWebauthn({
-      id: "YW5vdGhlci1jcmVkLWlk2", // cspell:ignore YW5vdGhlci1jcmVkLWlk2
-      rawId: "YW5vdGhlci1jcmVkLWlk2",
+      id,
+      rawId: id,
     });
 
     expect(response.status).toBe(200);
@@ -928,7 +924,7 @@ describe("registration", () => {
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
         customer: {
-          id: "YW5vdGhlci1jcmVkLWlk2",
+          id,
           tags: [
             { name: "source", value: "EXA", type: "string" },
             { name: "auth_method", value: "webauthn", type: "string" },
@@ -937,7 +933,7 @@ describe("registration", () => {
       }),
     );
     const credential = await database.query.credentials.findFirst({
-      where: eq(credentials.id, "YW5vdGhlci1jcmVkLWlk2"),
+      where: eq(credentials.id, id),
       columns: { source: true },
     });
     expect(credential).toBeDefined();
@@ -1045,4 +1041,11 @@ function postRegistrationWebauthn(override: RegistrationWebauthnAssertionOverrid
     { json: registrationWebauthnAssertion(override) },
     { headers: { cookie: "session_id=test-session" } },
   );
+}
+
+function own<T extends string>(id: T) {
+  onTestFinished(async () => {
+    await database.delete(credentials).where(eq(credentials.id, id));
+  });
+  return id;
 }
