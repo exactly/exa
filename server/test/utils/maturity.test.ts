@@ -273,15 +273,13 @@ describe("worker", () => {
     if (ttl !== undefined) expect(notification?.ttl).toBe(ttl);
   }
 
-  afterAll(() => {
-    return Promise.allSettled([queue.close(), notificationQueue.close(), closeQueue(), closeRedis()]).then(
-      (results) => {
-        const errors = results.flatMap((result) =>
-          result.status === "rejected" ? Array.of<unknown>(result.reason) : [],
-        );
-        if (errors.length > 0) throw new AggregateError(errors, "failed to close maturity test resources");
-      },
-    );
+  afterAll(async () => {
+    const results = [
+      ...(await Promise.allSettled([queue.close(), notificationQueue.close(), closeQueue()])),
+      ...(await Promise.allSettled([closeRedis()])),
+    ];
+    const errors = results.flatMap((result) => (result.status === "rejected" ? Array.of<unknown>(result.reason) : []));
+    if (errors.length > 0) throw new AggregateError(errors, "failed to close maturity test resources");
   });
 
   beforeEach(async () => {
