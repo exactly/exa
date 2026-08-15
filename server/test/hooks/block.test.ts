@@ -292,7 +292,7 @@ describe("proposal", () => {
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      const zrem = vi.spyOn(redis, "zrem");
+      const removals = waitForRemovals([match]);
       vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
         throw getContractError(
@@ -318,7 +318,7 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+      expect(await removals).toStrictEqual([1]);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -329,7 +329,7 @@ describe("proposal", () => {
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      const zrem = vi.spyOn(redis, "zrem");
+      const removals = waitForRemovals([match]);
       vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
         throw getContractError(
@@ -360,7 +360,7 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+      expect(await removals).toStrictEqual([1]);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -374,7 +374,7 @@ describe("proposal", () => {
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       const add: (key: string, score: number, member: string) => Promise<number> = redis.zadd.bind(redis);
       const zadd = vi.spyOn<{ zadd: typeof add }, "zadd">(redis, "zadd");
-      const zrem = vi.spyOn(redis, "zrem");
+      const removals = waitForRemovals([match]);
       if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
       const exaSend = keeper.exaSend.bind(keeper);
       const exaSendSpy = vi
@@ -410,10 +410,7 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
-      const result = zrem.mock.results[zrem.mock.calls.findIndex((call) => match.zrem(call))];
-      if (result?.type !== "return") throw new Error("missing removed proposal");
-      await result.value;
+      expect(await removals).toStrictEqual([1]);
       const queued = zadd.mock.calls.find(([key, , message]) => {
         if (key !== "proposals" || typeof message !== "string") return false;
         const proposalPayload = deserialize(message);
@@ -711,7 +708,7 @@ describe("proposal", () => {
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      const zrem = vi.spyOn(redis, "zrem");
+      const removals = waitForRemovals([match]);
       vi.spyOn(publicClient, "simulateContract")
         .mockImplementationOnce(() => {
           // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
@@ -752,7 +749,7 @@ describe("proposal", () => {
         },
       });
 
-      await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+      expect(await removals).toStrictEqual([1]);
 
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const recoveryCapture = captureExceptionCalls.find(
@@ -1192,7 +1189,7 @@ describe("legacy withdraw", () => {
     const amount = 1_000_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const insufficientAccountLiquidityError = getContractError(
       new RawContractError({
         data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
@@ -1207,7 +1204,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -1222,7 +1219,7 @@ describe("legacy withdraw", () => {
     const amount = 1_250_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const noProposalError = getContractError(
       new RawContractError({
         data: encodeErrorResult({
@@ -1241,7 +1238,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -1259,7 +1256,7 @@ describe("legacy withdraw", () => {
     const amount = 1_313_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const runtimeValidationFunctionMissingError = getContractError(
       new RawContractError({
         data: encodeErrorResult({
@@ -1278,7 +1275,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -1293,7 +1290,7 @@ describe("legacy withdraw", () => {
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
     vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
@@ -1311,7 +1308,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: withdrawAccount,
       headings: t("Withdraw completed"),
@@ -1330,7 +1327,7 @@ describe("legacy withdraw", () => {
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
     vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
@@ -1348,7 +1345,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: withdrawAccount,
       headings: t("Withdraw completed"),
@@ -1366,7 +1363,7 @@ describe("legacy withdraw", () => {
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockResolvedValue({});
     vi.spyOn(ensClient, "getEnsName").mockRejectedValue(new Error("ens failed"));
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
@@ -1384,7 +1381,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: withdrawAccount,
       headings: t("Withdraw completed"),
@@ -1402,7 +1399,7 @@ describe("legacy withdraw", () => {
     const error = new Error("push failed");
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
     vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
@@ -1420,7 +1417,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 26_666);
 
     expect(captureException).toHaveBeenCalledWith(error);
@@ -1430,7 +1427,7 @@ describe("legacy withdraw", () => {
     const amount = 1_385_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
     const exaSend = keeper.exaSend.bind(keeper);
     vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
@@ -1441,7 +1438,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -1669,7 +1666,7 @@ describe("legacy withdraw", () => {
     const amount = 1_965_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const terminalError = getContractError(
       new RawContractError({
         data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
@@ -1685,7 +1682,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -1695,7 +1692,7 @@ describe("legacy withdraw", () => {
     const amount = 1_975_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-    const zrem = vi.spyOn(redis, "zrem");
+    const removals = waitForRemovals([match]);
     const noProposalError = getContractError(
       new RawContractError({
         data: encodeErrorResult({
@@ -1715,7 +1712,7 @@ describe("legacy withdraw", () => {
 
     await appClient.index.$post(legacyPayload(amount));
 
-    await vi.waitUntil(() => zrem.mock.calls.some((call) => match.zrem(call)), 26_666);
+    expect(await removals).toStrictEqual([1]);
 
     const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
     expect(captureExceptionCalls.filter((call) => match.capture(call))).toEqual([]);
@@ -2257,10 +2254,14 @@ function waitForSuccessfulProposalExecutions(expectedNonces: bigint[]) {
 }
 
 function waitForProposalRemovals(expected: { account: Address; nonce: bigint }[]) {
+  return waitForRemovals(expected.map(({ account, nonce }) => matchProposal(account, nonce)));
+}
+
+function waitForRemovals(matches: { zrem(args: unknown[]): boolean }[]) {
   const remove = redis.zrem.bind(redis);
-  const removals = expected.map(({ account, nonce }) => ({
+  const removals = matches.map((match) => ({
     ...Promise.withResolvers<number>(),
-    match: matchProposal(account, nonce),
+    match,
   }));
   vi.spyOn(redis, "zrem").mockImplementation(async (...args) => {
     const removal = removals.find(({ match }) => match.zrem(args));
