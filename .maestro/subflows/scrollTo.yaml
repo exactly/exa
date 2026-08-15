@@ -19,8 +19,11 @@ appId: ${APP_ID ?? "app.exactly"}
                 when: { visible: "${element}" }
                 commands: [{ evalScript: "${output.found = true}" }]
             - runFlow:
-                when: { visible: { id: "${element}" } }
-                commands: [{ evalScript: "${output.found = true}" }]
+                when: { true: "${!output.found}" }
+                commands:
+                  - runFlow:
+                      when: { visible: { id: "${element}" } }
+                      commands: [{ evalScript: "${output.found = true}" }]            
             - runFlow:
                 when: { true: "${!output.found}" }
                 commands:
