@@ -2543,75 +2543,81 @@ describe("concurrency", () => {
   beforeEach(async () => {
     owner2 = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
     account2 = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner2.account.address), y: zeroHash });
-    await Promise.all([
-      database.transaction(async (tx) => {
-        await tx
-          .insert(credentials)
-          .values([
-            { id: account2, publicKey: new Uint8Array(), account: account2, factory: inject("ExaAccountFactory") },
-          ]);
-        await tx.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]);
-      }),
-      anvilClient.setBalance({ address: owner2.account.address, value: 10n ** 24n }),
-      Promise.all([
-        keeper.exaSend(
-          { name: "mint", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [account2, 70_000_000n],
-          },
-        ),
-        keeper.exaSend(
-          { name: "create account", op: "exa.account" },
-          {
-            address: inject("ExaAccountFactory"),
-            abi: exaAccountFactoryAbi,
-            functionName: "createAccount",
-            args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
-          },
-        ),
-      ]).then(() =>
-        keeper.exaSend(
-          { name: "poke", op: "exa.poke" },
-          {
-            address: account2,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [inject("MarketUSDC")],
-          },
-        ),
-      ),
-    ]);
+    await database.transaction(async (tx) => {
+      await tx
+        .insert(credentials)
+        .values([
+          { id: account2, publicKey: new Uint8Array(), account: account2, factory: inject("ExaAccountFactory") },
+        ]);
+      await tx.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]);
+    });
   });
 
-  it("handles concurrent authorizations", async () => {
-    const cardId = `${account2}-card`;
-    const promises = Promise.all([
-      appClient.index.$post({
+  describe("authorizations", () => {
+    beforeEach(collateralize);
+
+    it("handles concurrent authorizations", async () => {
+      const cardId = `${account2}-card`;
+      const promises = Promise.all([
+        appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: 5000, cardId },
+            },
+          },
+        }),
+        appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              id: `${cardId}-2`,
+              spend: { ...authorization.json.body.spend, amount: 4000, cardId },
+            },
+          },
+        }),
+        appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, amount: 5000, cardId },
+            },
+          },
+        }),
+      ]);
+
+      const [spend, spend2, collect] = await promises;
+      const spendStatuses = [spend.status, spend2.status].toSorted();
+
+      expect(spendStatuses).toStrictEqual([200, 554]);
+      expect(collect.status).toBe(200);
+    });
+
+    it("releases mutex when authorization is declined", async () => {
+      const getMutex = vi.spyOn(panda, "getMutex");
+      const cardId = `${account2}-card`;
+      const spendAuthorization = await appClient.index.$post({
         ...authorization,
         json: {
           ...authorization.json,
           body: {
             ...authorization.json.body,
             id: cardId,
-            spend: { ...authorization.json.body.spend, amount: 5000, cardId },
+            spend: { ...authorization.json.body.spend, amount: 800, cardId },
           },
         },
-      }),
-      appClient.index.$post({
-        ...authorization,
-        json: {
-          ...authorization.json,
-          body: {
-            ...authorization.json.body,
-            id: `${cardId}-2`,
-            spend: { ...authorization.json.body.spend, amount: 4000, cardId },
-          },
-        },
-      }),
-      appClient.index.$post({
+      });
+
+      const collectSpendAuthorization = await appClient.index.$post({
         ...authorization,
         json: {
           ...authorization.json,
@@ -2619,53 +2625,18 @@ describe("concurrency", () => {
           body: {
             ...authorization.json.body,
             id: cardId,
-            spend: { ...authorization.json.body.spend, amount: 5000, cardId },
+            spend: { ...authorization.json.body.spend, amount: 800, cardId, status: "declined" },
           },
         },
-      }),
-    ]);
+      });
+      const lastCall = getMutex.mock.results.at(-1);
+      const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
 
-    const [spend, spend2, collect] = await promises;
-    const spendStatuses = [spend.status, spend2.status].toSorted();
-
-    expect(spendStatuses).toStrictEqual([200, 554]);
-    expect(collect.status).toBe(200);
-  });
-
-  it("releases mutex when authorization is declined", async () => {
-    const getMutex = vi.spyOn(panda, "getMutex");
-    const cardId = `${account2}-card`;
-    const spendAuthorization = await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        body: {
-          ...authorization.json.body,
-          id: cardId,
-          spend: { ...authorization.json.body.spend, amount: 800, cardId },
-        },
-      },
+      expect(mutex).toBeDefined();
+      expect(mutex?.isLocked()).toBe(false);
+      expect(spendAuthorization.status).toBe(200);
+      expect(collectSpendAuthorization.status).toBe(200);
     });
-
-    const collectSpendAuthorization = await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        action: "created",
-        body: {
-          ...authorization.json.body,
-          id: cardId,
-          spend: { ...authorization.json.body.spend, amount: 800, cardId, status: "declined" },
-        },
-      },
-    });
-    const lastCall = getMutex.mock.results.at(-1);
-    const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
-
-    expect(mutex).toBeDefined();
-    expect(mutex?.isLocked()).toBe(false);
-    expect(spendAuthorization.status).toBe(200);
-    expect(collectSpendAuthorization.status).toBe(200);
   });
 
   it("inserts declined transaction with zero-hash placeholder", async () => {
@@ -2711,115 +2682,120 @@ describe("concurrency", () => {
     });
   });
 
-  it("appends body to existing transaction when declined", async () => {
-    const cardId = `${account2}-card`;
-    const txId = "declined-tx-update";
+  describe("transaction history", () => {
+    beforeEach(collateralize);
 
-    await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        action: "created",
-        body: {
-          ...authorization.json.body,
-          id: txId,
-          spend: { ...authorization.json.body.spend, amount: 600, cardId },
-        },
-      },
-    });
+    it("appends body to existing transaction when declined", async () => {
+      const cardId = `${account2}-card`;
+      const txId = "declined-tx-update";
 
-    const response = await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        action: "updated",
-        body: {
-          ...authorization.json.body,
-          id: txId,
-          spend: {
-            ...authorization.json.body.spend,
-            amount: 600,
-            authorizationUpdateAmount: 0,
-            authorizedAt: new Date().toISOString(),
-            cardId,
-            status: "declined",
-            declinedReason: "merchant_blocked",
-          },
-        },
-      },
-    });
-
-    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
-
-    expect(response.status).toBe(200);
-    expect(transaction?.hashes).toHaveLength(2);
-    expect(transaction?.hashes[1]).toBe(zeroHash);
-    expect(transaction?.payload).toMatchObject({
-      type: "panda",
-      bodies: [
-        { action: "created" },
-        {
-          action: "updated",
-          status: "declined",
-          body: { spend: { status: "declined", declinedReason: "merchant_blocked" } },
-        },
-      ],
-    });
-  });
-
-  it("preserves correct body structure with interleaved pending and declined events", async () => {
-    const txId = "interleaved-events-test";
-    const cardId = `${account2}-card`;
-
-    const post = (action: "created" | "updated", status: "declined" | "pending", declinedReason?: string) =>
-      appClient.index.$post({
+      await appClient.index.$post({
         ...authorization,
         json: {
           ...authorization.json,
-          action,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: txId,
+            spend: { ...authorization.json.body.spend, amount: 600, cardId },
+          },
+        },
+      });
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "updated",
           body: {
             ...authorization.json.body,
             id: txId,
             spend: {
               ...authorization.json.body.spend,
-              amount: 1000,
+              amount: 600,
+              authorizationUpdateAmount: 0,
+              authorizedAt: new Date().toISOString(),
               cardId,
-              status,
-              ...(action === "updated" && { authorizationUpdateAmount: 0, authorizedAt: new Date().toISOString() }),
-              ...(declinedReason && { declinedReason }),
+              status: "declined",
+              declinedReason: "merchant_blocked",
             },
           },
-        } as unknown as typeof authorization.json,
+        },
       });
 
-    await post("created", "pending");
-    await post("updated", "pending");
-    await post("updated", "declined", "insufficient_funds");
-    await post("updated", "declined", "merchant_blocked");
+      const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
 
-    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
-    const bodies = (transaction?.payload as { bodies: { action: string; reason?: string; status?: string }[] }).bodies;
+      expect(response.status).toBe(200);
+      expect(transaction?.hashes).toHaveLength(2);
+      expect(transaction?.hashes[1]).toBe(zeroHash);
+      expect(transaction?.payload).toMatchObject({
+        type: "panda",
+        bodies: [
+          { action: "created" },
+          {
+            action: "updated",
+            status: "declined",
+            body: { spend: { status: "declined", declinedReason: "merchant_blocked" } },
+          },
+        ],
+      });
+    });
 
-    expect(transaction?.hashes).toHaveLength(4);
-    expect(bodies).toHaveLength(4);
-    expect(bodies[0]).toMatchObject({ action: "created" });
-    expect(bodies[1]).toMatchObject({ action: "updated" });
-    expect(bodies[2]).toMatchObject({
-      action: "updated",
-      status: "declined",
-      body: { spend: { declinedReason: "insufficient_funds" } },
+    it("preserves correct body structure with interleaved pending and declined events", async () => {
+      const txId = "interleaved-events-test";
+      const cardId = `${account2}-card`;
+
+      const post = (action: "created" | "updated", status: "declined" | "pending", declinedReason?: string) =>
+        appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action,
+            body: {
+              ...authorization.json.body,
+              id: txId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: 1000,
+                cardId,
+                status,
+                ...(action === "updated" && { authorizationUpdateAmount: 0, authorizedAt: new Date().toISOString() }),
+                ...(declinedReason && { declinedReason }),
+              },
+            },
+          } as unknown as typeof authorization.json,
+        });
+
+      await post("created", "pending");
+      await post("updated", "pending");
+      await post("updated", "declined", "insufficient_funds");
+      await post("updated", "declined", "merchant_blocked");
+
+      const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
+      const bodies = (transaction?.payload as { bodies: { action: string; reason?: string; status?: string }[] })
+        .bodies;
+
+      expect(transaction?.hashes).toHaveLength(4);
+      expect(bodies).toHaveLength(4);
+      expect(bodies[0]).toMatchObject({ action: "created" });
+      expect(bodies[1]).toMatchObject({ action: "updated" });
+      expect(bodies[2]).toMatchObject({
+        action: "updated",
+        status: "declined",
+        body: { spend: { declinedReason: "insufficient_funds" } },
+      });
+      expect(bodies[3]).toMatchObject({
+        action: "updated",
+        status: "declined",
+        body: { spend: { declinedReason: "merchant_blocked" } },
+      });
+      expect(bodies[2]).not.toHaveProperty("reason");
+      expect(bodies[3]).not.toHaveProperty("reason");
+      expect(bodies[0]).not.toHaveProperty("status");
+      expect(bodies[0]).not.toHaveProperty("reason");
+      expect(bodies[1]).not.toHaveProperty("status");
+      expect(bodies[1]).not.toHaveProperty("reason");
     });
-    expect(bodies[3]).toMatchObject({
-      action: "updated",
-      status: "declined",
-      body: { spend: { declinedReason: "merchant_blocked" } },
-    });
-    expect(bodies[2]).not.toHaveProperty("reason");
-    expect(bodies[3]).not.toHaveProperty("reason");
-    expect(bodies[0]).not.toHaveProperty("status");
-    expect(bodies[0]).not.toHaveProperty("reason");
-    expect(bodies[1]).not.toHaveProperty("status");
-    expect(bodies[1]).not.toHaveProperty("reason");
   });
 
   it("declines created transaction with correct reason", async () => {
@@ -2854,109 +2830,113 @@ describe("concurrency", () => {
     });
   });
 
-  it("merges declined created event with prior pending created event", async () => {
-    const cardId = `${account2}-card`;
-    const txId = "decline-created-merge-test";
+  describe("with collateral", () => {
+    beforeEach(collateralize);
 
-    await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        action: "created",
-        body: {
-          ...authorization.json.body,
-          id: txId,
-          spend: { ...authorization.json.body.spend, amount: 499, cardId, status: "pending" },
-        },
-      },
-    });
-
-    const response = await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        id: "decline-created-merge-declined-event",
-        action: "created",
-        body: {
-          ...authorization.json.body,
-          id: txId,
-          spend: {
-            ...authorization.json.body.spend,
-            amount: 499,
-            cardId,
-            status: "declined",
-            declinedReason: "insufficient_funds",
-          },
-        },
-      },
-    });
-
-    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
-
-    expect(response.status).toBe(200);
-    expect(transaction?.payload).toMatchObject({
-      type: "panda",
-      bodies: [
-        { action: "created" },
-        { action: "created", status: "declined", body: { spend: { declinedReason: "insufficient_funds" } } },
-      ],
-    });
-  });
-
-  describe("with fake timers", () => {
-    beforeEach(() => vi.useFakeTimers());
-
-    afterEach(() => vi.useRealTimers());
-
-    it("times out when mutex is locked", async () => {
-      const getMutex = vi.spyOn(panda, "getMutex");
+    it("merges declined created event with prior pending created event", async () => {
       const cardId = `${account2}-card`;
-      const promises = Promise.all([
-        appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, amount: 1000, cardId },
+      const txId = "decline-created-merge-test";
+
+      await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: txId,
+            spend: { ...authorization.json.body.spend, amount: 499, cardId, status: "pending" },
+          },
+        },
+      });
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: "decline-created-merge-declined-event",
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: txId,
+            spend: {
+              ...authorization.json.body.spend,
+              amount: 499,
+              cardId,
+              status: "declined",
+              declinedReason: "insufficient_funds",
             },
           },
-        }),
-        appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: {
-              ...authorization.json.body,
-              id: `${cardId}-2`,
-              spend: { ...authorization.json.body.spend, amount: 1200, cardId },
+        },
+      });
+
+      const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
+
+      expect(response.status).toBe(200);
+      expect(transaction?.payload).toMatchObject({
+        type: "panda",
+        bodies: [
+          { action: "created" },
+          { action: "created", status: "declined", body: { spend: { declinedReason: "insufficient_funds" } } },
+        ],
+      });
+    });
+
+    describe("with fake timers", () => {
+      beforeEach(() => vi.useFakeTimers());
+
+      afterEach(() => vi.useRealTimers());
+
+      it("times out when mutex is locked", async () => {
+        const getMutex = vi.spyOn(panda, "getMutex");
+        const cardId = `${account2}-card`;
+        const promises = Promise.all([
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                id: cardId,
+                spend: { ...authorization.json.body.spend, amount: 1000, cardId },
+              },
             },
-          },
-        }),
-        appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            body: {
-              ...authorization.json.body,
-              id: `${cardId}-3`,
-              spend: { ...authorization.json.body.spend, amount: 1300, cardId },
+          }),
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                id: `${cardId}-2`,
+                spend: { ...authorization.json.body.spend, amount: 1200, cardId },
+              },
             },
-          },
-        }),
-      ]);
+          }),
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              body: {
+                ...authorization.json.body,
+                id: `${cardId}-3`,
+                spend: { ...authorization.json.body.spend, amount: 1300, cardId },
+              },
+            },
+          }),
+        ]);
 
-      await vi.waitUntil(() => getMutex.mock.calls.length > 2, 26_666);
-      vi.advanceTimersByTime(proposalManager.delay[anvil.id] * 1000);
+        await vi.waitUntil(() => getMutex.mock.calls.length > 2, 26_666);
+        vi.advanceTimersByTime(proposalManager.delay[anvil.id] * 1000);
 
-      const lastCall = getMutex.mock.results.at(-1);
-      const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
-      const statuses = await promises.then((responses) => responses.map(({ status }) => status as number));
+        const lastCall = getMutex.mock.results.at(-1);
+        const mutex = lastCall?.type === "return" ? lastCall.value : undefined;
+        const statuses = await promises.then((responses) => responses.map(({ status }) => status as number));
 
-      expect(statuses.filter((status) => status === 200)).toHaveLength(1);
-      expect(statuses.filter((status) => status === 554)).toHaveLength(2);
-      expect(mutex?.isLocked()).toBe(true);
+        expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+        expect(statuses.filter((status) => status === 554)).toHaveLength(2);
+        expect(mutex?.isLocked()).toBe(true);
+      });
     });
   });
 
@@ -3426,6 +3406,38 @@ describe("concurrency", () => {
       expect(transaction).not.toHaveProperty("payload.bodies[0].body.spend.declinedReason");
     });
   });
+
+  async function collateralize() {
+    await Promise.all([
+      keeper.exaSend(
+        { name: "mint", op: "tx.mint" },
+        {
+          address: inject("USDC"),
+          abi: mockERC20Abi,
+          functionName: "mint",
+          args: [account2, 70_000_000n],
+        },
+      ),
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: inject("ExaAccountFactory"),
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
+        },
+      ),
+    ]);
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      {
+        address: account2,
+        abi: exaPluginAbi,
+        functionName: "poke",
+        args: [inject("MarketUSDC")],
+      },
+    );
+  }
 });
 
 describe("webhooks", () => {
