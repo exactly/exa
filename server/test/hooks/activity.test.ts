@@ -1082,10 +1082,15 @@ describe("address activity", () => {
 
   it("captures auto credit notification errors", async () => {
     const error = new Error("push failed");
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    sendPushNotification
-      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>)
-      .mockRejectedValueOnce(error);
+    const notification = Promise.withResolvers<Awaited<ReturnType<typeof onesignal.sendPushNotification>>>();
+    const sent = Promise.withResolvers<true>();
+    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockImplementation((input) => {
+      if (JSON.stringify(input.headings) !== JSON.stringify(t("Card mode changed"))) {
+        return Promise.resolve({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>);
+      }
+      sent.resolve(true);
+      return notification.promise;
+    });
     await database
       .insert(cards)
       .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
@@ -1114,8 +1119,14 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
-
+    await sent.promise;
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: account,
+      headings: t("Card mode changed"),
+      contents: t("Credit mode activated"),
+    });
+    notification.reject(error);
+    await notification.promise.catch(() => undefined);
     expect(captureException).toHaveBeenCalledWith(error);
     expect(
       vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
