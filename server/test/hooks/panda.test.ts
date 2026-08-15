@@ -1208,7 +1208,8 @@ describe("card operations", () => {
 
       it("captures refund notification errors", async () => {
         const error = new Error("push failed");
-        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        const notification = Promise.withResolvers<Awaited<ReturnType<typeof onesignal.sendPushNotification>>>();
+        vi.spyOn(onesignal, "sendPushNotification").mockReturnValueOnce(notification.promise);
         const amount = 2073;
         const cardId = "refund-notify-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
@@ -1245,11 +1246,16 @@ describe("card operations", () => {
           },
         });
 
-        await vi.waitUntil(
-          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
-          15_000,
-        );
-
+        expect(onesignal.sendPushNotification).toHaveBeenCalledWith({
+          userId: account,
+          headings: t("Refund processed"),
+          contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+            refundAmount: f(amount / 100),
+            merchantName: authorization.json.body.spend.merchantName,
+          }),
+        });
+        notification.reject(error);
+        await notification.promise.catch(() => undefined);
         expect(captureException).toHaveBeenCalledWith(error);
         expect(response.status).toBe(200);
       });
