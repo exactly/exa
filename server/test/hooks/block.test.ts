@@ -244,9 +244,27 @@ describe("proposal", () => {
     it("increments nonce", async () => {
       const revert = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
+      const nonceSkip = Promise.withResolvers<true>();
       const proposalRemovals = waitForProposalRemovals([{ account: revert.args.account, nonce: revert.args.nonce }]);
+      if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+      const exaSend = keeper.exaSend.bind(keeper);
+      vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
+        const matched =
+          call.functionName === "setProposalNonce" &&
+          call.address.toLowerCase() === revert.args.account.toLowerCase() &&
+          call.args?.[0] === revert.args.nonce + 1n;
+        try {
+          const receipt = await exaSend(span, call, options);
+          if (matched) nonceSkip.resolve(true);
+          return receipt;
+        } catch (error) {
+          if (matched) nonceSkip.reject(error);
+          throw error;
+        }
+      });
 
-      const [, removals] = await Promise.all([
+      const [removals] = await Promise.all([
+        proposalRemovals,
         appClient.index.$post({
           ...withdrawProposal,
           json: {
@@ -263,7 +281,7 @@ describe("proposal", () => {
             },
           },
         }),
-        proposalRemovals,
+        nonceSkip.promise,
       ]);
 
       expect(removals).toStrictEqual([1]);
