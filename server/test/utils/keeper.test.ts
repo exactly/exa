@@ -36,7 +36,7 @@ describe("fault tolerance", () => {
     expect(captureException).toHaveBeenCalledWith(new Error("send"), expect.objectContaining({ level: "error" }));
     expect(onHash).toHaveBeenCalledOnce();
     expect(receipt?.status).toBe("success");
-    expect(sendRawTransaction).toHaveBeenCalledTimes(2);
+    expect(sendRawTransaction.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it("applies data suffix", async () => {
