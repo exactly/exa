@@ -1027,11 +1027,30 @@ describe("proposal", () => {
 
   describe("with idle proposals", () => {
     beforeEach(async () => {
-      const hashes = await Promise.all(
-        [4000n, 5000n, 6000n, 7000n, 8000n, 9000n].map((v) => proposeWithdraw(v, padHex("0x69", { size: 20 }))),
-      );
+      const hash = await bob.writeContract({
+        address: bobAccount,
+        functionName: "executeBatch",
+        args: [
+          [4000n, 5000n, 6000n, 7000n, 8000n, 9000n].map((value) => ({
+            target: bobAccount,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: exaPluginAbi,
+              functionName: "propose",
+              args: [
+                inject("MarketUSDC"),
+                value,
+                ProposalType.Withdraw,
+                encodeAbiParameters([{ type: "address" }], [padHex("0x69", { size: 20 })]),
+              ],
+            }),
+          })),
+        ],
+        abi: upgradeableModularAccountAbi,
+        gas: 6_666_666n,
+      });
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      proposals = await getLogs(hashes);
+      proposals = await getLogs([hash]);
       const maxUnlock = proposals.reduce((max, proposal) => {
         if (proposal.args.unlock > max) return proposal.args.unlock;
         return max;
