@@ -71,6 +71,7 @@ export default define({
   workers: {
     allow: { signers: ["allower"] },
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
+    execute: { secrets: ["onesignal-api-key"], signers: ["executor"] },
     poke: { secrets: ["onesignal-api-key", "segment-write-key"], signers: ["poker"] },
     refund: { secrets: ["panda-api-key"], shared: ["panda-api-url"], signers: ["refunder", "issuer"] },
     subscribe: { env: { ALCHEMY_ACTIVITY_ID: "alchemyActivityId" }, secrets: ["alchemy-webhooks-key"] },

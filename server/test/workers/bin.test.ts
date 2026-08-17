@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const signers = {
   allower: privateKeyToAccount(padHex("0xa11")),
+  executor: privateKeyToAccount(padHex("0xeec")),
   issuer: privateKeyToAccount(padHex("0x420")),
   poker: privateKeyToAccount(padHex("0xb0b")),
   refunder: privateKeyToAccount(padHex("0xfee")),
@@ -15,6 +16,7 @@ const mocks = {
   poke: vi.fn<
     (config: { onesignalKey: string; poker: typeof signers.poker; redisUrl: string; segmentKey: string }) => Handle
   >(),
+  execute: vi.fn<(config: { executor: typeof signers.executor; onesignalKey: string; redisUrl: string }) => Handle>(),
   refund:
     vi.fn<
       (config: {
@@ -41,6 +43,7 @@ beforeEach(() => {
   mocks.close.mockReset().mockResolvedValue();
   mocks.credit.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.poke.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
+  mocks.execute.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(signers[name]));
@@ -52,6 +55,7 @@ beforeEach(() => {
   vi.doMock("../../workers/allow/worker", () => ({ default: mocks.allow }));
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/poke/worker", () => ({ default: mocks.poke }));
+  vi.doMock("../../workers/execute/worker", () => ({ default: mocks.execute }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
@@ -139,6 +143,38 @@ describe("bin", () => {
     await expect(created).rejects.toBe(error);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
     expect(mocks.poke).not.toHaveBeenCalled();
+  });
+
+  it("resolves execute private config before constructing and supervising its worker", async () => {
+    await import("../../workers/execute/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("execute", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["execute-onesignal-api-key", "redis-url"]);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["executor"]);
+    expect(mocks.execute).toHaveBeenCalledExactlyOnceWith({
+      executor: signers.executor,
+      onesignalKey: "execute-onesignal-api-key",
+      redisUrl: "redis-url",
+    });
+  });
+
+  it("fails before constructing the execute worker without its executor account", async () => {
+    const error = new Error("missing executor");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/execute/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["executor"]);
+    expect(mocks.execute).not.toHaveBeenCalled();
   });
 
   it("resolves refund private config before constructing and supervising its worker", async () => {

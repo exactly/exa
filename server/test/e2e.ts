@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
+import executeWorker from "../workers/execute/worker";
 import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
@@ -40,6 +41,11 @@ describe("e2e", () => {
           poker: privateKeyToAccount(padHex("0xb0b")),
           redisUrl: env.REDIS_URL,
           segmentKey: "segment",
+        }),
+        executeWorker({
+          executor: privateKeyToAccount(padHex("0xb0b")),
+          onesignalKey: "onesignal",
+          redisUrl: env.REDIS_URL,
         }),
         refundWorker({
           issuer: privateKeyToAccount(padHex("0x420")),

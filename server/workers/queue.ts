@@ -1,5 +1,5 @@
 import { spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue, type BackoffOptions, type DefaultJobOptions, type KeepJobs } from "bullmq";
+import { Queue, type BackoffOptions, type DefaultJobOptions, type JobsOptions, type KeepJobs } from "bullmq";
 
 import type { Redis } from "ioredis";
 
@@ -24,14 +24,19 @@ export default function queue<Job extends Trace>(
   });
   return {
     close: () => instance.close(),
-    async enqueue(data: Omit<Job, keyof Trace>, jobId: string, spanName: string = name) {
+    async enqueue(
+      data: Omit<Job, keyof Trace>,
+      jobId: string,
+      spanName: string = name,
+      jobOptions: Omit<JobsOptions, "jobId"> = {},
+    ) {
       await startSpan(
         { name: spanName, op: "queue.publish", attributes: { "messaging.destination.name": name } },
         async (span) => {
           const job = await instance.add(
             name,
             { ...data, sentryBaggage: spanToBaggageHeader(span), sentryTrace: spanToTraceHeader(span) },
-            { jobId },
+            { jobId, ...jobOptions },
           );
           span.setAttribute("messaging.message.id", job.id);
           span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));

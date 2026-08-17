@@ -32,10 +32,7 @@ const proposals = Array.from({ length }, (_, index) => {
 
 anvil("anvil_mine", [1, Number(proposalDelay)]);
 const fromBlock = anvil("eth_blockNumber", []);
-block(
-  account,
-  proposals.map((proposal) => ({ ...proposal, unlock: proposal.unlock - 10n })),
-);
+block(account, proposals);
 
 const deadline = Date.now() + 30_000;
 while (

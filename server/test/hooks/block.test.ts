@@ -6,6 +6,7 @@ import "../mocks/wallet";
 
 import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
+import { Queue, QueueEvents } from "bullmq";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { env } from "node:process";
@@ -55,12 +56,17 @@ import blockHook from "../../hooks/block";
 import t, { f } from "../../i18n";
 import ensClient from "../../utils/ensClient";
 import publicClient from "../../utils/publicClient";
-import redis from "../../utils/redis";
+import redis, { bullmq } from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
 import wallet from "../../utils/wallet";
+import executeWorker from "../../workers/execute/worker";
 import anvilClient from "../anvilClient";
 
+import type { Job as ExecuteJob } from "../../workers/execute/job";
 import type * as sentry from "@sentry/node";
+import type { Job as BullJob } from "bullmq";
+
+type ProposalLog = Log<bigint, number, false, (typeof proposalManagerAbi)[29], true>;
 
 let keeper: ReturnType<typeof wallet>;
 
@@ -79,13 +85,22 @@ const defaults = {
 vi.mocked(findWebhook).mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
 const hook = blockHook(defaults);
 const appClient = testClient(hook.app);
+const executeQueue = new Queue<ExecuteJob>("execute", { connection: bullmq });
+const executeEvents = new QueueEvents("execute", { connection: bullmq });
+let executeWorkerHandle: ReturnType<typeof executeWorker>;
 
 beforeAll(async () => {
-  await hook.ready;
+  await executeQueue.drain(true);
+  executeWorkerHandle = executeWorker({
+    executor: bob.account,
+    onesignalKey: "onesignal",
+    redisUrl: defaults.redisUrl,
+  });
+  await Promise.all([hook.ready, executeWorkerHandle.ready]);
   keeper = wallet(privateKeyToAccount(padHex("0x69")));
 });
 
-afterAll(() => hook.close());
+afterAll(() => Promise.all([executeEvents.close(), executeQueue.close(), executeWorkerHandle.close(), hook.close()]));
 
 describe("initialization", () => {
   it("starts with a discovered key when reconciliation fails", async () => {
@@ -136,7 +151,7 @@ describe("validation", () => {
 });
 
 describe("proposal", () => {
-  let proposals: Log<bigint, number, false, (typeof proposalManagerAbi)[29], true>[];
+  let proposals: ProposalLog[];
 
   describe("with valid proposals", () => {
     beforeEach(async () => {
@@ -159,7 +174,7 @@ describe("proposal", () => {
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs(hashes);
       const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(unlock) * 1000));
     });
 
     afterEach(() => vi.useRealTimers());
@@ -248,7 +263,7 @@ describe("proposal", () => {
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(unlock) * 1000));
     });
 
     afterEach(() => vi.useRealTimers());
@@ -298,7 +313,7 @@ describe("proposal", () => {
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(unlock) * 1000));
     });
 
     afterEach(() => vi.useRealTimers());
@@ -436,20 +451,17 @@ describe("proposal", () => {
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
       const { simulateContract } = publicClient;
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      const add: (key: string, score: number, member: string) => Promise<number> = redis.zadd.bind(redis);
-      const zadd = vi.spyOn<{ zadd: typeof add }, "zadd">(Redis.prototype, "zadd");
+      const add = vi.spyOn(Queue.prototype, "add");
       const removals = waitForRemovals([match]);
       if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
       const exaSend = keeper.exaSend.bind(keeper);
       const exaSendSpy = vi
         .spyOn(keeper, "exaSend")
         .mockImplementation((span, call, options) => exaSend(span, call, options));
+      let timelocked = true;
       vi.spyOn(publicClient, "simulateContract").mockImplementation((params) => {
-        if (params.functionName !== "executeProposal") return simulateContract(params);
-        zadd.mockImplementationOnce(async (...args) => {
-          await add(...args);
-          return add(...args);
-        });
+        if (params.functionName !== "executeProposal" || !timelocked) return simulateContract(params);
+        timelocked = false;
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
         throw getContractError(
           new RawContractError({ data: encodeErrorResult({ abi: proposalManagerAbi, errorName: "Timelocked" }) }),
@@ -475,31 +487,21 @@ describe("proposal", () => {
       });
 
       expect(await removals).toStrictEqual([1]);
-      const queued = zadd.mock.calls.find(([key, , message]) => {
-        if (key !== "proposals" || typeof message !== "string") return false;
-        const proposalPayload = deserialize(message);
-        if (typeof proposalPayload !== "object" || proposalPayload === null) return false;
-        return (
-          "account" in proposalPayload &&
-          proposalPayload.account === proposal.args.account &&
-          "nonce" in proposalPayload &&
-          proposalPayload.nonce === proposal.args.nonce &&
-          "retryCount" in proposalPayload &&
-          proposalPayload.retryCount === 1
-        );
-      });
-      if (!queued || typeof queued[2] !== "string") throw new Error("missing requeued proposal");
-      const payload = deserialize(queued[2]);
-      if (
-        typeof payload !== "object" ||
-        payload === null ||
-        !("unlock" in payload) ||
-        typeof payload.unlock !== "bigint"
-      ) {
-        throw new Error("missing requeued proposal");
-      }
-      expect(await redis.zrem("proposals", queued[2])).toBe(1);
-      expect(payload.unlock).toBeGreaterThanOrEqual(proposal.args.unlock);
+      const queued = add.mock.calls
+        .map(([, data]) => data as unknown)
+        .find((data): data is ExecuteJob => {
+          if (typeof data !== "object" || data === null) return false;
+          return (
+            "account" in data &&
+            data.account === proposal.args.account &&
+            "nonce" in data &&
+            data.nonce === String(proposal.args.nonce) &&
+            "retryCount" in data &&
+            data.retryCount === 1
+          );
+        });
+      if (!queued) throw new Error("missing requeued proposal");
+      expect(BigInt(queued.unlock)).toBeGreaterThanOrEqual(proposal.args.unlock);
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
       expect(proposalCaptureCalls).toContainEqual([
@@ -510,261 +512,64 @@ describe("proposal", () => {
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
-    it("fingerprints outer catch by reason", async () => {
+    it.each([
+      [
+        "reason",
+        () =>
+          new ContractFunctionExecutionError(
+            new ContractFunctionRevertedError({
+              abi: [],
+              functionName: "executeProposal",
+              message: "execution reverted: proposal outer reason fallback",
+            }),
+            { abi: [], contractAddress: bobAccount, functionName: "executeProposal", args: [proposals[0]!.args.nonce] }, // eslint-disable-line @typescript-eslint/no-non-null-assertion
+          ),
+        "execution reverted: proposal outer reason fallback",
+      ],
+      [
+        "signature",
+        () =>
+          getContractError(new RawContractError({ data: "0x12345678" }), {
+            abi: [],
+            address: bobAccount,
+            functionName: "executeProposal",
+            args: [proposals[0]!.args.nonce], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+          }),
+        "0x12345678",
+      ],
+      [
+        "unknown contract revert",
+        () =>
+          getContractError(new RawContractError({ data: "0x" }), {
+            abi: [],
+            address: bobAccount,
+            functionName: "executeProposal",
+            args: [proposals[0]!.args.nonce], // eslint-disable-line @typescript-eslint/no-non-null-assertion
+          }),
+        "unknown",
+      ],
+      ["unknown", () => new Error("nonce reset failed"), "unknown"],
+    ] as const)("fingerprints worker failures by %s", async (_, createError, fingerprint) => {
       const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
+      const error = createError();
       const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        throw new ContractFunctionExecutionError(
-          new ContractFunctionRevertedError({
-            abi: [],
-            functionName: "executeProposal",
-            message: "execution reverted: proposal outer reason fallback",
+
+      failProposal(proposal, error);
+
+      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
+      expect(
+        captureExceptionCalls.filter((call) => matchProposal(proposal.args.account, proposal.args.nonce).capture(call)),
+      ).toStrictEqual([
+        [
+          error,
+          expect.objectContaining({
+            level: "error",
+            fingerprint: ["{{ default }}", fingerprint],
           }),
-          { abi: [], contractAddress: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
-        );
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.slice(initialCaptureExceptionCalls)
-            .some(
-              ([error, hint]) =>
-                match.capture([error, hint]) &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("execution reverted: proposal outer reason fallback"),
-            ),
-        26_666,
-      );
-
-      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([
-        ["{{ default }}", "execution reverted: proposal outer reason fallback"],
+        ],
       ]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({
-          level: "error",
-          fingerprint: ["{{ default }}", "execution reverted: proposal outer reason fallback"],
-        }),
-      );
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("fingerprints outer catch by signature", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(new RawContractError({ data: "0x12345678" }), {
-          abi: [],
-          address: bobAccount,
-          functionName: "executeProposal",
-          args: [proposal.args.nonce],
-        });
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.slice(initialCaptureExceptionCalls)
-            .some(
-              ([error, hint]) =>
-                match.capture([error, hint]) &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("0x12345678"),
-            ),
-        26_666,
-      );
-
-      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "0x12345678"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0x12345678"] }),
-      );
-    });
-
-    it("fingerprints outer catch as unknown contract revert", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(new RawContractError({ data: "0x" }), {
-          abi: [],
-          address: bobAccount,
-          functionName: "executeProposal",
-          args: [proposal.args.nonce],
-        });
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.slice(initialCaptureExceptionCalls)
-            .some(
-              ([error, hint]) =>
-                match.capture([error, hint]) &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("unknown"),
-            ),
-        26_666,
-      );
-
-      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-      );
-    });
-
-    it("fingerprints outer catch as unknown", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
-      const error = new Error("nonce reset failed");
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        throw error;
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([captured, hint]) =>
-                captured === error &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("unknown"),
-            ),
-        26_666,
-      );
-
-      const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
-      const proposalCaptureCalls = captureExceptionCalls.filter(([captured]) => captured === error);
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "nonce reset failed" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-      );
     });
 
     it("handles recovery NonceTooLow as success", async () => {
@@ -836,7 +641,7 @@ describe("proposal", () => {
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(unlock) * 1000));
     });
 
     afterEach(() => vi.useRealTimers());
@@ -1031,7 +836,7 @@ describe("proposal", () => {
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
       const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(unlock) * 1000));
     });
 
     it("increments nonce", async () => {
@@ -1105,7 +910,7 @@ describe("proposal", () => {
       if (block.timestamp <= maxUnlock) {
         await anvilClient.mine({ blocks: 1, interval: Number(maxUnlock - block.timestamp + 1n) });
       }
-      vi.setSystemTime(new Date(Number(maxUnlock + 10n) * 1000));
+      vi.setSystemTime(new Date(Number(maxUnlock) * 1000));
     });
 
     afterEach(() => vi.useRealTimers());
@@ -2358,14 +2163,33 @@ function waitForProposalRemovals(expected: { account: Address; nonce: bigint }[]
   return waitForRemovals(expected.map(({ account, nonce }) => matchProposal(account, nonce)));
 }
 
-function waitForRemovals(matches: { zrem(args: unknown[]): boolean }[]) {
+function waitForRemovals(matches: { jobId?(id: string): boolean; zrem?(args: unknown[]): boolean }[]) {
   const remove = redis.zrem.bind(redis);
   const removals = matches.map((match) => ({
     ...Promise.withResolvers<number>(),
     match,
   }));
+  for (const removal of removals) {
+    if (!removal.match.jobId) continue;
+    const complete = ({ jobId }: { jobId: string }) => {
+      if (removal.match.jobId?.(jobId)) {
+        executeEvents.off("completed", complete);
+        executeEvents.off("failed", failed);
+        removal.resolve(1);
+      }
+    };
+    const failed = ({ failedReason, jobId }: { failedReason: string; jobId: string }) => {
+      if (removal.match.jobId?.(jobId)) {
+        executeEvents.off("completed", complete);
+        executeEvents.off("failed", failed);
+        removal.reject(new Error(failedReason));
+      }
+    };
+    executeEvents.on("completed", complete);
+    executeEvents.on("failed", failed);
+  }
   vi.spyOn(Redis.prototype, "zrem").mockImplementation(async (...args) => {
-    const removal = removals.find(({ match }) => match.zrem(args));
+    const removal = removals.find(({ match }) => match.zrem?.(args));
     try {
       const count = await remove(...args);
       removal?.resolve(count);
@@ -2454,13 +2278,35 @@ function matchProposal(account: Address, nonce: bigint) {
         error.args[0] === nonce
       );
     },
-    zrem([key, message]: unknown[]) {
-      if (key !== "proposals" || typeof message !== "string") return false;
-      const payload = deserialize(message);
-      if (typeof payload !== "object" || payload === null) return false;
-      return "account" in payload && payload.account === account && "nonce" in payload && payload.nonce === nonce;
+    jobId(id: string) {
+      return id.startsWith(`${account}-${String(nonce)}-`);
     },
   };
+}
+
+function failProposal(proposal: ProposalLog, error: Error) {
+  const { account, amount, data, market, nonce, proposalType, unlock } = proposal.args;
+  executeWorkerHandle.queue.emit(
+    "failed",
+    {
+      attemptsMade: 1,
+      data: {
+        account,
+        amount: String(amount),
+        data,
+        market,
+        nonce: String(nonce),
+        proposalType,
+        retryCount: 0,
+        unlock: String(unlock),
+      },
+      id: `${account}-${String(nonce)}-0`,
+      name: "execute",
+      opts: { attempts: 1 },
+    } as BullJob<ExecuteJob>,
+    error,
+    "active",
+  );
 }
 
 function matchWithdraw(amount: bigint, account: Address, market: Address, receiver: Address) {
