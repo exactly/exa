@@ -4,7 +4,7 @@ import "../mocks/keeper";
 import "../mocks/onesignal";
 import "../mocks/sentry";
 
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setUser, startSpan } from "@sentry/node";
 import { testClient } from "hono/testing";
 import * as viem from "viem";
 import {
@@ -87,10 +87,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(
-      () => vi.mocked(captureException).mock.calls.some(([error, hint]) => isNoBalance(error, hint, "warning")),
-      26_666,
-    );
+    await waitForActivity();
 
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
@@ -123,8 +120,9 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => getCode.mock.calls.length > 0);
+    await waitForActivity();
 
+    expect(getCode).toHaveBeenCalledOnce();
     expect(captureException).toHaveBeenCalledWith(new Error("Unexpected"), expect.objectContaining({ level: "error" }));
     expect(
       vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
@@ -154,18 +152,17 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => waitForTransactionReceipt.mock.calls.length === 6, 26_666);
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.filter(
-            ([, hint]) =>
-              (hint as undefined | { fingerprint?: string[] })?.fingerprint?.join(":") === "{{ default }}:unknown",
-          ).length >= 12,
-      26_666,
-    );
+    await waitForActivity();
 
+    expect(waitForTransactionReceipt).toHaveBeenCalledTimes(6);
+    expect(
+      vi
+        .mocked(captureException)
+        .mock.calls.filter(
+          ([, hint]) =>
+            (hint as undefined | { fingerprint?: string[] })?.fingerprint?.join(":") === "{{ default }}:unknown",
+        ).length,
+    ).toBeGreaterThanOrEqual(12);
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
       expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
@@ -205,10 +202,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -243,10 +237,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -279,10 +270,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -321,10 +309,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -363,10 +348,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -400,10 +382,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -437,10 +416,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -472,10 +448,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.any(BaseError),
@@ -505,10 +478,7 @@ describe("address activity", () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0, 26_666),
-      waitForWETHMarket(account, deposit),
-    ]);
+    await waitForWETHMarket(account, deposit);
 
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "unexpected" }),
@@ -1389,6 +1359,7 @@ async function getWETHMarket(account: Address) {
 }
 
 async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint) {
+  await waitForActivity();
   return vi.waitUntil(async () => {
     try {
       const market = await getWETHMarket(account);
@@ -1403,6 +1374,15 @@ async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint
       throw error;
     }
   }, 26_666);
+}
+
+async function waitForActivity() {
+  const spans = vi.mocked(startSpan);
+  await Promise.allSettled(
+    spans.mock.calls.flatMap(([options], index) =>
+      options.op === "exa.activity" ? [spans.mock.results[index]?.value as unknown] : [],
+    ),
+  );
 }
 
 function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") {
@@ -1492,7 +1472,8 @@ vi.mock("viem", async (importOriginal) => {
   };
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await waitForActivity();
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
