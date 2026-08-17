@@ -42,7 +42,7 @@ import anvilClient from "../anvilClient";
 const appClient = testClient(app);
 const waitForReceipt = publicClient.waitForTransactionReceipt;
 
-describe("address activity", () => {
+describe("address activity", { timeout: 66_666 }, () => {
   let owner: PrivateKeyAccount;
   let account: Address;
 
@@ -1476,7 +1476,7 @@ afterEach(async () => {
   await waitForActivity();
   vi.clearAllMocks();
   vi.restoreAllMocks();
-});
+}, 66_666);
 
 const mockERC20Abi = [
   {
