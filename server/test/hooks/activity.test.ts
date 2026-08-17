@@ -1064,6 +1064,7 @@ describe("address activity", () => {
       () =>
         sendPushNotification.mock.calls.some(
           ([notification]) =>
+            notification.userId === account &&
             JSON.stringify(notification.headings) === JSON.stringify(t("Card mode changed")) &&
             JSON.stringify(notification.contents) === JSON.stringify(t("Credit mode activated")),
         ),
@@ -1082,10 +1083,15 @@ describe("address activity", () => {
 
   it("captures auto credit notification errors", async () => {
     const error = new Error("push failed");
+    const notification = Promise.withResolvers<Awaited<ReturnType<typeof onesignal.sendPushNotification>>>();
+    const sent = Promise.withResolvers<true>();
     const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-    sendPushNotification
-      .mockResolvedValueOnce({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>)
-      .mockRejectedValueOnce(error);
+    sendPushNotification.mockImplementation((input) => {
+      if (input.userId !== account || JSON.stringify(input.headings) !== JSON.stringify(t("Card mode changed")))
+        return Promise.resolve({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>);
+      sent.resolve(true);
+      return notification.promise;
+    });
     await database
       .insert(cards)
       .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
@@ -1114,7 +1120,14 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
+    await sent.promise;
+    expect(sendPushNotification).toHaveBeenCalledWith({
+      userId: account,
+      headings: t("Card mode changed"),
+      contents: t("Credit mode activated"),
+    });
+    notification.reject(error);
+    await notification.promise.catch(() => undefined);
 
     expect(captureException).toHaveBeenCalledWith(error);
     expect(
@@ -1154,7 +1167,7 @@ describe("address activity", () => {
       },
     });
 
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 15_000);
+    await vi.waitUntil(() => autoCredit.mock.calls.some(([called]) => called === account), 15_000);
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
 
     expect(captureException).toHaveBeenCalledWith(error);

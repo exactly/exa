@@ -1060,13 +1060,9 @@ describe("worker", () => {
 
       await checkDone("check-debts", { window: "24h" });
 
-      expect(
-        await notificationJobs().then((jobs) =>
-          jobs
-            .filter((job) => job.data.maturity === maturity && job.data.window === "24h")
-            .flatMap((job) => job.data.accounts),
-        ),
-      ).toStrictEqual([account]);
+      await expect(notificationQueue.getJob(reminderChunkJobId(maturity, "24h", 0))).resolves.toMatchObject({
+        data: { accounts: [account], maturity, window: "24h" },
+      });
       expect(sendPushNotification).not.toHaveBeenCalled();
     } finally {
       vi.mocked(Date.now).mockRestore();
