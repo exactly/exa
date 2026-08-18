@@ -7,7 +7,7 @@ import Carousel from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
-import { Key, User } from "@tamagui/lucide-icons";
+import { CircleHelp, Key, User } from "@tamagui/lucide-icons";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -22,11 +22,13 @@ import earningsBlob from "../../assets/images/earnings-blob.svg";
 import earnings from "../../assets/images/earnings.svg";
 import exaCardBlob from "../../assets/images/exa-card-blob.svg";
 import exaCard from "../../assets/images/exa-card.svg";
+import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAuth from "../../utils/useAuth";
 import ConnectSheet from "../shared/ConnectSheet";
 import ErrorDialog from "../shared/ErrorDialog";
+import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -111,6 +113,18 @@ export default function Auth() {
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
+      {!loadingContext && !embeddingContext && (
+        <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch">
+          <IconButton
+            icon={CircleHelp}
+            color="$uiNeutralSecondary"
+            aria-label={t("Help")}
+            onPress={() => {
+              openBrowser("https://help.exactly.app/articles/14036461").catch(reportError);
+            }}
+          />
+        </View>
+      )}
       <View flexGrow={1} justifyContent="center" flexShrink={1}>
         <Carousel
           data={pages}
