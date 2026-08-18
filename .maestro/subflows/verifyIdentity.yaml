@@ -78,7 +78,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { visible: Getting Started }
     commands:
-      - runScript: ../dist/getAccount.js
+      - runFlow: getAccount.yaml
       - runScript:
           file: ../dist/approveKYC.js
           env: { credentialId: "${output.owner}" }

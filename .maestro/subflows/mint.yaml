@@ -3,7 +3,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
-- runScript: ../dist/getAccount.js
+- runFlow: getAccount.yaml
 - runScript: { file: ../dist/mint.js }
 - tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml

@@ -6,7 +6,7 @@ tags: [critical]
 - tapOn: Sign in
 - assertNotVisible: Sign in
 - runFlow: ../subflows/dismissNotifications.yaml
-- runScript: ../dist/getAccount.js
+- runFlow: ../subflows/getAccount.yaml
 - assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
 - runFlow:
     file: ../subflows/mint.yaml

@@ -1,0 +1,5 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    when: { true: "${!output.account || !output.owner}" }
+    commands: [{ runScript: ../dist/getAccount.js }]
