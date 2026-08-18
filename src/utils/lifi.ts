@@ -533,8 +533,8 @@ const alchemyURLs = Object.fromEntries(
 );
 
 const Balances = object({
-  error: optional(object({ code: number(), message: string() })),
-  result: optional(
+  error: nullish(object({ code: number(), message: string() })),
+  result: nullish(
     union([
       Hex,
       object({
