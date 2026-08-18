@@ -47,6 +47,7 @@ describe("address activity", { timeout: 66_666 }, () => {
   let account: Address;
 
   beforeEach(async () => {
+    vi.spyOn(panda, "autoCredit").mockResolvedValue(false);
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
@@ -1003,7 +1004,8 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 
   it("activates credit mode and sends translated notification when auto credit applies", async () => {
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+    vi.mocked(panda.autoCredit).mockResolvedValue(true);
+    const { sendPushNotification, sent } = mockCredit();
     await database.insert(cards).values([{ id: "auto-credit", credentialId: account, lastFour: "1234", mode: 0 }]);
     await anvilClient.writeContract({
       account: null,
@@ -1030,15 +1032,7 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
 
-    await vi.waitUntil(
-      () =>
-        sendPushNotification.mock.calls.some(
-          ([notification]) =>
-            JSON.stringify(notification.headings) === JSON.stringify(t("Card mode changed")) &&
-            JSON.stringify(notification.contents) === JSON.stringify(t("Credit mode activated")),
-        ),
-      15_000,
-    );
+    await sent;
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
       headings: t("Card mode changed"),
@@ -1052,15 +1046,9 @@ describe("address activity", { timeout: 66_666 }, () => {
 
   it("captures auto credit notification errors", async () => {
     const error = new Error("push failed");
+    vi.mocked(panda.autoCredit).mockResolvedValue(true);
     const notification = Promise.withResolvers<Awaited<ReturnType<typeof onesignal.sendPushNotification>>>();
-    const sent = Promise.withResolvers<true>();
-    const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockImplementation((input) => {
-      if (JSON.stringify(input.headings) !== JSON.stringify(t("Card mode changed"))) {
-        return Promise.resolve({} as Awaited<ReturnType<typeof onesignal.sendPushNotification>>);
-      }
-      sent.resolve(true);
-      return notification.promise;
-    });
+    const { sendPushNotification, sent } = mockCredit(notification.promise);
     await database
       .insert(cards)
       .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
@@ -1089,7 +1077,7 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
 
-    await sent.promise;
+    await sent;
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
       headings: t("Card mode changed"),
@@ -1106,7 +1094,7 @@ describe("address activity", { timeout: 66_666 }, () => {
 
   it("captures auto credit errors", async () => {
     const error = new Error("auto credit");
-    const autoCredit = vi.spyOn(panda, "autoCredit").mockRejectedValue(error);
+    const autoCredit = vi.mocked(panda.autoCredit).mockRejectedValue(error);
     await database
       .insert(cards)
       .values([{ id: "auto-credit-error", credentialId: account, lastFour: "4321", mode: 0 }]);
@@ -1135,9 +1123,9 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
 
-    await vi.waitUntil(() => autoCredit.mock.calls.length > 0, 15_000);
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 15_000);
+    await waitForActivity();
 
+    expect(autoCredit).toHaveBeenCalledWith(account);
     expect(captureException).toHaveBeenCalledWith(error);
     expect(
       vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
@@ -1408,6 +1396,21 @@ function mockLifiTokens(response: Error | Record<string, { address: string }[]> 
     }
     return originalFetch(input, init);
   });
+}
+
+function mockCredit(response?: ReturnType<typeof onesignal.sendPushNotification>) {
+  const sent = Promise.withResolvers<true>();
+  const send = onesignal.sendPushNotification;
+  const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification").mockImplementation((input) => {
+    if (
+      JSON.stringify(input.headings) !== JSON.stringify(t("Card mode changed")) ||
+      JSON.stringify(input.contents) !== JSON.stringify(t("Credit mode activated"))
+    )
+      return send(input);
+    sent.resolve(true);
+    return response ?? send(input);
+  });
+  return { sendPushNotification, sent: sent.promise };
 }
 
 const activityPayload = {
