@@ -31,7 +31,7 @@ export default define({
       ],
     },
     activity: { secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"] },
-    block: { secrets: ["alchemy-webhooks-key", "onesignal-api-key"], signers: ["executor"] },
+    block: { secrets: ["alchemy-webhooks-key"] },
     bridge: {
       secrets: ["bridge-api-key", "onesignal-api-key", "persona-api-key", "postgres-url", "segment-write-key"],
       shared: ["bridge-api-url", "persona-api-url"],

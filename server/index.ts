@@ -65,8 +65,6 @@ const activity = createActivity({
 const block = createBlock({
   alchemyKey: parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY),
   blockKey: env.ALCHEMY_BLOCK_KEY,
-  executor: keeper,
-  onesignalKey: parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY),
   redisUrl: parse(pipe(string("redis"), nonEmpty("redis")), env.REDIS_URL),
 });
 const bridge = createBridge({

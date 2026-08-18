@@ -2,4 +2,4 @@
 "@exactly/server": patch
 ---
 
-✨ process proposal execution in worker
+✨ process proposal and legacy withdrawal execution in worker

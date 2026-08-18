@@ -54,16 +54,14 @@ describe("hook bin", () => {
       secrets: ["activity-alchemy-webhooks-key", "activity-onesignal-api-key", "activity-postgres-url", "redis-url"],
     },
     {
-      accounts: ["executor"],
+      accounts: [],
       config: {
         alchemyKey: "block-alchemy-webhooks-key",
-        executor: account,
-        onesignalKey: "block-onesignal-api-key",
         redisUrl: "redis-url",
       },
       load: () => import("../../hooks/bin/block"),
       name: "block",
-      secrets: ["block-alchemy-webhooks-key", "block-onesignal-api-key", "redis-url"],
+      secrets: ["block-alchemy-webhooks-key", "redis-url"],
     },
     {
       accounts: [],
@@ -188,7 +186,6 @@ describe("hook bin", () => {
   );
 
   it.each([
-    { accounts: ["executor"], load: () => import("../../hooks/bin/block"), name: "block", role: "executor" },
     { accounts: ["issuer", "settler"], load: () => import("../../hooks/bin/panda"), name: "panda", role: "issuer" },
     { accounts: ["issuer", "settler"], load: () => import("../../hooks/bin/panda"), name: "panda", role: "settler" },
   ])("fails before constructing the $name hook without its $role account", async ({ accounts, load, name, role }) => {
