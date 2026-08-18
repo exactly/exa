@@ -1,6 +1,7 @@
 import "../mocks/deployments";
 import { keeperClient, nonceSource } from "../mocks/keeper";
 import "../mocks/sentry";
+import { enableTracing } from "../mocks/traceClient";
 
 import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
@@ -14,6 +15,7 @@ import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
 
+import type * as tracing from "../../utils/traceClient";
 import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
@@ -53,6 +55,18 @@ describe("fault tolerance", () => {
     await expect(publicClient.getTransaction({ hash: receipt.transactionHash })).resolves.toMatchObject({
       input: concatHex([encodeFunctionData(call), dataSuffix]),
     });
+  });
+
+  it("traces transactions only when enabled", async () => {
+    const { default: traceClient } = await vi.importActual<typeof tracing>("../../utils/traceClient");
+    const traceTransaction = vi.spyOn(traceClient, "traceTransaction");
+
+    await enterMarket();
+    expect(traceTransaction).not.toHaveBeenCalled();
+
+    enableTracing();
+    const receipt = await enterMarket();
+    expect(traceTransaction).toHaveBeenCalledExactlyOnceWith(receipt?.transactionHash);
   });
 
   it("times out if can't send transaction", async () => {
@@ -371,6 +385,13 @@ vi.mock("node:timers/promises", async (importOriginal) => {
 });
 
 afterEach(() => vi.restoreAllMocks());
+
+function enterMarket() {
+  return keeper.exaSend(
+    { name: "test transfer", op: "test.transfer" },
+    { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+  );
+}
 
 async function spyScopeSetUser() {
   const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");

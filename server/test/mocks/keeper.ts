@@ -1,3 +1,5 @@
+import "./traceClient";
+
 import path from "node:path";
 import { createWalletClient, http, keccak256, toBytes, type NonceManagerSource } from "viem";
 import { privateKeyToAccount } from "viem/accounts";

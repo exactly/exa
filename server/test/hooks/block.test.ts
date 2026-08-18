@@ -2,6 +2,7 @@ import "../mocks/alchemy";
 import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/sentry";
+import "../mocks/traceClient";
 
 import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
