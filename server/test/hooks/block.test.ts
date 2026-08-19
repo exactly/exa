@@ -39,6 +39,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   auditorAbi,
   exaPluginAbi,
+  exaPreviewerAbi,
   issuerCheckerAbi,
   marketAbi,
   proposalManagerAbi,
@@ -1051,12 +1052,14 @@ describe("proposal", () => {
 
     afterEach(() => vi.useRealTimers());
 
-    it("executes proposal", async () => {
+    it("executes idle proposals and captures NotNext warning", async () => {
       const setUser = await spyScopeSetUser();
       const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-
+      const pending = proposals[5]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const match = matchProposal(another.args.account, another.args.nonce);
+      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       const expected = [
         {
           receiver: getAddress(decodeWithdraw(withdraw.args.data)),
@@ -1067,40 +1070,6 @@ describe("proposal", () => {
           amount: idle.args.amount,
         },
       ];
-      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, idle.args.nonce]);
-
-      const [, receipts] = await Promise.all([
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: [
-                    { topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } },
-                    { topics: another.topics, data: another.data, account: { address: another.address } },
-                  ],
-                },
-              },
-            },
-          },
-        }),
-        proposalExecutions,
-      ]);
-      expect(hasExpectedTransfers(receipts, expected)).toBe(true);
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("captures NotNext warning for out-of-order proposal execution", async () => {
-      const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(another.args.account, another.args.nonce);
-      const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
       const notNextAbi = [{ type: "error", name: "NotNext", inputs: [] }] as const;
       const { simulateContract } = publicClient;
       let injected = false;
@@ -1121,7 +1090,11 @@ describe("proposal", () => {
         return simulateContract(params);
       });
 
-      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, idle.args.nonce]);
+      const proposalExecutions = waitForSuccessfulProposalExecutions([
+        withdraw.args.nonce,
+        idle.args.nonce,
+        another.args.nonce,
+      ]);
       const notNextCapture = vi.waitUntil(
         () =>
           vi
@@ -1138,7 +1111,7 @@ describe("proposal", () => {
         26_666,
       );
 
-      await Promise.all([
+      const [response, receipts] = await Promise.all([
         appClient.index.$post({
           ...withdrawProposal,
           json: {
@@ -1162,11 +1135,34 @@ describe("proposal", () => {
         notNextCapture,
       ]);
 
+      expect(response.status).toBe(200);
+      expect(hasExpectedTransfers(receipts, expected)).toBe(true);
+      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
       const captureExceptionCalls = vi.mocked(captureException).mock.calls.slice(initialCaptureExceptionCalls);
       const proposalCaptureCalls = captureExceptionCalls.filter((call) => match.capture(call));
       expect(proposalCaptureCalls).toContainEqual([
         expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
         expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "NotNext"] }),
+      ]);
+      await expect(
+        publicClient.readContract({
+          address: inject("ExaPreviewer"),
+          abi: exaPreviewerAbi,
+          functionName: "pendingProposals",
+          args: [bobAccount],
+        }),
+      ).resolves.toStrictEqual([
+        {
+          nonce: pending.args.nonce,
+          unlock: pending.args.unlock,
+          proposal: {
+            amount: pending.args.amount,
+            market: pending.args.market,
+            timestamp: pending.args.unlock - BigInt(deploy.proposalManager.delay[anvil.id]),
+            proposalType: pending.args.proposalType,
+            data: pending.args.data,
+          },
+        },
       ]);
     });
   });
