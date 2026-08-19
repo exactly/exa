@@ -55,11 +55,9 @@ const api = createApi({
 const activity = createActivity({
   alchemyKey: parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY),
   activityKey: env.ALCHEMY_ACTIVITY_KEY,
-  executor: keeper,
   onesignalKey: parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY),
   postgresUrl: parse(pipe(string("postgres"), nonEmpty("postgres")), env.POSTGRES_URL),
   redisUrl: parse(pipe(string("redis"), nonEmpty("redis")), env.REDIS_URL),
-  segmentKey: parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY),
 });
 const block = createBlock({
   alchemyKey: parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY),
@@ -108,6 +106,7 @@ const persona = createPersona({
   personaUrl: parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
   personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
   postgresUrl: parse(pipe(string("postgres"), nonEmpty("postgres")), env.POSTGRES_URL),
+  redisUrl: parse(pipe(string("redis"), nonEmpty("redis")), env.REDIS_URL),
   sardineKey: parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   sardineUrl: parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
 });
