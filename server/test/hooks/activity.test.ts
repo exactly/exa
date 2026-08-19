@@ -496,19 +496,17 @@ describe("address activity", { timeout: 66_666 }, () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const [response, market] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
         },
-      }),
-      waitForWETHMarket(account, deposit),
-    ]);
+      },
+    });
+    const market = await waitForWETHMarket(account, deposit);
 
     expect(market.floatingDepositAssets).toBe(deposit);
     expect(market.isCollateral).toBe(true);
@@ -520,19 +518,17 @@ describe("address activity", { timeout: 66_666 }, () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const [response, market] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account, rawContract: {} }],
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account, rawContract: {} }],
         },
-      }),
-      waitForWETHMarket(account, deposit),
-    ]);
+      },
+    });
+    const market = await waitForWETHMarket(account, deposit);
 
     expect(market.floatingDepositAssets).toBe(deposit);
     expect(market.isCollateral).toBe(true);
@@ -544,21 +540,19 @@ describe("address activity", { timeout: 66_666 }, () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    const [response, market] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [
-              { ...activityPayload.json.event.activity[0], toAddress: account, rawContract: { rawValue: "0x" } },
-            ],
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            { ...activityPayload.json.event.activity[0], toAddress: account, rawContract: { rawValue: "0x" } },
+          ],
         },
-      }),
-      waitForWETHMarket(account, deposit),
-    ]);
+      },
+    });
+    const market = await waitForWETHMarket(account, deposit);
 
     expect(
       exaSend.mock.calls.some(
@@ -589,19 +583,17 @@ describe("address activity", { timeout: 66_666 }, () => {
       rawContract: eth.rawContract,
     };
     expect("value" in transfer).toBe(false);
-    const [response, market] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [transfer],
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [transfer],
         },
-      }),
-      waitForWETHMarket(account, deposit),
-    ]);
+      },
+    });
+    const market = await waitForWETHMarket(account, deposit);
 
     expect(
       exaSend.mock.calls.some(
@@ -630,26 +622,24 @@ describe("address activity", { timeout: 66_666 }, () => {
       args: [account, weth],
     });
 
-    const [response, market] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [
-              { ...activityPayload.json.event.activity[0], toAddress: account },
-              {
-                ...activityPayload.json.event.activity[1],
-                toAddress: account,
-                rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-              },
-            ],
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            { ...activityPayload.json.event.activity[0], toAddress: account },
+            {
+              ...activityPayload.json.event.activity[1],
+              toAddress: account,
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+            },
+          ],
         },
-      }),
-      waitForWETHMarket(account, eth + weth),
-    ]);
+      },
+    });
+    const market = await waitForWETHMarket(account, eth + weth);
 
     expect(market.floatingDepositAssets).toBe(eth + weth);
     expect(market.isCollateral).toBe(true);
@@ -678,19 +668,17 @@ describe("address activity", { timeout: 66_666 }, () => {
       rawContract: { ...token.rawContract, address: inject("WETH") },
     };
     expect("value" in transfer).toBe(false);
-    const [response, market] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [transfer],
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [transfer],
         },
-      }),
-      waitForWETHMarket(account, weth),
-    ]);
+      },
+    });
+    const market = await waitForWETHMarket(account, weth);
 
     expect(
       exaSend.mock.calls.some(
@@ -778,19 +766,17 @@ describe("address activity", { timeout: 66_666 }, () => {
       ),
     ]);
 
-    const [response] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: accounts.map((toAddress) => ({ ...activityPayload.json.event.activity[0], toAddress })),
-          },
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: accounts.map((toAddress) => ({ ...activityPayload.json.event.activity[0], toAddress })),
         },
-      }),
-      ...accounts.map((address) => waitForWETHMarket(address, deposit)),
-    ]);
+      },
+    });
+    await Promise.all(accounts.map((address) => waitForWETHMarket(address, deposit)));
 
     expect(setUser).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
@@ -1366,11 +1352,11 @@ async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint
 
 async function waitForActivity() {
   const spans = vi.mocked(startSpan);
-  await Promise.allSettled(
-    spans.mock.calls.flatMap(([options], index) =>
-      options.op === "exa.activity" ? [spans.mock.results[index]?.value as unknown] : [],
-    ),
+  const pending = spans.mock.calls.flatMap(([options], index) =>
+    options.op === "exa.activity" ? [spans.mock.results[index]?.value as unknown] : [],
   );
+  expect(pending).not.toHaveLength(0);
+  await Promise.allSettled(pending);
 }
 
 function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") {
@@ -1476,7 +1462,7 @@ vi.mock("viem", async (importOriginal) => {
 });
 
 afterEach(async () => {
-  await waitForActivity();
+  if (vi.mocked(startSpan).mock.calls.some(([options]) => options.op === "exa.activity")) await waitForActivity();
   vi.clearAllMocks();
   vi.restoreAllMocks();
 }, 66_666);
