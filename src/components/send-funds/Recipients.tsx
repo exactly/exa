@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp, Contact, PencilLine, Settings, TriangleAlert } from "@tamagui/lucide-icons";
+import { ArrowLeft, CircleHelp, Contact, PencilLine, QrCode, Settings, TriangleAlert } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 
@@ -93,14 +93,30 @@ export default function Recipients() {
         </XStack>
         <ScrollView flex={1}>
           <YStack flex={1} gap="$s5">
-            <AddFundsOption
-              icon={<Settings size={24} color="$iconBrandDefault" />}
-              title={t("Transfer to a new beneficiary")}
-              subtitle={method ? t("Via {{method}}", { method }) : t("Add new beneficiary")}
-              onPress={() => {
-                router.push({ pathname: "/send-funds/new-recipient", params: { currency, provider } });
-              }}
-            />
+            <YStack gap="$s3_5">
+              <AddFundsOption
+                icon={<Settings size={24} color="$iconBrandDefault" />}
+                title={t("Transfer to a new beneficiary")}
+                subtitle={method ? t("Via {{method}}", { method }) : t("Add new beneficiary")}
+                onPress={() => {
+                  router.push({ pathname: "/send-funds/new-recipient", params: { currency, provider } });
+                }}
+              />
+              {currency === "BRL" && (
+                <>
+                  <Text footnote color="$uiNeutralPlaceholder">
+                    {t("or")}
+                  </Text>
+                  <AddFundsOption
+                    icon={<QrCode size={24} color="$iconBrandDefault" />}
+                    title={t("Scan QR code")}
+                    onPress={() => {
+                      router.push({ pathname: "/send-funds/new-recipient", params: { currency, provider, scan: "1" } });
+                    }}
+                  />
+                </>
+              )}
+            </YStack>
             <YStack gap="$s3_5" paddingHorizontal="$s3_5">
               <XStack gap="$s2" alignItems="center">
                 <Contact size={16} color="$interactiveBaseBrandDefault" />

@@ -53,7 +53,6 @@ export const routing = pipe(string(), regex(/^\d{9}$/, "Must be 9 numbers"));
 export const clabe = pipe(string(), regex(/^\d{18}$/, "Must be 18 numbers"));
 export const ukAccount = pipe(string(), regex(/^\d{8}$/, "Must be 8 numbers"));
 export const sortCode = pipe(string(), regex(/^\d{6}$/, "Must be 6 numbers"));
-export const documentNumber = pipe(string(), regex(/^\d+$/, "Numbers only"));
 export const achReference = pipe(
   string(),
   maxLength(10, "Must be 10 characters or less"),
