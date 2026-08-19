@@ -30,8 +30,7 @@ jobs:
           node-version: "^24.14.1"
       - run: corepack enable
       - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.5.1
+        with: { version: v1.7.1, cache: false }
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest

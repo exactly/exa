@@ -27,6 +27,7 @@ number_underscore = "thousands"
 
 [lint]
 exclude_lints = [
+  "block-timestamp",
   "incorrect-shift",
   "mixed-case-function",
   "mixed-case-variable",
