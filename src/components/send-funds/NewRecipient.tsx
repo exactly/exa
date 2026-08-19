@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, CircleHelp, Info, Landmark, Zap } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, CircleHelp, Eye, EyeOff, Info, Landmark, Zap } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
+import { getPixKeyType, PixKeyType } from "@pix.js/qrcode";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
@@ -15,7 +16,6 @@ import {
   addressFields,
   brlReference,
   clabe,
-  documentNumber,
   eurReference,
   Field,
   FieldInput,
@@ -33,9 +33,11 @@ import {
   wireReference,
   type FieldConfig,
 } from "./recipientForm";
+import Scanner from "./Scanner";
 import TransferTypeSheet from "./TransferTypeSheet";
 import { bridgeRails, isValidCurrency } from "../../utils/currencies";
 import { presentArticle } from "../../utils/intercom";
+import { isPixKey, parseBRCode, pixAccount, taxDocument } from "../../utils/pix";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, createExternalAccount } from "../../utils/server";
@@ -49,12 +51,14 @@ import View from "../shared/View";
 export default function NewRecipient() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { currency, provider } = useLocalSearchParams();
+  const { currency, provider, scan } = useLocalSearchParams();
   const toast = useToastController();
 
   const [step, setStep] = useState(1);
   const [openSelect, setOpenSelect] = useState<string | undefined>();
   const [openInfo, setOpenInfo] = useState(false);
+  const [scanning, setScanning] = useState(scan === "1");
+  const [amount, setAmount] = useState<string>();
 
   const currencyKey = typeof currency === "string" ? currency : "";
   const build = forms[currencyKey];
@@ -87,7 +91,7 @@ export default function NewRecipient() {
       });
       router.push({
         pathname: "/send-funds/send-amount",
-        params: { currency, provider, contactId: newAccount.id },
+        params: { currency, provider, contactId: newAccount.id, ...(amount && { amount }) },
       });
     },
     onError: (error) => {
@@ -117,6 +121,10 @@ export default function NewRecipient() {
       });
       const activePaths = new Set(fields.filter((f) => !f.transient).map((f) => f.path));
       const stripped = Object.fromEntries(Object.entries(value).filter(([k, v]) => v !== "" && activePaths.has(k)));
+      if (stripped.account_pixKey && parseBRCode(stripped.account_pixKey)) {
+        stripped.account_brCode = stripped.account_pixKey;
+        delete stripped.account_pixKey;
+      }
       const payload = { currency: currencyKey, ...nest(stripped) };
       createMutation.mutate(payload as Parameters<typeof createExternalAccount>[0]);
     },
@@ -144,6 +152,47 @@ export default function NewRecipient() {
 
   if (typeof currency !== "string" || !isValidCurrency(currency) || !build || !currentStep) {
     return <Redirect href="/send-funds" />;
+  }
+
+  function fill(path: string, value?: string) {
+    if (!value) return;
+    const field = allFields.find((f) => f.path === path);
+    if (!field || validator(field)({ value })) return;
+    form.setFieldValue(path, value);
+  }
+
+  if (scanning) {
+    return (
+      <Scanner
+        onClose={() => {
+          if (router.canGoBack()) router.back();
+          else setScanning(false);
+        }}
+        onScan={(data) => {
+          const code = parseBRCode(data);
+          if (!code) {
+            toast.show(t("Couldn't read this QR code. Make sure it's a PIX code."), {
+              duration: 3000,
+              burntOptions: { haptic: "error", preset: "error" },
+            });
+            return false;
+          }
+          fill("account_pixKey", code.type === "static" ? code.key : code.brCode);
+          for (const [path, value] of Object.entries({
+            accountOwnerName: code.ownerName,
+            address_city: code.city,
+            address_country: code.country,
+            address_postalCode: code.postalCode,
+            ...(code.type === "static" && { account_documentNumber: code.key, reference: code.txId }),
+          })) {
+            fill(path, value);
+          }
+          setAmount(code.type === "static" && code.value ? code.value.toFixed(2) : undefined);
+          setScanning(false);
+          return true;
+        }}
+      />
+    );
   }
 
   const openField = openSelect ? currentStep.fields.find((f) => f.path === openSelect) : undefined;
@@ -222,15 +271,20 @@ export default function NewRecipient() {
               {currentStep.fields.map((field) => (
                 <form.Field key={field.path} name={field.path} validators={{ onChange: validator(field) }}>
                   {({ state: { value, meta }, handleChange }) => {
-                    const input = (
+                    function change(next: string) {
+                      handleChange(next);
+                      if (next === value) return;
+                      if (field.kind === "option") form.resetField("reference");
+                    }
+                    const code = field.path === "account_pixKey" ? parseBRCode(value) : undefined;
+                    const input = code ? (
+                      <BRCodeField value={value} name={code.ownerName} />
+                    ) : (
                       <FieldInput
                         field={field}
                         value={value}
                         country={currentCountry}
-                        onChange={(next) => {
-                          handleChange(next);
-                          if (field.kind === "option" && next !== value) form.resetField("reference");
-                        }}
+                        onChange={change}
                         onOpen={() => {
                           setOpenSelect(field.path);
                         }}
@@ -245,6 +299,7 @@ export default function NewRecipient() {
                         error={meta.isTouched && typeof meta.errors[0] === "string" ? meta.errors[0] : undefined}
                       >
                         {input}
+                        {field.path === "account_pixKey" && <AccountHint value={value} code={code} />}
                       </Field>
                     );
                   }}
@@ -306,6 +361,14 @@ export default function NewRecipient() {
 
 type Step = { fields: FieldConfig[]; subtitle?: string; title: string };
 
+const pixKeyLabels: Record<PixKeyType, string> = {
+  [PixKeyType.Cpf]: "CPF",
+  [PixKeyType.Cnpj]: "CNPJ",
+  [PixKeyType.Email]: "Email",
+  [PixKeyType.Phone]: "Phone number",
+  [PixKeyType.Evp]: "Random key",
+};
+
 const errorMessages: Record<string, string> = {
   "not approved": "Your KYC isn't approved for this currency",
   "not started": "Bridge setup incomplete",
@@ -364,6 +427,69 @@ const lastName: FieldConfig = {
 
 function nameFields(ownerType?: string): FieldConfig[] {
   return ownerType === "business" ? [businessName] : [firstName, lastName];
+}
+
+function AccountHint({ value, code }: { code: ReturnType<typeof parseBRCode>; value: string }) {
+  const { t } = useTranslation();
+  const trimmed = value.trim();
+  if (!code) {
+    if (!isPixKey(trimmed)) return null;
+    return (
+      <Text footnote color="$uiNeutralPlaceholder">
+        {t("PIX key · {{type}}", { type: t(pixKeyLabels[getPixKeyType(trimmed)]) })}
+      </Text>
+    );
+  }
+  if (code.type !== "dynamic" || !code.oneTime) return null;
+  return (
+    <YStack gap="$s1">
+      <Text footnote color="$uiWarningSecondary">
+        {t("One-time charge")}
+      </Text>
+      <Text caption color="$uiNeutralPlaceholder">
+        {t("The saved contact may stop working once it's paid.")}
+      </Text>
+    </YStack>
+  );
+}
+
+function BRCodeField({ value, name }: { name?: string; value: string }) {
+  const { t } = useTranslation();
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <XStack
+      backgroundColor="$backgroundSoft"
+      borderRadius="$r3"
+      borderWidth={1}
+      borderColor="$borderNeutralSoft"
+      alignItems="center"
+      overflow="hidden"
+    >
+      {revealed ? (
+        <Text flex={1} padding="$s3" caption secondary userSelect="text">
+          {value}
+        </Text>
+      ) : (
+        <Text flex={1} padding="$s3" numberOfLines={1}>
+          {name ? t("BR Code · {{name}}", { name }) : t("BR Code")}
+        </Text>
+      )}
+      <View
+        backgroundColor="$interactiveBaseBrandSoftDefault"
+        padding="$s3_5"
+        alignSelf="stretch"
+        justifyContent="center"
+        alignItems="center"
+        cursor="pointer"
+        aria-label={t(revealed ? "Hide BR Code" : "Show BR Code")}
+        onPress={() => {
+          setRevealed(!revealed);
+        }}
+      >
+        {revealed ? <EyeOff size={24} color="$iconBrandDefault" /> : <Eye size={24} color="$iconBrandDefault" />}
+      </View>
+    </XStack>
+  );
 }
 
 function referenceField(validate: FieldConfig["validate"]): FieldConfig {
@@ -463,30 +589,22 @@ const forms: Record<string, (d: { ownerType?: string; variant?: string }) => Fie
     ...addressFields(),
     referenceField(gbpReference),
   ],
-  BRL: ({ variant }) => [
+  BRL: () => [
     ownerName,
     {
-      path: "method",
-      label: "Account type",
-      placeholder: "Select",
-      kind: "select",
-      transient: true,
-      variant: true,
-      options: [
-        { value: "pixKey", label: "PIX Key" },
-        { value: "brCode", label: "BR Code" },
-      ],
+      path: "account_pixKey",
+      label: "PIX key or BR Code",
+      placeholder: "Enter a key or paste a BR Code",
+      kind: "text",
+      validate: pixAccount,
     },
-    variant === "brCode"
-      ? { path: "account_brCode", label: "BR Code", placeholder: "Paste BR Code", kind: "text", validate: text }
-      : { path: "account_pixKey", label: "PIX key", placeholder: "Enter PIX key", kind: "text", validate: text },
     {
       path: "account_documentNumber",
       label: "Document number",
       placeholder: "Enter beneficiary's document number",
       kind: "text",
       optional: true,
-      validate: documentNumber,
+      validate: taxDocument,
     },
     bankName,
     ...addressFields(),
