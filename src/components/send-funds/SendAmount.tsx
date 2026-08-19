@@ -54,7 +54,7 @@ export default function SendAmount() {
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
-  const { currency, provider, contactId } = useLocalSearchParams();
+  const { currency, provider, contactId, amount: scannedAmount } = useLocalSearchParams();
   const currencyString = typeof currency === "string" ? currency : "";
   const contactString = typeof contactId === "string" ? contactId : "";
   const fiatCurrency = isFiatCurrency(currencyString) ? currencyString : undefined;
@@ -85,7 +85,7 @@ export default function SendAmount() {
   const symbol = getSymbol(currencyString);
 
   const form = useForm({
-    defaultValues: { amount: "" },
+    defaultValues: { amount: typeof scannedAmount === "string" ? scannedAmount : "" },
     onSubmit: ({ value }) => {
       router.push({
         pathname: "/send-funds/review",
@@ -249,7 +249,7 @@ export default function SendAmount() {
           <SummaryRow
             icon={<Calendar size={16} color="$uiNeutralPlaceholder" />}
             label={t("Delivery time")}
-            value={t(rail ? bridgeRails[rail].time : DELIVERY_TIME)}
+            value={t(rail ? bridgeRails[rail].time : currencyString === "BRL" ? "Instant" : DELIVERY_TIME)}
           />
           <SummaryRow
             icon={<ArrowLeftRight size={16} color="$uiNeutralPlaceholder" />}

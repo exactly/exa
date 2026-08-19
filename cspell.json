@@ -46,6 +46,7 @@
     "cloudkms",
     "cloudrun",
     "cloudrunv2",
+    "CNPJ",
     "codegen",
     "codepoint",
     "colocating",

@@ -1,192 +1,40 @@
-import React, { useCallback, useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
-import { Linking, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
-import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons";
-import { useWindowDimensions, XStack, YStack } from "tamagui";
+import { useToastController } from "@tamagui/toast";
 
 import { parse, safeParse } from "valibot";
 import { zeroAddress } from "viem";
 
 import { Address } from "@exactly/common/validation";
 
-import reportError from "../../utils/reportError";
-import IconButton from "../shared/IconButton";
-import Button from "../shared/StyledButton";
-import Text from "../shared/Text";
-import View from "../shared/View";
+import Scanner from "./Scanner";
 
 export default function QR() {
-  const { top, bottom } = useSafeAreaInsets();
-  const { height, width } = useWindowDimensions();
-
   const router = useRouter();
-
-  const [active, setActive] = useState(true);
-  const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
-  const [permission, requestPermission] = useCameraPermissions();
   const { t } = useTranslation();
+  const toast = useToastController();
 
-  useFocusEffect(
-    useCallback(() => {
-      setActive(true);
-      return () => {
-        setActive(false);
-      };
-    }, []),
-  );
-
-  if (!permission) return <View fullScreen backgroundColor="$backgroundSoft" />;
-  if (!permission.granted) {
-    if (!permission.canAskAgain) {
-      return (
-        <View fullScreen justifyContent="center" alignItems="center" backgroundColor="$backgroundSoft">
-          <XStack
-            position="absolute"
-            borderRadius="$r_0"
-            backgroundColor="transparent"
-            alignItems="center"
-            top={top}
-            left="$s4"
-            padding="$s3"
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/send-funds");
-              }
-            }}
-            gap="$s2"
-          >
-            <ArrowLeft size={24} color="white" />
-            <Text headline>{t("Back")}</Text>
-          </XStack>
-          <View padded>
-            <YStack gap="$s4">
-              <Text secondary subHeadline textAlign="center">
-                {t(
-                  "Camera access is currently disabled for Exa App. In order to continue, enable camera access for Exa App from your device settings.",
-                )}
-              </Text>
-              <Button
-                primary
-                minHeight="auto"
-                alignSelf="center"
-                onPress={() => {
-                  Linking.openSettings().catch(reportError);
-                }}
-              >
-                <Button.Text>{t("Go to Settings")}</Button.Text>
-              </Button>
-            </YStack>
-          </View>
-        </View>
-      );
-    }
-    return (
-      <View fullScreen justifyContent="center" alignItems="center" backgroundColor="$backgroundSoft">
-        <XStack
-          position="absolute"
-          borderRadius="$r_0"
-          backgroundColor="transparent"
-          alignItems="center"
-          top={top}
-          left="$s4"
-          padding="$s3"
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/send-funds");
-            }
-          }}
-          gap="$s2"
-        >
-          <ArrowLeft size={24} color="white" />
-          <Text headline>{t("Back")}</Text>
-        </XStack>
-        <View padded>
-          <YStack gap="$s4">
-            <Text secondary subHeadline textAlign="center">
-              {t(
-                "Before we continue, we need your permission to access the camera. The camera will only be used for scanning valid addresses.",
-              )}
-            </Text>
-            <Text secondary footnote textAlign="center">
-              {t("Press “Continue” to proceed or “Back” to cancel.")}
-            </Text>
-            <Button
-              secondary
-              alignSelf="center"
-              onPress={() => {
-                requestPermission().catch((error: unknown) => {
-                  reportError(error);
-                  router.replace("/send-funds");
-                });
-              }}
-            >
-              <Button.Text>{t("Continue")}</Button.Text>
-            </Button>
-          </YStack>
-        </View>
-      </View>
-    );
-  }
   return (
-    <View fullScreen backgroundColor="$backgroundSoft">
-      {active && (
-        <CameraView
-          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          onBarcodeScanned={({ data: receiver }) => {
-            const result = safeParse(Address, receiver);
-            if (!result.success) return;
-            if (result.output === parse(Address, zeroAddress)) return;
-            router.dismissTo({ pathname: "/send-funds/asset", params: { receiver: result.output } });
-          }}
-          facing={cameraFacing}
-          style={styles.cameraView}
-        />
-      )}
-      <View position="absolute" fullScreen justifyContent="center" alignItems="center">
-        <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
-      </View>
-      <Button
-        primary
-        minHeight="auto"
-        padding="$s3"
-        position="absolute"
-        borderRadius="$r_0"
-        bottom={bottom}
-        right="$s4"
-        hitSlop={15}
-        onPress={() => {
-          setCameraFacing(cameraFacing === "back" ? "front" : "back");
-        }}
-      >
-        <Button.Icon>
-          <SwitchCamera />
-        </Button.Icon>
-      </Button>
-      <View position="absolute" borderRadius="$r_0" backgroundColor="transparent" top={top} left="$s4" padding="$s3">
-        <IconButton
-          icon={ArrowLeft}
-          color="white"
-          aria-label={t("Back")}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/send-funds");
-            }
-          }}
-        />
-      </View>
-    </View>
+    <Scanner
+      onClose={() => {
+        if (router.canGoBack()) router.back();
+        else router.replace("/send-funds");
+      }}
+      onScan={(data) => {
+        const result = safeParse(Address, data);
+        if (!result.success || result.output === parse(Address, zeroAddress)) {
+          toast.show(t("Couldn't read this QR code. Make sure it's a valid address."), {
+            duration: 3000,
+            burntOptions: { haptic: "error", preset: "error" },
+          });
+          return false;
+        }
+        router.dismissTo({ pathname: "/send-funds/asset", params: { receiver: result.output } });
+        return true;
+      }}
+    />
   );
 }
-
-const styles = StyleSheet.create({ cameraView: { flex: 1 } });
