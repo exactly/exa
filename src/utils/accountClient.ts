@@ -93,8 +93,8 @@ import type { Config } from "@wagmi/core";
 
 if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
-export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
-  const accountAddress = deriveAddress(factory, { x, y });
+export default async function createAccountClient({ credentialId, factory, x, y, salt }: Credential) {
+  const accountAddress = deriveAddress(factory, { x, y, salt });
   setUser({ id: accountAddress });
   login(accountAddress);
   const transport = custom(publicClient);
@@ -123,7 +123,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   const accountOptions = {
     accountAddress,
     source: "WebauthnAccount" as const,
-    getAccountInitCode: () => Promise.resolve(concatHex([factory, accountInit({ x, y })])),
+    getAccountInitCode: () => Promise.resolve(concatHex([factory, accountInit({ x, y, salt })])),
     getDummySignature: () => DUMMY_SIGNATURE,
     signUserOperationHash,
     signMessage: () => Promise.reject(new Error("not implemented")),

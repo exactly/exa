@@ -328,6 +328,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
             transports: null | string[];
           };
           factory: string;
+          salt: string;
           statement: string;
         }
       | { authType: "siwe"; message: string; signature: string },

@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -138,6 +138,7 @@ describe("with reference", () => {
       chainId: chain.id,
       factory,
       publicKey: owner.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(response.status).toBe(200);
@@ -271,6 +272,7 @@ describe("with reference", () => {
       chainId: chain.id,
       factory,
       publicKey: owner.toLowerCase(),
+      salt: zeroAddress,
       source: null,
     });
     expect(panda.createUser).not.toHaveBeenCalled();
@@ -514,6 +516,7 @@ describe("persona hook", () => {
       chainId: chain.id,
       factory: inject("ExaAccountFactory"),
       publicKey: "0x",
+      salt: zeroAddress,
       source: null,
     });
     expect(panda.createUser).toHaveBeenCalledWith({
