@@ -114,7 +114,7 @@ export default function Auth() {
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       {!loadingContext && !embeddingContext && (
-        <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch">
+        <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch" zIndex={1}>
           <IconButton
             icon={CircleHelp}
             color="$uiNeutralSecondary"
