@@ -2,26 +2,105 @@ name: server/deploy
 on:
   workflow_call:
     inputs:
-      environment:
-        required: true
-        type: string
+      stack: { required: true, type: string }
+      domain: { type: string }
     secrets:
       DIGITALOCEAN_TOKEN:
+concurrency:
+  group: server-deploy-${{ inputs.stack }}
+  cancel-in-progress: false
 jobs:
-  digitalocean:
+  infra:
+    needs: sentry
     runs-on: ubuntu-latest
-    environment: { name: "${{ inputs.environment }}", url: "https://${{ vars.APP_DOMAIN }}" }
-    concurrency:
-      group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: true
+    environment: ${{ inputs.stack }}
+    permissions: { contents: read, id-token: write }
     env:
+      PULUMI_CONFIG_PASSPHRASE: ""
+      STACK: ${{ inputs.stack }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - run: echo ::add-matcher::.github/matcher.json
+      - id: account
+        run: echo "email=github-$STACK@$(yq -er '.config."gcp:project"' "infra/Pulumi.$STACK.yaml").iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ steps.account.outputs.email }}
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, check-latest: true, package-manager-cache: false }
+      - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.5.1 }
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        env: { REDISMS_DISABLE_POSTINSTALL: "true" }
+      - uses: pulumi/actions@v7
+      - run: pulumi login "gs://exa-pulumi-state/$STACK"
+      - run: pulumi stack select "$STACK" --create --cwd infra
+      - run: pulumi up --stack "$STACK" --cwd infra --refresh --yes --config "exa:rollout=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --config "exa:serverImage=sha-$GITHUB_SHA"
+  digitalocean:
+    needs: sentry
+    runs-on: ubuntu-latest
+    environment: { name: "${{ inputs.stack }}", url: "https://${{ env.APP_DOMAIN }}" }
+    permissions: { contents: read }
+    env:
+      APP_DOMAIN: ${{ inputs.domain || format('{0}.exactly.app', inputs.stack) }}
       CHAIN_ID: ${{ vars.CHAIN_ID }}
-      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
     steps:
       - uses: digitalocean/app_action/deploy@v2
         env: { IMAGE_TAG_SERVER: "sha-${{ github.sha }}" }
         with:
-          app_name: ${{ inputs.environment }}
+          app_name: ${{ inputs.stack }}
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           print_build_logs: true
           print_deploy_logs: true
+  sentry:
+    environment: sentry
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: read }
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}-${{ inputs.stack }}
+    steps:
+      - uses: actions/checkout@v7
+        if: inputs.stack == 'production'
+        with: { fetch-depth: 0, fetch-tags: true, persist-credentials: false }
+      - uses: docker/login-action@v4
+        if: inputs.stack == 'production'
+        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - run: |
+          docker pull "$IMAGE:sha-$GITHUB_SHA"
+          docker create --name extract "$IMAGE:sha-$GITHUB_SHA"
+          docker cp extract:/prod/server/dist ./server/dist
+          mkdir -p ./server/generated
+          docker cp extract:/prod/server/generated/release.js ./server/generated/release.js
+          docker rm extract
+          echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
+        id: extract
+        if: inputs.stack == 'production'
+      - id: commits
+        if: inputs.stack == 'production'
+        run: |
+          currentTag="$GITHUB_REF_NAME"
+          previousTag=$(git for-each-ref 'refs/tags/@exactly/server@*' --sort=-version:refname --format='%(refname:short)' | while read -r tag; do [ "$tag" = "$currentTag" ] && continue; git merge-base --is-ancestor "$tag" "$GITHUB_SHA" && { echo "$tag"; break; }; done)
+          if [ -n "$previousTag" ]; then
+            echo "mode=manual" >> "$GITHUB_OUTPUT"
+            echo "repo=$GITHUB_REPOSITORY" >> "$GITHUB_OUTPUT"
+            echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            echo "previous_commit=$(git rev-list -n 1 "$previousTag")" >> "$GITHUB_OUTPUT"
+            echo "previous_tag=$previousTag" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=auto" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: getsentry/action-release@v3 # cspell:ignore getsentry
+        if: inputs.stack == 'production'
+        env: { SENTRY_ORG: exactly, SENTRY_PROJECT: server, SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}" }
+        with:
+          commit: ${{ steps.commits.outputs.commit }}
+          environment: ${{ inputs.stack }}
+          previous_commit: ${{ steps.commits.outputs.previous_commit }}
+          repo: ${{ steps.commits.outputs.repo }}
+          release: ${{ steps.extract.outputs.release }}
+          set_commits: ${{ steps.commits.outputs.mode }}
+          sourcemaps: server/dist
+          inject: false
