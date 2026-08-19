@@ -77,7 +77,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     } as Record<string, string>,
   };
 
-  await $(shell)`forge script test/mocks/Protocol.s.sol --code-size-limit 69000
+  await $(shell)`forge script test/mocks/Protocol.s.sol --disable-code-size-limit
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
 
   const protocol = parse(

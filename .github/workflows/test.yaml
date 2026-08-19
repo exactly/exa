@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.5.1 }
+        with: { version: v1.7.1 }
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.5.1 }
+        with: { version: v1.7.1 }
       - uses: actions/cache@v5
         with:
           path: .nx/cache
