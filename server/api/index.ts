@@ -29,6 +29,7 @@ import createManteca from "../utils/ramps/manteca";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import createWalletExtension from "../utils/walletExtension";
+import createSubscribe from "../workers/subscribe/queue";
 
 export default function api({
   alchemyKey,
@@ -75,10 +76,10 @@ export default function api({
 }) {
   const database = drizzle(postgresUrl, { schema });
   const redis = new Redis(redisUrl);
+  const bullmq = new Redis(redisUrl, { maxRetriesPerRequest: null });
   const betterAuth = createBetterAuth(database, authSecret);
   const auth = createAuth(authSecret);
   const org = createOrg(betterAuth);
-  const alchemy = createAlchemy(alchemyKey);
   const bridge = createBridge(bridgeKey, bridgeUrl);
   const intercom = createIntercom(intercomKey);
   const manteca = createManteca(mantecaKey, mantecaUrl);
@@ -87,8 +88,9 @@ export default function api({
   const persona = createPersona(personaKey, personaUrl);
   const sardine = createSardine(sardineKey, sardineUrl);
   const segment = createSegment(segmentKey);
+  const subscribe = createSubscribe(bullmq, createAlchemy(alchemyKey));
   const walletExtension = createWalletExtension(walletExtensionSecret);
-  const credential = createCredential({ alchemy, authSecret, database, sardine, segment });
+  const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
   const app = new Hono()
     .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
     .use((c, next) => {
@@ -112,7 +114,13 @@ export default function api({
   let closing: Promise<unknown> | undefined;
   return {
     app,
-    close: () => (closing ??= Promise.all([database.$client.end(), redis.quit(), segment.close()])),
+    close: () =>
+      (closing ??= Promise.all([
+        database.$client.end(),
+        redis.quit(),
+        segment.close(),
+        subscribe.close().finally(() => bullmq.quit()),
+      ])),
     ready: Promise.resolve(),
   };
 }
