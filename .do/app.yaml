@@ -118,6 +118,9 @@ services:
       - key: PANDA_API_URL
         scope: RUN_TIME
         value: ${{ env.PANDA_API_URL }}
+      - key: PANDA_SUBTENANT_ID
+        scope: RUN_TIME
+        value: ${{ env.PANDA_SUBTENANT_ID }}
       - key: ISSUER_ADDRESS
         scope: RUN_TIME
         value: ${{ env.ISSUER_ADDRESS }}
@@ -136,6 +139,9 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_PERSONA_API_KEY || env.PERSONA_API_KEY }}
+      - key: PERSONA_BUSINESS_ACCOUNT_TYPE_ID
+        scope: RUN_TIME
+        value: acttp_AWN3X1Rb7Rnt5o7EA4e8VcU7D61xH2 # cspell:ignore acttp
       - key: PERSONA_URL
         scope: RUN_TIME
         value: ${{ env.PERSONA_URL }}

@@ -42,6 +42,8 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { decode, encode } from "../../utils/authChallenge";
+import { accountSalt } from "../../utils/createCredential";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -192,6 +194,7 @@ export default function route({
                 description("Address to register with, if using Sign-in with Ethereum."),
               ),
             ),
+            accountType: optional(literal("business")),
           }),
         ),
         validatorHook({ code: "bad credential" }),
@@ -223,7 +226,7 @@ export default function route({
             domain,
             scheme,
           });
-          await redis.set(sessionId, message, "PX", timeout);
+          await redis.set(sessionId, encode(message, query.accountType), "PX", timeout);
           return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
         }
         const userName = new Date().toISOString().slice(0, 16);
@@ -237,7 +240,7 @@ export default function route({
           // TODO excludeCredentials?
           timeout,
         });
-        await redis.set(sessionId, options.challenge, "PX", timeout);
+        await redis.set(sessionId, encode(options.challenge, query?.accountType), "PX", timeout);
         return c.json(
           {
             method: "webauthn" as const,
@@ -286,6 +289,7 @@ export default function route({
         optional(
           object({
             factory: optional(pipe(Address, title("Factory"), description("Account factory address."))),
+            accountType: optional(literal("business")),
           }),
         ),
         validatorHook({ code: "bad factory" }),
@@ -355,18 +359,22 @@ export default function route({
         const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
         if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-        const challenge = await redis.getdel(sessionId);
-        if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
+        const storedChallenge = await redis.getdel(sessionId);
+        if (!storedChallenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
+        const challenge = decode(storedChallenge);
+        if (!challenge) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
+        if (challenge.accountType !== c.req.valid("query")?.accountType)
+          return c.json({ code: "bad account type" }, 400);
 
         let webauthn: undefined | WebAuthnCredential;
         try {
           switch (attestation.method) {
             case "siwe": {
-              const message = parseSiweMessage(challenge);
+              const message = parseSiweMessage(challenge.challenge);
               if (
                 !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
                 !(await publicClient.verifySiweMessage({
-                  message: challenge,
+                  message: challenge.challenge,
                   address: attestation.id,
                   signature: attestation.signature,
                 }))
@@ -387,7 +395,7 @@ export default function route({
                 },
                 expectedRPID: domain,
                 expectedOrigin: [appOrigin, ...androidOrigins],
-                expectedChallenge: challenge,
+                expectedChallenge: challenge.challenge,
                 supportedAlgorithmIDs: [cose.COSEALG.ES256],
               });
               if (!verified) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
@@ -409,6 +417,7 @@ export default function route({
         try {
           const result = await createCredential(c, attestation.id, {
             factory,
+            salt: accountSalt(c.req.valid("query")?.accountType),
             webauthn,
             source: headers?.["Client-Fid"],
             ip: headers?.["do-connecting-ip"],
