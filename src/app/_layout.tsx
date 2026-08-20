@@ -10,7 +10,14 @@ import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { useFonts, type FontSource } from "expo-font";
 import { getLocales } from "expo-localization";
-import { SplashScreen, Stack, useNavigationContainerRef, useRouter, useUnstableGlobalHref } from "expo-router";
+import {
+  SplashScreen,
+  Stack,
+  useGlobalSearchParams,
+  useNavigationContainerRef,
+  useRouter,
+  useUnstableGlobalHref,
+} from "expo-router";
 import type { Href } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 
@@ -48,6 +55,7 @@ import esAR from "../i18n/es-AR.json";
 import es from "../i18n/es.json";
 import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
+import { newMessage, present } from "../utils/intercom";
 import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import exaConfig from "../utils/wagmi/exa";
@@ -256,15 +264,17 @@ function Navigator() {
   const ready = !isLoading && isFetched;
   const authenticated = ready && !!credential;
   const href = useUnstableGlobalHref();
+  const { support } = useGlobalSearchParams();
   const authenticatedRef = useRef(authenticated);
   const signedRef = useRef(false);
+  const supportRef = useRef<string>(undefined);
   const router = useRouter();
   useEffect(() => {
     if (!authenticated) {
       if (authenticatedRef.current)
         queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
       authenticatedRef.current = false;
-      if (!signedRef.current && href.split(/[/?#]/)[1])
+      if (!signedRef.current && (href.split(/[/?#]/)[1] || typeof support === "string"))
         queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
       return;
     }
@@ -275,7 +285,12 @@ function Navigator() {
     }
     authenticatedRef.current = true;
     signedRef.current = true;
-  }, [authenticated, href, router]);
+  }, [authenticated, href, router, support]);
+  useEffect(() => {
+    if (!authenticated || typeof support !== "string" || supportRef.current === support) return;
+    supportRef.current = support;
+    (support ? newMessage(support) : present()).catch(reportError);
+  }, [authenticated, support]);
   useEffect(() => {
     if (!ready) return;
     if (isMiniApp) {
