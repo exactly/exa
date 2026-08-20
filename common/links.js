@@ -1,0 +1,18 @@
+module.exports = [
+  "/activity",
+  "/activity-details",
+  "/add-funds",
+  "/calculator",
+  "/card",
+  "/defi",
+  "/getting-started",
+  "/loan",
+  "/pay",
+  "/pay-mode",
+  "/pending-proposals",
+  "/portfolio",
+  "/roll-debt",
+  "/send-funds",
+  "/settings",
+  "/swaps",
+];

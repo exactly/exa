@@ -35,6 +35,7 @@ import { WagmiProvider } from "wagmi";
 
 import domain from "@exactly/common/domain";
 import { isBase } from "@exactly/common/generated/chain";
+import links from "@exactly/common/links";
 
 import SplineSansRegular from "../assets/fonts/SplineSans-Regular.otf";
 import SplineSansSemiBold from "../assets/fonts/SplineSans-SemiBold.otf";
@@ -264,7 +265,7 @@ function Navigator() {
       if (authenticatedRef.current)
         queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
       authenticatedRef.current = false;
-      if (!signedRef.current && href.split(/[/?#]/)[1])
+      if (!signedRef.current && links.includes(`/${href.split(/[/?#]/)[1]}`))
         queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
       return;
     }
