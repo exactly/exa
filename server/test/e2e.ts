@@ -20,6 +20,7 @@ import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
+import hookWorker from "../workers/hook/worker";
 import refundWorker from "../workers/refund/worker";
 import { connect } from "../workers/worker";
 
@@ -51,6 +52,7 @@ describe("e2e", () => {
           segment,
           close,
         }),
+        hookWorker({ bullmq, database, panda, close }),
       ];
 
       await expect(

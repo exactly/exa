@@ -30,6 +30,8 @@ import t, { f } from "../../i18n";
 import { TransactionPayload } from "../../utils/panda";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
+import { name as hookName } from "../hook/job";
+import createHook from "../hook/queue";
 import createWorker from "../worker";
 
 import type * as schema from "../../database/schema";
@@ -60,11 +62,12 @@ export default function worker({
   segment: ReturnType<typeof createSegment>;
 }) {
   const wallet = createWallet(refunder);
+  const hook = createHook(bullmq);
   const abi = [...issuerCheckerAbi, ...marketAbi, ...refunderAbi];
   return createWorker<Job>({
     attempts,
     bullmq,
-    close,
+    close: () => hook.close().finally(close),
     failed(job, raw) {
       const error = raw instanceof UnrecoverableError && raw.cause instanceof Error ? raw.cause : raw;
       const reason = revertReason(error, { fallback: "message" });
@@ -241,6 +244,18 @@ export default function worker({
                     },
                   ]));
             },
+            onReceipt: ({ blockNumber, status, transactionHash }) =>
+              status === "reverted"
+                ? undefined
+                : hook
+                    .enqueue({ receipt: { blockNumber: Number(blockNumber), transactionHash } }, webhookId)
+                    .catch((error: unknown) =>
+                      captureException(error, {
+                        level: "error",
+                        tags: { queue: hookName, job: hookName },
+                        extra: { id: webhookId },
+                      }),
+                    ),
           },
         )
         .catch((error: unknown) => {

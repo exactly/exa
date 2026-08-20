@@ -11,6 +11,9 @@ const segment = { close: vi.fn<() => Promise<void>>() };
 const mocks = {
   close: vi.fn<() => Promise<void>>(),
   drizzle: vi.fn<() => typeof database>(),
+  hook: vi.fn<
+    (config: { bullmq: object; close: () => Promise<unknown>; database: typeof database; panda: object }) => Handle
+  >(),
   onesignal: vi.fn<(key: string) => object>(),
   panda: vi.fn<(config: { key: string; url: string }) => object>(),
   refund:
@@ -41,6 +44,7 @@ beforeEach(() => {
   vi.resetModules();
   mocks.close.mockReset().mockResolvedValue();
   mocks.drizzle.mockReset().mockReturnValue(database);
+  mocks.hook.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.onesignal.mockReset().mockReturnValue(onesignal);
   mocks.panda.mockReset().mockReturnValue(panda);
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
@@ -65,6 +69,7 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
 });
 
@@ -114,6 +119,44 @@ describe("bin", () => {
 
     await expect(created).rejects.toBe(error);
     expect(mocks.refund).not.toHaveBeenCalled();
+  });
+
+  it("resolves hook private config before constructing and supervising its worker", async () => {
+    await import("../../workers/hook/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("hook", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "redis-url",
+      "hook-postgres-url",
+      "hook-panda-api-key",
+      "panda-api-url",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.panda).toHaveBeenCalledExactlyOnceWith({ key: "hook-panda-api-key", url: "panda-api-url" });
+    expect(mocks.hook).toHaveBeenCalledExactlyOnceWith({
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      close: expect.any(Function) as () => Promise<unknown>,
+      database,
+      panda,
+    });
+  });
+
+  it("fails before constructing the hook worker without its secrets", async () => {
+    const error = new Error("missing secret");
+    mocks.secret.mockRejectedValue(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/hook/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.hook).not.toHaveBeenCalled();
   });
 });
 

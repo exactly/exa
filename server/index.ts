@@ -36,6 +36,8 @@ import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createHook from "./workers/hook/queue";
+import createHookWorker from "./workers/hook/worker";
 import createRefund from "./workers/refund/queue";
 
 const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
@@ -65,6 +67,7 @@ const persona = createPersona(
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
 const refund = createRefund(bullmq);
+const webhook = createHook(bullmq);
 const sardine = createSardine(
   parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
@@ -130,6 +133,7 @@ const pandaHook = createPandaHook({
   sardine,
   segment,
   settler: keeper,
+  webhook,
 });
 const personaHook = createPersonaHook({
   database,
@@ -138,6 +142,12 @@ const personaHook = createPersonaHook({
   persona,
   personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
   sardine,
+});
+const hookWorker = createHookWorker({
+  bullmq,
+  close: () => database.$client.end(),
+  database,
+  panda,
 });
 
 const app = new Hono();
@@ -405,6 +415,7 @@ export const close = supervise(
       activityHook.ready,
       blockHook.ready,
       bridgeHook.ready,
+      hookWorker.ready,
       mantecaHook.ready,
       pandaHook.ready,
       personaHook.ready,
@@ -412,9 +423,8 @@ export const close = supervise(
     ]),
     async close() {
       const services = await Promise.allSettled([
-        database.$client.end(),
         segment.close(),
-        Promise.allSettled([closeMaturity(), refund.close()])
+        Promise.allSettled([closeMaturity(), hookWorker.close(), refund.close(), webhook.close()])
           .then((queues) => {
             if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
           })

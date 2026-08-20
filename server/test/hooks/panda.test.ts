@@ -9,8 +9,7 @@ import "../mocks/wallet";
 import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { createHmac, randomBytes } from "node:crypto";
-import { object, parse, string } from "valibot";
+import { parse } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
@@ -47,7 +46,7 @@ import ProposalType from "@exactly/common/ProposalType";
 import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
-import database, { cards, credentials, sources, transactions } from "../../database";
+import database, { cards, credentials, transactions } from "../../database";
 import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
@@ -59,12 +58,17 @@ import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
+import type createHookQueue from "../../workers/hook/queue";
 import type createRefund from "../../workers/refund/queue";
 import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
 const refund = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
+}));
+const hookQueue = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createHookQueue>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createHookQueue>["enqueue"]>().mockResolvedValue(),
 }));
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const panda = createPanda(pandaConfig);
@@ -80,6 +84,7 @@ const pandaHook = createPandaHook({
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
   settler: owner.account,
+  webhook: hookQueue,
 });
 const app = pandaHook.app;
 
@@ -651,6 +656,16 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(authorization.json.body.spend.amount * 1e4));
         expect(response.status).toBe(200);
+        await vi.waitUntil(() => hookQueue.enqueue.mock.calls.length > 0);
+        expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
+          {
+            receipt: {
+              blockNumber: Number(purchaseReceipt.blockNumber),
+              transactionHash: purchaseReceipt.transactionHash,
+            },
+          },
+          authorization.json.id,
+        );
       });
 
       it("clears credit", async () => {
@@ -1058,6 +1073,7 @@ describe("card operations", () => {
         );
         expect(transaction).toBeDefined();
         expect(response.status).toBe(569);
+        expect(hookQueue.enqueue).not.toHaveBeenCalled();
       });
 
       it("returns ok on replay", async () => {
@@ -3327,286 +3343,106 @@ describe("concurrency", () => {
 });
 
 describe("webhooks", () => {
-  let webhookOwner: WalletClient<ReturnType<typeof http>, typeof chain, ReturnType<typeof privateKeyToAccount>>;
-  let webhookAccount: Address;
-  const secret = randomBytes(16).toString("hex");
-
-  beforeAll(async () => {
-    webhookOwner = createWalletClient({
-      chain,
-      transport: http(),
-      account: privateKeyToAccount(generatePrivateKey()),
-    });
-    webhookAccount = deriveAddress(inject("ExaAccountFactory"), {
-      x: padHex(webhookOwner.account.address),
-      y: zeroHash,
-    });
-    await Promise.all([
-      database.insert(sources).values([
-        {
-          id: "test",
-          config: {
-            type: "uphold",
-            webhooks: { sandbox: { url: "https://exa.test", secret } },
-          },
-        },
-      ]),
-      database
-        .insert(credentials)
-        .values([
-          {
-            id: webhookAccount,
-            publicKey: new Uint8Array(),
-            account: webhookAccount,
-            factory: zeroAddress,
-            source: "test",
-            pandaId: webhookAccount,
-          },
-        ])
-        .then(() => {
-          return database
-            .insert(cards)
-            .values([{ id: `${webhookAccount}-card`, credentialId: webhookAccount, lastFour: "1234", mode: 0 }]);
-        }),
-
-      anvilClient.setBalance({ address: webhookOwner.account.address, value: 10n ** 24n }),
-      Promise.all([
-        keeper.exaSend(
-          { name: "mint", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [webhookAccount, 50_000_000n],
-          },
-        ),
-        keeper.exaSend(
-          { name: "create account", op: "exa.account" },
-          {
-            address: inject("ExaAccountFactory"),
-            abi: exaAccountFactoryAbi,
-            functionName: "createAccount",
-            args: [0n, [{ x: hexToBigInt(webhookOwner.account.address), y: 0n }]],
-          },
-        ),
-      ]).then(() =>
-        keeper.exaSend(
-          { name: "poke", op: "exa.poke" },
-          {
-            address: webhookAccount,
-            abi: exaPluginAbi,
-            functionName: "poke",
-            args: [inject("MarketUSDC")],
-          },
-        ),
-      ),
-    ]);
-  });
-
-  afterEach(() => vi.resetAllMocks());
-
-  it("forwards transaction created with exchangeRate", async () => {
-    const cardId = `${webhookAccount}-card`;
-    const fetch = globalThis.fetch;
-    let publish = false;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-      if (url === "https://exa.test") {
-        publish = true;
-        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
-      }
-      return fetch(url, init);
-    });
-
-    await appClient.index.$post({
-      ...transactionCreated,
+  it("enqueues declined transaction webhooks", async () => {
+    const response = await appClient.index.$post({
+      ...authorization,
       json: {
-        ...transactionCreated.json,
+        ...authorization.json,
+        action: "created",
         body: {
-          ...transactionCreated.json.body,
-          id: cardId,
+          ...authorization.json.body,
+          id: crypto.randomUUID(),
           spend: {
-            ...transactionCreated.json.body.spend,
-            cardId,
-            userId: webhookAccount,
-            amount: 100,
-            localAmount: 85,
-            localCurrency: "eur",
-            exchangeRate: 1.176_470_588_2,
-            authorizedAt: new Date().toISOString(),
-          },
-        },
-      },
-    });
-    await vi.waitUntil(() => publish, 60_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-    expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
-      body: { spend: { exchangeRate: 1.176_470_588_2 } },
-    });
-  });
-
-  it("forwards transaction created without exchangeRate when same currency", async () => {
-    const cardId = `${webhookAccount}-card`;
-    const fetch = globalThis.fetch;
-    let publish = false;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-      if (url === "https://exa.test") {
-        publish = true;
-        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
-      }
-      return fetch(url, init);
-    });
-
-    await appClient.index.$post({
-      ...transactionCreated,
-      json: {
-        ...transactionCreated.json,
-        body: {
-          ...transactionCreated.json.body,
-          id: "same-currency-tx",
-          spend: {
-            ...transactionCreated.json.body.spend,
-            cardId,
-            userId: webhookAccount,
-            authorizedAt: new Date().toISOString(),
-          },
-        },
-      },
-    });
-    await vi.waitUntil(() => publish, 60_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-    expect(JSON.parse(parse(string(), options?.body))).not.toHaveProperty("body.spend.exchangeRate");
-  });
-
-  it("forwards transaction updated without exchangeRate", async () => {
-    vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
-    const cardId = `${webhookAccount}-card`;
-
-    const fetch = globalThis.fetch;
-    let publish = false;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-      if (url === "https://exa.test") {
-        publish = true;
-        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
-      }
-      return fetch(url, init);
-    });
-
-    await appClient.index.$post({
-      ...transactionUpdated,
-      json: {
-        ...transactionUpdated.json,
-        body: {
-          ...transactionUpdated.json.body,
-          id: "forward-transaction-updated",
-          spend: {
-            ...transactionUpdated.json.body.spend,
-            cardId,
-            userId: webhookAccount,
-            localCurrency: "eur",
-            localAmount: 6800,
-            authorizedAt: new Date().toISOString(),
-            status: "pending",
-            authorizationUpdateAmount: 98,
+            ...authorization.json.body.spend,
+            cardId: "card",
+            status: "declined",
+            declinedReason: "blocked mcc",
           },
         },
       },
     });
 
-    await vi.waitUntil(() => publish, 60_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-    expect(JSON.parse(parse(string(), options?.body))).not.toHaveProperty("body.spend.exchangeRate");
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("forwards transaction completed with exchangeRate", async () => {
-    vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
-    const cardId = `${webhookAccount}-card`;
-
-    const fetch = globalThis.fetch;
-    let publishCounter = 0;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-      if (url === "https://exa.test") {
-        publishCounter++;
-        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
-      }
-      return fetch(url, init);
-    });
-    await appClient.index.$post({
-      ...transactionCreated,
+  it("enqueues negative amount transaction webhooks", async () => {
+    const response = await appClient.index.$post({
+      ...authorization,
       json: {
-        ...transactionCreated.json,
+        ...authorization.json,
+        action: "created",
         body: {
-          ...transactionCreated.json.body,
-          id: "forward-transaction-completed",
-          spend: {
-            ...transactionCreated.json.body.spend,
-            cardId,
-            userId: webhookAccount,
-            amount: 99,
-            localAmount: 84,
-            localCurrency: "eur",
-            exchangeRate: 1.178_571_428_6,
-            authorizedAt: new Date().toISOString(),
-          },
+          ...authorization.json.body,
+          id: crypto.randomUUID(),
+          spend: { ...authorization.json.body.spend, cardId: "card", amount: -900, localAmount: -900 },
         },
       },
     });
 
-    await appClient.index.$post({
-      ...transactionCompleted,
-      json: {
-        ...transactionCompleted.json,
-        body: {
-          ...transactionCompleted.json.body,
-          id: "forward-transaction-completed",
-          spend: {
-            ...transactionCompleted.json.body.spend,
-            cardId,
-            userId: webhookAccount,
-            postedAt: new Date().toISOString(),
-            status: "completed",
-            amount: 99,
-            localAmount: 84,
-            localCurrency: "eur",
-            exchangeRate: 1.178_571_428_6,
-            authorizedAmount: 99,
-          },
-        },
-      },
-    });
-
-    await vi.waitUntil(() => publishCounter > 1, 60_000);
-    const options = mockFetch.mock.calls.filter(([url]) => url === "https://exa.test")[1]?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-    expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
-      body: { spend: { exchangeRate: 1.178_571_428_6 } },
-    });
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "webhook declined",
-    "blocked mcc",
-    "insufficientaccountliquidity", // cspell:ignore insufficientaccountliquidity
-    "frozencard", // cspell:ignore frozencard
-    "invalid pin",
-    "card canceled",
-  ])("forwards raw %s transaction webhook", async (declinedReason) => {
-    const cardId = `${webhookAccount}-card`;
-    const fetch = globalThis.fetch;
-    let publish = false;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-      if (url === "https://exa.test") {
-        publish = true;
-        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
-      }
-      return fetch(url, init);
+  it("enqueues card updated webhooks", async () => {
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
     });
+
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips card notification webhooks", async () => {
+    const response = await appClient.index.$post(cardNotification);
+
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("enqueues user updated webhooks", async () => {
+    const response = await appClient.index.$post(userUpdated);
+
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, userUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips dispute webhooks", async () => {
+    const response = await appClient.index.$post(dispute);
+
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures enqueue failures", async () => {
+    const error = new Error("queue down");
+    hookQueue.enqueue.mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+        level: "error",
+        tags: { queue: "hook", job: "hook" },
+        extra: { id: cardUpdated.json.id },
+      }),
+    );
+  });
+
+  it("captures declined transaction enqueue failures", async () => {
+    const error = new Error("queue down");
+    hookQueue.enqueue.mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -3615,230 +3451,129 @@ describe("webhooks", () => {
         action: "created",
         body: {
           ...authorization.json.body,
-          id: `declined-webhook-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           spend: {
             ...authorization.json.body.spend,
-            cardId,
-            userId: webhookAccount,
+            cardId: "card",
             status: "declined",
-            declinedReason,
+            declinedReason: "blocked mcc",
           },
         },
       },
     });
 
     expect(response.status).toBe(200);
-    await vi.waitUntil(() => publish, 60_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-    expect(JSON.parse(parse(string(), options?.body))).toMatchObject({
-      resource: "transaction",
-      action: "created",
-      body: { spend: { status: "declined", declinedReason } },
-    });
-    expect(captureException).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+        level: "error",
+        tags: { queue: "hook", job: "hook" },
+        extra: { id: authorization.json.id },
+      }),
+    );
   });
 
-  it("forwards the saved local reason when Rain sends webhook declined", async () => {
-    const cardId = `${webhookAccount}-card`;
-    const txId = `local-reason-webhook-${crypto.randomUUID()}`;
-    const fetch = globalThis.fetch;
-    let publishedBody: unknown;
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
-      if (url === "https://exa.test") {
-        if (typeof init?.body !== "string") throw new Error("expected a string webhook body");
-        publishedBody = JSON.parse(init.body) as unknown;
-        return { ok: true, status: 200, text: () => Promise.resolve("OK") } as Response;
-      }
-      return fetch(url, init);
-    });
+  it("captures negative amount transaction enqueue failures", async () => {
+    const error = new Error("queue down");
+    hookQueue.enqueue.mockRejectedValueOnce(error);
 
-    await database.update(cards).set({ status: "FROZEN" }).where(eq(cards.id, cardId));
-    await appClient.index.$post({
+    const response = await appClient.index.$post({
       ...authorization,
       json: {
         ...authorization.json,
-        id: `requested-${txId}`,
-        body: { ...authorization.json.body, id: txId, spend: { ...authorization.json.body.spend, cardId } },
-      },
-    });
-    await appClient.index.$post({
-      ...authorization,
-      json: {
-        ...authorization.json,
-        id: `created-${txId}`,
         action: "created",
         body: {
           ...authorization.json.body,
-          id: txId,
+          id: crypto.randomUUID(),
+          spend: { ...authorization.json.body.spend, cardId: "card", amount: -900, localAmount: -900 },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+        level: "error",
+        tags: { queue: "hook", job: "hook" },
+        extra: { id: authorization.json.id },
+      }),
+    );
+  });
+
+  it("captures zero collection enqueue failures", async () => {
+    const error = new Error("queue down");
+    hookQueue.enqueue.mockRejectedValueOnce(error);
+    const id = "zero-collection-enqueue-failure";
+    await database
+      .insert(transactions)
+      .values([{ id, cardId: "card", hashes: [zeroHash], payload: { bodies: [], type: "panda" } }]);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "updated",
+        body: {
+          ...authorization.json.body,
+          id,
           spend: {
             ...authorization.json.body.spend,
-            cardId,
-            userId: webhookAccount,
-            status: "declined",
-            declinedReason: "webhook declined",
+            authorizationUpdateAmount: 0,
+            authorizedAt: new Date().toISOString(),
+            cardId: "card",
           },
         },
       },
     });
 
-    await vi.waitUntil(() => publishedBody !== undefined, 60_000);
-    expect(publishedBody).toMatchObject({ body: { spend: { declinedReason: "frozenCard" } } });
-    expect(mockFetch).toHaveBeenCalled();
-  });
-
-  it("forwards card updated active", async () => {
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text() {
-        return Promise.resolve("{}");
-      },
-    } as Response);
-
-    await appClient.index.$post({
-      ...cardUpdated,
-      json: {
-        ...cardUpdated.json,
-        body: {
-          ...cardUpdated.json.body,
-          userId: webhookAccount,
-          tokenWallets: ["Apple"],
-        },
-      },
-    });
-
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-  });
-
-  it("forwards card updated canceled", async () => {
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text() {
-        return Promise.resolve("{}");
-      },
-    } as Response);
-
-    await appClient.index.$post({
-      ...cardCanceled,
-      json: {
-        ...cardCanceled.json,
-        body: {
-          ...cardCanceled.json.body,
-          userId: webhookAccount,
-        },
-      },
-    });
-
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-  });
-
-  it("forwards user updated", async () => {
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text() {
-        return Promise.resolve("{}");
-      },
-    } as Response);
-
-    await appClient.index.$post({
-      ...userUpdated,
-      json: {
-        ...userUpdated.json,
-        body: {
-          ...userUpdated.json.body,
-          id: webhookAccount,
-        },
-      },
-    });
-
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    const headers = parse(object({ Signature: string() }), options?.headers);
-
-    expect(createHmac("sha256", secret).update(parse(string(), options?.body)).digest("hex")).toBe(headers.Signature);
-  });
-
-  it("logs text on webhook ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("OK"));
-
-    await appClient.index.$post({
-      ...cardUpdated,
-      json: {
-        ...cardUpdated.json,
-        body: {
-          ...cardUpdated.json.body,
-          userId: webhookAccount,
-          tokenWallets: ["Apple"],
-        },
-      },
-    });
-
-    const payload: unknown = expect.objectContaining({ id: cardUpdated.json.id });
-    await vi.waitFor(
-      () => expect(webhookLogger).toHaveBeenCalledWith("%j", expect.objectContaining({ payload, response: "OK" })),
-      { timeout: 10_000 },
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+        level: "error",
+        tags: { queue: "hook", job: "hook" },
+        extra: { id: authorization.json.id },
+      }),
     );
   });
 
-  it("logs json on webhook ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ status: 200, message: "OK" }));
+  it("captures receipt enqueue failures", async () => {
+    const error = new Error("queue down");
+    hookQueue.enqueue.mockRejectedValueOnce(error);
+    // @ts-expect-error mock implementation
+    vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+      await args[2]?.onReceipt?.({
+        ...receipt,
+        blockNumber: 69n,
+        logs: [],
+        transactionHash: zeroHash,
+      } as TransactionReceipt);
+    });
+    const cardId = "receipt-enqueue-failure";
+    await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "4321", mode: 0 }]);
 
-    await appClient.index.$post({
-      ...cardUpdated,
+    const response = await appClient.index.$post({
+      ...authorization,
       json: {
-        ...cardUpdated.json,
-        body: {
-          ...cardUpdated.json.body,
-          userId: webhookAccount,
-          tokenWallets: ["Apple"],
-        },
+        ...authorization.json,
+        action: "created",
+        body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
       },
     });
 
-    const payload: unknown = expect.objectContaining({ id: cardUpdated.json.id });
-    await vi.waitFor(
-      () =>
-        expect(webhookLogger).toHaveBeenCalledWith(
-          "%j",
-          expect.objectContaining({
-            payload,
-            response: { status: 200, message: "OK" },
-          }),
-        ),
-      { timeout: 10_000 },
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
+      { receipt: { blockNumber: 69, transactionHash: zeroHash } },
+      authorization.json.id,
     );
-  });
-
-  it("passes redirect error option to fetch", async () => {
-    const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: () => Promise.resolve("OK"),
-    } as unknown as Response);
-
-    await appClient.index.$post({
-      ...cardUpdated,
-      json: {
-        ...cardUpdated.json,
-        body: { ...cardUpdated.json.body, userId: webhookAccount, tokenWallets: ["Apple"] },
-      },
-    });
-
-    await vi.waitUntil(() => mockFetch.mock.calls.length > 0, 10_000);
-    const options = mockFetch.mock.calls.find(([url]) => url === "https://exa.test")?.[1];
-    expect(options).toStrictEqual(expect.objectContaining({ redirect: "error" }));
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+        level: "error",
+        tags: { queue: "hook", job: "hook" },
+        extra: { id: authorization.json.id },
+      }),
+    );
   });
 });
 
@@ -3895,22 +3630,28 @@ const cardUpdated = {
   },
 } as const;
 
-const cardCanceled = {
+const cardNotification = {
   header: { signature: "panda-signature" },
   json: {
-    id: "31740000-bd68-40c8-a400-5a0131f58800",
+    id: "5d3f8c21-7a4e-4b9d-8e2f-6c1a9b0d4e70",
     resource: "card",
-    action: "updated",
+    action: "notification",
     body: {
-      id: "f3d8a9c2-4e7b-4a1c-9f2e-8d5c6b3a7e9f",
-      userId: "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-      type: "virtual",
-      status: "canceled",
-      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
-      last4: "7392",
-      expirationMonth: "11",
-      expirationYear: "2029",
+      id: "9b8a7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
+      card: { id: "f3d8a9c2-4e7b-4a1c-9f2e-8d5c6b3a7e9f", userId: "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d" },
+      tokenWallet: "Apple",
+      reasonCode: "PROVISIONING_DECLINED",
     },
+  },
+} as const;
+
+const dispute = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "7c2e4f8a-1b3d-4c5e-9f0a-2d4b6e8c0a1f",
+    resource: "dispute",
+    action: "created",
+    body: { id: "dispute-1" },
   },
 } as const;
 
@@ -3944,117 +3685,6 @@ const userUpdated = {
       },
       applicationReason: "COMPROMISED_PERSONS, PEP",
     },
-  },
-} as const;
-
-const transactionCreated = {
-  header: { signature: "panda-signature" },
-  json: {
-    id: "a2684ac7-13bc-4b0e-ab4d-5a2ac036218a",
-    body: {
-      id: "4e19a38e-3161-4db1-ac91-e12630950e2c",
-      type: "spend",
-      spend: {
-        amount: -10_000,
-        cardId: "827c3893-d7c8-46d4-a518-744b016555bc",
-        status: "pending",
-        userId: "8e03decf-26b9-41fb-bb73-4fe1f847042a",
-        cardType: "virtual",
-        currency: "usd",
-        userEmail: "rain@gmail.com",
-        merchantId: "297f8888-55b4-57df-a55b-800c61a3207b",
-        localAmount: -10_000,
-        authorizedAt: "2025-07-03T19:52:59.806Z",
-        merchantCity: "New York     ",
-        merchantName: "Test Refund              ",
-        userLastName: "approved",
-        localCurrency: "usd",
-        userFirstName: "Rain",
-        merchantCountry: "US",
-        authorizedAmount: -10_000,
-        merchantCategory: "5641 - Children's and Infant's Wear Store",
-        authorizationMethod: "Normal presentment",
-        merchantCategoryCode: "5641",
-      },
-    },
-    action: "created",
-    resource: "transaction",
-  },
-} as const;
-
-const transactionUpdated = {
-  header: { signature: "panda-signature" },
-  json: {
-    id: "e7b2853e-4bb7-4428-8dc2-27e604766dfa",
-    body: {
-      id: "30dcf8c6-a1e5-48f1-9c40-ecffe8253d25",
-      type: "spend",
-      spend: {
-        amount: 8000,
-        cardId: "827c3893-d7c8-46d4-a518-744b016555bc",
-        status: "reversed",
-        userId: "8e03decf-26b9-41fb-bb73-4fe1f847042a",
-        cardType: "virtual",
-        currency: "usd",
-        userEmail: "zjdnflol@gamil.com",
-        merchantId: "d0a30859-096d-57f4-bffd-fd745f44e048",
-        localAmount: 8000,
-        authorizedAt: "2025-06-25T15:24:11.337Z",
-        merchantCity: "             ",
-        merchantName: "Test                     ",
-        userLastName: "approved",
-        localCurrency: "usd",
-        userFirstName: "jason",
-        merchantCountry: "  ",
-        authorizedAmount: 8000,
-        merchantCategory: " - ",
-        authorizationMethod: "Normal presentment",
-        enrichedMerchantName: "Test",
-        merchantCategoryCode: "",
-        enrichedMerchantCategory: "Education",
-        authorizationUpdateAmount: -2000,
-      },
-    },
-    action: "updated",
-    resource: "transaction",
-  },
-} as const;
-
-const transactionCompleted = {
-  header: { signature: "panda-signature" },
-  json: {
-    id: "77474a56-51eb-4918-b09e-73cf20077b1b",
-    body: {
-      id: "4e19a38e-3161-4db1-ac91-e12630950e2c",
-      type: "spend",
-      spend: {
-        amount: -10_000,
-        cardId: "827c3893-d7c8-46d4-a518-744b016555bc",
-        status: "completed",
-        userId: "8e03decf-26b9-41fb-bb73-4fe1f847042a",
-        cardType: "virtual",
-        currency: "usd",
-        postedAt: "2025-07-03T19:57:04.332Z",
-        userEmail: "rain@gmail.com",
-        localAmount: -10_000,
-        authorizedAt: "2025-07-03T19:52:59.806Z",
-        merchantCity: "New York     ",
-        merchantName: "Test Refund              ",
-        userLastName: "approved",
-        localCurrency: "usd",
-        userFirstName: "Rain",
-        merchantCountry: "US",
-        authorizedAmount: -10_000,
-        merchantCategory: "Children's and Infant's Wear Store",
-        authorizationMethod: "Normal presentment",
-        enrichedMerchantName: "Test Refund",
-        merchantCategoryCode: "5641",
-        enrichedMerchantCategory: "Refunds - Insufficient Funds",
-        merchantId: "297f8888-55b4-57df-a55b-800c61a3207b",
-      },
-    },
-    action: "completed",
-    resource: "transaction",
   },
 } as const;
 
@@ -4153,12 +3783,10 @@ const userResponseTemplate = {
 
 vi.mock("@sentry/node", { spy: true });
 const pandaLogger = vi.hoisted(() => vi.fn());
-const webhookLogger = vi.hoisted(() => vi.fn());
 
 vi.mock("debug", () => {
   const createDebug = vi.fn((namespace: string) => {
     if (namespace === "exa:panda") return pandaLogger;
-    if (namespace === "exa:webhook") return webhookLogger;
     return vi.fn();
   });
   return { default: createDebug };
