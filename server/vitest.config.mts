@@ -64,6 +64,7 @@ YQIDAQAB
       SARDINE_API_URL: "https://api.sardine.ai",
       SEGMENT_WRITE_KEY: "segment",
       WALLET_EXTENSION_SECRET: "wallet-extension-secret-32-bytes",
+      WHATSAPP_PHONE_NUMBER_ID: "whatsapp",
       ...(env.NODE_ENV === "e2e" && { APP_DOMAIN: "localhost", DEBUG: "exa:*" }),
     },
     ...(env.NODE_ENV === "e2e" && {

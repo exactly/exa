@@ -12,6 +12,8 @@ const config = {
   release: require("./generated/release"),
   environment: stack,
   tracesSampleRate: 1,
+  strictTraceContinuation: true,
+  streamGenAiSpans: false,
   profilesSampleRate: 1,
   attachStacktrace: true,
   maxValueLength: 8192,
