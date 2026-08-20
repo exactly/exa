@@ -42,6 +42,7 @@ import { WagmiProvider } from "wagmi";
 
 import domain from "@exactly/common/domain";
 import { isBase } from "@exactly/common/generated/chain";
+import links from "@exactly/common/generated/links";
 
 import SplineSansRegular from "../assets/fonts/SplineSans-Regular.otf";
 import SplineSansSemiBold from "../assets/fonts/SplineSans-SemiBold.otf";
@@ -278,7 +279,8 @@ function Navigator() {
       if (authenticatedRef.current)
         queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
       authenticatedRef.current = false;
-      if (!signedRef.current && href.split(/[/#]/)[1])
+      const route = `/${href.split(/[/?#]/)[1]}`;
+      if (!signedRef.current && (href.startsWith("/?") || (links.includes(route) && !excluded.has(route))))
         queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
       return;
     }
@@ -334,3 +336,5 @@ function Navigator() {
     </Stack>
   );
 }
+
+const excluded = new Set(["/loan", "/roll-debt", "/send-funds", "/swaps"]);
