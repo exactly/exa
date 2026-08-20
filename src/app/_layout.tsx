@@ -10,7 +10,14 @@ import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
 import { useFonts, type FontSource } from "expo-font";
 import { getLocales } from "expo-localization";
-import { SplashScreen, Stack, useNavigationContainerRef, useRouter, useUnstableGlobalHref } from "expo-router";
+import {
+  SplashScreen,
+  Stack,
+  useGlobalSearchParams,
+  useNavigationContainerRef,
+  useRouter,
+  useUnstableGlobalHref,
+} from "expo-router";
 import type { Href } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 
@@ -48,6 +55,7 @@ import esAR from "../i18n/es-AR.json";
 import es from "../i18n/es.json";
 import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
+import { newMessage, present, type Session } from "../utils/intercom";
 import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import { page } from "../utils/segment";
@@ -254,29 +262,45 @@ export default wrap(function RootLayout() {
 function Navigator() {
   const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
+  const { data: intercom } = useQuery<Session>({ queryKey: ["intercom"] });
   const ready = !isLoading && isFetched;
   const authenticated = ready && !!credential;
   const href = useUnstableGlobalHref();
+  const parameters = useGlobalSearchParams();
+  const support = Array.isArray(parameters.support) ? parameters.support[0] : parameters.support;
   const authenticatedRef = useRef(authenticated);
   const signedRef = useRef(false);
+  const pendingRef = useRef<string>(undefined);
+  const consumedRef = useRef<string>(undefined);
   const router = useRouter();
   useEffect(() => {
     if (!authenticated) {
       if (authenticatedRef.current)
         queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
       authenticatedRef.current = false;
-      if (!signedRef.current && href.split(/[/?#]/)[1])
+      if (!signedRef.current && href.split(/[/#]/)[1])
         queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
       return;
     }
     const path = queryClient.getQueryData<string>(["deeplink"]);
     if (path) {
       queryClient.removeQueries({ queryKey: ["deeplink"] });
-      if (!authenticatedRef.current) router.replace(path as Href);
+      if (!authenticatedRef.current && path !== href) router.replace(path as Href);
     }
     authenticatedRef.current = true;
     signedRef.current = true;
   }, [authenticated, href, router]);
+  useEffect(() => {
+    if (support === undefined) consumedRef.current = undefined;
+    else if (support !== consumedRef.current) pendingRef.current = support;
+    if (!authenticated || !intercom || intercom.expires < Date.now() || pendingRef.current === undefined) return;
+    const message = pendingRef.current;
+    pendingRef.current = undefined;
+    consumedRef.current = message;
+    (message ? newMessage(message) : present())
+      .finally(() => router.setParams({ support: undefined }))
+      .catch(reportError);
+  }, [authenticated, intercom, router, support]);
   useEffect(() => {
     if (href) page();
   }, [href]);
