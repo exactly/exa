@@ -36,6 +36,8 @@ import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createHook from "./workers/hook/queue";
+import createHookWorker from "./workers/hook/worker";
 import createRefund from "./workers/refund/queue";
 
 const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
@@ -65,6 +67,7 @@ const persona = createPersona(
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
 const refund = createRefund(bullmq);
+const webhook = createHook(bullmq);
 const sardine = createSardine(
   parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
@@ -124,6 +127,7 @@ const pandaHook = createPandaHook({
   sardine,
   segment,
   settler: keeper,
+  webhook,
 });
 const personaHook = createPersonaHook({
   database,
@@ -133,6 +137,7 @@ const personaHook = createPersonaHook({
   personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
   sardine,
 });
+const hookWorker = createHookWorker({ bullmq, database, panda });
 
 const app = new Hono();
 app.use(trimTrailingSlash());
@@ -402,6 +407,7 @@ export const close = supervise(
             activityHook.ready,
             blockHook.ready,
             bridgeHook.ready,
+            hookWorker.ready,
             mantecaHook.ready,
             pandaHook.ready,
             personaHook.ready,
@@ -409,8 +415,10 @@ export const close = supervise(
           ]),
         },
         closeMaturity,
+        () => hookWorker.close(),
         () => refund.close(),
         () => segment.close(),
+        () => webhook.close(),
       ),
       () => database.$client.end(),
       closeRedis,

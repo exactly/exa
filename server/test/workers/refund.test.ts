@@ -20,6 +20,7 @@ import {
   zeroHash,
   type Hex,
   type LocalAccount,
+  type TransactionReceipt,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
@@ -42,6 +43,7 @@ import anvilClient from "../anvilClient";
 
 import type * as P from "../../utils/panda";
 import type * as W from "../../utils/wallet";
+import type createHook from "../../workers/hook/queue";
 import type { Job as Refund } from "../../workers/refund/job";
 import type * as C from "@exactly/common/generated/chain";
 import type { JobsOptions } from "bullmq";
@@ -62,6 +64,10 @@ const refund = createRefund(bullmq);
 const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
 const events = new QueueEvents("refund", { connection: bullmq });
 const webhooks = new Map<string, unknown>();
+const hook = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createHook>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createHook>["enqueue"]>(),
+}));
 const slot = keccak256(
   encodeAbiParameters(
     [{ type: "address" }, { type: "bytes32" }],
@@ -278,6 +284,7 @@ describe("refund worker", () => {
     const feedback = vi.spyOn(sardine, "feedback");
 
     await jobFinished("wh-authorized");
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "wh-authorized") });
 
     expect(mocks.getWebhook).toHaveBeenCalledExactlyOnceWith("wh-authorized");
     expect(mocks.getUser).toHaveBeenCalledExactlyOnceWith("user");
@@ -314,6 +321,7 @@ describe("refund worker", () => {
         ignore: expect.any(Function) as (reason: string) => boolean,
         level: false,
         onHash: expect.any(Function) as (hash: Hash) => Promise<unknown>,
+        onReceipt: expect.any(Function) as (receipt: TransactionReceipt) => Promise<unknown>,
       },
     );
     await expect(anvilClient.getStorageAt({ address: pandaAddress, slot: padHex("0x0", { size: 32 }) })).resolves.toBe(
@@ -322,14 +330,16 @@ describe("refund worker", () => {
     await expect(
       anvilClient.getStorageAt({ address: refunderAddress, slot: padHex("0x0", { size: 32 }) }),
     ).resolves.toBe(padHex("0x1", { size: 32 }));
-    await expect(
-      database.query.transactions.findFirst({ where: eq(transactions.id, "wh-authorized") }),
-    ).resolves.toStrictEqual({
+    expect(transaction).toStrictEqual({
       id: "wh-authorized",
       cardId: "refund-card",
       hashes: [expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
       payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
     });
+    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
+      { receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] } },
+      "wh-authorized",
+    );
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
       userId: account,
       headings: t("Refund processed"),
@@ -415,6 +425,15 @@ describe("refund worker", () => {
       hashes: [zeroHash, expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
       payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:00.000Z" }] },
     });
+    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
+      {
+        receipt: {
+          blockNumber: expect.any(Number) as number,
+          transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
+        },
+      },
+      "wh-reversed",
+    );
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ headings: t("Refund processed") }),
     );
@@ -442,6 +461,15 @@ describe("refund worker", () => {
       expect.objectContaining({
         payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
       }),
+    );
+    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
+      {
+        receipt: {
+          blockNumber: expect.any(Number) as number,
+          transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
+        },
+      },
+      "wh-negative",
     );
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -534,6 +562,25 @@ describe("refund worker", () => {
     expect(track).toHaveBeenCalledOnce();
   });
 
+  it("captures hook enqueue failures", async () => {
+    webhook("wh-hook-error", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const error = new Error("queue down");
+    hook.enqueue.mockRejectedValueOnce(error);
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+
+    await jobFinished("wh-hook-error");
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(expect.anything(), "wh-hook-error");
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+      level: "error",
+      tags: { queue: "hook", job: "hook" },
+      extra: { id: "wh-hook-error" },
+    });
+    expect(sendPushNotification).toHaveBeenCalledOnce();
+    expect(track).toHaveBeenCalledOnce();
+  });
+
   it("fails without card", async () => {
     webhook("wh-no-card", { amount: -2000, cardId: "ghost-card", status: "completed" });
 
@@ -547,6 +594,7 @@ describe("refund worker", () => {
     );
     expect(mocks.getUser).not.toHaveBeenCalled();
     expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "card not found" }), {
@@ -566,6 +614,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("amount mismatch");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -643,6 +692,7 @@ describe("refund worker", () => {
     await expect(
       database.query.transactions.findFirst({ where: eq(transactions.id, "wh-replay") }),
     ).resolves.toBeUndefined();
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).not.toHaveBeenCalled();
     expect(feedback).not.toHaveBeenCalled();
@@ -664,6 +714,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("Expired");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledOnce();
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -704,6 +755,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("MarketFrozen");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledTimes(2);
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         event: "TransactionRejected",
@@ -732,6 +784,7 @@ describe("refund worker", () => {
 
     await expect(result).rejects.toThrow(selector);
     expect(mocks.exaSend).toHaveBeenCalledOnce();
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ functionName: "withdrawAsset" }),
       {
@@ -741,6 +794,50 @@ describe("refund worker", () => {
         extra: { attempts: 1, id: "wh-custody", recipient: refunderAddress },
       },
     );
+  });
+
+  it("skips reverted receipts", async () => {
+    webhook("wh-reverted", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+    const error = new Error("tx reverted");
+    mocks.exaSend.mockImplementationOnce(async (_, __, options) => {
+      await options?.onReceipt?.({
+        blockNumber: 69n,
+        status: "reverted",
+        transactionHash: zeroHash,
+      } as unknown as TransactionReceipt);
+      throw error;
+    });
+
+    const result = jobFinished("wh-reverted");
+
+    await expect(result).rejects.toThrow("tx reverted");
+    await vi.waitUntil(() => track.mock.calls.length > 0);
+    expect(mocks.exaSend).toHaveBeenCalledOnce();
+    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(track).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        userId: account,
+        event: "TransactionRejected",
+        properties: {
+          cardMode: 0,
+          declinedReason: "refund:tx reverted",
+          id: "wh-reverted",
+          reasonName: "Error",
+          source: null,
+          updated: false,
+          usdAmount: 5,
+          merchant: { name: "merchant", category: undefined, city: undefined, country: "AR" },
+        } as unknown,
+      }),
+    );
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+      level: "fatal",
+      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+      tags: { queue: "refund", job: "refund", "panda.reason": "tx reverted", "panda.reasonName": "Error" },
+      extra: { attempts: 1, id: "wh-reverted", recipient: refunderAddress },
+    });
   });
 
   it("fails when refund amount is not found", async () => {
@@ -816,6 +913,7 @@ describe("refund worker", () => {
     expect(job.failedReason).toBe("refund failed");
     expect(job.attemptsMade).toBe(1);
     expect(job.stacktrace).toHaveLength(1);
+    expect(hook.enqueue).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledWith(error, {
       level: "fatal",
       fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
@@ -950,6 +1048,13 @@ vi.mock("../../utils/panda", async (importOriginal) => {
     })) as typeof original.default,
   };
 });
+
+vi.mock("../../workers/hook/queue", () => ({
+  default: () => ({
+    close: () => Promise.resolve(hook.close()),
+    enqueue: (...args: Parameters<ReturnType<typeof createHook>["enqueue"]>) => Promise.resolve(hook.enqueue(...args)),
+  }),
+}));
 
 vi.mock("../../utils/wallet", async (importOriginal) => {
   const original = await importOriginal<typeof W>();

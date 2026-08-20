@@ -2,6 +2,7 @@ export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
   workers: {
+    hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url"] },
     refund: {
       secrets: ["panda-api-key", "onesignal-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
       shared: ["panda-api-url", "sardine-api-url"],
