@@ -1,7 +1,17 @@
 export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
+  services: {
+    chat: {
+      env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
+      secrets: ["whatsapp-app-secret", "whatsapp-verify-token"],
+    },
+  },
   workers: {
+    chat: {
+      env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
+      secrets: ["anthropic-api-key", "whatsapp-access-token"],
+    },
     hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url"] },
     refund: {
       secrets: ["panda-api-key", "onesignal-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],

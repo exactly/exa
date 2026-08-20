@@ -3,3 +3,4 @@ config:
   gcp:project: eexxxaa
   exa:domain: web.exactly.app
   exa:subscribeTimeout: 900s
+  exa:whatsappPhoneNumberId: "1287864854409817"

@@ -11,8 +11,10 @@ const onesignal = {};
 const panda = {};
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
+const whatsapp = {};
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
+  chat: vi.fn<(config: { anthropicKey: string; bullmq: object; whatsapp: object }) => Handle>(),
   close: vi.fn<() => Promise<void>>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<(config: { bullmq: object; database: typeof database; panda: object }) => Handle>(),
@@ -36,6 +38,7 @@ const mocks = {
   sardine: vi.fn<(key: string, url: string) => object>(),
   subscribe: vi.fn<(config: { alchemy: object; bullmq: object; database: typeof database }) => Handle>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
+  whatsapp: vi.fn<(config: { from: string; token: string }) => object>(),
 };
 
 afterEach(() => {
@@ -50,6 +53,7 @@ beforeEach(() => {
   mocks.hook.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.onesignal.mockReset().mockReturnValue(onesignal);
   mocks.panda.mockReset().mockReturnValue(panda);
+  mocks.chat.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
@@ -57,6 +61,7 @@ beforeEach(() => {
   mocks.signer.mockReset().mockResolvedValue(refunder);
   mocks.subscribe.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.supervise.mockReset();
+  mocks.whatsapp.mockReset().mockReturnValue(whatsapp);
   vi.doMock("drizzle-orm/node-postgres", () => ({ drizzle: mocks.drizzle }));
   vi.doMock("ioredis", () => ({
     Redis: class {
@@ -77,12 +82,38 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../utils/whatsapp", () => ({ default: mocks.whatsapp }));
+  vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
 
 describe("bin", () => {
+  it("resolves chat config before constructing and supervising its worker", async () => {
+    await import("../../workers/chat/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("chat", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "chat-anthropic-api-key",
+      "redis-url",
+      "chat-whatsapp-access-token",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.chat).toHaveBeenCalledExactlyOnceWith({
+      anthropicKey: "chat-anthropic-api-key",
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      whatsapp,
+    });
+    expect(mocks.whatsapp).toHaveBeenCalledExactlyOnceWith({
+      from: "whatsapp",
+      token: "chat-whatsapp-access-token",
+    });
+  });
+
   it("resolves refund private config before constructing and supervising its worker", async () => {
     await import("../../workers/refund/bin");
 

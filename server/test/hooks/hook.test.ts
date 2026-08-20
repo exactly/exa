@@ -20,6 +20,7 @@ describe("hook", () => {
     ["activity", () => import("../../hooks/activity")],
     ["block", () => import("../../hooks/block")],
     ["bridge", () => import("../../hooks/bridge")],
+    ["chat", () => import("../../hooks/chat")],
     ["manteca", () => import("../../hooks/manteca")],
     ["panda", () => import("../../hooks/panda")],
     ["persona", () => import("../../hooks/persona")],
