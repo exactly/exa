@@ -9,6 +9,15 @@ const panda = {};
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
 const mocks = {
+  chat: vi.fn<
+    (config: {
+      anthropicKey: string;
+      bullmq: object;
+      close: () => Promise<unknown>;
+      whatsappFrom: string;
+      whatsappToken: string;
+    }) => Handle
+  >(),
   close: vi.fn<() => Promise<void>>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<
@@ -47,6 +56,7 @@ beforeEach(() => {
   mocks.hook.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.onesignal.mockReset().mockReturnValue(onesignal);
   mocks.panda.mockReset().mockReturnValue(panda);
+  mocks.chat.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
@@ -69,11 +79,35 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
 });
 
 describe("bin", () => {
+  it("resolves chat private config before constructing and supervising its worker", async () => {
+    await import("../../workers/chat/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("chat", created);
+    await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "chat-anthropic-api-key",
+      "redis-url",
+      "whatsapp-phone-number-id",
+      "chat-whatsapp-access-token",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.chat).toHaveBeenCalledExactlyOnceWith({
+      anthropicKey: "chat-anthropic-api-key",
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      close: expect.any(Function) as () => Promise<unknown>,
+      whatsappFrom: "whatsapp-phone-number-id",
+      whatsappToken: "chat-whatsapp-access-token",
+    });
+  });
+
   it("resolves refund private config before constructing and supervising its worker", async () => {
     await import("../../workers/refund/bin");
 

@@ -6,11 +6,14 @@ const stack = require("@exactly/common/stack");
 
 const development = stack === "localhost";
 
-init({
+/** @type {import("@sentry/node").NodeOptions} */
+const config = {
   dsn: env.SENTRY_DSN,
   release: require("./generated/release"),
   environment: stack,
   tracesSampleRate: 1,
+  strictTraceContinuation: true,
+  streamGenAiSpans: false,
   profilesSampleRate: 1,
   attachStacktrace: true,
   maxValueLength: 8192,
@@ -50,4 +53,7 @@ init({
     return transaction;
   },
   spotlight: development,
-});
+};
+init(config);
+
+module.exports = config;
