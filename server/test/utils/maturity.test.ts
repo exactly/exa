@@ -232,10 +232,12 @@ async function waitForScanJobs(maturity: number, window: Window) {
             .filter(isScanJob)
             .filter((job) => job.data.maturity === maturity && job.data.window === window)
             .map((job) => job.getState()),
-        ).then((states) =>
-          states.every(
-            (state) => !["waiting", "active", "paused", "delayed", "prioritized", "waiting-children"].includes(state),
-          ),
+        ).then(
+          (states) =>
+            states.length > 0 &&
+            states.every(
+              (state) => !["waiting", "active", "paused", "delayed", "prioritized", "waiting-children"].includes(state),
+            ),
         ),
       ),
     10_000,
