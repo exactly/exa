@@ -44,6 +44,10 @@ init({
     }
     return event;
   },
-  beforeSendTransaction: (transaction) => (transaction.extra?.["exa.ignore"] ? null : transaction),
+  beforeSendTransaction: (transaction) => {
+    if (transaction.extra?.["exa.ignore"]) return null;
+    if (env.K_SERVICE) transaction.transaction = `${transaction.transaction} · ${env.K_SERVICE}`;
+    return transaction;
+  },
   spotlight: development,
 });
