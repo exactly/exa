@@ -1,5 +1,7 @@
 import "../mocks/auth";
 import "../mocks/deployments";
+import "../mocks/panda";
+import "../mocks/persona";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -7,6 +9,8 @@ import canonicalize from "canonicalize";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import crypto from "node:crypto";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { getAddress, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
@@ -15,17 +19,40 @@ import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } fr
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import app from "../../api/kyc";
+import route from "../../api/kyc";
 import database, { credentials, organizations, sources } from "../../database";
-import auth from "../../utils/auth";
-import * as panda from "../../utils/panda";
-import * as persona from "../../utils/persona";
+import authenticate from "../../middleware/auth";
+import createAuth from "../../utils/auth";
+import authSecret from "../../utils/authSecret";
+import createPanda, * as Panda from "../../utils/panda";
+import createPersona, * as Persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 import ServiceError from "../../utils/ServiceError";
 
 import type * as v from "valibot";
 
+const auth = createAuth(database, authSecret);
+const panda = Object.assign(
+  createPanda({
+    key: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
+    url: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
+  }),
+  Panda,
+);
+const persona = Object.assign(
+  createPersona(
+    parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
+  ),
+  Persona,
+);
+const app = route({
+  auth: authenticate(""),
+  database,
+  panda,
+  persona,
+});
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
@@ -56,7 +83,7 @@ describe("authenticated", () => {
         const getInquiry = vi.spyOn(persona, "getInquiry");
         const getAccount = vi
           .spyOn(persona, "getAccount")
-          .mockResolvedValueOnce(basicAccount as persona.AccountOutput<"basic">);
+          .mockResolvedValueOnce(basicAccount as Persona.AccountOutput<"basic">);
 
         const response = await appClient.index.$get(
           { query: { countryCode: "true", scope: "basic" } },
@@ -712,7 +739,7 @@ describe("authenticated", () => {
 
       it("returns ok when account has all manteca fields and country code", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mantecaAccount as persona.AccountOutput<"manteca">);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mantecaAccount as Persona.AccountOutput<"manteca">);
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -1021,7 +1048,7 @@ describe("authenticated", () => {
 
       it("returns ok with country code header when account has a supported document", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount as persona.AccountOutput<"bridge">);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount as Persona.AccountOutput<"bridge">);
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -1295,7 +1322,7 @@ describe("authenticated", () => {
       });
 
       it("returns ok with country code header when persona account has card_limit_usd set", async () => {
-        const unknownAccount = { data: [basicAccount] } satisfies persona.UnknownAccountOutput;
+        const unknownAccount = { data: [basicAccount] } satisfies Persona.UnknownAccountOutput;
         vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce(unknownAccount);
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status: "resolved" });
 
@@ -1702,34 +1729,27 @@ describe("authenticated", () => {
         organizationId = externalOrganization.id;
         await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
 
-        await auth.api
-          .getSiweNonce({
-            body: { walletAddress: outsider.address, chainId: chain.id },
-          })
-          .then((result) => {
-            const message = createSiweMessage({
-              statement,
-              resources: ["https://exactly.github.io/exa"],
-              nonce: result.nonce,
-              uri: `https://${domain}`,
-              address: outsider.address,
-              chainId: chain.id,
-              scheme: "https",
-              version: "1",
-              domain,
-            });
-            return outsider.signMessage({ message }).then((signature) => {
-              return auth.api
-                .verifySiweMessage({
-                  body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
-                  request: new Request(`https://${domain}`),
-                  asResponse: true,
-                })
-                .then((response) => {
-                  outsiderHeaders.set("cookie", response.headers.get("set-cookie") ?? "");
-                });
-            });
-          });
+        const outsiderNonceResult = await auth.api.getSiweNonce({
+          body: { walletAddress: outsider.address, chainId: chain.id },
+        });
+        const message = createSiweMessage({
+          statement,
+          resources: ["https://exactly.github.io/exa"],
+          nonce: outsiderNonceResult.nonce,
+          uri: `https://${domain}`,
+          address: outsider.address,
+          chainId: chain.id,
+          scheme: "https",
+          version: "1",
+          domain,
+        });
+        const signature = await outsider.signMessage({ message });
+        const response = await auth.api.verifySiweMessage({
+          body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
+          request: new Request(`https://${domain}`),
+          asResponse: true,
+        });
+        outsiderHeaders.set("cookie", response.headers.get("set-cookie") ?? "");
       });
 
       describe("status", () => {
@@ -2446,7 +2466,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
                 address: {
                   line1: "123 main street",
                 },
-              } as unknown as v.InferOutput<typeof panda.UpdateApplicationRequest>,
+              } as unknown as v.InferOutput<typeof Panda.UpdateApplicationRequest>,
             },
             { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
           );

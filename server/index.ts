@@ -1,40 +1,154 @@
-import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { captureException, close as closeSentry, setExtra } from "@sentry/node";
+import { setExtra } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
-import api from "./api";
+import createApi from "./api";
 import database from "./database";
-import activityHook from "./hooks/activity";
-import block from "./hooks/block";
-import bridge from "./hooks/bridge";
-import manteca from "./hooks/manteca";
-import panda from "./hooks/panda";
-import persona from "./hooks/persona";
+import createActivityHook from "./hooks/activity";
+import createBlockHook from "./hooks/block";
+import createBridgeHook from "./hooks/bridge";
+import createMantecaHook from "./hooks/manteca";
+import createPandaHook from "./hooks/panda";
+import createPersonaHook from "./hooks/persona";
+import supervise from "./supervise";
+import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin from "./utils/appOrigin";
-import { closeQueue, reminders } from "./utils/maturity";
-import { close as closeRedis } from "./utils/redis";
-import { closeAndFlush as closeSegment } from "./utils/segment";
+import createIntercom from "./utils/intercom";
+import { closeQueue as closeMaturity, reminders, setup as setupMaturity } from "./utils/maturity";
+import createOnesignal from "./utils/onesignal";
+import createPanda from "./utils/panda";
+import createPax from "./utils/pax";
+import createPersona from "./utils/persona";
+import createBridge from "./utils/ramps/bridge";
+import createManteca from "./utils/ramps/manteca";
+import redis, { bullmq, close as closeRedis } from "./utils/redis";
+import createSardine from "./utils/sardine";
+import createSegment from "./utils/segment";
+import { legacy } from "./utils/wallet";
+import createWalletExtension from "./utils/walletExtension";
+import createRefund from "./workers/refund/queue";
 
-import type { UnofficialStatusCode } from "hono/utils/http-status";
+const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
+const bridge = createBridge(
+  parse(pipe(string("bridge key"), nonEmpty("bridge key")), env.BRIDGE_API_KEY),
+  parse(pipe(string("bridge url"), nonEmpty("bridge url")), env.BRIDGE_API_URL),
+);
+const intercom = createIntercom(parse(pipe(string("intercom"), nonEmpty("intercom")), env.INTERCOM_IDENTITY_KEY));
+const issuer = legacy("issuer"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const keeper = legacy("keeper"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy monolith
+const manteca = createManteca(
+  parse(pipe(string("manteca key"), nonEmpty("manteca key")), env.MANTECA_API_KEY),
+  parse(pipe(string("manteca url"), nonEmpty("manteca url")), env.MANTECA_API_URL),
+);
+const onesignal = createOnesignal(parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY));
+const panda = createPanda({
+  key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
+  url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
+});
+const pax = createPax({
+  associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
+  key: parse(pipe(string("pax key"), nonEmpty("pax key")), env.PAX_API_KEY),
+  url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
+});
+const persona = createPersona(
+  parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
+  parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
+);
+const refund = createRefund(bullmq);
+const sardine = createSardine(
+  parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
+  parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
+);
+const segment = createSegment(parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY));
+const walletExtension = createWalletExtension(
+  parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
+);
+setupMaturity(onesignal);
+const api = createApi({
+  alchemy,
+  authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
+  bridge,
+  database,
+  intercom,
+  manteca,
+  panda,
+  pax,
+  persona,
+  redis,
+  sardine,
+  segment,
+  walletExtension,
+});
+
+const activityHook = createActivityHook({
+  alchemy,
+  activityKey: env.ALCHEMY_ACTIVITY_KEY,
+  database,
+  executor: keeper,
+  onesignal,
+  redis,
+  segment,
+});
+const blockHook = createBlockHook({
+  alchemy,
+  blockKey: env.ALCHEMY_BLOCK_KEY,
+  executor: keeper,
+  onesignal,
+  redis,
+});
+const bridgeHook = createBridgeHook({
+  bridge,
+  bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
+  database,
+  onesignal,
+  persona,
+  segment,
+});
+const mantecaHook = createMantecaHook({
+  database,
+  manteca,
+  mantecaWebhookKey: parse(pipe(string("manteca webhook"), nonEmpty("manteca webhook")), env.MANTECA_WEBHOOKS_KEY),
+  onesignal,
+  segment,
+});
+const pandaHook = createPandaHook({
+  database,
+  issuer,
+  onesignal,
+  panda,
+  refund,
+  sardine,
+  segment,
+  settler: keeper,
+});
+const personaHook = createPersonaHook({
+  database,
+  panda,
+  pax,
+  persona,
+  personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
+  sardine,
+});
 
 const app = new Hono();
 app.use(trimTrailingSlash());
-app.route("/api", api);
-app.route("/hooks/activity", activityHook);
-app.route("/hooks/block", block);
-app.route("/hooks/bridge", bridge);
-app.route("/hooks/manteca", manteca);
-app.route("/hooks/panda", panda);
-app.route("/hooks/persona", persona);
+app.route("/api", api.app);
+app.route("/hooks/activity", activityHook.app);
+app.route("/hooks/block", blockHook.app);
+app.route("/hooks/bridge", bridgeHook.app);
+app.route("/hooks/manteca", mantecaHook.app);
+app.route("/hooks/panda", pandaHook.app);
+app.route("/hooks/persona", personaHook.app);
 
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
@@ -280,71 +394,33 @@ frontend.use(
 );
 app.route("/", frontend);
 
-app.onError((error, c) => {
-  let fingerprint: string[] | undefined;
-  if (error instanceof Error) {
-    const message = error.message
-      .split("Error:")
-      .reduce((result, part) => (result ? `${result}Error:${part}` : part.trimStart()), "");
-    const status = message.slice(0, 3);
-    const hasStatus = /^\d{3}$/.test(status);
-    const hasBodyFormat = message.length === 3 || message[3] === " ";
-    const body = hasBodyFormat && message.length > 3 ? message.slice(4).trim() : undefined;
-    if (hasStatus && hasBodyFormat) fingerprint = ["{{ default }}", status];
-    if (hasStatus && hasBodyFormat && body) {
-      try {
-        const json = JSON.parse(body) as { code?: unknown; error?: unknown; message?: unknown };
-        fingerprint = [
-          "{{ default }}",
-          status,
-          ...("code" in json
-            ? [String(json.code)]
-            : typeof json.message === "string"
-              ? [json.message]
-              : typeof json.error === "string"
-                ? [json.error]
-                : [body]),
-        ];
-      } catch {
-        fingerprint = ["{{ default }}", status, body];
-      }
-    }
-  }
-  captureException(error, { level: "error", tags: { unhandled: true }, fingerprint });
-  return c.json({ code: "unexpected error", legacy: "unexpected error" }, 555 as UnofficialStatusCode);
-});
-
 export default app;
 
-const server = serve(app);
-
-export async function close() {
-  return new Promise((resolve, reject) => {
-    server.close((error) => {
-      Promise.allSettled([closeSentry(), closeRedis(), closeSegment(), database.$client.end(), closeQueue()])
-        .then((results) => {
-          if (error) reject(error);
-          else if (results.some((result) => result.status === "rejected")) reject(new Error("closing services failed"));
-          else resolve(null);
-        })
-        .catch(reject);
-    });
-  });
-}
-
-reminders()
-  .catch(reminders)
-  .catch((error: unknown) => {
-    captureException(error, { level: "error", tags: { unhandled: true } });
-    throw error;
-  });
-
-if (!process.env.VITEST) {
-  ["SIGINT", "SIGTERM"].map((code) => {
-    process.on(code, () => {
-      close()
-        .then(() => process.exit(0)) // eslint-disable-line n/no-process-exit
-        .catch(() => process.exit(1)); // eslint-disable-line n/no-process-exit
-    });
-  });
-}
+export const close = supervise(
+  "server",
+  Promise.resolve({
+    app,
+    ready: Promise.all([
+      api.ready,
+      activityHook.ready,
+      blockHook.ready,
+      bridgeHook.ready,
+      mantecaHook.ready,
+      pandaHook.ready,
+      personaHook.ready,
+      reminders().catch(reminders),
+    ]),
+    async close() {
+      const services = await Promise.allSettled([
+        database.$client.end(),
+        segment.close(),
+        Promise.allSettled([closeMaturity(), refund.close()])
+          .then((queues) => {
+            if (queues.some((queue) => queue.status === "rejected")) throw new Error("closing queues failed");
+          })
+          .finally(closeRedis),
+      ]);
+      if (services.some((service) => service.status === "rejected")) throw new Error("closing services failed");
+    },
+  }),
+);

@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
-import * as persona from "../../utils/persona";
-import * as manteca from "../../utils/ramps/manteca";
+import createPersona from "../../utils/persona";
+import createManteca, * as Manteca from "../../utils/ramps/manteca";
 import { ErrorCodes } from "../../utils/ramps/manteca";
 import ServiceError from "../../utils/ServiceError";
 
@@ -30,6 +30,15 @@ vi.mock("viem", async (importOriginal) => {
 vi.mock("@exactly/common/generated/chain", () => ({
   default: chainMock,
 }));
+
+const persona = createPersona("persona", "https://persona.test");
+const ramp = createManteca("manteca", "https://manteca.test");
+const manteca = {
+  ...Manteca,
+  ...ramp,
+  onboarding: (account: Parameters<typeof ramp.onboarding>[0], credentialId: string) =>
+    ramp.onboarding(account, credentialId, persona),
+};
 
 function mockFetchResponse(body: unknown) {
   return {

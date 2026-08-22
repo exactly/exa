@@ -1,22 +1,30 @@
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
+import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
+import { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
-import { parse, safeParse } from "valibot";
+import { nonEmpty, parse, pipe, rawTransform, regex, safeParse, string } from "valibot";
 import {
   concatHex,
+  createPublicClient,
   createWalletClient,
   encodeFunctionData,
   getContractError,
   http,
   InvalidInputRpcError,
+  isHash,
   keccak256,
+  parseSignature,
+  publicActions,
   RawContractError,
+  rpcSchema,
   WaitForTransactionReceiptTimeoutError,
   withRetry,
+  type AuthorizationRequest,
   type Chain,
+  type LocalAccount,
   type MaybePromise,
   type Prettify,
-  type PrivateKeyAccount,
   type PublicActions,
   type TransactionReceipt,
   type Transport,
@@ -24,38 +32,46 @@ import {
   type WriteContractParameters,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { hashAuthorization } from "viem/utils";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
-import { Address, Hash } from "@exactly/common/validation";
+import stack from "@exactly/common/stack";
+import { Address, type Hash } from "@exactly/common/validation";
 
 import nonceManager from "./nonceManager";
-import defaultPublicClient, { captureRequests, Requests } from "./publicClient";
+import defaultPublicClient, { captureRequests, Request, Requests } from "./publicClient";
 import revertFingerprint from "./revertFingerprint";
-import defaultTraceClient from "./traceClient";
+import defaultTraceClient, { trace as traceActions, type RpcSchema } from "./traceClient";
+
+import type { KeyManagementServiceClient } from "@google-cloud/kms";
 
 if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
 
-export default createWalletClient({
-  chain,
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-    batch: true,
+export default function wallet(account: LocalAccount, network: Chain = chain) {
+  const url = network.rpcUrls.alchemy?.http[0];
+  if (!url) throw new Error("missing alchemy rpc url");
+  const transport = http(`${url}/${alchemyAPIKey}`, {
+    ...(network.id === chain.id && { batch: true }),
     async onFetchRequest(request) {
-      captureRequests(parse(Requests, await request.json()));
+      const body: unknown = await request.clone().json();
+      captureRequests(Array.isArray(body) ? parse(Requests, body) : [parse(Request, body)]);
     },
-  }),
-  account: privateKeyToAccount(
-    parse(Hash, process.env.KEEPER_PRIVATE_KEY, {
-      message: "invalid keeper private key",
-    }),
-    { nonceManager },
-  ),
-}).extend(extender);
+  });
+  const publicClient = createPublicClient({
+    chain: network,
+    transport,
+    rpcSchema: rpcSchema<RpcSchema>(),
+  }).extend(traceActions);
+  return createWalletClient({ chain: network, transport, account })
+    .extend(publicActions)
+    .extend((keeper) => extender(keeper, { publicClient, traceClient: publicClient }));
+}
 
 export function extender(
-  keeper: WalletClient<Transport, Chain, PrivateKeyAccount>,
+  keeper: WalletClient<Transport, Chain, LocalAccount>,
   {
     publicClient = defaultPublicClient,
     traceClient = defaultTraceClient,
@@ -222,3 +238,66 @@ export function extender(
       ),
   };
 }
+
+export async function signer(name: string, kms: KeyManagementServiceClient) {
+  const account = await withRetry(
+    async () =>
+      gcpHsmToAccount({
+        hsmKeyVersion: `projects/${parse(
+          pipe(string(), regex(/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/)),
+          await kms.getProjectId(),
+          { message: "invalid gcp project id" },
+        )}/locations/${parse(pipe(string(), nonEmpty()), env.GCP_KMS_LOCATION, {
+          message: "invalid GCP_KMS_LOCATION",
+        })}/keyRings/${stack}-signers/cryptoKeys/${stack}-${name}/cryptoKeyVersions/${parse(
+          pipe(string(), regex(/^\d+$/)),
+          env[`GCP_KMS_KEY_VERSION_${name.toUpperCase()}`] || "1", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- empty defaults
+          { message: `invalid GCP_KMS_KEY_VERSION_${name.toUpperCase()}` },
+        )}`,
+        kmsClient: kms,
+      }),
+    {
+      delay: 2000,
+      retryCount: 3,
+      shouldRetry: ({ error }) =>
+        error instanceof Error &&
+        (("code" in error &&
+          ([4, 8, 13, 14].includes(Number(error.code)) ||
+            ["DEADLINE_EXCEEDED", "INTERNAL", "RESOURCE_EXHAUSTED", "UNAVAILABLE"].includes(String(error.code)))) ||
+          ["internal error", "network", "timeout", "unavailable"].some((value) =>
+            error.message.toLowerCase().includes(value),
+          ) ||
+          ["NetworkError", "TimeoutError"].includes(error.name)),
+    },
+  );
+  let { signAuthorization } = account;
+  if (!signAuthorization) {
+    const { sign } = account;
+    if (!sign) throw new Error("signer cannot sign");
+    signAuthorization = async (authorization: AuthorizationRequest) => ({
+      address: authorization.contractAddress ?? authorization.address,
+      chainId: authorization.chainId,
+      nonce: authorization.nonce,
+      ...parseSignature(await sign({ hash: hashAuthorization(authorization) })),
+    });
+  }
+  return Object.assign(account, { nonceManager, signAuthorization });
+}
+
+/** @deprecated remove with the monolith */
+export function legacy(name: string) {
+  return privateKeyToAccount(parse(PrivateKey, name), { nonceManager });
+}
+
+const PrivateKey = pipe(
+  string(),
+  rawTransform(({ addIssue, dataset, NEVER }) => {
+    const name = dataset.value;
+    const privateKey = env[`${name.toUpperCase()}_PRIVATE_KEY`];
+    if (privateKey === undefined || !isHash(privateKey)) {
+      addIssue({ message: `invalid ${name} private key` });
+      return NEVER;
+    }
+    return privateKey;
+  }),
+);

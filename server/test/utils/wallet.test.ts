@@ -1,24 +1,123 @@
 import "../mocks/deployments";
-import { keeperClient, nonceSource } from "../mocks/keeper";
 import "../mocks/sentry";
 import { enableTracing } from "../mocks/traceClient";
+import { nonceSource, walletClient } from "../mocks/wallet";
 
+import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { captureException, withScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
-import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, RawContractError } from "viem";
-import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { concatHex, encodeErrorResult, encodeFunctionData, getContractError, padHex, RawContractError } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { recoverAuthorizationAddress } from "viem/utils";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import { dataSuffix } from "@exactly/common/attribution";
-import { auditorAbi } from "@exactly/common/generated/chain";
+import chain, { auditorAbi } from "@exactly/common/generated/chain";
 
-import keeper from "../../utils/keeper";
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
+import wallet from "../../utils/wallet";
 
 import type * as tracing from "../../utils/traceClient";
+import type * as Wallet from "../../utils/wallet";
 import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
+
+const mocks = vi.hoisted(() => ({
+  close: vi.fn<() => Promise<void>>(),
+  gcpHsmToAccount: vi.fn(),
+  getProjectId: vi.fn<() => Promise<string>>(),
+  instances: [] as object[],
+}));
+
+const kms = new KeyManagementServiceClient();
+let keeper: Awaited<ReturnType<typeof wallet>>;
+let source: typeof Wallet;
+
+afterAll(async () => {
+  await kms.close();
+});
+
+beforeAll(async () => {
+  source = await vi.importActual<typeof Wallet>("../../utils/wallet");
+  keeper = wallet(privateKeyToAccount(padHex("0x69")));
+});
+
+beforeEach(() => {
+  mocks.close.mockReset().mockResolvedValue();
+  mocks.gcpHsmToAccount.mockReset();
+  mocks.getProjectId.mockReset().mockResolvedValue("exa-test");
+});
+
+describe("wallet", () => {
+  it("uses accounts", () => {
+    const owner = privateKeyToAccount(padHex("0x1234"));
+
+    expect(source.default(owner).account).toBe(owner);
+    expect(source.default(owner, chain).account).toBe(owner);
+  });
+});
+
+describe("legacy", () => {
+  it.each([
+    ["issuer", "0x420"],
+    ["keeper", "0x69"],
+  ] as const)("loads the %s private key", (name, key) => {
+    const account = source.legacy(name); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy coverage
+
+    expect(account.address).toBe(privateKeyToAccount(padHex(key)).address);
+    expect(account.nonceManager).toBe(nonceManager);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["invalid", "invalid"],
+  ] as const)("rejects %s private keys", (_, privateKey) => {
+    vi.stubEnv("KEEPER_PRIVATE_KEY", privateKey);
+
+    expect(() => source.legacy("keeper")).toThrow("invalid keeper private key"); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy coverage
+  });
+});
+
+describe("signer", () => {
+  it("adds authorization signing", async () => {
+    const account = privateKeyToAccount(padHex("0x1234"));
+    mocks.gcpHsmToAccount.mockResolvedValue({ ...account, signAuthorization: undefined, source: "gcpHsm" });
+    vi.stubEnv("GCP_KMS_LOCATION", "us-west1");
+
+    const loaded = await source.signer("allower", kms);
+    const authorization = await loaded.signAuthorization({
+      chainId: chain.id,
+      contractAddress: account.address,
+      nonce: 0,
+    });
+
+    await expect(recoverAuthorizationAddress({ authorization })).resolves.toBe(account.address);
+    expect(loaded.nonceManager).toBe(nonceManager);
+    expect(loaded.source).toBe("gcpHsm");
+  });
+
+  it.each([
+    ["configured", "42", "42"],
+    ["empty", "", "1"],
+    ["default", undefined, "1"],
+  ] as const)("uses the %s kms version", async (_, version, expected) => {
+    const error = Object.assign(new Error("kms key version not found"), { code: 5 });
+    mocks.gcpHsmToAccount.mockRejectedValueOnce(error);
+    vi.stubEnv("GCP_KMS_KEY_VERSION_ALLOWER", version);
+    vi.stubEnv("GCP_KMS_LOCATION", "us-west1");
+
+    await expect(source.signer("allower", kms)).rejects.toBe(error);
+
+    expect(mocks.gcpHsmToAccount).toHaveBeenCalledExactlyOnceWith({
+      hsmKeyVersion: `projects/exa-test/locations/us-west1/keyRings/sandbox-signers/cryptoKeys/sandbox-allower/cryptoKeyVersions/${expected}`,
+      kmsClient: kms,
+    });
+    expect(mocks.instances).toStrictEqual([kms]);
+    expect(mocks.close).not.toHaveBeenCalled();
+  });
+});
 
 describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
@@ -97,9 +196,9 @@ describe("fault tolerance", () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
     const hardReset = vi.spyOn(nonceManager, "hardReset");
     const currentNonce = await nonceSource.get({
-      address: keeperClient.account.address,
-      chainId: keeperClient.chain.id,
-      client: keeperClient,
+      address: walletClient.account.address,
+      chainId: walletClient.chain.id,
+      client: walletClient,
     });
     const getNonce = vi.spyOn(nonceSource, "get");
     getNonce
@@ -156,9 +255,9 @@ describe("fault tolerance", () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
     const hardReset = vi.spyOn(nonceManager, "hardReset");
     const currentNonce = await nonceSource.get({
-      address: keeperClient.account.address,
-      chainId: keeperClient.chain.id,
-      client: keeperClient,
+      address: walletClient.account.address,
+      chainId: walletClient.chain.id,
+      client: walletClient,
     });
 
     const getNonce = vi.spyOn(nonceSource, "get");
@@ -217,9 +316,9 @@ describe("fault tolerance", () => {
     await vi.waitUntil(
       async () =>
         (await nonceSource.get({
-          address: keeperClient.account.address,
-          chainId: keeperClient.chain.id,
-          client: keeperClient,
+          address: walletClient.account.address,
+          chainId: walletClient.chain.id,
+          client: walletClient,
         })) ===
         currentNonce + 102,
     );
@@ -378,13 +477,27 @@ describe("level option", () => {
 });
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@google-cloud/kms", () => ({
+  KeyManagementServiceClient: class {
+    constructor() {
+      mocks.instances.push(this);
+    }
+
+    close = mocks.close;
+    getProjectId = mocks.getProjectId;
+  },
+}));
+vi.mock("@valora/viem-account-hsm-gcp", () => ({ gcpHsmToAccount: mocks.gcpHsmToAccount }));
 vi.mock("@exactly/common/attribution", () => ({ dataSuffix: "0xdeadbeef" }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
   return { ...original, setTimeout: (...arguments_: unknown[]) => original.setTimeout(150, ...arguments_.slice(1)) };
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 function enterMarket() {
   return keeper.exaSend(

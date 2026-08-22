@@ -1,9 +1,10 @@
 import "../mocks/deployments";
-import "../mocks/keeper";
-import "../mocks/onesignal";
+import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/panda";
-import "../mocks/sardine";
+import * as sardine from "../mocks/sardine";
+import * as segment from "../mocks/segment";
 import "../mocks/sentry";
+import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -47,23 +48,60 @@ import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
-import app from "../../hooks/panda";
+import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
-import keeper from "../../utils/keeper";
-import * as onesignal from "../../utils/onesignal";
-import * as panda from "../../utils/panda";
+import createOnesignal from "../../utils/onesignal";
+import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
-import * as sardine from "../../utils/sardine";
-import * as segment from "../../utils/segment";
+import createSardine from "../../utils/sardine";
+import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
+import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
-const appClient = testClient(app);
+import type createRefund from "../../workers/refund/queue";
+import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
+
+const refund = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
+}));
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const panda = createPanda(pandaConfig);
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const issuer = privateKeyToAccount(padHex("0x420"));
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+const pandaHook = createPandaHook({
+  database,
+  issuer,
+  onesignal: createOnesignal("onesignal"),
+  panda,
+  refund,
+  sardine: createSardine(sardineConfig.key, sardineConfig.url),
+  segment: createSegment("segment"),
+  settler: owner.account,
+});
+const app = pandaHook.app;
+
+vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
+  const original = await importOriginal<{ drizzle: typeof Drizzle }>();
+  let instance: ReturnType<typeof original.drizzle> | undefined;
+  return {
+    ...original,
+    drizzle: ((...args: Parameters<typeof original.drizzle>) =>
+      (instance ??= original.drizzle(...args))) as typeof original.drizzle,
+  };
+});
+
+let keeper: ReturnType<typeof wallet>;
+
+const appClient = testClient(app);
 const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
 
 beforeAll(async () => {
+  keeper = wallet(privateKeyToAccount(padHex("0x69")));
   await Promise.all([
+    pandaHook.ready,
     database.transaction(async (tx) => {
       await tx
         .insert(credentials)
@@ -108,7 +146,7 @@ describe("card operations", () => {
         );
       });
 
-      afterEach(() => panda.getMutex(account)?.release());
+      afterEach(() => Panda.getMutex(account)?.release());
 
       it("fails with InsufficientAccountLiquidity", async () => {
         const currentFunds = await publicClient.readContract({
@@ -272,7 +310,7 @@ describe("card operations", () => {
       it("authorizes debit when risk assessment times out", async () => {
         const error = new Error("timeout");
         error.name = "TimeoutError";
-        vi.spyOn(sardine, "default").mockRejectedValueOnce(error);
+        vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
         await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -417,7 +455,7 @@ describe("card operations", () => {
       it("fails with mutex timeout", async () => {
         const cardId = "rc-mutex";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0003" }]);
-        const mutex = panda.createMutex(account);
+        const mutex = Panda.createMutex(account);
         await mutex.acquire();
         try {
           const response = await appClient.index.$post({
@@ -439,7 +477,7 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
         const cardId = "rc-ouch";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
 
@@ -459,7 +497,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk authorization", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -483,7 +521,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk verification", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -512,7 +550,7 @@ describe("card operations", () => {
       });
 
       it("alarms high risk refund", async () => {
-        vi.spyOn(sardine, "default").mockResolvedValueOnce({
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
           level: "high",
           sessionKey: "123",
@@ -743,7 +781,7 @@ describe("card operations", () => {
       });
 
       it("sends locale-aware card purchase notification", async () => {
-        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+        const sendPushNotification = sendPushNotificationMock;
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -779,7 +817,7 @@ describe("card operations", () => {
 
       it("captures card purchase notification errors", async () => {
         const error = new Error("push failed");
-        vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+        sendPushNotificationMock.mockRejectedValueOnce(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -811,7 +849,7 @@ describe("card operations", () => {
 
       it("captures card purchase feedback errors", async () => {
         const error = new Error("feedback failed");
-        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           await args[2]?.onHash?.(zeroHash as Hash);
@@ -1117,551 +1155,392 @@ describe("card operations", () => {
   });
 
   describe("refund and reversal", () => {
-    describe("with collateral", () => {
-      beforeAll(async () => {
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
-        );
-        await keeper.exaSend(
-          { name: "poke", op: "exa.poke" },
-          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
-        );
-      });
+    beforeEach(() => {
+      refund.enqueue.mockClear().mockResolvedValue();
+    });
 
-      beforeEach(() => {
-        vi.spyOn(panda, "getUser").mockResolvedValue(userResponseTemplate);
-      });
+    it("enqueues reversals", async () => {
+      const amount = 2073;
+      const id = "reversal-enqueued";
+      await database
+        .insert(transactions)
+        .values([{ id, cardId: "card", hashes: [zeroHash], payload: { bodies: [], type: "panda" } }]);
+      const updatedAt = new Date().toISOString();
 
-      afterEach(() => vi.restoreAllMocks());
-
-      it("handles reversal", async () => {
-        const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
-        const amount = 2073;
-        const cardId = "card";
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
-
-        const createdAt = new Date().toISOString();
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
-            },
-          },
-        });
-
-        const updatedAt = new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString();
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -amount,
-                authorizedAt: updatedAt,
-                status: "reversed",
-              },
-            },
-          },
-        });
-
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        const refundReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[1] as Hex,
-          confirmations: 0,
-        });
-        const deposit = refundReceipt.logs
-          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
-          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
-          .find((l) => l.args.owner === account);
-
-        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
-        await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
-        expect(sendPushNotification).toHaveBeenCalledWith({
-          userId: account,
-          headings: t("Refund processed"),
-          contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
-            refundAmount: f(amount / 100),
-            merchantName: authorization.json.body.spend.merchantName,
-          }),
-        });
-        expect(response.status).toBe(200);
-      });
-
-      it("captures refund notification errors", async () => {
-        const error = new Error("push failed");
-        const notification = Promise.withResolvers<Awaited<ReturnType<typeof onesignal.sendPushNotification>>>();
-        vi.spyOn(onesignal, "sendPushNotification").mockReturnValueOnce(notification.promise);
-        const amount = 2073;
-        const cardId = "refund-notify-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
-
-        const createdAt = new Date().toISOString();
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: -amount,
-                localAmount: -amount,
-                authorizedAmount: -amount,
-                authorizedAt: createdAt,
-                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
-                status: "completed",
-              },
-            },
-          },
-        });
-
-        expect(onesignal.sendPushNotification).toHaveBeenCalledWith({
-          userId: account,
-          headings: t("Refund processed"),
-          contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
-            refundAmount: f(amount / 100),
-            merchantName: authorization.json.body.spend.merchantName,
-          }),
-        });
-        notification.reject(error);
-        await notification.promise.catch(() => undefined);
-        expect(captureException).toHaveBeenCalledWith(error);
-        expect(response.status).toBe(200);
-      });
-
-      it("captures refund feedback errors", async () => {
-        const error = new Error("feedback failed");
-        const amount = 2191;
-        const cardId = "card";
-        const id = `refund-feedback-${Date.now()}`;
-        vi.mocked(captureException).mockClear();
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
-
-        const createdAt = new Date(Date.now() + 60_000).toISOString();
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id,
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
-            },
-          },
-        });
-        vi.spyOn(sardine, "feedback").mockImplementation(
-          () =>
-            ({
-              catch(handler: (reason: unknown) => unknown) {
-                handler(error);
-                return Promise.resolve({ status: "Success" });
-              },
-            }) as unknown as ReturnType<typeof sardine.feedback>,
-        );
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: -amount,
-                localAmount: -amount,
-                authorizedAmount: -amount,
-                authorizedAt: createdAt,
-                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
-                status: "completed",
-              },
-            },
-          },
-        });
-
-        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
-        expect(response.status).toBe(200);
-      });
-
-      it("captures partial refund feedback errors", async () => {
-        const error = new Error("feedback failed");
-        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
-        const cardId = "partial-refund-feedback-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "2222" }]);
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
-
-        const createdAt = new Date().toISOString();
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                amount: 15,
-                localAmount: 15,
-                authorizedAmount: 20,
-                authorizedAt: createdAt,
-                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
-                cardId,
-                status: "completed",
-              },
-            },
-          },
-        });
-
-        await vi.waitUntil(
-          () => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error),
-          15_000,
-        );
-
-        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
-        expect(response.status).toBe(200);
-      });
-
-      it("returns ok on reversal replay", async () => {
-        const amount = 1500;
-        const cardId = "reversal-replay";
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "3333" }]);
-
-        const createdAt = new Date();
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount,
-                localAmount: amount,
-                authorizedAt: createdAt.toISOString(),
-              },
-            },
-          },
-        });
-
-        const transactionUpdated = {
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
           ...authorization.json,
-          action: "updated" as const,
+          action: "updated",
           body: {
             ...authorization.json.body,
-            id: cardId,
+            id,
             spend: {
               ...authorization.json.body.spend,
-              cardId,
+              cardId: "card",
               authorizationUpdateAmount: -amount,
-              authorizedAt: new Date(createdAt.getTime() + 1000 * 30).toISOString(),
-              status: "reversed" as const,
+              authorizedAt: updatedAt,
+              status: "reversed",
             },
           },
-        };
-
-        const first = await appClient.index.$post({ ...authorization, json: transactionUpdated });
-        const tx = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
-        await publicClient.waitForTransactionReceipt({ hash: tx?.hashes[1] as Hex, confirmations: 0 });
-        expect(first.status).toBe(200);
-
-        const second = await appClient.index.$post({ ...authorization, json: transactionUpdated });
-
-        expect(second.status).toBe(200);
-        expect(captureException).toHaveBeenCalledExactlyOnceWith(
-          expect.any(BaseError),
-          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Replay"] }),
-        );
+        },
       });
 
-      it("fails with unexpected reversal error", async () => {
-        const cardId = "reversal-unexpected";
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777" }]);
+      const timestamp =
+        Math.floor(new Date(updatedAt).getTime() / 1000) -
+        Number(BigInt(`0x${authorization.json.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
+      expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith(
+        {
+          account,
+          amount: amount * 10_000,
+          signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
+          timestamp,
+        },
+        "abcdef-123456",
+      );
+      expect(response.status).toBe(200);
+    });
 
-        const createdAt = new Date();
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: 700,
-                localAmount: 700,
-                authorizedAt: createdAt.toISOString(),
-              },
+    it("enqueues refunds", async () => {
+      const amount = 2000;
+      const id = "refund-enqueued";
+      const createdAt = new Date().toISOString();
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -amount,
+              localAmount: -amount,
+              authorizedAmount: -amount,
+              authorizedAt: createdAt,
+              postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+              status: "completed",
             },
           },
-        });
-
-        vi.spyOn(publicClient, "simulateContract").mockRejectedValueOnce(new Error("unexpected contract revert"));
-
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated" as const,
-            body: {
-              ...authorization.json.body,
-              id: cardId,
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -600,
-                authorizedAt: new Date(createdAt.getTime() + 1000 * 30).toISOString(),
-                status: "reversed" as const,
-              },
-            },
-          },
-        });
-
-        expect(response.status).toBe(569);
-        expect(captureException).toHaveBeenCalledWith(
-          expect.any(Error),
-          expect.objectContaining({
-            level: "fatal",
-            tags: expect.objectContaining({
-              unhandled: true,
-              "panda.failure": "refund",
-              "panda.reason": "unexpected contract revert",
-              "panda.reasonName": "Error",
-            }) as unknown,
-          }),
-        );
+        },
       });
 
-      it("fails with spending transaction not found", async () => {
-        const amount = 5;
-        const cardId = "card";
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
+      const timestamp =
+        Math.floor(new Date(createdAt).getTime() / 1000) -
+        Number(BigInt(`0x${authorization.json.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
+      expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith(
+        {
+          account,
+          amount: amount * 10_000,
+          signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
+          timestamp,
+        },
+        "abcdef-123456",
+      );
+      expect(response.status).toBe(200);
+    });
 
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "updated",
-            body: {
-              ...authorization.json.body,
-              id: "reversal-without-pending",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                authorizationUpdateAmount: -amount,
-                authorizedAt: new Date().toISOString(),
-                status: "reversed",
-              },
+    it("verifies panda signatures", async () => {
+      const amount = 2000;
+      const createdAt = new Date().toISOString();
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-signed",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -amount,
+              localAmount: -amount,
+              authorizedAmount: -amount,
+              authorizedAt: createdAt,
+              postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+              signature: await Panda.signIssuerOp(
+                { account, amount: BigInt(amount) * -10_000n, timestamp: 1_700_000_100 },
+                issuer,
+              ),
+              status: "completed",
+              timestamp: 1_700_000_100,
             },
           },
-        });
-
-        await expect(response.json()).resolves.toStrictEqual({ code: "transaction not found" });
-        expect(response.status).toBe(553);
+        },
       });
 
-      it("handles refund", async () => {
-        const amount = 2000;
-        const cardId = "card";
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
+      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(captureException).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+    });
 
-        const createdAt = new Date().toISOString();
-        await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "created",
-            body: {
-              ...authorization.json.body,
-              id: "refund",
-              spend: { ...authorization.json.body.spend, cardId, amount, localAmount: amount, authorizedAt: createdAt },
+    it("captures invalid panda signatures and enqueues anyway", async () => {
+      const amount = 2000;
+      const createdAt = new Date().toISOString();
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-invalid",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -amount,
+              localAmount: -amount,
+              authorizedAmount: -amount,
+              authorizedAt: createdAt,
+              postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+              signature: await Panda.signIssuerOp(
+                { account, amount: BigInt(amount) * -10_000n, timestamp: 1_700_000_099 },
+                issuer,
+              ),
+              status: "completed",
+              timestamp: 1_700_000_100,
             },
           },
-        });
-
-        const completedAt = new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString();
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id: "refund",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: -amount,
-                localAmount: -amount,
-                authorizedAmount: -amount,
-                authorizedAt: createdAt,
-                postedAt: completedAt,
-                status: "completed",
-              },
-            },
-          },
-        });
-
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "refund") });
-        const refundReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[1] as Hex,
-          confirmations: 0,
-        });
-        const deposit = refundReceipt.logs
-          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
-          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
-          .find((l) => l.args.owner === account);
-
-        expect(transaction?.payload).toMatchObject({
-          bodies: [
-            { action: "created", createdAt },
-            { action: "completed", createdAt: completedAt },
-          ],
-        });
-        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
+        },
       });
 
-      it("refunds without traceable spending", async () => {
-        const amount = 3000;
-        const cardId = "card";
-        await keeper.exaSend(
-          { name: "mint usdc", op: "tx.mint" },
-          {
-            address: inject("USDC"),
-            abi: mockERC20Abi,
-            functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
-          },
-        );
+      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "invalid panda signature" }),
+        { level: "error" },
+      );
+      expect(response.status).toBe(200);
+    });
 
-        const createdAt = new Date().toISOString();
-        const response = await appClient.index.$post({
-          ...authorization,
-          json: {
-            ...authorization.json,
-            action: "completed",
-            body: {
-              ...authorization.json.body,
-              id: "no-spending",
-              spend: {
-                ...authorization.json.body.spend,
-                cardId,
-                amount: -amount,
-                localAmount: -amount,
-                authorizedAmount: -amount,
-                authorizedAt: createdAt,
-                postedAt: createdAt,
-                status: "completed",
-              },
+    it("captures panda signatures without timestamp and enqueues anyway", async () => {
+      const amount = 2000;
+      const createdAt = new Date().toISOString();
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-untimed", // cspell:ignore untimed
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -amount,
+              localAmount: -amount,
+              authorizedAmount: -amount,
+              authorizedAt: createdAt,
+              postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+              signature: "0x5678",
+              status: "completed",
             },
           },
-        });
+        },
+      });
 
-        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "no-spending") });
-        const refundReceipt = await publicClient.waitForTransactionReceipt({
-          hash: transaction?.hashes[0] as Hex,
-          confirmations: 0,
-        });
-        const deposit = refundReceipt.logs
-          .filter((l) => l.address.toLowerCase() === inject("MarketUSDC").toLowerCase())
-          .map((l) => decodeEventLog({ abi: marketAbi, eventName: "Deposit", topics: l.topics, data: l.data }))
-          .find((l) => l.args.owner === account);
+      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "timestamp not found" }),
+        { level: "error" },
+      );
+      expect(response.status).toBe(200);
+    });
 
-        expect(transaction?.payload).toMatchObject({
-          bodies: [{ action: "completed", createdAt }],
-        });
-        expect(deposit?.args.assets).toBe(BigInt(amount * 1e4));
-        expect(response.status).toBe(200);
+    it("captures panda signature verification errors and enqueues anyway", async () => {
+      const amount = 2000;
+      const createdAt = new Date().toISOString();
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-malformed",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -amount,
+              localAmount: -amount,
+              authorizedAmount: -amount,
+              authorizedAt: createdAt,
+              postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+              signature: "0x5678",
+              status: "completed",
+              timestamp: 1_700_000_100,
+            },
+          },
+        },
+      });
+
+      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), { level: "error" });
+      expect(response.status).toBe(200);
+    });
+
+    it("enqueues partial captures", async () => {
+      const id = "partial-enqueued";
+      const createdAt = new Date().toISOString();
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: 15,
+              localAmount: 15,
+              authorizedAmount: 20,
+              authorizedAt: createdAt,
+              postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ account, amount: 50_000 }),
+        "abcdef-123456",
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("fails with spending transaction not found", async () => {
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: "reversal-without-pending",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              authorizationUpdateAmount: -5,
+              authorizedAt: new Date().toISOString(),
+              status: "reversed",
+            },
+          },
+        },
+      });
+
+      await expect(response.json()).resolves.toStrictEqual({ code: "transaction not found" });
+      expect(response.status).toBe(553);
+      expect(refund.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("fails with unknown card", async () => {
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-unknown-card",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "ghost-card",
+              amount: -100,
+              localAmount: -100,
+              authorizedAmount: -100,
+              authorizedAt: new Date().toISOString(),
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(response.status).toBe(500);
+      expect(refund.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("retries refunds that cannot be queued", async () => {
+      const error = new Error("queue error");
+      refund.enqueue.mockRejectedValueOnce(error);
+      const exaSend = vi.spyOn(keeper, "exaSend");
+      const track = vi.spyOn(segment, "track");
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-enqueue-failure",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -100,
+              localAmount: -100,
+              authorizedAmount: -100,
+              authorizedAt: new Date().toISOString(),
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(response.status).toBe(569);
+      await expect(response.json()).resolves.toStrictEqual({ code: "queue error" });
+      expect(exaSend).not.toHaveBeenCalled();
+      expect(track).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
+        level: "error",
+        tags: { queue: "refund", job: "refund" },
+        extra: { id: "abcdef-123456" },
+      });
+    });
+
+    it("retries refunds that cannot be queued with non-error failures", async () => {
+      refund.enqueue.mockRejectedValueOnce("queue unavailable");
+
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: "refund-enqueue-non-error",
+            spend: {
+              ...authorization.json.body.spend,
+              cardId: "card",
+              amount: -100,
+              localAmount: -100,
+              authorizedAmount: -100,
+              authorizedAt: new Date().toISOString(),
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(response.status).toBe(569);
+      await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
+      expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
+        level: "error",
+        tags: { queue: "refund", job: "refund" },
+        extra: { id: "abcdef-123456" },
       });
     });
   });
@@ -2229,14 +2108,15 @@ describe("card operations", () => {
 
         expect(createResponse.status).toBe(200);
         expect(completeResponse.status).toBe(200);
+        expect(refund.enqueue).toHaveBeenCalledWith(
+          expect.objectContaining({ account, amount: (hold - capture) * 10_000 }),
+          "abcdef-123456",
+        );
 
         const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
 
-        expect(transaction).toMatchObject({
-          hashes: [expect.any(String), expect.any(String)],
-        });
+        expect(transaction).toMatchObject({ hashes: [expect.any(String)] });
         expect(spendFromPayload(transaction?.payload)).toBeDefined();
-        expect(spendFromPayload(transaction?.payload, "completed")).toMatchObject({ amount: capture });
       });
 
       it("force-captures debit", async () => {
@@ -2280,7 +2160,7 @@ describe("card operations", () => {
         const hold = 25;
         const capture = 30;
 
-        vi.spyOn(sardine, "feedback").mockRejectedValue(error);
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         const cardId = "over-capture-feedback-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
         await appClient.index.$post({
@@ -2609,7 +2489,7 @@ describe("concurrency", () => {
     });
 
     it("releases mutex when authorization is declined", async () => {
-      const getMutex = vi.spyOn(panda, "getMutex");
+      const getMutex = vi.spyOn(Panda, "getMutex");
       const cardId = `${account2}-card`;
       const spendAuthorization = await appClient.index.$post({
         ...authorization,
@@ -2894,7 +2774,7 @@ describe("concurrency", () => {
       afterEach(() => vi.useRealTimers());
 
       it("times out when mutex is locked", async () => {
-        const getMutex = vi.spyOn(panda, "getMutex");
+        const getMutex = vi.spyOn(Panda, "getMutex");
         const cardId = `${account2}-card`;
         const promises = Promise.all([
           appClient.index.$post({
@@ -2948,7 +2828,7 @@ describe("concurrency", () => {
 
   describe("push notifications", () => {
     it("sends notification when the declined transaction is created", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = "insufficient-liquidity-notification-test";
 
       const maxWithdraw = await publicClient.readContract({
@@ -3007,7 +2887,7 @@ describe("concurrency", () => {
 
     it("captures declined notification errors", async () => {
       const error = new Error("push failed");
-      vi.spyOn(onesignal, "sendPushNotification").mockRejectedValueOnce(error);
+      sendPushNotificationMock.mockRejectedValueOnce(error);
       const txId = `declined-notification-error-${crypto.randomUUID()}`;
 
       const response = await appClient.index.$post({
@@ -3033,7 +2913,7 @@ describe("concurrency", () => {
     });
 
     it("uses a generic reason for malformed saved payloads", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `malformed-saved-payload-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3073,7 +2953,7 @@ describe("concurrency", () => {
     });
 
     it("uses a generic reason when the saved payload has no requested body", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `missing-requested-body-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3116,7 +2996,7 @@ describe("concurrency", () => {
     });
 
     it("uses the legacy requested reason when the nested reason is absent", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = `legacy-requested-reason-${crypto.randomUUID()}`;
       await database.insert(transactions).values({
@@ -3166,7 +3046,7 @@ describe("concurrency", () => {
     });
 
     it("recovers a local decline reason and ignores duplicate created events", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const cardId = `${account2}-card`;
       const txId = "local-decline-reason-notification-test";
       const createdEvent = {
@@ -3221,7 +3101,7 @@ describe("concurrency", () => {
     });
 
     it("does not notify for declined updated events", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = `updated-declined-${crypto.randomUUID()}`;
       const updatedEvent = {
         ...authorization.json,
@@ -3289,7 +3169,7 @@ describe("concurrency", () => {
       ["webhook declined", "transaction declined"],
       ["unknown provider decline", "transaction declined"],
     ])("stores raw %s and notifies with %s", async (declinedReason, notificationReason) => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = crypto.randomUUID();
 
       expect(
@@ -3335,7 +3215,7 @@ describe("concurrency", () => {
     });
 
     it("does not send duplicate notifications for concurrent declined transactions", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
 
       const cardId = `${account2}-card`;
       const txId = `concurrent-declined-${crypto.randomUUID()}`;
@@ -3365,7 +3245,7 @@ describe("concurrency", () => {
     });
 
     it("does not send notification for unknown error", async () => {
-      const sendPushNotificationSpy = vi.spyOn(onesignal, "sendPushNotification");
+      const sendPushNotificationSpy = sendPushNotificationMock;
 
       vi.spyOn(traceClient, "traceCall").mockRejectedValueOnce(new Error("unexpected trace error"));
 

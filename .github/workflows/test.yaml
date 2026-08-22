@@ -1,9 +1,9 @@
 name: test
 on:
   push:
-  workflow_dispatch:
 jobs:
   test:
+    environment: test
     runs-on: ubuntu-latest
     env:
       NX_DAEMON: false
@@ -14,18 +14,18 @@ jobs:
       OPTIMISM_SEPOLIA_RPC_URL: ${{ secrets.OPTIMISM_SEPOLIA_RPC_URL }}
       POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0, fetch-tags: true }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1 }
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: contracts/requirements.txt
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
@@ -46,12 +46,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm nx run-many -t test
 
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           name: test
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
           report_type: test_results
@@ -67,6 +67,7 @@ jobs:
           include-hidden-files: true
 
   e2e:
+    environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -75,13 +76,13 @@ jobs:
       CHAIN_ID: "31337"
       EXPO_PUBLIC_E2E_MNEMONIC: ${{ secrets.EXPO_PUBLIC_E2E_MNEMONIC }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0, fetch-tags: true }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1 }
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: .nx/cache
           key: nx-${{ runner.os }}-${{ github.sha }}
@@ -125,14 +126,14 @@ jobs:
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
           files: server/coverage/lcov.info,server/coverage/app.json
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: e2e
           name: web
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
           report_type: test_results

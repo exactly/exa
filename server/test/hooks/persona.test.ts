@@ -1,5 +1,8 @@
-import "../mocks/pax";
+import "../mocks/deployments";
+import "../mocks/panda";
+import * as pax from "../mocks/pax";
 import "../mocks/persona";
+import * as sardine from "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -7,17 +10,32 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterAll, afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 
 import database, { cards, credentials } from "../../database";
-import app from "../../hooks/persona";
-import * as panda from "../../utils/panda";
-import * as pax from "../../utils/pax";
-import * as persona from "../../utils/persona";
-import * as sardine from "../../utils/sardine";
+import createPersonaHook from "../../hooks/persona";
+import createPanda from "../../utils/panda";
+import createPax from "../../utils/pax";
+import createPersona, * as Persona from "../../utils/persona";
+import createSardine from "../../utils/sardine";
 
+const pandaConfig = { key: "panda", url: "https://panda.test" };
+const paxConfig = { associateKey: "pax", key: "pax", url: "https://pax.test" };
+const personaConfig = { key: "persona", url: "https://persona.test" };
+const panda = createPanda(pandaConfig);
+const persona = Object.assign(createPersona(personaConfig.key, personaConfig.url), Persona);
+const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
+const personaHook = createPersonaHook({
+  database,
+  panda,
+  pax: createPax(paxConfig),
+  persona,
+  personaWebhookSecret: "persona",
+  sardine: createSardine(sardineConfig.key, sardineConfig.url),
+});
+const app = personaHook.app;
 const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
@@ -34,6 +52,7 @@ describe("with reference", () => {
   });
 
   afterEach(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
     vi.resetAllMocks();
     await database.delete(cards).where(eq(cards.credentialId, referenceId));
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
@@ -203,8 +222,6 @@ describe("with reference", () => {
   });
 
   it("returns 200 if no credential", async () => {
-    vi.spyOn(database.query.credentials, "findFirst").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
-
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -215,6 +232,10 @@ describe("with reference", () => {
             ...personaPayload.json.data.attributes,
             payload: {
               ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: "missing" },
+              },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
           },
@@ -397,16 +418,24 @@ describe("persona hook", () => {
     });
   });
 
-  afterEach(() => vi.resetAllMocks());
-
-  it("creates panda and pax user on valid inquiry", async () => {
+  beforeEach(() => {
     vi.spyOn(panda, "createUser").mockResolvedValue({ id: "new-panda-id" });
     vi.spyOn(pax, "addCapita").mockResolvedValue({});
-    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
+    vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
+  });
 
+  afterEach(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    vi.restoreAllMocks();
+  });
+
+  it("creates panda and pax user on valid inquiry", async () => {
     const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
       json: {
         ...validPayload,
         data: {
@@ -445,25 +474,41 @@ describe("persona hook", () => {
       product: "travel insurance",
     });
   });
-});
 
-describe("manteca template", () => {
-  const referenceId = "manteca-ref";
-  beforeAll(async () => {
-    await database.insert(credentials).values({
-      id: referenceId,
-      publicKey: new Uint8Array(),
-      factory: inject("ExaAccountFactory"),
-      account: deriveAddress(inject("ExaAccountFactory"), {
-        x: padHex(privateKeyToAddress(padHex("0x789"))),
-        y: zeroHash,
-      }),
-      pandaId: null,
+  it("does not allow very high risk accounts", async () => {
+    vi.mocked(sardine.customer).mockReset().mockResolvedValueOnce({
+      sessionKey: "test",
+      status: "Success",
+      level: "very_high",
     });
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
+    expect(panda.createUser).not.toHaveBeenCalled();
   });
 
   it("handles manteca template and adds document", async () => {
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_manteca" } });
+    vi.spyOn(panda, "createUser").mockResolvedValue({ id: "should-not-be-called" });
 
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },
@@ -472,7 +517,7 @@ describe("manteca template", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(persona.addDocument).toHaveBeenCalledWith(referenceId, {
+    expect(persona.addDocument).toHaveBeenCalledWith("manteca-ref", {
       id_class: { value: "dl" },
       id_number: { value: "ID12345" },
       id_issuing_country: { value: "AR" },
@@ -483,9 +528,12 @@ describe("manteca template", () => {
 });
 
 describe("ignored template", () => {
-  beforeAll(() => {
-    vi.resetAllMocks();
+  beforeEach(() => {
+    vi.spyOn(panda, "createUser");
+    vi.spyOn(persona, "addDocument");
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("returns ok for address template", async () => {
     const response = await appClient.index.$post({
@@ -788,7 +836,12 @@ describe("card limit case", () => {
 });
 
 describe("ignored card limit inquiry template", () => {
-  beforeAll(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.spyOn(panda, "createUser");
+    vi.spyOn(persona, "addDocument");
+  });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("returns ok for card limit inquiry template", async () => {
     const response = await appClient.index.$post({

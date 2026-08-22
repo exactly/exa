@@ -1,6 +1,7 @@
-import "../mocks/onesignal";
+import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 
+import { addBreadcrumb, captureException } from "@sentry/node";
 import { Queue, type Job } from "bullmq";
 import { inArray, like } from "drizzle-orm";
 import { parse } from "valibot";
@@ -12,30 +13,17 @@ import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import database, { credentials } from "../../database";
-import { closeQueue, reminders } from "../../utils/maturity";
-import * as onesignal from "../../utils/onesignal";
-import { close as closeRedis, queue as queueRedis } from "../../utils/redis";
-
-import type * as sentry from "@sentry/node";
+import { closeQueue, reminders, setup } from "../../utils/maturity";
+import createOnesignal from "../../utils/onesignal";
+import { bullmq, close as closeRedis } from "../../utils/redis";
 
 const mocks = vi.hoisted(() => ({
-  addBreadcrumb: vi.fn<typeof sentry.addBreadcrumb>(),
-  captureException: vi.fn<typeof sentry.captureException>(),
   readContract: vi.fn(),
 }));
 
-vi.mock("@sentry/node", async (importOriginal) => {
-  const module = await importOriginal<typeof sentry>();
-  return {
-    ...module,
-    addBreadcrumb: mocks.addBreadcrumb.mockImplementation(module.addBreadcrumb),
-    captureException: mocks.captureException.mockImplementation(module.captureException),
-  };
-});
+vi.mock("../../utils/publicClient", () => ({ default: { readContract: mocks.readContract } }));
 
-vi.mock("../../utils/publicClient", () => ({
-  default: { readContract: mocks.readContract },
-}));
+setup(createOnesignal("onesignal"));
 
 type Window = "1h" | "24h";
 type CheckDebts = { window: Window };
@@ -44,24 +32,23 @@ type SendReminder = { maturity: number; userId: Address; window: Window };
 type Position = readonly [bigint, bigint];
 type AggregateCall = { allowFailure: boolean; callData: `0x${string}`; target: Address };
 
-const queue = new Queue<CheckDebts | ScanChunk>("maturity", { connection: queueRedis });
+const queue = new Queue<CheckDebts | ScanChunk>("maturity", { connection: bullmq });
 const notificationQueue = new Queue<{
   accounts: Address[];
   maturity: number;
   sentryBaggage?: string;
   sentryTrace?: string;
   window: Window;
-}>("maturity-notifications", { connection: queueRedis });
+}>("maturity-notifications", { connection: bullmq });
 const USDC = 1_000_000n;
 
 function insertAccounts(accounts: Address[]) {
   return database.insert(credentials).values(accounts.map((account, index) => credential(account, index)));
 }
 
-function storedAccounts() {
-  return database.query.credentials
-    .findMany({ columns: { account: true }, orderBy: credentials.account })
-    .then((rows) => rows.map(({ account }) => parse(Address, account)));
+async function storedAccounts() {
+  const rows = await database.query.credentials.findMany({ columns: { account: true }, orderBy: credentials.account });
+  return rows.map(({ account }) => parse(Address, account));
 }
 
 function credential(account: Address, index: number) {
@@ -245,7 +232,7 @@ async function waitForScanJobs(maturity: number, window: Window) {
 }
 
 describe("worker", () => {
-  const sendPushNotification = vi.spyOn(onesignal, "sendPushNotification");
+  const sendPushNotification = sendPushNotificationMock;
 
   function expectSentReminder(userId: Address, maturity: number, window: Window, ttl?: number) {
     const [notification] = sendPushNotification.mock.lastCall ?? [];
@@ -543,7 +530,7 @@ describe("worker", () => {
     const jobs = await notificationJobs();
     expect(jobs.flatMap((reminder) => reminder.data.accounts).toSorted()).toStrictEqual([first, second].toSorted());
     expect(sendPushNotification).not.toHaveBeenCalled();
-    expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
+    expect(vi.mocked(captureException)).toHaveBeenCalledWith(expect.any(Error), {
       level: "error",
       extra: { accounts: 2, kind: "rpc", maturity, window },
     });
@@ -866,7 +853,7 @@ describe("worker", () => {
     await expectFailedReminder({ userId: account, maturity, window });
 
     expect(sendPushNotification).toHaveBeenCalledOnce();
-    expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
+    expect(vi.mocked(captureException)).toHaveBeenCalledWith(expect.any(Error), {
       level: "error",
       extra: { account, kind: "notification", maturity, window },
     });
@@ -988,7 +975,7 @@ describe("worker", () => {
 
       expect(jobs).toHaveLength(2);
       expect(jobs.map((job) => job.data.window).toSorted()).toStrictEqual(["1h", "24h"]);
-      expect(mocks.addBreadcrumb).toHaveBeenCalledWith({
+      expect(vi.mocked(addBreadcrumb)).toHaveBeenCalledWith({
         category: "maturity-queue",
         message: "scheduler started inside reminder window",
         level: "warning",
@@ -1010,12 +997,12 @@ describe("worker", () => {
       vi.spyOn(Date, "now").mockReturnValue((maturity - scheduledBefore) * 1000);
       try {
         await reminders();
-        mocks.addBreadcrumb.mockClear();
+        vi.mocked(addBreadcrumb).mockClear();
         vi.mocked(Date.now).mockReturnValue((maturity - remaining) * 1000);
 
         await reminders();
 
-        expect(mocks.addBreadcrumb).not.toHaveBeenCalled();
+        expect(vi.mocked(addBreadcrumb)).not.toHaveBeenCalled();
       } finally {
         vi.mocked(Date.now).mockRestore();
         await queue.resume();
