@@ -21,8 +21,9 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
   pnpm install --frozen-lockfile
 RUN --mount=type=cache,id=nx,target=/usr/src/app/node_modules/.cache/nx \
   npx nx run-many -t build -p server mobile --parallel=2
-RUN mv dist server/app && \
-  pnpm deploy --legacy --filter server --prod --ignore-scripts /prod/server
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+  mv dist server/app && \
+  pnpm deploy --legacy --filter server --prod --ignore-scripts --prefer-offline /prod/server
 
 FROM base AS server
 # hadolint ignore=DL3008
