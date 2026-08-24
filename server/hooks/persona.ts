@@ -32,6 +32,7 @@ import { Address } from "@exactly/common/validation";
 import { cards, credentials } from "../database/schema";
 import {
   ADDRESS_TEMPLATE,
+  BUSINESS_TEMPLATE,
   CARD_LIMIT_CASE_TEMPLATE,
   CARD_LIMIT_TEMPLATE,
   CRYPTOMATE_TEMPLATE,
@@ -249,6 +250,7 @@ export default function hook({
                             CARD_LIMIT_TEMPLATE,
                             CRYPTOMATE_TEMPLATE,
                             MANTECA_TEMPLATE_EXTRA_FIELDS,
+                            BUSINESS_TEMPLATE,
                           ]),
                         }),
                       }),
@@ -266,7 +268,32 @@ export default function hook({
     async (c) => {
       const payload = c.req.valid("json").data.attributes.payload;
 
-      if (payload.template === "ignored") return c.json({ code: "ok" }, 200);
+      async function enqueueAllow(current: AllowCredential) {
+        const account = safeParse(Address, current.account);
+        if (account.success && firewallAddress)
+          await allow.enqueue({
+            account: account.output,
+            chainId: chain.id,
+            factory: parse(Address, current.factory),
+            publicKey: bytesToHex(current.publicKey),
+            salt: parse(Address, current.salt),
+            source: current.source,
+          });
+      }
+
+      if (payload.template === "ignored") {
+        if (
+          payload.data.attributes.status === "approved" &&
+          payload.data.relationships.inquiryTemplate.data.id === BUSINESS_TEMPLATE
+        ) {
+          const credential = await database.query.credentials.findFirst({
+            columns: { account: true, factory: true, publicKey: true, salt: true, source: true },
+            where: eq(credentials.id, payload.data.attributes.referenceId),
+          });
+          if (credential) await enqueueAllow(credential);
+        }
+        return c.json({ code: "ok" }, 200);
+      }
       if (payload.template === "cardLimit") {
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.case.card-limit");
         if (payload.data.attributes.status !== "Approved") return c.json({ code: "ok" }, 200);
@@ -354,17 +381,6 @@ export default function hook({
       getActiveSpan()?.setAttribute("exa.inquiryId", personaShareToken);
 
       const account = safeParse(Address, credential.account);
-      async function enqueueAllow(current: NonNullable<typeof credential>) {
-        if (account.success && firewallAddress)
-          await allow.enqueue({
-            account: account.output,
-            chainId: chain.id,
-            factory: parse(Address, current.factory),
-            publicKey: bytesToHex(current.publicKey),
-            salt: parse(Address, current.salt),
-            source: current.source,
-          });
-      }
       if (credential.pandaId) {
         await enqueueAllow(credential);
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.already-created");
@@ -480,3 +496,5 @@ export default function hook({
   );
   return { app, ready: Promise.resolve() };
 }
+
+type AllowCredential = Pick<typeof credentials.$inferSelect, "account" | "factory" | "publicKey" | "salt" | "source">;

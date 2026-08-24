@@ -6,6 +6,7 @@ import {
   check,
   digits,
   email,
+  ip,
   ipv4,
   ipv6,
   isoTimestamp,
@@ -26,10 +27,13 @@ import {
   picklist,
   pipe,
   regex,
+  safeParse,
   string,
   transform,
   tuple,
   union,
+  url as urlValidator,
+  uuid,
   variant,
   type BaseIssue,
   type BaseSchema,
@@ -43,14 +47,24 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import {
+  BusinessApplicationError,
+  BusinessApplicationFields,
+  businessProfile,
+  requireFields,
+  toAddress,
+} from "./business";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
+import type createPersona from "./persona";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
     createCard,
+    createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompanyApplication,
     getCard,
     getCards,
     getNonce,
@@ -68,6 +82,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     updateUser,
     verify,
     verifyPandaSignature,
+    businessApplication,
   };
 
   async function createCard(
@@ -109,6 +124,36 @@ export default function panda({ key, url }: { key: string; url: string }) {
     personaShareToken: string;
   }) {
     return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000);
+  }
+  function createCompanyApplication(
+    application: InferInput<typeof CreateCompanyApplicationRequest>,
+    options: { idempotencyKey?: string } = {},
+  ) {
+    return request(
+      CompanyApplicationResponse,
+      "/issuing/applications/company",
+      options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {},
+      parse(CreateCompanyApplicationRequest, application),
+      "POST",
+      10_000,
+    );
+  }
+  async function getCompanyApplication(externalId: string) {
+    const application = await request(
+      CompanyApplicationStatusResponse,
+      `/issuing/applications/company/external/${externalId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    ).catch((error: unknown) => {
+      if (error instanceof ServiceError && error.status === 404) return;
+      throw error;
+    });
+    if (!application) return;
+    if (application.externalId != null && application.externalId !== externalId)
+      throw new Error("panda company external id mismatch");
+    return application;
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -702,6 +747,44 @@ export function signIssuerOp(
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
   });
 }
+async function businessApplication(
+  credentialId: string,
+  accountAddress: Address,
+  ipAddress: string | undefined,
+  persona: ReturnType<typeof createPersona>,
+) {
+  const clientIp = safeParse(pipe(string(), ip()), ipAddress);
+  if (!clientIp.success) throw new BusinessApplicationError("missing valid client IP address", "bad request");
+  const profile = await businessProfile(credentialId, persona);
+  const fields = requireFields(BusinessApplicationFields, profile.fields);
+  const person = {
+    firstName: fields.i_auth_user_name,
+    lastName: fields.i_auth_user_last_name,
+    birthDate: fields.birth_date,
+    nationalId: fields.id_number,
+    countryOfIssue: fields.id_country,
+    email: profile.email,
+    address: toAddress(fields, "_1"),
+  };
+  return requireFields(CreateCompanyApplicationRequest, {
+    initialUser: { ...person, ipAddress: clientIp.output, walletAddress: accountAddress },
+    name: profile.name,
+    address: toAddress(fields),
+    entity: {
+      name: profile.name,
+      description: fields.company_description,
+      industry: fields.company_industry,
+      registrationNumber: fields.company_registration_number,
+      taxId: fields.company_tax_id,
+      website: fields.company_website,
+    },
+    representatives: [person],
+    ultimateBeneficialOwners: [],
+    sourceKey: "EXA",
+    externalId: credentialId,
+  });
+}
+
 const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
   const mutex = withTimeout(
@@ -714,6 +797,12 @@ export function createMutex(address: Address) {
 export function getMutex(address: Address) {
   return mutexes.get(address);
 }
+export function withMutex<T>(address: Address, task: () => Promise<T>) {
+  const mutex = getMutex(address) ?? createMutex(address);
+  return mutex.runExclusive(task).finally(() => {
+    if (!mutex.isLocked()) mutexes.delete(address);
+  });
+}
 
 const AddressSchema = object({
   line1: pipe(string(), minLength(1), maxLength(100)),
@@ -723,6 +812,112 @@ const AddressSchema = object({
   country: optional(pipe(string(), minLength(1), maxLength(50))),
   postalCode: pipe(string(), minLength(1), maxLength(15), regex(/^[a-z0-9 -]{1,15}$/i)),
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+});
+
+const CorporatePerson = object({
+  firstName: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  lastName: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  birthDate: pipe(string(), regex(/^\d{4}-\d{2}-\d{2}$/)),
+  nationalId: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  countryOfIssue: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+  email: pipe(string(), email()),
+  address: AddressSchema,
+});
+
+const CreateCompanyApplicationRequest = object({
+  initialUser: object({
+    ...CorporatePerson.entries,
+    ipAddress: pipe(string(), maxLength(50), ip()),
+    walletAddress: Address,
+  }),
+  name: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(100),
+  ),
+  address: AddressSchema,
+  entity: object({
+    name: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(100),
+    ),
+    description: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(500),
+    ),
+    industry: pipe(string(), regex(/^\d{6}$/)),
+    registrationNumber: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(100),
+    ),
+    taxId: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(100),
+    ),
+    website: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(255),
+      urlValidator(),
+    ),
+  }),
+  representatives: array(CorporatePerson),
+  ultimateBeneficialOwners: array(CorporatePerson),
+  sourceKey: string(),
+  externalId: string(),
+});
+
+const ApplicationLink = object({
+  url: pipe(string(), urlValidator()),
+  params: object({ signature: string(), userId: pipe(string(), uuid()) }),
+});
+const ApplicationReview = {
+  applicationReason: optional(nullable(string())),
+  applicationCompletionLink: optional(nullable(ApplicationLink)),
+  applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
+};
+
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
+export const CompanyApplicationStatusResponse = object({
+  id: string(),
+  externalId: optional(nullable(string())),
+  applicationStatus: optional(nullable(picklist(kycStatus))),
+  ...ApplicationReview,
+});
+
+export const CompanyApplicationResponse = object({
+  ...CompanyApplicationStatusResponse.entries,
+  name: string(),
+  address: AddressSchema,
+  ultimateBeneficialOwners: optional(nullable(array(object({ id: string(), ...ApplicationReview })))),
+  sourceKey: optional(nullable(string())),
 });
 
 export const Application = object({
@@ -793,18 +988,6 @@ const ApplicationResponse = object({
   id: pipe(string(), maxLength(50)),
   applicationStatus: pipe(string(), maxLength(50)),
 });
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 const ApplicationStatusResponse = object({
   id: string(),
