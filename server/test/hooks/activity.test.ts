@@ -52,7 +52,7 @@ describe("address activity", { timeout: 66_666 }, () => {
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
     vi.spyOn(decodePublicKey, "default").mockImplementation((bytes) => ({ x: padHex(bytesToHex(bytes)), y: zeroHash }));
     vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
-      waitForReceipt({ ...parameters, pollingInterval: 10 }),
+      waitForReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10 }),
     );
 
     await database.insert(credentials).values([
