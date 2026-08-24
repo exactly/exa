@@ -3,3 +3,4 @@ config:
   gcp:project: exa-dev
   exa:subscribeTimeout: 600s
   exa:whatsappPhoneNumberId: "1284591438064923"
+  exa:personaBusinessAccountTypeId: acttp_AWN3X1Rb7Rnt5o7EA4e8VcU7D61xH2

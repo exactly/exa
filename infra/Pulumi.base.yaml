@@ -3,3 +3,4 @@ config:
   gcp:project: eexxxaa
   exa:pokeMinimum: 1
   exa:subscribeTimeout: 900s
+  exa:personaBusinessAccountTypeId: acttp_AWN3X1Rb7Rnt5o7EA4e8VcU7D61xH2

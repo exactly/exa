@@ -17,12 +17,18 @@ const mock = vi.hoisted(() => {
       instance = value;
     },
     panda: {
+      businessApplication: (...parameters: Parameters<Panda["businessApplication"]>) =>
+        current().businessApplication(...parameters),
       createCard: (...parameters: Parameters<Panda["createCard"]>) => current().createCard(...parameters),
+      createCompanyApplication: (...parameters: Parameters<Panda["createCompanyApplication"]>) =>
+        current().createCompanyApplication(...parameters),
       createUser: (...parameters: Parameters<Panda["createUser"]>) => current().createUser(...parameters),
       getApplicationStatus: (...parameters: Parameters<Panda["getApplicationStatus"]>) =>
         current().getApplicationStatus(...parameters),
       getCard: (...parameters: Parameters<Panda["getCard"]>) => current().getCard(...parameters),
       getCards: (...parameters: Parameters<Panda["getCards"]>) => current().getCards(...parameters),
+      getCompanyStatus: (...parameters: Parameters<Panda["getCompanyStatus"]>) =>
+        current().getCompanyStatus(...parameters),
       getNonce: (...parameters: Parameters<Panda["getNonce"]>) => current().getNonce(...parameters),
       getPIN: (...parameters: Parameters<Panda["getPIN"]>) => current().getPIN(...parameters),
       getProcessorDetails: (...parameters: Parameters<Panda["getProcessorDetails"]>) =>

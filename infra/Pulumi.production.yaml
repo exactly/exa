@@ -5,3 +5,4 @@ config:
   exa:pokeMinimum: 1
   exa:subscribeTimeout: 900s
   exa:whatsappPhoneNumberId: "1287864854409817"
+  exa:personaBusinessAccountTypeId: acttp_AWN3X1Rb7Rnt5o7EA4e8VcU7D61xH2

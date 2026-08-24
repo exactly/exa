@@ -12,17 +12,18 @@ import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
-import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
+import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress, zeroHash } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
-import * as derive from "@exactly/common/deriveAddress";
+import deriveAddress, * as derive from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import authentication, { Authentication } from "../../api/auth/authentication";
 import registration from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import { encode } from "../../utils/authChallenge";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
 import createIntercom from "../../utils/intercom";
@@ -252,6 +253,119 @@ describe("authentication", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
+  });
+
+  it("rejects malformed structured authentication challenges", async () => {
+    await redis.set("test-session", JSON.stringify({ accountType: "business" }));
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad authentication", legacy: "bad authentication" });
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("rejects account type mismatch between challenge and request", async () => {
+    await redis.set("test-session", JSON.stringify({ challenge: "test-challenge", accountType: "business" }));
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad account type" });
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("rejects business auth for a credential without business salt", async () => {
+    await redis.set("test-session", JSON.stringify({ challenge: "test-challenge", accountType: "business" }));
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { accountType: "business" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad account type" });
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("authenticates a business credential with a business salt", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:business-authentication")), 12)));
+    const salt = parse(Address, slice(keccak256(toBytes("salt:business-authentication")), 0, 20));
+    const factory = parse(Address, inject("ExaAccountFactory"));
+    await database.insert(credentials).values({
+      id,
+      publicKey: new Uint8Array(65),
+      account: deriveAddress(factory, { x: zeroHash, y: zeroHash, salt }),
+      factory,
+      salt,
+      transports: [],
+    });
+    await redis.set("test-session", encode("test-challenge", "business"));
+    vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: {
+        credentialID: id,
+        newCounter: 0,
+        userVerified: false,
+        credentialDeviceType: "singleDevice",
+        credentialBackedUp: false,
+        origin: "http://localhost",
+        rpID: "localhost",
+      },
+    });
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id,
+          rawId: id,
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+        query: { accountType: "business" },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expect.objectContaining({ salt }));
+    await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
   it("returns 400 for missing credential with non-siwe assertion", async () => {
@@ -957,6 +1071,28 @@ describe("registration", () => {
     });
     expect(credential).toBeDefined();
     expect(credential?.source).toBeNull();
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("creates a business credential with a nonzero salt using webauthn", async () => {
+    const id = own("YnVzaW5lc3MtcmVnaXN0cmF0aW9u"); // cspell:ignore YnVzaW5lc3MtcmVnaXN0cmF0aW9u
+    await redis.set("test-session", encode("test-challenge", "business"));
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }), query: { accountType: "business" } },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { account: true, salt: true },
+    });
+    if (!credential) throw new Error("missing credential");
+    expect(credential.salt).not.toBe(zeroAddress);
+    expect(await response.json()).toEqual(expect.objectContaining({ salt: credential.salt }));
+    expect(credential.account).toBe(
+      deriveAddress(exaAccountFactoryAddress, { x: zeroHash, y: zeroHash, salt: credential.salt }),
+    );
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 });

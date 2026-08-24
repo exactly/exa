@@ -16,6 +16,7 @@ import {
   optional,
   picklist,
   pipe,
+  record,
   safeParse,
   string,
   unknown,
@@ -37,11 +38,17 @@ export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; //
 export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
+export const PANDA_BUSINESS_TEMPLATE = "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
 export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
 
 const PERSONA_API_VERSION = "2023-01-05";
+export function businessAccountTypeId() {
+  const accountTypeId = env.PERSONA_BUSINESS_ACCOUNT_TYPE_ID;
+  if (!accountTypeId) throw new Error("missing persona business account type id");
+  return accountTypeId;
+}
 
 export default function persona(key: string, url: string) {
   return {
@@ -106,8 +113,11 @@ export default function persona(key: string, url: string) {
   function createInquiry(
     referenceId: string,
     templateId: string,
-    redirectURI?: string,
-    fields?: { "name-first": string; "name-last": string },
+    options: {
+      accountTypeId?: string;
+      fields?: { "name-first": string; "name-last": string };
+      redirectURI?: string;
+    } = {},
   ) {
     return request(
       CreateInquiryResponse,
@@ -116,11 +126,15 @@ export default function persona(key: string, url: string) {
         data: {
           attributes: {
             "inquiry-template-id": templateId,
-            "redirect-uri": `${redirectURI ?? appOrigin}/card`,
-            ...(fields && { fields }),
+            "redirect-uri": `${options.redirectURI ?? appOrigin}/card`,
+            ...(options.fields && { fields: options.fields }),
           },
         },
-        meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
+        meta: {
+          "auto-create-account": true,
+          "auto-create-account-reference-id": referenceId,
+          ...(options.accountTypeId && { "auto-create-account-type-id": options.accountTypeId }),
+        },
       },
       "POST",
       10_000,
@@ -137,6 +151,8 @@ export default function persona(key: string, url: string) {
     | undefined
   > {
     switch (scope) {
+      case "business":
+        throw new Error("business account scope not supported");
       case "document":
         throw new Error("document account scope not supported");
       case "cardLimit":
@@ -212,13 +228,21 @@ export default function persona(key: string, url: string) {
     referenceId: string,
     scope: T,
   ): Promise<AccountOutput<T> | undefined> {
+    if (scope === "business") {
+      const { data } = await getAccounts(referenceId, "business");
+      const accounts = data.filter(
+        (account) => account.relationships["account-type"].data.id === businessAccountTypeId(),
+      );
+      if (accounts.length > 1) throw new Error("multiple persona business accounts");
+      return accounts[0];
+    }
     const { data } = await getAccounts(referenceId, scope);
     return data[0];
   }
   function getAccounts<T extends AccountScope>(referenceId: string, scope: T) {
     return request<unknown, AccountResponse<T>, BaseIssue<unknown>>(
       accountScopeSchemas[scope],
-      `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+      `/accounts?page[size]=${scope === "business" ? 100 : 1}&filter[reference-id]=${referenceId}`,
       undefined,
       "GET",
       10_000,
@@ -267,21 +291,25 @@ export default function persona(key: string, url: string) {
     return getValidDocumentForManteca(documents, allowedIds);
   }
   async function getInquiry(referenceId: string, templateId: string) {
+    const business = templateId === PANDA_BUSINESS_TEMPLATE;
+    const size = business ? 100 : 1;
     const { data: approvedInquiries } = await request(
       GetInquiriesResponse,
-      `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=approved`,
+      `/inquiries?page[size]=${size}&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=approved`,
       undefined,
       "GET",
       10_000,
     );
+    if (business && approvedInquiries.length > 1) throw new Error("multiple persona business inquiries");
     if (approvedInquiries[0]) return approvedInquiries[0];
     const { data: inquiries } = await request(
       GetInquiriesResponse,
-      `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}`,
+      `/inquiries?page[size]=${size}&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}`,
       undefined,
       "GET",
       10_000,
     );
+    if (business && inquiries.length > 1) throw new Error("multiple persona business inquiries");
     return inquiries[0];
   }
   function getInquiryById(inquiryId: string) {
@@ -294,6 +322,7 @@ export default function persona(key: string, url: string) {
     );
   }
   async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
+    if (scope === "business") return (await getAccount(referenceId, scope)) ? undefined : PANDA_BUSINESS_TEMPLATE;
     const unknownAccount = await getUnknownAccount(referenceId);
     return evaluateAccount(unknownAccount, scope);
   }
@@ -520,12 +549,23 @@ const CardLimitAccount = object({
   }),
 });
 
+const BusinessAccount = object({
+  id: string(),
+  type: literal("account"),
+  attributes: object({
+    "reference-id": optional(string()),
+    fields: optional(record(string(), object({ value: unknown() }))),
+  }),
+  relationships: object({ "account-type": object({ data: object({ id: string() }) }) }),
+});
+
 const accountScopeSchemas = {
   bridge: object({ data: array(BridgeAccount) }),
   basic: object({ data: array(BaseAccount) }),
   manteca: object({ data: array(MantecaAccount) }),
   document: object({ data: array(DocumentAccount) }),
   cardLimit: object({ data: array(CardLimitAccount) }),
+  business: object({ data: array(BusinessAccount) }),
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
@@ -548,6 +588,7 @@ export const Inquiry = object({
   attributes: object({
     status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
     "reference-id": string(),
+    fields: optional(record(string(), object({ value: unknown() }))),
   }),
 });
 

@@ -1,4 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
+import { setContext } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import {
   array,
@@ -6,6 +7,8 @@ import {
   check,
   digits,
   email,
+  flatten,
+  ip,
   ipv4,
   ipv6,
   isoTimestamp,
@@ -25,11 +28,16 @@ import {
   partial,
   picklist,
   pipe,
+  record,
   regex,
+  safeParse,
   string,
   transform,
   tuple,
   union,
+  unknown,
+  url as urlValidator,
+  uuid,
   variant,
   type BaseIssue,
   type BaseSchema,
@@ -43,14 +51,18 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { PANDA_BUSINESS_TEMPLATE } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
+import type createPersona from "./persona";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
     createCard,
+    createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompanyStatus,
     getCard,
     getCards,
     getNonce,
@@ -68,6 +80,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     updateUser,
     verify,
     verifyPandaSignature,
+    businessApplication,
   };
 
   async function createCard(
@@ -109,6 +122,31 @@ export default function panda({ key, url }: { key: string; url: string }) {
     personaShareToken: string;
   }) {
     return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000);
+  }
+  function createCompanyApplication(
+    application: InferInput<typeof CreateCompanyApplicationRequest>,
+    options: { idempotencyKey?: string } = {},
+  ) {
+    return request(
+      CompanyApplicationResponse,
+      "/issuing/applications/company",
+      options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {},
+      parse(CreateCompanyApplicationRequest, application),
+      "POST",
+      10_000,
+    );
+  }
+  async function getCompanyStatus(companyId: string) {
+    const application = await request(
+      CompanyApplicationStatusResponse,
+      `/issuing/applications/company/${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
+    if (application.id !== companyId) throw new Error("panda company id mismatch");
+    return application;
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -699,6 +737,87 @@ export function signIssuerOp(
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
   });
 }
+async function businessApplication(
+  credentialId: string,
+  accountAddress: Address,
+  ipAddress: string | undefined,
+  persona: ReturnType<typeof createPersona>,
+) {
+  if (!safeParse(pipe(string(), ip()), ipAddress).success)
+    throw new BusinessApplicationError("missing valid client IP address", "bad request", "bad request");
+  const inquiry = await persona.getInquiry(credentialId, PANDA_BUSINESS_TEMPLATE);
+  if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started", "kyb not started");
+  if (inquiry.attributes["reference-id"] !== credentialId)
+    throw new BusinessApplicationError("business inquiry does not match credential", "bad request", "bad request");
+  switch (inquiry.attributes.status) {
+    case "created":
+    case "expired":
+    case "pending":
+      throw new BusinessApplicationError("business inquiry is not started", "not started", "kyb not started");
+    case "failed":
+    case "declined":
+      throw new BusinessApplicationError("business inquiry failed", "bad kyb", "kyb not approved");
+    case "needs_review":
+      throw new BusinessApplicationError("business inquiry is not complete", "processing", "kyb not approved");
+    case "approved":
+    case "completed":
+      break;
+  }
+  const account = await persona.getAccount(credentialId, "business");
+  if (!account) throw new BusinessApplicationError("business account not started", "not started", "kyb not started");
+  const accountResult = safeParse(BusinessAccount, account.attributes);
+  if (!accountResult.success || accountResult.output["reference-id"] !== credentialId)
+    throw new BusinessApplicationError("business account is not complete", "processing", "kyb not approved");
+  const fields = accountResult.output.fields;
+  for (const [inquiryName, inquiryField] of Object.entries(inquiry.attributes.fields ?? {})) {
+    const name = inquiryName.replaceAll("-", "_");
+    if (fields[name]?.value == null && inquiryField.value != null) fields[name] = inquiryField;
+  }
+  const field = (name: keyof typeof keys) => requireField(fields, keys[name]);
+  const expectedSpend = requireField(fields, keys.companyExpectedSpend, "stringOrNumber");
+  const person = {
+    firstName: field("userFirstName"),
+    lastName: field("userLastName"),
+    birthDate: field("userBirthDate"),
+    nationalId: field("userNationalId"),
+    countryOfIssue: field("userCountryOfIssue"),
+    email: field("userEmail"),
+    phoneCountryCode: field("userPhoneCountryCode"),
+    phoneNumber: field("userPhoneNumber"),
+    address: toAddress(fields, "_1"),
+  };
+  const companyName = field("companyName");
+  const initialUser = {
+    ...person,
+    role: "owner",
+    ipAddress,
+    isTermsOfServiceAccepted: requireField(fields, keys.termsOfServiceAccepted, "boolean"),
+    walletAddress: accountAddress,
+  };
+  const application = safeParse(CreateCompanyApplicationRequest, {
+    initialUser,
+    name: companyName,
+    address: toAddress(fields),
+    entity: {
+      name: companyName,
+      description: field("companyDescription"),
+      industry: field("companyIndustry"),
+      registrationNumber: field("companyRegistrationNumber"),
+      taxId: field("companyTaxId"),
+      website: field("companyWebsite"),
+      type: field("companyType"),
+      expectedSpend: typeof expectedSpend === "number" ? `${expectedSpend}` : expectedSpend,
+    },
+    representatives: [person],
+    ultimateBeneficialOwners: [person],
+    sourceKey: "EXA",
+    externalId: credentialId,
+  });
+  if (application.success) return application.output;
+  setContext("validation", { flatten: flatten(application.issues) });
+  throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");
+}
+
 const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
   const mutex = withTimeout(
@@ -721,6 +840,159 @@ const AddressSchema = object({
   postalCode: pipe(string(), minLength(1), maxLength(15), regex(/^[a-z0-9 -]{1,15}$/i)),
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
 });
+
+const CorporatePerson = object({
+  firstName: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  lastName: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  birthDate: pipe(string(), regex(/^\d{4}-\d{2}-\d{2}$/)),
+  nationalId: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  countryOfIssue: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+  email: pipe(string(), email()),
+  phoneCountryCode: pipe(string(), minLength(1), maxLength(3), regex(/^\d{1,3}$/)),
+  phoneNumber: pipe(string(), minLength(1), maxLength(15), regex(/^\d{1,15}$/)),
+  address: AddressSchema,
+});
+
+const BusinessAccount = object({
+  "reference-id": string(),
+  fields: record(string(), object({ value: unknown() })),
+});
+
+const CreateCompanyApplicationRequest = object({
+  initialUser: object({
+    ...CorporatePerson.entries,
+    ipAddress: pipe(string(), maxLength(50), ip()),
+    isTermsOfServiceAccepted: pipe(boolean(), literal(true)),
+    walletAddress: Address,
+    role: literal("owner"),
+  }),
+  name: pipe(string(), minLength(1), maxLength(100)),
+  address: AddressSchema,
+  entity: object({
+    name: pipe(string(), minLength(1), maxLength(100)),
+    description: pipe(string(), minLength(1), maxLength(500)),
+    industry: pipe(string(), regex(/^\d{6}$/)),
+    registrationNumber: pipe(string(), minLength(1), maxLength(100)),
+    taxId: pipe(string(), minLength(1), maxLength(100)),
+    website: pipe(string(), minLength(1), maxLength(255), urlValidator()),
+    type: pipe(string(), minLength(1), maxLength(100)),
+    expectedSpend: pipe(string(), minLength(1), maxLength(100)),
+  }),
+  representatives: array(CorporatePerson),
+  ultimateBeneficialOwners: array(CorporatePerson),
+  sourceKey: string(),
+  externalId: string(),
+});
+
+const ApplicationLink = object({
+  url: pipe(string(), urlValidator()),
+  params: object({ signature: string(), userId: pipe(string(), uuid()) }),
+});
+const ApplicationReview = {
+  applicationReason: optional(nullable(string())),
+  applicationCompletionLink: optional(nullable(ApplicationLink)),
+  applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
+};
+
+export const CompanyApplicationStatusResponse = object({
+  id: string(),
+  applicationStatus: optional(
+    nullable(
+      picklist([
+        "needsVerification",
+        "needsInformation",
+        "manualReview",
+        "approved",
+        "canceled",
+        "pending",
+        "denied",
+        "locked",
+      ]),
+    ),
+  ),
+  ...ApplicationReview,
+});
+
+export const CompanyApplicationResponse = object({
+  ...CompanyApplicationStatusResponse.entries,
+  name: string(),
+  address: AddressSchema,
+  ultimateBeneficialOwners: optional(nullable(array(object({ id: string(), ...ApplicationReview })))),
+  externalId: optional(nullable(string())),
+  sourceKey: optional(nullable(string())),
+});
+
+export class BusinessApplicationError extends Error {
+  constructor(
+    message: string,
+    readonly code: "bad kyb" | "bad request" | "not started" | "processing",
+    readonly legacy: "bad request" | "kyb not approved" | "kyb not started",
+  ) {
+    super(message);
+  }
+}
+
+const keys = {
+  companyName: "i_company_name",
+  companyDescription: "company_description",
+  companyIndustry: "company_industry",
+  companyRegistrationNumber: "company_registration_number",
+  companyTaxId: "company_tax_id",
+  companyWebsite: "company_website",
+  companyType: "company_type",
+  companyExpectedSpend: "company_expected_spend",
+  userFirstName: "i_auth_user_name",
+  userLastName: "i_auth_user_last_name",
+  userBirthDate: "birth_date",
+  userNationalId: "id_number",
+  userCountryOfIssue: "id_country",
+  userEmail: "collected_email_address",
+  userPhoneCountryCode: "authorized_user_phone_country_code",
+  userPhoneNumber: "authorized_user_phone_number",
+  termsOfServiceAccepted: "terms_and_conditions",
+};
+
+function requireField(
+  fields: Record<string, { value: unknown }> | undefined,
+  name: string,
+  expected: "boolean" | "string" | "stringOrNumber" = "string",
+) {
+  const value = fields?.[name]?.value;
+  if (value == null || (typeof value === "string" && value.trim().length === 0))
+    throw new BusinessApplicationError("business account is not complete", "processing", "kyb not approved");
+  const valid =
+    expected === "stringOrNumber" ? typeof value === "string" || typeof value === "number" : typeof value === expected;
+  if (!valid) {
+    setContext("validation", { field: name });
+    throw new BusinessApplicationError("invalid business Persona fields", "bad request", "bad request");
+  }
+  return value;
+}
+
+function toAddress(fields: Record<string, { value: unknown }> | undefined, suffix = "") {
+  const field = (name: string) => requireField(fields, `${name}${suffix}`);
+  const line2 = fields?.[`street_2${suffix}`]?.value;
+  return {
+    line1: field("street_1"),
+    line2: line2 == null || line2 === "" ? undefined : line2,
+    city: field("city"),
+    region: field("subdivision"),
+    postalCode: field("postal_code"),
+    countryCode: field("country_code"),
+  };
+}
 
 export const Application = object({
   email: pipe(
