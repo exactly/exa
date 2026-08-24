@@ -195,6 +195,9 @@ importers:
       '@react-native-async-storage/async-storage':
         specifier: ~2.2.0
         version: 2.2.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))
+      '@segment/analytics-next':
+        specifier: ^1.84.1
+        version: 1.84.1
       '@sentry/browser':
         specifier: ^10.46.0
         version: 10.46.0
@@ -5011,15 +5014,24 @@ packages:
   '@segment/analytics-core@1.8.2':
     resolution: {integrity: sha512-5FDy6l8chpzUfJcNlIcyqYQq4+JTUynlVoCeCUuVz+l+6W0PXg+ljKp34R4yLVCcY5VVZohuW+HH0VLWdwYVAg==}
 
+  '@segment/analytics-core@1.8.3':
+    resolution: {integrity: sha512-63X8e2DWb2ZnJ9S3H8iSOFnbeDXMkTGhA8kZG4eFAO07QBwBVyWo5BCpv6vmuOMEkv2le6t2FMg1p6ZeJQA/4A==}
+
   '@segment/analytics-generic-utils@1.2.0':
     resolution: {integrity: sha512-DfnW6mW3YQOLlDQQdR89k4EqfHb0g/3XvBXkovH1FstUN93eL1kfW9CsDcVQyH3bAC5ZsFyjA/o/1Q2j0QeoWw==}
 
   '@segment/analytics-next@1.74.0':
     resolution: {integrity: sha512-dhSwm+kahwnsHZmhcInu6wTJZFCLtG1VDCw0uiQRuKL5SDRRNEMORvKErV6bycXHWLelaYQVIMRcHH2Y9lk48A==}
 
+  '@segment/analytics-next@1.84.1':
+    resolution: {integrity: sha512-jcwALgEc4DP6PG6oj0YS0yLiQL2R/N1NAgGGH50898/FNcXLyv/v8c+qoiHJxIpGm3qp8nJZTDeGe1z1Co2NzA==}
+
   '@segment/analytics-node@3.0.0':
     resolution: {integrity: sha512-Qer+cXr/QH24QTau+NOcw47vuvfvze0xfZORTTKfAyG33thb5FRQvdg3txjGAf0TQKm0+l8qW1V+4jb9nlfAQg==}
     engines: {node: '>=20'}
+
+  '@segment/analytics-page-tools@1.0.0':
+    resolution: {integrity: sha512-o9OVB91qLB9qb0Bw1HfjmWm5AnrMNULRjx++4lBqLt8InKRX1urrRBparVlpj+yJA0sckN5ZcsfazRLuPgBYDQ==}
 
   '@segment/analytics.js-video-plugins@0.2.1':
     resolution: {integrity: sha512-lZwCyEXT4aaHBLNK433okEKdxGAuyrVmop4BpQqQSJuRz0DglPZgd9B/XjiiWs1UyOankg2aNYMN3VcS8t4eSQ==}
@@ -18768,6 +18780,13 @@ snapshots:
       dset: 3.1.4
       tslib: 2.8.1
 
+  '@segment/analytics-core@1.8.3':
+    dependencies:
+      '@lukeed/uuid': 2.0.1
+      '@segment/analytics-generic-utils': 1.2.0
+      dset: 3.1.4
+      tslib: 2.8.1
+
   '@segment/analytics-generic-utils@1.2.0':
     dependencies:
       tslib: 2.8.1
@@ -18787,6 +18806,22 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@segment/analytics-next@1.84.1':
+    dependencies:
+      '@lukeed/uuid': 2.0.1
+      '@segment/analytics-core': 1.8.3
+      '@segment/analytics-generic-utils': 1.2.0
+      '@segment/analytics-page-tools': 1.0.0
+      '@segment/analytics.js-video-plugins': 0.2.1
+      '@segment/facade': 3.4.10
+      dset: 3.1.4
+      js-cookie: 3.0.7
+      node-fetch: 2.7.0
+      tslib: 2.8.1
+      unfetch: 4.2.0
+    transitivePeerDependencies:
+      - encoding
+
   '@segment/analytics-node@3.0.0':
     dependencies:
       '@lukeed/uuid': 2.0.1
@@ -18794,6 +18829,10 @@ snapshots:
       '@segment/analytics-generic-utils': 1.2.0
       buffer: 6.0.3
       jose: 5.10.0
+      tslib: 2.8.1
+
+  '@segment/analytics-page-tools@1.0.0':
+    dependencies:
       tslib: 2.8.1
 
   '@segment/analytics.js-video-plugins@0.2.1':
