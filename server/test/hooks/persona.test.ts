@@ -8,7 +8,7 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
+import { bytesToHex, hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -326,7 +326,7 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo" | "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -379,7 +379,7 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo" | "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -432,7 +432,7 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo" | "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -667,6 +667,56 @@ describe("ignored template", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(panda.createUser).not.toHaveBeenCalled();
     expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for business template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload(persona.PANDA_BUSINESS_TEMPLATE),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("enqueues allow for an approved business template inquiry", async () => {
+    const factory = inject("ExaAccountFactory");
+    const owner = privateKeyToAddress(padHex("0x1a2b"));
+    const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
+    const publicKey = new Uint8Array(hexToBytes(padHex(owner)));
+    await database.insert(credentials).values({
+      id: "ignored-ref",
+      publicKey,
+      account,
+      factory,
+      salt: zeroAddress,
+      source: null,
+    });
+
+    try {
+      const response = await appClient.index.$post({
+        header: { "persona-signature": "t=1,v1=sha256" },
+        json: ignoredPayload(persona.PANDA_BUSINESS_TEMPLATE),
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+        account,
+        chainId: chain.id,
+        factory,
+        publicKey: bytesToHex(publicKey),
+        salt: zeroAddress,
+        source: null,
+      });
+      expect(panda.createUser).not.toHaveBeenCalled();
+      expect(persona.addDocument).not.toHaveBeenCalled();
+    } finally {
+      await database.delete(credentials).where(eq(credentials.id, "ignored-ref"));
+    }
   });
 });
 

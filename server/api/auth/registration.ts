@@ -42,6 +42,8 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { decode, encode } from "../../utils/authChallenge";
+import { accountSalt } from "../../utils/createCredential";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -181,6 +183,7 @@ export default function route({
         tags: ["Credential"],
         validateResponse: true,
       }),
+      vValidator("header", optional(object({ "account-type": optional(literal("business")) }))),
       vValidator(
         "query",
         optional(
@@ -209,6 +212,7 @@ export default function route({
         });
         c.header("X-Session-Id", sessionId);
         const query = c.req.valid("query");
+        const accountType = c.req.valid("header")?.["account-type"];
         if (query?.credentialId) {
           const message = createSiweMessage({
             resources: ["https://exactly.github.io/exa"],
@@ -223,7 +227,7 @@ export default function route({
             domain,
             scheme,
           });
-          await redis.set(sessionId, message, "PX", timeout);
+          await redis.set(sessionId, encode(message, accountType), "PX", timeout);
           return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
         }
         const userName = new Date().toISOString().slice(0, 16);
@@ -237,7 +241,7 @@ export default function route({
           // TODO excludeCredentials?
           timeout,
         });
-        await redis.set(sessionId, options.challenge, "PX", timeout);
+        await redis.set(sessionId, encode(options.challenge, accountType), "PX", timeout);
         return c.json(
           {
             method: "webauthn" as const,
@@ -277,6 +281,7 @@ export default function route({
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "account-type": optional(literal("business")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -355,18 +360,20 @@ export default function route({
         const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
         if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-        const challenge = await redis.getdel(sessionId);
-        if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
+        const storedChallenge = await redis.getdel(sessionId);
+        if (!storedChallenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
+        const challenge = decode(storedChallenge);
+        if (challenge.accountType !== headers?.["account-type"]) return c.json({ code: "bad account type" }, 400);
 
         let webauthn: undefined | WebAuthnCredential;
         try {
           switch (attestation.method) {
             case "siwe": {
-              const message = parseSiweMessage(challenge);
+              const message = parseSiweMessage(challenge.challenge);
               if (
                 !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
                 !(await publicClient.verifySiweMessage({
-                  message: challenge,
+                  message: challenge.challenge,
                   address: attestation.id,
                   signature: attestation.signature,
                 }))
@@ -387,7 +394,7 @@ export default function route({
                 },
                 expectedRPID: domain,
                 expectedOrigin: [appOrigin, ...androidOrigins],
-                expectedChallenge: challenge,
+                expectedChallenge: challenge.challenge,
                 supportedAlgorithmIDs: [cose.COSEALG.ES256],
               });
               if (!verified) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
@@ -409,6 +416,7 @@ export default function route({
         try {
           const result = await createCredential(c, attestation.id, {
             factory,
+            salt: accountSalt(headers?.["account-type"]),
             webauthn,
             source: headers?.["Client-Fid"],
             ip: headers?.["do-connecting-ip"],
