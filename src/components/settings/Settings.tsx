@@ -16,6 +16,7 @@ import { logout as logoutIntercom, present } from "../../utils/intercom";
 import { logout as logoutOnesignal } from "../../utils/onesignal";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { reset as resetSegment } from "../../utils/segment";
 import useAccount from "../../utils/useAccount";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -74,6 +75,7 @@ export default function Settings() {
                   Promise.all([queryClient.cancelQueries(), logoutIntercom()])
                     .then(async () => {
                       logoutOnesignal();
+                      resetSegment();
                       queryClient.getMutationCache().clear();
                       await queryClient.resetQueries({ queryKey: ["credential"] });
                       queryClient.unmount();

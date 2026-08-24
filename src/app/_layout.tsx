@@ -50,6 +50,7 @@ import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
 import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
+import { page } from "../utils/segment";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig from "../utils/wagmi/owner";
 
@@ -276,6 +277,9 @@ function Navigator() {
     authenticatedRef.current = true;
     signedRef.current = true;
   }, [authenticated, href, router]);
+  useEffect(() => {
+    if (href) page();
+  }, [href]);
   useEffect(() => {
     if (!ready) return;
     if (isMiniApp) {

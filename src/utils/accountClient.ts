@@ -90,6 +90,7 @@ import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
+import { identify } from "./segment";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -101,6 +102,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   const accountAddress = deriveAddress(factory, { x, y });
   setUser({ id: accountAddress });
   login(accountAddress);
+  identify(accountAddress);
   const transport = custom(publicClient);
   const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
     if (isSiwe()) return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
