@@ -1,5 +1,40 @@
 # @exactly/mobile
 
+## 1.2.22
+
+### Patch Changes
+
+- [#1238](https://github.com/exactly/exa/pull/1238) [`4ac6553`](https://github.com/exactly/exa/commit/4ac6553e88543a72584e67cb7b508999827688fd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ derive activity details from url
+
+- [#1232](https://github.com/exactly/exa/pull/1232) [`d4c8dfc`](https://github.com/exactly/exa/commit/d4c8dfcfa500a3c061570a91bfbf6faf41be6729) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard roll debt against missing market
+
+- [#1232](https://github.com/exactly/exa/pull/1232) [`82a1035`](https://github.com/exactly/exa/commit/82a1035d38d02a308bde230ceb2e5015c70dc31c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 hide splash on root error
+
+- [#1243](https://github.com/exactly/exa/pull/1243) [`cf5c761`](https://github.com/exactly/exa/commit/cf5c761162f8119d64cf4c6ffa44c3497b4695b4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix help button hit area
+
+- [#1256](https://github.com/exactly/exa/pull/1256) [`1247d43`](https://github.com/exactly/exa/commit/1247d43262c781770e80a20c1d05bcc6439945f0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix webauthn gas estimation
+
+- [#1243](https://github.com/exactly/exa/pull/1243) [`48201b5`](https://github.com/exactly/exa/commit/48201b56ff7b289ee1fdea62fbc1fa5f14c2c336) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ handle deep link entry
+
+- [#1232](https://github.com/exactly/exa/pull/1232) [`36198ba`](https://github.com/exactly/exa/commit/36198ba78db44d97b530477a5635ab69f8e804af) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard roll debt against missing maturity
+
+- [#1238](https://github.com/exactly/exa/pull/1238) [`c8eb55d`](https://github.com/exactly/exa/commit/c8eb55dce0572b3bc9271304b36832f06acc9ab5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ derive loan from url
+
+- [#1232](https://github.com/exactly/exa/pull/1232) [`cbd2cff`](https://github.com/exactly/exa/commit/cbd2cff06347c57270128ad870a06a1a4821cfa4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard repay against missing maturity
+
+- [#1238](https://github.com/exactly/exa/pull/1238) [`5b2127a`](https://github.com/exactly/exa/commit/5b2127a4ca263b6e48572481f565194db939d4d4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ surface activity fetch errors
+
+- [#1232](https://github.com/exactly/exa/pull/1232) [`461ce04`](https://github.com/exactly/exa/commit/461ce04effd5f836b9232eb974bc8e99eeaa4215) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard asset selection against missing receiver
+
+- [#1232](https://github.com/exactly/exa/pull/1232) [`568217f`](https://github.com/exactly/exa/commit/568217f7967b824d6a002418bc7da601ecfce398) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix balances crash on null rpc result
+
+- [#1238](https://github.com/exactly/exa/pull/1238) [`28cf57f`](https://github.com/exactly/exa/commit/28cf57f79fdbf9cc1845556503a298c051dbb745) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add not found screen
+
+- [#1231](https://github.com/exactly/exa/pull/1231) [`56f30f6`](https://github.com/exactly/exa/commit/56f30f6049f8a4ceba083ac1e50deeeccdccf3d8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add passkey help to onboarding
+
+- Updated dependencies [[`10eb9da`](https://github.com/exactly/exa/commit/10eb9da4ba99da596741a3356c737e317eb3a28c)]:
+  - @exactly/server@0.2.111
+
 ## 1.2.21
 
 ### Patch Changes
