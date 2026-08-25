@@ -11,7 +11,7 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 
-import { login as loginIntercom, logout as logoutIntercom } from "./intercom";
+import { login as loginIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, isServer, triage, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
@@ -57,8 +57,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
     const { expires, intercomToken, credentialId, factory, x, y } = await post.json();
     queryClient.setQueryData(["credential"], { credentialId, factory, x, y });
-    await logoutIntercom();
-    await loginIntercom(deriveAddress(factory, { x, y }), intercomToken);
+    await loginIntercom(deriveAddress(factory, { x, y }), intercomToken, expires);
     return parse(Auth, expires);
   },
   meta: {
@@ -256,7 +255,7 @@ export async function createCredential() {
   );
   if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
   const { auth: expires, intercomToken, ...credential } = await post.json();
-  await loginIntercom(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), intercomToken);
+  await loginIntercom(deriveAddress(credential.factory, { x: credential.x, y: credential.y }), intercomToken, expires);
   await queryClient.setQueryData(["auth"], parse(Auth, expires));
   return parse(Credential, credential);
 }

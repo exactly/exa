@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { dehydrate, QueryCache, QueryClient, type Query } from "@tanstack/react-query";
+import { dehydrate, QueryCache, QueryClient, skipToken, type Query } from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
@@ -105,6 +105,7 @@ queryClient.setQueryDefaults(["credential"], {
 });
 queryClient.setQueryDefaults(["deeplink"], { staleTime: Infinity, gcTime: isServer ? Infinity : 30 * 60_000 });
 queryClient.setQueryDefaults(["getBytecode"], { staleTime: (query) => (query.state.data ? Infinity : 0) });
+queryClient.setQueryDefaults(["intercom"], { gcTime: Infinity, queryFn: skipToken });
 queryClient.setQueryDefaults(["readContract"], {
   queryFn: () => {
     throw new Error("don't refetch");
