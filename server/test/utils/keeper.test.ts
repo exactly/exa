@@ -24,7 +24,7 @@ describe("fault tolerance", () => {
   it("recovers if transaction is missing", async () => {
     const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
     vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
-      waitForTransactionReceipt({ ...parameters, pollingInterval: 10, retryDelay: 10 }),
+      waitForTransactionReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10, retryDelay: 10 }),
     );
     const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
     sendRawTransaction.mockRejectedValueOnce(new Error("send"));
