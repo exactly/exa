@@ -96,7 +96,7 @@ export default function SendAmount() {
 
   const [focused, setFocused] = useState(false);
   const amountValue = useStore(form.store, ({ values }) => values.amount);
-  const amountInTargetCurrency = parseAmount(amountValue);
+  const amountInTargetCurrency = parseAmount(amountValue.replaceAll(/[.,](?=.*[.,])/g, "").replace(",", "."));
   const usdcRequired = rate ? (amountInTargetCurrency * WAD + rate - 1n) / rate : 0n;
   const insufficient = usdcRequired > available;
   const belowMinimum = usdcRequired > 0n && usdcRequired < parseUnits(String(MINIMUM_USDC), 6);

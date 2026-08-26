@@ -57,6 +57,7 @@ import {
   type TokenBalance,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
+import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
 import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -373,13 +374,13 @@ export default function Bridge() {
 
   const erc20GasReserve = useMemo(() => {
     if (nativeGasReserve === 0n || !sourceChain || !gasToken) return 0n;
-    const nativeUsd = Number(sourceChain.nativeToken.priceUSD);
-    const tokenUsd = Number(gasToken.token.priceUSD);
-    if (!Number.isFinite(nativeUsd) || nativeUsd <= 0 || !Number.isFinite(tokenUsd) || tokenUsd <= 0) return 0n;
-    const nativeAmount = Number(formatUnits(nativeGasReserve, sourceChain.nativeToken.decimals));
-    const tokenAmount = (nativeAmount * nativeUsd) / tokenUsd;
-    if (!Number.isFinite(tokenAmount) || tokenAmount <= 0) return 0n;
-    return parseUnits(tokenAmount.toFixed(gasToken.token.decimals), gasToken.token.decimals);
+    const nativeUsd = parseAmount(sourceChain.nativeToken.priceUSD, 18);
+    const tokenUsd = parseAmount(gasToken.token.priceUSD, 18);
+    if (nativeUsd <= 0n || tokenUsd <= 0n) return 0n;
+    return (
+      (nativeGasReserve * nativeUsd * 10n ** BigInt(gasToken.token.decimals)) /
+      (tokenUsd * 10n ** BigInt(sourceChain.nativeToken.decimals))
+    );
   }, [nativeGasReserve, sourceChain, gasToken]);
 
   const paymasterFee =
