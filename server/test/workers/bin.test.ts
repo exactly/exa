@@ -34,7 +34,7 @@ const mocks = {
   segment: vi.fn<(key: string) => typeof segment>(),
   signer: vi.fn<(name: string) => Promise<typeof refunder>>(),
   sardine: vi.fn<(key: string, url: string) => object>(),
-  subscribe: vi.fn<(config: { alchemy: object; bullmq: object }) => Handle>(),
+  subscribe: vi.fn<(config: { alchemy: object; bullmq: object; database: typeof database }) => Handle>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
 };
 
@@ -176,12 +176,14 @@ describe("bin", () => {
     expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
       "subscribe-alchemy-webhooks-key",
       "redis-url",
+      "subscribe-postgres-url",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
     expect(mocks.alchemy).toHaveBeenCalledExactlyOnceWith("subscribe-alchemy-webhooks-key");
     expect(mocks.subscribe).toHaveBeenCalledExactlyOnceWith({
       alchemy,
       bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
     });
   });
 });

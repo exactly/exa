@@ -12,8 +12,6 @@ export default defineConfig({
     testTimeout: 36_666,
     hookTimeout: 36_666,
     env: {
-      ALCHEMY_ACTIVITY_ID: "activity",
-      ALCHEMY_ACTIVITY_KEY: "activity",
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
       AUTH_SECRET: "auth",

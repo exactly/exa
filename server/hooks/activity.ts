@@ -15,6 +15,7 @@ import {
 import createDebug from "debug";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import * as v from "valibot";
 import { bytesToBigInt, hexToBigInt, withRetry, type LocalAccount } from "viem";
 import { anvil } from "viem/chains";
@@ -33,14 +34,13 @@ import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import t, { f } from "../i18n";
-import { setWebhookId } from "../utils/activityWebhook";
-import { headerValidator, NETWORKS } from "../utils/alchemy";
-import appOrigin from "../utils/appOrigin";
+import { activityNetworks, activityUrl, NETWORKS } from "../utils/alchemy";
 import decodePublicKey from "../utils/decodePublicKey";
 import { autoCredit } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
+import verifySignature from "../utils/verifySignature";
 import createWallet from "../utils/wallet";
 
 import type * as schema from "../database/schema";
@@ -57,7 +57,6 @@ const debug = createDebug("exa:activity");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 export default function hook({
-  activityKey,
   alchemy,
   database,
   executor,
@@ -65,7 +64,6 @@ export default function hook({
   redis,
   segment,
 }: {
-  activityKey?: string;
   alchemy: ReturnType<typeof createAlchemy>;
   database: NodePgDatabase<typeof schema>;
   executor: LocalAccount;
@@ -73,15 +71,32 @@ export default function hook({
   redis: Redis;
   segment: ReturnType<typeof createSegment>;
 }) {
-  if (!activityKey) debug("missing alchemy activity key");
-  const signingKeys = new Set(activityKey && [activityKey]);
+  const networks = activityNetworks();
+  let entries = new Map<string, { network: string; signingKey: string }>();
+  let refreshed = 0;
+  let refreshing: Promise<void> | undefined;
   const app = new Hono().post(
     "/",
-    headerValidator(signingKeys),
+    validator("header", async ({ "x-alchemy-signature": signature }, c) => {
+      const payload = await c.req.arrayBuffer();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(new TextDecoder().decode(payload));
+      } catch {
+        return c.json({ code: "unauthorized" }, 401);
+      }
+      const identity = v.safeParse(Identity, parsed);
+      if (!identity.success) return c.json({ code: "unauthorized" }, 401);
+      if (valid(identity.output, signature, payload)) return;
+      await refresh(true);
+      if (valid(identity.output, signature, payload)) return;
+      return c.json({ code: "unauthorized" }, 401);
+    }),
     vValidator(
       "json",
       v.object({
         type: v.literal("ADDRESS_ACTIVITY"),
+        webhookId: v.string(),
         event: v.object({
           network: v.pipe(
             v.string(),
@@ -336,29 +351,41 @@ export default function hook({
       return c.json({});
     },
   );
-  return {
-    app,
-    ready: alchemy
-      .findWebhook(({ webhook_type, webhook_url }) => webhook_type === "ADDRESS_ACTIVITY" && webhook_url === url)
-      .then(async (currentHook) => {
-        if (currentHook) {
-          setWebhookId(currentHook.id);
-          debug("alchemy webhook initialized with existing hook: %s", currentHook.id);
-          return signingKeys.add(currentHook.signing_key);
-        }
-        const newHook = await alchemy.createWebhook({
-          webhook_type: "ADDRESS_ACTIVITY",
-          webhook_url: url,
-          addresses: [],
-        });
-        setWebhookId(newHook.id);
-        debug("alchemy webhook initialized with new hook: %s", newHook.id);
-        signingKeys.add(newHook.signing_key);
-      }),
-  };
+  return { app, ready: refresh(false) };
+
+  function valid(identity: v.InferOutput<typeof Identity>, signature: string | undefined, payload: ArrayBuffer) {
+    const entry = entries.get(identity.webhookId);
+    return (
+      entry?.network === identity.event.network && verifySignature({ signature, signingKey: entry.signingKey, payload })
+    );
+  }
+
+  async function refresh(cached: boolean) {
+    if (cached && Date.now() - refreshed < 1000) return;
+    refreshing ??= alchemy
+      .getWebhooks()
+      .then((webhooks) => {
+        entries = new Map(
+          webhooks
+            .filter(
+              (current) =>
+                current.is_active &&
+                current.webhook_type === "ADDRESS_ACTIVITY" &&
+                current.webhook_url === activityUrl &&
+                networks.has(current.network),
+            )
+            .map((current) => [current.id, { network: current.network, signingKey: current.signing_key }]),
+        );
+        if (cached) refreshed = Date.now();
+      })
+      .finally(() => {
+        refreshing = undefined;
+      });
+    return refreshing;
+  }
 }
 
-const url = `${appOrigin}/hooks/activity`;
+const Identity = v.object({ webhookId: v.string(), event: v.object({ network: v.string() }) });
 
 async function isKnownToken(chainId: number, address: Address, redis: Redis) {
   if (chainId === anvil.id) return true;

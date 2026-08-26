@@ -1,4 +1,4 @@
 encryptionsalt: v1::v1:AAAAAAAAAAAAAAAb:rYjVO7/uF2+Qv1LhWq5c2S0ZR4rZaQ==
 config:
   gcp:project: exa-dev
-  exa:alchemyActivityId: wh_wdbmbwu3vx8eelag # cspell:ignore wdbmbwu3vx8eelag
+  exa:subscribeTimeout: 600s

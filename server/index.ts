@@ -74,7 +74,7 @@ const sardine = createSardine(
   parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
 );
 const segment = createSegment(parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY));
-const subscribe = createSubscribe(redis, alchemy);
+const subscribe = createSubscribe(redis);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
@@ -97,7 +97,6 @@ const api = createApi({
 
 const activityHook = createActivityHook({
   alchemy,
-  activityKey: env.ALCHEMY_ACTIVITY_KEY,
   database,
   executor: keeper,
   onesignal,

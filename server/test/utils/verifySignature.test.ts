@@ -26,4 +26,8 @@ describe("verify signature", () => {
 
     expect(verifySignature({ signature, signingKey: key, payload })).toBe(false);
   });
+
+  it("should return false when the signature has the wrong length", () => {
+    expect(verifySignature({ signature: "bad", signingKey: key, payload: new ArrayBuffer(10) })).toBe(false);
+  });
 });
