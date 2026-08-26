@@ -45,7 +45,7 @@ describe("e2e", () => {
           database,
           onesignal,
           panda,
-          refunder: privateKeyToAccount(padHex("0xfee")),
+          refunder: privateKeyToAccount(padHex("0x69")),
           sardine,
           segment,
         }),

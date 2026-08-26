@@ -7,6 +7,7 @@ import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
   encodeFunctionData,
+  keccak256,
   parseAbi,
   toFunctionSelector,
   toHex,
@@ -107,7 +108,16 @@ export default function worker({
         .catch((error_: unknown) => captureException(error_, { level: "error" }));
     },
     name,
-    ready: wallet.getDelegation({ address: refunder.address }).then(async (delegation) => {
+    ready: Promise.all([
+      wallet.getDelegation({ address: refunder.address }),
+      wallet.readContract({
+        address: refunderContract,
+        functionName: "hasRole",
+        args: [keccak256(toHex("KEEPER_ROLE")), refunder.address],
+        abi: refunderAbi,
+      }),
+    ]).then(async ([delegation, keeper]) => {
+      if (!keeper) throw new Error("refunder is not keeper");
       if (delegation === simple7702AccountAddress) return;
       const authorization = await wallet.signAuthorization({
         account: refunder,

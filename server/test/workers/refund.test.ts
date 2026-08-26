@@ -10,12 +10,15 @@ import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import {
   ContractFunctionExecutionError,
+  encodeAbiParameters,
   encodeFunctionData,
+  keccak256,
   padHex,
   parseAbi,
   toFunctionSelector,
   toHex,
   zeroHash,
+  type Hex,
   type LocalAccount,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -59,9 +62,19 @@ const refund = createRefund(bullmq);
 const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
 const events = new QueueEvents("refund", { connection: bullmq });
 const webhooks = new Map<string, unknown>();
+const slot = keccak256(
+  encodeAbiParameters(
+    [{ type: "address" }, { type: "bytes32" }],
+    [
+      refunder.address,
+      keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [keccak256(toHex("KEEPER_ROLE")), 0n])),
+    ],
+  ),
+);
 
 let worker: ReturnType<typeof refundWorker>;
 let connection: ReturnType<typeof connect>;
+let deployedRefunder: Hex;
 
 afterAll(async () => {
   await Promise.all([queue.close(), events.close(), refund.close(), segment.close()]);
@@ -140,12 +153,16 @@ describe("refund queue", () => {
 
 describe("refund worker", () => {
   beforeAll(async () => {
+    const code = await anvilClient.getCode({ address: inject("Refunder") });
+    if (!code) throw new Error("refunder not deployed");
+    deployedRefunder = code;
     await queue.drain(true);
     await Promise.all([
       anvilClient.setBalance({ address: refunder.address, value: 10n ** 24n }),
       anvilClient.setCode({ address: refunder.address, bytecode: "0x" }),
       anvilClient.setCode({ address: pandaAddress, bytecode: store }),
-      anvilClient.setCode({ address: refunderAddress, bytecode: store }),
+      anvilClient.setCode({ address: refunderAddress, bytecode: deployedRefunder }),
+      anvilClient.setStorageAt({ address: refunderAddress, index: slot, value: padHex("0x1", { size: 32 }) }),
       database.transaction(async (tx) => {
         await tx
           .insert(credentials)
@@ -164,6 +181,7 @@ describe("refund worker", () => {
       segment,
     });
     await worker.ready;
+    await anvilClient.setCode({ address: refunderAddress, bytecode: store });
   });
 
   afterAll(async () => {
@@ -199,6 +217,7 @@ describe("refund worker", () => {
 
   it("keeps an existing delegation", async () => {
     const nonce = await anvilClient.getTransactionCount({ address: refunder.address });
+    await anvilClient.setCode({ address: refunderAddress, bytecode: deployedRefunder });
     const dedicated = connect(redisUrl);
     const created = refundWorker({
       bullmq: dedicated,
@@ -216,6 +235,38 @@ describe("refund worker", () => {
       await expect(anvilClient.getDelegation({ address: refunder.address })).resolves.toBe(simple7702AccountAddress);
       await expect(anvilClient.getTransactionCount({ address: refunder.address })).resolves.toBe(nonce);
     } finally {
+      await anvilClient.setCode({ address: refunderAddress, bytecode: store });
+      await created.close();
+      await dedicated.quit();
+    }
+  });
+
+  it("rejects startup without the keeper role", async () => {
+    await Promise.all([
+      anvilClient.setCode({ address: refunderAddress, bytecode: deployedRefunder }),
+      anvilClient.setStorageAt({ address: refunderAddress, index: slot, value: padHex("0x0", { size: 32 }) }),
+    ]);
+    const dedicated = connect(redisUrl);
+    const created = refundWorker({
+      bullmq: dedicated,
+      database,
+      onesignal,
+      panda,
+      refunder,
+      sardine,
+      segment,
+    });
+
+    try {
+      await Promise.all([
+        created.queue.waitUntilReady(),
+        expect(created.ready).rejects.toThrow("refunder is not keeper"),
+      ]);
+    } finally {
+      await Promise.all([
+        anvilClient.setCode({ address: refunderAddress, bytecode: store }),
+        anvilClient.setStorageAt({ address: refunderAddress, index: slot, value: padHex("0x1", { size: 32 }) }),
+      ]);
       await created.close();
       await dedicated.quit();
     }
