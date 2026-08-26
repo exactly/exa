@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { FlatList, PixelRatio, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 
+import { useFocusEffect } from "expo-router";
+
 import { useTheme } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -69,6 +71,11 @@ export default function Activity() {
       queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
       queryClient.refetchQueries({ queryKey }),
     ]);
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
+    }, []),
+  );
   useTabPress("activity", () => {
     if (layout.items.length > 0) listRef.current?.scrollToIndex({ index: 0, animated: true });
     refresh()

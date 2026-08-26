@@ -159,6 +159,8 @@ export function statusOptions(
 ) {
   return queryOptions({
     queryKey: ["lifi", "status", txHash, toChain, bridge, fromChain],
+    retry: false,
+    meta: { warnError: () => true },
     queryFn:
       txHash && !chain.testnet && chain.id !== anvil.id
         ? () => {
@@ -166,7 +168,12 @@ export function statusOptions(
             return getStatus({ txHash, fromChain, toChain, bridge });
           }
         : skipToken,
-    refetchInterval: ({ state }) => (state.data?.status === "DONE" || state.data?.status === "FAILED" ? false : 10_000),
+    refetchInterval: ({ state }) =>
+      state.data?.status === "DONE" ||
+      state.data?.status === "FAILED" ||
+      state.dataUpdateCount + state.errorUpdateCount >= 120
+        ? false
+        : 10_000,
   });
 }
 
@@ -293,12 +300,15 @@ export type RouteFrom = {
   toAmount: bigint;
   tool?: string;
   value: bigint;
+  wrapped?: boolean;
 };
 
 export const bridgePolicyId = "97633483-b01d-4a91-bac5-11011a06b15d";
 export const bridgePolicySymbols = new Set(["USDC", "USDT", "USD₮0", "DAI", "USDe", "WETH", "WBTC", "WLD"]);
 export const bridgeSlippage = 0.02;
 export const gasReserveBuffer = 300n;
+export const nativeFeeRoute = "native fee route";
+export const quoteValidity = 30_000;
 
 export async function getRouteFrom({
   fromChainId,
@@ -308,13 +318,17 @@ export async function getRouteFrom({
   fromAmount,
   fromAddress,
   toAddress,
+  denyBridges = [],
   denyExchanges,
+  nativeless,
 }: {
+  denyBridges?: string[];
   denyExchanges?: Record<string, boolean>;
   fromAddress: Address;
   fromAmount: bigint;
   fromChainId?: number;
   fromTokenAddress: string;
+  nativeless?: boolean;
   toAddress: string;
   toChainId?: number;
   toTokenAddress: string;
@@ -351,7 +365,7 @@ export async function getRouteFrom({
     };
   }
   config.set({ integrator: "exa_app", userId: fromAddress });
-  const { estimate, transactionRequest, tool } = await getQuote({
+  const request = {
     fee: 0.0025,
     slippage: bridgeSlippage,
     integrator: "exa_app",
@@ -367,7 +381,16 @@ export async function getRouteFrom({
       Object.entries(denyExchanges)
         .filter(([_, value]) => value)
         .map(([key]) => key),
-  });
+  };
+  const denied = [...denyBridges];
+  let quote = await getQuote(denied.length > 0 ? { ...request, denyBridges: denied } : request);
+  while (nativeless && BigInt(quote.transactionRequest?.value ?? 0) > 0n) {
+    const bridge = quote.includedSteps.find(({ type }) => type === "cross")?.tool;
+    if (!bridge || denied.includes(bridge)) throw new Error(nativeFeeRoute);
+    denied.push(bridge);
+    quote = await getQuote({ ...request, denyBridges: denied });
+  }
+  const { estimate, transactionRequest, tool } = quote;
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
   const chainId = transactionRequest.chainId ?? fromChainId ?? chain.id;
   const gasLimit = transactionRequest.gasLimit;
@@ -385,6 +408,7 @@ export async function getRouteFrom({
     tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
+    wrapped: quote.includedSteps.some((step) => step.tool === "wrapper"),
   };
 }
 
