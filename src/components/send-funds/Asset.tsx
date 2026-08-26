@@ -6,22 +6,26 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp, Search } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
 import NetworkFilter from "./NetworkFilter";
+import alchemyChainById from "../../utils/alchemyChains";
+import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
-import usePortfolio from "../../utils/usePortfolio";
+import useAccount from "../../utils/useAccount";
+import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
+import UnsupportedNetworksSheet from "../shared/UnsupportedNetworksSheet";
 import View from "../shared/View";
 
 export default function AssetSelection() {
@@ -32,6 +36,8 @@ export default function AssetSelection() {
   } = useTranslation();
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState<number>();
+  const [unsupported, setUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(null);
+  const { address } = useAccount();
   const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: reach, isError: reachFailed, refetch: refetchReach } = useQuery(reachOptions);
@@ -61,6 +67,29 @@ export default function AssetSelection() {
       }),
     [allAssets, network, reach, search],
   );
+
+  const crossChainIds = useMemo(
+    () => [
+      ...new Set(
+        allAssets.flatMap((asset) =>
+          asset.type === "external" && asset.chainId !== chain.id && alchemyChainById.has(asset.chainId)
+            ? [asset.chainId]
+            : [],
+        ),
+      ),
+    ],
+    [allAssets],
+  );
+  const deployedChains = useQueries({
+    queries: crossChainIds.map((chainId) => deployedOptions(address, chainId)),
+    combine: (results) =>
+      new Map(
+        crossChainIds.flatMap((chainId, index) => {
+          const deployed = results[index]?.data;
+          return typeof deployed === "boolean" ? [[chainId, deployed] as const] : [];
+        }),
+      ),
+  });
 
   const popular = useMemo(() => {
     const ids = new Set((reach?.destinations ?? []).filter((id) => (network === undefined ? true : id === network)));
@@ -169,6 +198,7 @@ export default function AssetSelection() {
                 </Text>
                 {owned.map((asset) => {
                   const chainId = asset.type === "external" ? asset.chainId : chain.id;
+                  const chainName = chains?.find((item) => item.id === chainId)?.name ?? chain.name;
                   const available =
                     asset.type === "external"
                       ? (asset.amount ?? 0n)
@@ -196,11 +226,15 @@ export default function AssetSelection() {
                         />
                       }
                       title={asset.symbol}
-                      subtitle={chains?.find((item) => item.id === chainId)?.name ?? chain.name}
+                      subtitle={chainName}
                       value={`$${asset.usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       detail={balance}
                       label={t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })}
                       onPress={() => {
+                        if (asset.type === "external" && isUnsupported(chainId, deployedChains)) {
+                          setUnsupported({ asset, chainName });
+                          return;
+                        }
                         router.push({
                           pathname: "/send-funds/amount",
                           params:
@@ -226,7 +260,11 @@ export default function AssetSelection() {
               </Text>
               {isTokensPending && <Skeleton width="100%" height={40} />}
               {popular.map((token) => {
-                const chainName = chains?.find((item) => item.id === (token.chainId as number))?.name ?? token.name;
+                const chainId = token.chainId as number;
+                const chainName =
+                  chains?.find((item) => item.id === chainId)?.name ??
+                  alchemyChainById.get(chainId)?.name ??
+                  chain.name;
                 return (
                   <Row
                     key={`${token.chainId}:${token.address}`}
@@ -256,6 +294,14 @@ export default function AssetSelection() {
           </YStack>
         </ScrollView>
       </View>
+      <UnsupportedNetworksSheet
+        open={unsupported !== null}
+        asset={unsupported?.asset}
+        chainName={unsupported?.chainName}
+        onClose={() => {
+          setUnsupported(null);
+        }}
+      />
     </SafeView>
   );
 }
