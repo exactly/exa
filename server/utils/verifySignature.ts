@@ -9,5 +9,7 @@ export type VerifySignature = {
 export default function verifySignature({ signature, signingKey, payload }: VerifySignature): boolean {
   if (!signature) return false;
   const expectedSignature = createHmac("sha256", signingKey).update(Buffer.from(payload)).digest("hex");
-  return timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSignature, "hex"));
+  const received = Buffer.from(signature, "hex");
+  const expected = Buffer.from(expectedSignature, "hex");
+  return received.length === expected.length && timingSafeEqual(received, expected);
 }

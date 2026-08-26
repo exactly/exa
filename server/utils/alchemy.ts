@@ -20,24 +20,45 @@ import {
   worldChainSepolia,
 } from "@account-kit/infra";
 import { validator } from "hono/validator";
-import { array, boolean, check, nonEmpty, object, parse, picklist, pipe, string, type InferOutput } from "valibot";
+import {
+  array,
+  boolean,
+  check,
+  nonEmpty,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  pipe,
+  string,
+  type InferOutput,
+} from "valibot";
 import { withRetry, type Chain } from "viem";
 import { anvil } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
+import appOrigin from "./appOrigin";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
-
-import type { Address } from "@exactly/common/validation";
 
 export default function alchemy(key: string) {
   const headers = { "Content-Type": "application/json", "X-Alchemy-Token": parse(pipe(string(), nonEmpty()), key) };
 
-  return { findWebhook, createWebhook, addWebhookAddresses, headers };
+  return {
+    addWebhookAddresses,
+    createWebhook,
+    findWebhook,
+    getWebhookAddresses,
+    getWebhooks,
+    headers,
+    setWebhookActive,
+  };
 
-  async function findWebhook(predicate: (webhook: Webhook) => unknown) {
-    const webhooks = await withRetry(
+  async function getWebhooks() {
+    return withRetry(
       async () => {
         const response = await fetch("https://dashboard.alchemy.com/api/team-webhooks", { headers });
         if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
@@ -45,6 +66,10 @@ export default function alchemy(key: string) {
       },
       { retryCount: 10 },
     );
+  }
+
+  async function findWebhook(predicate: (webhook: Webhook) => unknown) {
+    const webhooks = await getWebhooks();
     return webhooks.find((hook) => hook.is_active && hook.network === network() && predicate(hook));
   }
 
@@ -52,26 +77,44 @@ export default function alchemy(key: string) {
     options: (
       | { addresses: string[]; webhook_type: "ADDRESS_ACTIVITY" }
       | { graphql_query: { query: string; skip_empty_messages: true }; webhook_type: "GRAPHQL" }
-    ) & { network?: never; webhook_url: string },
+    ) & { network?: string; webhook_url: string },
   ) {
     const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
       headers,
       method: "POST",
-      body: JSON.stringify({ ...options, network: network() }),
+      body: JSON.stringify({ ...options, network: options.network ?? network() }),
     });
     if (!create.ok) throw new ServiceError("Alchemy", create.status, await create.text());
     return parse(WebhookResponse, await create.json()).data;
   }
 
-  async function addWebhookAddresses(id: string | undefined, addresses: Address[]) {
+  async function addWebhookAddresses(id: string, addresses: Address[]) {
     if (addresses.length === 0) return;
-    if (!id) throw new Error("no active webhook");
     const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
       headers,
       method: "PATCH",
       body: JSON.stringify({ webhook_id: id, addresses_to_add: addresses, addresses_to_remove: [] }),
     });
     if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
+  }
+
+  async function getWebhookAddresses(id: string, after?: string) {
+    const query = new URLSearchParams({ webhook_id: id, limit: "100" });
+    if (after) query.set("after", after);
+    const response = await fetch(`https://dashboard.alchemy.com/api/webhook-addresses?${String(query)}`, {
+      headers,
+    });
+    if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
+    return parse(WebhookAddressesResponse, await response.json());
+  }
+
+  async function setWebhookActive(id: string, isActive: boolean) {
+    const response = await fetch("https://dashboard.alchemy.com/api/update-webhook", {
+      headers,
+      method: "PUT",
+      body: JSON.stringify({ webhook_id: id, is_active: isActive }),
+    });
+    if (!response.ok) throw new ServiceError("Alchemy", response.status, await response.text());
   }
 }
 
@@ -89,6 +132,21 @@ export function network(id = chain.id) {
   return [...NETWORKS].find(([, current]) => current.id === id)?.[0] ?? "OPT_SEPOLIA";
 }
 
+export const activityUrl = `${appOrigin}/hooks/activity`;
+
+export function activityNetworks(id = chain.id) {
+  if (id === anvil.id) {
+    const current = NETWORKS.get("ANVIL");
+    if (!current) throw new Error("missing anvil activity network");
+    return new Map([["ANVIL", current]]);
+  }
+  const stack = [...NETWORKS.values()].find((current) => current.id === id);
+  if (!stack) throw new Error("unsupported activity stack");
+  return new Map(
+    [...NETWORKS].filter(([name, current]) => name !== "ANVIL" && Boolean(current.testnet) === Boolean(stack.testnet)),
+  );
+}
+
 const Webhook = object({
   id: string(),
   network: pipe(
@@ -100,10 +158,14 @@ const Webhook = object({
   signing_key: string(),
   is_active: boolean(),
 });
-type Webhook = InferOutput<typeof Webhook>;
+export type Webhook = InferOutput<typeof Webhook>;
 
 const WebhookResponse = object({ data: Webhook });
 const WebhooksResponse = object({ data: array(Webhook) });
+const WebhookAddressesResponse = object({
+  data: array(Address),
+  pagination: object({ cursors: object({ after: optional(string()) }), total_count: number() }),
+});
 
 export const NETWORKS = new Map<string, AlchemyChain>([
   ["ARB_MAINNET", arbitrum as AlchemyChain],

@@ -1,4 +1,4 @@
-import { createWebhook as createWebhookMock, findWebhook as findWebhookMock } from "../mocks/alchemy";
+import "../mocks/alchemy";
 import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
@@ -7,6 +7,7 @@ import "../mocks/wallet";
 import { captureException, setUser, startSpan } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
+import { createHmac } from "node:crypto";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -30,9 +31,7 @@ import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/ch
 import database, { cards, credentials } from "../../database";
 import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
-import { setWebhookId, webhookId } from "../../utils/activityWebhook";
-import createAlchemy, { NETWORKS } from "../../utils/alchemy";
-import appOrigin from "../../utils/appOrigin";
+import createAlchemy, { activityUrl, NETWORKS, type Webhook } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
 import * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
@@ -47,8 +46,22 @@ const alchemy = createAlchemy("webhooks");
 const onesignal = createOnesignal("onesignal");
 const segment = createSegment("segment");
 
-const activityHook = createHook("activity");
-const appClient = testClient(activityHook.app);
+const activityHook = createHook();
+const client = testClient(activityHook.app);
+const appClient = {
+  index: {
+    $post(input: Parameters<typeof client.index.$post>[0]) {
+      const body = JSON.stringify(input.json);
+      return client.index.$post({
+        ...input,
+        header: {
+          ...input.header,
+          "x-alchemy-signature": createHmac("sha256", "activity").update(body).digest("hex"),
+        },
+      });
+    },
+  },
+};
 
 beforeAll(() => activityHook.ready);
 
@@ -883,6 +896,7 @@ describe("address activity", { timeout: 66_666 }, () => {
       ...activityPayload,
       json: {
         ...activityPayload.json,
+        webhookId: "ETH_MAINNET",
         event: {
           ...activityPayload.json.event,
           network: "ETH_MAINNET",
@@ -928,6 +942,7 @@ describe("address activity", { timeout: 66_666 }, () => {
       ...activityPayload,
       json: {
         ...activityPayload.json,
+        webhookId: "ETH_MAINNET",
         event: {
           ...activityPayload.json.event,
           network: "ETH_MAINNET",
@@ -1198,6 +1213,7 @@ describe("address activity", { timeout: 66_666 }, () => {
         ...activityPayload,
         json: {
           ...activityPayload.json,
+          webhookId: "OPT_MAINNET",
           event: {
             network: "OPT_MAINNET",
             activity: [
@@ -1364,6 +1380,140 @@ describe("address activity", { timeout: 66_666 }, () => {
   });
 });
 
+describe("webhook authentication", () => {
+  it("accepts signatures bound to an owned webhook and network", async () => {
+    const current = api();
+    current.getWebhooks.mockResolvedValue([webhook("activity")]);
+    const hook = createHook(current);
+    await hook.ready;
+
+    const response = await deliver(hook.app, payload("activity", "ANVIL"), "activity-key");
+
+    expect(response.status).toBe(200);
+  });
+
+  it("ignores inactive, unrelated, and unselected webhooks", async () => {
+    const current = api();
+    current.getWebhooks.mockResolvedValue([
+      webhook("inactive", "ANVIL", false),
+      { ...webhook("graphql"), webhook_type: "GRAPHQL" },
+      { ...webhook("other-url"), webhook_url: "https://example.com" },
+      webhook("other-network", "OTHER"),
+      webhook("activity"),
+    ]);
+    const hook = createHook(current);
+    await hook.ready;
+
+    const rejected = await deliver(hook.app, payload("inactive", "ANVIL"), "inactive-key");
+    const accepted = await deliver(hook.app, payload("activity", "ANVIL"), "activity-key");
+
+    expect(rejected.status).toBe(401);
+    expect(accepted.status).toBe(200);
+    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes once and accepts a newly discovered webhook", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1000);
+    const current = api();
+    current.getWebhooks.mockResolvedValueOnce([webhook("old")]).mockResolvedValueOnce([webhook("old"), webhook("new")]);
+    const hook = createHook(current);
+    await hook.ready;
+    vi.setSystemTime(2000);
+
+    const response = await deliver(hook.app, payload("new", "ANVIL"), "new-key");
+
+    expect(response.status).toBe(200);
+    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces concurrent refreshes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1000);
+    const current = api();
+    const refresh = Promise.withResolvers<Webhook[]>();
+    current.getWebhooks.mockResolvedValueOnce([webhook("old")]).mockReturnValueOnce(refresh.promise);
+    const hook = createHook(current);
+    await hook.ready;
+    vi.setSystemTime(2000);
+
+    const first = deliver(hook.app, payload("new", "ANVIL"), "new-key");
+    const second = deliver(hook.app, payload("new", "ANVIL"), "new-key");
+    await vi.waitFor(() => expect(current.getWebhooks).toHaveBeenCalledTimes(2));
+    refresh.resolve([webhook("new")]);
+
+    await expect(
+      Promise.all([first, second]).then((responses) => responses.map(({ status }) => status)),
+    ).resolves.toStrictEqual([200, 200]);
+    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the short refresh cache after an invalid delivery", async () => {
+    const current = api();
+    current.getWebhooks.mockResolvedValue([webhook("activity")]);
+    const hook = createHook(current);
+    await hook.ready;
+
+    const first = await deliver(hook.app, payload("unknown", "ANVIL"), "unknown-key");
+    const second = await deliver(hook.app, payload("unknown", "ANVIL"), "unknown-key");
+
+    expect(first.status).toBe(401);
+    expect(second.status).toBe(401);
+    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a webhook delivered under a different network", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1000);
+    const current = api();
+    current.getWebhooks.mockResolvedValue([webhook("activity")]);
+    const hook = createHook(current);
+    await hook.ready;
+    vi.setSystemTime(2000);
+
+    const response = await deliver(hook.app, payload("activity", "OPT_SEPOLIA"), "activity-key");
+
+    expect(response.status).toBe(401);
+    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an invalid signature after refreshing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1000);
+    const current = api();
+    current.getWebhooks.mockResolvedValue([webhook("activity")]);
+    const hook = createHook(current);
+    await hook.ready;
+    vi.setSystemTime(2000);
+
+    const response = await deliver(hook.app, payload("activity", "ANVIL"), "wrong-key");
+
+    expect(response.status).toBe(401);
+    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects malformed and unidentified payloads", async () => {
+    const current = api();
+    const hook = createHook(current);
+    await hook.ready;
+
+    const malformed = await deliver(hook.app, "{", "key");
+    const unidentified = await deliver(hook.app, JSON.stringify({ event: { network: "ANVIL" } }), "key");
+
+    expect(malformed.status).toBe(401);
+    expect(unidentified.status).toBe(401);
+    expect(current.getWebhooks).toHaveBeenCalledOnce();
+  });
+
+  it("fails readiness when discovery fails", async () => {
+    const current = api();
+    const error = new Error("alchemy failed");
+    current.getWebhooks.mockRejectedValueOnce(error);
+
+    await expect(createHook(current).ready).rejects.toBe(error);
+  });
+});
+
 function failPoke(keeper: ReturnType<typeof wallet>, error: Error) {
   const { exaSend } = keeper;
   let failed = false;
@@ -1466,6 +1616,7 @@ const activityPayload = {
   header: {},
   json: {
     type: "ADDRESS_ACTIVITY",
+    webhookId: "activity",
     event: {
       network: "ANVIL",
       activity: [
@@ -1525,63 +1676,56 @@ vi.mock("viem", async (importOriginal) => {
 
 afterEach(async () => {
   if (vi.mocked(startSpan).mock.calls.some(([options]) => options.op === "exa.activity")) await waitForActivity();
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.restoreAllMocks();
 }, 66_666);
 
-describe("webhook initialization", () => {
-  beforeEach(() => {
-    setWebhookId("activity");
-  });
-
-  it("sets the existing webhook id", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhookMock>>> = {
-      id: "existing-hook-id",
-      is_active: true,
-      network: "OPT_SEPOLIA",
-      signing_key: "existing-signing-key",
-      webhook_type: "ADDRESS_ACTIVITY",
-      webhook_url: `${appOrigin}/hooks/activity`,
-    };
-    vi.mocked(findWebhookMock).mockResolvedValueOnce(existing);
-    const current = createHook("bootstrap-signing-key");
-
-    await current.ready;
-
-    expect(createWebhookMock).not.toHaveBeenCalled();
-    expect(webhookId).toBe("existing-hook-id");
-  });
-
-  it("sets a newly created webhook id", async () => {
-    vi.mocked(findWebhookMock).mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
-    const current = createHook();
-
-    await current.ready;
-
-    expect(createWebhookMock).toHaveBeenCalledOnce();
-    expect(webhookId).toBe("mock-webhook-id");
-  });
-
-  it("preserves the webhook id when readiness fails", async () => {
-    const error = new Error("alchemy error");
-    vi.mocked(findWebhookMock).mockRejectedValueOnce(error);
-    const current = createHook("activity");
-
-    await expect(current.ready).rejects.toBe(error);
-
-    expect(createWebhookMock).not.toHaveBeenCalled();
-    expect(webhookId).toBe("activity");
-  });
-});
-
-function createHook(activityKey?: string) {
+function createHook(current = alchemy) {
   return activity({
-    alchemy,
-    activityKey,
+    alchemy: current,
     database,
     executor,
     onesignal,
     redis,
     segment,
+  });
+}
+
+function api() {
+  return {
+    addWebhookAddresses: vi.fn<ReturnType<typeof createAlchemy>["addWebhookAddresses"]>(),
+    createWebhook: vi.fn<ReturnType<typeof createAlchemy>["createWebhook"]>(),
+    findWebhook: vi.fn<ReturnType<typeof createAlchemy>["findWebhook"]>(),
+    getWebhookAddresses: vi.fn<ReturnType<typeof createAlchemy>["getWebhookAddresses"]>(),
+    getWebhooks: vi.fn<ReturnType<typeof createAlchemy>["getWebhooks"]>().mockResolvedValue([]),
+    headers: { "Content-Type": "application/json", "X-Alchemy-Token": "test" },
+    setWebhookActive: vi.fn<ReturnType<typeof createAlchemy>["setWebhookActive"]>(),
+  } satisfies ReturnType<typeof createAlchemy>;
+}
+
+function webhook(id: string, network = "ANVIL", active = true): Webhook {
+  return {
+    id,
+    is_active: active,
+    network,
+    signing_key: `${id}-key`,
+    webhook_type: "ADDRESS_ACTIVITY",
+    webhook_url: activityUrl,
+  };
+}
+
+function payload(webhookId: string, network: string) {
+  return JSON.stringify({ webhookId, type: "ADDRESS_ACTIVITY", event: { network, activity: [] } });
+}
+
+async function deliver(app: ReturnType<typeof activity>["app"], body: string, signingKey: string) {
+  return app.request("/", {
+    method: "POST",
+    body,
+    headers: {
+      "content-type": "application/json",
+      "x-alchemy-signature": createHmac("sha256", signingKey).update(body).digest("hex"),
+    },
   });
 }

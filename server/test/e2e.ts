@@ -53,7 +53,7 @@ describe("e2e", () => {
           segment,
         }),
         hookWorker({ bullmq, database, panda }),
-        subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq }),
+        subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
 
       await expect(

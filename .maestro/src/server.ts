@@ -24,6 +24,7 @@ import { readContract } from "./anvil";
 export function activity(asset: Address, toAddress: Address, value: number, hash: Hash = zeroHash) {
   const payload = JSON.stringify({
     type: "ADDRESS_ACTIVITY",
+    webhookId: "activity",
     event: {
       network: "ANVIL",
       activity: [
