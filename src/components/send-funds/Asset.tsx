@@ -8,18 +8,21 @@ import {
   BriefcaseBusiness,
   ChartNoAxesCombined,
   CircleHelp,
+  Ellipsis,
   Search,
   TrendingUp,
 } from "@tamagui/lucide-icons";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { arbitrum, base, bsc, mainnet } from "viem/chains";
+import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { zeroAddress } from "viem";
+import { base } from "viem/chains";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
+import NetworkSheet from "./NetworkSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
@@ -29,6 +32,7 @@ import useAccount from "../../utils/useAccount";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
+import Chip from "../shared/Chip";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import NetworkFilter from "../shared/NetworkFilter";
@@ -47,7 +51,9 @@ export default function AssetSelection() {
   const { receiver, ens, chainType } = useLocalSearchParams();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"stocks" | number>();
+  const [networks, setNetworks] = useState(false);
   const [unsupported, setUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(null);
+  const [blocked, setBlocked] = useState<null | { compatible: boolean; id: number; name: string }>(null);
   const { address } = useAccount();
   const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
@@ -74,18 +80,41 @@ export default function AssetSelection() {
   );
   const { deployedChains, pendingChains } = useQueries({
     queries: crossChainIds.map((chainId) => deployedOptions(address, chainId)),
-    combine(results) {
-      const pending = new Set<number>();
-      const deployed = new Map<number, boolean>();
-      for (const [index, chainId] of crossChainIds.entries()) {
-        const result = results[index];
-        if (!result) continue;
-        if (result.isSuccess && typeof result.data === "boolean") deployed.set(chainId, result.data);
-        else if (result.isLoading || result.isFetching) pending.add(chainId);
-      }
-      return { deployedChains: deployed, pendingChains: pending };
-    },
+    combine: useCallback(
+      (results: UseQueryResult<boolean>[]) => {
+        const pending = new Set<number>();
+        const deployed = new Map<number, boolean>();
+        for (const [index, chainId] of crossChainIds.entries()) {
+          const result = results[index];
+          if (!result) continue;
+          if (result.isSuccess && typeof result.data === "boolean") deployed.set(chainId, result.data);
+          else if (result.isLoading || result.isFetching) pending.add(chainId);
+        }
+        return { deployedChains: deployed, pendingChains: pending };
+      },
+      [crossChainIds],
+    ),
   });
+  const held = useMemo(
+    () => new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))),
+    [allAssets],
+  );
+  const funded = useMemo(() => {
+    const totals = new Map<number, number>();
+    for (const asset of allAssets) {
+      if (asset.type === "protocol" && asset.usdValue <= 0) continue;
+      const id = asset.type === "external" ? asset.chainId : chain.id;
+      totals.set(id, (totals.get(id) ?? 0) + asset.usdValue);
+    }
+    return totals;
+  }, [allAssets]);
+  const targets = useMemo(
+    () =>
+      new Set(
+        [chain.id, ...held].flatMap((id) => (id === chain.id || deployedChains.get(id) ? (reach?.[id] ?? []) : [])),
+      ),
+    [deployedChains, held, reach],
+  );
 
   const compatible = useCallback(
     (id: number) => {
@@ -96,25 +125,44 @@ export default function AssetSelection() {
     [chainType, chains],
   );
 
-  const reachable = useMemo(() => {
-    const held = new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : [])));
-    return (chains ?? [])
-      .filter(
-        (item) =>
-          held.has(item.id) || (!!reach && (reach.origins.includes(item.id) || reach.destinations.includes(item.id))),
-      )
-      .sort((a, b) => {
-        if (a.id === chain.id) return -1;
-        if (b.id === chain.id) return 1;
-        return a.name.localeCompare(b.name);
-      })
-      .map((item) => ({ ...item, disabled: !compatible(item.id) }));
-  }, [allAssets, chains, compatible, reach]);
+  const reachable = useMemo(
+    () =>
+      (chains ?? [])
+        .filter((item) => held.has(item.id) || targets.has(item.id))
+        .sort((a, b) => {
+          if (a.id === chain.id) return -1;
+          if (b.id === chain.id) return 1;
+          return a.name.localeCompare(b.name);
+        })
+        .map((item) => ({
+          ...item,
+          disabled: !compatible(item.id) || (held.has(item.id) && isUnsupported(item.id, deployedChains)),
+        })),
+    [chains, compatible, deployedChains, held, targets],
+  );
 
   const chips = useMemo(
     () =>
-      [chain.id, base.id, arbitrum.id, bsc.id, mainnet.id].flatMap((id) => reachable.filter((item) => item.id === id)),
-    [reachable],
+      advanced
+        ? [...reachable].sort((a, b) => {
+            if (a.id === chain.id) return -1;
+            if (b.id === chain.id) return 1;
+            if (a.id === base.id) return -1;
+            if (b.id === base.id) return 1;
+            return (
+              Number(a.chainType === ChainType.EVM) - Number(b.chainType === ChainType.EVM) ||
+              a.name.localeCompare(b.name)
+            );
+          })
+        : reachable
+            .filter((item) => funded.has(item.id))
+            .sort((a, b) => (funded.get(b.id) ?? 0) - (funded.get(a.id) ?? 0)),
+    [advanced, funded, reachable],
+  );
+
+  const pills = useMemo(
+    () => [...chips.slice(0, 10), ...chips.slice(10).filter((item) => item.id === filter)],
+    [chips, filter],
   );
 
   const search = query.trim().toLowerCase();
@@ -136,13 +184,12 @@ export default function AssetSelection() {
   );
 
   const trending = useMemo(() => {
+    if (!advanced) return [];
     const ids = new Set(
-      (reach?.destinations ?? []).filter(
-        (id) => compatible(id) && (filter === undefined || filter === "stocks" || id === filter),
-      ),
+      [...targets].filter((id) => compatible(id) && (filter === undefined || filter === "stocks" || id === filter)),
     );
     const native = chains?.find((item) => item.id === chain.id)?.nativeToken;
-    const held = new Set(
+    const keys = new Set(
       owned.flatMap((asset) =>
         asset.type === "external"
           ? [`${asset.chainId}:${asset.address.toLowerCase()}`]
@@ -159,7 +206,7 @@ export default function AssetSelection() {
         (token) =>
           ids.has(token.chainId) &&
           (filter !== "stocks" || isStock(token)) &&
-          !held.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
+          !keys.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
           (!search ||
             token.symbol.toLowerCase().includes(search) ||
             token.name.toLowerCase().includes(search) ||
@@ -179,7 +226,7 @@ export default function AssetSelection() {
       )
       .slice(0, 20)
       .map(({ token }) => token);
-  }, [chains, compatible, tokens, reach, filter, owned, search]);
+  }, [advanced, chains, compatible, tokens, targets, filter, owned, search]);
 
   if (typeof receiver !== "string" || !receiver) return <Redirect href="/send-funds/receiver" />;
 
@@ -226,46 +273,72 @@ export default function AssetSelection() {
             onChangeText={setQuery}
           />
           <NetworkFilter
-            chains={reachable}
+            chains={chips}
             value={typeof filter === "number" ? filter : undefined}
+            open={networks}
+            icon={
+              filter === "stocks" ? <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" /> : undefined
+            }
             onChange={setFilter}
+            onOpenChange={setNetworks}
           />
         </XStack>
-        {advanced && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <XStack gap="$s3">
-              {chips.slice(0, 2).map((item) => (
+        {chips.length > 0 && (
+          <ScrollView
+            horizontal
+            flexGrow={0}
+            flexShrink={0}
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <XStack gap="$s3" alignItems="center">
+              {(advanced ? [...pills.slice(0, 2), "stocks" as const, ...pills.slice(2)] : pills).map((item) =>
+                item === "stocks" ? (
+                  <Chip
+                    key={item}
+                    disabled={!compatible(base.id)}
+                    icon={<ChartNoAxesCombined size={16} color="$uiNeutralPrimary" />}
+                    label={t("Stocks")}
+                    selected={filter === "stocks"}
+                    onPress={() => {
+                      if (!compatible(base.id)) {
+                        setBlocked({
+                          compatible: false,
+                          id: base.id,
+                          name: chains?.find((known) => known.id === base.id)?.name ?? base.name,
+                        });
+                        return;
+                      }
+                      setFilter(filter === "stocks" ? undefined : "stocks");
+                    }}
+                  />
+                ) : (
+                  <Chip
+                    key={item.id}
+                    disabled={item.disabled}
+                    icon={<ChainLogo chainId={item.id} size={16} />}
+                    label={item.name}
+                    selected={filter === item.id}
+                    onPress={() => {
+                      if (item.disabled) {
+                        setBlocked({ compatible: compatible(item.id), id: item.id, name: item.name });
+                        return;
+                      }
+                      setFilter(filter === item.id ? undefined : item.id);
+                    }}
+                  />
+                ),
+              )}
+              {chips.length > pills.length && (
                 <Chip
-                  key={item.id}
-                  disabled={item.disabled}
-                  icon={<ChainLogo chainId={item.id} size={16} />}
-                  label={item.name}
-                  selected={filter === item.id}
+                  icon={<Ellipsis size={16} color="$uiNeutralPrimary" />}
+                  label={t("More")}
+                  selected={false}
                   onPress={() => {
-                    setFilter(filter === item.id ? undefined : item.id);
+                    setNetworks(true);
                   }}
                 />
-              ))}
-              <Chip
-                icon={<ChartNoAxesCombined size={16} color="$uiNeutralPrimary" />}
-                label={t("Stocks")}
-                selected={filter === "stocks"}
-                onPress={() => {
-                  setFilter(filter === "stocks" ? undefined : "stocks");
-                }}
-              />
-              {chips.slice(2).map((item) => (
-                <Chip
-                  key={item.id}
-                  disabled={item.disabled}
-                  icon={<ChainLogo chainId={item.id} size={16} />}
-                  label={item.name}
-                  selected={filter === item.id}
-                  onPress={() => {
-                    setFilter(filter === item.id ? undefined : item.id);
-                  }}
-                />
-              ))}
+              )}
             </XStack>
           </ScrollView>
         )}
@@ -371,14 +444,19 @@ export default function AssetSelection() {
                             receiver,
                             ens,
                             chainType,
-                            ...(asset.type === "external" && asset.chainId !== chain.id
-                              ? {
-                                  asset: asset.address,
-                                  fromChain: String(asset.chainId),
-                                  toChain: String(asset.chainId),
-                                  toToken: asset.address,
-                                }
-                              : { asset: asset.type === "external" ? asset.address : asset.market }),
+                            toChain: String(chainId),
+                            toToken:
+                              asset.type === "external"
+                                ? asset.address
+                                : asset.market === marketWETHAddress
+                                  ? zeroAddress
+                                  : asset.asset,
+                            ...(advanced
+                              ? {}
+                              : {
+                                  asset: asset.type === "external" ? asset.address : asset.market,
+                                  fromChain: String(chainId),
+                                }),
                           },
                         });
                       }}
@@ -426,7 +504,10 @@ export default function AssetSelection() {
                   </XStack>
                 )}
                 {trending.map((token) => {
-                  const chainName = chains?.find((item) => item.id === (token.chainId as number))?.name ?? token.name;
+                  const chainName =
+                    chains?.find((item) => item.id === (token.chainId as number))?.name ??
+                    alchemyChainById.get(token.chainId)?.name ??
+                    chain.name;
                   return (
                     <Row
                       key={`${token.chainId}:${token.address}`}
@@ -463,6 +544,15 @@ export default function AssetSelection() {
           </YStack>
         </ScrollView>
       </View>
+      <NetworkSheet
+        open={blocked !== null}
+        compatible={blocked?.compatible}
+        id={blocked?.id}
+        name={blocked?.name}
+        onClose={() => {
+          setBlocked(null);
+        }}
+      />
       <UnsupportedNetworksSheet
         open={unsupported !== null}
         asset={unsupported?.asset}
@@ -472,44 +562,6 @@ export default function AssetSelection() {
         }}
       />
     </SafeView>
-  );
-}
-
-function Chip({
-  disabled,
-  icon,
-  label,
-  selected,
-  onPress,
-}: {
-  disabled?: boolean;
-  icon: React.ReactNode;
-  label: string;
-  onPress: () => void;
-  selected: boolean;
-}) {
-  return (
-    <XStack
-      gap="$s2"
-      alignItems="center"
-      paddingHorizontal="$s3"
-      paddingVertical="$s2_5"
-      borderWidth={1}
-      borderColor={selected ? "$borderBrandStrong" : "$borderNeutralSoft"}
-      borderRadius="$r_0"
-      opacity={disabled ? 0.5 : 1}
-      cursor={disabled ? "default" : "pointer"}
-      role="button"
-      aria-label={label}
-      aria-disabled={disabled}
-      pressStyle={disabled ? undefined : { opacity: 0.7 }}
-      onPress={disabled ? undefined : onPress}
-    >
-      {icon}
-      <Text caption primary numberOfLines={1}>
-        {label}
-      </Text>
-    </XStack>
   );
 }
 

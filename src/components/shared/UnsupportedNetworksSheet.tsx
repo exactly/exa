@@ -6,11 +6,11 @@ import { YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
+import ModalSheet from "./ModalSheet";
+import Button from "./StyledButton";
+import Text from "./Text";
 import { newMessage, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import ModalSheet from "../shared/ModalSheet";
-import Button from "../shared/StyledButton";
-import Text from "../shared/Text";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
 

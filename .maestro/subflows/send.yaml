@@ -11,6 +11,18 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - tapOn: Not now
       - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
+- runFlow:
+    when: { true: "${!!pay}", notVisible: Advanced mode on. }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Send settings } }
+      - tapOn: Advanced mode
+      - tapOn: Close
+      - assertVisible: Advanced mode on.
+- runFlow:
+    when: { true: "${!pay}", visible: Advanced mode on. }
+    commands:
+      - tapOn: Turn off
+      - assertNotVisible: Advanced mode on.
 - tapOn: Enter ENS or wallet address
 - inputText: not-a-real-name.eth
 - extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
@@ -18,16 +30,19 @@ appId: ${APP_ID ?? "app.exactly"}
 - inputText: "0xdead"
 - eraseText: 6
 - inputText: ${to}
-- runFlow: { file: tapAria.yaml, env: { aria: Save contact } }
-- assertNotVisible: Save contact
-- runFlow: { file: tapAria.yaml, env: { aria: Clear } }
-- assertVisible: Contacts
-- runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
-- assertVisible: Delete contact
-- runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
-- assertNotVisible: Contacts
-- tapOn: Enter ENS or wallet address
-- inputText: ${to}
+- runFlow:
+    when: { true: "${!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Save contact } }
+      - assertNotVisible: Save contact
+      - runFlow: { file: tapAria.yaml, env: { aria: Clear } }
+      - assertVisible: Contacts
+      - runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+      - assertVisible: Delete contact
+      - runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+      - assertNotVisible: Contacts
+      - tapOn: Enter ENS or wallet address
+      - inputText: ${to}
 - hideKeyboard
 - tapOn: Continue
 - assertVisible: Select asset to send
@@ -36,11 +51,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Search assets
 - inputText: ${asset}
 - runFlow:
-<<<<<<< HEAD
-    file: tapAria.yaml
-    env: { aria: "^${asset}, [\s\d,.\xa0]+ available$" }
-- tapOn: ${asset}
-=======
     when: { true: "${!pay}" }
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: "^${asset}, [\\s\\d,.\\xa0]+ available$" } }
@@ -52,13 +62,31 @@ appId: ${APP_ID ?? "app.exactly"}
 - inputText: "9999"
 - assertNotVisible: Review
 - eraseText: 4
->>>>>>> ec8ffa521 (fixup! ✨ app: redesign send asset selector)
 - inputText: ${amount}
-- runFlow: # HACK
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: "To:" }]
+- tapOn: "^Send .+ on .+$"
+- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow:
+    when: { true: "${!!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Select an asset } }
+      - assertVisible: Search assets
+      - runFlow: { file: tapAria.yaml, env: { aria: "^${pay}, [\\s\\d,.\\xa0]+ available$" } }
+      - assertNotVisible: Search assets
 - tapOn: Review
-- tapOn: Send
+- runFlow:
+    when: { true: "${!!pay && pay !== asset}" }
+    commands:
+      - assertVisible: Swap assets
+      - tapOn: Continue
+      - assertNotVisible: Swap assets
+- assertVisible: Review and send
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ longPressOn: "Hold to send ${asset}" }]
+- runFlow:
+    when: { platform: web }
+    commands: [{ tapOn: "Send ${asset}" }]
 - assertVisible: Transaction details
 - runFlow: getAccount.yaml
 - runScript:
@@ -70,4 +98,4 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount)}
+- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}
