@@ -26,7 +26,7 @@ export default function ChainLogo({
     select: (chains) => chains.find((c) => c.id === targetChainId),
   });
   if (!data?.logoURI) {
-    const name = data?.name ?? chain.name;
+    const name = data?.name ?? (targetChainId === chain.id ? chain.name : undefined);
     return (
       <YStack
         width={size}
@@ -37,7 +37,7 @@ export default function ChainLogo({
         justifyContent="center"
       >
         <Text fontSize={size * 0.4} fontWeight="bold" color="$uiNeutralSecondary">
-          {name.slice(0, 2).toUpperCase()}
+          {name ? name.slice(0, 2).toUpperCase() : "—"}
         </Text>
       </YStack>
     );
