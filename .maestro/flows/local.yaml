@@ -46,6 +46,9 @@ tags: [critical]
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runFlow:
+    file: ../subflows/send.yaml
+    env: { asset: ETH, to: "${output.owner}", amount: "25", pay: ETH }
 - runFlow: ../subflows/assertOnboarding.yaml
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/assertBenefits.yaml

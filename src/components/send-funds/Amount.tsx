@@ -10,11 +10,11 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
-import { parseUnits, zeroAddress } from "viem";
+import { formatUnits, parseUnits, zeroAddress } from "viem";
 
 import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { withdrawLimit } from "@exactly/lib";
+import { WAD, withdrawLimit } from "@exactly/lib";
 
 import PaySheet from "./PaySheet";
 import SwapSheet from "./SwapSheet";
@@ -48,7 +48,7 @@ export default function Amount() {
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
 
   const inputRef = useRef<null | TextInput>(null);
-  const [input, setInput] = useState("");
+  const [entry, setEntry] = useState<{ mode: "token" | "usd"; text: string }>({ mode: "usd", text: "" });
   const [mode, setMode] = useState<"token" | "usd">("usd");
   const [room, setRoom] = useState(0);
   const [digits, setDigits] = useState(0);
@@ -130,7 +130,7 @@ export default function Amount() {
   const payChain = pay?.type === "external" ? pay.chainId : chain.id;
   const paySymbol = pay?.symbol;
   const payDecimals = pay?.decimals ?? 18;
-  const payPrice = pay ? (pay.type === "external" ? Number(pay.priceUSD) : Number(pay.usdPrice) / 1e18) : 0;
+  const payPrice = pay ? (pay.type === "external" ? parseAmount(pay.priceUSD, 18) : pay.usdPrice) : 0n;
   const payUnderlying = pay && (pay.type === "external" ? pay.address : pay.asset);
   const payDelivered = pay?.type === "protocol" && pay.market === marketWETHAddress ? zeroAddress : payUnderlying;
   const payLogoURI = pay?.type === "external" ? pay.logoURI : undefined;
@@ -147,7 +147,7 @@ export default function Amount() {
         address: destinationToken.address,
         decimals: destinationToken.decimals,
         logoURI: destinationToken.logoURI,
-        price: Number(destinationToken.priceUSD),
+        price: parseAmount(destinationToken.priceUSD, 18),
         symbol: destinationToken.symbol,
       }
     : payDelivered &&
@@ -168,17 +168,33 @@ export default function Amount() {
     !!payDelivered &&
     (destinationChain !== payChain || destination.address.toLowerCase() !== payDelivered.toLowerCase());
 
-  const value = Number(input || "0");
-  const usdValue = mode === "usd" ? value : value * (destination?.price ?? 0);
-  const tokenValue = mode === "usd" ? (destination?.price ? value / destination.price : 0) : value;
-  const fromTokens = routed ? (payPrice ? usdValue / payPrice : 0) : tokenValue;
-  const fromAmount = parseUnits(fromTokens.toFixed(payDecimals), payDecimals);
+  const destinationDecimals = destination?.decimals ?? 18;
+  const destinationUnit = 10n ** BigInt(destinationDecimals);
+  const amount = parseUnits(entry.text || "0", entry.mode === "usd" ? 18 : destinationDecimals);
+  const usdAmount = entry.mode === "usd" ? amount : (amount * (destination?.price ?? 0n)) / destinationUnit;
+  const destinationAmount =
+    !destination || (entry.mode === "usd" && destination.price <= 0n)
+      ? 0n
+      : entry.mode === "token"
+        ? amount
+        : (amount * destinationUnit) / destination.price;
+  const [whole = "0", part = ""] = formatUnits(
+    mode === "usd" ? usdAmount : destinationAmount,
+    mode === "usd" ? 18 : destinationDecimals,
+  ).split(".");
+  let converted = `${whole}.${part.slice(0, mode === "usd" ? 2 : Math.min(8, destinationDecimals))}`;
+  while (converted.includes(".") && (converted.endsWith("0") || converted.endsWith("."))) {
+    converted = converted.slice(0, -1);
+  }
+  const value = mode === entry.mode || entry.text === "" ? entry.text : converted;
+  const fromAmount = routed
+    ? payPrice > 0n
+      ? (usdAmount * 10n ** BigInt(payDecimals)) / payPrice
+      : 0n
+    : destinationAmount;
   const exceeds = fromAmount > available;
-  const destinationAmount = destination
-    ? mode === "token"
-      ? parseUnits(input || "0", destination.decimals)
-      : parseUnits(tokenValue.toFixed(destination.decimals), destination.decimals)
-    : 0n;
+  const unpriced = !!destination && destination.price <= 0n && (mode === "usd" || entry.mode === "usd" || routed);
+  const unpricedPay = !unpriced && routed && !!paySymbol && payPrice <= 0n;
   const unavailable = typeof toToken === "string" && !isTokensPending && !destination;
 
   if (!payOverride && typeof toToken !== "string") return <Redirect href="/send-funds/asset" />;
@@ -187,7 +203,7 @@ export default function Amount() {
     chains?.find((item) => item.id === destinationChain)?.name ??
     alchemyChainById.get(destinationChain)?.name ??
     chain.name;
-  const color = exceeds ? "$uiErrorSecondary" : value > 0 ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
+  const color = exceeds ? "$uiErrorSecondary" : amount > 0n ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
   const size = room && digits ? Math.min(56, Math.max(20, Math.floor((probe * room * 0.9) / (digits + unit)))) : 56;
 
   function change(text: string) {
@@ -196,7 +212,7 @@ export default function Amount() {
     const fraction = next.split(".")[1];
     if (fraction && fraction.length > (mode === "usd" ? 2 : (destination?.decimals ?? 18))) return;
     if (next.replace(".", "").length > 30) return;
-    setInput(next === "." ? "0." : next);
+    setEntry({ mode, text: next === "." ? "0." : next });
   }
 
   function proceed() {
@@ -272,7 +288,7 @@ export default function Amount() {
                 setDigits(nativeEvent.layout.width);
               }}
             >
-              {input || "0"}
+              {value || "0"}
             </Text>
             <Text
               aria-hidden
@@ -304,7 +320,7 @@ export default function Amount() {
               <Input
                 ref={inputRef}
                 aria-label={t("Amount")}
-                value={input}
+                value={value}
                 onChangeText={change}
                 keyboardType="decimal-pad"
                 placeholder="0"
@@ -336,21 +352,13 @@ export default function Amount() {
               onPress={() => {
                 selectionAsync().catch(reportError);
                 setMode(mode === "usd" ? "token" : "usd");
-                setInput(
-                  input === ""
-                    ? ""
-                    : trim(
-                        mode === "usd" ? tokenValue : usdValue,
-                        mode === "usd" ? Math.min(8, destination?.decimals ?? 8) : 2,
-                      ),
-                );
               }}
             >
               <ArrowDownUp size={20} color="$interactiveBaseBrandDefault" />
               <Text title3 color="$uiNeutralPlaceholder">
                 {mode === "usd"
-                  ? `${tokenValue.toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
-                  : `$${usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  ? `${Number(formatUnits(destinationAmount, destinationDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
+                  : `$${Number(formatUnits(usdAmount, 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
             </XStack>
           </YStack>
@@ -381,9 +389,9 @@ export default function Amount() {
                       {paySymbol}
                     </Text>
                     <Text footnote secondary>
-                      {`$${((Number(available) / 10 ** payDecimals) * payPrice).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
+                      {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
                       <Text footnote color="$uiNeutralPlaceholder">
-                        {`(${(Number(available) / 10 ** payDecimals).toLocaleString(language, { maximumFractionDigits: 8 })})`}
+                        {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
                       </Text>
                     </Text>
                   </YStack>
@@ -405,6 +413,38 @@ export default function Amount() {
                 <CircleX size={16} color="$uiErrorSecondary" />
                 <Text caption2 color="$uiErrorSecondary" flex={1}>
                   {t("Insufficient balance. Try a different amount or another asset to pay with.")}
+                </Text>
+              </XStack>
+            )}
+            {unpriced && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {t("Price unavailable for {{symbol}}. Choose another asset to send.", {
+                    symbol: destination.symbol,
+                  })}
+                </Text>
+              </XStack>
+            )}
+            {unpricedPay && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {t("Price unavailable for {{symbol}}. Choose another asset to pay with.", { symbol: paySymbol })}
                 </Text>
               </XStack>
             )}
@@ -444,7 +484,7 @@ export default function Amount() {
             </Button.Icon>
           </Button>
         )}
-        {!exceeds && !unavailable && (
+        {!exceeds && !unpriced && !unpricedPay && !unavailable && (
           <Button
             primary
             loading={typeof toToken === "string" && isTokensPending}
@@ -508,9 +548,3 @@ function correlate(symbol: string) {
 }
 
 const probe = 12;
-
-function trim(value: number, decimals: number) {
-  let text = value.toFixed(decimals);
-  while (text.includes(".") && (text.endsWith("0") || text.endsWith("."))) text = text.slice(0, -1);
-  return text;
-}
