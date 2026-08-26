@@ -48,22 +48,24 @@ export const lifiChainsOptions = queryOptions({
   },
 });
 
-export const destinationsOptions = queryOptions({
-  queryKey: ["lifi", "destinations"],
+export const reachOptions = queryOptions({
+  queryKey: ["lifi", "reach"],
   staleTime: Infinity,
   gcTime: Infinity,
   enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) return [];
+    if (chain.testnet || chain.id === anvil.id) return { origins: [chain.id], destinations: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
-    const reachable = new Set<number>([chain.id]);
+    const origins = new Set<number>([chain.id]);
+    const destinations = new Set<number>([chain.id]);
     for (const { supportedChains } of bridges) {
       for (const { fromChainId, toChainId } of supportedChains) {
-        if (fromChainId === (chain.id as ChainId)) reachable.add(toChainId);
+        origins.add(fromChainId);
+        if (fromChainId === (chain.id as ChainId)) destinations.add(toChainId);
       }
     }
-    return [...reachable];
+    return { origins: [...origins], destinations: [...destinations] };
   },
 });
 
