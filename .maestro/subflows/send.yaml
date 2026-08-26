@@ -5,11 +5,27 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Send
 - tapOn: Digital assets
-- tapOn: On chain
-- tapOn: Enter Anvil address
+- assertVisible: Send to
+- tapOn: Enter ENS or wallet address
+- inputText: not-a-real-name.eth
+- extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
+- eraseText
+- inputText: "0xdead"
+- eraseText: 6
+- inputText: ${to}
+- runFlow: { file: tapAria.yaml, env: { aria: Save contact } }
+- assertNotVisible: Save contact
+- runFlow: { file: tapAria.yaml, env: { aria: Clear } }
+- assertVisible: Contacts
+- runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+- assertVisible: Delete contact
+- runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+- assertNotVisible: Contacts
+- tapOn: Enter ENS or wallet address
 - inputText: ${to}
 - hideKeyboard
-- tapOn: { text: Next, waitToSettleTimeoutMs: 0 }
+- tapOn: Continue
+- assertVisible: Choose asset
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands:
