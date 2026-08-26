@@ -133,8 +133,8 @@ export default function SendFunds() {
               <>
                 <AddFundsOption
                   icon={<Blocks size={24} color="$iconBrandDefault" />}
-                  title={t("Cryptocurrencies")}
-                  subtitle={t("Multiple networks and wallets")}
+                  title={t("Digital assets")}
+                  subtitle={t("USDC, ETH, BTC and more")}
                   onPress={() => {
                     router.push("/send-funds/asset");
                   }}
@@ -143,7 +143,7 @@ export default function SendFunds() {
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
-                    subtitle={t("To a bank account")}
+                    subtitle={t("Pesos, dollars, or euros")}
                     disabled={(isKYCApproved && !hasFiat) || beginKYC.isPending}
                     loading={beginKYC.isPending}
                     onPress={() => {

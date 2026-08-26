@@ -4,31 +4,26 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Send
-- tapOn: Cryptocurrencies
-- tapOn: On chain
-- tapOn: Enter Anvil address
+- tapOn: Digital assets
+- assertVisible: Select asset to send
+- runFlow:
+    file: tapAria.yaml
+    env: { aria: "^${asset}, [\\s\\d,.\\xa0]+ available$" }
+- runFlow: { file: tapAria.yaml, env: { aria: Amount } }
+- inputText: ${amount}
+- hideKeyboard
+- tapOn: Continue
+- tapOn: Enter ENS or wallet address
 - inputText: ${to}
 - hideKeyboard
-- tapOn: { text: Next, waitToSettleTimeoutMs: 0 }
+- tapOn: Continue
+- assertVisible: Review and send
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - tapOn:
-          text: ^${asset}, [\s\d,.\xa0]+ available$
-          waitToSettleTimeoutMs: 0
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    commands: [{ longPressOn: "Hold to send ${asset}" }]
+- runFlow:
     when: { platform: web }
-    commands:
-      - tapOn:
-          id: ^${asset}, [\s\d,.\xa0]+ available$
-          waitToSettleTimeoutMs: 0
-- tapOn: ${asset}
-- inputText: ${amount}
-- runFlow: # HACK
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: "To:" }]
-- tapOn: Review
-- tapOn: Send
+    commands: [{ tapOn: "Send ${asset}" }]
 - assertVisible: Transaction details
 - runFlow: getAccount.yaml
 - runScript:
