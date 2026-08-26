@@ -159,6 +159,7 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
     known,
     knownInfo,
     knownWarning,
+    network,
     passkeyCancelled,
     passkeyKnown,
     passkeyNotAllowed,

@@ -20,6 +20,7 @@ export default function SendFundsLayout() {
       <Stack.Screen name="qr" />
       <Stack.Screen name="asset" />
       <Stack.Screen name="amount" />
+      <Stack.Screen name="confirm" />
     </Stack>
   );
 }
