@@ -4,7 +4,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Send
-- tapOn: Cryptocurrencies
+- tapOn: Digital assets
 - tapOn: On chain
 - tapOn: Enter Anvil address
 - inputText: ${to}
