@@ -44,8 +44,11 @@ import { callsStatus } from "../../utils/accountClient";
 import alchemyChainById from "../../utils/alchemyChains";
 import {
   balancesOptions,
+  bridgePolicyId,
+  bridgePolicySymbols,
   bridgeSlippage,
   bridgeSourcesOptions,
+  gasReserveBuffer,
   getRouteFrom,
   lifiTokensOptions,
   tokenAmountsToBalances,
@@ -1323,7 +1326,3 @@ function ProcessingScreen({
     </GradientScrollView>
   );
 }
-
-const gasReserveBuffer = 300n;
-const bridgePolicyId = "97633483-b01d-4a91-bac5-11011a06b15d";
-const bridgePolicySymbols = new Set(["USDC", "USDT", "USD₮0", "DAI", "USDe", "WETH", "WBTC", "WLD"]);
