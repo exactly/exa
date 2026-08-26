@@ -78,18 +78,16 @@ export const reachOptions = queryOptions({
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) return { origins: [chain.id], destinations: [chain.id] };
+    if (chain.testnet || chain.id === anvil.id) return { [chain.id]: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
-    const origins = new Set<number>([chain.id]);
-    const destinations = new Set<number>([chain.id]);
+    const reach = new Map<number, Set<number>>([[chain.id, new Set([chain.id])]]);
     for (const { supportedChains } of bridges) {
       for (const { fromChainId, toChainId } of supportedChains) {
-        origins.add(fromChainId);
-        if (fromChainId === (chain.id as ChainId)) destinations.add(toChainId);
+        reach.set(fromChainId, (reach.get(fromChainId) ?? new Set([fromChainId])).add(toChainId));
       }
     }
-    return { origins: [...origins], destinations: [...destinations] };
+    return Object.fromEntries([...reach].map(([id, ids]) => [id, [...ids]]));
   },
 });
 

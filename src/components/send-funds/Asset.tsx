@@ -4,17 +4,20 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 
 import { ArrowLeft, CircleHelp, Search } from "@tamagui/lucide-icons";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, type QueryObserverResult } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
+import alchemyChainById from "../../utils/alchemyChains";
+import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
-import usePortfolio from "../../utils/usePortfolio";
+import useAccount from "../../utils/useAccount";
+import usePortfolio, { type ExternalAsset, type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
@@ -22,6 +25,7 @@ import NetworkFilter from "../shared/NetworkFilter";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
+import UnsupportedNetworksSheet from "../shared/UnsupportedNetworksSheet";
 import View from "../shared/View";
 
 export default function AssetSelection() {
@@ -32,6 +36,8 @@ export default function AssetSelection() {
   } = useTranslation();
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState<number>();
+  const [unsupported, setUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(null);
+  const { address } = useAccount();
   const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: reach, isError: reachFailed, refetch: refetchReach } = useQuery(reachOptions);
@@ -41,20 +47,6 @@ export default function AssetSelection() {
     isError: isTokensError,
     refetch: refetchTokens,
   } = useQuery(lifiTokensOptions);
-
-  const reachable = useMemo(() => {
-    const held = new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : [])));
-    return (chains ?? [])
-      .filter(
-        (item) =>
-          held.has(item.id) || (!!reach && (reach.origins.includes(item.id) || reach.destinations.includes(item.id))),
-      )
-      .sort((a, b) => {
-        if (a.id === chain.id) return -1;
-        if (b.id === chain.id) return 1;
-        return a.name.localeCompare(b.name);
-      });
-  }, [allAssets, chains, reach]);
 
   const search = query.trim().toLowerCase();
 
@@ -70,10 +62,60 @@ export default function AssetSelection() {
     [allAssets, network, search],
   );
 
+  const crossChainIds = useMemo(
+    () => [
+      ...new Set(
+        allAssets.flatMap((asset) =>
+          asset.type === "external" && asset.chainId !== chain.id && alchemyChainById.has(asset.chainId)
+            ? [asset.chainId]
+            : [],
+        ),
+      ),
+    ],
+    [allAssets],
+  );
+  const { deployedChains, pendingChains, failedChains } = useQueries({
+    queries: crossChainIds.map((chainId) => deployedOptions(address, chainId)),
+    combine(results) {
+      const pending = new Set<number>();
+      const deployed = new Map<number, boolean>();
+      const failed = new Map<number, () => Promise<QueryObserverResult<boolean>>>();
+      for (const [index, chainId] of crossChainIds.entries()) {
+        const result = results[index];
+        if (!result) continue;
+        if (result.isSuccess && typeof result.data === "boolean") deployed.set(chainId, result.data);
+        else if (result.isLoading || result.isFetching) pending.add(chainId);
+        else if (result.isError) failed.set(chainId, result.refetch);
+      }
+      return { deployedChains: deployed, pendingChains: pending, failedChains: failed };
+    },
+  });
+  const held = useMemo(
+    () => new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))),
+    [allAssets],
+  );
+  const targets = useMemo(
+    () =>
+      new Set(
+        [chain.id, ...held].flatMap((id) => (id === chain.id || deployedChains.get(id) ? (reach?.[id] ?? []) : [])),
+      ),
+    [deployedChains, held, reach],
+  );
+  const reachable = useMemo(
+    () =>
+      (chains ?? [])
+        .filter((item) => held.has(item.id) || targets.has(item.id))
+        .sort((a, b) => {
+          if (a.id === chain.id) return -1;
+          if (b.id === chain.id) return 1;
+          return a.name.localeCompare(b.name);
+        }),
+    [chains, held, targets],
+  );
+
   const popular = useMemo(() => {
-    const ids = new Set((reach?.destinations ?? []).filter((id) => (network === undefined ? true : id === network)));
     const native = chains?.find((item) => item.id === chain.id)?.nativeToken;
-    const held = new Set(
+    const keys = new Set(
       owned.flatMap((asset) =>
         asset.type === "external"
           ? [`${asset.chainId}:${asset.address.toLowerCase()}`]
@@ -86,8 +128,9 @@ export default function AssetSelection() {
     return (tokens ?? [])
       .filter(
         (token) =>
-          ids.has(token.chainId) &&
-          !held.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
+          targets.has(token.chainId) &&
+          (network === undefined || token.chainId === (network as typeof token.chainId)) &&
+          !keys.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
           (!search ||
             token.symbol.toLowerCase().includes(search) ||
             token.name.toLowerCase().includes(search) ||
@@ -98,7 +141,26 @@ export default function AssetSelection() {
           Number(b.chainId === (chain.id as typeof b.chainId)) - Number(a.chainId === (chain.id as typeof a.chainId)),
       )
       .slice(0, 20);
-  }, [chains, tokens, reach, network, owned, search]);
+  }, [chains, tokens, targets, network, owned, search]);
+
+  function select(asset: PortfolioAsset, chainName: string, deployed: Map<number, boolean>) {
+    if (asset.type === "external" && isUnsupported(asset.chainId, deployed)) {
+      setUnsupported({ asset, chainName });
+      return;
+    }
+    router.push({
+      pathname: "/send-funds/amount",
+      params:
+        asset.type === "external" && asset.chainId !== chain.id
+          ? {
+              asset: asset.address,
+              fromChain: String(asset.chainId),
+              toChain: String(asset.chainId),
+              toToken: asset.address,
+            }
+          : { asset: asset.type === "external" ? asset.address : asset.market },
+    });
+  }
 
   return (
     <SafeView fullScreen>
@@ -181,6 +243,10 @@ export default function AssetSelection() {
                 </Text>
                 {owned.map((asset) => {
                   const chainId = asset.type === "external" ? asset.chainId : chain.id;
+                  const chainName =
+                    chains?.find((item) => item.id === chainId)?.name ??
+                    alchemyChainById.get(chainId)?.name ??
+                    chain.name;
                   const available =
                     asset.type === "external"
                       ? (asset.amount ?? 0n)
@@ -208,23 +274,22 @@ export default function AssetSelection() {
                         />
                       }
                       title={asset.symbol}
-                      subtitle={chains?.find((item) => item.id === chainId)?.name ?? chain.name}
+                      subtitle={chainName}
                       value={`$${asset.usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       detail={balance}
                       label={t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })}
+                      pending={asset.type === "external" && pendingChains.has(chainId)}
                       onPress={() => {
-                        router.push({
-                          pathname: "/send-funds/amount",
-                          params:
-                            asset.type === "external" && asset.chainId !== chain.id
-                              ? {
-                                  asset: asset.address,
-                                  fromChain: String(asset.chainId),
-                                  toChain: String(asset.chainId),
-                                  toToken: asset.address,
-                                }
-                              : { asset: asset.type === "external" ? asset.address : asset.market },
-                        });
+                        const retry = asset.type === "external" ? failedChains.get(chainId) : undefined;
+                        if (!retry) {
+                          select(asset, chainName, deployedChains);
+                          return;
+                        }
+                        retry()
+                          .then((result) => {
+                            if (result.isSuccess) select(asset, chainName, new Map([[chainId, result.data]]));
+                          })
+                          .catch(reportError);
                       }}
                     />
                   );
@@ -266,7 +331,11 @@ export default function AssetSelection() {
                 </XStack>
               )}
               {popular.map((token) => {
-                const chainName = chains?.find((item) => item.id === (token.chainId as number))?.name ?? token.name;
+                const chainId = token.chainId as number;
+                const chainName =
+                  chains?.find((item) => item.id === chainId)?.name ??
+                  alchemyChainById.get(chainId)?.name ??
+                  chain.name;
                 return (
                   <Row
                     key={`${token.chainId}:${token.address}`}
@@ -296,6 +365,14 @@ export default function AssetSelection() {
           </YStack>
         </ScrollView>
       </View>
+      <UnsupportedNetworksSheet
+        open={unsupported !== null}
+        asset={unsupported?.asset}
+        chainName={unsupported?.chainName}
+        onClose={() => {
+          setUnsupported(null);
+        }}
+      />
     </SafeView>
   );
 }
@@ -307,12 +384,14 @@ function Row({
   value,
   detail,
   label,
+  pending,
   onPress,
 }: {
   detail?: string;
   label: string;
   logo: React.ReactNode;
   onPress: () => void;
+  pending?: boolean;
   subtitle: string;
   title: string;
   value?: string;
@@ -321,11 +400,13 @@ function Row({
     <XStack
       gap="$s3"
       alignItems="center"
-      cursor="pointer"
+      cursor={pending ? "default" : "pointer"}
       role="button"
       aria-label={label}
-      pressStyle={{ opacity: 0.7 }}
-      onPress={onPress}
+      aria-busy={pending}
+      opacity={pending ? 0.7 : 1}
+      pressStyle={pending ? undefined : { opacity: 0.7 }}
+      onPress={pending ? undefined : onPress}
     >
       {logo}
       <YStack gap="$s2" flex={1}>
@@ -346,6 +427,7 @@ function Row({
           </Text>
         </YStack>
       )}
+      {pending && <Spinner size="small" color="$interactiveOnBaseBrandSoft" />}
     </XStack>
   );
 }

@@ -14,11 +14,25 @@ appId: ${APP_ID ?? "app.exactly"}
     file: tapAria.yaml
     env: { aria: "^${asset}, [\\s\\d,.\\xa0]+ available$" }
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }
+- inputText: "9999"
+- assertNotVisible: Continue
+- eraseText: 4
 - inputText: ${amount}
-- runFlow: # HACK
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: { point: "50%,25%" } }]
+- tapOn: "^Send .+ on .+$"
+- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow: { file: tapAria.yaml, env: { aria: Select asset to pay with } }
+- assertVisible: Search assets
+- runFlow: { file: tapAria.yaml, env: { aria: "^${pay ?? asset}, [\\s\\d,.\\xa0]+ available$" } }
+- assertNotVisible: Search assets
 - tapOn: Continue
+- runFlow:
+    when: { true: "${!!pay && pay !== asset}" }
+    commands:
+      - assertVisible: Swap assets
+      - runFlow: { file: tapAria.yaml, env: { aria: Don't show again } }
+      - tapOn: { text: Continue, above: { text: Continue } }
+      - assertNotVisible: Swap assets
 - tapOn: Enter ENS or wallet address
 - inputText: ${to}
 - hideKeyboard
@@ -41,4 +55,4 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount)}
+- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}

@@ -13,9 +13,8 @@ import { formatUnits } from "viem";
 import chain from "@exactly/common/generated/chain";
 
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
-import UnsupportedNetworksSheet from "./UnsupportedNetworksSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import deployedOptions from "../../utils/deployedOptions";
+import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
 import { lifiChainsOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -24,6 +23,7 @@ import exaConfig from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Text from "../shared/Text";
+import UnsupportedNetworksSheet from "../shared/UnsupportedNetworksSheet";
 import View from "../shared/View";
 
 export default function ExternalAssets() {
@@ -257,10 +257,6 @@ function NetworkSection({
       ))}
     </YStack>
   );
-}
-
-function isUnsupported(chainId: number, deployedChains: Map<number, boolean>) {
-  return chainId !== chain.id && (!alchemyChainById.has(chainId) || deployedChains.get(chainId) === false);
 }
 
 const pressStyle = { opacity: 0.7 };

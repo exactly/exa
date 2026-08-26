@@ -14,6 +14,14 @@ tags: [critical]
 - runFlow:
     file: ../subflows/send.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
+- tapOn: Manage portfolio
+- assertVisible: Assets backing your credit
+- tapOn: USDC
+- assertVisible: "^Send USDC on .+$"
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- assertVisible: Assets backing your credit
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Select asset to send
@@ -23,6 +31,12 @@ tags: [critical]
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: EXA, to: "${output.account}", amount: "1000" }
+- runFlow:
+    file: ../subflows/send.yaml
+    env: { asset: USDC, to: "${output.owner}", amount: "5", pay: EXA }
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "69", installments: "4" }

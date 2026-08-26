@@ -153,6 +153,13 @@ queryClient.setQueryDefaults<boolean>(["settings", "promo-seen"], {
   gcTime: Infinity,
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
+queryClient.setQueryDefaults<boolean>(["settings", "swap-sheet"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
 queryClient.setQueryDefaults(["simulate-purchase", "installments"], {
   initialData: 1,
   retry: false,
