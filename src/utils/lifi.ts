@@ -38,13 +38,8 @@ export const lifiChainsOptions = queryOptions({
   enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
-    try {
-      ensureConfig();
-      return await getChains({ chainTypes });
-    } catch (error) {
-      reportError(error);
-      return [];
-    }
+    ensureConfig();
+    return getChains({ chainTypes });
   },
 });
 
