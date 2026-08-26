@@ -588,6 +588,7 @@
   "Postal code is required for this country": "El código postal es obligatorio para este país",
   "Pounds": "Libras",
   "Press “Continue” to proceed or “Back” to cancel.": "Presiona “Continuar” para continuar o “Atrás” para cancelar.",
+  "Price unavailable for {{symbol}}. Choose another asset to send.": "Precio no disponible para {{symbol}}. Elige otro activo para enviar.",
   "Processing <em>swap request</em>": "Procesando <em>solicitud de intercambio</em>",
   "Processing add funds request": "Procesando solicitud para agregar fondos",
   "Processing balance {{amount}}": "Saldo en procesamiento {{amount}}",

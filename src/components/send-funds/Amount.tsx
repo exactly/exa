@@ -9,17 +9,18 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
-import { parseUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { withdrawLimit } from "@exactly/lib";
+import { WAD, withdrawLimit } from "@exactly/lib";
 
 import PaySheet from "./PaySheet";
 import SwapSheet from "./SwapSheet";
 import deployedOptions from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
+import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
@@ -105,7 +106,7 @@ export default function Amount() {
   const payChain = pay?.type === "external" ? pay.chainId : chain.id;
   const paySymbol = pay?.symbol;
   const payDecimals = pay?.decimals ?? 18;
-  const payPrice = pay ? (pay.type === "external" ? Number(pay.priceUSD) : Number(pay.usdPrice) / 1e18) : 0;
+  const payPrice = pay ? (pay.type === "external" ? parseAmount(pay.priceUSD, 18) : pay.usdPrice) : 0n;
   const payUnderlying = pay && (pay.type === "external" ? pay.address : pay.asset);
   const payLogoURI = pay?.type === "external" ? pay.logoURI : undefined;
   const available = pay
@@ -121,7 +122,7 @@ export default function Amount() {
         address: destinationToken.address,
         decimals: destinationToken.decimals,
         logoURI: destinationToken.logoURI,
-        price: Number(destinationToken.priceUSD),
+        price: parseAmount(destinationToken.priceUSD, 18),
         symbol: destinationToken.symbol,
       }
     : payUnderlying && paySymbol
@@ -139,22 +140,28 @@ export default function Amount() {
     !!payUnderlying &&
     (destinationChain !== payChain || destination.address.toLowerCase() !== payUnderlying.toLowerCase());
 
-  const value = Number(input || "0");
-  const usdValue = mode === "usd" ? value : value * (destination?.price ?? 0);
-  const tokenValue = mode === "usd" ? (destination?.price ? value / destination.price : 0) : value;
-  const fromTokens = routed ? (payPrice ? usdValue / payPrice : 0) : tokenValue;
-  const fromAmount = parseUnits(fromTokens.toFixed(payDecimals), payDecimals);
+  const destinationDecimals = destination?.decimals ?? 18;
+  const destinationUnit = 10n ** BigInt(destinationDecimals);
+  const amount = parseUnits(input || "0", mode === "usd" ? 18 : destinationDecimals);
+  const usdAmount = mode === "usd" ? amount : (amount * (destination?.price ?? 0n)) / destinationUnit;
+  const destinationAmount =
+    !destination || (mode === "usd" && destination.price <= 0n)
+      ? 0n
+      : mode === "token"
+        ? amount
+        : (amount * destinationUnit) / destination.price;
+  const fromAmount = routed
+    ? payPrice > 0n
+      ? (usdAmount * 10n ** BigInt(payDecimals)) / payPrice
+      : 0n
+    : destinationAmount;
   const exceeds = fromAmount > available;
-  const destinationAmount = destination
-    ? mode === "token"
-      ? parseUnits(input || "0", destination.decimals)
-      : parseUnits(tokenValue.toFixed(destination.decimals), destination.decimals)
-    : 0n;
+  const unpriced = !!destination && destination.price <= 0n && (mode === "usd" || routed);
 
   if (!payOverride && typeof toToken !== "string") return <Redirect href="/send-funds/asset" />;
 
   const networkName = chains?.find((item) => item.id === destinationChain)?.name ?? chain.name;
-  const color = exceeds ? "$uiErrorSecondary" : value > 0 ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
+  const color = exceeds ? "$uiErrorSecondary" : amount > 0n ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
 
   function change(text: string) {
     const next = text.replaceAll(",", ".");
@@ -263,8 +270,9 @@ export default function Amount() {
                   input === ""
                     ? ""
                     : trim(
-                        mode === "usd" ? tokenValue : usdValue,
-                        mode === "usd" ? Math.min(8, destination?.decimals ?? 8) : 2,
+                        mode === "usd" ? destinationAmount : usdAmount,
+                        mode === "usd" ? destinationDecimals : 18,
+                        mode === "usd" ? Math.min(8, destinationDecimals) : 2,
                       ),
                 );
               }}
@@ -272,8 +280,8 @@ export default function Amount() {
               <ArrowDownUp size={20} color="$uiNeutralPlaceholder" />
               <Text title3 color="$uiNeutralPlaceholder">
                 {mode === "usd"
-                  ? `${tokenValue.toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
-                  : `$${usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  ? `${Number(formatUnits(destinationAmount, destinationDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
+                  : `$${Number(formatUnits(usdAmount, 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
             </XStack>
           </YStack>
@@ -302,9 +310,9 @@ export default function Amount() {
                       {paySymbol}
                     </Text>
                     <Text footnote secondary>
-                      {`$${((Number(available) / 10 ** payDecimals) * payPrice).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
+                      {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
                       <Text footnote color="$uiNeutralPlaceholder">
-                        {`(${(Number(available) / 10 ** payDecimals).toLocaleString(language, { maximumFractionDigits: 8 })})`}
+                        {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
                       </Text>
                     </Text>
                   </YStack>
@@ -329,9 +337,26 @@ export default function Amount() {
                 </Text>
               </XStack>
             )}
+            {unpriced && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {t("Price unavailable for {{symbol}}. Choose another asset to send.", {
+                    symbol: destination.symbol,
+                  })}
+                </Text>
+              </XStack>
+            )}
           </YStack>
         </ScrollView>
-        {!exceeds && (
+        {!exceeds && !unpriced && (
           <Button
             primary
             disabled={
@@ -393,8 +418,9 @@ function correlate(symbol: string) {
   return (tokenCorrelation as Record<string, string>)[symbol] ?? symbol;
 }
 
-function trim(value: number, decimals: number) {
-  let text = value.toFixed(decimals);
+function trim(value: bigint, scale: number, decimals: number) {
+  const [integer = "0", fraction = ""] = formatUnits(value, scale).split(".");
+  let text = `${integer}.${fraction.slice(0, decimals)}`;
   while (text.includes(".") && (text.endsWith("0") || text.endsWith("."))) text = text.slice(0, -1);
   return text;
 }
