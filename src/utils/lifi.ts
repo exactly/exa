@@ -295,7 +295,10 @@ export type RouteFrom = {
   value: bigint;
 };
 
+export const bridgePolicyId = "97633483-b01d-4a91-bac5-11011a06b15d";
+export const bridgePolicySymbols = new Set(["USDC", "USDT", "USD₮0", "DAI", "USDe", "WETH", "WBTC", "WLD"]);
 export const bridgeSlippage = 0.02;
+export const gasReserveBuffer = 300n;
 
 export async function getRouteFrom({
   fromChainId,
