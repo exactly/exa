@@ -170,6 +170,7 @@
     "scard",
     "scure",
     "secretmanager",
+    "segwit",
     "serde",
     "serviceaccount",
     "serviceusage",
