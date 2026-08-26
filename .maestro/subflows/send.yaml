@@ -30,20 +30,29 @@ appId: ${APP_ID ?? "app.exactly"}
 - inputText: ${to}
 - hideKeyboard
 - tapOn: Continue
-- assertVisible: Choose asset
+- assertVisible: Select asset to send
+- runFlow: { file: tapAria.yaml, env: { aria: Select network } }
+- tapOn: All networks
+- tapOn: Search assets
+- inputText: ${asset}
 - runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - tapOn:
-          text: ^${asset}, [\s\d,.\xa0]+ available$
-          waitToSettleTimeoutMs: 0
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
-    when: { platform: web }
-    commands:
-      - tapOn:
-          id: ^${asset}, [\s\d,.\xa0]+ available$
-          waitToSettleTimeoutMs: 0
+<<<<<<< HEAD
+    file: tapAria.yaml
+    env: { aria: "^${asset}, [\s\d,.\xa0]+ available$" }
 - tapOn: ${asset}
+=======
+    when: { true: "${!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: "^${asset}, [\\s\\d,.\\xa0]+ available$" } }
+- runFlow:
+    when: { true: "${!!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: "^${asset} on .+$" } }
+- runFlow: { file: tapAria.yaml, env: { aria: Amount } }
+- inputText: "9999"
+- assertNotVisible: Review
+- eraseText: 4
+>>>>>>> ec8ffa521 (fixup! ✨ app: redesign send asset selector)
 - inputText: ${amount}
 - runFlow: # HACK
     when: { true: "${maestro.platform != 'web'}" }

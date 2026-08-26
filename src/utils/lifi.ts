@@ -40,7 +40,16 @@ import { encodeFunctionData, formatUnits, getAddress, isAddressEqual, sha256, ze
 import { anvil, base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, { allowlists, exaAddress, mockSwapperAbi, stocks, swapperAddress } from "@exactly/common/generated/chain";
+import chain, {
+  allowlists,
+  exaAddress,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  marketWETHAddress,
+  mockSwapperAbi,
+  stocks,
+  swapperAddress,
+} from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 
 import alchemyChains from "./alchemyChains";
@@ -62,22 +71,23 @@ export const lifiChainsOptions = queryOptions({
   },
 });
 
-export const destinationsOptions = queryOptions({
-  queryKey: ["lifi", "destinations"],
+export const reachOptions = queryOptions({
+  queryKey: ["lifi", "reach"],
   staleTime: Infinity,
   gcTime: Infinity,
-  enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) return [];
+    if (chain.testnet || chain.id === anvil.id) return { origins: [chain.id], destinations: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
-    const reachable = new Set<number>([chain.id]);
+    const origins = new Set<number>([chain.id]);
+    const destinations = new Set<number>([chain.id]);
     for (const { supportedChains } of bridges) {
       for (const { fromChainId, toChainId } of supportedChains) {
-        if (fromChainId === (chain.id as ChainId)) reachable.add(toChainId);
+        origins.add(fromChainId);
+        if (fromChainId === (chain.id as ChainId)) destinations.add(toChainId);
       }
     }
-    return [...reachable];
+    return { origins: [...origins], destinations: [...destinations] };
   },
 });
 
@@ -86,9 +96,27 @@ export const lifiTokensOptions = queryOptions({
   staleTime: Infinity,
   gcTime: Infinity,
   retry: 3,
-  enabled: !chain.testnet && chain.id !== anvil.id,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) return [];
+    if (chain.testnet || chain.id === anvil.id) {
+      const markets = await publicClient.readContract({
+        abi: exaPreviewerAbi,
+        functionName: "markets",
+        address: exaPreviewerAddress,
+      });
+      return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
+        const token = {
+          address: asset,
+          chainId: chain.id as ChainId,
+          decimals,
+          name: symbol,
+          priceUSD: formatUnits(usdPrice, 18),
+          symbol,
+        };
+        return market === marketWETHAddress
+          ? [token, { ...token, address: zeroAddress, name: "ETH", symbol: "ETH" }]
+          : [token];
+      });
+    }
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
     const allTokens = Object.values(tokens)
