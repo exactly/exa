@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { get } from "react-native-passkeys";
 
 import {
+  buildUserOperation,
   buildUserOperationFromTx,
   createBundlerClient,
   createSmartAccountClient,
@@ -40,6 +41,7 @@ import {
 import {
   getCallsStatus,
   getConnection,
+  getConnectorClient,
   sendCalls,
   sendTransaction,
   signMessage,
@@ -221,12 +223,9 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             if (targetChainId !== chain.id) {
               const targetChain = alchemyChainById.get(targetChainId);
               if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
-              const sponsor = targetChain.testnet
-                ? "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577"
-                : "cb9db554-658f-46eb-ae73-8bff8ed2556b";
               const policyId = [
                 ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
-                sponsor,
+                sponsorPolicy(targetChain),
               ];
               const remote = await getCrossChainAccount(targetChain);
               const crossClient = createSmartAccountClient({
@@ -314,6 +313,30 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
             }
+          }
+          case "wallet_prepareCalls": {
+            if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
+            const { calls, chainId } = params[0] as { calls: readonly Call[]; chainId?: Hex };
+            const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
+            const targetChain = alchemyChainById.get(targetChainId);
+            if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
+            const remote = await getCrossChainAccount(targetChain);
+            const uo = calls.map(({ to, data = "0x", value }) => ({ target: to, data, value }));
+            const policyId = targetChainId === chain.id ? alchemyGasPolicyId : sponsorPolicy(targetChain);
+            const data = await buildUserOperation(
+              createSmartAccountClient({
+                chain: targetChain,
+                transport: remote.transport,
+                account: remote.account,
+                feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
+                ...(policyId
+                  ? { dummyPaymasterAndData: alchemyGasManagerMiddleware(policyId).dummyPaymasterAndData }
+                  : {}),
+                gasEstimator,
+              }),
+              { uo: dataSuffix ? concatHex([await remote.account.encodeBatchExecute(uo), dataSuffix]) : uo },
+            );
+            return { chainId: numberToHex(targetChainId), data, type: "user-operation-v060" };
           }
           case "wallet_getCallsStatus": {
             if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
@@ -461,6 +484,10 @@ async function gasEstimator<
   return result;
 }
 
+function sponsorPolicy(targetChain: Chain) {
+  return targetChain.testnet ? "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577" : "cb9db554-658f-46eb-ae73-8bff8ed2556b";
+}
+
 function isSiwe() {
   return queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && !!getConnection(ownerConfig).address;
 }
@@ -503,6 +530,26 @@ function webauthn({
       ],
       [{ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }],
     ),
+  );
+}
+
+export async function estimateCalls(config: Config, chainId: number, calls: readonly Call[]) {
+  const client = await getConnectorClient(config);
+  const { data } = await client.request<{ ReturnType: { data: Required<UserOperationStruct_v6> } }>({
+    method: "wallet_prepareCalls",
+    params: [
+      {
+        calls: calls.map((call) => ({
+          ...call,
+          value: call.value === undefined ? undefined : numberToHex(call.value),
+        })),
+        chainId: numberToHex(chainId),
+      },
+    ],
+  });
+  return (
+    (BigInt(data.callGasLimit) + BigInt(data.preVerificationGas) + BigInt(data.verificationGasLimit)) *
+    BigInt(data.maxFeePerGas)
   );
 }
 

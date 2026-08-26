@@ -39,6 +39,18 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - assertVisible: Review and send
 - runFlow:
+    when: { true: "${!!pay && pay !== asset}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - tapOn: Continue
+      - assertVisible: Review and send
+      - runFlow: { file: scrollTo.yaml, env: { element: Total } }
+      - copyTextFrom:
+          text: \$[\d,.]+
+          below: Total
+          index: 0
+      - evalScript: ${output.total = Number(maestro.copiedText.slice(1).split(",").join(""))}
+- runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ longPressOn: "Hold to send ${asset}" }]
 - runFlow:
@@ -55,4 +67,4 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}
+- assertTrue: "${!!pay && pay !== asset ? Math.abs(output.portfolioBefore - output.portfolio - output.total) < 0.02 : output.portfolioBefore - output.portfolio === Number(amount)}"
