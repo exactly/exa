@@ -5,16 +5,37 @@ import {
   EVM,
   getChains,
   getQuote,
+  getStatus,
   getToken,
   getTokens,
+  getTools,
+  type ChainId,
   type Estimate,
   type ExtendedChain,
   type Token,
   type TokenAmount,
 } from "@lifi/sdk";
-import { queryOptions } from "@tanstack/react-query";
-import { array, boolean, nullish, number, object, optional, parse, string, union, unknown } from "valibot";
-import { encodeFunctionData, formatUnits, getAddress, zeroAddress, type Address } from "viem";
+import { base58, bech32, bech32m, createBase58check } from "@scure/base";
+import { queryOptions, skipToken } from "@tanstack/react-query";
+import {
+  array,
+  boolean,
+  check,
+  nullish,
+  number,
+  object,
+  optional,
+  parse,
+  pipe,
+  regex,
+  string,
+  transform,
+  trim,
+  union,
+  unknown,
+  type GenericSchema,
+} from "valibot";
+import { encodeFunctionData, formatUnits, getAddress, isAddressEqual, sha256, zeroAddress, type Address } from "viem";
 import { anvil } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -26,6 +47,8 @@ import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";
 
+export const chainTypes = [ChainType.EVM, ChainType.MVM, ChainType.SVM, ChainType.TVM, ChainType.UTXO]; // cspell:ignore UTXO
+
 export const lifiChainsOptions = queryOptions({
   queryKey: ["lifi", "chains"],
   staleTime: Infinity,
@@ -35,11 +58,30 @@ export const lifiChainsOptions = queryOptions({
     if (chain.testnet || chain.id === anvil.id) return [];
     try {
       ensureConfig();
-      return await getChains({ chainTypes: [ChainType.EVM] });
+      return await getChains({ chainTypes });
     } catch (error) {
       reportError(error);
       return [];
     }
+  },
+});
+
+export const destinationsOptions = queryOptions({
+  queryKey: ["lifi", "destinations"],
+  staleTime: Infinity,
+  gcTime: Infinity,
+  enabled: !chain.testnet && chain.id !== anvil.id,
+  queryFn: async () => {
+    if (chain.testnet || chain.id === anvil.id) return [];
+    ensureConfig();
+    const { bridges } = await getTools();
+    const reachable = new Set<number>([chain.id]);
+    for (const { supportedChains } of bridges) {
+      for (const { fromChainId, toChainId } of supportedChains) {
+        if (fromChainId === (chain.id as ChainId)) reachable.add(toChainId);
+      }
+    }
+    return [...reachable];
   },
 });
 
@@ -52,7 +94,7 @@ export const lifiTokensOptions = queryOptions({
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
     ensureConfig();
-    const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
+    const { tokens } = await getTokens({ chainTypes });
     const allTokens = Object.values(tokens).flat();
     if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
       throw new Error("missing destination tokens");
@@ -125,6 +167,31 @@ export function bridgeSourcesOptions(account: Address | undefined, protocolSymbo
   });
 }
 
+export const trackable = !chain.testnet && chain.id !== anvil.id;
+
+export function statusOptions(
+  txHash: string | undefined,
+  toChain: number | undefined,
+  bridge: string | undefined,
+  fromChain: number = chain.id,
+) {
+  return queryOptions({
+    queryKey: ["lifi", "status", txHash, toChain, bridge, fromChain],
+    queryFn:
+      txHash && trackable
+        ? () => {
+            ensureConfig();
+            return getStatus({ txHash, fromChain, toChain, bridge });
+          }
+        : skipToken,
+    refetchInterval: ({ state }) => (state.data?.status === "DONE" || state.data?.status === "FAILED" ? false : 10_000),
+  });
+}
+
+export function receiverSchema(chainType: ChainType) {
+  return receivers[chainType] ?? AddressSchema;
+}
+
 let configured = false;
 function ensureConfig() {
   if (configured || chain.testnet || chain.id === anvil.id) return;
@@ -135,7 +202,7 @@ function ensureConfig() {
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
     rpcUrls: Object.fromEntries(Object.entries(alchemyURLs).map(([id, url]) => [id, [url]])),
   });
-  config.loading = getChains({ chainTypes: [ChainType.EVM] })
+  config.loading = getChains({ chainTypes })
     .then((availableChains) => {
       config.setChains(availableChains);
       queryClient.setQueryData(lifiChainsOptions.queryKey, availableChains);
@@ -250,7 +317,10 @@ export type RouteFrom = {
   value: bigint;
 };
 
+export const bridgePolicyId = "97633483-b01d-4a91-bac5-11011a06b15d";
+export const bridgePolicySymbols = new Set(["USDC", "USDT", "USD₮0", "DAI", "USDe", "WETH", "WBTC", "WLD"]);
 export const bridgeSlippage = 0.02;
+export const gasReserveBuffer = 300n;
 
 export async function getRouteFrom({
   fromChainId,
@@ -267,7 +337,7 @@ export async function getRouteFrom({
   fromAmount: bigint;
   fromChainId?: number;
   fromTokenAddress: string;
-  toAddress: Address;
+  toAddress: string;
   toChainId?: number;
   toTokenAddress: string;
 }): Promise<RouteFrom> {
@@ -290,7 +360,7 @@ export async function getRouteFrom({
       data: encodeFunctionData({
         abi: mockSwapperAbi,
         functionName: "swapExactAmountIn",
-        args: [from, fromAmount, to, toAmount, toAddress],
+        args: [from, fromAmount, to, toAmount, getAddress(toAddress)],
       }),
       estimate: {
         tool: "mockSwapper",
@@ -584,3 +654,66 @@ export const tokenCorrelation = {
   "BTC.b": "WBTC",
   // #endregion
 } as const;
+
+const receivers: Partial<Record<ChainType, GenericSchema<string, string>>> = {
+  EVM: pipe(
+    string(),
+    trim(),
+    AddressSchema,
+    check((input) => !isAddressEqual(input, zeroAddress), "bad address"),
+  ),
+  MVM: pipe(
+    string(),
+    trim(),
+    regex(/^0x[\da-f]{64}$/i, "bad sui address"),
+    check((input) => !/^0x0+$/.test(input), "bad address"),
+  ),
+  SVM: pipe(
+    string(),
+    trim(),
+    check((input) => {
+      const bytes = decoded(base58, input);
+      return bytes.length === 32 && bytes.some((byte) => byte !== 0);
+    }, "bad solana address"),
+  ),
+  TVM: pipe(
+    string(),
+    trim(),
+    check((input) => legacy(input, 0x41), "bad tron address"),
+  ),
+  UTXO: pipe(
+    string(),
+    trim(),
+    check(
+      (input) =>
+        legacy(input, 0, 5) ||
+        witness(bech32, input, (version, size) => version === 0 && (size === 20 || size === 32)) ||
+        witness(bech32m, input, (version, size) => version > 0 && version <= 16 && size >= 2 && size <= 40),
+      "bad bitcoin address",
+    ),
+    transform((input) => (input.startsWith("BC1") ? input.toLowerCase() : input)),
+  ), // cspell:ignore UTXO
+};
+
+const base58check = createBase58check((bytes) => sha256(bytes, "bytes"));
+
+function legacy(input: string, ...versions: number[]) {
+  const bytes = decoded(base58check, input);
+  return bytes.length === 21 && versions.includes(bytes[0] ?? -1) && bytes.subarray(1).some((byte) => byte !== 0);
+}
+
+function witness(coder: typeof bech32, input: string, valid: (version: number, size: number) => boolean) {
+  const parsed = coder.decodeUnsafe(input as `${string}1${string}`);
+  if (parsed?.prefix !== "bc") return false;
+  const [version, ...program] = parsed.words;
+  const bytes = coder.fromWordsUnsafe(program);
+  return version !== undefined && bytes !== undefined && valid(version, bytes.length);
+}
+
+function decoded(coder: typeof base58, input: string) {
+  try {
+    return coder.decode(input);
+  } catch {
+    return new Uint8Array();
+  }
+}
