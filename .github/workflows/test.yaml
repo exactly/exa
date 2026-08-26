@@ -1,6 +1,6 @@
 name: test
 on:
-  push:
+  push: { branches-ignore: [changesets-ghcommit-temp/**] } # cspell:ignore ghcommit
 jobs:
   test:
     environment: test

@@ -36,6 +36,7 @@ jobs:
       - id: changesets
         uses: changesets/action@v1
         with:
+          commit: "${{ steps.title.outputs.title }}"
           title: ${{ steps.title.outputs.title }}
           github-token: ${{ steps.github.outputs.token }}
           commitMode: github-api
