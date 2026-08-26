@@ -14,6 +14,15 @@ tags: [critical]
 - runFlow:
     file: ../subflows/send.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
+- tapOn: Send
+- tapOn: Digital assets
+- assertVisible: Select asset to send
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: "^EXA on .+$" } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- assertVisible: Select asset to send
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "69", installments: "4" }

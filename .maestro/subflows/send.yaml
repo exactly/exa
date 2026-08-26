@@ -6,6 +6,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Select asset to send
+- runFlow: { file: tapAria.yaml, env: { aria: Select network } }
+- tapOn: All networks
+- tapOn: Search assets
+- inputText: ${asset}
 - runFlow:
     file: tapAria.yaml
     env: { aria: "^${asset}, [\\s\\d,.\\xa0]+ available$" }

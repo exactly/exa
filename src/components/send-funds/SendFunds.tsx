@@ -21,7 +21,6 @@ import useBeginKYC from "../../utils/useBeginKYC";
 import useKYC from "../../utils/useKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
 import RampButton from "../ramp/RampButton";
-import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -105,7 +104,7 @@ export default function SendFunds() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                if (type === "crypto" || type === "fiat") {
+                if (type === "fiat") {
                   if (router.canGoBack()) router.back();
                   else router.replace("/send-funds");
                 } else {
@@ -114,7 +113,7 @@ export default function SendFunds() {
               }}
             />
             <Text emphasized subHeadline primary>
-              {t(type === "crypto" ? "Cryptocurrencies" : type === "fiat" ? "Bank transfers" : "Send")}
+              {t(type === "fiat" ? "Bank transfers" : "Send")}
             </Text>
             <IconButton
               icon={CircleHelp}
@@ -127,14 +126,14 @@ export default function SendFunds() {
         </YStack>
         <ScrollView flex={1}>
           <YStack flex={1} gap="$s3_5">
-            {type !== "crypto" && type !== "fiat" && (
+            {type !== "fiat" && (
               <>
                 <AddFundsOption
                   icon={<Blocks size={24} color="$iconBrandDefault" />}
                   title={t("Digital assets")}
                   subtitle={t("USDC, ETH, BTC and more")}
                   onPress={() => {
-                    router.push({ pathname: "/send-funds", params: { type: "crypto" } });
+                    router.push("/send-funds/asset");
                   }}
                 />
                 {hasFiat !== false && chain.id !== base.id && (
@@ -177,16 +176,6 @@ export default function SendFunds() {
                   />
                 )}
               </>
-            )}
-            {type === "crypto" && (
-              <AddFundsOption
-                icon={<ChainLogo size={24} borderRadius="$r3" />}
-                title={t("On chain")}
-                subtitle={t("Send to any wallet on {{chain}}", { chain: chain.name })}
-                onPress={() => {
-                  router.push("/send-funds/receiver");
-                }}
-              />
             )}
             {type === "fiat" && renderProviders("fiat")}
           </YStack>
