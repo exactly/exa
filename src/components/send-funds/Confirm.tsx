@@ -32,6 +32,7 @@ import { WAD } from "@exactly/lib";
 
 import { estimateCalls } from "../../utils/accountClient";
 import alchemyChainById from "../../utils/alchemyChains";
+import ensOptions, { ensName } from "../../utils/ensOptions";
 import executionOptions from "../../utils/executionOptions";
 import { presentArticle } from "../../utils/intercom";
 import {
@@ -89,12 +90,14 @@ export default function Confirm() {
   const pay = payParse.success ? payParse.output : undefined;
   const zeroAddress = parse(Address, viemZeroAddress);
   const receiver = typeof receiverParameter === "string" ? receiverParameter : "";
-  const ens = typeof ensParameter === "string" ? ensParameter : "";
+  const name = typeof ensParameter === "string" ? ensName(ensParameter) : undefined;
   const receiverParse = safeParse(Address, receiverParameter);
   const receiverHex = receiverParse.success ? receiverParse.output : undefined;
   const payChain = typeof fromChain === "string" ? Number(fromChain) : chain.id;
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
   const destinationAmount = typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : 0n;
+  const { data: resolved } = useQuery(ensOptions(name, destinationChain));
+  const ens = name && resolved === receiverHex ? name : "";
 
   const { market: homeMarket, externalAsset: homeExternal, markets } = useAsset(pay);
   const { data: balances } = useQuery(balancesOptions(address));

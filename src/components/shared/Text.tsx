@@ -1,5 +1,5 @@
 import React, { type ComponentPropsWithoutRef } from "react";
-import type { FontVariant } from "react-native";
+import { Platform, type FontVariant } from "react-native";
 
 import { styled, Text as TamaguiText } from "tamagui";
 
@@ -36,8 +36,10 @@ type TextProperties = ComponentPropsWithoutRef<typeof StyledText> & {
   sensitive?: boolean;
 };
 
-const TextComponent = ({ sensitive, ...rest }: TextProperties) =>
-  sensitive ? <SensitiveText {...rest} /> : <StyledText {...rest} />;
+const TextComponent = ({ sensitive, style, ...rest }: TextProperties) => {
+  const composed = Platform.OS === "android" ? [{ includeFontPadding: false }, style] : style;
+  return sensitive ? <SensitiveText style={composed} {...rest} /> : <StyledText style={composed} {...rest} />;
+};
 
 TextComponent.displayName = "Text";
 

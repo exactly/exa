@@ -33,8 +33,33 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow: { file: tapAria.yaml, env: { aria: Don't show again } }
       - tapOn: { text: Continue, above: { text: Continue } }
       - assertNotVisible: Swap assets
+      - runFlow: { file: tapAria.yaml, env: { aria: "${to}" } }
+      - assertVisible: Review and send
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - tapOn: Continue
 - tapOn: Enter ENS or wallet address
+- inputText: not-a-real-name.eth
+- extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
+- eraseText
+- inputText: "0xdead"
+- eraseText: 6
 - inputText: ${to}
+- runFlow:
+    when: { true: "${!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Save contact } }
+      - assertNotVisible: Save contact
+      - runFlow: { file: tapAria.yaml, env: { aria: Clear } }
+      - assertVisible: Contacts
+      - runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+      - assertVisible: Delete contact
+      - runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+      - assertNotVisible: Contacts
+      - tapOn: Enter ENS or wallet address
+      - inputText: ${to}
 - hideKeyboard
 - tapOn: Continue
 - assertVisible: Review and send
