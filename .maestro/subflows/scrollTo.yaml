@@ -7,6 +7,19 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - scrollUntilVisible: { element: "${element}", centerElement: true }
 - runFlow:
+    when: { true: "${maestro.platform === 'web' && Number(swipes || 0) > 0}" }
+    commands:
+      - evalScript: ${output.scrolls = 0}
+      - repeat:
+          while:
+            true: "${output.scrolls < Number(swipes)}"
+          commands:
+            - swipe:
+                start: "50%,40%"
+                end: "50%,10%"
+                waitToSettleTimeoutMs: 0
+            - evalScript: ${output.scrolls = output.scrolls + 1}
+- runFlow:
     when: { platform: web }
     commands:
       - evalScript: ${output.scrollDeadline = Date.now() + 30_000}

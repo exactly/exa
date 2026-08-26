@@ -43,8 +43,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Swap
 - assertVisible: Borrow
 - assertNotVisible: Getting Started
-- runFlow: { file: scrollTo.yaml, env: { element: Upcoming payments } }
-- runFlow: { file: scrollTo.yaml, env: { element: Latest activity } }
+- runFlow: { file: scrollTo.yaml, env: { element: Upcoming payments, swipes: 1 } }
+- runFlow: { file: scrollTo.yaml, env: { element: Latest activity, swipes: 1 } }
 - assertNotVisible: No activity yet
 - tapOn: View all
 - tapOn: Home
