@@ -1,6 +1,6 @@
 {
   "name": "@exactly/infra",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,7 @@
     "@pulumi/pulumi": "^3.259.0"
   },
   "devDependencies": {
-    "@exactly/common": "workspace:^0.0.18",
+    "@exactly/common": "workspace:^0.0.19",
     "@types/node": "^25.5.0",
     "eslint": "catalog:",
     "eslint-config-universe": "^15.0.3",

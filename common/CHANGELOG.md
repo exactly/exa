@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.19
+
+### Patch Changes
+
+- [#1220](https://github.com/exactly/exa/pull/1220) [`eb4172e`](https://github.com/exactly/exa/commit/eb4172e9b5304c242f0033b018be7548e6d91fc6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ export app stack identifier
+
 ## 0.0.18
 
 ### Patch Changes

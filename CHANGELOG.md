@@ -1,5 +1,19 @@
 # @exactly/mobile
 
+## 1.2.23
+
+### Patch Changes
+
+- [#1260](https://github.com/exactly/exa/pull/1260) [`743bf05`](https://github.com/exactly/exa/commit/743bf05109a2b0144a0389ff06e9db98157a84b5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ persist intercom session until auth expiry
+
+- [#1260](https://github.com/exactly/exa/pull/1260) [`b578ae5`](https://github.com/exactly/exa/commit/b578ae50d645729d7fdda67b4265096b0152906e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ open support from any route
+
+- [#1257](https://github.com/exactly/exa/pull/1257) [`b5678d4`](https://github.com/exactly/exa/commit/b5678d4e60e5cd48307e9bb421d55d59a408f48c) Thanks [@franm91](https://github.com/franm91)! - 📈 track page views with segment
+
+- Updated dependencies [[`ca0e750`](https://github.com/exactly/exa/commit/ca0e75060d800f9bf3a57a1449a655b1d53ce466), [`6d7c9d6`](https://github.com/exactly/exa/commit/6d7c9d6758726492cbc01edf18d8146aace1256b), [`d9f5db8`](https://github.com/exactly/exa/commit/d9f5db8ea4c569f7c80138af60c761d5f348210c), [`2ecbbed`](https://github.com/exactly/exa/commit/2ecbbedeee678e469307cdcdf9b89357e72df739), [`35643e5`](https://github.com/exactly/exa/commit/35643e509da3c9a048e03c6664f461e47993fe1d), [`c8cc43b`](https://github.com/exactly/exa/commit/c8cc43b798bc4d7422fb2c3411adbf4309385680), [`eb4172e`](https://github.com/exactly/exa/commit/eb4172e9b5304c242f0033b018be7548e6d91fc6), [`065ce84`](https://github.com/exactly/exa/commit/065ce84592f886abcd5e6b409a21804549194626)]:
+  - @exactly/server@0.2.112
+  - @exactly/common@0.0.19
+
 ## 1.2.22
 
 ### Patch Changes

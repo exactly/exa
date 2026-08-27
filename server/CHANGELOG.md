@@ -1,5 +1,23 @@
 # @exactly/server
 
+## 0.2.112
+
+### Patch Changes
+
+- [#1220](https://github.com/exactly/exa/pull/1220) [`ca0e750`](https://github.com/exactly/exa/commit/ca0e75060d800f9bf3a57a1449a655b1d53ce466) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ introduce shared worker primitives
+
+- [#1251](https://github.com/exactly/exa/pull/1251) [`6d7c9d6`](https://github.com/exactly/exa/commit/6d7c9d6758726492cbc01edf18d8146aace1256b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ add hook worker
+
+- [#1220](https://github.com/exactly/exa/pull/1220) [`d9f5db8`](https://github.com/exactly/exa/commit/d9f5db8ea4c569f7c80138af60c761d5f348210c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement google secret manager
+
+- [#1220](https://github.com/exactly/exa/pull/1220) [`2ecbbed`](https://github.com/exactly/exa/commit/2ecbbedeee678e469307cdcdf9b89357e72df739) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ move service initialization into factories
+
+- [`35643e5`](https://github.com/exactly/exa/commit/35643e509da3c9a048e03c6664f461e47993fe1d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 identify hook traces by cloud run service
+
+- [#1220](https://github.com/exactly/exa/pull/1220) [`c8cc43b`](https://github.com/exactly/exa/commit/c8cc43b798bc4d7422fb2c3411adbf4309385680) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ automate panda refund withdrawal
+
+- [#1220](https://github.com/exactly/exa/pull/1220) [`065ce84`](https://github.com/exactly/exa/commit/065ce84592f886abcd5e6b409a21804549194626) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 use stack for sentry instrumentation
+
 ## 0.2.111
 
 ### Patch Changes
