@@ -40,7 +40,10 @@ jobs:
     environment: development
     runs_on: linux-large-nested-virtualization
     image: latest
-    env: { CHAIN_ID: "31337", REDISMS_SYSTEM_BINARY: /usr/bin/redis-server }
+    env:
+      CHAIN_ID: "31337"
+      GIT_BRANCH: "${{ github.ref_name }}"
+      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
@@ -90,8 +93,8 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
-          ./codecov upload-coverage -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }} -P "${{ github.event.pull_request.number }}" --git-service github
-          ./codecov do-upload -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f .maestro/junit.xml -F e2e -n android --build-url ${{ workflow.url }} --git-service github
+          ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }} -P "${{ github.event.pull_request.number }}" --git-service github
+          ./codecov do-upload --report-type test_results -f .maestro/junit.xml -F e2e -n android --build-url ${{ workflow.url }} --git-service github
           pkill -f "adb logcat" || true
       - uses: eas/upload_artifact
         if: always()
@@ -135,7 +138,10 @@ jobs:
     environment: development
     runs_on: macos-large
     image: latest
-    env: { CHAIN_ID: "31337", REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server }
+    env:
+      CHAIN_ID: "31337"
+      GIT_BRANCH: "${{ github.ref_name }}"
+      REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
     steps:
       - run: brew install redis
       - uses: eas/checkout
@@ -177,8 +183,8 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
-          ./codecov upload-coverage -t ${{ env.CODECOV_TOKEN }} -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }} -P "${{ github.event.pull_request.number }}" --git-service github
-          ./codecov do-upload -t ${{ env.CODECOV_TOKEN }} --report-type test_results -f .maestro/junit.xml -F e2e -n ios --build-url ${{ workflow.url }} --git-service github
+          ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }} -P "${{ github.event.pull_request.number }}" --git-service github
+          ./codecov do-upload --report-type test_results -f .maestro/junit.xml -F e2e -n ios --build-url ${{ workflow.url }} --git-service github
           pkill -f "log stream" || true
           xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
