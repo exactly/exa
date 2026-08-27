@@ -27,6 +27,15 @@ export default function HTML({ children }: { children: ReactNode }) {
           content={`{"version":"1","imageUrl":"https://assets.exactly.app/miniapp-image.webp","button":{"title":"Get your card","action":{"type":"launch_miniapp","name":"${appMetadata.title}","url":"https://${domain}"}}}`}
         />
         <meta name="base:app_id" content="69a9d841964308b7af99b1aa" />
+        <meta
+          name="facebook-domain-verification"
+          content={
+            {
+              "web.exactly.app": "x7u6nh1csmd66dg64jnnwn5ldukjo3", // cspell:ignore csmd jnnwn ldukjo
+              "base.exactly.app": "frgscsq1fn8earprc3gjte7etkiwnd", // cspell:ignore frgscsq earprc gjte etkiwnd
+            }[domain]
+          }
+        />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="color-scheme" content={isBase ? "light" : "light dark"} />
