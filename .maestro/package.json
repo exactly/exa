@@ -33,7 +33,12 @@
       "build": {
         "executor": "@nx/esbuild:esbuild",
         "inputs": [
-          "production",
+          "{projectRoot}/src/**/*",
+          "{projectRoot}/maestro.d.ts",
+          "{projectRoot}/package.json",
+          "{projectRoot}/tsconfig.json",
+          "{projectRoot}/esbuild.config.cjs",
+          "sharedGlobals",
           "^production"
         ],
         "outputs": [
