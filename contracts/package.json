@@ -39,6 +39,15 @@
   "nx": {
     "projectType": "library",
     "namedInputs": {
+      "compile": [
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/test/support/Build.sol",
+        "{projectRoot}/test/mocks/MockSwapper.sol",
+        "{projectRoot}/test/mocks/MockVelodromeFactory.sol",
+        "{projectRoot}/foundry.toml",
+        "{projectRoot}/remappings.txt",
+        "sharedGlobals"
+      ],
       "production": [
         "default",
         "!{projectRoot}/test/**/*",
@@ -48,7 +57,7 @@
     "targets": {
       "build": {
         "inputs": [
-          "default",
+          "compile",
           "^production"
         ],
         "outputs": [
