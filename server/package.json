@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "build": "pkgroll --clean-dist --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
-    "prepare": "GITHUB_STEP_SUMMARY= nx prepare server",
     "prepare:generated": "mkdir -p generated",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "generate:openapi": "tsx script/openapi.ts",
@@ -120,6 +119,7 @@
     "targets": {
       "prepare": {
         "dependsOn": [
+          "^prepare",
           "generate:release",
           "generate:sql"
         ],

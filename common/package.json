@@ -3,7 +3,6 @@
   "version": "0.0.19",
   "private": true,
   "scripts": {
-    "prepare": "GITHUB_STEP_SUMMARY= nx prepare common",
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
     "generate:wagmi": "wagmi generate",
     "git:unshallow": "git fetch --unshallow || true",
@@ -65,6 +64,7 @@
     "targets": {
       "prepare": {
         "dependsOn": [
+          "^prepare",
           "prepare:git",
           "generate:wagmi"
         ],

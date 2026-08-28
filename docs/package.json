@@ -3,7 +3,6 @@
   "version": "0.1.5",
   "private": true,
   "scripts": {
-    "prepare": "GITHUB_STEP_SUMMARY= nx prepare docs",
     "generate:astro": "astro sync",
     "test": "nx test docs",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
@@ -35,6 +34,7 @@
     "targets": {
       "prepare": {
         "dependsOn": [
+          "^prepare",
           "generate:astro"
         ],
         "executor": "nx:noop"
