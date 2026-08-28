@@ -46,6 +46,7 @@ const address = new compute.Address(
 const gateway = new compute.RouterNat("egress", {
   region: location,
   name: `${stack}-egress`,
+  minPortsPerVm: 1024,
   natIps: [address.selfLink],
   natIpAllocateOption: "MANUAL_ONLY",
   router: new compute.Router("egress", { name: `${stack}-egress`, network: network.id, region: location }).name,
@@ -246,6 +247,7 @@ new cloudrunv2.Service(
     ingress: "INGRESS_TRAFFIC_INTERNAL_ONLY",
     template: {
       serviceAccount: crema.email,
+      vpcAccess: { egress: "ALL_TRAFFIC", networkInterfaces: [{ network: network.id, subnetwork: subnet.id }] },
       containers: [
         {
           envs: [
