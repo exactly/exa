@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.113
+
+### Patch Changes
+
+- [`f06e6f3`](https://github.com/exactly/exa/commit/f06e6f348259af98064f66534819f43d437d9ab2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 expose sentry config
+
 ## 0.2.112
 
 ### Patch Changes
