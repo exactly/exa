@@ -6,6 +6,7 @@ on:
       domain: { type: string }
     secrets:
       DIGITALOCEAN_TOKEN:
+      SENTRY_AUTH_TOKEN:
 concurrency:
   group: server-deploy-${{ inputs.stack }}
   cancel-in-progress: false

@@ -9,4 +9,6 @@ jobs:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
     with: { stack: sandbox }
-    secrets: { DIGITALOCEAN_TOKEN: "${{ secrets.DIGITALOCEAN_TOKEN }}" }
+    secrets:
+      DIGITALOCEAN_TOKEN: "${{ secrets.DIGITALOCEAN_TOKEN }}"
+      SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
