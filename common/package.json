@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
+    "generate:links": "node script/links.mjs",
     "generate:wagmi": "wagmi generate",
     "git:unshallow": "git fetch --unshallow || true",
     "test": "nx test common",
@@ -66,9 +67,19 @@
         "dependsOn": [
           "^prepare",
           "prepare:git",
+          "generate:links",
           "generate:wagmi"
         ],
         "executor": "nx:noop"
+      },
+      "generate:links": {
+        "inputs": [
+          "{projectRoot}/script/links.mjs",
+          "{workspaceRoot}/src/app/**/*"
+        ],
+        "outputs": [
+          "{projectRoot}/generated/links.js"
+        ]
       },
       "generate:wagmi": {
         "inputs": [
@@ -95,7 +106,8 @@
           }
         ],
         "outputs": [
-          "{projectRoot}/generated"
+          "{projectRoot}/generated/chain.ts",
+          "{projectRoot}/generated/hooks.ts"
         ]
       },
       "git:unshallow": {
