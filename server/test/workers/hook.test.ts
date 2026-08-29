@@ -12,7 +12,7 @@ import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials, sources, transactions } from "../../database";
 import createPanda from "../../utils/panda";
-import { bullmq } from "../../utils/redis";
+import redis, { bullmq } from "../../utils/redis";
 import createHook from "../../workers/hook/queue";
 import hookWorker from "../../workers/hook/worker";
 import { connect } from "../../workers/worker";
@@ -25,7 +25,7 @@ import type { JobsOptions } from "bullmq";
 const secret = randomBytes(16).toString("hex");
 const routedSecret = randomBytes(16).toString("hex");
 const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
-const hook = createHook(bullmq);
+const hook = createHook(redis);
 const queue = new Queue<Hook, void, "hook">("hook", { connection: bullmq });
 const events = new QueueEvents("hook", { connection: bullmq });
 const webhooks = new Map<string, unknown>();

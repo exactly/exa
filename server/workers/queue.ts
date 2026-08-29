@@ -6,14 +6,14 @@ import type { Redis } from "ioredis";
 export default function queue<Job extends Trace>(
   name: string,
   attempts: number,
-  bullmq: Redis,
+  redis: Redis,
   options: Partial<Omit<DefaultJobOptions, "backoff" | "removeOnFail">> & {
     backoff?: Partial<BackoffOptions>;
     removeOnFail?: Partial<KeepJobs>;
   } = {},
 ) {
   const instance = new Queue<Trace, void>(name, {
-    connection: bullmq,
+    connection: redis,
     defaultJobOptions: {
       attempts,
       removeOnComplete: true,

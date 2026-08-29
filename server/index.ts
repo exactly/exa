@@ -66,8 +66,8 @@ const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
-const refund = createRefund(bullmq);
-const webhook = createHook(bullmq);
+const refund = createRefund(redis);
+const webhook = createHook(redis);
 const sardine = createSardine(
   parse(pipe(string("sardine key"), nonEmpty("sardine key")), env.SARDINE_API_KEY),
   parse(pipe(string("sardine url"), nonEmpty("sardine url")), env.SARDINE_API_URL),
