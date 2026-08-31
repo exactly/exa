@@ -333,6 +333,16 @@ describe("hook worker", () => {
     ]);
   });
 
+  it("delivers card updates with provisioning details", async () => {
+    card("wk-card-provisioning", "active", "webhook-user", "wallet_provisioned");
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-card-provisioning");
+
+    const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
+    expect(JSON.parse(body)).toMatchObject({ statusChangeReason: "wallet_provisioned" });
+  });
+
   it("delivers user updates with credential ids", async () => {
     user("wk-user", "webhook-user");
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
@@ -730,7 +740,7 @@ function transaction(id: string, override: Record<string, unknown>, action = "cr
   });
 }
 
-function card(id: string, status: string, userId = "webhook-user") {
+function card(id: string, status: string, userId = "webhook-user", statusChangeReason?: string) {
   webhooks.set(id, {
     id,
     requestBody: {
@@ -745,6 +755,7 @@ function card(id: string, status: string, userId = "webhook-user") {
         status,
         tokenWallets: ["Apple"],
       },
+      ...(statusChangeReason !== undefined && { statusChangeReason }),
     },
     requestSentAt: "2026-01-01T00:00:00.000Z",
   });

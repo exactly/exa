@@ -310,6 +310,7 @@ const Webhook = v.variant("resource", [
     timestamp: v.pipe(v.string(), v.isoTimestamp()),
     resource: v.literal("card"),
     action: v.literal("updated"),
+    statusChangeReason: v.nullish(v.picklist(["card_replaced", "wallet_provisioned"])),
     body: v.object({
       id: v.string(),
       last4: v.pipe(v.string(), v.length(4)),

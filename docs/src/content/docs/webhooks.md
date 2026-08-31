@@ -641,7 +641,7 @@ This webhook is sent whenever a user's compliance status is updated. No response
 
 ### Card updated
 
-This webhook is currently triggered when a user adds their card to a digital wallet.
+This webhook is triggered when a card is updated, including when it is replaced or added to a digital wallet.
 
 | field | type | description | example |
 | --- | --- | --- | --- |
@@ -649,9 +649,10 @@ This webhook is currently triggered when a user adds their card to a digital wal
 | timestamp | string | time when the event was triggered in ISO 8601 format | 2025-08-12T18:47:33.687Z |
 | resource | "card" | | card |
 | action | "updated" | | updated |
+| statusChangeReason? | "card_replaced" \| "wallet_provisioned" | reason for the card update | wallet_provisioned |
 | body.id | string | card identifier | e874583f-47d9-4211-8ea6-3b92e450821b |
 | body.last4 | string | last 4 digits of the card | 7392 |
 | body.limit.amount | number | spending limit amount | 1000000 |
 | body.limit.frequency | "per24HourPeriod" \| "per7DayPeriod" \| "per30DayPeriod" \| "perYearPeriod" | frequency of the spending limit | per7DayPeriod |
 | body.status | "ACTIVE" \| "FROZEN" \| "DELETED" \| "INACTIVE" | current status of the card | ACTIVE |
-| body.tokenWallets | ["Apple"] \| ["Google Pay"] \| undefined | array of token wallets | ["Apple"] |
+| body.tokenWallets? | ["Apple"] \| ["Google Pay"] | array of token wallets | ["Apple"] |
