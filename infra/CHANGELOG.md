@@ -1,5 +1,17 @@
 # @exactly/infra
 
+## 0.2.0
+
+### Minor Changes
+
+- [#1252](https://github.com/exactly/exa/pull/1252) [`b02e1ab`](https://github.com/exactly/exa/commit/b02e1ab83c4120c298347861ebf495e7af22f4b4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 setup chat hook and worker
+
+- [#619](https://github.com/exactly/exa/pull/619) [`27f6fb8`](https://github.com/exactly/exa/commit/27f6fb89729ab5200edeefd565414f7ec7792a4c) Thanks [@aguxez](https://github.com/aguxez)! - 🧱 setup subscribe queue worker
+
+### Patch Changes
+
+- [`c29ba9e`](https://github.com/exactly/exa/commit/c29ba9eaf9bffc6b3efb2f2412b6682ac3ac0133) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 route crema through production vpc
+
 ## 0.1.0
 
 ### Minor Changes

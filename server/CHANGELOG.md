@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.114
+
+### Patch Changes
+
+- [#619](https://github.com/exactly/exa/pull/619) [`62c7a2b`](https://github.com/exactly/exa/commit/62c7a2b74526c2d79c28f20d43f7d21214d85231) Thanks [@aguxez](https://github.com/aguxez)! - 🩹 distinguish queue redis connections
+
+- [#1252](https://github.com/exactly/exa/pull/1252) [`b02e1ab`](https://github.com/exactly/exa/commit/b02e1ab83c4120c298347861ebf495e7af22f4b4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ implement chat hook and worker
+
+- [`1744877`](https://github.com/exactly/exa/commit/1744877ac3eae28ab0e3f35d044dec107aebf89d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 build entrypoints for api and hooks
+
+- [#619](https://github.com/exactly/exa/pull/619) [`27f6fb8`](https://github.com/exactly/exa/commit/27f6fb89729ab5200edeefd565414f7ec7792a4c) Thanks [@aguxez](https://github.com/aguxez)! - ✨ migrate webhook subscription to queue
+
+- [#619](https://github.com/exactly/exa/pull/619) [`8f8adc3`](https://github.com/exactly/exa/commit/8f8adc3994a5d85c5a562921214aaa2e14d4d3dd) Thanks [@aguxez](https://github.com/aguxez)! - ✨ implement multi-chain activity subscriptions
+
 ## 0.2.113
 
 ### Patch Changes
