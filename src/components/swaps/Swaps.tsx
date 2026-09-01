@@ -63,6 +63,7 @@ import {
   classify,
   getAllowTokens,
   getRouteFrom,
+  isStock,
   lifiChainsOptions,
   lifiTokensOptions,
   quoteValidity,
@@ -271,7 +272,7 @@ export default function Swaps() {
       const payable = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
       const target =
         old.toToken?.token ??
-        ["EXA", "WETH", "USDC"]
+        (payable && isStock(payable) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
           .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
           .find((token) => token !== undefined && !sameToken(token, payable)) ??
         homeTokens.find((token) => !sameToken(token, payable));
