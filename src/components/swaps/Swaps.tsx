@@ -147,6 +147,8 @@ export default function Swaps() {
     isFetching: isKYCFetching,
     refetch: refetchKYC,
   } = useKYC(chain.id === base.id);
+  const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
+  const restricted = ["AU", "CA", "GB", "SG", "US"].includes(country ?? "");
   const {
     data: homeTokens,
     isLoading: isTokensLoading,
@@ -263,6 +265,10 @@ export default function Swaps() {
   const payableTokens = useMemo(
     () => candidates.filter((token) => held.has(`${token.chainId}:${token.address}`)),
     [candidates, held],
+  );
+  const selectableTokens = useMemo(
+    () => candidates.filter((token) => !(restricted && tokenSelectionType === "to" && isStock(token))),
+    [candidates, restricted, tokenSelectionType],
   );
 
   useEffect(() => {
@@ -1144,7 +1150,7 @@ export default function Swaps() {
               key={tokenSelectionType}
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
-              tokens={candidates}
+              tokens={selectableTokens}
               networks={networks}
               selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
               onSelect={handleTokenSelect}
