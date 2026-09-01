@@ -1172,6 +1172,65 @@ describe("bridge utils", () => {
         });
       });
 
+      it("returns ACTIVE with BRL once when bridge grants pix alongside its directional endorsements", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            endorsements: [
+              endorsement("base", "approved"),
+              endorsement("pix", "approved"),
+              endorsement("pix_offramp", "approved"),
+              endorsement("pix_onramp", "approved"),
+            ],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
+          futureRequirement: undefined,
+        });
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns ACTIVE with BRL only on the direction its endorsement grants", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            endorsements: [endorsement("base", "approved"), endorsement("pix_offramp", "approved")],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
+          futureRequirement: undefined,
+        });
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("keeps approved rails and captures when bridge returns an unrecognized endorsement", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          fetchResponse({
+            ...activeCustomer,
+            endorsements: [endorsement("base", "approved"), { ...endorsement("sepa", "approved"), name: "ach_push" }],
+          }),
+        );
+
+        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+          status: "ACTIVE",
+          onramp: { currencies: [...baseCurrencies, "USD"] },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          futureRequirement: undefined,
+        });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unknown bridge endorsement"), {
+          contexts: { bridge: { endorsement: "ach_push" } },
+          level: "error",
+        });
+      });
+
       it("returns the four crypto offramp options regardless of endorsements", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, endorsements: [] }));
 
@@ -2122,7 +2181,9 @@ describe("bridge utils", () => {
 
       const createCall = fetchSpy.mock.calls[2];
       const body = JSON.parse(createCall?.[1]?.body as string) as { endorsements: string[] };
-      expect(body.endorsements).toContain("pix");
+      expect(body.endorsements).toContain("pix_offramp");
+      expect(body.endorsements).toContain("pix_onramp");
+      expect(body.endorsements).not.toContain("pix");
     });
 
     it("retries on timeout and succeeds", async () => {
@@ -2391,6 +2452,24 @@ describe("bridge utils", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toStrictEqual(
         expect.objectContaining({ network: "PIX-BR", brCode: "00020126580014br.gov.bcb.pix" }),
+      );
+    });
+
+    it("returns BRL deposit details for a customer holding only pix_onramp", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({ count: 1, data: [brlVirtualAccount(account)] }),
+      );
+
+      const customer = { ...activeCustomer, endorsements: [endorsement("pix_onramp", "approved")] };
+
+      await expect(bridge.getDepositDetails("BRL", account, customer)).resolves.toHaveLength(1);
+    });
+
+    it("rejects BRL deposit details for a customer holding only pix_offramp", async () => {
+      const customer = { ...activeCustomer, endorsements: [endorsement("pix_offramp", "approved")] };
+
+      await expect(bridge.getDepositDetails("BRL", account, customer)).rejects.toThrow(
+        bridge.ErrorCodes.NOT_AVAILABLE_CURRENCY,
       );
     });
 
@@ -3951,6 +4030,33 @@ describe("bridge utils", () => {
       });
     });
 
+    it("posts a BRL Pix key account for a customer holding only pix_offramp", async () => {
+      const customer = { ...activeCustomer, endorsements: [endorsement("pix_offramp", "approved")] };
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse(externalAccountResponse("brl")));
+
+      await bridge.createExternalAccount(customer, {
+        currency: "BRL",
+        accountOwnerName: "Joao Silva",
+        account: { pixKey: "12345678901", documentNumber: "12345678901" },
+      });
+
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toMatchObject({ currency: "brl" });
+    });
+
+    it("rejects a BRL Pix key account for a customer holding only pix_onramp", async () => {
+      const customer = { ...activeCustomer, endorsements: [endorsement("pix_onramp", "approved")] };
+
+      await expect(
+        bridge.createExternalAccount(customer, {
+          currency: "BRL",
+          accountOwnerName: "Joao Silva",
+          account: { pixKey: "12345678901", documentNumber: "12345678901" },
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.NO_ENDORSEMENT);
+    });
+
     it("posts a BRL Pix key account", async () => {
       const customer = { ...activeCustomer, endorsements: [endorsement("pix", "approved")] };
       const fetchSpy = vi
@@ -4798,7 +4904,7 @@ const enabledPersonaAccount = {
 };
 
 function endorsement(
-  name: "base" | "faster_payments" | "pix" | "sepa" | "spei",
+  name: "base" | "faster_payments" | "pix" | "pix_offramp" | "pix_onramp" | "sepa" | "spei",
   status: "approved" | "incomplete" | "revoked",
 ) {
   return { name, status, requirements: { complete: [], pending: [], missing: null, issues: [] } };
