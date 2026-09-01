@@ -1,6 +1,7 @@
-import React, { memo, useMemo, useRef } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList } from "react-native";
+import { FlatList, PixelRatio, useWindowDimensions } from "react-native";
+import type { LayoutChangeEvent } from "react-native";
 
 import { useTheme } from "tamagui";
 
@@ -23,33 +24,44 @@ import View from "../shared/View";
 export default function Activity() {
   const { data: activity } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
   const { queryKey } = useAsset();
-  const { t } = useTranslation();
+  const { fontScale } = useWindowDimensions();
   const theme = useTheme();
+  const [headerHeight, setHeaderHeight] = useState<number>();
+  const [limit, setLimit] = useState(page);
 
-  const { data, stickyHeaderIndices } = useMemo(() => {
-    if (!activity?.length) return { data: [] as ActivityItemType[], stickyHeaderIndices: [] as number[] };
-
+  const layout = useMemo(() => {
+    const events = activity?.slice(0, limit) ?? [];
     const items: ActivityItemType[] = [];
-    const stickyIndices: number[] = [];
-    const totalEvents = activity.length;
+    const offsets: number[] = [];
+    const stickies: number[] = [];
+    const dateHeight = PixelRatio.roundToNearestPixel(21 * fontScale) + 16;
     let currentDate: string | undefined;
-    let eventPosition = 0;
+    let offset = 0;
 
-    for (const event of activity) {
+    for (const [index, event] of events.entries()) {
       const date = format(event.timestamp, "yyyy-MM-dd");
       if (date !== currentDate) {
-        stickyIndices.push(items.length);
-        items.push({ type: "header", date });
+        stickies.push(items.length + 1);
+        offsets.push(offset);
+        offset += dateHeight;
+        items.push({ type: "header", date, height: dateHeight });
         currentDate = date;
       }
-
-      const isLast = eventPosition === totalEvents - 1;
-      items.push({ type: "event", event, isLast });
-      eventPosition += 1;
+      const isLast = index === events.length - 1;
+      const rowHeight = PixelRatio.roundToNearestPixel(Math.max(40, 38 * fontScale + 4)) + (isLast ? 24 : 16);
+      offsets.push(offset);
+      offset += rowHeight;
+      items.push({ type: "event", event, height: rowHeight, isLast });
     }
+    offsets.push(offset);
 
-    return { data: items, stickyHeaderIndices: stickyIndices };
-  }, [activity]);
+    return { items, offsets, stickies };
+  }, [activity, fontScale, limit]);
+
+  const onHeaderLayout = useCallback(
+    (event: LayoutChangeEvent) => setHeaderHeight(event.nativeEvent.layout.height),
+    [],
+  );
 
   const listRef = useRef<FlatList<ActivityItemType>>(null);
   const refresh = () =>
@@ -58,13 +70,20 @@ export default function Activity() {
       queryClient.refetchQueries({ queryKey }),
     ]);
   useTabPress("activity", () => {
-    if (data.length > 0) listRef.current?.scrollToIndex({ index: 0, animated: true });
-    refresh().catch(reportError);
+    if (layout.items.length > 0) listRef.current?.scrollToIndex({ index: 0, animated: true });
+    refresh()
+      .then(() => setLimit(page))
+      .catch(reportError);
   });
 
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View fullScreen gap="$s5" flex={1} backgroundColor={data.length > 0 ? "$backgroundMild" : "$backgroundSoft"}>
+      <View
+        fullScreen
+        gap="$s5"
+        flex={1}
+        backgroundColor={layout.items.length > 0 ? "$backgroundMild" : "$backgroundSoft"}
+      >
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <FlatList<ActivityItemType>
           ref={listRef}
@@ -72,40 +91,61 @@ export default function Activity() {
           onScrollToIndexFailed={() => undefined}
           contentContainerStyle={{
             flexGrow: 1,
-            backgroundColor: data.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
+            backgroundColor: layout.items.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl onRefresh={refresh} />}
-          ListHeaderComponent={
-            <>
-              <View padded gap="$s5" backgroundColor="$backgroundSoft">
-                <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
-                  <Text fontSize={20} fontWeight="bold">
-                    {t("All Activity")}
-                  </Text>
-                </View>
-              </View>
-              <ProposalBanner />
-              <ProcessingBalanceBanner />
-            </>
-          }
+          ListHeaderComponent={<ListHeader onLayout={onHeaderLayout} />}
           ListEmptyComponent={<Empty />}
-          data={data}
+          data={layout.items}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          stickyHeaderIndices={stickyHeaderIndices.map((index) => index + 1)}
+          getItemLayout={
+            headerHeight === undefined
+              ? undefined
+              : (_, index) => ({
+                  length: (layout.offsets[index + 1] ?? 0) - (layout.offsets[index] ?? 0),
+                  offset: headerHeight + (layout.offsets[index] ?? 0),
+                  index,
+                })
+          }
+          initialNumToRender={14}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          onEndReachedThreshold={1}
+          onEndReached={() => setLimit((current) => (activity && current < activity.length ? current + page : current))}
+          stickyHeaderIndices={layout.stickies}
         />
       </View>
     </SafeView>
   );
 }
 
-type ActivityItemType = { date: string; type: "header" } | { event: ActivityEvent; isLast: boolean; type: "event" };
-type ActivityItemProperties = React.ComponentProps<typeof ActivityItem>;
+const page = 40;
 
-const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
+type ActivityItemType =
+  | { date: string; height: number; type: "header" }
+  | { event: ActivityEvent; height: number; isLast: boolean; type: "event" };
+
+const ListHeader = memo(function ListHeader({ onLayout }: { onLayout: (event: LayoutChangeEvent) => void }) {
+  const { t } = useTranslation();
   return (
-    <View paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
+    <View onLayout={onLayout}>
+      <View padded backgroundColor="$backgroundSoft">
+        <Text fontSize={20} fontWeight="bold">
+          {t("All Activity")}
+        </Text>
+      </View>
+      <ProposalBanner />
+      <ProcessingBalanceBanner />
+    </View>
+  );
+});
+ListHeader.displayName = "ListHeader";
+
+const HeaderRow = memo(function HeaderRow({ date, height }: { date: string; height: number }) {
+  return (
+    <View height={height} paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
       <Text subHeadline color="$uiNeutralSecondary">
         {date}
       </Text>
@@ -115,17 +155,13 @@ const HeaderRow = memo(function HeaderRow({ date }: { date: string }) {
 HeaderRow.displayName = "HeaderRow";
 
 function renderItem({ item }: { item: ActivityItemType }) {
-  if (item.type === "header") return <HeaderRow date={item.date} />;
-  return <MemoizedActivityItem item={item.event} isLast={item.isLast} />;
-}
-
-function areActivityItemsEqual(previous: ActivityItemProperties, next: ActivityItemProperties) {
-  return previous.item === next.item && previous.isLast === next.isLast;
+  if (item.type === "header") return <HeaderRow date={item.date} height={item.height} />;
+  return <MemoizedActivityItem item={item.event} height={item.height} isLast={item.isLast} />;
 }
 
 function keyExtractor(item: ActivityItemType) {
   return item.type === "header" ? `header-${item.date}` : `event-${item.event.id}`;
 }
 
-const MemoizedActivityItem = memo(ActivityItem, areActivityItemsEqual);
+const MemoizedActivityItem = memo(ActivityItem);
 MemoizedActivityItem.displayName = "MemoizedActivityItem";

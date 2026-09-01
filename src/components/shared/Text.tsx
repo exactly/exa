@@ -36,15 +36,14 @@ type TextProperties = ComponentPropsWithoutRef<typeof StyledText> & {
   sensitive?: boolean;
 };
 
-const TextComponent = ({ ref: reference, children, sensitive, ...rest }: TextProperties) => {
-  const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
-  return (
-    <StyledText ref={reference} {...rest}>
-      {sensitive && hidden ? "***" : children}
-    </StyledText>
-  );
-};
+const TextComponent = ({ sensitive, ...rest }: TextProperties) =>
+  sensitive ? <SensitiveText {...rest} /> : <StyledText {...rest} />;
 
 TextComponent.displayName = "Text";
 
 export default TextComponent;
+
+function SensitiveText({ children, ...rest }: Omit<TextProperties, "sensitive">) {
+  const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
+  return <StyledText {...rest}>{hidden ? "***" : children}</StyledText>;
+}

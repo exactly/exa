@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRouter } from "expo-router";
+import { router } from "expo-router";
 
 import {
   ArrowDownToLine,
@@ -35,14 +35,15 @@ registerLocale(pt);
 
 export default function ActivityItem({
   item,
+  height,
   isLast,
   stackProps,
 }: {
+  height?: number;
   isLast: boolean;
   item: Item;
   stackProps?: React.ComponentProps<typeof XStack>;
 }) {
-  const router = useRouter();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
   const declined = item.type === "panda" && item.status === "declined";
   const processing = item.type === "panda" && !declined && country === "US" && isProcessing(item.timestamp);
@@ -53,7 +54,7 @@ export default function ActivityItem({
   } = useTranslation();
   return (
     <XStack
-      key={item.id}
+      height={height}
       gap="$s4"
       alignItems="center"
       paddingHorizontal="$s4"
