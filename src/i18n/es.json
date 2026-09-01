@@ -416,6 +416,7 @@
   "Hide BR Code": "Ocultar Código BR",
   "Hide PIN": "Ocultar PIN",
   "Hide sensitive": "Ocultar sensibles",
+  "High price impact: you receive {{percent}}% less value than you pay.": "Impacto de precio alto: recibes {{percent}}% menos valor del que pagas.",
   "High swap fee of {{percent}}%. Proceed with caution.": "Comisión de intercambio alta de {{percent}}%. Procede con precaución.",
   "Hold to send {{symbol}}": "Mantén presionado para enviar {{symbol}}",
   "Home": "Inicio",
