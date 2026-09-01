@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Pressable } from "react-native";
+import { Pressable, SectionList } from "react-native";
 
 import { Search } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
+
+import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
@@ -139,6 +141,16 @@ export default function TokenSelectModal({
     });
   }, [searchQuery, tokens, withBalanceOnly, assetByAddress, marketAssets]);
 
+  const sections = useMemo<{ data: Token[]; title?: string }[]>(() => {
+    if (filteredTokens.length === 0) return [];
+    const stocks = filteredTokens.filter(({ address }) => stockAddresses.has(address.toLowerCase()));
+    if (stocks.length === 0 || stocks.length === filteredTokens.length) return [{ data: filteredTokens }];
+    return [
+      { title: t("Cryptocurrencies"), data: filteredTokens.filter((token) => !stocks.includes(token)) },
+      { title: t("Tokenized stocks"), data: stocks },
+    ];
+  }, [filteredTokens, t]);
+
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
@@ -170,8 +182,15 @@ export default function TokenSelectModal({
             {isLoading ? (
               <SkeletonItems />
             ) : (
-              <FlatList
-                data={filteredTokens}
+              <SectionList
+                sections={sections}
+                renderSectionHeader={({ section }) =>
+                  section.title ? (
+                    <Text emphasized footnote color="$uiNeutralSecondary" paddingTop="$s4" paddingBottom="$s2">
+                      {section.title}
+                    </Text>
+                  ) : null
+                }
                 renderItem={({ item }) => (
                   <TokenListItem
                     token={item}
@@ -225,3 +244,9 @@ function formatTokenAmount(amount: bigint, decimals: number, language: string) {
     maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(tokenAmount)))),
   });
 }
+
+const stockAddresses = new Set(
+  (allowlists[String(chain.id)] ?? [])
+    .map((address) => address.toLowerCase())
+    .filter((address) => address.startsWith("0xb200000000000000000000")),
+);
