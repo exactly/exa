@@ -255,6 +255,7 @@
         "reintentamos",
         "reintentando",
         "repágala",
+        "tokenizadas",
         "verifícate"
       ]
     },
@@ -342,7 +343,8 @@
       "language": "en,pt",
       "words": [
         "autocustódia",
-        "criptomoedas"
+        "criptomoedas",
+        "tokenizadas"
       ]
     }
   ],

@@ -1115,12 +1115,11 @@ export default function Swaps() {
               </Button>
             </YStack>
             <TokenSelectModal
-              key={`${tokenSelectionType}:${fromChain}:${toChain}`}
+              key={tokenSelectionType}
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
               tokens={candidates}
               networks={networks}
-              chainId={tokenSelectionType === "from" ? fromChain : toChain}
               selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}

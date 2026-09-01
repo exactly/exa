@@ -849,6 +849,7 @@
   "To keep your account secure, Exa App uses passkeys, a passwordless authentication method protected by your device biometric verification.": "Para mantener tu cuenta segura, Exa App usa passkeys, un método de autenticación sin contraseñas protegido por la verificación biométrica de tu dispositivo.",
   "To upgrade your Exa Card, we first need to verify your identity so you can continue spending your onchain assets seamlessly.": "Para actualizar tu Exa Card, primero necesitamos verificar tu identidad para que puedas seguir gastando tus activos on-chain sin interrupciones.",
   "To": "Hacia",
+  "Tokenized stocks": "Acciones tokenizadas",
   "Too long": "Demasiado largo",
   "Top up an external wallet supported by LI.FI to unlock bridging into {{chain}}.": "Recarga una billetera externa compatible con LI.FI para habilitar el bridge hacia {{chain}}.",
   "Total after rollover": "Total después del refinanciamiento",
