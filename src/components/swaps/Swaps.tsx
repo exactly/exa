@@ -399,6 +399,10 @@ export default function Swaps() {
   const toAmount = route?.toAmount ?? inputToAmount;
   const tool = route?.tool ?? "";
 
+  const fromUSD = Number(route?.estimate.fromAmountUSD);
+  const toUSD = Number(route?.estimate.toAmountUSD);
+  const impact = fromUSD > 0 && toUSD > 0 ? 1 - toUSD / fromUSD : 0;
+
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken) return false;
     return fromAmount > getBalance(fromToken.token);
@@ -1054,6 +1058,17 @@ export default function Swaps() {
                             : failure
                               ? t("We can’t get a quote right now. Try again in a moment.")
                               : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                    </Text>
+                  </XStack>
+                )}
+                {impact >= 0.02 && (
+                  <XStack gap="$s3" alignItems="center">
+                    <TriangleAlert size={16} color="$uiWarningSecondary" />
+                    <Text caption color="$uiWarningSecondary" flex={1}>
+                      {t(
+                        "High price impact: you receive {{percent}}% less value than you pay due to low market liquidity.",
+                        { percent: (impact * 100).toFixed(1) },
+                      )}
                     </Text>
                   </XStack>
                 )}
