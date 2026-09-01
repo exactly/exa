@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import AssetList from "./AssetList";
 import ExternalAssets from "./ExternalAssets";
+import Stocks from "./Stocks";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { balancesOptions } from "../../utils/lifi";
@@ -178,6 +179,7 @@ export default function Portfolio() {
             </View>
             <View padded gap="$s4">
               <AssetList />
+              <Stocks />
               <ExternalAssets />
             </View>
             <XStack gap="$s4" padding="$s4" flexWrap="wrap">

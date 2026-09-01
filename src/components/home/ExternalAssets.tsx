@@ -10,7 +10,7 @@ import { Spinner, XStack, YStack } from "tamagui";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
 import UnsupportedNetworksSheet from "./UnsupportedNetworksSheet";
@@ -40,6 +40,7 @@ export default function ExternalAssets() {
   const groups = useMemo<NetworkGroup[]>(() => {
     const byChain = new Map<number, ExternalAsset[]>();
     for (const asset of [...externalAssets, ...crossChainAssets]) {
+      if (stockAddresses.has(asset.address.toLowerCase())) continue;
       const list = byChain.get(asset.chainId) ?? [];
       list.push(asset);
       byChain.set(asset.chainId, list);
@@ -166,16 +167,16 @@ function NetworkHeader({ name }: { name: string }) {
   );
 }
 
-function AssetRow({
+export function AssetRow({
   asset,
-  disabled,
+  disabled = false,
   onPress,
-  pending,
+  pending = false,
 }: {
   asset: ExternalAsset;
-  disabled: boolean;
+  disabled?: boolean;
   onPress: () => void;
-  pending: boolean;
+  pending?: boolean;
 }) {
   const {
     i18n: { language },
@@ -264,3 +265,9 @@ function isUnsupported(chainId: number, deployedChains: Map<number, boolean>) {
 }
 
 const pressStyle = { opacity: 0.7 };
+
+const stockAddresses = new Set(
+  (allowlists[String(chain.id)] ?? [])
+    .map((address) => address.toLowerCase())
+    .filter((address) => address.startsWith("0xb200000000000000000000")),
+);

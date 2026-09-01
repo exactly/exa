@@ -26,7 +26,7 @@ import { useSendCalls, useSimulateContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain from "@exactly/common/generated/chain";
+import chain, { allowlists } from "@exactly/common/generated/chain";
 import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
@@ -159,19 +159,23 @@ export default function Swaps() {
   const payableTokens = useMemo(() => (tokens ?? []).filter((token) => getBalance(token) > 0n), [tokens, getBalance]);
 
   useEffect(() => {
-    if (!fromToken && !toToken && tokens && markets) {
-      const payable = payableTokens.find(({ symbol }) => symbol === "USDC") ?? payableTokens[0];
-      const target = ["EXA", "WETH", "USDC"]
+    if ((fromToken && toToken) || !tokens || !markets) return;
+    const payable =
+      fromToken?.token ??
+      payableTokens.find(({ symbol, address }) => symbol === "USDC" && address !== toToken?.token.address) ??
+      payableTokens.find(({ address }) => address !== toToken?.token.address);
+    if (!payable) return;
+    const target =
+      toToken?.token ??
+      (stockAddresses.has(payable.address.toLowerCase()) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
         .map((symbol) => tokens.find((token) => token.symbol === symbol))
-        .find((token) => token !== undefined && token.address !== payable?.address);
-      if (payable && target) {
-        updateSwap((old) => ({
-          ...old,
-          fromToken: { token: payable, external: isExternal(payable.address) },
-          toToken: { token: target, external: isExternal(target.address) },
-        }));
-      }
-    }
+        .find((token) => token !== undefined && token.address !== payable.address);
+    if (!target) return;
+    updateSwap((old) => ({
+      ...old,
+      fromToken: fromToken ?? { token: payable, external: isExternal(payable.address) },
+      toToken: toToken ?? { token: target, external: isExternal(target.address) },
+    }));
   }, [fromToken, isExternal, markets, payableTokens, toToken, tokens]);
 
   const kycText = kycError instanceof APIError ? kycError.text : undefined;
@@ -822,5 +826,11 @@ function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, t
 function updateSwap(updater: (old: Swap) => Swap) {
   queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
 }
+
+const stockAddresses = new Set(
+  (allowlists[String(chain.id)] ?? [])
+    .map((address) => address.toLowerCase())
+    .filter((address) => address.startsWith("0xb200000000000000000000")),
+);
 
 export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };
