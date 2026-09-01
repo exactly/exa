@@ -147,6 +147,8 @@ export default function Swaps() {
     isFetching: isKYCFetching,
     refetch: refetchKYC,
   } = useKYC(chain.id === base.id);
+  const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
+  const restricted = ["AU", "CA", "GB", "SG", "US"].includes(country ?? "");
   const {
     data: homeTokens,
     isLoading: isTokensLoading,
@@ -264,6 +266,10 @@ export default function Swaps() {
     () => candidates.filter((token) => held.has(`${token.chainId}:${token.address}`)),
     [candidates, held],
   );
+  const selectableTokens = useMemo(
+    () => candidates.filter((token) => !(restricted && tokenSelectionType === "to" && isStock(token))),
+    [candidates, restricted, tokenSelectionType],
+  );
 
   useEffect(() => {
     if (!markets || !homeTokens || (fromToken && toToken)) return;
@@ -324,7 +330,9 @@ export default function Swaps() {
         tokenSelectionType === "to"
           ? { token: selected, external: isExternal(selected.chainId, selected.address) }
           : sameToken(selected, toToken.token)
-            ? { token: fromToken.token, external: fromToken.external }
+            ? restricted && isStock(fromToken.token)
+              ? undefined
+              : { token: fromToken.token, external: fromToken.external }
             : toToken,
       tokenModalOpen: false,
     }));
@@ -1009,7 +1017,7 @@ export default function Swaps() {
                 <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
                   <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
                     <Trans
-                      i18nKey="Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
+                      i18nKey="Swaps are provided via <link>LI.FI</link> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
                       components={{
                         link: (
                           <Text
@@ -1143,7 +1151,7 @@ export default function Swaps() {
               key={tokenSelectionType}
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
-              tokens={candidates}
+              tokens={selectableTokens}
               networks={networks}
               selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
               onSelect={handleTokenSelect}

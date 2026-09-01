@@ -792,7 +792,7 @@
   "Swap it to a supported asset on {{chain}}.": "Haz swap a un activo soportado en {{chain}}.",
   "Swap needed after receiving": "Swap necesario después de recibir",
   "Swap fee": "Comisión de intercambio",
-  "Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols.": "La funcionalidad de intercambio es proporcionada por <link>LI.FI</link> y ejecutada en redes descentralizadas. La disponibilidad y los precios dependen de las condiciones de la red y de protocolos de terceros.",
+  "Swaps are provided via <link>LI.FI</link> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping.": "Los intercambios se realizan a través de <link>LI.FI</link> en redes descentralizadas. Algunos activos pueden no estar disponibles en todos los países, así que revisa las regulaciones locales antes de intercambiar.",
   "Swap <em>completed</em>": "Intercambio <em>completado</em>",
   "Swap request <em>sent</em>": "Solicitud de intercambio <em>enviada</em>",
   "Swap service provided by <provider>LI.FI</provider>, executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols.": "Servicio de intercambio provisto por <provider>LI.FI</provider>, ejecutado en redes descentralizadas. La disponibilidad y los precios dependen de las condiciones de la red y de protocolos de terceros.",
