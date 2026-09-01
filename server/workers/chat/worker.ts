@@ -144,6 +144,7 @@ const locale = v.pipe(
 
 const model = "anthropic/claude-sonnet-5";
 const ttl = 3600;
+const utm = "utm_source=whatsapp&utm_medium=chat&utm_campaign=meta_ads";
 
 const scripts = {
   help: {
@@ -154,11 +155,11 @@ const scripts = {
           "Hi again. Almost everything you need to know about the Exa Card is in our help center: credit limit, identity verification, billing address, installments and payments.",
           "Search for your topic here:",
         ].join("\n"),
-        url: "https://help.exactly.app",
+        url: `https://help.exactly.app?${utm}`,
       },
       {
         text: "If you don't find the answer there, write to us from the support chat inside the Exa app:",
-        url: `${appOrigin}/?support`,
+        url: `${appOrigin}/?support&${utm}`,
       },
     ],
   },
@@ -172,7 +173,7 @@ const scripts = {
           "You also get access to a dollar account in the US, all 100% free.",
           "Create your account and activate your card here:",
         ].join("\n"),
-        url: appOrigin,
+        url: `${appOrigin}/?${utm}`,
       },
     ],
   },

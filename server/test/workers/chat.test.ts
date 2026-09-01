@@ -27,13 +27,14 @@ const events = new QueueEvents("chat", { connection: bullmq });
 const publisher = createChat(bullmq);
 const { agent, reply } = chat("anthropic");
 const whatsapp = createWhatsapp({ from: "321", token: "token" });
+const utm = "utm_source=whatsapp&utm_medium=chat&utm_campaign=meta_ads";
 const welcome = `Hi, welcome to Exa!
 With Exa you choose whether to pay for your purchases instantly with your balance or in fixed-rate installments, without selling your digital assets.
 You also get access to a dollar account in the US, all 100% free.
-Create your account and activate your card here: ${appOrigin}`;
+Create your account and activate your card here: ${appOrigin}/?${utm}`;
 const help = `Hi again. Almost everything you need to know about the Exa Card is in our help center: credit limit, identity verification, billing address, installments and payments.
-Search for your topic here: https://help.exactly.app
-If you don't find the answer there, write to us from the support chat inside the Exa app: ${appOrigin}/?support`;
+Search for your topic here: https://help.exactly.app?${utm}
+If you don't find the answer there, write to us from the support chat inside the Exa app: ${appOrigin}/?support&${utm}`;
 
 let worker: ReturnType<typeof createChatWorker>;
 let connection: ReturnType<typeof connect>;
@@ -89,7 +90,7 @@ describe("chat composition", () => {
       .mockResolvedValueOnce({ text: "  ¡Hola de nuevo!  " } as never) // cspell:ignore Hola nuevo
       .mockResolvedValueOnce({ text: "Escribinos por soporte:" } as never); // cspell:ignore Escribinos soporte
     await expect(execute(true, "es-AR")).resolves.toStrictEqual({
-      text: `¡Hola de nuevo! https://help.exactly.app\nEscribinos por soporte: ${appOrigin}/?support`, // cspell:ignore Hola nuevo Escribinos soporte
+      text: `¡Hola de nuevo! https://help.exactly.app?${utm}\nEscribinos por soporte: ${appOrigin}/?support&${utm}`, // cspell:ignore Hola nuevo Escribinos soporte
     });
     expect(translate).toHaveBeenCalledTimes(2);
     expect(translate).toHaveBeenCalledWith(expect.stringContaining("Translate to es-AR:") as never);
