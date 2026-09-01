@@ -292,6 +292,10 @@ export default function Swaps() {
   const toAmount = activeInput === "from" && route?.toAmount != null ? route.toAmount : inputToAmount;
   const tool = route?.tool ?? "";
 
+  const fromUSD = Number(route?.estimate?.fromAmountUSD);
+  const toUSD = Number(route?.estimate?.toAmountUSD);
+  const impact = fromUSD > 0 && toUSD > 0 ? 1 - toUSD / fromUSD : 0;
+
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken) return false;
     return fromAmount > getBalance(fromToken.token);
@@ -677,6 +681,17 @@ export default function Swaps() {
             </ScrollView>
             <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
               <YStack gap="$s3">
+                {impact >= 0.02 && (
+                  <XStack gap="$s3" alignItems="center">
+                    <TriangleAlert size={16} color="$uiWarningSecondary" />
+                    <Text caption color="$uiWarningSecondary" flex={1}>
+                      {t(
+                        "High price impact: you receive {{percent}}% less value than you pay due to low market liquidity.",
+                        { percent: (impact * 100).toFixed(1) },
+                      )}
+                    </Text>
+                  </XStack>
+                )}
                 {(caution || danger) && showWarning && (
                   <YStack gap="$s4_5">
                     <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
