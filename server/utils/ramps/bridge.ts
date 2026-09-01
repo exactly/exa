@@ -142,7 +142,7 @@ export default function bridge(key: string, url: string) {
   ) {
     const approved = customer.endorsements.some(
       (endorsement) =>
-        endorsement.status === "approved" && CurrencyByEndorsement[endorsement.name].includes(externalAccount.currency),
+        endorsement.status === "approved" && fiat(endorsement.name, "offramp").includes(externalAccount.currency),
     );
     if (!approved) throw new Error(ErrorCodes.NO_ENDORSEMENT);
     return await request(
@@ -566,9 +566,10 @@ export default function bridge(key: string, url: string) {
     }
     if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
 
-    const approvedEndorsements = customer.endorsements.filter((endorsement) => endorsement.status === "approved");
-    const availableCurrencies = approvedEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement.name]);
-    if (!availableCurrencies.includes(currency)) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
+    const available = customer.endorsements.some(
+      (endorsement) => endorsement.status === "approved" && fiat(endorsement.name, "onramp").includes(currency),
+    );
+    if (!available) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
     const virtualAccounts = await getVirtualAccounts(customer.id);
     let virtualAccount = virtualAccounts.find(
       ({ source_deposit_instructions, status }) =>
@@ -891,10 +892,10 @@ export default function bridge(key: string, url: string) {
           return {
             status: "ONBOARDING" as const,
             onramp: {
-              currencies: [...currencies.onramp, ...CurrencyByEndorsement.base],
+              currencies: [...currencies.onramp, ...CurrencyByEndorsement.base.currencies],
             },
             offramp: {
-              currencies: [...currencies.offramp, ...CurrencyByEndorsement.base],
+              currencies: [...currencies.offramp, ...CurrencyByEndorsement.base.currencies],
             },
             kycLink: await maybeKYCLink(
               bridgeUser,
@@ -913,8 +914,8 @@ export default function bridge(key: string, url: string) {
           ) {
             return {
               status: "ONBOARDING" as const,
-              onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base] },
-              offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base] },
+              onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base.currencies] },
+              offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base.currencies] },
               kycLink: await maybeKYCLink(
                 bridgeUser,
                 (() => {
@@ -929,7 +930,7 @@ export default function bridge(key: string, url: string) {
           break;
       }
 
-      const approvedCurrencies = bridgeUser.endorsements.flatMap((endorsement) => {
+      const approved = bridgeUser.endorsements.flatMap((endorsement) => {
         if (endorsement.status !== "approved") {
           // TODO handle pending tasks
           captureException(new Error("endorsement not approved"), {
@@ -954,13 +955,23 @@ export default function bridge(key: string, url: string) {
           });
         }
 
-        return CurrencyByEndorsement[endorsement.name];
+        return [endorsement.name];
       });
 
       return {
         status: "ACTIVE" as const,
-        onramp: { currencies: [...currencies.onramp, ...approvedCurrencies] },
-        offramp: { currencies: [...currencies.offramp, ...approvedCurrencies] },
+        onramp: {
+          currencies: [
+            ...currencies.onramp,
+            ...new Set(approved.flatMap((endorsement) => fiat(endorsement, "onramp"))),
+          ],
+        },
+        offramp: {
+          currencies: [
+            ...currencies.offramp,
+            ...new Set(approved.flatMap((endorsement) => fiat(endorsement, "offramp"))),
+          ],
+        },
         futureRequirement: await futureRequirement(
           bridgeUser,
           (() => {
@@ -983,8 +994,8 @@ export default function bridge(key: string, url: string) {
     if (personaAccount.attributes.fields.bridge_enable?.value !== true) {
       return {
         status: "ONBOARDING" as const,
-        onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base] },
-        offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base] },
+        onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base.currencies] },
+        offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base.currencies] },
       };
     }
     const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
@@ -1010,7 +1021,7 @@ export default function bridge(key: string, url: string) {
       "base" as const,
       "sepa" as const,
       ...(countryCode === "MX" ? ["spei" as const] : []),
-      ...(countryCode === "BR" ? ["pix" as const] : []),
+      ...(countryCode === "BR" ? ["pix_offramp" as const, "pix_onramp" as const] : []),
       ...(countryCode === "GB" ? ["faster_payments" as const] : []),
     ];
 
@@ -1025,16 +1036,10 @@ export default function bridge(key: string, url: string) {
         })(),
       ),
       onramp: {
-        currencies: [
-          ...currencies.onramp,
-          ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement]),
-        ],
+        currencies: [...currencies.onramp, ...endorsements.flatMap((endorsement) => fiat(endorsement, "onramp"))],
       },
       offramp: {
-        currencies: [
-          ...currencies.offramp,
-          ...endorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement]),
-        ],
+        currencies: [...currencies.offramp, ...endorsements.flatMap((endorsement) => fiat(endorsement, "offramp"))],
       },
     };
   }
@@ -1234,7 +1239,7 @@ export default function bridge(key: string, url: string) {
 
     const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
     if (countryCode === "MX") endorsements.push("spei");
-    if (countryCode === "BR") endorsements.push("pix");
+    if (countryCode === "BR") endorsements.push("pix_offramp", "pix_onramp");
     if (countryCode === "GB") endorsements.push("faster_payments");
 
     const identityDocument = await persona.getDocument(validDocument.id_document_id.value);
@@ -1446,7 +1451,7 @@ const issues = new Set([
 ]);
 
 const Denylist = new Set(["ID"]);
-const Endorsements = ["base", "faster_payments", "pix", "sepa", "spei"] as const; // cspell:ignore spei, sepa
+const Endorsements = ["base", "faster_payments", "pix", "pix_offramp", "pix_onramp", "sepa", "spei"] as const; // cspell:ignore spei, sepa
 export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
 const VirtualAccountStatus = ["activated", "deactivated"] as const;
@@ -1475,13 +1480,23 @@ const CurrencyToBridge: Record<(typeof SupportedCurrency)[number], (typeof Bridg
   USDT: "usdt",
 } as const;
 
-export const CurrencyByEndorsement: Record<(typeof Endorsements)[number], (typeof FiatCurrency)[number][]> = {
-  base: ["USD"],
-  faster_payments: ["GBP"],
-  pix: ["BRL"],
-  sepa: ["EUR"],
-  spei: ["MXN"],
+export const CurrencyByEndorsement: Record<
+  (typeof Endorsements)[number],
+  { currencies: (typeof FiatCurrency)[number][]; only?: "offramp" | "onramp" }
+> = {
+  base: { currencies: ["USD"] },
+  faster_payments: { currencies: ["GBP"] },
+  pix: { currencies: ["BRL"] },
+  pix_offramp: { currencies: ["BRL"], only: "offramp" },
+  pix_onramp: { currencies: ["BRL"], only: "onramp" },
+  sepa: { currencies: ["EUR"] },
+  spei: { currencies: ["MXN"] },
 };
+
+function fiat(endorsement: (typeof Endorsements)[number], ramp: "offramp" | "onramp") {
+  const { currencies, only } = CurrencyByEndorsement[endorsement];
+  return only && only !== ramp ? [] : currencies;
+}
 
 export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron", "base"] as const;
 export const BridgeChain = ["optimism"] as const;
@@ -1690,35 +1705,48 @@ const CustomerResponse = object({
   id: string(),
   email: string(),
   status: picklist(CustomerStatus),
-  endorsements: array(
-    object({
-      name: picklist(Endorsements),
-      status: picklist(EndorsementStatus),
-      additional_requirements: optional(array(picklist(AdditionalRequirements))),
-      requirements: object({
-        complete: array(string()),
-        pending: array(string()),
-        missing: nullish(unknown()),
-        issues: array(union([string(), unknown()])),
-      }),
-      future_requirements: optional(
-        array(
-          object({
-            effective_date: pipe(
-              string(),
-              transform((value) => {
-                if (!Number.isNaN(new Date(value).getTime())) return value;
-                captureException(new Error("invalid bridge future requirement effective date"), {
-                  contexts: { bridge: { effectiveDate: value } },
-                  level: "error",
-                });
-              }),
-            ),
-            pending: array(string()),
-          }),
+  endorsements: pipe(
+    array(
+      object({
+        name: string(),
+        status: picklist(EndorsementStatus),
+        additional_requirements: optional(array(picklist(AdditionalRequirements))),
+        requirements: object({
+          complete: array(string()),
+          pending: array(string()),
+          missing: nullish(unknown()),
+          issues: array(union([string(), unknown()])),
+        }),
+        future_requirements: optional(
+          array(
+            object({
+              effective_date: pipe(
+                string(),
+                transform((value) => {
+                  if (!Number.isNaN(new Date(value).getTime())) return value;
+                  captureException(new Error("invalid bridge future requirement effective date"), {
+                    contexts: { bridge: { effectiveDate: value } },
+                    level: "error",
+                  });
+                }),
+              ),
+              pending: array(string()),
+            }),
+          ),
         ),
-      ),
-    }),
+      }),
+    ),
+    transform((endorsements) =>
+      endorsements.flatMap((endorsement) => {
+        const parsed = safeParse(picklist(Endorsements), endorsement.name);
+        if (parsed.success) return [{ ...endorsement, name: parsed.output }];
+        captureException(new Error("unknown bridge endorsement"), {
+          contexts: { bridge: { endorsement: endorsement.name } },
+          level: "error",
+        });
+        return [];
+      }),
+    ),
   ),
 });
 
