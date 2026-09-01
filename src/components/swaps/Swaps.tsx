@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Check,
   CircleHelp,
+  Clock,
   IdCard,
   RefreshCw,
   Repeat,
@@ -295,6 +296,8 @@ export default function Swaps() {
   const fromUSD = Number(route?.estimate?.fromAmountUSD);
   const toUSD = Number(route?.estimate?.toAmountUSD);
   const impact = fromUSD > 0 && toUSD > 0 ? 1 - toUSD / fromUSD : 0;
+  const closedStock =
+    [fromToken, toToken].some((side) => stockAddresses.has(side?.token.address.toLowerCase() ?? "")) && !marketOpen();
 
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken) return false;
@@ -681,6 +684,14 @@ export default function Swaps() {
             </ScrollView>
             <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
               <YStack gap="$s3">
+                {closedStock && (
+                  <XStack gap="$s3" alignItems="center">
+                    <Clock size={16} color="$uiNeutralSecondary" />
+                    <Text caption color="$uiNeutralSecondary" flex={1}>
+                      {t("The US stock market is closed. Onchain prices may differ from the next market open.")}
+                    </Text>
+                  </XStack>
+                )}
                 {impact >= 0.02 && (
                   <XStack gap="$s3" alignItems="center">
                     <TriangleAlert size={16} color="$uiWarningSecondary" />
@@ -841,6 +852,23 @@ function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, t
 function updateSwap(updater: (old: Swap) => Swap) {
   queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
 }
+
+function marketOpen() {
+  const parts = formatter.formatToParts(new Date());
+  const value = (type: string) => parts.find((unit) => unit.type === type)?.value ?? "";
+  const weekday = value("weekday");
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const minutes = Number(value("hour")) * 60 + Number(value("minute"));
+  return minutes >= 9.5 * 60 && minutes < 16 * 60;
+}
+
+const formatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "numeric",
+  minute: "numeric",
+  hourCycle: "h23",
+});
 
 const stockAddresses = new Set(
   (allowlists[String(chain.id)] ?? [])

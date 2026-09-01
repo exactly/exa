@@ -764,6 +764,7 @@
   "The saved contact may stop working once it's paid.": "O contato salvo pode deixar de funcionar após o pagamento.",
   "The transaction hash has been copied to the clipboard.": "O hash da transação foi copiado para a área de transferência.",
   "The transfer details saved for this contact aren't available. To send to them, delete the contact and add their account details again.": "Os dados de transferência salvos para este contato não estão disponíveis. Para enviar a ele, exclua o contato e adicione os dados da conta novamente.",
+  "The US stock market is closed. Onchain prices may differ from the next market open.": "O mercado de ações dos Estados Unidos está fechado. Os preços onchain podem diferir dos da próxima abertura.",
   "There are no pending requests!": "Não há solicitações pendentes!",
   "There was an error verifying your information.": "Houve um erro ao verificar suas informações.",
   "There was an error when processing your payment: {{reason}}": "Houve um erro ao processar seu pagamento: {{reason}}.",
