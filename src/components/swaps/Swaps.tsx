@@ -107,6 +107,8 @@ export default function Swaps() {
     isFetching: isKYCFetching,
     refetch: refetchKYC,
   } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"], enabled: chain.id === base.id });
+  const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
+  const restricted = ["AU", "CA", "GB", "SG", "US"].includes(country ?? "");
   const {
     data: tokens,
     isLoading: isTokensLoading,
@@ -158,6 +160,13 @@ export default function Swaps() {
   const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
 
   const payableTokens = useMemo(() => (tokens ?? []).filter((token) => getBalance(token) > 0n), [tokens, getBalance]);
+  const selectableTokens = useMemo(
+    () =>
+      (tokens ?? []).filter(
+        ({ address }) => !(restricted && tokenSelectionType === "to" && stockAddresses.has(address.toLowerCase())),
+      ),
+    [restricted, tokenSelectionType, tokens],
+  );
 
   useEffect(() => {
     if ((fromToken && toToken) || !tokens || !markets) return;
@@ -777,7 +786,7 @@ export default function Swaps() {
             <TokenSelectModal
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
-              tokens={tokens ?? []}
+              tokens={selectableTokens}
               selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
