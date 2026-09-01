@@ -15,6 +15,7 @@ auditConfig:
     - GHSA-mh99-v99m-4gvg
     - GHSA-r28c-9q8g-f849
     - GHSA-rgw5-rvv9-x895
+    - GHSA-vcc3-ghjq-m6fr # cspell:ignore ghjq
     - GHSA-w3rx-r6r6-pgpr # cspell:ignore pgpr
     - GHSA-w5hq-g745-h8pq
 autoInstallPeers: false
