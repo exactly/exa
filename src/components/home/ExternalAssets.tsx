@@ -15,7 +15,7 @@ import chain from "@exactly/common/generated/chain";
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
-import { lifiChainsOptions } from "../../utils/lifi";
+import { isStock, lifiChainsOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
@@ -40,6 +40,7 @@ export default function ExternalAssets() {
   const groups = useMemo<NetworkGroup[]>(() => {
     const byChain = new Map<number, ExternalAsset[]>();
     for (const asset of [...externalAssets, ...crossChainAssets]) {
+      if (isStock(asset)) continue;
       const list = byChain.get(asset.chainId) ?? [];
       list.push(asset);
       byChain.set(asset.chainId, list);
@@ -166,16 +167,16 @@ function NetworkHeader({ name }: { name: string }) {
   );
 }
 
-function AssetRow({
+export function AssetRow({
   asset,
-  disabled,
+  disabled = false,
   onPress,
-  pending,
+  pending = false,
 }: {
   asset: ExternalAsset;
-  disabled: boolean;
+  disabled?: boolean;
   onPress: () => void;
-  pending: boolean;
+  pending?: boolean;
 }) {
   const {
     i18n: { language },
