@@ -121,7 +121,7 @@ export default function ExternalAssets() {
       >
         <XStack alignItems="center" gap="$s2" onPress={() => setInfoSheetOpen(true)}>
           <Text emphasized headline color="$uiNeutralPrimary">
-            {t("Non-collateral assets")}
+            {t("Other assets")}
           </Text>
           <Info size={16} color="$interactiveOnBaseBrandSoft" />
         </XStack>

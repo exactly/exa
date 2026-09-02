@@ -21,7 +21,7 @@ export default function CollateralAssetsSheet({ onClose, open }: { onClose: () =
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>
-            {t("Collateral assets")}
+            {t("Assets backing your credit")}
           </Text>
           <Text subHeadline color="$uiNeutralSecondary">
             {t(

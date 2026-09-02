@@ -52,7 +52,7 @@ export default function AssetList() {
   return (
     <>
       <AssetSection
-        title={t("Collateral assets")}
+        title={t("Assets backing your credit")}
         assets={collateralAssets}
         onInfoPress={() => {
           setSheetOpen(true);

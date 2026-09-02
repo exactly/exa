@@ -23,7 +23,7 @@ export default function ExternalAssetsSheet({ onClose, open }: { onClose: () => 
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>
-            {t("Non-collateral assets")}
+            {t("Other assets")}
           </Text>
           <Text subHeadline color="$uiNeutralSecondary">
             {t(
