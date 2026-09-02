@@ -177,6 +177,7 @@
       "@sentry/profiling-node@10": "catalog:",
       "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": "^6.0.0",
       "@wagmi/core": "catalog:",
+      "@xmldom/xmldom@0.8.13": "^0.8.15",
       "abitype>zod": "^4.0.0",
       "axios@1.16.1": "^1.18.0",
       "brace-expansion@5.0.6": "^5.0.7",

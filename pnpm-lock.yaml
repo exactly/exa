@@ -100,6 +100,7 @@ overrides:
   '@sentry/profiling-node@10': ^10.71.0
   '@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms': ^6.0.0
   '@wagmi/core': ^3.4.1
+  '@xmldom/xmldom@0.8.13': ^0.8.15
   abitype>zod: ^4.0.0
   axios@1.16.1: ^1.18.0
   brace-expansion@5.0.6: ^5.0.7
@@ -7028,8 +7029,8 @@ packages:
   '@workflow/serde@4.1.0-beta.2':
     resolution: {integrity: sha512-8kkeoQKLDaKXefjV5dbhBj2aErfKp1Mc4pb6tj8144cF+Em5SPbyMbyLCHp+BVrFfFVCBluCtMx+jjvaFVZGww==}
 
-  '@xmldom/xmldom@0.8.13':
-    resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
+  '@xmldom/xmldom@0.8.15':
+    resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
 
   '@yarnpkg/lockfile@1.1.0':
@@ -17822,7 +17823,7 @@ snapshots:
 
   '@expo/plist@0.5.2':
     dependencies:
-      '@xmldom/xmldom': 0.8.13
+      '@xmldom/xmldom': 0.8.15
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
@@ -22710,7 +22711,7 @@ snapshots:
 
   '@workflow/serde@4.1.0-beta.2': {}
 
-  '@xmldom/xmldom@0.8.13': {}
+  '@xmldom/xmldom@0.8.15': {}
 
   '@yarnpkg/lockfile@1.1.0': {}
 
@@ -29937,7 +29938,7 @@ snapshots:
 
   plist@3.1.0:
     dependencies:
-      '@xmldom/xmldom': 0.8.13
+      '@xmldom/xmldom': 0.8.15
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
