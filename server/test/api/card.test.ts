@@ -2129,7 +2129,7 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000, undefined);
     });
 
     it("uses default limit when persona account has no card limit", async () => {
@@ -2158,7 +2158,7 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined, undefined);
     });
 
     it("falls back to default limit and captures when getAccount fails", async () => {
@@ -2184,7 +2184,7 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined, undefined);
       expect(captureException).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
