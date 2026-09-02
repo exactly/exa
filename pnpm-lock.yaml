@@ -112,6 +112,8 @@ overrides:
   lodash-es@4: ^4.18.0
   markdown-it@14: ^14.2.0
   picomatch@4: ^4.0.4
+  postcss-selector-parser@6.1.2: ^6.1.3
+  postcss-selector-parser@7.1.1: ^7.1.3
   postcss@8: ^8.5.10
   sharp: ^0.35.3
   tar: ^7.5.21
@@ -12627,12 +12629,12 @@ packages:
     peerDependencies:
       postcss: ^8.5.10
 
-  postcss-selector-parser@6.1.2:
-    resolution: {integrity: sha512-Q8qQfPiZ+THO/3ZrOrO0cJJKfpYCagtMUkXbnEfmgUjwXg6z/WBeOyS9APBBPCTSiDV+s4SwQGu8yFsiMRIudg==}
+  postcss-selector-parser@6.1.4:
+    resolution: {integrity: sha512-bIoJLOmjCO1S9XdY/DcnR5hJxvrDir1PbGChrzXG3vw0/FOliy/fA3dmdhQ441kah4gKv+TwckGzex6wNS5cnQ==}
     engines: {node: '>=4'}
 
-  postcss-selector-parser@7.1.1:
-    resolution: {integrity: sha512-orRsuYpJVw8LdAwqqLykBj9ecS5/cRHlI5+nvTo8LcCKmzDmqVORXtOIYEEQuL9D4BxtA1lm5isAqzQZCoQ6Eg==}
+  postcss-selector-parser@7.1.5:
+    resolution: {integrity: sha512-KvvtD7SrlBP7dlgkBghEE3r84CABm5SmV2aNcG4oCA+qDnJ/tvKonFVvwWAyyWUEwxuNawdfEAZKP9zM3oZ2Uw==}
     engines: {node: '>=4'}
 
   postcss-value-parser@4.2.0:
@@ -18821,7 +18823,7 @@ snapshots:
 
   '@npmcli/query@5.0.0':
     dependencies:
-      postcss-selector-parser: 7.1.1
+      postcss-selector-parser: 7.1.5
 
   '@npmcli/redact@4.0.0': {}
 
@@ -25005,7 +25007,7 @@ snapshots:
       eslint-compat-utils: 0.6.5(eslint@9.39.4)
       globals: 16.5.0
       postcss: 8.5.10
-      postcss-selector-parser: 7.1.1
+      postcss-selector-parser: 7.1.5
     transitivePeerDependencies:
       - supports-color
 
@@ -29954,14 +29956,14 @@ snapshots:
   postcss-nested@6.2.0(postcss@8.5.10):
     dependencies:
       postcss: 8.5.10
-      postcss-selector-parser: 6.1.2
+      postcss-selector-parser: 6.1.4
 
-  postcss-selector-parser@6.1.2:
+  postcss-selector-parser@6.1.4:
     dependencies:
       cssesc: 3.0.0
       util-deprecate: 1.0.2
 
-  postcss-selector-parser@7.1.1:
+  postcss-selector-parser@7.1.5:
     dependencies:
       cssesc: 3.0.0
       util-deprecate: 1.0.2
