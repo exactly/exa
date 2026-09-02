@@ -179,6 +179,7 @@
       "abitype>zod": "^4.0.0",
       "axios@1.16.1": "^1.18.0",
       "brace-expansion@5.0.6": "^5.0.7",
+      "browserslist@4.28.1": "^4.28.7",
       "comlink": "$comlink",
       "esbuild@0.18.20": "^0.25.0",
       "form-data@4": "^4.0.6",
