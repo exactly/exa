@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.115
+
+### Patch Changes
+
+- [#1282](https://github.com/exactly/exa/pull/1282) [`d07eca3`](https://github.com/exactly/exa/commit/d07eca34f38a01d7f082a45e2c4e9ce71e4c2436) Thanks [@mainqueg](https://github.com/mainqueg)! - 📈 track whatsapp chat links
+
 ## 0.2.114
 
 ### Patch Changes
