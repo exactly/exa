@@ -170,6 +170,7 @@
   "pnpm": {
     "overrides": {
       "@hono/node-server": "catalog:",
+      "@humanfs/node@0.16.7": "^0.16.8",
       "@opentelemetry/core@2": "^2.8.0",
       "@sentry/core@10": "catalog:",
       "@sentry/node@10": "catalog:",
