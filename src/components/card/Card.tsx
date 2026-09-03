@@ -4,7 +4,17 @@ import { Trans, useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { ChevronRight, CircleHelp, CreditCard, DollarSign, Eye, EyeOff, Hash, Snowflake } from "@tamagui/lucide-icons";
+import {
+  ChevronRight,
+  CircleHelp,
+  ClockAlert,
+  CreditCard,
+  DollarSign,
+  Eye,
+  EyeOff,
+  Hash,
+  Snowflake,
+} from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
@@ -39,6 +49,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useCardLimit from "../../utils/useCardLimit";
+import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import FundingAlert from "../shared/FundingAlert";
@@ -96,10 +107,7 @@ export default function Card() {
     chainId: chain.id,
     query: { enabled: !!address },
   });
-  const { data: kycStatus, isPending: isPendingKYC } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
-  const isKYCApproved = Boolean(
-    kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
-  );
+  const { approved: isKYCApproved, review: isKYCInReview, isFetched: isKYCFetched } = useKYC();
   const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
     chainId: chain.id,
@@ -158,21 +166,12 @@ export default function Card() {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
-        const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
-        if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
-          setDisclaimerShown(true);
-          return;
-        }
       } catch (error) {
         if (!(error instanceof APIError)) {
           reportError(error);
           return;
         }
         const { text } = error;
-        if (text === "bad kyc") {
-          setVerificationFailureShown(true);
-          return;
-        }
         if (text !== "not started" && text !== "no kyc") {
           reportError(error);
           toast.show(t("An error occurred. Please try again later."), {
@@ -182,17 +181,41 @@ export default function Card() {
           return;
         }
       }
+      const status = await queryClient
+        .fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 })
+        .catch((error: unknown) => {
+          reportError(error);
+          toast.show(t("An error occurred. Please try again later."), {
+            duration: 1000,
+            burntOptions: { haptic: "error", preset: "error" },
+          });
+        });
+      if (!status) return;
+      const code = "code" in status ? status.code : undefined;
+      if (code === "ok" || code === "legacy kyc") {
+        setDisclaimerShown(true);
+        return;
+      }
+      if (code === "bad kyc") {
+        setVerificationFailureShown(true);
+        return;
+      }
+      if (code !== "not started" && code !== "no kyc") {
+        router.push("/(main)/getting-started");
+        return;
+      }
       beginKYC.mutate(undefined, {
         onSuccess(result) {
           if (result.status === "cancel") return;
+          if (result.status === "blocked") {
+            if ("code" in result.kyc && result.kyc.code === "bad kyc") setVerificationFailureShown(true);
+            else router.push("/(main)/getting-started");
+            return;
+          }
           const approved = "code" in result.kyc && (result.kyc.code === "ok" || result.kyc.code === "legacy kyc");
           if (approved) setDisclaimerShown(true);
         },
         onError(error) {
-          if (error instanceof APIError && error.text === "bad kyc") {
-            setVerificationFailureShown(true);
-            return;
-          }
           toast.show(t("An error occurred. Please try again later."), {
             duration: 1000,
             burntOptions: { haptic: "error", preset: "error" },
@@ -305,15 +328,25 @@ export default function Card() {
                     />
                   </View>
                 </XStack>
-                {!isPendingKYC && !cardDetails && ((isBytecodeFetched && !bytecode) || !isKYCApproved) && (
+                {isKYCInReview && !cardDetails && (
                   <InfoAlert
-                    title={t("Your card is awaiting activation. Follow the steps to enable it.")}
-                    actionText={t("Get started")}
-                    onPress={() => {
-                      router.push("/(main)/getting-started");
-                    }}
+                    variant="warning"
+                    icon={ClockAlert}
+                    title={t("We’re reviewing your documents. Your card will be ready once your identity is verified.")}
                   />
                 )}
+                {isKYCFetched &&
+                  !isKYCInReview &&
+                  !cardDetails &&
+                  ((isBytecodeFetched && !bytecode) || !isKYCApproved) && (
+                    <InfoAlert
+                      title={t("Your card is awaiting activation. Follow the steps to enable it.")}
+                      actionText={t("Get started")}
+                      onPress={() => {
+                        router.push("/(main)/getting-started");
+                      }}
+                    />
+                  )}
                 <FundingAlert />
                 <PluginUpgrade />
                 <ExaCard

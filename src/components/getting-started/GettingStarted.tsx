@@ -3,20 +3,20 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowLeft, Check, IdCard } from "@tamagui/lucide-icons";
+import { ArrowDownToLine, ArrowLeft, IdCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
 
 import Step from "./Step";
-import { presentArticle } from "../../utils/intercom";
+import { present, presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useKYC from "../../utils/useKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -24,27 +24,14 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { KYCStatus } from "../../utils/server";
-
-function useOnboardingState() {
-  const { address: account } = useAccount();
-  const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
-  const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
-  const isDeployed = !!bytecode;
-  const hasKYC = Boolean(
-    kycStatus &&
-    typeof kycStatus === "object" &&
-    "code" in kycStatus &&
-    (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
-  );
-  return { hasKYC, isDeployed };
-}
-
 export default function GettingStarted() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { hasKYC, isDeployed } = useOnboardingState();
-  const { steps } = useOnboardingSteps({ hasKYC, isDeployed });
+  const { address: account } = useAccount();
+  const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
+  const { status: kyc, error, isFetched } = useKYC();
+  const steps = useOnboardingSteps({ kyc, isDeployed: !!bytecode });
+  const currentStep = steps.find(({ status }) => status === "pending");
   return (
     <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
       <View gap="$s4_5" fullScreen>
@@ -63,20 +50,14 @@ export default function GettingStarted() {
                 }}
               />
             </View>
-            <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
+            <Text color="$uiNeutralPrimary" emphasized subHeadline>
               {t("Getting started")}
             </Text>
           </View>
         </View>
-        <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-          <CurrentStep hasKYC={hasKYC} isDeployed={isDeployed} />
-          <YStack
-            backgroundColor="$backgroundSoft"
-            paddingHorizontal="$s5"
-            paddingVertical="$s7"
-            gap="$s6"
-            height="100%"
-          >
+        <ScrollView flex={1} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
+          {isFetched && !error && currentStep && <CurrentStep id={currentStep.id} />}
+          <YStack backgroundColor="$backgroundSoft" paddingHorizontal="$s5" paddingVertical="$s7" gap="$s6" flex={1}>
             <YStack gap="$s4">
               <Text emphasized headline primary>
                 {t("Remaining steps")}
@@ -86,52 +67,39 @@ export default function GettingStarted() {
               </Text>
             </YStack>
             <YStack gap="$s4">
-              <XStack
-                backgroundColor="$interactiveBaseSuccessSoftDefault"
-                alignItems="center"
-                padding="$s4_5"
-                borderRadius="$r3"
-                borderWidth={1}
-                borderColor="$borderSuccessSoft"
-                gap="$s3_5"
-              >
-                <View
-                  width={24}
-                  height={24}
-                  borderRadius="$r_0"
-                  backgroundColor="$uiSuccessSecondary"
-                  borderWidth={2}
-                  borderColor="$uiSuccessTertiary"
-                  alignItems="center"
-                  justifyContent="center"
-                  padding="$s2"
-                >
-                  <Check size={14} strokeWidth={4} color="$interactiveOnBaseSuccessDefault" />
-                </View>
-                <Text emphasized subHeadline color="$uiBrandSecondary">
-                  {t("Account created")}
-                </Text>
-              </XStack>
-              <Step
-                title={t("Add funds to your account")}
-                description={t("Your funds serve as collateral to increase your spending limits.")}
-                action={t("Learn more about collateral")}
-                icon={<ArrowDownToLine size={20} strokeWidth={2} color="$uiBrandSecondary" />}
-                completed={steps.find(({ id }) => id === "add-funds")?.completed ?? false}
-                onPress={() => {
-                  presentArticle("8950805").catch(reportError);
-                }}
-              />
-              <Step
-                title={t("Verify your identity")}
-                description={t("To enable the Exa Card we need to verify that you are you.")}
-                action={t("Learn more about the KYC process")}
-                icon={<IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />}
-                completed={steps.find(({ id }) => id === "verify-identity")?.completed ?? false}
-                onPress={() => {
-                  presentArticle("9448693").catch(reportError);
-                }}
-              />
+              {steps.map(({ id, status, title }) => (
+                <Step
+                  key={id}
+                  title={t(title)}
+                  status={status}
+                  tag={
+                    status === "review" ? t("IN REVIEW") : status === "failed" ? t("VERIFICATION FAILED") : undefined
+                  }
+                  {...(id === "verify-identity" && {
+                    icon: <IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />,
+                    description:
+                      status === "review"
+                        ? t("We’re reviewing the documents you submitted. This usually takes 2 to 3 business days.")
+                        : status === "failed"
+                          ? t(
+                              "This may be due to missing or incorrect information. Please contact support to resolve it.",
+                            )
+                          : t("To enable the Exa Card we need to verify that you are you."),
+                    action: status === "failed" ? t("Contact support") : t("Learn more about KYC process"),
+                    onPress: () => {
+                      (status === "failed" ? present() : presentArticle("9448693")).catch(reportError);
+                    },
+                  })}
+                  {...(id === "add-funds" && {
+                    icon: <ArrowDownToLine size={20} strokeWidth={2} color="$uiBrandSecondary" />,
+                    description: t("Your funds serve as collateral to increase your spending limits."),
+                    action: t("Learn more about collateral"),
+                    onPress: () => {
+                      presentArticle("8950805").catch(reportError);
+                    },
+                  })}
+                />
+              ))}
             </YStack>
           </YStack>
         </ScrollView>
@@ -140,51 +108,29 @@ export default function GettingStarted() {
   );
 }
 
-function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: boolean }) {
+function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-identity" }) {
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToastController();
-  const { currentStep, completedSteps } = useOnboardingSteps({ hasKYC, isDeployed });
   const beginKYC = useBeginKYC();
-  function handleAction() {
-    switch (currentStep?.id) {
-      case "add-funds":
-        router.push("/add-funds");
-        break;
-      case "verify-identity":
-        beginKYC.mutate(undefined, {
-          onSuccess(result) {
-            if (result.status !== "cancel") router.replace("/(main)/(home)");
-          },
-          onError(error) {
-            toast.show(t("Error verifying identity"), {
-              duration: 1000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
-            reportError(error);
-          },
-        });
-        break;
-    }
-  }
-  if (!currentStep) return null;
+  const addFunds = id === "add-funds";
   return (
     <YStack gap="$s6" borderBottomWidth={1} borderBottomColor="$borderBrandSoft" padding="$s4">
       <YStack gap="$s4">
         <XStack>
-          {currentStep.id === "add-funds" ? (
+          {addFunds ? (
             <ArrowDownToLine size={32} color="$uiBrandSecondary" />
           ) : (
             <IdCard size={32} color="$uiBrandSecondary" />
           )}
         </XStack>
         <Text emphasized title3 color="$uiBrandSecondary">
-          {currentStep.id === "add-funds" ? t("Add funds to your account") : t("Verify your identity")}
+          {addFunds ? t("Add funds to your account") : t("Verify your identity")}
         </Text>
       </YStack>
       <YStack>
         <Text subHeadline color="$uiNeutralSecondary">
-          {currentStep.id === "add-funds"
+          {addFunds
             ? t(
                 "Your funds serve as collateral, increasing your spending limits. The more funds you add, the more you can spend with the Exa Card.",
               )
@@ -193,41 +139,36 @@ function CurrentStep({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: bool
               )}
         </Text>
       </YStack>
-      <StepCounter completedSteps={completedSteps} />
       <YStack>
-        <Button primary marginTop="$s4" marginBottom="$s5" onPress={handleAction}>
-          <Button.Text>{currentStep.id === "add-funds" ? t("Add funds") : t("Begin verifying")}</Button.Text>
-          <Button.Icon>{currentStep.id === "add-funds" ? <ArrowDownToLine /> : <IdCard />}</Button.Icon>
+        <Button
+          primary
+          marginTop="$s4"
+          marginBottom="$s5"
+          loading={beginKYC.isPending}
+          disabled={beginKYC.isPending}
+          onPress={() => {
+            if (addFunds) {
+              router.push("/add-funds");
+              return;
+            }
+            beginKYC.mutate(undefined, {
+              onSuccess(result) {
+                if (result.status === "complete") router.replace("/(main)/(home)");
+              },
+              onError(error) {
+                toast.show(t("Error verifying identity"), {
+                  duration: 1000,
+                  burntOptions: { haptic: "error", preset: "error" },
+                });
+                reportError(error);
+              },
+            });
+          }}
+        >
+          <Button.Text>{addFunds ? t("Add funds") : t("Begin verifying")}</Button.Text>
+          <Button.Icon>{addFunds ? <ArrowDownToLine /> : <IdCard />}</Button.Icon>
         </Button>
       </YStack>
-    </YStack>
-  );
-}
-
-function StepCounter({ completedSteps }: { completedSteps: number }) {
-  const { t } = useTranslation();
-  const remainingSteps = 3 - completedSteps;
-  return (
-    <YStack gap="$s3_5">
-      <XStack flex={1} gap="$s2">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <XStack
-            key={index} // eslint-disable-line @eslint-react/no-array-index-key
-            backgroundColor={completedSteps > index ? "$interactiveBaseBrandDefault" : "$uiBrandTertiary"}
-            height={8}
-            borderRadius="$r_0"
-            flex={1}
-          />
-        ))}
-      </XStack>
-      <XStack justifyContent="space-between" gap="$s3">
-        <Text emphasized subHeadline color="$uiBrandTertiary">
-          {t("{{count}} step remaining", { count: remainingSteps })}
-        </Text>
-        <Text emphasized subHeadline color="$uiBrandTertiary">
-          {completedSteps}/3
-        </Text>
-      </XStack>
     </YStack>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 
 import { useToastController } from "@tamagui/toast";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { useBytecode } from "wagmi";
 
@@ -16,10 +16,10 @@ import { getAllowTokens } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useKYC from "../../utils/useKYC";
 import usePortfolio from "../../utils/usePortfolio";
 import { defaultSwap } from "../swaps/Swaps";
 
-import type { KYCStatus } from "../../utils/server";
 import type { Swap } from "../swaps/Swaps";
 
 export default function FundingAlert() {
@@ -28,7 +28,7 @@ export default function FundingAlert() {
   const toast = useToastController();
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
-  const { data: kycStatus, isFetched: isKYCFetched } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const { approved: isKYCApproved, isFetched: isKYCFetched } = useKYC();
   const { portfolio, externalAssets, crossChainAssets, markets, isPending, isBalancesPending } = usePortfolio();
   const isExternal = (address: string) => !markets?.some((m) => m.asset.toLowerCase() === address.toLowerCase());
   const swappable = externalAssets.filter(
@@ -63,9 +63,6 @@ export default function FundingAlert() {
       router.push("/swaps");
     },
   });
-  const isKYCApproved = Boolean(
-    kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
-  );
   if (!bytecode || !isKYCFetched || !isKYCApproved || isPending || isBalancesPending || portfolio.balanceUSD > 0n) {
     return null;
   }

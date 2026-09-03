@@ -46,6 +46,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
@@ -56,7 +57,6 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { KYCStatus } from "../../utils/server";
 import type { Token } from "@lifi/sdk";
 
 export type Swap = {
@@ -100,12 +100,14 @@ export default function Swaps() {
   const toast = useToastController();
   const beginKYC = useBeginKYC();
   const {
-    data: kycStatus,
-    error: kycError,
+    approved: isKYCApproved,
+    review: isKYCInReview,
+    failed: isKYCFailed,
+    unverified: isKYCUnverified,
     isFetched: isKYCFetched,
     isFetching: isKYCFetching,
     refetch: refetchKYC,
-  } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"], enabled: chain.id === base.id });
+  } = useKYC(chain.id === base.id);
   const {
     data: tokens,
     isLoading: isTokensLoading,
@@ -174,19 +176,12 @@ export default function Swaps() {
     }
   }, [fromToken, isExternal, markets, payableTokens, toToken, tokens]);
 
-  const kycText = kycError instanceof APIError ? kycError.text : undefined;
-  const processing = chain.id === base.id && kycText === "processing";
-  const failed = chain.id === base.id && kycText === "bad kyc";
+  const processing = chain.id === base.id && isKYCInReview;
+  const failed = chain.id === base.id && isKYCFailed;
 
-  const unverified =
-    chain.id === base.id &&
-    isKYCFetched &&
-    (kycText === "not started" ||
-      kycText === "no kyc" ||
-      (!kycError &&
-        !(kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"))));
+  const unverified = chain.id === base.id && isKYCFetched && isKYCUnverified;
 
-  const unavailable = chain.id === base.id && isKYCFetched && !!kycError && !processing && !failed && !unverified;
+  const unavailable = chain.id === base.id && isKYCFetched && !isKYCApproved && !processing && !failed && !unverified;
 
   const balancesUnavailable = !!balancesError && !isTokensLoading && !fromToken && payableTokens.length === 0;
 
@@ -563,10 +558,11 @@ export default function Swaps() {
               onPress={() => {
                 beginKYC.mutate(undefined, {
                   onSuccess(result) {
-                    if (result.status !== "cancel") router.replace("/(main)/(home)");
+                    if (result.status === "complete") router.replace("/(main)/(home)");
+                    else if (result.status === "blocked") router.push("/(main)/getting-started");
                   },
                   onError(error) {
-                    if (error instanceof APIError && error.text === "bad kyc") {
+                    if (error instanceof APIError && error.text === "failed") {
                       refetchKYC().catch(reportError);
                       return;
                     }

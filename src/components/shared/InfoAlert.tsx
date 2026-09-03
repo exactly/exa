@@ -1,4 +1,5 @@
 import React from "react";
+import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import { Pressable } from "react-native";
 
 import { AlertTriangle, ChevronRight, Info } from "@tamagui/lucide-icons";
@@ -12,14 +13,17 @@ export default function InfoAlert({
   loading,
   onPress,
   variant = "info",
+  icon,
 }: {
   actionText?: string;
+  icon?: ComponentType<ComponentPropsWithoutRef<typeof Info>>;
   loading?: boolean;
   onPress?: () => void;
   title: string;
   variant?: keyof typeof variants;
 }) {
-  const { bg, iconBg, icon: Icon, color, text } = variants[variant];
+  const { bg, iconBg, icon: variantIcon, color, text } = variants[variant];
+  const Icon = icon ?? variantIcon;
   return (
     <XStack borderRadius="$r3" backgroundColor={bg} overflow="hidden">
       <View padding="$s4" backgroundColor={iconBg} justifyContent="center" alignItems="center" alignSelf="stretch">
