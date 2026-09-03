@@ -6,11 +6,12 @@ import "../mocks/manteca";
 import "../mocks/persona";
 import "../mocks/sentry";
 
+import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
@@ -49,6 +50,7 @@ const persona = Object.assign(
 const app = route({
   auth: authenticate(""),
   bridge,
+  businessSalt: parse(pipe(string(), nonEmpty()), env.BUSINESS_SALT),
   database,
   manteca,
   persona,
@@ -65,19 +67,20 @@ describe("ramp api", () => {
     await database.insert(credentials).values([
       { id: "ramp-test", publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: "rampPandaId" },
       {
+        ...bridgeCredential,
         id: "ramp-bridge",
         publicKey: new Uint8Array(hexToBytes(owner)),
         account: deriveAddress(factory, { x: padHex(privateKeyToAddress(padHex("0xbee"))), y: zeroHash }),
         factory,
         pandaId: "bridgePandaId",
-        bridgeId: "bridge-customer-123",
       },
     ]);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    await setBridgeCredential();
   });
 
   describe("get", () => {
@@ -160,6 +163,30 @@ describe("ramp api", () => {
           offramp: { currencies: [] },
           status: "NOT_AVAILABLE",
         },
+      });
+    });
+
+    it("passes the business account type without a bridge customer", async () => {
+      await setBridgeCredential({ bridgeId: null, salt: businessSalt });
+      const mantecaSpy = vi.spyOn(manteca, "getProvider");
+      const bridgeSpy = vi.spyOn(bridge, "getProvider").mockResolvedValue({
+        onramp: { currencies: [] },
+        offramp: { currencies: [] },
+        status: "NOT_STARTED",
+        tosLink: "https://bridge.test/agreement?session=one",
+      });
+
+      const response = await appClient.index.$get({ query: {} }, { headers: { "test-credential-id": "ramp-bridge" } });
+
+      expect(response.status).toBe(200);
+      expect(mantecaSpy).not.toHaveBeenCalled();
+      expect(bridgeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ accountType: "business", customerId: null }),
+        persona,
+      );
+      await expect(response.json()).resolves.toMatchObject({
+        manteca: { onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
+        bridge: { tosLink: "https://bridge.test/agreement?session=one" },
       });
     });
 
@@ -414,6 +441,7 @@ describe("ramp api", () => {
         );
 
         expect(response.status).toBe(200);
+        expect(bridge.getCustomer).toHaveBeenCalledWith("bridge-customer-123");
         await expect(response.json()).resolves.toStrictEqual({
           quote: { buyRate: "1.00", sellRate: "1.00" },
           depositInfo: [
@@ -1089,6 +1117,20 @@ describe("ramp api", () => {
           database,
           persona,
         );
+      });
+
+      it("rejects onboarding for a business credential", async () => {
+        await setBridgeCredential({ salt: businessSalt });
+        const onboarding = vi.spyOn(bridge, "onboarding");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(onboarding).not.toHaveBeenCalled();
       });
 
       it("returns 400 when already onboarded", async () => {
@@ -1853,6 +1895,9 @@ const bridgeCustomer = {
   endorsements: [],
 };
 
+const bridgeCredential = { bridgeId: bridgeCustomer.id, salt: zeroAddress };
+const businessSalt = parse(Address, env.BUSINESS_SALT);
+
 const externalAccount = {
   addressValid: true,
   bankName: "Test Bank",
@@ -1860,3 +1905,7 @@ const externalAccount = {
   id: "ext-acc-1",
   ownerName: "John Doe",
 };
+
+function setBridgeCredential(values: { bridgeId?: null | string; salt?: string } = bridgeCredential) {
+  return database.update(credentials).set(values).where(eq(credentials.id, "ramp-bridge"));
+}

@@ -97,10 +97,10 @@ export default function api({
       "/card",
       card({ auth, businessSalt, credit, database, panda, pax, persona, sardine, segment, walletExtension }),
     )
-    .route("/kyc", kyc({ auth, businessSalt, database, panda, persona }))
+    .route("/kyc", kyc({ auth, bridge, businessSalt, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
-    .route("/ramp", ramp({ auth, bridge, database, manteca, persona }))
+    .route("/ramp", ramp({ auth, bridge, businessSalt, database, manteca, persona }))
     .route("/webhook", webhook({ betterAuth, database, org }))
     .on(["POST", "GET"], "/auth/*", (c) => betterAuth.handler(c.req.raw));
   return { app, ready: Promise.resolve() };

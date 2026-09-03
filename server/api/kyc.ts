@@ -1,3 +1,4 @@
+// cspell:ignore sepa
 import { captureException, setContext, setUser, startSpan } from "@sentry/node";
 import createDebug from "debug";
 import { and, eq, inArray } from "drizzle-orm";
@@ -9,6 +10,7 @@ import {
   fallback,
   literal,
   metadata,
+  nonEmpty,
   nullable,
   number,
   object,
@@ -20,6 +22,8 @@ import {
   string,
   transform,
   union,
+  url,
+  variant,
 } from "valibot";
 import { getAddress, sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
@@ -56,6 +60,7 @@ import {
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
+import * as Bridge from "../utils/ramps/bridge";
 import { IpAddress } from "../utils/sardine";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -64,6 +69,7 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type createPanda from "../utils/panda";
 import type createPersona from "../utils/persona";
+import type createBridge from "../utils/ramps/bridge";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const debug = createDebug("exa:kyc");
@@ -95,12 +101,14 @@ function buildBaseResponse(example = "string") {
 
 export default function route({
   auth,
+  bridge,
   businessSalt,
   database,
   panda,
   persona,
 }: {
   auth: Auth;
+  bridge: ReturnType<typeof createBridge>;
   businessSalt: string;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
@@ -363,6 +371,17 @@ export default function route({
         description: `
 Submit information for KYC or KYB application.
 
+**Business KYB**
+
+Business requests require a business credential whose salt matches the configured business salt; the \`account-type\` request header is not used. Otherwise, the endpoint returns \`400 { "code": "not supported" }\`. The body must be exactly one of two variants:
+
+| body | response | notes |
+|------|----------|-------|
+| \`{ "scope": "panda" }\` | company application object, including \`applicationStatus\` and \`applicationExternalVerificationLink\` | creates or returns the Panda company KYB application; \`409 { "code": "already started" }\` when an application already exists for an active card |
+| \`{ "scope": "bridge", "acceptedTermsId": "<id>", "redirectURL": "<url>" }\` | \`200 { "kycLink": "<url>", "status": "pending" }\` | \`redirectURL\` is optional |
+
+For \`scope: "bridge"\`, \`acceptedTermsId\` is Bridge's \`signed_agreement_id\` and must be non-empty. Call \`GET /ramp?redirectURL=<url>\` with a business credential that has no Bridge customer yet and read \`bridge.tosLink\`, send the user to that link to accept Bridge's terms of service, then read the \`signed_agreement_id\` Bridge appends when redirecting back to \`redirectURL\`. It cannot be hardcoded: Bridge requires an accepted terms of service before processing KYB and records it as \`has_accepted_terms_of_service\` plus a \`terms_of_service_v*\` endorsement requirement. \`redirectURL\` is forwarded to Bridge as \`redirect_uri\` on the hosted KYC link, so the user returns to the app once Bridge KYB finishes.
+
 **Encrypted kyc payload**
 
 When the payload includes the \`ciphertext\` field (alongside \`key\`, \`iv\`, \`tag\`), it is treated as encrypted. Encryption is auto-detected from the payload shape.
@@ -460,7 +479,11 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             content: {
               "application/json": {
                 schema: resolver(
-                  union([CompanyApplicationResponse, CompanyApplicationStatusResponse, object({ status: string() })]),
+                  union([
+                    CompanyApplicationResponse,
+                    CompanyApplicationStatusResponse,
+                    object({ kycLink: optional(pipe(string(), url())), status: string() }),
+                  ]),
                   { errorMode: "ignore" },
                 ),
               },
@@ -474,6 +497,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                   union([
                     object({ code: picklist(["invalid encryption", "no account", "bad chain"]), message: string() }),
                     object({ code: literal("not supported") }),
+                    object({ code: literal("already onboarded") }),
                     object({
                       ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
                       message: optional(array(string())),
@@ -566,7 +590,14 @@ The admin should add a member using [addMember method](https://www.better-auth.c
               verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
             }),
             strictObject({}),
-            strictObject({ scope: picklist(["panda", "bridge"]) }),
+            variant("scope", [
+              strictObject({
+                acceptedTermsId: pipe(string(), nonEmpty()),
+                redirectURL: optional(pipe(string(), url())),
+                scope: literal("bridge"),
+              }),
+              strictObject({ scope: literal("panda") }),
+            ]),
           ]),
         ),
         validatorHook({ debug }),
@@ -584,15 +615,42 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         if (parse(Address, credential.salt) === parse(Address, businessSalt)) {
           const account = parse(Address, credential.account);
           if (payload && "verify" in payload) return c.json({ code: BadRequestCodes.BAD_REQUEST }, 400);
-          if (!payload || !("scope" in payload) || payload.scope !== "panda")
-            return c.json({ code: "not supported" }, 400);
+          if (!payload || !("scope" in payload)) return c.json({ code: "not supported" }, 400);
           return withMutex(account, async () => {
             const current = await database.query.credentials.findFirst({
-              columns: { pandaId: true },
+              columns: { bridgeId: true, pandaId: true },
               where: eq(credentials.id, credentialId),
             });
             if (!current) return c.json({ code: "no credential" }, 500);
             try {
+              if (payload.scope === "bridge") {
+                if (current.bridgeId) return c.json({ code: Bridge.ErrorCodes.ALREADY_ONBOARDED }, 400);
+                const profile = await persona.businessProfile(credentialId);
+                const customer = await bridge.createCustomer(
+                  {
+                    business_legal_name: profile.name,
+                    client_reference_id: credentialId,
+                    email: profile.email,
+                    endorsements: [...Bridge.BusinessEndorsements],
+                    signed_agreement_id: payload.acceptedTermsId,
+                    type: "business",
+                  },
+                  `bridge-business-customer:${credentialId}`,
+                );
+                return c.json(
+                  {
+                    kycLink: await bridge.getKYCLink(customer.id, payload.redirectURL).then(async (kycLink) => {
+                      await database
+                        .update(credentials)
+                        .set({ bridgeId: customer.id })
+                        .where(eq(credentials.id, credentialId));
+                      return kycLink;
+                    }),
+                    status: "pending",
+                  },
+                  200,
+                );
+              }
               if (current.pandaId) {
                 const existing = await database.query.cards.findFirst({
                   columns: { id: true },
@@ -600,12 +658,17 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                 });
                 if (existing) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
               }
-              const application =
-                (await panda.getCompanyApplication(credentialId)) ??
-                (await panda.createCompanyApplication(
-                  await panda.businessApplication(credentialId, account, c.req.valid("header")?.["client-ip"], persona),
-                  { idempotencyKey: `business-application:${credentialId}` },
-                ));
+              let application = await panda.getCompanyApplication(credentialId);
+              if (!application) {
+                const clientIp = c.req.valid("header")?.["client-ip"];
+                if (!clientIp) return c.json({ code: BadRequestCodes.BAD_REQUEST }, 400);
+                application = await panda.createCompanyApplication(
+                  await panda.businessApplication(credentialId, account, clientIp, persona),
+                  {
+                    idempotencyKey: `business-application:${credentialId}`,
+                  },
+                );
+              }
               if (
                 application.applicationStatus &&
                 ["denied", "locked", "canceled"].includes(application.applicationStatus)
@@ -613,9 +676,13 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                 return c.json({ code: "bad kyb" }, 400);
               return c.json(application, 200);
             } catch (error) {
+              if (error instanceof Error && error.message === Bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID)
+                return c.json({ code: "not supported" }, 400);
               if (error instanceof BusinessApplicationError)
                 return c.json({ code: error.code, message: [error.message] }, 400);
-              if (error instanceof ServiceError && error.status === 400)
+              if (error instanceof Error && error.message === Bridge.ErrorCodes.EMAIL_ALREADY_EXISTS)
+                return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
+              if (error instanceof ServiceError && (error.status === 400 || error.status === 422))
                 return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
               throw error;
             }

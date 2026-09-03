@@ -43,6 +43,7 @@ const ErrorCodes = {
   NO_CREDENTIAL: "no credential",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
+  NOT_SUPPORTED: "not supported",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_NOT_FOUND: "transfer not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
@@ -51,12 +52,14 @@ const ErrorCodes = {
 export default function route({
   auth,
   bridge,
+  businessSalt,
   database,
   manteca,
   persona,
 }: {
   auth: Auth;
   bridge: ReturnType<typeof createBridge>;
+  businessSalt: string;
   database: NodePgDatabase<typeof schema>;
   manteca: ReturnType<typeof createManteca>;
   persona: ReturnType<typeof createPersona>;
@@ -76,21 +79,25 @@ export default function route({
         const countryCode = c.req.valid("query").countryCode;
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
         const redirectURL = c.req.valid("query").redirectURL;
+        const business = parse(Address, credential.salt) === parse(Address, businessSalt) ? "business" : undefined;
         const [mantecaProvider, bridgeProvider] = await Promise.all([
-          manteca.getProvider(account, countryCode).catch((error: unknown) => {
-            captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-            return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
-          }),
+          business
+            ? { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const }
+            : manteca.getProvider(account, countryCode).catch((error: unknown) => {
+                captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
+                return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+              }),
           bridge
             .getProvider(
               {
+                accountType: business,
                 credentialId,
                 customerId: credential.bridgeId,
                 countryCode,
@@ -328,12 +335,14 @@ export default function route({
         const onboarding = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
+        if (parse(Address, credential.salt) === parse(Address, businessSalt))
+          return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
         switch (onboarding.provider) {
           case "manteca":
             try {
