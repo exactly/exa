@@ -21,6 +21,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
+import { isBusinessSalt } from "../utils/createCredential";
 import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
@@ -76,7 +77,7 @@ export default function route({
         const countryCode = c.req.valid("query").countryCode;
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
@@ -91,6 +92,7 @@ export default function route({
           bridge
             .getProvider(
               {
+                accountType: accountType(credential.salt),
                 credentialId,
                 customerId: credential.bridgeId,
                 countryCode,
@@ -188,7 +190,7 @@ export default function route({
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
@@ -224,7 +226,7 @@ export default function route({
           }
           case "bridge": {
             if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
-            const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+            const bridgeUser = await bridge.getCustomer(credential.bridgeId, accountType(credential.salt));
             if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
             if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
             const quote = (await bridge.getQuote("USD", query.currency)) satisfies QuoteResponse;
@@ -328,7 +330,7 @@ export default function route({
         const onboarding = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
@@ -397,13 +399,13 @@ export default function route({
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
+        columns: { account: true, bridgeId: true, salt: true },
       });
       if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
       if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
       setUser({ id: parse(Address, credential.account) });
 
-      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+      const bridgeUser = await bridge.getCustomer(credential.bridgeId, accountType(credential.salt));
       if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
       if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
 
@@ -439,13 +441,13 @@ export default function route({
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, credentialId),
-        columns: { account: true, bridgeId: true },
+        columns: { account: true, bridgeId: true, salt: true },
       });
       if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
       if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
       setUser({ id: parse(Address, credential.account) });
 
-      const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+      const bridgeUser = await bridge.getCustomer(credential.bridgeId, accountType(credential.salt));
       if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
       if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
 
@@ -460,13 +462,13 @@ export default function route({
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
         setUser({ id: parse(Address, credential.account) });
 
-        const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+        const bridgeUser = await bridge.getCustomer(credential.bridgeId, accountType(credential.salt));
         if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
         if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
         try {
@@ -490,13 +492,13 @@ export default function route({
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         if (!credential.bridgeId) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
         setUser({ id: parse(Address, credential.account) });
 
-        const bridgeUser = await bridge.getCustomer(credential.bridgeId);
+        const bridgeUser = await bridge.getCustomer(credential.bridgeId, accountType(credential.salt));
         if (!bridgeUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
         if (bridgeUser.status !== "active") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
 
@@ -514,6 +516,10 @@ export default function route({
         return c.json({ code: "ok" }, 200);
       },
     );
+}
+
+function accountType(salt: unknown) {
+  return isBusinessSalt(parse(Address, salt)) ? "business" : undefined;
 }
 
 async function getOrCreateInquiry(credentialId: string, template: string, persona: ReturnType<typeof createPersona>) {

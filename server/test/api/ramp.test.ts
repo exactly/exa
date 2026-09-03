@@ -6,11 +6,12 @@ import "../mocks/manteca";
 import "../mocks/persona";
 import "../mocks/sentry";
 
+import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
@@ -75,9 +76,10 @@ describe("ramp api", () => {
     ]);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    await database.update(credentials).set({ salt: zeroAddress }).where(eq(credentials.id, "ramp-bridge"));
   });
 
   describe("get", () => {
@@ -356,6 +358,24 @@ describe("ramp api", () => {
     });
 
     describe("bridge provider", () => {
+      it("routes business customer reads with account type", async () => {
+        await database
+          .update(credentials)
+          .set({ salt: padHex("0x123", { size: 20 }) })
+          .where(eq(credentials.id, "ramp-bridge"));
+        const customerSpy = vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getDepositDetails").mockResolvedValue([]);
+        vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USD" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(customerSpy).toHaveBeenCalledWith("bridge-customer-123", "business");
+      });
+
       it("returns 400 if bridge user not started", async () => {
         const response = await appClient.quote.$get(
           { query: { provider: "bridge", currency: "USD" } },
@@ -414,6 +434,7 @@ describe("ramp api", () => {
         );
 
         expect(response.status).toBe(200);
+        expect(bridge.getCustomer).toHaveBeenCalledWith("bridge-customer-123", undefined);
         await expect(response.json()).resolves.toStrictEqual({
           quote: { buyRate: "1.00", sellRate: "1.00" },
           depositInfo: [

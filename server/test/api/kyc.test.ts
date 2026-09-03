@@ -32,6 +32,7 @@ import createPanda, * as Panda from "../../utils/panda";
 import { scopeValidationErrors } from "../../utils/persona";
 import createPersona, * as Persona from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
+import createBridge, * as Bridge from "../../utils/ramps/bridge";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
@@ -47,6 +48,13 @@ const panda = Object.assign(
   }),
   Panda,
 );
+const bridge = Object.assign(
+  createBridge(
+    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
+    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
+  ),
+  Bridge,
+);
 const persona = Object.assign(
   createPersona(
     parse(pipe(string(), nonEmpty()), env.PERSONA_API_KEY),
@@ -60,6 +68,7 @@ const credit = {
 } satisfies ReturnType<typeof createCredit>;
 const app = route({
   auth: authenticate(""),
+  bridge,
   credit,
   database,
   panda,
@@ -2612,11 +2621,14 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
         company_website: { value: "https://example.com" },
         company_type: { value: "corporation" },
         company_expected_spend: { value: 1000 },
+        account_purpose: { value: "receive_payments_for_goods_and_services" },
+        incorporation_date: { value: "2020-01-15" },
+        business_trade_name: { value: "Acme" },
         i_auth_user_name: { value: "Jane" },
         i_auth_user_last_name: { value: "Doe" },
         birth_date: { value: "1990-01-01" },
         id_number: { value: "123456789" },
-        id_country: { value: "US" },
+        id_country: { value: "CA" },
         collected_email_address: { value: "jane@example.com" },
         authorized_user_phone_country_code: { value: "1" },
         authorized_user_phone_number: { value: "5555555555" },
@@ -2631,6 +2643,11 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
         subdivision_1: { value: "NY" },
         postal_code_1: { value: "10001" },
         country_code_1: { value: "US" },
+        physical_street_1: { value: "2 Broadway" },
+        physical_city: { value: "New York" },
+        physical_subdivision: { value: "NY" },
+        physical_postal_code: { value: "10004" },
+        physical_country_code: { value: "US" },
       };
 
       function mockBusiness() {
@@ -2661,7 +2678,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
       afterEach(async () => {
         await database.delete(cards).where(eq(cards.credentialId, businessId));
-        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, businessId));
+        await database.update(credentials).set({ bridgeId: null, pandaId: null }).where(eq(credentials.id, businessId));
       });
 
       afterAll(async () => {
@@ -2775,6 +2792,112 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
         expect(createCompanyApplication.mock.calls.at(-1)?.[0].initialUser.ipAddress).toBe("203.0.113.7");
         expect(createCompanyApplication.mock.calls.at(-1)?.[1]).toStrictEqual({
           idempotencyKey: `business-application:${businessId}`,
+        });
+      });
+
+      it("submits a Bridge company application for a business credential", async () => {
+        mockBusiness();
+        const createBusinessCustomer = vi
+          .spyOn(bridge, "createBusinessCustomer")
+          .mockResolvedValue({ id: "customer-1", status: "awaiting_ubo" });
+        vi.spyOn(bridge, "getKYCLink").mockResolvedValue("https://bridge.withpersona.com/verify?token=test");
+
+        const response = await appClient.application.$post(
+          { json: { acceptedTermsId: "terms-bridge", scope: "bridge" } },
+          {
+            headers: {
+              "test-credential-id": businessId,
+              SessionID: "fakeSession",
+              "account-type": "business",
+              "do-connecting-ip": "127.0.0.1",
+            },
+          },
+        );
+
+        expect(response.status).toBe(200);
+        expect(createBusinessCustomer).toHaveBeenCalledWith(
+          {
+            business_legal_name: "Account Acme",
+            client_reference_id: businessId,
+            email: "jane@example.com",
+            endorsements: ["base", "sepa"],
+            signed_agreement_id: "terms-bridge",
+            type: "business",
+          },
+          `bridge-business-customer:${businessId}`,
+        );
+        const updatedCredential = await database.query.credentials.findFirst({ where: eq(credentials.id, businessId) });
+        expect(updatedCredential?.bridgeId).toBe("customer-1");
+
+        await expect(response.json()).resolves.toStrictEqual({
+          kycLink: "https://bridge.withpersona.com/verify?token=test",
+          status: "pending",
+        });
+      });
+
+      it("returns pending when the kyc link fails after the customer exists", async () => {
+        mockBusiness();
+        vi.spyOn(bridge, "createBusinessCustomer").mockResolvedValue({ id: "customer-1", status: "awaiting_ubo" });
+        vi.spyOn(bridge, "getKYCLink").mockRejectedValue(new ServiceError("Bridge", 500, "{}"));
+
+        const response = await appClient.application.$post(
+          { json: { acceptedTermsId: "terms-bridge", scope: "bridge" } },
+          {
+            headers: {
+              "test-credential-id": businessId,
+              SessionID: "fakeSession",
+              "account-type": "business",
+              "do-connecting-ip": "127.0.0.1",
+            },
+          },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ status: "pending" });
+        const updatedCredential = await database.query.credentials.findFirst({ where: eq(credentials.id, businessId) });
+        expect(updatedCredential?.bridgeId).toBe("customer-1");
+      });
+
+      it("returns a bad request when a Bridge application has no terms", async () => {
+        const createBusinessCustomer = vi.spyOn(bridge, "createBusinessCustomer").mockClear();
+
+        const response = await appClient.application.$post(
+          { json: { scope: "bridge" } },
+          {
+            headers: {
+              "test-credential-id": businessId,
+              SessionID: "fakeSession",
+              "account-type": "business",
+              "do-connecting-ip": "127.0.0.1",
+            },
+          },
+        );
+
+        expect(response.status).toBe(400);
+        expect(createBusinessCustomer).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad request", legacy: "bad request" });
+      });
+
+      it("returns a schema-valid Bridge onboarding error", async () => {
+        mockBusiness();
+        vi.spyOn(bridge, "createBusinessCustomer").mockRejectedValue(new Error(Bridge.ErrorCodes.ALREADY_ONBOARDED));
+
+        const response = await appClient.application.$post(
+          { json: { acceptedTermsId: "terms-bridge", scope: "bridge" } },
+          {
+            headers: {
+              "test-credential-id": businessId,
+              SessionID: "fakeSession",
+              "account-type": "business",
+              "do-connecting-ip": "127.0.0.1",
+            },
+          },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "already onboarded",
+          legacy: "already onboarded",
         });
       });
 
@@ -3127,23 +3250,6 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
         expect(businessApplication).not.toHaveBeenCalled();
         expect(createCompanyApplication).not.toHaveBeenCalled();
         await expect(response.json()).resolves.toMatchObject({ code: "bad request" });
-      });
-
-      it("does not route bridge applications through panda", async () => {
-        const businessApplication = vi.spyOn(panda, "businessApplication");
-        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
-
-        const response = await appClient.application.$post(
-          { json: { scope: "bridge" } },
-          {
-            headers: { "test-credential-id": businessId, SessionID: "fakeSession", "account-type": "business" },
-          },
-        );
-
-        expect(response.status).toBe(400);
-        expect(businessApplication).not.toHaveBeenCalled();
-        expect(createCompanyApplication).not.toHaveBeenCalled();
-        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
       });
 
       it("returns not supported for a business application without a scope", async () => {

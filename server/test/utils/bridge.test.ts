@@ -195,6 +195,118 @@ describe("bridge utils", () => {
     });
   });
 
+  describe("business onboarding", () => {
+    it("creates a business customer with the caller idempotency key", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ id: "customer-1", status: "not_started" }));
+
+      await expect(bridge.createBusinessCustomer(businessCustomerPayload, "customer-request-1")).resolves.toStrictEqual(
+        {
+          id: "customer-1",
+          status: "not_started",
+        },
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers",
+        expect.objectContaining({
+          body: JSON.stringify(businessCustomerPayload),
+          headers: {
+            "account-type": "business",
+            "api-key": "bridge",
+            "Idempotency-Key": "customer-request-1",
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    });
+
+    it("requests the business kyc link with the account type header", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://verify.bridge.test/session" }));
+
+      await expect(bridge.getKYCLink("customer-1", { accountType: "business" })).resolves.toBe(
+        "https://verify.bridge.test/session",
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/customer-1/kyc_link",
+        expect.objectContaining({
+          headers: {
+            "account-type": "business",
+            "api-key": "bridge",
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "GET",
+        }),
+      );
+    });
+
+    it("encodes the redirect url in a kyc link query", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://verify.bridge.test/session" }));
+
+      await bridge.getKYCLink("customer/1", { redirectUri: "https://app.test/kyc?step=business&next=/home" });
+
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/customer/1/kyc_link?redirect_uri=https%3A%2F%2Fapp.test%2Fkyc%3Fstep%3Dbusiness%26next%3D%2Fhome",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("creates an agreement link with the account type header", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://bridge.test/agreement?session=one" }));
+
+      await expect(bridge.agreementLink("https://app.test/return?provider=bridge", "business")).resolves.toBe(
+        "https://bridge.test/agreement?session=one&redirect_uri=https%3A%2F%2Fapp.test%2Freturn%3Fprovider%3Dbridge",
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/tos_links",
+        expect.objectContaining({
+          body: undefined,
+          headers: {
+            "account-type": "business",
+            "api-key": "bridge",
+            "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/) as string,
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    });
+
+    it.each([
+      [
+        "business customer",
+        () => bridge.createBusinessCustomer(businessCustomerPayload, "customer-request-1"),
+        { id: 1, status: "not_started" },
+      ],
+      ["business kyc link", () => bridge.getKYCLink("customer-1", { accountType: "business" }), { url: "not a url" }],
+    ])("rejects an invalid %s response", async (_name, request, response) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(fetchResponse(response));
+
+      await expect(request()).rejects.toThrow();
+    });
+
+    it("converts business provider failures to bridge service errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(fetchError(422, '{"message":"invalid customer"}'));
+
+      await expect(bridge.createBusinessCustomer(businessCustomerPayload, "customer-request-1")).rejects.toMatchObject({
+        cause: '{"message":"invalid customer"}',
+        message: "invalid customer",
+        name: "Bridge422",
+        status: 422,
+      });
+    });
+  });
+
   describe("getProvider", () => {
     it("returns NOT_AVAILABLE for unsupported chain id", async () => {
       chainMock.id = 1;
@@ -4948,3 +5060,12 @@ const createCustomerPayload = {
     { type: "passport" as const, issuing_country: "AR", number: "AB123456", image_front: "data:image/jpg;base64,abc" },
   ],
 };
+
+const businessCustomerPayload = {
+  business_legal_name: "Example LLC",
+  client_reference_id: "business-1",
+  email: "business@example.com",
+  endorsements: ["base", "sepa"],
+  signed_agreement_id: "agreement-1",
+  type: "business" as const,
+} satisfies Bridge.BusinessCustomer;

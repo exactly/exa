@@ -57,6 +57,7 @@ export const OfframpNetwork = ["BASE", "SOLANA", "STELLAR", "TRON"];
 export default function bridge(key: string, url: string) {
   return {
     agreementLink,
+    createBusinessCustomer,
     createCustomer,
     createExternalAccount,
     createLiquidationAddress,
@@ -83,8 +84,15 @@ export default function bridge(key: string, url: string) {
     updateExternalAccount,
   };
 
-  async function agreementLink(redirectUri?: string) {
-    const response = await request(AgreementLinkResponse, `/customers/tos_links`, {}, undefined, "POST", 10_000);
+  async function agreementLink(redirectUri?: string, accountType?: "business") {
+    const response = await request(
+      AgreementLinkResponse,
+      `/customers/tos_links`,
+      accountType ? { "account-type": accountType } : {},
+      undefined,
+      "POST",
+      10_000,
+    );
     const link = new URL(response.url);
     if (redirectUri) link.searchParams.set("redirect_uri", redirectUri);
     return String(link);
@@ -135,6 +143,17 @@ export default function bridge(key: string, url: string) {
       }
       throw error;
     }
+  }
+  async function createBusinessCustomer(customer: BusinessCustomer, idempotencyKey: string) {
+    return await request(
+      NewCustomer,
+      "/customers",
+      { "account-type": "business" },
+      customer,
+      "POST",
+      15_000,
+      idempotencyKey,
+    );
   }
   async function createExternalAccount(
     customer: InferOutput<typeof CustomerResponse>,
@@ -440,7 +459,7 @@ export default function bridge(key: string, url: string) {
       })
       .toSorted((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
     if (!next) return;
-    return getKYCLink(bridgeUser.id, redirectUri)
+    return getKYCLink(bridgeUser.id, { redirectUri })
       .then((link) => ({ url: link, date: next }))
       .catch((error: unknown): undefined => {
         captureException(error, { level: "error" });
@@ -540,19 +559,24 @@ export default function bridge(key: string, url: string) {
       },
     ];
   }
-  async function getCustomer(customerId: string) {
-    return await request(CustomerResponse, `/customers/${customerId}`, {}, undefined, "GET", 10_000).catch(
-      (error: unknown) => {
-        if (
-          error instanceof ServiceError &&
-          typeof error.cause === "string" &&
-          error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
-        ) {
-          return;
-        }
-        throw error;
-      },
-    );
+  async function getCustomer(customerId: string, accountType?: "business") {
+    return await request(
+      CustomerResponse,
+      `/customers/${customerId}`,
+      accountType ? { "account-type": accountType } : {},
+      undefined,
+      "GET",
+      10_000,
+    ).catch((error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(BridgeApiErrorCodes.NOT_FOUND)
+      ) {
+        return;
+      }
+      throw error;
+    });
   }
   async function getDepositDetails(
     currency: (typeof FiatCurrency)[number],
@@ -748,14 +772,13 @@ export default function bridge(key: string, url: string) {
       throw error;
     });
   }
-  async function getKYCLink(customerId: string, redirectUri?: string, endorsement?: (typeof Endorsements)[number]) {
-    const params = new URLSearchParams();
-    if (endorsement) params.set("endorsement", endorsement);
-    if (redirectUri) params.set("redirect_uri", redirectUri);
+  async function getKYCLink(customerId: string, params?: { accountType?: "business"; redirectUri?: string }) {
+    const query = new URLSearchParams();
+    if (params?.redirectUri) query.set("redirect_uri", params.redirectUri);
     const result = await request(
-      object({ url: pipe(string(), urlValidator()) }),
-      `/customers/${customerId}/kyc_link${String(params) ? `?${String(params)}` : ""}`,
-      {},
+      KYCLinkResponse,
+      `/customers/${customerId}/kyc_link${String(query) ? `?${String(query)}` : ""}`,
+      params?.accountType ? { "account-type": params.accountType } : {},
       undefined,
       "GET",
       10_000,
@@ -846,6 +869,7 @@ export default function bridge(key: string, url: string) {
   }
   async function getProvider(
     params: {
+      accountType?: "business";
       countryCode?: string;
       credentialId: string;
       customerId?: null | string;
@@ -874,7 +898,7 @@ export default function bridge(key: string, url: string) {
     };
 
     if (params.customerId) {
-      const bridgeUser = await getCustomer(params.customerId);
+      const bridgeUser = await getCustomer(params.customerId, params.accountType);
       if (!bridgeUser) throw new Error(ErrorCodes.BAD_BRIDGE_ID);
       switch (bridgeUser.status) {
         case "offboarded":
@@ -904,6 +928,7 @@ export default function bridge(key: string, url: string) {
                 redirect.searchParams.set("provider", "bridge");
                 return String(redirect);
               })(),
+              params.accountType,
             ),
           };
         case "active":
@@ -923,6 +948,7 @@ export default function bridge(key: string, url: string) {
                   redirect.searchParams.set("provider", "bridge");
                   return String(redirect);
                 })(),
+                params.accountType,
               ),
             };
           }
@@ -970,6 +996,23 @@ export default function bridge(key: string, url: string) {
             return String(redirect);
           })(),
         ),
+      };
+    }
+
+    if (params.accountType === "business") {
+      return {
+        status: "NOT_STARTED" as const,
+        tosLink: await agreementLink(
+          (() => {
+            if (!params.redirectURL) return;
+            const redirect = new URL(params.redirectURL);
+            redirect.searchParams.set("provider", "bridge");
+            return String(redirect);
+          })(),
+          "business",
+        ),
+        onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base] },
+        offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base] },
       };
     }
 
@@ -1171,7 +1214,11 @@ export default function bridge(key: string, url: string) {
       ];
     });
   }
-  function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri: string | undefined) {
+  function maybeKYCLink(
+    bridgeUser: InferOutput<typeof CustomerResponse>,
+    redirectUri: string | undefined,
+    accountType?: "business",
+  ) {
     if (bridgeUser.status === "offboarded") return;
     if (
       bridgeUser.endorsements.some((endorsement) =>
@@ -1192,7 +1239,8 @@ export default function bridge(key: string, url: string) {
           endorsement.requirements.issues.some((issue) => hasIssue(issue)),
       )
     ) {
-      return getKYCLink(bridgeUser.id, redirectUri).catch((error: unknown): undefined => {
+      const link = getKYCLink(bridgeUser.id, { accountType, redirectUri });
+      return link.catch((error: unknown): undefined => {
         captureException(error, { level: "error" });
       });
     }
@@ -1241,20 +1289,17 @@ export default function bridge(key: string, url: string) {
     const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
     if (!frontDocumentURL) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
     const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
-
     const [frontFileEncoded, backFileEncoded] = await Promise.all([
       fetchAndEncodeFile(frontDocumentURL, identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg"),
       backDocumentURL
         ? fetchAndEncodeFile(backDocumentURL, identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg")
         : undefined,
     ]);
-
     const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
     const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
     if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
     const country = alpha2ToAlpha3(countryCode);
     if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
-
     const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
       {
         type: bridgeIdType,
@@ -1264,18 +1309,11 @@ export default function bridge(key: string, url: string) {
         image_back: backFileEncoded,
       },
     ];
-
     if (countryCode === "US") {
       const ssn = personaAccount.attributes["social-security-number"];
       if (!ssn) throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
-
-      identifyingInformation.push({
-        type: "ssn",
-        number: ssn,
-        issuing_country: "USA",
-      });
+      identifyingInformation.push({ type: "ssn", number: ssn, issuing_country: "USA" });
     }
-
     const idempotencyKey = crypto.randomUUID();
     const customer = await withRetry(
       () =>
@@ -1685,6 +1723,7 @@ const EndorsementStatus = ["incomplete", "approved", "revoked"] as const;
 const Quote = object({ midmarket_rate: string(), buy_rate: string(), sell_rate: string() }); // cspell:ignore midmarket
 
 const AgreementLinkResponse = object({ url: string() });
+const KYCLinkResponse = object({ url: pipe(string(), urlValidator()) });
 
 const CustomerResponse = object({
   id: string(),
@@ -1769,12 +1808,20 @@ const CreateCustomer = object({
   birth_date: string(),
   signed_agreement_id: string(),
   nationality: string(),
-
   identifying_information: array(union([IdentityDocument, TIN])),
   endorsements: optional(array(picklist(Endorsements))),
 });
 
 const NewCustomer = object({ status: picklist(CustomerStatus), id: string() });
+
+export type BusinessCustomer = {
+  business_legal_name: string;
+  client_reference_id: string;
+  email: string;
+  endorsements: (typeof Endorsements)[number][];
+  signed_agreement_id: string;
+  type: "business";
+};
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CreateVirtualAccount = object({

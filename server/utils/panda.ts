@@ -833,10 +833,11 @@ async function businessApplication(
   const accountResult = safeParse(BusinessAccount, account.attributes);
   if (!accountResult.success || accountResult.output["reference-id"] !== credentialId)
     throw new BusinessApplicationError("business account is not complete", "processing");
-  const fields = accountResult.output.fields;
-  for (const [inquiryName, inquiryField] of Object.entries(inquiry.attributes.fields ?? {})) {
-    const name = inquiryName.replaceAll("-", "_");
-    if (fields[name]?.value == null && inquiryField.value != null) fields[name] = inquiryField;
+  const fields: Record<string, { value: unknown }> = Object.fromEntries(
+    Object.entries(inquiry.attributes.fields ?? {}).map(([name, field]) => [name.replaceAll("-", "_"), field]),
+  );
+  for (const [name, field] of Object.entries(accountResult.output.fields)) {
+    if (field.value !== null || !(name in fields)) fields[name] = field;
   }
   const field = (name: keyof typeof keys) => requireField(fields, keys[name]);
   const person = {

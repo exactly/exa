@@ -20,7 +20,7 @@ import {
   transform,
   union,
 } from "valibot";
-import { getAddress, sha256, verifyMessage } from "viem";
+import { getAddress, sha256, verifyMessage, withRetry } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
@@ -56,6 +56,7 @@ import {
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
+import * as Bridge from "../utils/ramps/bridge";
 import { IpAddress } from "../utils/sardine";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -64,6 +65,7 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type createPanda from "../utils/panda";
 import type createPersona from "../utils/persona";
+import type createBridge from "../utils/ramps/bridge";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createCredit from "../workers/credit/queue";
@@ -96,6 +98,7 @@ function buildBaseResponse(example = "string") {
 
 export default function route({
   auth,
+  bridge,
   credit,
   database,
   panda,
@@ -104,6 +107,7 @@ export default function route({
   segment,
 }: {
   auth: Auth;
+  bridge: ReturnType<typeof createBridge>;
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
@@ -465,7 +469,11 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             content: {
               "application/json": {
                 schema: resolver(
-                  union([CompanyApplicationResponse, CompanyApplicationStatusResponse, object({ status: string() })]),
+                  union([
+                    CompanyApplicationResponse,
+                    CompanyApplicationStatusResponse,
+                    object({ kycLink: optional(string()), status: string() }),
+                  ]),
                   { errorMode: "ignore" },
                 ),
               },
@@ -572,7 +580,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
               verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
             }),
             strictObject({}),
-            object({ scope: picklist(["panda", "bridge"]) }),
+            object({ acceptedTermsId: optional(string()), scope: picklist(["panda", "bridge"]) }),
           ]),
         ),
         validatorHook({ debug }),
@@ -590,16 +598,37 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           const account = parse(Address, credential.account);
           if (!isBusinessSalt(parse(Address, credential.salt))) return c.json({ code: "not supported" }, 400);
           if (payload && "verify" in payload) return c.json({ code: BadRequestCodes.BAD_REQUEST }, 400);
-          if (!payload || !("scope" in payload) || payload.scope !== "panda")
-            return c.json({ code: "not supported" }, 400);
+          if (!payload || !("scope" in payload)) return c.json({ code: "not supported" }, 400);
           setUser({ id: account });
           return withMutex(account, async () => {
             const current = await database.query.credentials.findFirst({
-              columns: { pandaId: true },
+              columns: { bridgeId: true, pandaId: true },
               where: eq(credentials.id, credentialId),
             });
             if (!current) return c.json({ code: "no credential" }, 500);
             try {
+              if (payload.scope === "bridge") {
+                if (!payload.acceptedTermsId)
+                  return c.json({ code: BadRequestCodes.BAD_REQUEST, legacy: BadRequestCodes.BAD_REQUEST }, 400);
+                const ipAddress =
+                  c.req.header("do-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+                return c.json(
+                  await submitBridgeBusinessApplication(
+                    {
+                      acceptedTermsId: payload.acceptedTermsId,
+                      account,
+                      credentialId,
+                      customerId: current.bridgeId,
+                      ipAddress,
+                    },
+                    database,
+                    bridge,
+                    panda,
+                    persona,
+                  ),
+                  200,
+                );
+              }
               if (current.pandaId) {
                 const existing = await database.query.cards.findFirst({
                   columns: { id: true },
@@ -643,6 +672,8 @@ The admin should add a member using [addMember method](https://www.better-auth.c
               }
               return c.json(application, 200);
             } catch (error) {
+              if (error instanceof Error && error.message === Bridge.ErrorCodes.ALREADY_ONBOARDED)
+                return c.json({ code: error.message, legacy: error.message }, 400);
               if (error instanceof BusinessApplicationError)
                 return c.json({ code: error.code, message: [error.message] }, 400);
               if (error instanceof ServiceError && error.status === 400)
@@ -868,6 +899,50 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         );
       },
     );
+}
+
+async function submitBridgeBusinessApplication(
+  params: {
+    acceptedTermsId: string;
+    account: Address;
+    credentialId: string;
+    customerId: null | string;
+    ipAddress: string | undefined;
+  },
+  database: NodePgDatabase<typeof schema>,
+  bridge: ReturnType<typeof createBridge>,
+  panda: ReturnType<typeof createPanda>,
+  persona: ReturnType<typeof createPersona>,
+) {
+  if (params.customerId) throw new Error(Bridge.ErrorCodes.ALREADY_ONBOARDED);
+  const application = await panda.businessApplication(params.credentialId, params.account, params.ipAddress, persona);
+  const customer = await withRetry(
+    () =>
+      bridge.createBusinessCustomer(
+        {
+          business_legal_name: application.name,
+          client_reference_id: params.credentialId,
+          email: application.initialUser.email,
+          endorsements: ["base", "sepa"],
+          signed_agreement_id: params.acceptedTermsId,
+          type: "business",
+        },
+        `bridge-business-customer:${params.credentialId}`,
+      ),
+    {
+      retryCount: 2,
+      shouldRetry: ({ error }) =>
+        (error instanceof Error && error.name === "TimeoutError") ||
+        (error instanceof ServiceError && error.status >= 500),
+    },
+  );
+  await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
+  const kycLink = await bridge
+    .getKYCLink(customer.id, { accountType: "business" })
+    .catch((error: unknown): undefined => {
+      captureException(error, { level: "error" });
+    });
+  return { kycLink, status: "pending" as const };
 }
 
 async function isLegacy(
