@@ -2,6 +2,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { setExtra } from "@sentry/node";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
+import { etag } from "hono/etag";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import { env } from "node:process";
@@ -375,6 +376,11 @@ frontend.use(
     },
   }),
 );
+frontend.use((c, next) => {
+  const hashed = /^\/(?:_expo\/static|assets)\//.test(c.req.path);
+  c.header("Cache-Control", hashed ? "public, max-age=31536000, immutable" : "no-cache");
+  return hashed ? next() : etag()(c, next);
+});
 frontend.use(
   serveStatic({
     root: "app",
