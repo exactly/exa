@@ -164,12 +164,13 @@ describe("bridge utils", () => {
       expect(result).toStrictEqual({ id: "cust-new", status: "not_started" });
     });
 
-    it("throws EMAIL_ALREADY_EXISTS when email is taken", async () => {
+    it.each([
+      ["personal", () => bridge.createCustomer(createCustomerPayload)],
+      ["business", () => bridge.createCustomer(businessCustomerPayload, "customer-request-1")],
+    ])("throws EMAIL_ALREADY_EXISTS when the %s email is taken", async (_name, create) => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(409, "A customer with this email already exists"));
 
-      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(
-        bridge.ErrorCodes.EMAIL_ALREADY_EXISTS,
-      );
+      await expect(create()).rejects.toThrow(bridge.ErrorCodes.EMAIL_ALREADY_EXISTS);
       expect(captureException).toHaveBeenLastCalledWith(
         expect.objectContaining({ message: "A customer with this email already exists" }),
         expect.objectContaining({ level: "error" }),
@@ -192,6 +193,100 @@ describe("bridge utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(400, "bad request"));
 
       await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow("bad request");
+    });
+
+    it("throws NOT_SUPPORTED_CHAIN_ID for unsupported chain", async () => {
+      chainMock.id = 1;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(
+        bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge not supported chain id" }),
+        expect.objectContaining({ level: "error" }),
+      );
+    });
+  });
+
+  describe("business onboarding", () => {
+    it("creates a business customer with the caller idempotency key", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ id: "customer-1", status: "not_started" }));
+
+      await expect(bridge.createCustomer(businessCustomerPayload, "customer-request-1")).resolves.toStrictEqual({
+        id: "customer-1",
+        status: "not_started",
+      });
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers",
+        expect.objectContaining({
+          body: JSON.stringify(businessCustomerPayload),
+          headers: {
+            "api-key": "bridge",
+            "Idempotency-Key": "customer-request-1",
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    });
+
+    it("requests a kyc link with the encoded redirect url", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://verify.bridge.test/session" }));
+
+      await expect(bridge.getKYCLink("customer/1", "https://app.test/kyc?step=business&next=/home")).resolves.toBe(
+        "https://verify.bridge.test/session",
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/customer/1/kyc_link?redirect_uri=https%3A%2F%2Fapp.test%2Fkyc%3Fstep%3Dbusiness%26next%3D%2Fhome",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("creates an agreement link with the redirect url", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://bridge.test/agreement?session=one" }));
+
+      await expect(bridge.agreementLink("https://app.test/return?provider=bridge")).resolves.toBe(
+        "https://bridge.test/agreement?session=one&redirect_uri=https%3A%2F%2Fapp.test%2Freturn%3Fprovider%3Dbridge",
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/tos_links",
+        expect.objectContaining({
+          body: undefined,
+          headers: {
+            "api-key": "bridge",
+            "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/) as string,
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    });
+
+    it("rejects an invalid business customer response", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(fetchResponse({ id: 1, status: "not_started" }));
+
+      await expect(bridge.createCustomer(businessCustomerPayload, "customer-request-1")).rejects.toThrow(
+        /Invalid type/,
+      );
+    });
+
+    it("converts business provider failures to bridge service errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(fetchError(422, '{"message":"invalid customer"}'));
+
+      await expect(bridge.createCustomer(businessCustomerPayload, "customer-request-1")).rejects.toMatchObject({
+        message: "invalid customer",
+        status: 422,
+      });
     });
   });
 
@@ -749,6 +844,40 @@ describe("bridge utils", () => {
           offramp: { currencies: [...baseCurrencies, "USD"] },
           kycLink: "https://kyc.bridge.xyz/link",
         });
+      });
+
+      it("returns ONBOARDING with kycLink for a business customer with business requirements", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "approved",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { all_of: ["address_of_incorporation"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await expect(
+          bridge.getProvider({ accountType: "business", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: [...baseCurrencies, "USD"] },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+        expect(fetchSpy.mock.calls[1]?.[0]).toBe("https://bridge.test/customers/cust-123/kyc_link");
       });
 
       it("returns ONBOARDING with kycLink when missing has nested all_of and any_of", async () => {
@@ -1371,6 +1500,28 @@ describe("bridge utils", () => {
         });
       });
 
+      it("requests a business futureRequirement link", async () => {
+        const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              endorsements: [
+                {
+                  ...endorsement("base", "approved"),
+                  future_requirements: [{ effective_date: date, pending: [], missing: null, issues: [] }],
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        await bridge.getProvider({ accountType: "business", credentialId: "cred-1", customerId: "cust-1" });
+
+        expect(fetchSpy.mock.calls[1]?.[0]).toBe("https://bridge.test/customers/cust-123/kyc_link");
+      });
+
       it("returns ACTIVE without futureRequirement when future requirement has pending items", async () => {
         const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
@@ -1767,6 +1918,39 @@ describe("bridge utils", () => {
           tosLink: "https://tos.link/agree",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
           offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+      });
+
+      it("returns NOT_STARTED with a business tos link when no customer exists", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        await expect(bridge.getProvider({ accountType: "business", credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+        expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://bridge.test/customers/tos_links");
+      });
+
+      it("appends the redirect URL with the provider param to the business tos link", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        const result = await bridge.getProvider({
+          accountType: "business",
+          credentialId: "cred-1",
+          redirectURL: "https://app.example.com/callback",
+        });
+
+        expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://bridge.test/customers/tos_links");
+        expect(result).toMatchObject({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree?redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback%3Fprovider%3Dbridge",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
         });
       });
 
@@ -5053,4 +5237,13 @@ const createCustomerPayload = {
   identifying_information: [
     { type: "passport" as const, issuing_country: "AR", number: "AB123456", image_front: "data:image/jpg;base64,abc" },
   ],
+};
+
+const businessCustomerPayload: Parameters<typeof ramp.createCustomer>[0] = {
+  business_legal_name: "Example LLC",
+  client_reference_id: "business-1",
+  email: "business@example.com",
+  endorsements: ["base", "sepa"],
+  signed_agreement_id: "agreement-1",
+  type: "business",
 };
