@@ -288,78 +288,50 @@ describe("with reference", () => {
   });
 
   describe("handles invalid payload", () => {
-    it("returns 200 if no inquiry session", async () => {
-      const response = await appClient.index.$post({
-        ...personaPayload,
-        json: {
-          ...personaPayload.json,
-          data: {
-            ...personaPayload.json.data,
-            attributes: {
-              ...personaPayload.json.data.attributes,
-              payload: {
-                ...personaPayload.json.data.attributes.payload,
-                included: personaPayload.json.data.attributes.payload.included.filter(
-                  (session) => session.type !== "inquiry-session",
-                ),
-              },
-            },
-          },
-        },
-      });
+    const messageTail = [
+      'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
+      'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
+      'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+      'data/type Invalid type: Expected "case" but received "inquiry"',
+      'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
+      'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
+      'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
+      'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+    ];
 
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ message: "bad persona" }),
-        expect.anything(),
-      );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual({
-        code: "bad persona",
-        legacy: "bad persona",
-        message: [
-          "data/attributes/payload Invalid type: Expected Object but received Object",
-          "included Invalid length: Expected >=1 but received 0",
-          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
-          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
-          'data/type Invalid type: Expected "case" but received "inquiry"',
-          'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
-          'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
-          'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
-        ],
-      });
-      expect(panda.createUser).not.toHaveBeenCalled();
-    });
-
-    it("returns 200 if no value for annual-salary or annual-salary-ranges-us-150000", async () => {
-      const response = await appClient.index.$post({
-        ...personaPayload,
-        json: {
-          ...personaPayload.json,
-          data: {
-            ...personaPayload.json.data,
-            attributes: {
-              ...personaPayload.json.data.attributes,
-              payload: {
-                ...personaPayload.json.data.attributes.payload,
-                data: {
-                  ...personaPayload.json.data.attributes.payload.data,
-                  attributes: {
-                    ...personaPayload.json.data.attributes.payload.data.attributes,
-                    fields: {
-                      ...personaPayload.json.data.attributes.payload.data.attributes.fields,
-                      annualSalary: { value: null },
-                      annualSalaryRangesUs150000: undefined,
-                    },
-                  },
+    it.each([
+      [
+        "no inquiry session",
+        () => {
+          const payload = personaPayload.json.data.attributes.payload;
+          return {
+            ...personaPayload.json,
+            data: {
+              ...personaPayload.json.data,
+              attributes: {
+                ...personaPayload.json.data.attributes,
+                payload: {
+                  ...payload,
+                  included: payload.included.filter((session) => session.type !== "inquiry-session"),
                 },
-                included: [...personaPayload.json.data.attributes.payload.included],
               },
             },
-          },
+          };
         },
-      });
+        "included Invalid length: Expected >=1 but received 0",
+      ],
+      [
+        "no value for annual-salary or annual-salary-ranges-us-150000",
+        () => withFields({ annualSalary: { value: null }, annualSalaryRangesUs150000: undefined }),
+        "data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
+      ],
+      [
+        "no value for monthly-purchases-range or expected-monthly-volume",
+        () => withFields({ monthlyPurchasesRange: undefined, expectedMonthlyVolume: { value: null } }),
+        "data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
+      ],
+    ])("returns 200 if %s", async (_case, body, message) => {
+      const response = await appClient.index.$post({ ...personaPayload, json: body() });
 
       expect(captureException).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "bad persona" }),
@@ -369,71 +341,7 @@ describe("with reference", () => {
       await expect(response.json()).resolves.toStrictEqual({
         code: "bad persona",
         legacy: "bad persona",
-        message: [
-          "data/attributes/payload Invalid type: Expected Object but received Object",
-          "data/attributes/fields Either annualSalary or annualSalaryRangesUs150000 must have a value",
-          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
-          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
-          'data/type Invalid type: Expected "case" but received "inquiry"',
-          'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
-          'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
-          'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
-        ],
-      });
-      expect(panda.createUser).not.toHaveBeenCalled();
-    });
-
-    it("returns 200 if no value for monthly-purchases-range or expected-monthly-volume", async () => {
-      const response = await appClient.index.$post({
-        ...personaPayload,
-        json: {
-          ...personaPayload.json,
-          data: {
-            ...personaPayload.json.data,
-            attributes: {
-              ...personaPayload.json.data.attributes,
-              payload: {
-                ...personaPayload.json.data.attributes.payload,
-                data: {
-                  ...personaPayload.json.data.attributes.payload.data,
-                  attributes: {
-                    ...personaPayload.json.data.attributes.payload.data.attributes,
-                    fields: {
-                      ...personaPayload.json.data.attributes.payload.data.attributes.fields,
-                      monthlyPurchasesRange: undefined,
-                      expectedMonthlyVolume: { value: null },
-                    },
-                  },
-                },
-                included: [...personaPayload.json.data.attributes.payload.included],
-              },
-            },
-          },
-        },
-      });
-
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ message: "bad persona" }),
-        expect.anything(),
-      );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual({
-        code: "bad persona",
-        legacy: "bad persona",
-        message: [
-          "data/attributes/payload Invalid type: Expected Object but received Object",
-          "data/attributes/fields Either monthlyPurchasesRange or expectedMonthlyVolume must have a value",
-          'data/attributes/fields/currentGovernmentId1 Invalid key: Expected "currentGovernmentId1" but received undefined',
-          'data/attributes/fields/selectedIdClass1 Invalid key: Expected "selectedIdClass1" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_TjaqJdQYkht17v645zNFUfkaWNan" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
-          'data/type Invalid type: Expected "case" but received "inquiry"',
-          'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
-          'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
-          'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
-        ],
+        message: ["data/attributes/payload Invalid type: Expected Object but received Object", message, ...messageTail],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
     });
@@ -2006,4 +1914,25 @@ function postInquiry() {
       },
     },
   });
+}
+
+function withFields(fields: Record<string, unknown>) {
+  const payload = personaPayload.json.data.attributes.payload;
+  return {
+    ...personaPayload.json,
+    data: {
+      ...personaPayload.json.data,
+      attributes: {
+        ...personaPayload.json.data.attributes,
+        payload: {
+          ...payload,
+          data: {
+            ...payload.data,
+            attributes: { ...payload.data.attributes, fields: { ...payload.data.attributes.fields, ...fields } },
+          },
+          included: [...payload.included],
+        },
+      },
+    },
+  };
 }

@@ -258,6 +258,21 @@ export default function route({
     .post(
       "/",
       auth,
+      honoOpenapi.describeRoute({
+        summary: "Start KYC for a scope",
+        description: `
+Start the KYC flow for a scope.
+
+**Business KYB**
+
+Business requests require a tenant credential: the credential salt must be non-zero. Otherwise the endpoint returns \`400 { "code": "not supported" }\`.
+
+| body | response | notes |
+|------|----------|-------|
+| \`{ "scope": "panda-business" }\` | company application state | creates or returns the Panda company KYB application |
+`,
+        tags: ["KYC"],
+      }),
       vValidator(
         "header",
         optional(

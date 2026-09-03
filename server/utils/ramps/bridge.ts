@@ -98,10 +98,21 @@ export default function bridge(key: string, url: string) {
     if (anyOf.success) return anyOf.output.any_of.some((child) => containsRequirement(child, targets));
     return false;
   }
-  async function createCustomer(user: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
-    try {
-      return await request(NewCustomer, "/customers", {}, user, "POST", 15_000, idempotencyKey);
-    } catch (error) {
+  async function createCustomer(customer: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
+    if (!Supported[chain.id]) {
+      captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+      throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+    }
+    return await withRetry(() => request(NewCustomer, "/customers", {}, customer, "POST", 15_000, idempotencyKey), {
+      retryCount: 2,
+      shouldRetry: ({ error }) => {
+        const retryable =
+          (error instanceof Error && error.name === "TimeoutError") ||
+          (error instanceof ServiceError && error.status >= 500);
+        if (retryable) captureException(error, { level: "warning" });
+        return retryable;
+      },
+    }).catch((error: unknown) => {
       if (error instanceof ServiceError && typeof error.cause === "string") {
         if (error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
           withScope((scope) => {
@@ -134,7 +145,7 @@ export default function bridge(key: string, url: string) {
         }
       }
       throw error;
-    }
+    });
   }
   async function createExternalAccount(
     customer: InferOutput<typeof CustomerResponse>,
@@ -750,12 +761,12 @@ export default function bridge(key: string, url: string) {
     });
   }
   async function getKYCLink(customerId: string, redirectUri?: string, endorsement?: (typeof Endorsements)[number]) {
-    const params = new URLSearchParams();
-    if (endorsement) params.set("endorsement", endorsement);
-    if (redirectUri) params.set("redirect_uri", redirectUri);
+    const query = new URLSearchParams();
+    if (endorsement) query.set("endorsement", endorsement);
+    if (redirectUri) query.set("redirect_uri", redirectUri);
     const result = await request(
       object({ url: pipe(string(), urlValidator()) }),
-      `/customers/${customerId}/kyc_link${String(params) ? `?${String(params)}` : ""}`,
+      `/customers/${customerId}/kyc_link${String(query) ? `?${String(query)}` : ""}`,
       {},
       undefined,
       "GET",
@@ -847,6 +858,7 @@ export default function bridge(key: string, url: string) {
   }
   async function getProvider(
     params: {
+      accountType?: "business";
       countryCode?: string;
       credentialId: string;
       customerId?: null | string;
@@ -905,6 +917,7 @@ export default function bridge(key: string, url: string) {
                 redirect.searchParams.set("provider", "bridge");
                 return String(redirect);
               })(),
+              params.accountType,
             ),
           };
         case "active":
@@ -924,6 +937,7 @@ export default function bridge(key: string, url: string) {
                   redirect.searchParams.set("provider", "bridge");
                   return String(redirect);
                 })(),
+                params.accountType,
               ),
             };
           }
@@ -981,6 +995,32 @@ export default function bridge(key: string, url: string) {
             return String(redirect);
           })(),
         ),
+      };
+    }
+
+    if (params.accountType === "business") {
+      return {
+        status: "NOT_STARTED" as const,
+        tosLink: await agreementLink(
+          (() => {
+            if (!params.redirectURL) return;
+            const redirect = new URL(params.redirectURL);
+            redirect.searchParams.set("provider", "bridge");
+            return String(redirect);
+          })(),
+        ),
+        onramp: {
+          currencies: [
+            ...currencies.onramp,
+            ...BusinessEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement].currencies),
+          ],
+        },
+        offramp: {
+          currencies: [
+            ...currencies.offramp,
+            ...BusinessEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement].currencies),
+          ],
+        },
       };
     }
 
@@ -1176,7 +1216,11 @@ export default function bridge(key: string, url: string) {
       ];
     });
   }
-  function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri: string | undefined) {
+  function maybeKYCLink(
+    bridgeUser: InferOutput<typeof CustomerResponse>,
+    redirectUri: string | undefined,
+    accountType?: "business",
+  ) {
     if (bridgeUser.status === "offboarded") return;
     if (
       bridgeUser.endorsements.some((endorsement) =>
@@ -1191,6 +1235,7 @@ export default function bridge(key: string, url: string) {
     }
 
     if (
+      accountType === "business" ||
       bridgeUser.endorsements.some(
         (endorsement) =>
           containsRequirement(endorsement.requirements.missing, missing) ||
@@ -1203,11 +1248,28 @@ export default function bridge(key: string, url: string) {
     }
   }
   async function onboarding(
-    params: { acceptedTermsId: string; credentialId: string; customerId: null | string },
+    params: { acceptedTermsId: string; accountType?: "business"; credentialId: string; customerId: null | string },
     database: NodePgDatabase<typeof schema>,
     persona: PersonaService,
   ) {
     if (params.customerId) throw new Error(ErrorCodes.ALREADY_ONBOARDED);
+
+    if (params.accountType === "business") {
+      const profile = await persona.businessProfile(params.credentialId);
+      const customer = await createCustomer(
+        {
+          business_legal_name: profile.name,
+          client_reference_id: params.credentialId,
+          email: profile.email,
+          endorsements: [...BusinessEndorsements],
+          signed_agreement_id: params.acceptedTermsId,
+          type: "business",
+        },
+        `bridge-business-customer:${params.credentialId}`,
+      );
+      await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
+      return;
+    }
 
     if (!Supported[chain.id]) {
       captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
@@ -1246,20 +1308,17 @@ export default function bridge(key: string, url: string) {
     const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
     if (!frontDocumentURL) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
     const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
-
     const [frontFileEncoded, backFileEncoded] = await Promise.all([
       fetchAndEncodeFile(frontDocumentURL, identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg"),
       backDocumentURL
         ? fetchAndEncodeFile(backDocumentURL, identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg")
         : undefined,
     ]);
-
     const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
     const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
     if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
     const country = alpha2ToAlpha3(countryCode);
     if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
-
     const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
       {
         type: bridgeIdType,
@@ -1269,54 +1328,34 @@ export default function bridge(key: string, url: string) {
         image_back: backFileEncoded,
       },
     ];
-
     if (countryCode === "US") {
       const ssn = personaAccount.attributes["social-security-number"];
       if (!ssn) throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
-
-      identifyingInformation.push({
-        type: "ssn",
-        number: ssn,
-        issuing_country: "USA",
-      });
+      identifyingInformation.push({ type: "ssn", number: ssn, issuing_country: "USA" });
     }
-
     const idempotencyKey = crypto.randomUUID();
-    const customer = await withRetry(
-      () =>
-        createCustomer(
-          {
-            type: "individual",
-            first_name: personaAccount.attributes.fields.name.value.first.value,
-            last_name: personaAccount.attributes.fields.name.value.last.value,
-            email: personaAccount.attributes["email-address"],
-            phone: personaAccount.attributes.fields.phone_number.value,
-            residential_address: {
-              street_line_1: personaAccount.attributes["address-street-1"],
-              street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
-              postal_code: personaAccount.attributes["address-postal-code"],
-              subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
-              country,
-              city: personaAccount.attributes["address-city"],
-            },
-            birth_date: personaAccount.attributes.fields.birthdate.value,
-            signed_agreement_id: params.acceptedTermsId,
-            endorsements,
-            nationality: country,
-            identifying_information: identifyingInformation,
-          },
-          idempotencyKey,
-        ),
+    const customer = await createCustomer(
       {
-        retryCount: 2,
-        shouldRetry: ({ error }) => {
-          const retryable =
-            (error instanceof Error && error.name === "TimeoutError") ||
-            (error instanceof ServiceError && error.status >= 500);
-          if (retryable) captureException(error, { level: "warning" });
-          return retryable;
+        type: "individual",
+        first_name: personaAccount.attributes.fields.name.value.first.value,
+        last_name: personaAccount.attributes.fields.name.value.last.value,
+        email: personaAccount.attributes["email-address"],
+        phone: personaAccount.attributes.fields.phone_number.value,
+        residential_address: {
+          street_line_1: personaAccount.attributes["address-street-1"],
+          street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
+          postal_code: personaAccount.attributes["address-postal-code"],
+          subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
+          country,
+          city: personaAccount.attributes["address-city"],
         },
+        birth_date: personaAccount.attributes.fields.birthdate.value,
+        signed_agreement_id: params.acceptedTermsId,
+        endorsements,
+        nationality: country,
+        identifying_information: identifyingInformation,
       },
+      idempotencyKey,
     );
     await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
   }
@@ -1452,6 +1491,8 @@ const issues = new Set([
 
 const Denylist = new Set(["ID"]);
 const Endorsements = ["base", "faster_payments", "pix", "pix_offramp", "pix_onramp", "sepa", "spei"] as const; // cspell:ignore spei, sepa
+
+const BusinessEndorsements = ["base", "sepa"] as const;
 export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
 const VirtualAccountStatus = ["activated", "deactivated"] as const;
@@ -1766,41 +1807,50 @@ const TIN = object({
 });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const CreateCustomer = object({
-  type: literal("individual"),
-  first_name: string(),
-  middle_name: optional(string()),
-  last_name: string(),
-  transliterated_first_name: optional(string()),
-  transliterated_middle_name: optional(string()),
-  transliterated_last_name: optional(string()),
-  email: string(),
-  phone: string(),
-  residential_address: object({
-    street_line_1: string(),
-    street_line_2: optional(string()),
-    city: string(),
-    subdivision: optional(string()),
-    postal_code: optional(string()),
-    country: string(),
-  }),
-  transliterated_residential_address: optional(
-    object({
-      street_line_1: optional(string()),
+const CreateCustomer = variant("type", [
+  object({
+    type: literal("individual"),
+    first_name: string(),
+    middle_name: optional(string()),
+    last_name: string(),
+    transliterated_first_name: optional(string()),
+    transliterated_middle_name: optional(string()),
+    transliterated_last_name: optional(string()),
+    email: string(),
+    phone: string(),
+    residential_address: object({
+      street_line_1: string(),
       street_line_2: optional(string()),
-      city: optional(string()),
+      city: string(),
       subdivision: optional(string()),
       postal_code: optional(string()),
-      country: optional(string()),
+      country: string(),
     }),
-  ),
-  birth_date: string(),
-  signed_agreement_id: string(),
-  nationality: string(),
-
-  identifying_information: array(union([IdentityDocument, TIN])),
-  endorsements: optional(array(picklist(Endorsements))),
-});
+    transliterated_residential_address: optional(
+      object({
+        street_line_1: optional(string()),
+        street_line_2: optional(string()),
+        city: optional(string()),
+        subdivision: optional(string()),
+        postal_code: optional(string()),
+        country: optional(string()),
+      }),
+    ),
+    birth_date: string(),
+    signed_agreement_id: string(),
+    nationality: string(),
+    identifying_information: array(union([IdentityDocument, TIN])),
+    endorsements: optional(array(picklist(Endorsements))),
+  }),
+  object({
+    type: literal("business"),
+    business_legal_name: string(),
+    client_reference_id: string(),
+    email: string(),
+    endorsements: array(picklist(Endorsements)),
+    signed_agreement_id: string(),
+  }),
+]);
 
 const NewCustomer = object({ status: picklist(CustomerStatus), id: string() });
 
@@ -2464,4 +2514,7 @@ dwIDAQAB
 -----END PUBLIC KEY-----`;
 /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
 
-type PersonaService = Pick<ReturnType<typeof createPersona>, "getAccount" | "getDocument" | "getDocumentForBridge">;
+type PersonaService = Pick<
+  ReturnType<typeof createPersona>,
+  "businessProfile" | "getAccount" | "getDocument" | "getDocumentForBridge"
+>;
