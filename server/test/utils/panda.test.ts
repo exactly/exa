@@ -254,11 +254,12 @@ describe("business application", () => {
     });
   });
 
-  it("falls back to inquiry fields when account field is missing", async () => {
-    const incompleteFields: Record<string, { value: unknown }> = { ...fields };
-    delete incompleteFields.company_description;
+  it.each([
+    ["missing", Object.fromEntries(Object.entries(fields).filter(([name]) => name !== "company_description"))],
+    ["blank", { ...fields, company_description: { value: "" } }],
+  ])("falls back to inquiry fields when the account field is %s", async (_state, accountFields) => {
     mockBusiness({
-      accountFields: incompleteFields,
+      accountFields,
       inquiryFields: { "company-description": { value: "Inquiry software" } },
     });
 

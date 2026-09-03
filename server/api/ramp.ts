@@ -21,6 +21,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
+import { isBusinessSalt } from "../utils/createCredential";
 import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
@@ -43,6 +44,7 @@ const ErrorCodes = {
   NO_CREDENTIAL: "no credential",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
+  NOT_SUPPORTED: "not supported",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_NOT_FOUND: "transfer not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
@@ -76,7 +78,7 @@ export default function route({
         const countryCode = c.req.valid("query").countryCode;
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
@@ -91,6 +93,7 @@ export default function route({
           bridge
             .getProvider(
               {
+                accountType: accountType(credential.salt),
                 credentialId,
                 customerId: credential.bridgeId,
                 countryCode,
@@ -328,12 +331,13 @@ export default function route({
         const onboarding = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
+        if (accountType(credential.salt)) return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
         switch (onboarding.provider) {
           case "manteca":
             try {
@@ -514,6 +518,10 @@ export default function route({
         return c.json({ code: "ok" }, 200);
       },
     );
+}
+
+function accountType(salt: string) {
+  return isBusinessSalt(parse(Address, salt)) ? "business" : undefined;
 }
 
 async function getOrCreateInquiry(credentialId: string, template: string, persona: ReturnType<typeof createPersona>) {
