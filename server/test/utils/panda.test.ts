@@ -255,6 +255,15 @@ describe("business application", () => {
     });
   });
 
+  it("rejects an invalid client IP address", async () => {
+    mockProfile();
+
+    await expect(panda.businessApplication("reference-id", account, "not-an-ip", persona)).rejects.toMatchObject({
+      message: "missing valid client IP address",
+      status: 400,
+    });
+  });
+
   it.each([[null], [""], ["   "], ["Suite 2"]] as const)("normalizes a line2 value %s", async (line2) => {
     mockProfile({ ...businessFields, street_2_2: line2 });
     const application = await panda.businessApplication("reference-id", account, "127.0.0.1", persona);
