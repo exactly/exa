@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as Supervise from "../supervise";
+import type { Context } from "hono";
 
 const hooks = {
   activity: vi.fn<() => Hook>(),
@@ -22,6 +23,7 @@ const mocks = {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.doUnmock("@hono/node-server/serve-static");
 });
 
 beforeEach(() => {
@@ -101,6 +103,31 @@ describe("server", () => {
     await expect(import("../index")).rejects.toThrow("unknown module");
     for (const create of Object.values({ ...hooks, ...workers })) expect(create).not.toHaveBeenCalled();
     expect(mocks.supervise).not.toHaveBeenCalled();
+  });
+
+  it("caches hashed assets and revalidates the rest", async () => {
+    const modified = new Date(0).toUTCString();
+    const page = (c: Context) => c.body("app", 200, { "Last-Modified": modified });
+    vi.doMock("@hono/node-server/serve-static", () => ({ serveStatic: () => page }));
+
+    const { default: app } = await import("../index");
+    const responses = await Promise.all([
+      app.request("/_expo/static/js/web/entry-0.js"),
+      app.request("/assets/icon.0.png"),
+      app.request("/"),
+      app.request("/", { headers: { "If-Modified-Since": modified } }),
+      app.request("/", { headers: { "If-Modified-Since": new Date(1000).toUTCString() } }),
+      app.request("/", { headers: { "If-Modified-Since": modified, "If-None-Match": '"other"' } }),
+    ]);
+
+    expect(responses.map(({ status, headers }) => [status, headers.get("cache-control")])).toStrictEqual([
+      [200, "public, max-age=31536000, immutable"],
+      [200, "public, max-age=31536000, immutable"],
+      [200, "no-cache"],
+      [304, "no-cache"],
+      [200, "no-cache"],
+      [200, "no-cache"],
+    ]);
   });
 });
 

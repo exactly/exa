@@ -389,6 +389,23 @@ frontend.use(
     },
   }),
 );
+frontend.use(async (c, next) => {
+  if (/^\/(?:_expo\/static|assets)\//.test(c.req.path)) {
+    c.header("Cache-Control", "public, max-age=31536000, immutable");
+    return next();
+  }
+  c.header("Cache-Control", "no-cache");
+  await next();
+  if (
+    c.res.status !== 200 ||
+    c.req.header("If-None-Match") !== undefined ||
+    c.req.header("If-Modified-Since") !== c.res.headers.get("Last-Modified")
+  ) {
+    return;
+  }
+  await c.res.body?.cancel();
+  c.res = new Response(null, { status: 304 });
+});
 frontend.use(
   serveStatic({
     root: "app",
