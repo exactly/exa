@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.24
+
+### Patch Changes
+
+- [#1286](https://github.com/exactly/exa/pull/1286) [`4ce1096`](https://github.com/exactly/exa/commit/4ce1096d5fe19fc1f995184c63cfccc7a6c3dede) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update asset section titles
+
+- [#1250](https://github.com/exactly/exa/pull/1250) [`f4fc241`](https://github.com/exactly/exa/commit/f4fc2411e67049fbe03afb0f5fbf51aef1d64aa1) Thanks [@franm91](https://github.com/franm91)! - ✨ scan pix qr codes
+
+- [#1286](https://github.com/exactly/exa/pull/1286) [`4d10328`](https://github.com/exactly/exa/commit/4d10328fb75a239c4384bb48ae7fd96ec9e0169e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ optimize activity list scroll
+
+- Updated dependencies [[`e123a82`](https://github.com/exactly/exa/commit/e123a822ec271bc1a1ba4a10867b3a6137262bd7)]:
+  - @exactly/server@0.2.116
+
 ## 1.2.23
 
 ### Patch Changes

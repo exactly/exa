@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.116
+
+### Patch Changes
+
+- [#1281](https://github.com/exactly/exa/pull/1281) [`e123a82`](https://github.com/exactly/exa/commit/e123a822ec271bc1a1ba4a10867b3a6137262bd7) Thanks [@mainqueg](https://github.com/mainqueg)! - ✨ support directional pix endorsements
+
 ## 0.2.115
 
 ### Patch Changes
