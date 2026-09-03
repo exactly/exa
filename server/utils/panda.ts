@@ -1084,7 +1084,7 @@ export const CompanyApplicationStatusResponse = object({
   id: string(),
 });
 
-const CompanyApplicationResponse = object({
+export const CompanyApplicationResponse = object({
   ...CompanyApplicationStatusResponse.entries,
   address: AddressSchema,
   name: string(),
