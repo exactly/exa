@@ -1,6 +1,9 @@
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import { getBytecode } from "@wagmi/core/actions";
 
+import chain from "@exactly/common/generated/chain";
+
+import alchemyChainById from "./alchemyChains";
 import queryClient from "./queryClient";
 import exaConfig from "./wagmi/exa";
 
@@ -16,6 +19,10 @@ export default function deployedOptions(address: Address | undefined, chainId: n
     staleTime: (query) => (query.state.data ? Infinity : 0),
     gcTime: Infinity,
   });
+}
+
+export function isUnsupported(chainId: number, deployedChains: Map<number, boolean>) {
+  return chainId !== chain.id && (!alchemyChainById.has(chainId) || deployedChains.get(chainId) === false);
 }
 
 export function revalidateUnsupported() {

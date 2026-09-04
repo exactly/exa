@@ -217,6 +217,9 @@ importers:
       '@react-native-async-storage/async-storage':
         specifier: ~2.2.0
         version: 2.2.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))
+      '@scure/base':
+        specifier: 1.2.6
+        version: 1.2.6
       '@segment/analytics-next':
         specifier: ^1.84.1
         version: 1.84.1

@@ -74,7 +74,7 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "kyc", "card", "deeplink", "pax", "lifi"].includes(queryKey[0] as string) &&
+    !["activity", "externalAssets", "kyc", "card", "deeplink", "ens", "pax", "lifi"].includes(queryKey[0] as string) &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens"),
 };
 
@@ -147,6 +147,13 @@ queryClient.setQueryDefaults<boolean>(["settings", "card-support-contacted"], {
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
 queryClient.setQueryDefaults<boolean>(["settings", "promo-seen"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
+queryClient.setQueryDefaults<boolean>(["settings", "swap-sheet"], {
   initialData: false,
   retry: false,
   staleTime: Infinity,

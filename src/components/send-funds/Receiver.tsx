@@ -1,22 +1,25 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, QrCode } from "@tamagui/lucide-icons";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ArrowLeft, ArrowRight, ArrowUp, CircleHelp, QrCode, Search, Trash2 } from "@tamagui/lucide-icons";
+import { ScrollView, Spinner, XStack, YStack } from "tamagui";
 
-import { useForm } from "@tanstack/react-form";
+import { ChainType } from "@lifi/sdk";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
 
-import Contacts from "./Contacts";
-import RecentContacts from "./RecentContacts";
+import ensOptions, { ensName } from "../../utils/ensOptions";
 import { presentArticle } from "../../utils/intercom";
+import { lifiChainsOptions, lifiTokensOptions } from "../../utils/lifi";
+import queryClient from "../../utils/queryClient";
+import receiverSchema from "../../utils/receiverSchema";
 import reportError from "../../utils/reportError";
+import Blocky from "../shared/Blocky";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
@@ -24,169 +27,247 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Address } from "@exactly/common/validation";
+
 export default function ReceiverSelection() {
   const router = useRouter();
-  const { receiver, asset } = useLocalSearchParams();
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
+  const { receiver, asset, fromChain, toChain, toToken, amount, fromAmount } = useLocalSearchParams();
+  const destination = typeof toChain === "string" ? Number(toChain) : chain.id;
+  const { data: chains, isFetching, refetch } = useQuery(lifiChainsOptions);
+  const { data: tokens } = useQuery(lifiTokensOptions);
+  const destinationChain = chains?.find((item) => item.id === destination);
+  const chainType = destinationChain?.chainType ?? (destination === chain.id ? ChainType.EVM : undefined);
+  const evm = chainType === ChainType.EVM;
+  const symbol =
+    typeof toToken === "string"
+      ? tokens?.find(
+          (token) =>
+            token.chainId === (destination as typeof token.chainId) &&
+            token.address.toLowerCase() === toToken.toLowerCase(),
+        )?.symbol
+      : undefined;
 
-  const { data: recentContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
+  const { data: recentContacts } = useQuery<undefined | { address: Address; date?: number; ens: string }[]>({
     queryKey: ["contacts", "recent"],
   });
 
-  const { data: savedContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
-    queryKey: ["contacts", "saved"],
-  });
+  const form = useForm({ defaultValues: { receiver: "" } });
+  useEffect(() => {
+    if (typeof receiver !== "string") return;
+    form.setFieldValue("receiver", receiver);
+    router.setParams({ receiver: undefined });
+  }, [form, receiver, router]);
+  const value = useStore(form.store, ({ values }) => values.receiver);
+  const name = evm ? ensName(value) : undefined;
+  const { data: resolved, isPending: resolving } = useQuery(ensOptions(name, destination));
 
-  const form = useForm({
-    defaultValues: { receiver: typeof receiver === "string" ? receiver : "" },
-    onSubmit: ({ value }) => {
-      const presetAsset = safeParse(Address, asset);
-      if (presetAsset.success) {
-        router.push({
-          pathname: "/send-funds/amount",
-          params: { receiver: value.receiver, asset: presetAsset.output },
-        });
-        return;
-      }
-      router.push({ pathname: "/send-funds/asset", params: { receiver: value.receiver } });
-    },
-  });
+  if (chainType === undefined) {
+    return (
+      <SafeView fullScreen>
+        <View gap="$s4_5" fullScreen padded>
+          <Header symbol={symbol} />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s4">
+            {isFetching ? (
+              <Spinner size="large" color="$uiBrandSecondary" />
+            ) : (
+              <>
+                <Text secondary subHeadline textAlign="center">
+                  {t("Something went wrong. Please try again.")}
+                </Text>
+                <Button
+                  secondary
+                  onPress={() => {
+                    refetch().catch(reportError);
+                  }}
+                >
+                  <Button.Text>{t("Retry")}</Button.Text>
+                </Button>
+              </>
+            )}
+          </YStack>
+        </View>
+      </SafeView>
+    );
+  }
+
+  const ready = name ? !!resolved : !!value && safeParse(receiverSchema(chainType), value).success;
+
+  function submit(to: string) {
+    router.push({
+      pathname: "/send-funds/confirm",
+      params: { receiver: to, asset, fromChain, toChain, toToken, amount, fromAmount },
+    });
+  }
 
   return (
     <SafeView fullScreen>
       <View gap="$s4_5" fullScreen padded>
-        <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
-          <View position="absolute" left={0}>
-            <IconButton
-              icon={ArrowLeft}
-              aria-label={t("Back")}
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace("/(main)/(home)");
-                }
-              }}
-            />
-          </View>
-          <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-            {t("Send to")}
-          </Text>
-        </View>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-          <YStack flex={1} justifyContent="space-between">
-            <YStack gap="$s5">
-              <form.Field name="receiver" validators={{ onChange: Address }}>
-                {({ state: { value, meta }, handleChange }) => (
+        <Header symbol={symbol} />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <YStack flex={1} justifyContent="space-between" gap="$s5">
+            <YStack gap="$s6">
+              <form.Field name="receiver" validators={{ onChange: receiverSchema(chainType) }}>
+                {({ state: { meta }, handleBlur, handleChange }) => (
                   <YStack gap="$s2">
-                    <XStack flexDirection="row">
+                    <XStack
+                      alignItems="center"
+                      gap="$s2"
+                      paddingLeft="$s3_5"
+                      borderWidth={1}
+                      borderColor="$borderNeutralSoft"
+                      borderRadius="$r3"
+                      overflow="hidden"
+                    >
+                      <Search size={20} color="$uiNeutralPlaceholder" />
                       <Input
                         flex={1}
-                        placeholder={t("Enter {{chain}} address", { chain: chain.name })}
-                        borderColor="$uiNeutralTertiary"
-                        borderTopRightRadius={0}
-                        borderBottomRightRadius={0}
+                        borderWidth={0}
+                        backgroundColor="transparent"
+                        placeholder={
+                          destinationChain && !evm
+                            ? t("Enter {{chain}} address", { chain: destinationChain.name })
+                            : t("Enter ENS or wallet address")
+                        }
+                        placeholderTextColor="$uiNeutralPlaceholder"
                         value={value}
                         onChangeText={handleChange}
-                        borderWidth={1}
-                        focusStyle={{ borderColor: "$borderBrandStrong", borderWidth: 1 }}
-                        backgroundColor="$backgroundSoft"
+                        onBlur={handleBlur}
+                        autoCapitalize="none"
+                        autoCorrect={false}
                       />
-                      <Button
-                        outlined
-                        secondary
-                        borderColor="$uiNeutralTertiary"
-                        borderLeftWidth={0}
-                        minHeight="auto"
+                      <View
                         padding="$s3"
-                        aria-label={t("Scan QR code")}
-                        borderTopLeftRadius={0}
-                        borderBottomLeftRadius={0}
+                        backgroundColor="$backgroundMild"
+                        cursor="pointer"
+                        pressStyle={{ opacity: 0.7 }}
                         onPress={() => {
-                          router.push("/send-funds/qr");
+                          router.push({
+                            pathname: "/send-funds/qr",
+                            params: { asset, fromChain, toChain, toToken, amount, fromAmount },
+                          });
                         }}
                       >
-                        <Button.Icon>
-                          <QrCode />
-                        </Button.Icon>
-                      </Button>
+                        <QrCode size={24} color="$iconBrandDefault" />
+                      </View>
                     </XStack>
-                    {meta.errors.length > 0 ? (
-                      <Text padding="$s3" footnote color="$uiNeutralSecondary">
-                        {meta.errors[0]?.message.split(",")[0]}
+                    {name ? (
+                      resolved ? (
+                        <Text padding="$s3" footnote secondary mono>
+                          {resolved}
+                        </Text>
+                      ) : (
+                        <Text padding="$s3" footnote color={resolving ? "$uiNeutralSecondary" : "$uiErrorSecondary"}>
+                          {resolving ? t("Resolving...") : t("No address found for {{name}}", { name })}
+                        </Text>
+                      )
+                    ) : value && meta.isBlurred && meta.errors.length > 0 ? (
+                      <Text padding="$s3" footnote color="$uiErrorSecondary">
+                        {t("Invalid {{chain}} address", { chain: (destinationChain ?? chain).name })}
                       </Text>
                     ) : undefined}
                   </YStack>
                 )}
               </form.Field>
-              {(recentContacts ?? savedContacts) && (
-                <ScrollView maxHeight={350} gap="$s4" showsVerticalScrollIndicator={false}>
-                  {recentContacts && recentContacts.length > 0 && (
-                    <RecentContacts
-                      onContactPress={(address) => {
-                        form.setFieldValue("receiver", address);
-                        form.validateAllFields("change").catch(reportError);
+              {evm && recentContacts && recentContacts.length > 0 && (
+                <YStack gap="$s5">
+                  <Text subHeadline color="$uiNeutralPlaceholder">
+                    {t("Recent")}
+                  </Text>
+                  {recentContacts.map((contact) => (
+                    <XStack
+                      key={contact.address}
+                      gap="$s3"
+                      alignItems="center"
+                      cursor="pointer"
+                      pressStyle={{ opacity: 0.7 }}
+                      onPress={() => {
+                        submit(contact.address);
                       }}
-                    />
-                  )}
-                  {recentContacts && savedContacts && (
-                    <XStack paddingVertical="$s4">
-                      <Separator borderColor="$borderNeutralSoft" />
+                    >
+                      <View borderRadius="$r_0" overflow="hidden">
+                        <Blocky seed={contact.address} />
+                      </View>
+                      <YStack gap="$s3" flex={1}>
+                        <Text subHeadline primary mono>
+                          {contact.address}
+                        </Text>
+                        {!!contact.date && (
+                          <Text caption secondary numberOfLines={1}>
+                            {t("Sent to on {{date}}", {
+                              date: new Date(contact.date).toLocaleDateString(language, {
+                                month: "long",
+                                day: "numeric",
+                              }),
+                            })}
+                          </Text>
+                        )}
+                      </YStack>
+                      <IconButton
+                        icon={Trash2}
+                        size={16}
+                        color="$uiErrorSecondary"
+                        aria-label={t("Delete contact")}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          queryClient.setQueryData<undefined | { address: Address; date?: number; ens: string }[]>(
+                            ["contacts", "recent"],
+                            (old) => old?.filter(({ address }) => address !== contact.address),
+                          );
+                        }}
+                      />
                     </XStack>
-                  )}
-                  {savedContacts && savedContacts.length > 0 && (
-                    <Contacts
-                      onContactPress={(address) => {
-                        form.setFieldValue("receiver", address);
-                        form.validateAllFields("change").catch(reportError);
-                      }}
-                    />
-                  )}
-                </ScrollView>
+                  ))}
+                </YStack>
               )}
-              <Text color="$uiNeutralPlaceholder" fontSize={13} textAlign="justify">
-                {t(
-                  "Make sure that the receiving address is compatible with {{chain}} network. Sending assets on other networks may result in irreversible loss of funds.",
-                  { chain: chain.name },
-                )}
-                <Text
-                  color="$uiBrandSecondary"
-                  fontSize={13}
-                  fontWeight="bold"
-                  cursor="pointer"
-                  onPress={() => {
-                    presentArticle("9056481").catch(reportError);
-                  }}
-                >
-                  {" "}
-                  {t("Learn more about sending funds.")}
-                </Text>
-              </Text>
-              <Text color="$uiNeutralPlaceholder" caption2 textAlign="justify">
-                {t("Arrival time ≈ {{minutes}} min.", { minutes: 1 })}
-              </Text>
             </YStack>
-            <form.Subscribe selector={({ canSubmit }) => canSubmit}>
-              {(canSubmit) => {
-                return (
-                  <Button
-                    primary
-                    disabled={!canSubmit}
-                    onPress={() => {
-                      form.handleSubmit().catch(reportError);
-                    }}
-                  >
-                    <Button.Text>{t("Next")}</Button.Text>
-                    <Button.Icon>
-                      <ArrowRight />
-                    </Button.Icon>
-                  </Button>
-                );
+            <Button
+              primary
+              disabled={!ready}
+              onPress={() => {
+                submit(resolved ?? value.trim());
               }}
-            </form.Subscribe>
+            >
+              <Button.Text>{ready ? t("Continue") : t("Enter recipient's address")}</Button.Text>
+              <Button.Icon>{ready ? <ArrowRight size={20} /> : <ArrowUp size={20} />}</Button.Icon>
+            </Button>
           </YStack>
         </ScrollView>
       </View>
     </SafeView>
+  );
+}
+
+function Header({ symbol }: { symbol?: string }) {
+  const router = useRouter();
+  const { t } = useTranslation();
+  return (
+    <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <IconButton
+        icon={ArrowLeft}
+        aria-label={t("Back")}
+        onPress={() => {
+          if (router.canGoBack()) router.back();
+          else router.replace("/send-funds/amount");
+        }}
+      />
+      <Text emphasized subHeadline primary>
+        {symbol ? t("Send {{symbol}} to", { symbol }) : t("Send to")}
+      </Text>
+      <IconButton
+        icon={CircleHelp}
+        aria-label={t("Help")}
+        onPress={() => {
+          presentArticle("8950801").catch(reportError);
+        }}
+      />
+    </XStack>
   );
 }

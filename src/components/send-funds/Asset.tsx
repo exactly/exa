@@ -1,122 +1,357 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Pressable } from "react-native";
 
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
-import { ArrowLeft, UserMinus, UserPlus } from "@tamagui/lucide-icons";
-import { Avatar, ScrollView, XStack } from "tamagui";
+import { ArrowLeft, CircleHelp, Search } from "@tamagui/lucide-icons";
+import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-import { safeParse } from "valibot";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
-import shortenHex from "@exactly/common/shortenHex";
-import { Address } from "@exactly/common/validation";
+import chain from "@exactly/common/generated/chain";
+import { withdrawLimit } from "@exactly/lib";
 
-import queryClient from "../../utils/queryClient";
-import AssetSelector from "../shared/AssetSelector";
-import Blocky from "../shared/Blocky";
+import NetworkFilter from "./NetworkFilter";
+import alchemyChainById from "../../utils/alchemyChains";
+import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
+import { presentArticle } from "../../utils/intercom";
+import { lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import reportError from "../../utils/reportError";
+import useAccount from "../../utils/useAccount";
+import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
+import AssetLogo from "../shared/AssetLogo";
+import IconButton from "../shared/IconButton";
+import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
-import Button from "../shared/StyledButton";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
+import UnsupportedNetworksSheet from "../shared/UnsupportedNetworksSheet";
 import View from "../shared/View";
 
 export default function AssetSelection() {
   const router = useRouter();
-  const { receiver: receiverAddress } = useLocalSearchParams();
-  const parsed = safeParse(Address, receiverAddress);
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [network, setNetwork] = useState<number>();
+  const [unsupported, setUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(null);
+  const { address } = useAccount();
+  const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
+  const { data: chains } = useQuery(lifiChainsOptions);
+  const { data: reach, isError: reachFailed, refetch: refetchReach } = useQuery(reachOptions);
+  const { data: tokens, isPending: isTokensPending } = useQuery(lifiTokensOptions);
 
-  const { data: savedContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
-    queryKey: ["contacts", "saved"],
+  const reachable = useMemo(
+    () =>
+      (chains ?? [])
+        .filter((item) => !!reach && (reach.origins.includes(item.id) || reach.destinations.includes(item.id)))
+        .sort((a, b) => {
+          if (a.id === chain.id) return -1;
+          if (b.id === chain.id) return 1;
+          return a.name.localeCompare(b.name);
+        }),
+    [chains, reach],
+  );
+
+  const search = query.trim().toLowerCase();
+
+  const owned = useMemo(
+    () =>
+      allAssets.filter((asset) => {
+        const chainId = asset.type === "external" ? asset.chainId : chain.id;
+        if (chainId !== chain.id && !reach?.origins.includes(chainId)) return false;
+        if (network !== undefined && chainId !== network) return false;
+        return asset.usdValue > 0 && (!search || asset.symbol.toLowerCase().includes(search));
+      }),
+    [allAssets, network, reach, search],
+  );
+
+  const crossChainIds = useMemo(
+    () => [
+      ...new Set(
+        allAssets.flatMap((asset) =>
+          asset.type === "external" && asset.chainId !== chain.id && alchemyChainById.has(asset.chainId)
+            ? [asset.chainId]
+            : [],
+        ),
+      ),
+    ],
+    [allAssets],
+  );
+  const deployedChains = useQueries({
+    queries: crossChainIds.map((chainId) => deployedOptions(address, chainId)),
+    combine: (results) =>
+      new Map(
+        crossChainIds.flatMap((chainId, index) => {
+          const deployed = results[index]?.data;
+          return typeof deployed === "boolean" ? [[chainId, deployed] as const] : [];
+        }),
+      ),
   });
 
-  if (!parsed.success) return <Redirect href="/send-funds/receiver" />;
-  const receiver = parsed.output;
-
-  const handleSubmit = (asset: Address, external: boolean) => {
-    router.push({ pathname: "/send-funds/amount", params: { receiver, asset, external: String(external) } });
-  };
-
-  const hasContact = savedContacts?.find((contact) => contact.address === receiver);
+  const popular = useMemo(() => {
+    const ids = new Set((reach?.destinations ?? []).filter((id) => (network === undefined ? true : id === network)));
+    const held = new Set(
+      owned.map((asset) =>
+        asset.type === "external"
+          ? `${asset.chainId}:${asset.address.toLowerCase()}`
+          : `${chain.id}:${asset.asset.toLowerCase()}`,
+      ),
+    );
+    return (tokens ?? [])
+      .filter(
+        (token) =>
+          ids.has(token.chainId) &&
+          !held.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
+          (!search ||
+            token.symbol.toLowerCase().includes(search) ||
+            token.name.toLowerCase().includes(search) ||
+            token.address.toLowerCase() === search),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.chainId === (chain.id as typeof b.chainId)) - Number(a.chainId === (chain.id as typeof a.chainId)),
+      )
+      .slice(0, 20);
+  }, [tokens, reach, network, owned, search]);
 
   return (
     <SafeView fullScreen>
       <View gap="$s4_5" fullScreen padded>
-        <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
-          <View position="absolute" left={0}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace("/send-funds");
-                }
-              }}
-            >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Pressable>
-          </View>
-          <Text emphasized color="$uiNeutralPrimary" fontSize={15}>
-            {t("Choose asset")}
+        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+          <IconButton
+            icon={ArrowLeft}
+            aria-label={t("Back")}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/send-funds");
+            }}
+          />
+          <Text emphasized subHeadline primary>
+            {t("Select asset to send")}
           </Text>
-        </View>
-        <ScrollView flex={1}>
-          <View flex={1} gap="$s5">
-            <XStack
-              alignItems="center"
-              backgroundColor="$backgroundBrandSoft"
-              borderRadius="$r2"
-              justifyContent="space-between"
-              paddingVertical="$s2"
-              paddingHorizontal="$s2"
-            >
-              <XStack alignItems="center" gap="$s3" paddingHorizontal="$s1">
-                <Avatar size={32} backgroundColor="$interactiveBaseBrandDefault" borderRadius="$r_0">
-                  <Blocky seed={receiver} />
-                </Avatar>
-                <Text emphasized callout color="$uiNeutralSecondary">
-                  {t("To:")}
-                </Text>
-                <Text callout color="$uiNeutralPrimary" mono>
-                  {shortenHex(receiver)}
-                </Text>
-              </XStack>
-              <Button
-                secondary={!hasContact}
-                dangerSecondary={!!hasContact}
-                minHeight={0}
-                padding="$s3_5"
-                onPress={() => {
-                  queryClient.setQueryData<undefined | { address: Address; ens: string; name: string }[]>(
-                    ["contacts", "saved"],
-                    (old) => {
-                      if (hasContact) {
-                        return old?.filter((contact) => contact.address !== receiver);
-                      }
-                      const newContact = { name: t("New Contact"), address: receiver, ens: "" };
-                      return [...(old ?? []), newContact];
-                    },
-                  );
-                  Alert.alert(
-                    hasContact ? t("Contact removed") : t("Contact added"),
-                    hasContact
-                      ? t("This address has been removed from your contacts list.")
-                      : t("This address has been added to your contacts list."),
-                  );
-                }}
-              >
-                <Button.Icon>{hasContact ? <UserMinus size={24} /> : <UserPlus size={24} />}</Button.Icon>
-              </Button>
-            </XStack>
-            <AssetSelector
-              onSubmit={(market, external) => {
-                handleSubmit(market, external);
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
+            onPress={() => {
+              presentArticle("8950801").catch(reportError);
+            }}
+          />
+        </XStack>
+        <XStack
+          alignItems="center"
+          gap="$s2"
+          paddingLeft="$s3_5"
+          borderWidth={1}
+          borderColor="$borderNeutralSoft"
+          borderRadius="$r3"
+          overflow="hidden"
+        >
+          <Search size={20} color="$uiNeutralPlaceholder" />
+          <Input
+            flex={1}
+            borderWidth={0}
+            backgroundColor="transparent"
+            placeholder={t("Search assets")}
+            placeholderTextColor="$uiNeutralPlaceholder"
+            value={query}
+            onChangeText={setQuery}
+          />
+          <NetworkFilter chains={reachable} value={network} onChange={setNetwork} />
+        </XStack>
+        {reachFailed && (
+          <XStack
+            gap="$s3"
+            alignItems="center"
+            justifyContent="space-between"
+            padding="$s3_5"
+            borderRadius="$r3"
+            backgroundColor="$uiNeutralTertiary"
+          >
+            <Text flex={1} subHeadline color="$uiNeutralSecondary">
+              {t("Couldn't load networks. Please try again.")}
+            </Text>
+            <Text
+              emphasized
+              subHeadline
+              role="button"
+              aria-label={t("Retry")}
+              cursor="pointer"
+              color="$interactiveBaseBrandDefault"
+              pressStyle={{ opacity: 0.7 }}
+              onPress={() => {
+                refetchReach().catch(reportError);
               }}
-            />
-          </View>
+            >
+              {t("Retry")}
+            </Text>
+          </XStack>
+        )}
+        <ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <YStack flex={1} gap="$s6">
+            {(owned.length > 0 || isPending || isBalancesPending) && (
+              <YStack gap="$s5">
+                <Text subHeadline color="$uiNeutralPlaceholder">
+                  {t("Your assets")}
+                </Text>
+                {owned.map((asset) => {
+                  const chainId = asset.type === "external" ? asset.chainId : chain.id;
+                  const chainName = chains?.find((item) => item.id === chainId)?.name ?? chain.name;
+                  const available =
+                    asset.type === "external"
+                      ? (asset.amount ?? 0n)
+                      : markets
+                        ? withdrawLimit(markets, asset.market)
+                        : 0n;
+                  const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
+                  const balance = (Number(available) / 10 ** asset.decimals).toLocaleString(language, {
+                    maximumFractionDigits: Math.min(
+                      8,
+                      Math.max(0, asset.decimals - Math.ceil(Math.log10(Math.max(1, usdPrice)))),
+                    ),
+                  });
+                  return (
+                    <Row
+                      key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
+                      logo={
+                        <AssetLogo
+                          uri={asset.type === "external" ? asset.logoURI : undefined}
+                          symbol={asset.symbol}
+                          width={40}
+                          height={40}
+                          chainId={chainId}
+                          network
+                        />
+                      }
+                      title={asset.symbol}
+                      subtitle={chainName}
+                      value={`$${asset.usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      detail={balance}
+                      label={t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })}
+                      onPress={() => {
+                        if (asset.type === "external" && isUnsupported(chainId, deployedChains)) {
+                          setUnsupported({ asset, chainName });
+                          return;
+                        }
+                        router.push({
+                          pathname: "/send-funds/amount",
+                          params:
+                            asset.type === "external" && asset.chainId !== chain.id
+                              ? {
+                                  asset: asset.address,
+                                  fromChain: String(asset.chainId),
+                                  toChain: String(asset.chainId),
+                                  toToken: asset.address,
+                                }
+                              : { asset: asset.type === "external" ? asset.address : asset.market },
+                        });
+                      }}
+                    />
+                  );
+                })}
+                {(isPending || isBalancesPending) && <Skeleton width="100%" height={40} />}
+              </YStack>
+            )}
+            <YStack gap="$s5">
+              <Text subHeadline color="$uiNeutralPlaceholder">
+                {t("Popular assets")}
+              </Text>
+              {isTokensPending && <Skeleton width="100%" height={40} />}
+              {popular.map((token) => {
+                const chainId = token.chainId as number;
+                const chainName =
+                  chains?.find((item) => item.id === chainId)?.name ??
+                  alchemyChainById.get(chainId)?.name ??
+                  chain.name;
+                return (
+                  <Row
+                    key={`${token.chainId}:${token.address}`}
+                    logo={
+                      <AssetLogo
+                        uri={token.logoURI}
+                        symbol={token.symbol}
+                        width={40}
+                        height={40}
+                        chainId={token.chainId}
+                        network
+                      />
+                    }
+                    title={token.symbol}
+                    subtitle={chainName}
+                    label={t("{{symbol}} on {{network}}", { symbol: token.symbol, network: chainName })}
+                    onPress={() => {
+                      router.push({
+                        pathname: "/send-funds/amount",
+                        params: { toChain: String(token.chainId), toToken: token.address },
+                      });
+                    }}
+                  />
+                );
+              })}
+            </YStack>
+          </YStack>
         </ScrollView>
       </View>
+      <UnsupportedNetworksSheet
+        open={unsupported !== null}
+        asset={unsupported?.asset}
+        chainName={unsupported?.chainName}
+        onClose={() => {
+          setUnsupported(null);
+        }}
+      />
     </SafeView>
+  );
+}
+
+function Row({
+  logo,
+  title,
+  subtitle,
+  value,
+  detail,
+  label,
+  onPress,
+}: {
+  detail?: string;
+  label: string;
+  logo: React.ReactNode;
+  onPress: () => void;
+  subtitle: string;
+  title: string;
+  value?: string;
+}) {
+  return (
+    <XStack
+      gap="$s3"
+      alignItems="center"
+      cursor="pointer"
+      role="button"
+      aria-label={label}
+      pressStyle={{ opacity: 0.7 }}
+      onPress={onPress}
+    >
+      {logo}
+      <YStack gap="$s2" flex={1}>
+        <Text emphasized callout primary numberOfLines={1}>
+          {title}
+        </Text>
+        <Text footnote secondary numberOfLines={1}>
+          {subtitle}
+        </Text>
+      </YStack>
+      {!!value && (
+        <YStack gap="$s2" alignItems="flex-end">
+          <Text emphasized callout primary>
+            {value}
+          </Text>
+          <Text caption secondary>
+            {detail}
+          </Text>
+        </YStack>
+      )}
+    </XStack>
   );
 }
