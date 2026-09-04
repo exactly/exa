@@ -10,6 +10,8 @@ import {
   Check,
   CircleHelp,
   IdCard,
+  Info,
+  OctagonX,
   RefreshCw,
   Repeat,
   TriangleAlert,
@@ -30,7 +32,7 @@ import {
   zeroAddress,
 } from "viem";
 import { base } from "viem/chains";
-import { useSimulateContract } from "wagmi";
+import { useReadContract, useSimulateContract } from "wagmi";
 
 import chain, { allowlists } from "@exactly/common/generated/chain";
 import {
@@ -49,6 +51,7 @@ import TokenSelectModal from "./SelectorModal";
 import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
+import { estimateCalls } from "../../utils/accountClient";
 import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions from "../../utils/deployedOptions";
 import executionOptions from "../../utils/executionOptions";
@@ -56,11 +59,13 @@ import { present, presentArticle } from "../../utils/intercom";
 import {
   balancesOptions,
   bridgeSlippage,
+  classify,
   getAllowTokens,
   getRoute,
   getRouteFrom,
   lifiChainsOptions,
   lifiTokensOptions,
+  quoteValidity,
   statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -339,7 +344,10 @@ export default function Swaps() {
 
   const {
     data: route,
+    dataUpdatedAt: routeUpdatedAt,
     error: routeError,
+    errorUpdatedAt: routeErroredAt,
+    errorUpdateCount: routeErrors,
     isFetching: isRouteFetching,
     isLoading: isRouteLoading,
   } = useQuery({
@@ -360,35 +368,45 @@ export default function Swaps() {
       if (!account || !fromToken || !toToken) throw new Error("implementation error");
       const fromTokenAddress = parse(Address, fromToken.token.address);
       const toTokenAddress = parse(Address, toToken.token.address);
-      if (activeInput === "from" || crossChain) {
-        const result = await getRouteFrom({
-          fromChainId: fromChain,
-          toChainId: toChain,
-          fromTokenAddress,
-          toTokenAddress,
-          fromAmount: inputFromAmount,
-          fromAddress: account,
-          toAddress: account,
-          nativeless: !fromToken.external, // cspell:ignore nativeless
-          denyExchanges: denied.length > 0 ? Object.fromEntries(denied.map((item) => [item, true])) : undefined,
+      const denyExchanges = denied.length > 0 ? Object.fromEntries(denied.map((item) => [item, true])) : undefined;
+      try {
+        if (activeInput === "from" || crossChain) {
+          const result = await getRouteFrom({
+            fromChainId: fromChain,
+            toChainId: toChain,
+            fromTokenAddress,
+            toTokenAddress,
+            fromAmount: inputFromAmount,
+            fromAddress: account,
+            toAddress: account,
+            nativeless: !fromToken.external, // cspell:ignore nativeless
+            denyBridges: crossChain ? denied : undefined,
+            denyExchanges: crossChain ? undefined : denyExchanges,
+          });
+          return { ...result, toAmount: result.toAmount, fromAmount: undefined, tool: result.tool };
+        } else {
+          const result = await getRoute(
+            fromTokenAddress,
+            toTokenAddress,
+            inputToAmount,
+            account,
+            account,
+            denyExchanges,
+          );
+          return {
+            ...result,
+            fromAmount: result.fromAmount,
+            toAmount: undefined,
+            tool: result.tool,
+            exchange: undefined,
+          };
+        }
+      } catch (error: unknown) {
+        reportError(error, {
+          level: "warning",
+          extra: { lifi: (error as { cause?: { responseBody?: unknown } }).cause?.responseBody },
         });
-        return { ...result, toAmount: result.toAmount, fromAmount: undefined, tool: result.tool };
-      } else {
-        const result = await getRoute(
-          fromTokenAddress,
-          toTokenAddress,
-          inputToAmount,
-          account,
-          account,
-          denied.length > 0 ? Object.fromEntries(denied.map((item) => [item, true])) : undefined,
-        );
-        return {
-          ...result,
-          fromAmount: result.fromAmount,
-          toAmount: undefined,
-          tool: result.tool,
-          exchange: undefined,
-        };
+        throw error;
       }
     },
     enabled:
@@ -397,9 +415,19 @@ export default function Swaps() {
       !!fromToken &&
       !!toToken &&
       (activeInput === "from" ? !!inputFromAmount : !!inputToAmount),
-    refetchInterval: 20_000,
+    refetchInterval: ({ state }) => (state.error && classify(state.error) !== "quote" ? false : 20_000),
+    retry: false,
     staleTime: 10_000,
+    meta: { dropError: () => true },
   });
+
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!routeUpdatedAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [routeUpdatedAt]);
+  const quoteExpired = !!route && now >= routeUpdatedAt + quoteValidity;
 
   const fromAmount = activeInput === "to" && route?.fromAmount != null ? route.fromAmount : inputFromAmount;
   const toAmount = activeInput === "from" && route?.toAmount != null ? route.toAmount : inputToAmount;
@@ -505,53 +533,106 @@ export default function Swaps() {
 
   const routed = !!fromToken?.external && (crossChain || fromChain !== chain.id);
 
-  const simulationError = fromToken?.external
+  const {
+    data: routedSwap,
+    error: routedError,
+    isPending: isSimulatingRouted,
+  } = useQuery({
+    queryKey: ["lifi", "route", "calls", account, fromChain, fromToken, route],
+    queryFn: async () => {
+      if (!account || !fromToken || !route?.to) throw new Error("implementation error");
+      const call = { to: route.to, data: route.data, value: route.value };
+      const calls: { data: `0x${string}`; to: `0x${string}`; value?: bigint }[] = await (async () => {
+        if (fromToken.token.address === zeroAddress) return [call];
+        const spender = getAddress(route.estimate.approvalAddress);
+        const required = BigInt(route.estimate.fromAmount);
+        const token = getAddress(fromToken.token.address);
+        const allowance = await readContract(exaConfig, {
+          address: token,
+          chainId: fromChain,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [account, spender],
+        });
+        return [
+          ...(allowance >= required ? [] : allowance > 0n ? [0n, required] : [required]).map((value) => ({
+            to: token,
+            data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, value] }),
+          })),
+          call,
+        ];
+      })();
+      return { calls, gas: await estimateCalls(exaConfig, fromChain, calls) };
+    },
+    enabled: enableSimulations && routed && !!account && !!route && !isInsufficientBalance,
+    retry: false,
+    meta: { dropError: () => true },
+  });
+
+  const prepareError = fromToken?.external ? (routed ? routedError : externalSwapError) : swapExecuteProposalError;
+  const wrapped = !!route && "wrapped" in route && route.wrapped === true;
+  const { data: dust } = useReadContract({
+    address: wrapped && fromToken ? parse(Address, fromToken.token.address) : undefined,
+    chainId: fromChain,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: route?.to ? [route.to] : undefined,
+    query: { enabled: wrapped, refetchInterval: quoteValidity / 3 },
+  });
+  const stalled = !!prepareError && wrapped && !!dust && dust > 0n;
+
+  const isSimulating = fromToken?.external
     ? routed
-      ? routeError
-      : (externalSwapError ?? routeError)
-    : swapExecuteProposalError;
+      ? isSimulatingRouted
+      : isSimulatingExternalSwap
+    : isSimulatingSwap;
 
-  const isSimulating = fromToken?.external ? !routed && isSimulatingExternalSwap : isSimulatingSwap;
-
-  const failingTool = route?.exchange ?? route?.tool;
   useEffect(() => {
-    if (!simulationError) return;
-    reportError(simulationError, { level: "warning" });
-    if (!failingTool) return;
+    if (!prepareError) return;
+    reportError(prepareError, { level: "warning" });
+    if (!tool || stalled) return;
     updateSwap((old) => ({
       ...old,
-      denied: old.denied.includes(failingTool) ? old.denied : [...old.denied, failingTool].slice(0, 3),
+      denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
     }));
-  }, [simulationError, failingTool]);
-  const rerouting = denied.length > 0 && isRouteFetching;
+  }, [prepareError, stalled, tool]);
+  const rerouting = denied.length > 0 && !route && isRouteFetching;
+  const transient =
+    !!routeError &&
+    classify(routeError) === "quote" &&
+    (route ? routeErroredAt < routeUpdatedAt + quoteValidity : routeErrors < 3);
+  const failure =
+    routeError && !transient
+      ? classify(routeError)
+      : prepareError
+        ? stalled || (tool && denied.length < 3 && !denied.includes(tool))
+          ? undefined
+          : "route"
+        : undefined;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
+  const fromNetworkName = lifiChains?.find((item) => item.id === fromChain)?.name;
   const networkName = lifiChains?.find((item) => item.id === toChain)?.name;
   const sponsored = fromChain === chain.id;
-  const networkCost = useMemo(() => {
-    if (sponsored) return 0n;
-    if (!nativeToken || !route) return;
-    return (route.estimate?.gasCosts ?? [])
-      .filter(({ token }) => token.address === nativeToken.address)
-      .reduce((sum, gas) => sum + BigInt(gas.amount), 0n);
-  }, [nativeToken, route, sponsored]);
+  const networkCost = sponsored ? 0n : routedSwap?.gas;
   const networkFeeUSD = sponsored
     ? 0
-    : route
-      ? (route.estimate?.gasCosts ?? []).reduce((sum, { amountUSD }) => sum + (Number(amountUSD) || 0), 0)
+    : networkCost !== undefined && nativeToken
+      ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
       : undefined;
   const gasSource = useMemo(
     () => (fromToken?.external ? { ...fromToken.token, amount: getBalance(fromToken.token) } : null),
     [fromToken, getBalance],
   );
-  const { insufficientGas, sendCalls } = useCrossChainGas({
-    account,
-    amount: fromAmount,
-    chainId: fromChain,
-    networkCost,
-    token: gasSource,
-    value: routed ? (route?.value ?? 0n) : undefined,
-  });
+  const { erc20GasReserve, feeIsSource, gasToken, insufficientGas, nativeGasReserve, paymasterAddress, sendCalls } =
+    useCrossChainGas({
+      account,
+      amount: fromAmount,
+      chainId: fromChain,
+      networkCost,
+      token: gasSource,
+      value: routed ? (route?.value ?? 0n) : undefined,
+    });
 
   const resultRef = useRef<{
     duration?: number;
@@ -570,9 +651,9 @@ export default function Swaps() {
     error: writeContractError,
     reset: resetSwap,
   } = useMutation({
-    async mutationFn() {
+    mutationFn() {
       if (!route) throw new Error("no route");
-      const calls = await (async () => {
+      const calls = (() => {
         if (!fromToken?.external) {
           if (!swapPropose) throw new Error("no swap proposal simulation");
           const { address, abi, functionName, args } = swapPropose;
@@ -583,27 +664,8 @@ export default function Swaps() {
           const { address, abi, functionName, args } = externalSwap.request;
           return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
         }
-        const { to, estimate } = route;
-        if (!to) throw new Error("no route transaction");
-        const call = { to, data: route.data, value: route.value };
-        if (!account || fromToken.token.address === zeroAddress) return [call];
-        const spender = getAddress(estimate.approvalAddress);
-        const required = BigInt(estimate.fromAmount);
-        const token = getAddress(fromToken.token.address);
-        const allowance = await readContract(exaConfig, {
-          address: token,
-          chainId: fromChain,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [account, spender],
-        });
-        return [
-          ...(allowance >= required ? [] : allowance > 0n ? [0n, required] : [required]).map((value) => ({
-            to: token,
-            data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, value] }),
-          })),
-          call,
-        ];
+        if (!routedSwap) throw new Error("no routed swap simulation");
+        return routedSwap.calls;
       })();
       return sendCalls(calls);
     },
@@ -676,14 +738,49 @@ export default function Swaps() {
   const caution = projectedHealth !== undefined && projectedHealth < liquidationBuffer;
   const danger = projectedHealth !== undefined && projectedHealth < WAD;
 
+  const shortfallFee =
+    insufficientGas && nativeToken
+      ? gasToken && feeIsSource && paymasterAddress && erc20GasReserve > 0n
+        ? { reserve: erc20GasReserve, token: gasToken, network: undefined }
+        : {
+            reserve: (routed ? (route?.value ?? 0n) : 0n) + nativeGasReserve,
+            token: nativeToken,
+            network: fromNetworkName ?? String(fromChain),
+          }
+      : undefined;
+  const shortfall = shortfallFee
+    ? t(
+        shortfallFee.network
+          ? "You need ~{{amount}} {{symbol}} on {{network}} for network fees."
+          : "Keep ~{{amount}} {{symbol}} for network fees.",
+        {
+          amount: Number(formatUnits(shortfallFee.reserve, shortfallFee.token.decimals)).toLocaleString(language, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: shortfallFee.token.decimals,
+            useGrouping: false,
+          }),
+          symbol: shortfallFee.token.symbol,
+          network: shortfallFee.network,
+        },
+      )
+    : undefined;
+
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
   const disabled =
-    !route || isSimulating || rerouting || !!simulationError || isInsufficientBalance || insufficientGas || danger;
+    !route ||
+    quoteExpired ||
+    isSimulating ||
+    rerouting ||
+    stalled ||
+    !!failure ||
+    isInsufficientBalance ||
+    insufficientGas ||
+    danger;
   const buttonLabel = useMemo(() => {
     if (isInsufficientBalance) return t("Insufficient balance");
     if (insufficientGas) return t("Not enough for network fees");
-    if (rerouting || (isSimulating && route)) return t("Please wait...");
-    if (simulationError) return t("Cannot proceed");
+    if (rerouting || quoteExpired || (isSimulating && route)) return t("Please wait...");
+    if (failure) return t("Cannot proceed");
     if (danger) return t("Enter a lower amount to swap");
     if (fromToken && toToken) {
       return t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol });
@@ -692,10 +789,11 @@ export default function Swaps() {
   }, [
     isSimulating,
     rerouting,
+    quoteExpired,
     route,
     isInsufficientBalance,
     insufficientGas,
-    simulationError,
+    failure,
     danger,
     fromToken,
     toToken,
@@ -962,6 +1060,39 @@ export default function Swaps() {
                     </XStack>
                     <Separator borderColor="$borderNeutralSoft" />
                   </YStack>
+                )}
+                {(!!failure || insufficientGas || rerouting || transient) && (
+                  <XStack
+                    gap="$s4"
+                    alignItems="center"
+                    backgroundColor={
+                      failure || insufficientGas
+                        ? "$interactiveBaseErrorSoftDefault"
+                        : "$interactiveBaseInformationSoftDefault"
+                    }
+                    borderRadius="$r3"
+                    paddingHorizontal="$s4"
+                    paddingVertical="$s3"
+                  >
+                    {failure || insufficientGas ? (
+                      <OctagonX size={16} color="$uiErrorSecondary" />
+                    ) : (
+                      <Info size={16} color="$uiInfoSecondary" />
+                    )}
+                    <Text
+                      caption2
+                      color={failure || insufficientGas ? "$uiErrorSecondary" : "$uiInfoSecondary"}
+                      flex={1}
+                    >
+                      {failure === "route"
+                        ? t("No route available for this swap. Try a different asset or network.")
+                        : failure === "liquidity"
+                          ? t("Not enough liquidity for this amount currently. Try a different amount.")
+                          : failure
+                            ? t("We can’t get a quote right now. Try again in a moment.")
+                            : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                    </Text>
+                  </XStack>
                 )}
                 <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
                   <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
