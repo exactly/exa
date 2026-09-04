@@ -14,11 +14,15 @@ export default function SwapDetails({
   exchangeRate,
   fromToken,
   toToken,
+  networkFeeUSD,
+  duration,
 }: {
+  duration?: number;
   exchange: string;
   exchangeRate: number;
   fee?: number;
   fromToken: Token;
+  networkFeeUSD?: number;
   slippage: bigint;
   toToken: Token;
 }) {
@@ -43,10 +47,26 @@ export default function SwapDetails({
           <Text caption color="$uiNeutralSecondary">
             {t("Network fee")}
           </Text>
-          <Text caption color="$uiSuccessSecondary">
-            {t("FREE")}
-          </Text>
+          {networkFeeUSD ? (
+            <Text caption color="$uiNeutralPrimary">
+              {`$${networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </Text>
+          ) : (
+            <Text caption color="$uiSuccessSecondary">
+              {t("FREE")}
+            </Text>
+          )}
         </XStack>
+        {duration === undefined ? null : (
+          <XStack justifyContent="space-between">
+            <Text caption color="$uiNeutralSecondary">
+              {t("Estimated time")}
+            </Text>
+            <Text caption color="$uiNeutralPrimary">
+              {t("~{{minutes}} min", { minutes: Math.max(1, Math.round(duration / 60)) })}
+            </Text>
+          </XStack>
+        )}
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
             {t("Swap via")}
