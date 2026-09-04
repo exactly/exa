@@ -24,6 +24,10 @@ databases:
 domains:
   - domain: ${{ env.APP_DOMAIN }}
     type: PRIMARY
+  # @if ${{ env.ENVIRONMENT == "base-sepolia" || env.ENVIRONMENT == "sandbox" }}
+  - domain: business.${{ env.APP_DOMAIN }}
+    type: ALIAS
+  # @endif
 egress:
   type: DEDICATED_IP
 envs:
