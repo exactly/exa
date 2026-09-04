@@ -23,11 +23,13 @@ export default function Pending({
   toUsdAmount,
   toAmount,
   toToken,
+  network,
   onClose,
 }: {
   fromAmount: bigint;
   fromToken: Token;
   fromUsdAmount: number;
+  network?: string;
   onClose: () => void;
   toAmount: bigint;
   toToken: Token;
@@ -66,6 +68,11 @@ export default function Pending({
                   components={{ em: <Text secondary body emphasized /> }}
                 />
               </Text>
+              {network ? (
+                <Text footnote secondary textAlign="center">
+                  {t("Funds are on their way to {{network}}. This can take a few minutes.", { network })}
+                </Text>
+              ) : null}
               <Text title primary color="$uiNeutralPrimary">
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
