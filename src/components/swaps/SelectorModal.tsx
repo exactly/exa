@@ -5,15 +5,17 @@ import { FlatList, Pressable } from "react-native";
 import { Search } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
+import chain from "@exactly/common/generated/chain";
+
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
+import NetworkFilter from "../shared/NetworkFilter";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
-import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -98,8 +100,12 @@ export default function TokenSelectModal({
   isLoading = false,
   title,
   withBalanceOnly = false,
+  networks,
+  chainId,
 }: {
+  chainId?: number;
   isLoading?: boolean;
+  networks?: { id: number; name: string }[];
   onClose: () => void;
   onSelect: (token: Token) => void;
   open: boolean;
@@ -109,42 +115,44 @@ export default function TokenSelectModal({
   withBalanceOnly?: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const { assets } = usePortfolio();
+  const [network, setNetwork] = useState(withBalanceOnly ? undefined : chainId);
+  const { allAssets } = usePortfolio();
   const { markets } = useMarkets();
   const {
     t,
     i18n: { language },
   } = useTranslation();
 
-  const assetByAddress = useMemo(() => {
+  const assetByToken = useMemo(() => {
     const map = new Map<string, PortfolioAsset>();
-    for (const asset of assets) {
-      const address = (asset.type === "protocol" ? asset.asset : asset.address).toLowerCase();
-      if (map.get(address)?.type === "protocol") continue;
-      map.set(address, asset);
+    for (const asset of allAssets) {
+      const key = asset.type === "protocol" ? `${chain.id}:${asset.asset}` : `${asset.chainId}:${asset.address}`;
+      if (map.get(key)?.type === "protocol") continue;
+      map.set(key, asset);
     }
     return map;
-  }, [assets]);
+  }, [allAssets]);
 
-  const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => asset.toLowerCase())), [markets]);
+  const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => `${chain.id}:${asset}`)), [markets]);
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const matchesQuery = (...fields: (string | undefined)[]) =>
       fields.some((field) => field?.toLowerCase().includes(query));
     return tokens.filter((token) => {
+      if (network !== undefined && (token.chainId as number) !== network) return false;
       if (withBalanceOnly) {
-        const address = token.address.toLowerCase();
-        const asset = assetByAddress.get(address);
+        const key = `${token.chainId}:${token.address}`;
+        const asset = assetByToken.get(key);
         if (!asset) return false;
         if (asset.type === "protocol")
           return asset.floatingDepositAssets > 0n && matchesQuery(asset.symbol, asset.assetName, asset.asset);
-        if (marketAssets.has(address)) return false;
+        if (marketAssets.has(key)) return false;
         return (asset.amount ?? 0n) > 0n && matchesQuery(asset.symbol, asset.name, asset.address);
       }
       return matchesQuery(token.symbol, token.name, token.address);
     });
-  }, [searchQuery, tokens, withBalanceOnly, assetByAddress, marketAssets]);
+  }, [searchQuery, tokens, network, withBalanceOnly, assetByToken, marketAssets]);
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
@@ -155,24 +163,36 @@ export default function TokenSelectModal({
               {title ?? t("Select token")}
             </Text>
           </View>
-          <View paddingBottom="$s4" flexDirection="row">
+          <XStack
+            alignItems="center"
+            gap="$s2"
+            paddingLeft="$s3"
+            marginBottom="$s4"
+            borderWidth={1}
+            borderColor="$borderNeutralSoft"
+            borderRadius="$r3"
+            overflow="hidden"
+          >
+            <Search size={16} color="$uiNeutralSecondary" />
             <Input
               flex={1}
+              borderWidth={0}
+              backgroundColor="transparent"
               placeholder={t("Search by token name or address")}
-              placeholderTextColor="$interactiveTextDisabled"
-              borderColor="$uiNeutralTertiary"
-              borderRightColor="transparent"
-              borderTopRightRadius={0}
-              borderBottomRightRadius={0}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
-            <Button secondary minHeight="auto" padding="$s3" borderTopLeftRadius={0} borderBottomLeftRadius={0}>
-              <Button.Icon>
-                <Search />
-              </Button.Icon>
-            </Button>
-          </View>
+            {networks && networks.length > 1 ? (
+              <NetworkFilter
+                chains={networks}
+                value={network}
+                onChange={setNetwork}
+                all={withBalanceOnly}
+                role="button"
+                aria-label={t("Select network")}
+              />
+            ) : null}
+          </XStack>
           <View flex={1}>
             {isLoading ? (
               <SkeletonItems />
@@ -182,16 +202,16 @@ export default function TokenSelectModal({
                 renderItem={({ item }) => (
                   <TokenListItem
                     token={item}
-                    isSelected={selectedToken?.address === item.address}
+                    isSelected={selectedToken?.address === item.address && selectedToken.chainId === item.chainId}
                     onPress={() => {
                       onSelect(item);
                       setSearchQuery("");
                     }}
                     language={language}
-                    matchingAsset={assetByAddress.get(item.address.toLowerCase())}
+                    matchingAsset={assetByToken.get(`${item.chainId}:${item.address}`)}
                   />
                 )}
-                keyExtractor={(item) => item.address}
+                keyExtractor={(item) => `${item.chainId}:${item.address}`}
                 showsVerticalScrollIndicator={false}
                 ItemSeparatorComponent={() => <View height={1} />}
                 ListEmptyComponent={() => (
