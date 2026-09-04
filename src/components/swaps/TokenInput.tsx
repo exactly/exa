@@ -57,6 +57,14 @@ export default function TokenInput({
     amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
   const balanceUSD =
     token && balance ? Number(formatUnits((balance * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+  const balanceAmount = token
+    ? Number(formatUnits(balance, token.decimals)).toLocaleString(language, {
+        maximumFractionDigits: Math.min(
+          8,
+          Math.max(0, token.decimals - Math.ceil(Math.log10(Math.max(1, Number(token.priceUSD))))),
+        ),
+      })
+    : "0";
   const canUseMax = Boolean(token && !disabled);
 
   const handleAmountChange = useCallback(
@@ -184,7 +192,7 @@ export default function TokenInput({
                     </View>
                   )}
                 </Field>
-                <XStack justifyContent="space-between" alignItems="center">
+                <XStack justifyContent="space-between" alignItems="flex-start">
                   {isLoading && !isActive ? (
                     <View flex={1}>
                       <Skeleton height={16} width={120} />
@@ -199,11 +207,16 @@ export default function TokenInput({
                     </Text>
                   )}
                   {token ? (
-                    <Text footnote color="$uiNeutralSecondary">
-                      {t("Balance: {{value}}", {
-                        value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                      })}
-                    </Text>
+                    <YStack alignItems="flex-end" gap="$s1">
+                      <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
+                        {t("Balance: {{value}}", {
+                          value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        })}
+                      </Text>
+                      <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
+                        {`${balanceAmount} ${token.symbol}`}
+                      </Text>
+                    </YStack>
                   ) : null}
                 </XStack>
               </>
