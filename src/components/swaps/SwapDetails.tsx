@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { XStack, YStack } from "tamagui";
 
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
 import type { Token } from "@lifi/sdk";
@@ -47,7 +48,9 @@ export default function SwapDetails({
           <Text caption color="$uiNeutralSecondary">
             {t("Network fee")}
           </Text>
-          {networkFeeUSD ? (
+          {networkFeeUSD === undefined ? (
+            <Skeleton width={60} height={17} />
+          ) : networkFeeUSD ? (
             <Text caption color="$uiNeutralPrimary">
               {`$${networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             </Text>
