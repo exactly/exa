@@ -1,6 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
 import {
   captureException,
+  captureMessage,
   getActiveSpan,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
@@ -170,7 +171,7 @@ export default function hook({
           if (card.status === "FROZEN") {
             trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card", segment);
 
-            await reject(payload, jsonBody, "frozenCard", database);
+            await reject(payload, jsonBody, "frozenCard");
 
             return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
           }
@@ -378,7 +379,7 @@ export default function hook({
               }
 
               if (error.message !== "Replay" && error.message !== "tx reverted") {
-                await reject(payload, jsonBody, error.message, database);
+                await reject(payload, jsonBody, error.message);
               }
 
               return c.json(
@@ -396,7 +397,7 @@ export default function hook({
             );
             captureException(error, { level: "error", tags: { unhandled: true } });
 
-            await reject(payload, jsonBody, error instanceof Error ? error.message : "unexpected error", database);
+            await reject(payload, jsonBody, "unexpected error");
 
             return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
           }
@@ -515,19 +516,33 @@ export default function hook({
             mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
 
-            const requestedReason =
-              payload.body.spend.declinedReason?.toLowerCase() === "webhook declined"
-                ? await getRequestedDeclineReason(payload.body.id, payload.body.spend.cardId, database)
+            const provider = payload.body.spend.declinedReason || undefined;
+            const requested =
+              provider?.toLowerCase() === "webhook declined"
+                ? await database.query.transactions
+                    .findFirst({
+                      columns: { payload: true },
+                      where: and(
+                        eq(transactions.id, payload.body.id),
+                        eq(transactions.cardId, payload.body.spend.cardId),
+                      ),
+                    })
+                    .then((transaction) => getRequestedDeclineReason(transaction?.payload))
                 : undefined;
-            const rawDeclineReason = requestedReason ?? payload.body.spend.declinedReason;
-            if (
-              (await reject(payload, jsonBody, rawDeclineReason ?? "transaction declined", database)) &&
-              payload.action === "created"
-            ) {
+            const raw = requested ?? provider;
+            const mapped = declineMessage(raw);
+            const accepted = await reject(payload, jsonBody, raw ?? "transaction declined");
+            if (accepted && payload.action === "created") {
+              if (requested === undefined && raw && !mapped) {
+                captureMessage("unknown panda decline reason", {
+                  level: "warning",
+                  tags: { reason: raw },
+                });
+              }
               sendDeclinedNotification(
                 account,
                 payload.body.spend,
-                declineMessage(rawDeclineReason) ?? "transaction declined",
+                mapped ?? (requested === undefined ? raw : undefined) ?? "transaction declined",
                 onesignal,
               ).catch((error: unknown) => captureException(error, { level: "error" }));
             }
@@ -887,6 +902,53 @@ export default function hook({
       }
     },
   );
+  async function reject(payload: v.InferOutput<typeof Transaction>, jsonBody: unknown, declineReason: string) {
+    const { spend } = payload.body;
+    const transactionId = payload.body.id ?? payload.id;
+
+    const rawBody = v.parse(v.looseObject({ body: v.looseObject({ spend: v.looseObject({}) }) }), jsonBody);
+    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+    const declinedBody = {
+      ...rawBody,
+      ...(payload.action === "requested" && {
+        body: { ...rawBody.body, spend: { ...rawBody.body.spend, declinedReason: declineReason } },
+      }),
+      createdAt,
+      status: "declined",
+    };
+
+    return database
+      .insert(transactions)
+      .values({
+        id: transactionId,
+        cardId: spend.cardId,
+        hashes: [zeroHash],
+        payload: { bodies: [declinedBody], type: "panda" },
+      })
+      .onConflictDoUpdate({
+        target: transactions.id,
+        set: {
+          hashes: sql`${transactions.hashes} || ARRAY[${zeroHash}]::text[]`,
+          payload: sql`jsonb_set(
+            ${transactions.payload},
+            '{bodies}',
+            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([declinedBody])}::jsonb
+          )`,
+        },
+        ...(payload.action === "created" && {
+          setWhere: sql`NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb)) AS body
+          WHERE body->>'id' = ${payload.id}
+        )`,
+        }),
+      })
+      .returning({ id: transactions.id })
+      .then((result) => result.length > 0)
+      .catch((error: unknown) => {
+        captureException(error, { level: "error" });
+      });
+  }
   return { app, ready: Promise.resolve() };
 }
 
@@ -1152,13 +1214,7 @@ class PandaError extends Error {
   }
 }
 
-async function getRequestedDeclineReason(transactionId: string, cardId: string, database: Database) {
-  const transaction = await database.query.transactions.findFirst({
-    columns: { payload: true },
-    where: and(eq(transactions.id, transactionId), eq(transactions.cardId, cardId)),
-  });
-  if (!transaction) return;
-
+function getRequestedDeclineReason(transactionPayload: unknown) {
   const payload = v.safeParse(
     v.object({
       bodies: v.array(
@@ -1166,13 +1222,16 @@ async function getRequestedDeclineReason(transactionId: string, cardId: string, 
           action: v.string(),
           body: v.looseObject({ spend: v.looseObject({ declinedReason: v.nullish(v.string()) }) }),
           reason: v.optional(v.string()),
+          status: v.optional(v.string()),
         }),
       ),
     }),
-    transaction.payload,
+    transactionPayload,
   );
   if (!payload.success) return;
-  const requested = payload.output.bodies.findLast(({ action }) => action === "requested");
+  const requested = payload.output.bodies.findLast(
+    ({ action, status }) => action === "requested" && status === "declined",
+  );
   return requested?.body.spend.declinedReason ?? requested?.reason;
 }
 
@@ -1191,57 +1250,4 @@ async function sendDeclinedNotification(
       reason: t(reason),
     }),
   });
-}
-
-async function reject(
-  payload: v.InferOutput<typeof Transaction>,
-  jsonBody: unknown,
-  declineReason: string,
-  database: Database,
-) {
-  const { spend } = payload.body;
-  const transactionId = payload.body.id ?? payload.id;
-
-  const rawBody = v.parse(v.looseObject({ body: v.looseObject({ spend: v.looseObject({}) }) }), jsonBody);
-  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-  const declinedBody = {
-    ...rawBody,
-    ...(payload.action === "requested" && {
-      body: { ...rawBody.body, spend: { ...rawBody.body.spend, declinedReason: declineReason } },
-    }),
-    createdAt,
-    status: "declined",
-  };
-
-  return database
-    .insert(transactions)
-    .values({
-      id: transactionId,
-      cardId: spend.cardId,
-      hashes: [zeroHash],
-      payload: { bodies: [declinedBody], type: "panda" },
-    })
-    .onConflictDoUpdate({
-      target: transactions.id,
-      set: {
-        hashes: sql`${transactions.hashes} || ARRAY[${zeroHash}]::text[]`,
-        payload: sql`jsonb_set(
-            ${transactions.payload},
-            '{bodies}',
-            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([declinedBody])}::jsonb
-          )`,
-      },
-      ...(payload.action === "created" && {
-        setWhere: sql`NOT EXISTS (
-          SELECT 1
-          FROM jsonb_array_elements(COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb)) AS body
-          WHERE body->>'id' = ${payload.id}
-        )`,
-      }),
-    })
-    .returning({ id: transactions.id })
-    .then((result) => result.length > 0)
-    .catch((error: unknown) => {
-      captureException(error, { level: "error" });
-    });
 }
