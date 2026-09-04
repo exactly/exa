@@ -36,8 +36,11 @@ import createSardine from "./utils/sardine";
 import createSegment from "./utils/segment";
 import { legacy } from "./utils/wallet";
 import createWalletExtension from "./utils/walletExtension";
+import createAllow from "./workers/allow/queue";
+import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
+import createPoke from "./workers/poke/queue";
 import createRefund from "./workers/refund/queue";
 import createSubscribe from "./workers/subscribe/queue";
 
@@ -67,6 +70,9 @@ const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
 );
+const allow = createAllow(redis);
+const credit = createCredit(redis);
+const poke = createPoke(redis);
 const refund = createRefund(redis);
 const webhook = createHook(redis);
 const sardine = createSardine(
@@ -82,6 +88,7 @@ setupMaturity(onesignal);
 const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
+  credit,
   database,
   intercom,
   manteca,
@@ -98,10 +105,9 @@ const api = createApi({
 const activityHook = createActivityHook({
   alchemy,
   database,
-  executor: keeper,
   onesignal,
+  poke,
   redis,
-  segment,
 });
 const blockHook = createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis });
 const bridgeHook = createBridgeHook({
@@ -131,6 +137,7 @@ const pandaHook = createPandaHook({
   webhook,
 });
 const personaHook = createPersonaHook({
+  allow,
   database,
   panda,
   pax,
@@ -415,8 +422,11 @@ export const close = supervise(
             reminders().catch(reminders),
           ]),
         },
+        () => allow.close(),
         closeMaturity,
+        () => credit.close(),
         () => hookWorker.close(),
+        () => poke.close(),
         () => refund.close(),
         () => segment.close(),
         () => subscribe.close(),

@@ -2,49 +2,32 @@ import "../mocks/alchemy";
 import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
-import "../mocks/wallet";
 
-import { captureException, setUser, startSpan } from "@sentry/node";
+import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
-import {
-  BaseError,
-  ContractFunctionRevertedError,
-  encodeErrorResult,
-  hexToBigInt,
-  hexToBytes,
-  padHex,
-  parseEther,
-  WaitForTransactionReceiptTimeoutError,
-  zeroHash,
-  type Address,
-  type PrivateKeyAccount,
-  type withRetry,
-} from "viem";
+import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAbi, previewerAbi } from "@exactly/common/generated/chain";
 
-import database, { cards, credentials } from "../../database";
+import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import createAlchemy, { activityUrl, NETWORKS, type Webhook } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
-import * as Panda from "../../utils/panda";
-import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
-import createSegment from "../../utils/segment";
-import wallet from "../../utils/wallet";
-import anvilClient from "../anvilClient";
 
-const executor = privateKeyToAccount(padHex("0x69"));
-const waitForReceipt = publicClient.waitForTransactionReceipt;
+import type createPoke from "../../workers/poke/queue";
+
 const alchemy = createAlchemy("webhooks");
 const onesignal = createOnesignal("onesignal");
-const segment = createSegment("segment");
+const poke = {
+  close: vi.fn<ReturnType<typeof createPoke>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createPoke>["enqueue"]>().mockResolvedValue(),
+};
 
 const activityHook = createHook();
 const client = testClient(activityHook.app);
@@ -65,20 +48,14 @@ const appClient = {
 
 beforeAll(() => activityHook.ready);
 
-describe("address activity", { timeout: 66_666 }, () => {
-  let keeper: ReturnType<typeof wallet>;
+describe("address activity", () => {
   let owner: PrivateKeyAccount;
   let account: Address;
 
   beforeEach(async () => {
-    keeper = wallet(executor);
-    vi.mocked(wallet).mockReset().mockReturnValue(keeper);
-    vi.spyOn(Panda, "autoCredit").mockResolvedValue(false);
+    poke.enqueue.mockReset().mockResolvedValue();
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
-    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
-      waitForReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10 }),
-    );
 
     await database.insert(credentials).values([
       {
@@ -109,6 +86,7 @@ describe("address activity", { timeout: 66_666 }, () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported activity network" }));
+    expect(poke.enqueue).not.toHaveBeenCalled();
   });
 
   it("ignores transfers to unknown accounts", async () => {
@@ -123,819 +101,14 @@ describe("address activity", { timeout: 66_666 }, () => {
     });
 
     expect(response.status).toBe(200);
+    expect(poke.enqueue).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
-  });
-
-  it("captures no balance once after retries", async () => {
-    vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions) =>
-      Promise.resolve(
-        spanOptions.op === "exa.poke" ? null : ({ status: "success" } as Awaited<ReturnType<typeof keeper.exaSend>>),
-      ),
-    );
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForActivity();
-
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(1);
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "error")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fails with unexpected error", async () => {
-    const chain = NETWORKS.get("ANVIL");
-    if (!chain) throw new Error("missing anvil");
-    const current = wallet(executor, chain);
-    const getCode = vi.fn<typeof current.getCode>().mockRejectedValueOnce(new Error("Unexpected"));
-    const createWallet = vi.mocked(wallet);
-    createWallet.mockClear();
-    createWallet.mockReturnValueOnce({ ...current, getCode });
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForActivity();
-
-    expect(getCode).toHaveBeenCalledOnce();
-    expect(captureException).toHaveBeenCalledWith(new Error("Unexpected"), expect.objectContaining({ level: "error" }));
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fails with transaction timeout", async () => {
-    const exaSend = keeper.exaSend;
-    const poke = vi
-      .fn<typeof keeper.exaSend>()
-      .mockRejectedValue(new WaitForTransactionReceiptTimeoutError({ hash: zeroHash }));
-    vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions, call, options) =>
-      spanOptions.op === "exa.poke" ? poke(spanOptions, call, options) : exaSend(spanOptions, call, options),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForActivity();
-
-    expect(poke).toHaveBeenCalledTimes(6);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "WaitForTransactionReceiptTimeoutError" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints poke revert by error name", async () => {
-    const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
-    failPoke(
-      keeper,
-      new BaseError("test", {
-        cause: new ContractFunctionRevertedError({
-          abi: revertAbi,
-          data: encodeErrorResult({ abi: revertAbi, errorName: "Unauthorized" }),
-          functionName: "poke",
-        }),
-      }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints poke revert by reason", async () => {
-    failPoke(
-      keeper,
-      new BaseError("test", {
-        cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke", message: "custom reason" }),
-      }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "custom reason"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints poke revert as unknown", async () => {
-    failPoke(
-      keeper,
-      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "poke" }) }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints poke revert by signature", async () => {
-    failPoke(
-      keeper,
-      new BaseError("test", {
-        cause: new ContractFunctionRevertedError({
-          abi: [],
-          data: "0xdeadbeef",
-          functionName: "poke",
-        }),
-      }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0xdeadbeef"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints shouldRetry by error name", async () => {
-    const revertAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
-    failPoke(
-      keeper,
-      new BaseError("test", {
-        cause: new ContractFunctionRevertedError({
-          abi: revertAbi,
-          data: encodeErrorResult({ abi: revertAbi, errorName: "Unauthorized" }),
-          functionName: "pokeETH",
-        }),
-      }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints shouldRetry by reason", async () => {
-    failPoke(
-      keeper,
-      new BaseError("test", {
-        cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH", message: "custom reason" }),
-      }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "custom reason"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints shouldRetry by signature", async () => {
-    failPoke(
-      keeper,
-      new BaseError("test", {
-        cause: new ContractFunctionRevertedError({ abi: [], data: "0xdeadbeef", functionName: "pokeETH" }),
-      }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0xdeadbeef"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints shouldRetry as unknown revert", async () => {
-    failPoke(
-      keeper,
-      new BaseError("test", { cause: new ContractFunctionRevertedError({ abi: [], functionName: "pokeETH" }) }),
-    );
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.any(BaseError),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("fingerprints shouldRetry as unknown", async () => {
-    failPoke(keeper, new Error("unexpected"));
-
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-
-    await waitForWETHMarket(account, deposit);
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "unexpected" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-    );
-    expect(
-      vi.mocked(captureException).mock.calls.filter(([error, hint]) => isNoBalance(error, hint, "warning")),
-    ).toHaveLength(0);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("ignores zero raw values when value is missing", async () => {
-    const sendPushNotification = sendPushNotificationMock;
-    const { value: _, ...transfer } = activityPayload.json.event.activity[1];
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...transfer, toAddress: account, rawContract: { address: inject("WETH"), rawValue: "0x0" } }],
-        },
-      },
-    });
-
-    expect(response.status).toBe(200);
-    expect(sendPushNotification).not.toHaveBeenCalled();
-  });
-
-  it("pokes eth", async () => {
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
-        },
-      },
-    });
-    const market = await waitForWETHMarket(account, deposit);
-
-    expect(market.floatingDepositAssets).toBe(deposit);
-    expect(market.isCollateral).toBe(true);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes eth with value when rawValue is missing", async () => {
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account, rawContract: {} }],
-        },
-      },
-    });
-    const market = await waitForWETHMarket(account, deposit);
-
-    expect(market.floatingDepositAssets).toBe(deposit);
-    expect(market.isCollateral).toBe(true);
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes eth with value when rawValue is 0x", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            { ...activityPayload.json.event.activity[0], toAddress: account, rawContract: { rawValue: "0x" } },
-          ],
-        },
-      },
-    });
-    const market = await waitForWETHMarket(account, deposit);
-
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "pokeETH",
-      ),
-    ).toBe(true);
-    expect(market.floatingDepositAssets).toBe(deposit);
-    expect(market.isCollateral).toBe(true);
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes eth without value", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
-    const deposit = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: deposit });
-
-    const eth = activityPayload.json.event.activity[0];
-    const transfer = {
-      fromAddress: eth.fromAddress,
-      toAddress: account,
-      hash: eth.hash,
-      asset: eth.asset,
-      category: eth.category,
-      rawContract: eth.rawContract,
-    };
-    expect("value" in transfer).toBe(false);
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [transfer],
-        },
-      },
-    });
-    const market = await waitForWETHMarket(account, deposit);
-
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "pokeETH",
-      ),
-    ).toBe(true);
-    expect(market.floatingDepositAssets).toBe(deposit);
-    expect(market.isCollateral).toBe(true);
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes weth and eth", async () => {
-    const eth = parseEther("5");
-    await anvilClient.setBalance({ address: account, value: eth });
-
-    const weth = parseEther("2");
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, weth],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            { ...activityPayload.json.event.activity[0], toAddress: account },
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-    const market = await waitForWETHMarket(account, eth + weth);
-
-    expect(market.floatingDepositAssets).toBe(eth + weth);
-    expect(market.isCollateral).toBe(true);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes token without value", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
-    const weth = parseEther("2");
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, weth],
-    });
-
-    const token = activityPayload.json.event.activity[1];
-    const transfer = {
-      fromAddress: token.fromAddress,
-      toAddress: account,
-      hash: token.hash,
-      asset: token.asset,
-      category: token.category,
-      rawContract: { ...token.rawContract, address: inject("WETH") },
-    };
-    expect("value" in transfer).toBe(false);
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [transfer],
-        },
-      },
-    });
-    const market = await waitForWETHMarket(account, weth);
-
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "poke",
-      ),
-    ).toBe(true);
-    expect(market.floatingDepositAssets).toBe(weth);
-    expect(market.isCollateral).toBe(true);
-    expect(response.status).toBe(200);
-  });
-
-  it("ignores token without value and zero rawValue", async () => {
-    const exaSend = vi.spyOn(keeper, "exaSend");
-    const sendPushNotification = sendPushNotificationMock;
-
-    const token = activityPayload.json.event.activity[1];
-    const transfer = {
-      fromAddress: token.fromAddress,
-      toAddress: account,
-      hash: token.hash,
-      asset: token.asset,
-      category: token.category,
-      rawContract: { address: inject("WETH"), rawValue: "0x0" as const },
-    };
-    expect("value" in transfer).toBe(false);
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [transfer],
-        },
-      },
-    });
-    await vi.waitUntil(() => exaSend.mock.calls.length > 0, 333).catch(() => undefined);
-
-    expect(
-      exaSend.mock.calls.some(
-        ([spanOptions, request]) =>
-          spanOptions.op === "exa.poke" &&
-          request.address === account &&
-          "functionName" in request &&
-          request.functionName === "poke",
-      ),
-    ).toBe(false);
-    expect(sendPushNotification).not.toHaveBeenCalled();
-    expect(response.status).toBe(200);
-  });
-
-  it("pokes multiple accounts", async () => {
-    const deposit = parseEther("5");
-    const owners = [
-      owner,
-      privateKeyToAccount(generatePrivateKey()),
-      privateKeyToAccount(generatePrivateKey()),
-    ] as const;
-    const accounts = owners.map(({ address }) =>
-      deriveAddress(inject("ExaAccountFactory"), { x: padHex(address), y: zeroHash }),
-    );
-    await Promise.all([
-      ...owners.slice(1).map(({ address }, index) => {
-        const credential = accounts[index + 1];
-        if (!credential) throw new Error("missing account");
-        return database.insert(credentials).values({
-          id: credential,
-          publicKey: new Uint8Array(hexToBytes(address)),
-          account: credential,
-          factory: inject("ExaAccountFactory"),
-        });
-      }),
-      ...accounts.map((address) => anvilClient.setBalance({ address, value: deposit })),
-      keeper.exaSend(
-        { name: "create account", op: "exa.account" },
-        {
-          address: inject("ExaAccountFactory"),
-          abi: exaAccountFactoryAbi,
-          functionName: "createAccount",
-          args: [0n, [{ x: hexToBigInt(owners[0].address), y: 0n }]],
-        },
-      ),
-    ]);
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: accounts.map((toAddress) => ({ ...activityPayload.json.event.activity[0], toAddress })),
-        },
-      },
-    });
-    await Promise.all(accounts.map((address) => waitForWETHMarket(address, deposit)));
-
-    expect(setUser).not.toHaveBeenCalled();
-    expect(response.status).toBe(200);
-  });
-
-  it("deploy account for non market asset", async () => {
-    const [response] = await Promise.all([
-      appClient.index.$post({
-        ...activityPayload,
-        json: {
-          ...activityPayload.json,
-          event: {
-            ...activityPayload.json.event,
-            activity: [{ ...activityPayload.json.event.activity[2], toAddress: account }],
-          },
-        },
-      }),
-      vi.waitUntil(async () => !!(await publicClient.getCode({ address: account })), 26_666),
-    ]);
-
-    const deployed = !!(await publicClient.getCode({ address: account }));
-
-    expect(deployed).toBe(true);
-    expect(setUser).toHaveBeenCalledWith({ id: account });
-    expect(response.status).toBe(200);
-  });
-
-  it("deploys on the event network without claiming yield", async () => {
-    const sendPushNotification = sendPushNotificationMock;
-    const chain = NETWORKS.get("ETH_MAINNET");
-    if (!chain) throw new Error("missing mainnet");
-    const eventWallet = wallet(executor, chain);
-    const getCode = vi.fn<typeof eventWallet.getCode>().mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- absent code
-    const eventExaSend = vi.fn<typeof eventWallet.exaSend>().mockResolvedValue(null);
-    const createWallet = vi.mocked(wallet);
-    createWallet.mockClear();
-    createWallet.mockReturnValueOnce({ ...eventWallet, getCode, exaSend: eventExaSend });
-    const keeperSend = vi.spyOn(keeper, "exaSend");
-    mockLifiTokens({ 1: [{ address: inject("WETH") }] });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        webhookId: "ETH_MAINNET",
-        event: {
-          ...activityPayload.json.event,
-          network: "ETH_MAINNET",
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
-            },
-          ],
-        },
-      },
-    });
-
-    await vi.waitUntil(() => eventExaSend.mock.calls.length > 0);
-
-    expect(getCode).toHaveBeenCalledWith({ address: account });
-    expect(createWallet).toHaveBeenCalledWith(expect.anything(), chain);
-    expect(eventExaSend).toHaveBeenCalledWith(
-      expect.objectContaining({ attributes: { account }, name: "create account", op: "exa.account" }),
-      expect.objectContaining({
-        abi: exaAccountFactoryAbi,
-        address: inject("ExaAccountFactory") as Address,
-        functionName: "createAccount",
-      }),
-      { fees: "auto" },
-    );
-    expect(keeperSend.mock.calls.some(([options]) => options.attributes?.account === account)).toBe(false);
-    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Funds received"),
-      contents: t("{{amount}} received", { amount: { en: "99.973 WETH", es: "99,973 WETH", pt: "99,973 WETH" } }),
-    });
-    expect(response.status).toBe(200);
   });
 
   it("omits the formatted amount when value is 0", async () => {
     const sendPushNotification = sendPushNotificationMock;
+    const chain = NETWORKS.get("ETH_MAINNET");
+    if (!chain) throw new Error("missing mainnet");
     mockLifiTokens({ 1: [{ address: inject("WETH") }] });
 
     const response = await appClient.index.$post({
@@ -958,6 +131,15 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
 
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: [inject("WETH")],
+      chainId: chain.id,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
@@ -967,16 +149,206 @@ describe("address activity", { timeout: 66_666 }, () => {
     expect(response.status).toBe(200);
   });
 
+  it("queues eth when raw value is missing", async () => {
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account, rawContract: {} }],
+        },
+      },
+    });
+
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+      chainId: 31_337,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("queues eth when raw value is empty", async () => {
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            { ...activityPayload.json.event.activity[0], toAddress: account, rawContract: { rawValue: "0x" } },
+          ],
+        },
+      },
+    });
+
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+      chainId: 31_337,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("queues eth when value is missing", async () => {
+    const { value: _, ...transfer } = activityPayload.json.event.activity[0];
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [{ ...transfer, toAddress: account }] },
+      },
+    });
+
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+      chainId: 31_337,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("queues tokens when value is missing", async () => {
+    const { value: _, ...transfer } = activityPayload.json.event.activity[1];
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            {
+              ...transfer,
+              toAddress: account,
+              rawContract: { ...transfer.rawContract, address: inject("WETH") },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: [inject("WETH")],
+      chainId: 31_337,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("ignores zero raw values when value is missing", async () => {
+    const { value: _, ...transfer } = activityPayload.json.event.activity[1];
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...transfer, toAddress: account, rawContract: { address: inject("WETH"), rawValue: "0x0" } }],
+        },
+      },
+    });
+
+    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+  });
+
+  it("queues one job per account with unique assets", async () => {
+    const secondOwner = privateKeyToAccount(generatePrivateKey());
+    const secondAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(secondOwner.address), y: zeroHash });
+    await database.insert(credentials).values({
+      id: secondAccount,
+      publicKey: new Uint8Array(hexToBytes(secondOwner.address)),
+      account: secondAccount,
+      factory: inject("ExaAccountFactory"),
+    });
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            { ...activityPayload.json.event.activity[0], toAddress: account },
+            {
+              ...activityPayload.json.event.activity[1],
+              toAddress: account,
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+            },
+            {
+              ...activityPayload.json.event.activity[1],
+              toAddress: account,
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+            },
+            { ...activityPayload.json.event.activity[0], toAddress: secondAccount },
+          ],
+        },
+      },
+    });
+
+    expect(poke.enqueue).toHaveBeenCalledTimes(2);
+    expect(poke.enqueue).toHaveBeenNthCalledWith(1, {
+      account,
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", inject("WETH")],
+      chainId: 31_337,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(poke.enqueue).toHaveBeenNthCalledWith(2, {
+      account: secondAccount,
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+      chainId: 31_337,
+      factory: inject("ExaAccountFactory"),
+      origin: "activity",
+      publicKey: secondOwner.address.toLowerCase(),
+      source: null,
+    });
+    expect(setUser).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+  });
+
+  it("fails the webhook when poke cannot be queued", async () => {
+    const error = new Error("redis unavailable");
+    const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    poke.enqueue.mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+        },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorConsole).toHaveBeenCalledWith(error);
+    expect(poke.enqueue).toHaveBeenCalledOnce();
+  });
+
   it("sends translated notification without symbol when asset is missing", async () => {
     const sendPushNotification = sendPushNotificationMock;
-    const amount = parseEther(String(activityPayload.json.event.activity[1].value));
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, amount],
-    });
 
     const { asset: _, ...tokenWithoutAsset } = activityPayload.json.event.activity[1];
     const response = await appClient.index.$post({
@@ -996,10 +368,7 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => sendPushNotification.mock.calls.length > 0),
-      waitForWETHMarket(account, amount),
-    ]);
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
 
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
@@ -1012,14 +381,6 @@ describe("address activity", { timeout: 66_666 }, () => {
   it("captures funds received notification errors", async () => {
     const error = new Error("push failed");
     sendPushNotificationMock.mockRejectedValueOnce(error);
-    const amount = parseEther(String(activityPayload.json.event.activity[1].value));
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, amount],
-    });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -1038,142 +399,9 @@ describe("address activity", { timeout: 66_666 }, () => {
       },
     });
 
-    await Promise.all([
-      vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error)),
-      waitForWETHMarket(account, amount),
-    ]);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
 
     expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
-    expect(response.status).toBe(200);
-  });
-
-  it("activates credit mode and sends translated notification when auto credit applies", async () => {
-    vi.mocked(Panda.autoCredit).mockResolvedValue(true);
-    const { sendPushNotification, sent } = mockCredit();
-    await database.insert(cards).values([{ id: "auto-credit", credentialId: account, lastFour: "1234", mode: 0 }]);
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await sent;
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Card mode changed"),
-      contents: t("Credit mode activated"),
-    });
-    expect(vi.mocked(captureException).mock.calls.some(([error, hint]) => isNoBalance(error, hint, "warning"))).toBe(
-      false,
-    );
-    expect(response.status).toBe(200);
-  });
-
-  it("captures auto credit notification errors", async () => {
-    const error = new Error("push failed");
-    vi.mocked(Panda.autoCredit).mockResolvedValue(true);
-    const notification = Promise.withResolvers<Awaited<ReturnType<typeof sendPushNotificationMock>>>();
-    const { sendPushNotification, sent } = mockCredit(notification.promise);
-    await database
-      .insert(cards)
-      .values([{ id: "auto-credit-notify-error", credentialId: account, lastFour: "8765", mode: 0 }]);
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await sent;
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: account,
-      headings: t("Card mode changed"),
-      contents: t("Credit mode activated"),
-    });
-    notification.reject(error);
-    await notification.promise.catch(() => undefined);
-    expect(captureException).toHaveBeenCalledWith(error);
-    expect(
-      vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
-    ).toBe(false);
-    expect(response.status).toBe(200);
-  });
-
-  it("captures auto credit errors", async () => {
-    const error = new Error("auto credit");
-    const autoCredit = vi.mocked(Panda.autoCredit).mockRejectedValue(error);
-    await database
-      .insert(cards)
-      .values([{ id: "auto-credit-error", credentialId: account, lastFour: "4321", mode: 0 }]);
-    await anvilClient.writeContract({
-      account: null,
-      address: inject("WETH"),
-      abi: mockERC20Abi,
-      functionName: "mint",
-      args: [account, parseEther(String(activityPayload.json.event.activity[1].value))],
-    });
-
-    const response = await appClient.index.$post({
-      ...activityPayload,
-      json: {
-        ...activityPayload.json,
-        event: {
-          ...activityPayload.json.event,
-          activity: [
-            {
-              ...activityPayload.json.event.activity[1],
-              toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
-            },
-          ],
-        },
-      },
-    });
-
-    await waitForActivity();
-
-    expect(autoCredit).toHaveBeenCalledWith(account);
-    expect(captureException).toHaveBeenCalledWith(error);
-    expect(
-      vi.mocked(captureException).mock.calls.some(([captured, hint]) => isNoBalance(captured, hint, "warning")),
-    ).toBe(false);
     expect(response.status).toBe(200);
   });
 
@@ -1514,64 +742,6 @@ describe("webhook authentication", () => {
   });
 });
 
-function failPoke(keeper: ReturnType<typeof wallet>, error: Error) {
-  const { exaSend } = keeper;
-  let failed = false;
-  vi.spyOn(keeper, "exaSend").mockImplementation((spanOptions, call, options) => {
-    if (failed || spanOptions.op !== "exa.poke") return exaSend(spanOptions, call, options);
-    failed = true;
-    return Promise.reject(error);
-  });
-}
-
-async function getWETHMarket(account: Address) {
-  const exactly = await publicClient.readContract({
-    address: inject("Previewer"),
-    functionName: "exactly",
-    abi: previewerAbi,
-    args: [account],
-  });
-  return exactly.find((market) => market.asset === inject("WETH"));
-}
-
-async function waitForWETHMarket(account: Address, floatingDepositAssets: bigint) {
-  await waitForActivity();
-  return vi.waitUntil(async () => {
-    try {
-      const market = await getWETHMarket(account);
-      if (!market) return false;
-      return market.floatingDepositAssets === floatingDepositAssets && market.isCollateral ? market : false;
-    } catch (error) {
-      if (
-        error instanceof BaseError &&
-        error.shortMessage.includes("Arithmetic operation resulted in underflow or overflow.")
-      )
-        return false;
-      throw error;
-    }
-  }, 26_666);
-}
-
-async function waitForActivity() {
-  const spans = vi.mocked(startSpan);
-  const pending = spans.mock.calls.flatMap(([options], index) =>
-    options.op === "exa.activity" ? [spans.mock.results[index]?.value as unknown] : [],
-  );
-  expect(pending).not.toHaveLength(0);
-  await Promise.allSettled(pending);
-}
-
-function isNoBalance(error: unknown, hint: unknown, level: "error" | "warning") {
-  const data = hint as Record<string, unknown> | undefined;
-  return (
-    error instanceof Error &&
-    error.message === "NoBalance()" &&
-    data?.level === level &&
-    Array.isArray(data.fingerprint) &&
-    data.fingerprint.join(":") === "{{ default }}:NoBalance"
-  );
-}
-
 function mockLifiTokens(response: Error | Record<string, { address: string }[]> | Response) {
   const originalFetch = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
@@ -1586,35 +756,10 @@ function mockLifiTokens(response: Error | Record<string, { address: string }[]> 
   });
 }
 
-function mockCredit(response?: ReturnType<typeof sendPushNotificationMock>) {
-  const sent = Promise.withResolvers<true>();
-  const send = sendPushNotificationMock.getMockImplementation();
-  if (!send) throw new Error("missing onesignal mock");
-  const sendPushNotification = sendPushNotificationMock.mockImplementation((input) => {
-    if (
-      JSON.stringify(input.headings) !== JSON.stringify(t("Card mode changed")) ||
-      JSON.stringify(input.contents) !== JSON.stringify(t("Credit mode activated"))
-    )
-      return send(input);
-    sent.resolve(true);
-    return response ?? send(input);
-  });
-  return { sendPushNotification, sent: sent.promise };
-}
-
-const mockERC20Abi = [
-  {
-    type: "function",
-    name: "mint",
-    inputs: [{ type: "address" }, { type: "uint256" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-] as const;
-
 const activityPayload = {
   header: {},
   json: {
+    id: "event",
     type: "ADDRESS_ACTIVITY",
     webhookId: "activity",
     event: {
@@ -1663,32 +808,19 @@ const activityPayload = {
 
 vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
-vi.mock("viem", async (importOriginal) => {
-  const original = await importOriginal<{ withRetry: typeof withRetry }>();
-  return {
-    ...original,
-    withRetry: (
-      callback: Parameters<typeof original.withRetry>[0],
-      options: Parameters<typeof original.withRetry>[1],
-    ) => original.withRetry(callback, { ...options, delay: 1 }),
-  };
-});
-
-afterEach(async () => {
-  if (vi.mocked(startSpan).mock.calls.some(([options]) => options.op === "exa.activity")) await waitForActivity();
+afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
   vi.restoreAllMocks();
-}, 66_666);
+});
 
 function createHook(current = alchemy) {
   return activity({
     alchemy: current,
     database,
-    executor,
     onesignal,
+    poke,
     redis,
-    segment,
   });
 }
 
