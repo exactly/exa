@@ -18,14 +18,12 @@ import { useToastController } from "@tamagui/toast";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
-import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
+import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import { encodeFunctionData, erc20Abi, formatUnits, getAddress, parseUnits, zeroAddress } from "viem";
 import { base } from "viem/chains";
-import { useSendCalls, useSimulateContract } from "wagmi";
+import { useSimulateContract } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { allowlists } from "@exactly/common/generated/chain";
 import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
@@ -43,6 +41,7 @@ import deployedOptions from "../../utils/deployedOptions";
 import { present, presentArticle } from "../../utils/intercom";
 import {
   balancesOptions,
+  bridgeSlippage,
   getAllowTokens,
   getRoute,
   getRouteFrom,
@@ -54,6 +53,7 @@ import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useCrossChainGas from "../../utils/useCrossChainGas";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -507,8 +507,34 @@ export default function Swaps() {
   }, [simulationError, failingTool]);
   const rerouting = denied.length > 0 && isRouteFetching;
 
+  const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
+  const sponsored = fromChain === chain.id;
+  const networkCost = useMemo(() => {
+    if (sponsored) return 0n;
+    if (!nativeToken || !route) return;
+    return (route.estimate?.gasCosts ?? [])
+      .filter(({ token }) => token.address === nativeToken.address)
+      .reduce((sum, gas) => sum + BigInt(gas.amount), 0n);
+  }, [nativeToken, route, sponsored]);
+  const networkFeeUSD = sponsored
+    ? 0
+    : route
+      ? (route.estimate?.gasCosts ?? []).reduce((sum, { amountUSD }) => sum + (Number(amountUSD) || 0), 0)
+      : undefined;
+  const gasSource = useMemo(
+    () => (fromToken?.external ? { ...fromToken.token, amount: getBalance(fromToken.token) } : null),
+    [fromToken, getBalance],
+  );
+  const { insufficientGas, sendCalls } = useCrossChainGas({
+    account,
+    amount: fromAmount,
+    chainId: fromChain,
+    networkCost,
+    token: gasSource,
+    value: routed ? (route?.value ?? 0n) : undefined,
+  });
+
   const resultRef = useRef({ fromAmount: 0n, toAmount: 0n });
-  const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
     mutate: swap,
     isPending: isSwapping,
@@ -551,19 +577,7 @@ export default function Swaps() {
           call,
         ];
       })();
-      const url = `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`;
-      const { id } = await mutateSendCalls({
-        chainId: fromChain,
-        calls,
-        capabilities: {
-          paymasterService:
-            fromChain === chain.id
-              ? { url, context: { policyId: alchemyGasPolicyId } }
-              : { optional: true, url, context: { policyId: alchemyGasPolicyId } },
-        },
-      });
-      const { status } = await waitForCallsStatus(exaConfig, { id });
-      if (status === "failure") throw new Error("failed to swap");
+      await sendCalls(calls);
     },
     onMutate() {
       resultRef.current = { fromAmount, toAmount };
@@ -600,9 +614,11 @@ export default function Swaps() {
   const danger = projectedHealth !== undefined && projectedHealth < WAD;
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
-  const disabled = !route || isSimulating || rerouting || !!simulationError || isInsufficientBalance || danger;
+  const disabled =
+    !route || isSimulating || rerouting || !!simulationError || isInsufficientBalance || insufficientGas || danger;
   const buttonLabel = useMemo(() => {
     if (isInsufficientBalance) return t("Insufficient balance");
+    if (insufficientGas) return t("Not enough for network fees");
     if (rerouting || (isSimulating && route)) return t("Please wait...");
     if (simulationError) return t("Cannot proceed");
     if (danger) return t("Enter a lower amount to swap");
@@ -610,7 +626,18 @@ export default function Swaps() {
       return t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol });
     }
     return t("Swap");
-  }, [isSimulating, rerouting, route, isInsufficientBalance, simulationError, danger, fromToken, toToken, t]);
+  }, [
+    isSimulating,
+    rerouting,
+    route,
+    isInsufficientBalance,
+    insufficientGas,
+    simulationError,
+    danger,
+    fromToken,
+    toToken,
+    t,
+  ]);
 
   if (!isSwapping && !isSwapSuccess && !writeContractError)
     return (
@@ -824,10 +851,12 @@ export default function Swaps() {
                         (sum, { percentage }) => sum + (Number(percentage) || 0),
                         0,
                       )}
-                      slippage={SLIPPAGE_PERCENT}
+                      slippage={crossChain || routed ? BigInt(bridgeSlippage * 1000) : SLIPPAGE_PERCENT}
                       exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
                       fromToken={fromToken.token}
                       toToken={toToken.token}
+                      networkFeeUSD={networkFeeUSD}
+                      duration={crossChain ? route.estimate?.executionDuration : undefined}
                     />
                   )}
                 </YStack>
