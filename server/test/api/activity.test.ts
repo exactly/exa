@@ -8,20 +8,49 @@ import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import assert from "node:assert";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { safeParse, type InferOutput } from "valibot";
-import { padHex, zeroHash, type Hash } from "viem";
+import { padHex, parseEventLogs, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { marketAbi } from "@exactly/common/generated/chain";
+import chain, { marketAbi } from "@exactly/common/generated/chain";
+import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import authenticate from "../../middleware/auth";
 import anvilClient from "../anvilClient";
+
+import type * as accountStatement from "../../utils/AccountStatement";
+import type * as statement from "../../utils/Statement";
+
+const mocks = vi.hoisted(() => ({
+  accountStatement: vi.fn<(properties: Parameters<typeof accountStatement.default>[0]) => void>(),
+  statement: vi.fn<(properties: Parameters<typeof statement.default>[0]) => void>(),
+}));
+
+vi.mock("../../utils/AccountStatement", async (importOriginal) => {
+  const module = await importOriginal<typeof accountStatement>();
+  return {
+    ...module,
+    default: (properties: Parameters<typeof module.default>[0]) => {
+      mocks.accountStatement(properties);
+      return module.default(properties);
+    },
+  };
+});
+
+vi.mock("../../utils/Statement", async (importOriginal) => {
+  const module = await importOriginal<typeof statement>();
+  return {
+    ...module,
+    default: (properties: Parameters<typeof module.default>[0]) => {
+      mocks.statement(properties);
+      return module.default(properties);
+    },
+  };
+});
 
 function httpSerialize<T>(object: T): T {
   const cloned = structuredClone(object);
@@ -89,35 +118,72 @@ describe.concurrent("authenticated", () => {
     let activity: CardActivity[];
     let installment: { hash: Hash; maturity: string };
     let maturity: string;
+    let amount: number;
+    let purchaseId: string;
+    let creditPurchaseId: string;
+    let repayment: { hash: Hash; logIndex: number };
 
     beforeAll(async () => {
       await database.insert(cards).values([
         { id: "first-activity-card", credentialId: "bob", lastFour: "1234" },
         { id: "second-activity-card", credentialId: "bob", lastFour: "6789" },
       ]);
-      const borrows = await anvilClient.getContractEvents({
+      const borrows = await anvilClient
+        .getContractEvents({
+          abi: marketAbi,
+          eventName: "BorrowAtMaturity",
+          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+          args: { borrower: account },
+          toBlock: "latest",
+          fromBlock: 0n,
+          strict: true,
+        })
+        .then((events) => events.toSorted(order));
+      assert.ok(borrows[0], "expected at least one BorrowAtMaturity event");
+      maturity = String(borrows[0].args.maturity);
+      amount = Number(borrows[0].args.assets) / 1e6;
+      const repayments = await anvilClient.getContractEvents({
         abi: marketAbi,
-        eventName: "BorrowAtMaturity",
-        address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+        eventName: "RepayAtMaturity",
+        address: inject("MarketUSDC"),
         args: { borrower: account },
         toBlock: "latest",
         fromBlock: 0n,
         strict: true,
       });
-      assert.ok(borrows[0], "expected at least one BorrowAtMaturity event");
-      maturity = String(borrows[0].args.maturity);
+      const selected = repayments.find(({ args }) => args.maturity === BigInt(maturity));
+      assert.ok(selected, "expected repayment for the selected maturity");
+      repayment = { hash: selected.transactionHash, logIndex: selected.logIndex };
       const logs = [
         ...borrows,
-        ...(await anvilClient.getContractEvents({
-          abi: marketAbi,
-          eventName: "Withdraw",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
-          args: { owner: account },
-          toBlock: "latest",
-          fromBlock: 0n,
-          strict: true,
-        })),
+        ...(await anvilClient
+          .getContractEvents({
+            abi: marketAbi,
+            eventName: "Withdraw",
+            address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+            args: { owner: account },
+            toBlock: "latest",
+            fromBlock: 0n,
+            strict: true,
+          })
+          .then((events) => events.toSorted(order))),
       ];
+      const receipts = await Promise.all(
+        [...new Set(logs.map(({ transactionHash }) => transactionHash))].map(async (transactionHash) => ({
+          transactionHash,
+          receipt: await anvilClient.getTransactionReceipt({ hash: transactionHash }),
+        })),
+      );
+      const receiptHash = receipts.find(
+        ({ receipt }) =>
+          parseEventLogs({
+            abi: marketAbi,
+            eventName: "BorrowAtMaturity",
+            logs: receipt.logs.filter(({ address }) => address.toLowerCase() === inject("MarketUSDC").toLowerCase()),
+            strict: true,
+          }).length === 0,
+      )?.transactionHash;
+      assert.ok(receiptHash, "expected a non-borrow receipt hash");
       const timestamps = await Promise.all(
         [...new Set(logs.map(({ blockNumber }) => blockNumber))].map((blockNumber) =>
           anvilClient.getBlock({ blockNumber }),
@@ -185,6 +251,31 @@ describe.concurrent("authenticated", () => {
           };
         }),
         {
+          id: "transaction-pending",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [zeroHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "pending",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(3).toISOString(),
+                body: {
+                  id: "transaction-pending",
+                  spend: { ...spendTemplate, amount: 1500, localAmount: 1500 },
+                },
+              },
+            ],
+          },
+        },
+        {
           id: "transaction-declined",
           cardId: "first-activity-card",
           lastFour: "1234",
@@ -226,6 +317,407 @@ describe.concurrent("authenticated", () => {
             ],
           },
         },
+        {
+          id: "transaction-refund",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "refund",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-refund",
+                  spend: { ...spendTemplate, amount: 0, localAmount: 0 },
+                },
+              },
+              {
+                action: "updated",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-refund",
+                  spend: { ...spendTemplate, authorizationUpdateAmount: -500, status: "completed" },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-completed-refund",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "refund",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-completed-refund",
+                  spend: { ...spendTemplate, amount: -500, localAmount: -500, status: "completed" },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-completed-refund-after-created",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "refund",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date((Number(maturity) - 1000) * 1000).toISOString(),
+                body: {
+                  id: "transaction-completed-refund-after-created",
+                  spend: { ...spendTemplate, amount: 2000, localAmount: 2000 },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-completed-refund-after-created",
+                  spend: {
+                    ...spendTemplate,
+                    amount: -2000,
+                    authorizedAmount: -2000,
+                    localAmount: -2000,
+                    status: "completed",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-partial-refund",
+          cardId: "second-activity-card",
+          lastFour: "6789",
+          hashes: [receiptHash, receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "partial refund",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-partial-refund",
+                  spend: { ...spendTemplate, amount: 1000, localAmount: 1000 },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-partial-refund",
+                  spend: {
+                    ...spendTemplate,
+                    amount: 1000,
+                    localAmount: 1000,
+                    authorizedAmount: 1000,
+                    status: "completed",
+                  },
+                },
+              },
+              {
+                action: "updated",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-partial-refund",
+                  spend: { ...spendTemplate, authorizationUpdateAmount: -500, status: "completed" },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-settled-after-authorization",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, zeroHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "settlement",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date((Number(maturity) - MATURITY_INTERVAL - 1) * 1000).toISOString(),
+                body: {
+                  id: "transaction-settled-after-authorization",
+                  spend: { ...spendTemplate, amount: 1000, localAmount: 1000 },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-settled-after-authorization",
+                  spend: { ...spendTemplate, amount: 1000, localAmount: 1000, authorizedAmount: 1000 },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-mixed-mode",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, borrows[0].transactionHash],
+          hash: borrows[0].transactionHash,
+          blockNumber: borrows[0].blockNumber,
+          eventName: "mixed mode",
+          events: [borrows[0].args],
+          blockTimestamp: timestamps.get(borrows[0].blockNumber)!, // eslint-disable-line @typescript-eslint/no-non-null-assertion
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-mixed-mode",
+                  spend: { ...spendTemplate, amount: 1000, localAmount: 1000 },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-mixed-mode",
+                  spend: {
+                    ...spendTemplate,
+                    amount: 1000,
+                    authorizedAmount: 1000,
+                    localAmount: 1000,
+                    status: "completed",
+                  },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-reversed",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "reversal",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date((Number(maturity) - MATURITY_INTERVAL - 1) * 1000).toISOString(),
+                body: {
+                  id: "transaction-reversed",
+                  spend: { ...spendTemplate, amount: 500, localAmount: 500 },
+                },
+              },
+              {
+                action: "updated",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-reversed",
+                  spend: { ...spendTemplate, authorizationUpdateAmount: -500, status: "reversed" },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-pending-adjustment",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "pending adjustment",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-pending-adjustment",
+                  spend: { ...spendTemplate, amount: 2000, localAmount: 2000 },
+                },
+              },
+              {
+                action: "updated",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-pending-adjustment",
+                  spend: {
+                    ...spendTemplate,
+                    amount: 1500,
+                    localAmount: 1500,
+                    authorizationUpdateAmount: -500,
+                    status: "pending",
+                  },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-pending-adjustment",
+                  spend: { ...spendTemplate, amount: 1500, localAmount: 1500, authorizedAmount: 1500 },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-settled-below-authorization",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "settlement adjustment",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-settled-below-authorization",
+                  spend: { ...spendTemplate, amount: 2000, localAmount: 2000 },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-settled-below-authorization",
+                  spend: { ...spendTemplate, amount: 1500, localAmount: 1500, authorizedAmount: 2000 },
+                },
+              },
+            ],
+          },
+        },
+        {
+          id: "transaction-old-charge-period-refund",
+          cardId: "first-activity-card",
+          lastFour: "1234",
+          hashes: [receiptHash, receiptHash, receiptHash],
+          hash: zeroHash,
+          blockNumber: 0n,
+          eventName: "period refund",
+          events: [],
+          blockTimestamp: 0n,
+          payload: {
+            type: "panda",
+            bodies: [
+              {
+                action: "created",
+                resource: "transaction",
+                createdAt: new Date((Number(maturity) - MATURITY_INTERVAL - 1) * 1000).toISOString(),
+                body: {
+                  id: "transaction-old-charge-period-refund",
+                  spend: { ...spendTemplate, amount: 2000, localAmount: 2000 },
+                },
+              },
+              {
+                action: "completed",
+                resource: "transaction",
+                createdAt: new Date((Number(maturity) - MATURITY_INTERVAL - 1) * 1000).toISOString(),
+                body: {
+                  id: "transaction-old-charge-period-refund",
+                  spend: { ...spendTemplate, amount: 2000, localAmount: 2000 },
+                },
+              },
+              {
+                action: "updated",
+                resource: "transaction",
+                createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                body: {
+                  id: "transaction-old-charge-period-refund",
+                  spend: { ...spendTemplate, authorizationUpdateAmount: -500, status: "completed" },
+                },
+              },
+            ],
+          },
+        },
+        periodTransaction(
+          "transaction-period-start",
+          "period start",
+          new Date((Number(maturity) - MATURITY_INTERVAL) * 1000).toISOString(),
+          {
+            amount: 100,
+            localAmount: 100,
+          },
+        ),
+        periodTransaction("transaction-period-end", "period end", new Date(Number(maturity) * 1000).toISOString(), {
+          amount: 0,
+          localAmount: 0,
+        }),
+        periodTransaction(
+          "transaction-period-outside",
+          "period outside",
+          new Date((Number(maturity) - MATURITY_INTERVAL - 1) * 1000).toISOString(),
+          { amount: 0, localAmount: 0 },
+        ),
       ];
 
       await database
@@ -263,6 +755,20 @@ describe.concurrent("authenticated", () => {
       const second = operation.borrow.installments[1];
       assert.ok(second, "expected second installment");
       installment = { hash: operation.transactionHash, maturity: String(second.maturity) };
+      const purchase = activity.find((item) => {
+        if (item.id === "transaction-mixed-mode") return false;
+        if ("operations" in item)
+          return item.operations.some(({ transactionHash }) => transactionHash === borrows[0]?.transactionHash);
+        return item.transactionHash === borrows[0]?.transactionHash;
+      });
+      assert.ok(purchase, "expected maturity purchase");
+      purchaseId = purchase.id;
+      const pandaCreditPurchase = activity.find(
+        (item) =>
+          item.id !== "transaction-mixed-mode" && item.type === "panda" && item.operations.some(({ mode }) => mode > 0),
+      );
+      assert.ok(pandaCreditPurchase, "expected panda credit purchase");
+      creditPurchaseId = pandaCreditPurchase.id;
     }, 66_666);
 
     it("returns the card transaction", async () => {
@@ -437,8 +943,10 @@ describe.concurrent("authenticated", () => {
 
     it("returns statement pdf", async () => {
       expect.hasAssertions();
+      mocks.statement.mockClear();
+      mocks.accountStatement.mockClear();
       const response = await appClient.index.$get(
-        { query: { maturity } },
+        { query: { maturity, include: ["card", "repay"] } },
         { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
       );
 
@@ -446,9 +954,8 @@ describe.concurrent("authenticated", () => {
       expect(response.headers.get("content-type")).toBe("application/pdf");
       const body = await response.arrayBuffer();
       expect(body.byteLength).toBeGreaterThan(0);
-      const directory = path.join("node_modules/@exactly/.runtime");
-      await mkdir(directory, { recursive: true });
-      await writeFile(path.join(directory, `statement-${Date.now()}.pdf`), new Uint8Array(body)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact path includes timestamp
+      expect(mocks.statement).toHaveBeenCalledOnce();
+      expect(mocks.accountStatement).not.toHaveBeenCalled();
     });
 
     it("returns statement pdf with mixed borrow operations", async () => {
@@ -461,7 +968,7 @@ describe.concurrent("authenticated", () => {
           {
             id: "panda-mixed-operations",
             cardId: "first-activity-card",
-            hashes: [hash, padHex("0xdeb17", { size: 32 })],
+            hashes: [hash, zeroHash],
             payload: {
               type: "panda",
               bodies: ["created", "completed"].map((action) => ({
@@ -477,7 +984,7 @@ describe.concurrent("authenticated", () => {
           },
         ]);
         const response = await appClient.index.$get(
-          { query: { maturity } },
+          { query: { maturity, include: ["card", "repay"] } },
           { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
         );
 
@@ -493,7 +1000,7 @@ describe.concurrent("authenticated", () => {
     it("returns statement pdf for combined accept header", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
-        { query: { maturity } },
+        { query: { maturity, include: ["card", "repay"] } },
         { headers: { "test-credential-id": "bob", accept: "application/pdf, */*" } },
       );
 
@@ -513,6 +1020,260 @@ describe.concurrent("authenticated", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/json");
       expect(Array.isArray(await response.json())).toBe(true);
+    });
+
+    it.sequential("rejects account statement pdf without maturity", async () => {
+      expect.hasAssertions();
+      mocks.statement.mockClear();
+      mocks.accountStatement.mockClear();
+      const response = await appClient.index.$get(
+        {},
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "maturity required for account statement pdf" });
+      expect(mocks.accountStatement).not.toHaveBeenCalled();
+      expect(mocks.statement).not.toHaveBeenCalled();
+    });
+
+    it.sequential("returns account statement pdf with maturity", async () => {
+      expect.hasAssertions();
+      mocks.statement.mockClear();
+      mocks.accountStatement.mockClear();
+      const hash = activity
+        .flatMap((item) => ("operations" in item ? item.operations : []))
+        .find((operation) => "borrow" in operation)?.transactionHash;
+      assert.ok(hash, "expected maturity purchase hash");
+      const response = await appClient.index.$get(
+        { query: { maturity } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
+      expect(await response.arrayBuffer().then(({ byteLength }) => byteLength)).toBeGreaterThan(0);
+      expect(mocks.accountStatement).toHaveBeenCalledOnce();
+      expect(mocks.statement).not.toHaveBeenCalled();
+      const statement = mocks.accountStatement.mock.calls[0]?.[0];
+      assert.ok(statement, "expected account statement properties");
+      expect(statement.cards.find(({ cardId }) => cardId === "first-activity-card")).toStrictEqual({
+        amount: 75,
+        cardId: "first-activity-card",
+        lastFour: "1234",
+      });
+      const second = statement.cards.find(({ cardId }) => cardId === "second-activity-card");
+      assert.ok(second, "expected second card summary");
+      expect(second.lastFour).toBe("6789");
+      expect(typeof second.amount).toBe("number");
+      const refundTimestamp = new Date(Number(maturity) * 1000).toISOString();
+      expect(
+        statement.activities
+          .filter(
+            ({ id }) => id.startsWith("transaction-completed-refund") || id.startsWith("transaction-partial-refund"),
+          )
+          .toSorted((a, b) => a.id.localeCompare(b.id)),
+      ).toStrictEqual([
+        {
+          amount: 5,
+          detail: "Refund – Card **** 1234",
+          id: "transaction-completed-refund",
+          timestamp: refundTimestamp,
+          title: "once",
+        },
+        {
+          amount: -20,
+          detail: "Debit purchase – Card **** 1234",
+          id: "transaction-completed-refund-after-created",
+          timestamp: new Date((Number(maturity) - 1000) * 1000).toISOString(),
+          title: "once",
+        },
+        {
+          amount: 20,
+          detail: "Refund – Card **** 1234",
+          id: "transaction-completed-refund-after-created:1",
+          timestamp: refundTimestamp,
+          title: "once",
+        },
+        {
+          amount: -10,
+          detail: "Debit purchase – Card **** 6789",
+          id: "transaction-partial-refund",
+          timestamp: refundTimestamp,
+          title: "once",
+        },
+        {
+          amount: 5,
+          detail: "Refund – Card **** 6789",
+          id: "transaction-partial-refund:1",
+          timestamp: refundTimestamp,
+          title: "once",
+        },
+      ]);
+      expect(statement.period).toBe(
+        new Intl.DateTimeFormat("en-US", {
+          day: "numeric",
+          month: "short",
+          timeZone: "UTC",
+          year: "numeric",
+        }).formatRange(new Date((Number(maturity) - MATURITY_INTERVAL) * 1000), new Date(Number(maturity) * 1000)),
+      );
+      expect(statement.activities).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ amount: 2500, detail: "1 WETH", title: "Funds added" }),
+          expect.objectContaining({
+            amount: -25,
+            detail: "0.01 WETH",
+            title: "Sent to 0x0000...000069",
+          }),
+        ]),
+      );
+      const repays = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "RepayAtMaturity",
+        address: inject("MarketUSDC"),
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const repay = repays.find(
+        ({ logIndex, transactionHash }) => transactionHash === repayment.hash && logIndex === repayment.logIndex,
+      );
+      assert.ok(repay, "expected USDC debt payment");
+      const repayBlock = await anvilClient.getBlock({ blockNumber: repay.blockNumber });
+      const repayAmount = Number(repay.args.assets) / 1e6;
+      const repayId = `${chain.id}:${repay.blockNumber}:${repay.transactionIndex}:${repay.logIndex}`;
+      expect(statement.activities.find(({ id }) => id === repayId)).toStrictEqual({
+        amount: -repayAmount,
+        detail: `${repayAmount} USDC`,
+        id: repayId,
+        timestamp: new Date(Number(repayBlock.timestamp) * 1000).toISOString(),
+        title: "Debt payment",
+      });
+      expect(
+        statement.activities.every(
+          ({ timestamp }) =>
+            Date.parse(timestamp) / 1000 > Number(maturity) - MATURITY_INTERVAL &&
+            Date.parse(timestamp) / 1000 <= Number(maturity),
+        ),
+      ).toBe(true);
+      expect(statement.activities.find(({ id }) => id === purchaseId)).toMatchObject({
+        amount: -amount,
+        detail: "Credit purchase – Card **** 1234",
+      });
+      expect(statement.activities.find(({ id }) => id === creditPurchaseId)).toMatchObject({
+        detail: "Credit purchase – Card **** 6789",
+      });
+      expect(statement.activities.find(({ id }) => id === "transaction-mixed-mode")).toMatchObject({
+        amount: -10,
+        detail: "Debit purchase – Card **** 1234",
+      });
+      expect(statement.activities.find(({ id }) => id === "transaction-period-start")).toBeUndefined();
+      expect(statement.activities.find(({ id }) => id === "transaction-period-end")).toMatchObject({
+        timestamp: new Date(Number(maturity) * 1000).toISOString(),
+      });
+      expect(statement.activities.find(({ id }) => id === "transaction-period-outside")).toBeUndefined();
+      expect(statement.activities.find(({ id }) => id === "transaction-settled-after-authorization")).toMatchObject({
+        timestamp: new Date(Number(maturity) * 1000).toISOString(),
+      });
+      expect(statement.activities.find(({ id }) => id === "transaction-reversed")).toBeUndefined();
+      expect(statement.activities.find(({ id }) => id === "transaction-settled-below-authorization")).toMatchObject({
+        amount: -15,
+        detail: "Debit purchase – Card **** 1234",
+        timestamp: new Date(Number(maturity) * 1000).toISOString(),
+      });
+      expect(statement.activities.find(({ id }) => id === "transaction-old-charge-period-refund")).toBeUndefined();
+      expect(statement.activities.find(({ id }) => id === "transaction-old-charge-period-refund:1")).toMatchObject({
+        amount: 5,
+        detail: "Refund – Card **** 1234",
+        timestamp: refundTimestamp,
+      });
+      expect(statement.activities.some(({ id }) => id.startsWith("transaction-settled-below-authorization:"))).toBe(
+        false,
+      );
+      expect(statement.activities.find(({ id }) => id === "transaction-pending-adjustment")).toMatchObject({
+        amount: -20,
+        detail: "Debit purchase – Card **** 1234",
+      });
+      expect(statement.activities.find(({ id }) => id === "transaction-pending-adjustment:1")).toBeUndefined();
+      expect(statement.activities.map(({ detail }) => detail)).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^Credit purchase – Card /),
+          expect.stringMatching(/^Debit purchase – Card /),
+        ]),
+      );
+    });
+
+    it.sequential("preserves settled authorization increases", async () => {
+      const id = "transaction-settled-after-increase";
+      const source = activity.find(({ id: activityId }) => activityId === creditPurchaseId);
+      assert.ok(source && "operations" in source, "expected credit purchase");
+      const hash = source.operations.find((operation) => "borrow" in operation)?.transactionHash;
+      assert.ok(hash, "expected credit purchase hash");
+      mocks.accountStatement.mockClear();
+      try {
+        await database.insert(transactions).values([
+          {
+            id,
+            cardId: "first-activity-card",
+            hashes: [hash, hash, hash],
+            payload: {
+              type: "panda",
+              bodies: [
+                {
+                  action: "created",
+                  resource: "transaction",
+                  createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                  body: { id, spend: { ...spendTemplate, amount: 1000, localAmount: 1000 } },
+                },
+                {
+                  action: "updated",
+                  resource: "transaction",
+                  createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                  body: {
+                    id,
+                    spend: { ...spendTemplate, amount: 1500, localAmount: 1500, authorizationUpdateAmount: 500 },
+                  },
+                },
+                {
+                  action: "completed",
+                  resource: "transaction",
+                  createdAt: new Date(Number(maturity) * 1000).toISOString(),
+                  body: {
+                    id,
+                    spend: { ...spendTemplate, amount: 1500, localAmount: 1500, authorizedAmount: 1500 },
+                  },
+                },
+              ],
+            },
+          },
+        ]);
+        const response = await appClient.index.$get(
+          { query: { maturity } },
+          { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+        );
+        expect(response.status).toBe(200);
+        const statement = mocks.accountStatement.mock.calls[0]?.[0];
+        assert.ok(statement, "expected account statement properties");
+        expect(statement.activities.find(({ id: activityId }) => activityId === id)).toMatchObject({
+          amount: -15,
+          detail: "Credit purchase – Card **** 1234",
+        });
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, id));
+      }
+    });
+
+    it("rejects filtered pdf without maturity", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { include: "received" } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "maturity required for filtered pdf" });
     });
 
     it("scopes maturity transaction lookup to user cards", async () => {
@@ -562,7 +1323,7 @@ describe.concurrent("authenticated", () => {
           { query: { include: "card", maturity } },
           { headers: { "test-credential-id": "bob" } },
         );
-        expect((await after.json()) as unknown[]).toHaveLength(baseline.length);
+        expect(await after.json()).toStrictEqual(baseline);
       } finally {
         await database.delete(transactions).where(eq(transactions.id, leak.transactionId));
         await database.delete(cards).where(eq(cards.id, leak.cardId));
@@ -937,7 +1698,7 @@ describe.concurrent("authenticated", () => {
 vi.mock("@sentry/node", { spy: true });
 
 afterEach(() => {
-  vi.clearAllMocks();
+  vi.mocked(captureException).mockClear();
   vi.restoreAllMocks();
 });
 
@@ -962,3 +1723,37 @@ const spendTemplate = {
   userId: "f5eb6ea9-e9ba-4e2f-b16a-94a99f32385c",
   userLastName: "SAMPLEapproved",
 };
+
+function periodTransaction(id: string, eventName: string, createdAt: string, spend: Partial<typeof spendTemplate>) {
+  return {
+    id,
+    cardId: "first-activity-card",
+    lastFour: "1234",
+    hashes: [zeroHash],
+    hash: zeroHash,
+    blockNumber: 0n,
+    eventName,
+    events: [],
+    blockTimestamp: 0n,
+    payload: {
+      type: "panda",
+      bodies: [
+        {
+          action: "completed",
+          resource: "transaction",
+          createdAt,
+          body: { id, spend: { ...spendTemplate, ...spend } },
+        },
+      ],
+    },
+  };
+}
+
+function order(
+  a: { blockNumber: bigint; logIndex: number; transactionIndex: number },
+  b: { blockNumber: bigint; logIndex: number; transactionIndex: number },
+) {
+  if (a.blockNumber !== b.blockNumber) return a.blockNumber < b.blockNumber ? -1 : 1;
+  if (a.transactionIndex !== b.transactionIndex) return a.transactionIndex - b.transactionIndex;
+  return a.logIndex - b.logIndex;
+}

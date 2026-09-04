@@ -1,7 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
-import { arrayOverlaps, eq } from "drizzle-orm";
+import { arrayOverlaps, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -51,9 +51,10 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
-import { effectiveRate, WAD } from "@exactly/lib";
+import { effectiveRate, MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
+import AccountStatement from "../utils/AccountStatement";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -86,6 +87,40 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
     async (c) => {
       const { include, maturity } = c.req.valid("query");
       if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
+      const pdf =
+        accepts(c, {
+          header: "Accept",
+          supports: ["application/json", "application/pdf"],
+          default: "application/json",
+        }) === "application/pdf";
+      const accountPdf = pdf && include === undefined;
+      const eventMaturity = accountPdf ? undefined : maturity;
+      if (pdf && include !== undefined && maturity === undefined)
+        return c.json({ code: "maturity required for filtered pdf" }, 400);
+      if (accountPdf && maturity === undefined)
+        return c.json({ code: "maturity required for account statement pdf" }, 400);
+      const period =
+        maturity === undefined
+          ? undefined
+          : { end: new Date(maturity * 1000), start: new Date((maturity - MATURITY_INTERVAL) * 1000) };
+      const fromBlock = accountPdf && period ? await findBlock(period.start) : 0n;
+      const toBlock = accountPdf && period ? await findBlock(period.end, true) : "latest";
+      const transactionPeriod =
+        accountPdf && period
+          ? sql`(
+              (
+                ${transactions.payload}->>'type' = 'cryptomate'
+                AND (${transactions.payload}->'data'->>'created_at')::timestamptz > ${period.start} /* cspell:ignore timestamptz */
+                AND (${transactions.payload}->'data'->>'created_at')::timestamptz <= ${period.end} /* cspell:ignore timestamptz */
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(COALESCE(${transactions.payload}->'bodies', '[]'::jsonb)) AS body
+                WHERE (body->>'createdAt')::timestamptz > ${period.start} /* cspell:ignore timestamptz */
+                  AND (body->>'createdAt')::timestamptz <= ${period.end} /* cspell:ignore timestamptz */
+              )
+            )`
+          : undefined;
       function ignore(type: InferInput<typeof ActivityTypes>) {
         return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
       }
@@ -97,8 +132,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         with: {
           cards: {
             columns: { id: true, lastFour: true },
-            with: { transactions: { columns: { hashes: true, payload: true } } },
-            limit: ignore("card") || maturity !== undefined ? 0 : undefined,
+            with: { transactions: { columns: { hashes: true, payload: true }, where: transactionPeriod } },
+            limit: ignore("card") || eventMaturity !== undefined ? 0 : undefined,
           },
         },
       });
@@ -123,7 +158,6 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
           : Promise.resolve(forbid(new Set<Hex>())),
       ]);
-
       const market = (address: Hex) => {
         const found = markets.get(address.toLowerCase() as Hex);
         if (!found) throw new Error("market not found");
@@ -137,8 +171,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               eventName: "RepayAtMaturity",
               address: [...markets.keys()],
               args: { caller: [...plugins, debtManagerAddress], borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
+              toBlock,
+              fromBlock,
               strict: true,
             })
           : Promise.resolve(forbid([]));
@@ -153,8 +187,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   eventName: "Deposit",
                   address: [...markets.keys()],
                   args: { caller: account, owner: account },
-                  toBlock: "latest",
-                  fromBlock: 0n,
+                  toBlock,
+                  fromBlock,
                   strict: true,
                 })
                 .then((logs) =>
@@ -174,7 +208,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ? []
           : repayPromise.then((logs) =>
               logs
-                .filter(({ args }) => maturity === undefined || Number(args.maturity) === maturity)
+                .filter(({ args }) => eventMaturity === undefined || Number(args.maturity) === eventMaturity)
                 .map((log) =>
                   parse(RepayActivity, {
                     ...log,
@@ -190,8 +224,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 eventName: "Withdraw",
                 address: [...markets.keys()],
                 args: { caller: account, owner: account },
-                toBlock: "latest",
-                fromBlock: 0n,
+                toBlock,
+                fromBlock,
                 strict: true,
               }),
               publicClient.getContractEvents({
@@ -247,8 +281,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 eventName: "BorrowAtMaturity",
                 address: marketUSDCAddress,
                 args: { borrower: account },
-                toBlock: "latest",
-                fromBlock: 0n,
+                toBlock,
+                fromBlock,
                 strict: true,
               })
               .then((logs) =>
@@ -269,7 +303,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
       );
       const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
       const purchases =
-        !ignore("card") && borrows && maturity !== undefined
+        !ignore("card") && borrows && maturity !== undefined && !accountPdf
           ? await (() => {
               const hashes = borrows
                 .entries()
@@ -290,13 +324,6 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             })()
           : credential.cards;
 
-      const accept = accepts(c, {
-        header: "Accept",
-        supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
-        default: "application/json",
-      });
-      const pdf = accept === "application/pdf";
-
       const response = [
         ...purchases.flatMap(({ id: cardId, lastFour, transactions: txs }) =>
           txs.map(({ hashes, payload }) => {
@@ -307,16 +334,22 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 const b = borrows?.get(h as Hash);
                 if (!b) return null;
                 const filtered =
-                  maturity === undefined ? b.events : b.events.filter(({ maturity: m }) => Number(m) === maturity);
+                  eventMaturity === undefined
+                    ? b.events
+                    : b.events.filter(({ maturity: m }) => Number(m) === eventMaturity);
                 if (filtered.length === 0) return null;
                 return {
-                  events: maturity !== undefined && b.events.length > 1 ? b.events : filtered,
+                  events: eventMaturity !== undefined && b.events.length > 1 ? b.events : filtered,
                   timestamp: b.blockNumber && timestamps.get(b.blockNumber),
                 };
               }),
             });
             if (panda.success) {
-              if (maturity === undefined || pdf) return { ...panda.output, cardId, lastFour };
+              if (eventMaturity === undefined || pdf) {
+                const output = { ...panda.output, cardId, lastFour };
+                Object.defineProperty(output, "completion", { value: stringAt(panda.output, "completion") });
+                return output;
+              }
               const operations: typeof panda.output.operations = [];
               for (const operation of panda.output.operations) {
                 if (!("borrow" in operation)) continue;
@@ -367,11 +400,12 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             const hash = hashes[0];
             const borrow = borrows?.get(hash as Hash);
             const filtered =
-              maturity === undefined || !borrow
+              eventMaturity === undefined || !borrow
                 ? borrow?.events
-                : borrow.events.filter(({ maturity: m }) => Number(m) === maturity);
-            if (maturity !== undefined && borrow && filtered?.length === 0) return;
-            const events = !borrow || maturity === undefined || borrow.events.length <= 1 ? filtered : borrow.events;
+                : borrow.events.filter(({ maturity: m }) => Number(m) === eventMaturity);
+            if (eventMaturity !== undefined && borrow && filtered?.length === 0) return;
+            const events =
+              !borrow || eventMaturity === undefined || borrow.events.length <= 1 ? filtered : borrow.events;
             const cryptomate = safeParse(
               { 0: DebitActivity, 1: CreditActivity }[events?.length ?? 0] ?? InstallmentsActivity,
               {
@@ -382,7 +416,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               },
             );
             if (cryptomate.success) {
-              if (maturity === undefined || pdf) return { ...cryptomate.output, cardId, lastFour };
+              if (eventMaturity === undefined || pdf) return { ...cryptomate.output, cardId, lastFour };
               if (!borrow) return;
               if (borrow.events.length <= 1) return { ...cryptomate.output, cardId, lastFour };
               if (!("borrow" in cryptomate.output) || !("installments" in cryptomate.output.borrow))
@@ -436,6 +470,174 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
 
+      if (accountPdf) {
+        const items = response
+          .flatMap((item): (typeof response)[number][] => {
+            if (item.type !== "panda") return [item];
+            const pending =
+              item.status === "pending"
+                ? item.operations.filter(
+                    (operation) =>
+                      operation.action === "updated" &&
+                      stringAt(operation, "spendStatus") === "pending" &&
+                      operation.usdAmount < 0,
+                  )
+                : [];
+            const current =
+              pending.length === 0
+                ? item
+                : {
+                    ...item,
+                    amount: item.amount - pending.reduce((sum, operation) => sum + operation.amount, 0),
+                    operations: item.operations.filter((operation) => !pending.includes(operation)),
+                    usdAmount: item.usdAmount - pending.reduce((sum, operation) => sum + operation.usdAmount, 0),
+                  };
+            const refunds = current.operations.filter(
+              (operation) =>
+                operation.usdAmount < 0 &&
+                stringAt(operation, "spendStatus") !== "pending" &&
+                stringAt(operation, "spendStatus") !== "reversed" &&
+                (operation.action !== "completed" ||
+                  isRefund(operation) ||
+                  !current.operations.some(({ action }) => action === "created")),
+            );
+            const settledAt =
+              current.operations.findLast(({ action, usdAmount: amount }) => action === "completed" && amount > 0)
+                ?.timestamp ?? stringAt(item, "completion");
+            const charges = current.operations.filter(
+              (operation) => operation.usdAmount >= 0 || (operation.action === "completed" && !isRefund(operation)),
+            );
+            const chargeItems = Map.groupBy(charges, ({ mode }) => mode > 0)
+              .values()
+              .toArray()
+              .flatMap((operations) => {
+                const usdAmount = operations.reduce((sum, { usdAmount: amount }) => sum + amount, 0);
+                if (usdAmount <= 0) return [];
+                const completed = operations.findLast(({ action }) => action === "completed");
+                return [
+                  {
+                    ...current,
+                    amount: operations.reduce((sum, { amount }) => sum + amount, 0),
+                    operations,
+                    timestamp:
+                      completed?.timestamp ??
+                      stringAt(item, "completion") ??
+                      operations.findLast(({ action }) => action === "created")?.timestamp ??
+                      current.timestamp,
+                    usdAmount,
+                  },
+                ];
+              });
+            const charged = chargeItems.map((charge, index) => ({
+              ...charge,
+              ...(index > 0 && { id: `${item.id}:${index}` }),
+            }));
+            if (refunds.length === 0)
+              return charged.length > 0 ? charged : [settledAt ? { ...current, timestamp: settledAt } : current];
+            return [
+              ...charged,
+              ...refunds.map((operation, index) => {
+                const n = index + chargeItems.length;
+                return {
+                  ...current,
+                  ...(n > 0 && { id: `${item.id}:${n}` }),
+                  amount: operation.amount,
+                  operations: [operation],
+                  timestamp: operation.timestamp,
+                  usdAmount: operation.usdAmount,
+                };
+              }),
+            ];
+          })
+          .filter(
+            (item) =>
+              (item.type !== "panda" || item.status === "settled" || item.usdAmount < 0) &&
+              (maturity === undefined ||
+                (Date.parse(item.timestamp) / 1000 > maturity - MATURITY_INTERVAL &&
+                  Date.parse(item.timestamp) / 1000 <= maturity)),
+          );
+        return c.body(
+          new Uint8Array(
+            await renderToBuffer(
+              AccountStatement({
+                account: mask(account),
+                activities: items.map((item) => {
+                  if ("merchant" in item) {
+                    const movement = {
+                      id: item.id,
+                      timestamp: item.timestamp,
+                      amount: -item.usdAmount,
+                      title: item.merchant.name,
+                    };
+                    if (-item.usdAmount > 0) return { ...movement, detail: `Refund – Card **** ${item.lastFour}` };
+                    if (item.type === "panda" ? item.operations.some(({ mode }) => mode > 0) : item.mode > 0)
+                      return { ...movement, detail: `Credit purchase – Card **** ${item.lastFour}` };
+                    return { ...movement, detail: `Debit purchase – Card **** ${item.lastFour}` };
+                  }
+                  switch (item.type) {
+                    case "received":
+                      return {
+                        id: item.id,
+                        timestamp: item.timestamp,
+                        amount: item.usdAmount,
+                        title: "Funds added",
+                        detail: `${item.amount} ${item.currency}`,
+                      };
+                    case "repay":
+                      return {
+                        id: item.id,
+                        timestamp: item.timestamp,
+                        amount: -item.usdAmount,
+                        title: "Debt payment",
+                        detail: `${item.amount} ${item.currency}`,
+                      };
+                    case "sent":
+                      return {
+                        id: item.id,
+                        timestamp: item.timestamp,
+                        amount: -item.usdAmount,
+                        title: `Sent to ${mask(item.receiver)}`,
+                        detail: `${item.amount} ${item.currency}`,
+                      };
+                    default:
+                      throw new Error("unsupported activity type", { cause: item });
+                  }
+                }),
+                cards: [
+                  ...Map.groupBy(
+                    items.filter((item) => "merchant" in item),
+                    ({ cardId }) => cardId,
+                  ),
+                ].map(([cardId, cardItems]) => ({
+                  amount: cardItems.reduce(
+                    (sum, item) =>
+                      sum +
+                      (item.usdAmount > 0 &&
+                      (item.type === "panda" ? item.operations.every(({ mode }) => mode <= 0) : item.mode <= 0)
+                        ? item.usdAmount
+                        : 0),
+                    0,
+                  ),
+                  lastFour: cardItems.at(0)?.lastFour ?? "",
+                  cardId,
+                })),
+                period:
+                  maturity === undefined
+                    ? undefined
+                    : new Intl.DateTimeFormat("en-US", {
+                        day: "numeric",
+                        month: "short",
+                        timeZone: "UTC",
+                        year: "numeric",
+                      }).formatRange(new Date((maturity - MATURITY_INTERVAL) * 1000), new Date(maturity * 1000)),
+              }),
+            ),
+          ),
+          200,
+          { "content-type": "application/pdf" },
+        );
+      }
+
       if (maturity !== undefined && pdf) {
         const purchasesByCard = Map.groupBy(
           response.flatMap((item) => {
@@ -469,30 +671,37 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           }),
           ({ cardId }) => cardId,
         );
-        const statement = {
-          account: `${account.slice(0, 6)}...${account.slice(-6)}`,
-          maturity,
-          cards: purchases
-            .filter(({ id }) => purchasesByCard.has(id))
-            .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-            .map(({ id, lastFour }) => ({
-              id,
-              lastFour,
-              purchases: (purchasesByCard.get(id) ?? []).map(({ cardId: _, ...rest }) => rest),
-            })),
-          payments: response
-            .filter((item) => item.type === "repay")
-            .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
-            .map(({ id, timestamp, amount, positionAmount }) => ({
-              id,
-              timestamp,
-              amount,
-              positionAmount,
-            })),
-        };
-        return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
-          "content-type": "application/pdf",
-        });
+        return c.body(
+          new Uint8Array(
+            await renderToBuffer(
+              Statement({
+                account: mask(account),
+                maturity,
+                cards: purchases
+                  .filter(({ id }) => purchasesByCard.has(id))
+                  .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+                  .map(({ id, lastFour }) => ({
+                    id,
+                    lastFour,
+                    purchases: (purchasesByCard.get(id) ?? []).map(({ cardId: _, ...rest }) => rest),
+                  })),
+                payments: response
+                  .filter((item) => item.type === "repay")
+                  .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
+                  .map(({ id, timestamp, amount, positionAmount }) => ({
+                    id,
+                    timestamp,
+                    amount,
+                    positionAmount,
+                  })),
+              }),
+            ),
+          ),
+          200,
+          {
+            "content-type": "application/pdf",
+          },
+        );
       }
       return c.json(response, 200);
     },
@@ -500,6 +709,17 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 }
 
 const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
+
+type PandaMetadata = { completion?: string; refund?: boolean; spendStatus?: string; type: string };
+
+function isRefund(operation: PandaMetadata) {
+  return operation.refund === true;
+}
+
+function stringAt(activity: PandaMetadata, property: "completion" | "spendStatus") {
+  const value = activity[property];
+  return typeof value === "string" ? value : undefined;
+}
 
 export const PandaActivity = pipe(
   object({
@@ -542,7 +762,14 @@ export const PandaActivity = pipe(
             blockTimestamp: borrow?.timestamp,
           },
         );
-        if (validation.success) return validation.output;
+        if (validation.success) {
+          const amount = body?.body.spend.amount;
+          Object.defineProperties(validation.output, {
+            refund: { value: body?.action === "completed" && typeof amount === "number" && amount < 0 },
+            spendStatus: { value: body?.body.spend.status },
+          });
+          return validation.output;
+        }
         throw new Error("bad panda activity");
       })
       .filter((p) => p.provider === "panda");
@@ -601,7 +828,7 @@ export const PandaActivity = pipe(
       .reduce((sum, { usdAmount: amount }) => sum + amount, 0);
     const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
     if (exchangeRate === undefined) throw new Error("no exchange rate");
-    return {
+    const result = {
       id,
       currency,
       amount: usdAmount * exchangeRate,
@@ -619,6 +846,12 @@ export const PandaActivity = pipe(
       status: declined ? ("declined" as const) : flow.completed ? ("settled" as const) : ("pending" as const),
       ...(declined && { reason: declined.reason ?? "transaction declined" }),
     };
+    Object.defineProperty(result, "completion", {
+      value: operations.findLast(
+        ({ action, transactionHash }) => action === "completed" && transactionHash === zeroHash,
+      )?.timestamp,
+    });
+    return result;
   }),
 );
 
@@ -638,6 +871,7 @@ const PandaBase = {
       merchantName: string(),
       authorizationUpdateAmount: optional(number()),
       enrichedMerchantIcon: optional(string()),
+      status: optional(picklist(["completed", "declined", "pending", "reversed"])),
     }),
   }),
   forceCapture: boolean(),
@@ -695,7 +929,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
     const usdAmount =
       (function () {
         if (activity.action === "completed") {
-          if (activity.forceCapture) return activity.body.spend.amount;
+          if (activity.forceCapture || activity.body.spend.amount < 0) return activity.body.spend.amount;
           return activity.body.spend.amount - (activity.body.spend.authorizedAmount ?? 0);
         }
         return activity.body.spend.authorizationUpdateAmount ?? activity.body.spend.amount;
@@ -838,6 +1072,25 @@ export const WithdrawActivity = pipe(
     type: "sent" as const,
   })),
 );
+
+async function findBlock(timestamp: Date, upper = false) {
+  const target = BigInt(Math.floor(timestamp.getTime() / 1000));
+  const latest = await publicClient.getBlock({ blockTag: "latest" });
+  if (upper && latest.timestamp <= target) return latest.number;
+  let low = 0n;
+  let high = latest.number;
+  while (low < high) {
+    const blockNumber = (low + high) / 2n;
+    const block = await publicClient.getBlock({ blockNumber });
+    if (block.timestamp < target || (upper && block.timestamp === target)) low = blockNumber + 1n;
+    else high = blockNumber;
+  }
+  return upper && low > 0n ? low - 1n : low;
+}
+
+function mask(address: Address) {
+  return `${address.slice(0, 6)}...${address.slice(-6)}`;
+}
 
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
