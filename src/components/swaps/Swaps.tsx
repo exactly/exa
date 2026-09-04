@@ -20,12 +20,25 @@ import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagu
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
-import { encodeFunctionData, erc20Abi, formatUnits, getAddress, parseUnits, zeroAddress } from "viem";
+import {
+  encodeEventTopics,
+  encodeFunctionData,
+  erc20Abi,
+  formatUnits,
+  getAddress,
+  parseUnits,
+  zeroAddress,
+} from "viem";
 import { base } from "viem/chains";
 import { useSimulateContract } from "wagmi";
 
 import chain, { allowlists } from "@exactly/common/generated/chain";
-import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
+import {
+  auditorAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { healthFactor, max, WAD } from "@exactly/lib";
@@ -38,6 +51,7 @@ import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
 import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions from "../../utils/deployedOptions";
+import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
 import {
   balancesOptions,
@@ -47,6 +61,7 @@ import {
   getRouteFrom,
   lifiChainsOptions,
   lifiTokensOptions,
+  statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient, { APIError } from "../../utils/queryClient";
@@ -66,7 +81,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
-import type { Estimate, Token } from "@lifi/sdk";
+import type { Estimate, ExtendedTransactionInfo, Token } from "@lifi/sdk";
 
 export type Swap = {
   denied: string[];
@@ -97,7 +112,10 @@ const liquidationBuffer = (WAD * 105n) / 100n;
 
 export default function Swaps() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address: account } = useAccount();
   const { allAssets, externalAssets, crossChainAssets, protocolAssets, isBalancesPending } = usePortfolio();
   const {
@@ -508,6 +526,7 @@ export default function Swaps() {
   const rerouting = denied.length > 0 && isRouteFetching;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
+  const networkName = lifiChains?.find((item) => item.id === toChain)?.name;
   const sponsored = fromChain === chain.id;
   const networkCost = useMemo(() => {
     if (sponsored) return 0n;
@@ -534,9 +553,18 @@ export default function Swaps() {
     value: routed ? (route?.value ?? 0n) : undefined,
   });
 
-  const resultRef = useRef({ fromAmount: 0n, toAmount: 0n });
+  const resultRef = useRef<{
+    duration?: number;
+    fromAmount: bigint;
+    fromToken?: Token;
+    networkFeeUSD?: number;
+    toAmount: bigint;
+    tool: string;
+    toToken?: Token;
+  }>({ fromAmount: 0n, toAmount: 0n, tool: "" });
   const {
     mutate: swap,
+    data: receipt,
     isPending: isSwapping,
     isSuccess: isSwapSuccess,
     error: writeContractError,
@@ -577,10 +605,18 @@ export default function Swaps() {
           call,
         ];
       })();
-      await sendCalls(calls);
+      return sendCalls(calls);
     },
     onMutate() {
-      resultRef.current = { fromAmount, toAmount };
+      resultRef.current = {
+        duration: route?.estimate?.executionDuration,
+        fromAmount,
+        fromToken: fromToken?.token,
+        networkFeeUSD,
+        toAmount,
+        toToken: toToken?.token,
+        tool,
+      };
       updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
     onSuccess() {
@@ -596,6 +632,33 @@ export default function Swaps() {
       if (reportError(error).authKnown) resetSwap();
     },
   });
+
+  const proposal = useMemo(() => {
+    if (!receipt) return;
+    const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
+    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
+    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
+  }, [receipt]);
+  const { data: execution } = useQuery(executionOptions(account, proposal?.nonce, proposal?.since));
+  const executionHash = execution?.executed ? execution.hash : undefined;
+  const { data: routeStatus } = useQuery(
+    statusOptions(
+      routed || crossChain ? (proposal ? executionHash : receipt?.transactionHash) : undefined,
+      toChain,
+      tool || resultRef.current.tool || undefined,
+      fromChain,
+      resultRef.current.duration,
+    ),
+  );
+  const delivered = !crossChain || routeStatus?.status === "DONE";
+  const undelivered =
+    crossChain &&
+    (execution?.executed === false || routeStatus?.status === "FAILED" || routeStatus?.substatus === "REFUNDED"); // cspell:ignore substatus
+  useEffect(() => {
+    if (!executionHash && routeStatus?.status !== "DONE") return;
+    queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
+    queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+  }, [executionHash, routeStatus?.status]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
 
   const projectedHealth = useMemo(() => {
     if (!markets || !fromToken || fromToken.external || fromAmount === 0n) return;
@@ -953,34 +1016,42 @@ export default function Swaps() {
       </SafeView>
     );
   {
-    if (!fromToken || !toToken) return null;
-    const { fromAmount: resultFromAmount, toAmount: resultToAmount } = resultRef.current;
+    const { fromAmount: resultFromAmount, fromToken: paid } = resultRef.current;
+    const settled =
+      routeStatus && "receiving" in routeStatus ? (routeStatus.receiving as ExtendedTransactionInfo) : undefined;
+    const received = settled?.token && settled.amount ? settled.token : resultRef.current.toToken;
+    if (!paid || !received) return null;
+    const resultToAmount = settled?.token && settled.amount ? BigInt(settled.amount) : resultRef.current.toAmount;
     const properties = {
-      fromUsdAmount: Number(
-        formatUnits((resultFromAmount * parseUnits(fromToken.token.priceUSD, 18)) / WAD, fromToken.token.decimals),
-      ),
+      fromUsdAmount: Number(formatUnits((resultFromAmount * parseUnits(paid.priceUSD, 18)) / WAD, paid.decimals)),
       fromAmount: resultFromAmount,
-      fromToken: fromToken.token,
-      toUsdAmount: Number(
-        formatUnits((resultToAmount * parseUnits(toToken.token.priceUSD, 18)) / WAD, toToken.token.decimals),
-      ),
+      fromToken: paid,
+      toUsdAmount: Number(formatUnits((resultToAmount * parseUnits(received.priceUSD, 18)) / WAD, received.decimals)),
       toAmount: resultToAmount,
-      toToken: toToken.token,
+      toToken: received,
     };
-    if (isSwapping)
+    if (isSwapping || (isSwapSuccess && !delivered && !undelivered))
       return (
         <Pending
           {...properties}
+          network={crossChain ? networkName : undefined}
           onClose={() => {
             onClose();
           }}
         />
       );
-    if (isSwapSuccess)
+    if (isSwapSuccess && !undelivered)
       return (
         <Success
           {...properties}
-          external={fromToken.external}
+          chainId={fromChain}
+          completed={!!fromToken?.external || crossChain}
+          fee={
+            resultRef.current.networkFeeUSD
+              ? `$${resultRef.current.networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : undefined
+          }
+          hash={executionHash ?? receipt?.transactionHash}
           onClose={() => {
             onClose();
           }}
