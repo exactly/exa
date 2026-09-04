@@ -382,13 +382,16 @@ describe("hook worker", () => {
     expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "frozenCard", status: "declined" } } });
   });
 
-  it("delivers the requested reason when the spend has none", async () => {
+  it("hides unmapped local requested reasons behind webhook declined", async () => {
     await database.insert(transactions).values([
       {
         id: "tx-wk-requested-reason",
         cardId: "webhook-card",
         hashes: [zeroHash],
-        payload: { type: "panda", bodies: [{ action: "requested", body: { spend: {} }, reason: "high risk" }] },
+        payload: {
+          type: "panda",
+          bodies: [{ action: "requested", body: { spend: {} }, reason: "high risk" }],
+        },
       },
     ]);
     transaction("wk-requested-reason", { declinedReason: "webhook declined", status: "declined" });
@@ -397,7 +400,7 @@ describe("hook worker", () => {
     await jobFinished("wk-requested-reason");
 
     const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
-    expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "high risk" } } });
+    expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "webhook declined" } } });
   });
 
   it("keeps webhook declined without a transaction", async () => {

@@ -770,7 +770,7 @@ describe.concurrent("authenticated", () => {
       expect(result.output.reason).toBe(reason);
     });
 
-    it("uses a generic reason for an unknown raw decline", () => {
+    it("uses the raw reason for an unknown decline", () => {
       const result = safeParse(PandaActivity, {
         type: "panda",
         hashes: [zeroHash],
@@ -790,7 +790,7 @@ describe.concurrent("authenticated", () => {
 
       expect(result.success).toBe(true);
       assert.ok(result.success);
-      expect(result.output.reason).toBe("transaction declined");
+      expect(result.output.reason).toBe("unknown provider decline");
     });
 
     it("hides a legacy webhook decline without a requested operation", () => {
@@ -871,6 +871,38 @@ describe.concurrent("authenticated", () => {
             body: {
               id: "declined-tx-pending-request",
               spend: { ...spendTemplate, status: "pending" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("transaction declined");
+    });
+
+    it("hides an unknown local requested reason", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:59:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-local-unknown",
+              spend: { ...spendTemplate, declinedReason: "bad collection" },
+            },
+          },
+          {
+            action: "created",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-local-unknown",
+              spend: { ...spendTemplate, status: "declined", declinedReason: "webhook declined" },
             },
           },
         ],

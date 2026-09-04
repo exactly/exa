@@ -671,6 +671,7 @@ export function declineMessage(reason?: null | string) {
   return reason
     ? ({
         "account credit limit exceeded": "transaction declined",
+        "bad collection": "transaction declined",
         "block atm (mcc 6011) transaction exceeding 250.00 usd": "atm limit reached. maximum 250 usd per transaction.",
         "blocked merchant": "this merchant is not accepted",
         "blocked mcc": "this merchant is not accepted",
@@ -681,12 +682,14 @@ export function declineMessage(reason?: null | string) {
         "cvv2 match fail": "transaction declined",
         "expiry mismatch": "transaction declined",
         frozencard: "frozen card", // cspell:ignore frozencard
+        "frozen card": "frozen card",
         insufficientaccountliquidity: "insufficient funds", // cspell:ignore insufficientaccountliquidity
         insufficient_funds: "insufficient funds",
         "invalid pin": "invalid pin",
         "invalid pin attempt limit exceeded": "too many invalid pin attempts",
         merchant_blocked: "this merchant is not accepted",
         "triggers for transactions from mcc 6050 and 6051": "this merchant is not accepted",
+        "unexpected error": "transaction declined",
         "webhook declined": "transaction declined",
       }[reason.toLowerCase()] ??
         (
