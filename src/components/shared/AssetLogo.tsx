@@ -41,14 +41,7 @@ export default function AssetLogo({
 }) {
   const [failed, setFailed] = useState<string>();
   const { data: tokens = [] } = useQuery({ ...lifiTokensOptions, enabled: !defaultUri });
-  const source =
-    defaultUri ??
-    (symbol
-      ? getTokenLogoURI(
-          tokens.filter((token) => token.chainId === (chainId as typeof token.chainId)),
-          symbol,
-        )
-      : undefined);
+  const source = defaultUri ?? (symbol ? getTokenLogoURI(tokens, symbol, chainId) : undefined);
   const uri = source === failed ? undefined : source;
   const logo = uri ? (
     <StyledImage
