@@ -171,7 +171,7 @@ export default function hook({
           if (card.status === "FROZEN") {
             trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card", segment);
 
-            await reject(payload, jsonBody, "frozenCard", database);
+            await reject(payload, jsonBody, "frozenCard");
 
             return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
           }
@@ -379,7 +379,7 @@ export default function hook({
               }
 
               if (error.message !== "Replay" && error.message !== "tx reverted") {
-                await reject(payload, jsonBody, error.message, database);
+                await reject(payload, jsonBody, error.message);
               }
 
               return c.json(
@@ -397,7 +397,7 @@ export default function hook({
             );
             captureException(error, { level: "error", tags: { unhandled: true } });
 
-            await reject(payload, jsonBody, "unexpected error", database);
+            await reject(payload, jsonBody, "unexpected error");
 
             return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
           }
@@ -531,7 +531,7 @@ export default function hook({
                 : undefined;
             const raw = requested ?? provider;
             const mapped = declineMessage(raw);
-            const accepted = await reject(payload, jsonBody, raw ?? "transaction declined", database);
+            const accepted = await reject(payload, jsonBody, raw ?? "transaction declined");
             if (accepted && payload.action === "created") {
               if (requested === undefined && raw && !mapped) {
                 captureMessage("unknown panda decline reason", {
@@ -902,6 +902,53 @@ export default function hook({
       }
     },
   );
+  async function reject(payload: v.InferOutput<typeof Transaction>, jsonBody: unknown, declineReason: string) {
+    const { spend } = payload.body;
+    const transactionId = payload.body.id ?? payload.id;
+
+    const rawBody = v.parse(v.looseObject({ body: v.looseObject({ spend: v.looseObject({}) }) }), jsonBody);
+    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+    const declinedBody = {
+      ...rawBody,
+      ...(payload.action === "requested" && {
+        body: { ...rawBody.body, spend: { ...rawBody.body.spend, declinedReason: declineReason } },
+      }),
+      createdAt,
+      status: "declined",
+    };
+
+    return database
+      .insert(transactions)
+      .values({
+        id: transactionId,
+        cardId: spend.cardId,
+        hashes: [zeroHash],
+        payload: { bodies: [declinedBody], type: "panda" },
+      })
+      .onConflictDoUpdate({
+        target: transactions.id,
+        set: {
+          hashes: sql`${transactions.hashes} || ARRAY[${zeroHash}]::text[]`,
+          payload: sql`jsonb_set(
+            ${transactions.payload},
+            '{bodies}',
+            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([declinedBody])}::jsonb
+          )`,
+        },
+        ...(payload.action === "created" && {
+          setWhere: sql`NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb)) AS body
+          WHERE body->>'id' = ${payload.id}
+        )`,
+        }),
+      })
+      .returning({ id: transactions.id })
+      .then((result) => result.length > 0)
+      .catch((error: unknown) => {
+        captureException(error, { level: "error" });
+      });
+  }
   return { app, ready: Promise.resolve() };
 }
 
@@ -1203,57 +1250,4 @@ async function sendDeclinedNotification(
       reason: t(reason),
     }),
   });
-}
-
-async function reject(
-  payload: v.InferOutput<typeof Transaction>,
-  jsonBody: unknown,
-  declineReason: string,
-  database: Database,
-) {
-  const { spend } = payload.body;
-  const transactionId = payload.body.id ?? payload.id;
-
-  const rawBody = v.parse(v.looseObject({ body: v.looseObject({ spend: v.looseObject({}) }) }), jsonBody);
-  const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-  const declinedBody = {
-    ...rawBody,
-    ...(payload.action === "requested" && {
-      body: { ...rawBody.body, spend: { ...rawBody.body.spend, declinedReason: declineReason } },
-    }),
-    createdAt,
-    status: "declined",
-  };
-
-  return database
-    .insert(transactions)
-    .values({
-      id: transactionId,
-      cardId: spend.cardId,
-      hashes: [zeroHash],
-      payload: { bodies: [declinedBody], type: "panda" },
-    })
-    .onConflictDoUpdate({
-      target: transactions.id,
-      set: {
-        hashes: sql`${transactions.hashes} || ARRAY[${zeroHash}]::text[]`,
-        payload: sql`jsonb_set(
-            ${transactions.payload},
-            '{bodies}',
-            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([declinedBody])}::jsonb
-          )`,
-      },
-      ...(payload.action === "created" && {
-        setWhere: sql`NOT EXISTS (
-          SELECT 1
-          FROM jsonb_array_elements(COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb)) AS body
-          WHERE body->>'id' = ${payload.id}
-        )`,
-      }),
-    })
-    .returning({ id: transactions.id })
-    .then((result) => result.length > 0)
-    .catch((error: unknown) => {
-      captureException(error, { level: "error" });
-    });
 }
