@@ -3389,7 +3389,14 @@ describe("webhooks", () => {
   it("enqueues card updated webhooks", async () => {
     const response = await appClient.index.$post({
       ...cardUpdated,
-      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+      json: {
+        ...cardUpdated.json,
+        body: {
+          ...cardUpdated.json.body,
+          tokenWallets: ["Apple"],
+        },
+        statusChangeReason: "wallet_provisioned",
+      },
     });
 
     expect(response.status).toBe(200);
