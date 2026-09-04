@@ -4,7 +4,7 @@ import { PixelRatio, Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
+import { ArrowDownToLine, ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons";
 import { useToastController } from "@tamagui/toast";
 import { Spinner, XStack, YStack } from "tamagui";
 
@@ -14,15 +14,18 @@ import useOnboardingSteps from "../../utils/useOnboardingSteps";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean; isDeployed: boolean }) {
+import type { KYCState } from "../../utils/useKYC";
+
+export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolean; kyc: KYCState }) {
   const router = useRouter();
   const { t } = useTranslation();
   const toast = useToastController();
-  const { currentStep, completedSteps } = useOnboardingSteps({ hasKYC, isDeployed });
+  const steps = useOnboardingSteps({ kyc, isDeployed });
   const { mutate: beginKYC, isPending } = useBeginKYC();
+  const step = steps.find(({ status }) => status !== "completed");
   function handleStepPress() {
     if (isPending) return;
-    switch (currentStep?.id) {
+    switch (step?.status === "pending" ? step.id : undefined) {
       case "add-funds":
         router.push("/add-funds");
         break;
@@ -37,10 +40,10 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
           },
         });
         break;
+      default:
+        router.push("/getting-started");
     }
   }
-
-  const activeStepTitle = currentStep ? t(currentStep.title) : "";
 
   return (
     <YStack
@@ -65,7 +68,6 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
             <Pressable
               hitSlop={15}
               onPress={() => {
-                if (!currentStep) return;
                 router.push("/getting-started");
               }}
             >
@@ -78,30 +80,16 @@ export default function GettingStarted({ isDeployed, hasKYC }: { hasKYC: boolean
         </Pressable>
       </XStack>
       <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-        <YStack gap="$s3">
-          <XStack gap="$s3" alignItems="center">
+        <XStack gap="$s3" alignItems="center" flex={1}>
+          {step?.id === "add-funds" ? (
+            <ArrowDownToLine size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
+          ) : (
             <IdCard size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
-            <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-              {activeStepTitle}
-            </Text>
-          </XStack>
-          <XStack gap="$s3_5" alignItems="center">
-            <XStack alignItems="center" gap="$s2">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <View
-                  key={index} // eslint-disable-line @eslint-react/no-array-index-key
-                  backgroundColor={completedSteps > index ? "$interactiveBaseBrandDefault" : "$uiBrandTertiary"}
-                  width={24}
-                  height={8}
-                  borderRadius="$r_0"
-                />
-              ))}
-            </XStack>
-            <Text emphasized subHeadline color="$uiBrandTertiary">
-              {completedSteps}/3
-            </Text>
-          </XStack>
-        </YStack>
+          )}
+          <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
+            {step ? t(step.title) : ""}
+          </Text>
+        </XStack>
         <Pressable hitSlop={15} onPress={handleStepPress}>
           <View
             width={44}

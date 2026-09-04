@@ -41,6 +41,7 @@ import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useCardLimit from "../../utils/useCardLimit";
+import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import usePortfolio from "../../utils/usePortfolio";
@@ -62,7 +63,7 @@ import SafeView from "../shared/SafeView";
 import View from "../shared/View";
 
 import type { ActivityItem } from "../../utils/queryClient";
-import type { CardDetails, KYCStatus } from "../../utils/server";
+import type { CardDetails } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
@@ -133,11 +134,7 @@ export default function Home() {
   const { data: activity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
   const { isProcessing } = usePendingOperations();
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
-  const { data: kycStatus, isFetched: isKYCFetched } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
-  const needsMigration = Boolean(kycStatus && "code" in kycStatus && kycStatus.code === "legacy kyc");
-  const isKYCApproved = Boolean(
-    kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc"),
-  );
+  const { approved: isKYCApproved, legacy: needsMigration, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const {
     increase: increaseLimit,
@@ -341,7 +338,7 @@ export default function Home() {
                 )}
                 <AnimatePresence>
                   {isKYCFetched && (!isKYCApproved || !bytecode) && (
-                    <GettingStarted isDeployed={!!bytecode} hasKYC={isKYCApproved} />
+                    <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
                   )}
                 </AnimatePresence>
               </View>

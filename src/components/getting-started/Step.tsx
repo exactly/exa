@@ -13,16 +13,18 @@ export default function Step({
   icon,
   action,
   onPress,
-  completed,
+  status,
+  tag,
 }: {
-  action: string;
-  completed: boolean;
-  description: string;
-  icon: React.ReactNode;
-  onPress: () => void;
+  action?: string;
+  description?: string;
+  icon?: React.ReactNode;
+  onPress?: () => void;
+  status: "completed" | "failed" | "pending" | "review";
+  tag?: string;
   title: string;
 }) {
-  if (completed) {
+  if (status === "completed") {
     return (
       <XStack
         backgroundColor="$interactiveBaseSuccessSoftDefault"
@@ -34,19 +36,18 @@ export default function Step({
         gap="$s3_5"
       >
         <View
-          width={24}
-          height={24}
+          width={20}
+          height={20}
           borderRadius="$r_0"
           backgroundColor="$uiSuccessSecondary"
-          borderWidth={2}
+          borderWidth={1}
           borderColor="$uiSuccessTertiary"
           alignItems="center"
           justifyContent="center"
-          padding="$s2"
         >
-          <Check size={14} strokeWidth={4} color="$interactiveOnBaseSuccessDefault" />
+          <Check size={12} strokeWidth={4} color="$interactiveOnBaseSuccessDefault" />
         </View>
-        <Text emphasized subHeadline color="$uiBrandSecondary">
+        <Text emphasized subHeadline color="$interactiveOnBaseSuccessSoft">
           {title}
         </Text>
       </XStack>
@@ -65,6 +66,23 @@ export default function Step({
     >
       {icon}
       <YStack gap="$s4_5" flex={1}>
+        {tag && (
+          <XStack
+            alignSelf="flex-start"
+            backgroundColor={status === "failed" ? "$interactiveBaseErrorDefault" : "$interactiveBaseWarningDefault"}
+            borderRadius="$r2"
+            paddingHorizontal="$s2"
+            paddingVertical="$s1"
+          >
+            <Text
+              emphasized
+              caption2
+              color={status === "failed" ? "$interactiveOnBaseErrorDefault" : "$interactiveOnBaseWarningDefault"}
+            >
+              {tag}
+            </Text>
+          </XStack>
+        )}
         <YStack gap="$s3_5">
           <Text emphasized subHeadline primary>
             {title}
@@ -73,11 +91,13 @@ export default function Step({
             {description}
           </Text>
         </YStack>
-        <Pressable hitSlop={15} onPress={onPress}>
-          <Text emphasized footnote color="$interactiveBaseBrandDefault">
-            {action}
-          </Text>
-        </Pressable>
+        {action && (
+          <Pressable hitSlop={15} onPress={onPress}>
+            <Text emphasized footnote color="$interactiveBaseBrandDefault">
+              {action}
+            </Text>
+          </Pressable>
+        )}
       </YStack>
     </XStack>
   );

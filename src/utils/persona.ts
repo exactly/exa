@@ -7,7 +7,7 @@ import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
-import { APIError, getKYCTokens, type KYCStatus } from "./server";
+import { getKYCTokens, type KYCStatus } from "./server";
 
 import type { UseMutationOptions } from "@tanstack/react-query";
 
@@ -259,7 +259,10 @@ function handleCancel() {
   queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
 }
 
-export type KYCMutationResult = { kyc: KYCStatus; status: "complete" } | { status: "cancel" };
+export type KYCMutationResult =
+  | { kyc: KYCStatus; status: "blocked" }
+  | { kyc: KYCStatus; status: "complete" }
+  | { status: "cancel" };
 
 export function kycMutationOptions(): Pick<
   UseMutationOptions<KYCMutationResult>,
@@ -268,15 +271,10 @@ export function kycMutationOptions(): Pick<
   return {
     mutationKey: ["kyc"],
     async mutationFn() {
-      try {
-        const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
-        if ("code" in status && (status.code === "ok" || status.code === "legacy kyc")) {
-          return { status: "complete", kyc: status };
-        }
-      } catch (error) {
-        if (!(error instanceof APIError)) throw error;
-        if (error.text !== "not started" && error.text !== "no kyc") throw error;
-      }
+      const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
+      const code = "code" in status ? status.code : undefined;
+      if (code === "ok" || code === "legacy kyc") return { status: "complete", kyc: status };
+      if (code !== "not started" && code !== "no kyc") return { status: "blocked", kyc: status };
       const result = await startKYC();
       if (result.status === "cancel") return { status: "cancel" };
       const kyc = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });

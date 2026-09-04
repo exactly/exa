@@ -4,7 +4,7 @@ import { get as assert, create } from "react-native-passkeys";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
-import { check, number, object, parse, pipe, safeParse, string, ValiError } from "valibot";
+import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -13,11 +13,12 @@ import { Credential } from "@exactly/common/validation";
 
 import { login as loginIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
-import queryClient, { APIError, isServer, triage, type AuthMethod } from "./queryClient";
+import queryClient, { APIError, isServer, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
+import type { InferOutput } from "valibot";
 
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
@@ -203,20 +204,28 @@ export async function getKYCStatus(
 queryClient.setQueryDefaults(["kyc", "status"], {
   staleTime: 5 * 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
-  retry: (count, error) => count < 3 && triage(error) === undefined,
-  meta: { warnError: (error) => triage(error) === "warn" },
-  queryFn: () => getKYCStatus("basic", true),
+  queryFn: () =>
+    getKYCStatus("basic", true).catch((error: unknown) => {
+      const status = kycFallback(error);
+      if (status.code === "bad kyc" || status.code === "processing") reportError(error, { level: "warning" });
+      return status;
+    }),
 });
 queryClient.setQueryDefaults(["kyc", "cardLimit"], {
   staleTime: 5 * 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () =>
-    getKYCStatus("cardLimit").catch((error: unknown) => {
-      if (error instanceof APIError && error.code === 400) return { code: error.text };
-      throw error;
-    }),
+  queryFn: () => getKYCStatus("cardLimit").catch(kycFallback),
 });
-export type KYCStatus = Awaited<ReturnType<typeof getKYCStatus>>;
+export type KYCStatus = Awaited<ReturnType<typeof getKYCStatus>> | { code: InferOutput<typeof KYCCode> };
+
+function kycFallback(error: unknown) {
+  if (!(error instanceof APIError) || error.code !== 400) throw error;
+  const result = safeParse(KYCCode, error.text);
+  if (!result.success) throw error;
+  return { code: result.output };
+}
+
+const KYCCode = picklist(["bad kyc", "no kyc", "not started", "processing"]);
 
 export async function getCredential() {
   const cached = queryClient.getQueryData<Credential>(["credential"]);

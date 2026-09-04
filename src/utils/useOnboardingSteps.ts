@@ -1,16 +1,24 @@
 import { useMemo } from "react";
 
-type Step = { completed: boolean; id: string; title: string };
+import type { KYCState } from "./useKYC";
 
-export default function useOnboardingSteps({ hasKYC, isDeployed }: { hasKYC: boolean; isDeployed: boolean }) {
+export default function useOnboardingSteps({ kyc, isDeployed }: { isDeployed: boolean; kyc: KYCState }) {
   return useMemo(() => {
-    const steps: Step[] = [
-      { id: "create-account", title: "Create account", completed: true },
-      { id: "add-funds", title: "Add funds to account", completed: isDeployed },
-      { id: "verify-identity", title: "Verify your identity", completed: hasKYC },
-    ];
-    const currentStep = steps.find((step) => !step.completed);
-    const completedSteps = steps.filter((step) => step.completed).length;
-    return { steps, currentStep, completedSteps };
-  }, [hasKYC, isDeployed]);
+    const steps = [
+      { id: "create-account", status: "completed", title: "Account created" },
+      {
+        id: "verify-identity",
+        status: kyc === "approved" ? "completed" : kyc,
+        title: kyc === "approved" ? "Identity verified" : "Verify your identity",
+      },
+      {
+        id: "add-funds",
+        status: isDeployed ? "completed" : "pending",
+        title: isDeployed ? "Funds added" : "Add funds to your account",
+      },
+    ] as const;
+    return [...steps].sort((a, b) => precedence[a.status] - precedence[b.status]);
+  }, [kyc, isDeployed]);
 }
+
+const precedence = { pending: 0, review: 1, failed: 1, completed: 2 };

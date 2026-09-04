@@ -22,6 +22,7 @@ import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import ownerConfig from "../../utils/wagmi/owner";
 import RampButton from "../ramp/RampButton";
@@ -31,7 +32,6 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { KYCStatus } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 export default function AddFunds() {
@@ -50,10 +50,8 @@ export default function AddFunds() {
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
   const { supportedAssets } = useMarkets();
-  const { data: kycStatus } = useQuery<KYCStatus>({ queryKey: ["kyc", "status"] });
+  const { approved: isKYCApproved, review: isKYCInReview } = useKYC();
   const beginKYC = useBeginKYC();
-  const isKYCApproved =
-    !!kycStatus && "code" in kycStatus && (kycStatus.code === "ok" || kycStatus.code === "legacy kyc");
 
   const { data: countryCode } = useQuery({
     queryKey: ["user", "country"],
@@ -149,9 +147,17 @@ export default function AddFunds() {
                         router.push({ pathname: "/add-funds", params: { type: "fiat" } });
                         return;
                       }
+                      if (isKYCInReview) {
+                        router.push("/(main)/getting-started");
+                        return;
+                      }
                       beginKYC.mutate(undefined, {
                         onSuccess(result) {
                           if (result.status === "cancel") return;
+                          if (result.status === "blocked") {
+                            router.push("/(main)/getting-started");
+                            return;
+                          }
                           const approved =
                             "code" in result.kyc && (result.kyc.code === "ok" || result.kyc.code === "legacy kyc");
                           if (approved) {
