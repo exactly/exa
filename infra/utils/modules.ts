@@ -3,6 +3,9 @@ export default define({
   crema: ["redis-address", "redis-password", "redis-username"],
   services: {
     api: {
+      env: {
+        PERSONA_BUSINESS_ACCOUNT_TYPE_ID: "personaBusinessAccountTypeId",
+      },
       secrets: [
         "auth-secret",
         "bridge-api-key",
@@ -46,6 +49,7 @@ export default define({
       signers: ["settler", "issuer"],
     },
     persona: {
+      env: { PERSONA_BUSINESS_ACCOUNT_TYPE_ID: "personaBusinessAccountTypeId" },
       secrets: [
         "panda-api-key",
         "pax-associate-id-key",

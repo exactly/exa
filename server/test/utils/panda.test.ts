@@ -9,7 +9,9 @@ import { usdcAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
-import createPanda, * as Panda from "../../utils/panda";
+import createPanda, { BusinessApplicationError } from "../../utils/panda";
+import * as Panda from "../../utils/panda";
+import createPersona from "../../utils/persona";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
@@ -22,6 +24,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
 }));
 
 const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
+const persona = createPersona("persona", "https://persona.test");
 
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {
@@ -68,6 +71,184 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/cards?userId=e5cd86bb-a19e-4a66-9728-9e6c5d97e616&limit=100"),
       expect.objectContaining({ method: "GET" }),
     );
+  });
+});
+
+describe("business application", () => {
+  const account = parse(Address, padHex("0xb0b", { size: 20 }));
+  const fields = {
+    i_company_name: { value: "Account Acme" },
+    company_description: { value: "Account software" },
+    company_industry: { value: "541511" },
+    company_registration_number: { value: "123" },
+    company_tax_id: { value: "456" },
+    company_website: { value: "https://example.com" },
+    company_type: { value: "corporation" },
+    company_expected_spend: { value: 1000 },
+    i_auth_user_name: { value: "Jane" },
+    i_auth_user_last_name: { value: "Doe" },
+    birth_date: { value: "1990-01-01" },
+    id_number: { value: "123456789" },
+    id_country: { value: "US" },
+    collected_email_address: { value: "jane@example.com" },
+    authorized_user_phone_country_code: { value: "1" },
+    authorized_user_phone_number: { value: "5555555555" },
+    terms_and_conditions: { value: true },
+    street_1: { value: "1 Main St" },
+    city: { value: "New York" },
+    subdivision: { value: "NY" },
+    postal_code: { value: "10001" },
+    country_code: { value: "US" },
+    street_1_1: { value: "1 Main St" },
+    city_1: { value: "New York" },
+    subdivision_1: { value: "NY" },
+    postal_code_1: { value: "10001" },
+    country_code_1: { value: "US" },
+  };
+
+  function mockBusiness({
+    inquiryFields = {},
+    accountFields = fields,
+    accountReferenceId = "reference-id",
+    inquiryStatus = "completed",
+  }: {
+    accountFields?: Record<string, { value: unknown }>;
+    accountReferenceId?: string;
+    inquiryFields?: Record<string, { value: unknown }>;
+    inquiryStatus?:
+      | "approved"
+      | "completed"
+      | "created"
+      | "declined"
+      | "expired"
+      | "failed"
+      | "needs_review"
+      | "pending";
+  } = {}) {
+    vi.spyOn(persona, "getInquiry").mockResolvedValue({
+      id: "inquiry-id",
+      type: "inquiry",
+      attributes: {
+        status: inquiryStatus,
+        "reference-id": "reference-id",
+        fields: inquiryFields,
+      },
+    });
+    vi.spyOn(persona, "getAccount").mockResolvedValue({
+      id: "account-id",
+      type: "account",
+      attributes: { "reference-id": accountReferenceId, fields: accountFields },
+      relationships: { "account-type": { data: { id: "acttp_company" } } },
+    });
+  }
+
+  it("prefers account fields over inquiry fields", async () => {
+    mockBusiness({
+      inquiryFields: { "company-description": { value: "Inquiry software" } },
+    });
+
+    const application = await panda.businessApplication("reference-id", account, "127.0.0.1", persona);
+
+    expect(application.entity.description).toBe("Account software");
+    expect(application.initialUser).not.toHaveProperty("id");
+    expect(application.initialUser).toMatchObject({
+      phoneCountryCode: "1",
+      phoneNumber: "5555555555",
+      role: "owner",
+    });
+    expect(application.representatives[0]).not.toHaveProperty("id");
+    expect(application.ultimateBeneficialOwners[0]).not.toHaveProperty("id");
+    expect(application).toMatchObject({
+      sourceKey: "EXA",
+      externalId: "reference-id",
+    });
+  });
+
+  it("falls back to inquiry fields when account field is missing", async () => {
+    const incompleteFields: Record<string, { value: unknown }> = { ...fields };
+    delete incompleteFields.company_description;
+    mockBusiness({
+      accountFields: incompleteFields,
+      inquiryFields: { "company-description": { value: "Inquiry software" } },
+    });
+
+    const application = await panda.businessApplication("reference-id", account, "127.0.0.1", persona);
+
+    expect(application.entity.description).toBe("Inquiry software");
+  });
+
+  it("rejects a mismatched reference id", async () => {
+    mockBusiness();
+
+    await expect(panda.businessApplication("other-reference-id", account, "127.0.0.1", persona)).rejects.toThrow(
+      BusinessApplicationError,
+    );
+  });
+
+  it("rejects a missing business account", async () => {
+    mockBusiness();
+    vi.mocked(persona.getAccount).mockImplementationOnce(() => Promise.resolve(undefined)); // eslint-disable-line unicorn/no-useless-undefined
+
+    await expect(panda.businessApplication("reference-id", account, "127.0.0.1", persona)).rejects.toMatchObject({
+      message: "business account not started",
+      code: "not started",
+      legacy: "kyb not started",
+    });
+  });
+
+  it("rejects a mismatched business account", async () => {
+    mockBusiness({ accountReferenceId: "other-reference-id" });
+
+    await expect(panda.businessApplication("reference-id", account, "127.0.0.1", persona)).rejects.toMatchObject({
+      message: "business account is not complete",
+      code: "processing",
+      legacy: "kyb not approved",
+    });
+  });
+
+  it("rejects a missing client IP address", async () => {
+    mockBusiness();
+
+    await expect(panda.businessApplication("reference-id", account, undefined, persona)).rejects.toThrow(
+      BusinessApplicationError,
+    );
+  });
+
+  it.each([
+    ["created", "business inquiry is not started", "not started", "kyb not started"],
+    ["expired", "business inquiry is not started", "not started", "kyb not started"],
+    ["pending", "business inquiry is not started", "not started", "kyb not started"],
+    ["failed", "business inquiry failed", "bad kyb", "kyb not approved"],
+    ["declined", "business inquiry failed", "bad kyb", "kyb not approved"],
+    ["needs_review", "business inquiry is not complete", "processing", "kyb not approved"],
+  ] as const)("rejects a %s inquiry", async (inquiryStatus, message, code, legacy) => {
+    mockBusiness({ inquiryStatus });
+
+    await expect(panda.businessApplication("reference-id", account, "127.0.0.1", persona)).rejects.toMatchObject({
+      message,
+      code,
+      legacy,
+    });
+  });
+
+  it("preserves the verification link signature", async () => {
+    const signature = "x".repeat(156);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        id: "company-1",
+        applicationStatus: "needsVerification",
+        applicationExternalVerificationLink: {
+          url: "https://cardmemberportal.com/kyc",
+          params: { userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000", signature },
+        },
+      }),
+    );
+    const status = await panda.getCompanyStatus("company-1");
+
+    expect(status.applicationExternalVerificationLink).toStrictEqual({
+      url: "https://cardmemberportal.com/kyc",
+      params: { userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000", signature },
+    });
   });
 });
 

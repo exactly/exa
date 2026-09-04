@@ -170,6 +170,50 @@ describe("is missing or null util", () => {
   });
 });
 
+describe("createInquiry", () => {
+  it("selects the configured Persona account type when provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "created", "reference-id": "reference-id" },
+        },
+      }),
+    );
+
+    await persona.createInquiry("reference-id", "template-id", { accountTypeId: "acttp_company" });
+
+    const body = fetchSpy.mock.calls[0]?.[1]?.body;
+    if (typeof body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(body)).toMatchObject({
+      meta: {
+        "auto-create-account": true,
+        "auto-create-account-reference-id": "reference-id",
+        "auto-create-account-type-id": "acttp_company",
+      },
+    });
+  });
+});
+
+describe("getInquiry", () => {
+  it("rejects duplicate business inquiries", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: "inquiry-1", type: "inquiry", attributes: { status: "approved", "reference-id": "reference-id" } },
+          { id: "inquiry-2", type: "inquiry", attributes: { status: "approved", "reference-id": "reference-id" } },
+        ],
+      }),
+    );
+
+    await expect(persona.getInquiry("reference-id", persona.PANDA_BUSINESS_TEMPLATE)).rejects.toThrow(
+      "multiple persona business inquiries",
+    );
+    expect(fetchSpy.mock.lastCall?.[0]).toContain("/inquiries?page[size]=100");
+  });
+});
+
 describe("evaluateAccount", () => {
   let fetchSpy: MockInstance<typeof fetch>;
   beforeEach(() => {
@@ -575,6 +619,55 @@ describe("evaluateAccount", () => {
     });
   });
 
+  describe("business", () => {
+    it("returns the business template when an account is missing", async () => {
+      fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+      await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBe(
+        persona.PANDA_BUSINESS_TEMPLATE,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns the business template when only a personal account exists", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "account-id",
+              type: "account",
+              attributes: {},
+              relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+            },
+          ],
+        }),
+      );
+
+      await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBe(
+        persona.PANDA_BUSINESS_TEMPLATE,
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns undefined when a business account exists", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "account-id",
+              type: "account",
+              attributes: {},
+              relationships: { "account-type": { data: { type: "account-type", id: "acttp_company" } } },
+            },
+          ],
+        }),
+      );
+
+      await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBeUndefined();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("bridge", () => {
     it("returns panda template when account not found", async () => {
       const result = await persona.evaluateAccount({ data: [] }, "bridge");
@@ -830,6 +923,80 @@ describe("getUnknownAccount", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=1&filter[reference-id]=ref_123");
     expect(result).toStrictEqual({ data: [account] });
+  });
+});
+
+describe("getAccount", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not return a personal account for a business lookup", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "personal-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "User" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).resolves.toBeUndefined();
+  });
+
+  it("returns the configured business account", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "personal-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "User" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+          },
+          {
+            id: "business-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "Company" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_company" } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).resolves.toMatchObject({ id: "business-account" });
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=100&filter[reference-id]=ref_123");
+  });
+
+  it("rejects multiple business accounts", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "business-account-1",
+            type: "account",
+            attributes: { "reference-id": "ref_123" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_company" } } },
+          },
+          {
+            id: "business-account-2",
+            type: "account",
+            attributes: { "reference-id": "ref_123" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_company" } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).rejects.toThrow("multiple persona business accounts");
   });
 });
 
