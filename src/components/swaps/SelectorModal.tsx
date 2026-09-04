@@ -42,7 +42,7 @@ function TokenListItem({
         backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
         borderRadius="$r3"
       >
-        <AssetLogo symbol={token.symbol} width={40} height={40} />
+        <AssetLogo symbol={token.symbol} uri={token.logoURI} chainId={token.chainId} width={40} height={40} />
         <XStack gap="$s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
             <Text emphasized subHeadline textAlign="left">
