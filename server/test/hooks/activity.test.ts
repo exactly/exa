@@ -7,7 +7,7 @@ import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
-import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -63,6 +63,7 @@ describe("address activity", () => {
         publicKey: new Uint8Array(hexToBytes(owner.address)),
         account,
         factory: inject("ExaAccountFactory"),
+        salt: zeroAddress,
       },
     ]);
   });
@@ -136,6 +137,7 @@ describe("address activity", () => {
       assets: [inject("WETH")],
       chainId: chain.id,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -166,6 +168,7 @@ describe("address activity", () => {
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -192,6 +195,7 @@ describe("address activity", () => {
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -214,6 +218,7 @@ describe("address activity", () => {
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -245,6 +250,7 @@ describe("address activity", () => {
       assets: [inject("WETH")],
       chainId: 31_337,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -277,6 +283,7 @@ describe("address activity", () => {
       publicKey: new Uint8Array(hexToBytes(secondOwner.address)),
       account: secondAccount,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
     });
 
     const response = await appClient.index.$post({
@@ -309,6 +316,7 @@ describe("address activity", () => {
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", inject("WETH")],
       chainId: 31_337,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -318,6 +326,7 @@ describe("address activity", () => {
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       origin: "activity",
       publicKey: secondOwner.address.toLowerCase(),
       source: null,
