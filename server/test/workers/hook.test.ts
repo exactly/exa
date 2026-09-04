@@ -369,7 +369,7 @@ describe("hook worker", () => {
         hashes: [zeroHash],
         payload: {
           type: "panda",
-          bodies: [{ action: "requested", body: { spend: { declinedReason: "frozenCard" } } }],
+          bodies: [{ action: "requested", status: "declined", body: { spend: { declinedReason: "frozenCard" } } }],
         },
       },
     ]);
@@ -388,7 +388,10 @@ describe("hook worker", () => {
         id: "tx-wk-requested-reason",
         cardId: "webhook-card",
         hashes: [zeroHash],
-        payload: { type: "panda", bodies: [{ action: "requested", body: { spend: {} }, reason: "high risk" }] },
+        payload: {
+          type: "panda",
+          bodies: [{ action: "requested", status: "declined", body: { spend: {} }, reason: "high risk" }],
+        },
       },
     ]);
     transaction("wk-requested-reason", { declinedReason: "webhook declined", status: "declined" });
@@ -397,7 +400,7 @@ describe("hook worker", () => {
     await jobFinished("wk-requested-reason");
 
     const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
-    expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "high risk" } } });
+    expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "webhook declined" } } });
   });
 
   it("keeps webhook declined without a transaction", async () => {
@@ -416,7 +419,7 @@ describe("hook worker", () => {
         id: "tx-wk-no-requested",
         cardId: "webhook-card",
         hashes: [zeroHash],
-        payload: { type: "panda", bodies: [{ action: "created", body: { spend: {} } }] },
+        payload: { type: "panda", bodies: [{ action: "created", status: "declined", body: { spend: {} } }] },
       },
     ]);
     transaction("wk-no-requested", { declinedReason: "webhook declined", status: "declined" });
@@ -438,6 +441,38 @@ describe("hook worker", () => {
     expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "blocked mcc" } } });
   });
 
+  it("delivers direct unknown provider reasons unchanged", async () => {
+    transaction("wk-unknown", { declinedReason: "provider internal failure", status: "declined" });
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-unknown");
+
+    const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
+    expect(JSON.parse(body)).toMatchObject({
+      body: { spend: { declinedReason: "provider internal failure", status: "declined" } },
+    });
+  });
+
+  it("ignores non-declined requested bodies", async () => {
+    await database.insert(transactions).values([
+      {
+        id: "tx-wk-pending-request",
+        cardId: "webhook-card",
+        hashes: [zeroHash],
+        payload: {
+          type: "panda",
+          bodies: [{ action: "requested", status: "pending", body: { spend: { declinedReason: "frozenCard" } } }],
+        },
+      },
+    ]);
+    transaction("wk-pending-request", { declinedReason: "webhook declined", status: "declined" });
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-pending-request");
+
+    const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
+    expect(JSON.parse(body)).toMatchObject({ body: { spend: { declinedReason: "webhook declined" } } });
+  });
   it("skips requested transactions", async () => {
     transaction("wk-requested", {}, "requested");
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));

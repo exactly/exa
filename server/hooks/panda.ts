@@ -1,6 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
 import {
   captureException,
+  captureMessage,
   getActiveSpan,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
@@ -396,7 +397,7 @@ export default function hook({
             );
             captureException(error, { level: "error", tags: { unhandled: true } });
 
-            await reject(payload, jsonBody, error instanceof Error ? error.message : "unexpected error", database);
+            await reject(payload, jsonBody, "unexpected error", database);
 
             return c.json({ code: "ouch", rejectionCode: "UNKNOWN" }, 569 as UnofficialStatusCode);
           }
@@ -515,19 +516,33 @@ export default function hook({
             mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
 
-            const requestedReason =
-              payload.body.spend.declinedReason?.toLowerCase() === "webhook declined"
-                ? await getRequestedDeclineReason(payload.body.id, payload.body.spend.cardId, database)
+            const provider = payload.body.spend.declinedReason || undefined;
+            const requested =
+              provider?.toLowerCase() === "webhook declined"
+                ? await database.query.transactions
+                    .findFirst({
+                      columns: { payload: true },
+                      where: and(
+                        eq(transactions.id, payload.body.id),
+                        eq(transactions.cardId, payload.body.spend.cardId),
+                      ),
+                    })
+                    .then((transaction) => getRequestedDeclineReason(transaction?.payload))
                 : undefined;
-            const rawDeclineReason = requestedReason ?? payload.body.spend.declinedReason;
-            if (
-              (await reject(payload, jsonBody, rawDeclineReason ?? "transaction declined", database)) &&
-              payload.action === "created"
-            ) {
+            const raw = requested ?? provider;
+            const mapped = declineMessage(raw);
+            const accepted = await reject(payload, jsonBody, raw ?? "transaction declined", database);
+            if (accepted && payload.action === "created") {
+              if (requested === undefined && raw && !mapped) {
+                captureMessage("unknown panda decline reason", {
+                  level: "warning",
+                  tags: { reason: raw },
+                });
+              }
               sendDeclinedNotification(
                 account,
                 payload.body.spend,
-                declineMessage(rawDeclineReason) ?? "transaction declined",
+                mapped ?? (requested === undefined ? raw : undefined) ?? "transaction declined",
                 onesignal,
               ).catch((error: unknown) => captureException(error, { level: "error" }));
             }
@@ -1152,13 +1167,7 @@ class PandaError extends Error {
   }
 }
 
-async function getRequestedDeclineReason(transactionId: string, cardId: string, database: Database) {
-  const transaction = await database.query.transactions.findFirst({
-    columns: { payload: true },
-    where: and(eq(transactions.id, transactionId), eq(transactions.cardId, cardId)),
-  });
-  if (!transaction) return;
-
+function getRequestedDeclineReason(transactionPayload: unknown) {
   const payload = v.safeParse(
     v.object({
       bodies: v.array(
@@ -1166,13 +1175,16 @@ async function getRequestedDeclineReason(transactionId: string, cardId: string, 
           action: v.string(),
           body: v.looseObject({ spend: v.looseObject({ declinedReason: v.nullish(v.string()) }) }),
           reason: v.optional(v.string()),
+          status: v.optional(v.string()),
         }),
       ),
     }),
-    transaction.payload,
+    transactionPayload,
   );
   if (!payload.success) return;
-  const requested = payload.output.bodies.findLast(({ action }) => action === "requested");
+  const requested = payload.output.bodies.findLast(
+    ({ action, status }) => action === "requested" && status === "declined",
+  );
   return requested?.body.spend.declinedReason ?? requested?.reason;
 }
 

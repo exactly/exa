@@ -770,7 +770,7 @@ describe.concurrent("authenticated", () => {
       expect(result.output.reason).toBe(reason);
     });
 
-    it("uses a generic reason for an unknown raw decline", () => {
+    it("uses the raw reason for an unknown decline", () => {
       const result = safeParse(PandaActivity, {
         type: "panda",
         hashes: [zeroHash],
@@ -790,7 +790,7 @@ describe.concurrent("authenticated", () => {
 
       expect(result.success).toBe(true);
       assert.ok(result.success);
-      expect(result.output.reason).toBe("transaction declined");
+      expect(result.output.reason).toBe("unknown provider decline");
     });
 
     it("hides a legacy webhook decline without a requested operation", () => {
@@ -849,6 +849,39 @@ describe.concurrent("authenticated", () => {
       expect(result.output.reason).toBe("frozen card");
     });
 
+    it("uses the requested reason when a webhook decline has an empty provider reason", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:59:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-empty-provider-reason",
+              spend: { ...spendTemplate, declinedReason: "frozenCard" },
+            },
+          },
+          {
+            action: "created",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            reason: "webhook declined",
+            body: {
+              id: "declined-tx-empty-provider-reason",
+              spend: { ...spendTemplate, declinedReason: "" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("frozen card");
+    });
+
     it("ignores a non-declined requested operation when finding a decline reason", () => {
       const result = safeParse(PandaActivity, {
         type: "panda",
@@ -881,6 +914,80 @@ describe.concurrent("authenticated", () => {
       expect(result.output.reason).toBe("transaction declined");
     });
 
+    it("hides an unknown local requested reason", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:59:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-local-unknown",
+              spend: { ...spendTemplate, declinedReason: "bad collection" },
+            },
+          },
+          {
+            action: "created",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-local-unknown",
+              spend: { ...spendTemplate, status: "declined", declinedReason: "webhook declined" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("transaction declined");
+    });
+
+    it("uses the last valid requested reason with nested precedence", () => {
+      const result = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash, zeroHash],
+        borrows: [null, null, null],
+        bodies: [
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:57:00.000Z",
+            status: "declined",
+            reason: "bad collection",
+            body: {
+              id: "declined-tx-last-requested",
+              spend: { ...spendTemplate, declinedReason: "frozenCard" },
+            },
+          },
+          {
+            action: "requested",
+            createdAt: "2024-01-15T10:58:00.000Z",
+            status: "declined",
+            reason: "InsufficientAccountLiquidity",
+            body: {
+              id: "declined-tx-last-requested",
+              spend: { ...spendTemplate },
+            },
+          },
+          {
+            action: "created",
+            createdAt: "2024-01-15T11:00:00.000Z",
+            status: "declined",
+            body: {
+              id: "declined-tx-last-requested",
+              spend: { ...spendTemplate, status: "declined", declinedReason: "webhook declined" },
+            },
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      assert.ok(result.success);
+      expect(result.output.reason).toBe("insufficient funds");
+    });
     it("parses declined transaction with requested action alongside created", () => {
       const result = safeParse(PandaActivity, {
         type: "panda",

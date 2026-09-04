@@ -533,7 +533,7 @@ export const PandaActivity = pipe(
           {
             ...body,
             ...(body?.status === "declined" && {
-              reason: declineMessage(declinedReason) ?? body.reason ?? "transaction declined",
+              reason: declineMessage(declinedReason) ?? body.reason ?? (declinedReason || "transaction declined"),
             }),
             forceCapture: body?.action === "completed" && !bodies.some((b) => b.action === "created"),
             type,
