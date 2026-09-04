@@ -139,7 +139,7 @@ export default function TokenSelectModal({
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const matchesQuery = (...fields: (string | undefined)[]) =>
-      fields.some((field) => field?.toLowerCase().includes(query));
+      !query || fields.some((field) => field?.toLowerCase().includes(query));
     return tokens.filter((token) => {
       if (network !== undefined && (token.chainId as number) !== network) return false;
       if (withBalanceOnly) {
@@ -214,6 +214,7 @@ export default function TokenSelectModal({
                 )}
                 keyExtractor={(item) => `${item.chainId}:${item.address}`}
                 showsVerticalScrollIndicator={false}
+                windowSize={5}
                 ItemSeparatorComponent={() => <View height={1} />}
                 ListEmptyComponent={() => (
                   <View padding="$s6" alignItems="center">
