@@ -84,7 +84,13 @@ export default function Success({
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
               <XStack gap="$s2" alignItems="center">
-                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={fromToken.logoURI}
+                  symbol={fromToken.symbol}
+                  chainId={fromToken.chainId}
+                  width={16}
+                  height={16}
+                />
                 <Text emphasized secondary subHeadline>
                   {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
@@ -94,7 +100,13 @@ export default function Success({
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
               <XStack gap="$s2" alignItems="center">
-                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={toToken.logoURI}
+                  symbol={toToken.symbol}
+                  chainId={toToken.chainId}
+                  width={16}
+                  height={16}
+                />
                 <Text emphasized secondary subHeadline>
                   {formatTokenAmount(toAmount, toToken.decimals, language)}
                 </Text>

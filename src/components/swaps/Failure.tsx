@@ -83,7 +83,13 @@ export default function Failure({
                 <Text emphasized secondary subHeadline>
                   {fromToken.symbol}
                 </Text>
-                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={fromToken.logoURI}
+                  symbol={fromToken.symbol}
+                  chainId={fromToken.chainId}
+                  width={16}
+                  height={16}
+                />
               </XStack>
               <ArrowDown size={24} color="$uiNeutralPrimary" />
               <Text title primary color="$uiNeutralPrimary">
@@ -96,7 +102,13 @@ export default function Failure({
                 <Text emphasized secondary subHeadline>
                   {toToken.symbol}
                 </Text>
-                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={toToken.logoURI}
+                  symbol={toToken.symbol}
+                  chainId={toToken.chainId}
+                  width={16}
+                  height={16}
+                />
               </XStack>
             </YStack>
           </YStack>

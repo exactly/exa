@@ -331,6 +331,7 @@ export type RouteFrom = {
   chainId: number;
   data: Hex;
   estimate: Estimate;
+  exchange?: string;
   gas?: bigint;
   gasPrice?: bigint;
   maxFeePerGas?: bigint;
@@ -445,6 +446,7 @@ export async function getRouteFrom({
       ? BigInt(transactionRequest.maxPriorityFeePerGas)
       : undefined,
     tool,
+    exchange: quote.includedSteps.find(({ type }) => type === "swap")?.tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
     wrapped: quote.includedSteps.some((step) => step.tool === "wrapper"),

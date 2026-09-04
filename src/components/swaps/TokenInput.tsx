@@ -32,6 +32,7 @@ export default function TokenInput({
   onFocus,
   onChange,
   onUseMax,
+  usdValue,
 }: {
   amount: bigint;
   balance: bigint;
@@ -46,6 +47,7 @@ export default function TokenInput({
   onUseMax?: (amount: bigint) => void;
   subLabel?: string;
   token?: Token;
+  usdValue?: number;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
   const {
@@ -54,7 +56,8 @@ export default function TokenInput({
   } = useTranslation();
 
   const valueUSD =
-    amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+    usdValue ??
+    (amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0);
   const balanceUSD =
     token && balance ? Number(formatUnits((balance * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
   const balanceAmount = token
