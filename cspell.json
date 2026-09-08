@@ -168,6 +168,7 @@
     "sadd",
     "scannability",
     "scard",
+    "scure",
     "secretmanager",
     "serde",
     "serviceaccount",
