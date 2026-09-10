@@ -5,8 +5,7 @@ import { FlatList, Pressable } from "react-native";
 import { Search } from "@tamagui/lucide-icons";
 import { XStack, YStack } from "tamagui";
 
-import { formatUnits } from "viem";
-
+import formatTokenAmount from "../../utils/formatTokenAmount";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -215,13 +214,4 @@ function SkeletonItems() {
 
 function formatUSDValue(value: number, language: string) {
   return `$${value.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function formatTokenAmount(amount: bigint, decimals: number, language: string) {
-  const tokenAmount = Number(formatUnits(amount, decimals));
-  if (tokenAmount === 0) return "0";
-  return tokenAmount.toLocaleString(language, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Math.min(8, Math.max(0, decimals - Math.ceil(Math.log10(tokenAmount)))),
-  });
 }
