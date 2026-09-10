@@ -9,6 +9,7 @@ import type { Token } from "@lifi/sdk";
 
 export default function SwapDetails({
   exchange,
+  fee,
   slippage,
   exchangeRate,
   fromToken,
@@ -16,6 +17,7 @@ export default function SwapDetails({
 }: {
   exchange: string;
   exchangeRate: number;
+  fee?: number;
   fromToken: Token;
   slippage: bigint;
   toToken: Token;
@@ -53,18 +55,16 @@ export default function SwapDetails({
             {exchange}
           </Text>
         </XStack>
-        <XStack justifyContent="space-between">
-          <Text caption color="$uiNeutralSecondary">
-            {t("Swap fee")}
-          </Text>
-          <Text caption color="$uiNeutralPrimary">
-            {(0.000_25).toLocaleString(language, {
-              style: "percent",
-              minimumFractionDigits: 3,
-              maximumFractionDigits: 3,
-            })}
-          </Text>
-        </XStack>
+        {fee === undefined ? null : (
+          <XStack justifyContent="space-between">
+            <Text caption color="$uiNeutralSecondary">
+              {t("Swap fee")}
+            </Text>
+            <Text caption color="$uiNeutralPrimary">
+              {fee.toLocaleString(language, { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+            </Text>
+          </XStack>
+        )}
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
             {t("Max slippage")}
