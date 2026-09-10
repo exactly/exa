@@ -42,6 +42,7 @@ import {
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
+import revertReason from "@exactly/common/revertReason";
 import { Address } from "@exactly/common/validation";
 import { healthFactor, max, WAD } from "@exactly/lib";
 
@@ -113,6 +114,7 @@ export const defaultSwap: Swap = {
 };
 
 const SLIPPAGE_PERCENT = 5n;
+const insufficientAccountLiquidity = /InsufficientAccountLiquidity|0x15d58176/;
 const liquidationBuffer = (WAD * 105n) / 100n;
 
 export default function Swaps() {
@@ -580,6 +582,8 @@ export default function Swaps() {
     query: { enabled: wrapped, refetchInterval: quoteValidity / 3 },
   });
   const stalled = !!prepareError && wrapped && !!dust && dust > 0n;
+  const insufficientCollateral =
+    !!prepareError && insufficientAccountLiquidity.test(revertReason(prepareError, { fallback: "message" }));
 
   const isSimulating = fromToken?.external
     ? routed
@@ -590,12 +594,12 @@ export default function Swaps() {
   useEffect(() => {
     if (!prepareError) return;
     reportError(prepareError, { level: "warning" });
-    if (!tool || stalled) return;
+    if (!tool || stalled || insufficientCollateral) return;
     updateSwap((old) => ({
       ...old,
       denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
     }));
-  }, [prepareError, stalled, tool]);
+  }, [insufficientCollateral, prepareError, stalled, tool]);
   const rerouting = denied.length > 0 && !route && isRouteFetching;
   const transient =
     !!routeError &&
@@ -605,9 +609,11 @@ export default function Swaps() {
     routeError && !transient
       ? classify(routeError)
       : prepareError
-        ? stalled || (tool && denied.length < 3 && !denied.includes(tool))
-          ? undefined
-          : "route"
+        ? insufficientCollateral
+          ? "collateral"
+          : stalled || (tool && denied.length < 3 && !denied.includes(tool))
+            ? undefined
+            : "route"
         : undefined;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
@@ -1084,13 +1090,17 @@ export default function Swaps() {
                       color={failure || insufficientGas ? "$uiErrorSecondary" : "$uiInfoSecondary"}
                       flex={1}
                     >
-                      {failure === "route"
-                        ? t("No route available for this swap. Try a different asset or network.")
-                        : failure === "liquidity"
-                          ? t("Not enough liquidity for this amount currently. Try a different amount.")
-                          : failure
-                            ? t("We can’t get a quote right now. Try again in a moment.")
-                            : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                      {failure === "collateral"
+                        ? t(
+                            "This swap would leave your collateral below what your debt requires. Try a smaller amount.",
+                          )
+                        : failure === "route"
+                          ? t("No route available for this swap. Try a different asset or network.")
+                          : failure === "liquidity"
+                            ? t("Not enough liquidity for this amount currently. Try a different amount.")
+                            : failure
+                              ? t("We can’t get a quote right now. Try again in a moment.")
+                              : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
                     </Text>
                   </XStack>
                 )}
