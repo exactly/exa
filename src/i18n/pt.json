@@ -801,7 +801,7 @@
   "Swap via": "Troca via",
   "Swap": "Trocar",
   "Swap_home": "Swap",
-  "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.": "Trocar essa quantidade da sua garantia pode acionar a liquidação imediatamente. Tente um valor menor para se manter protegido.",
+  "Swapping this much of your collateral could instantly trigger liquidation.": "Trocar essa quantidade da sua garantia pode acionar a liquidação imediatamente.",
   "Swapping": "Trocando",
   "Swaps": "Trocas",
   "Switch amount currency": "Alterar moeda do valor",

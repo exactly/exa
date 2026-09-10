@@ -801,7 +801,7 @@
   "Swap via": "Intercambio a través de",
   "Swap": "Intercambiar",
   "Swap_home": "Swap",
-  "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.": "Intercambiar esta cantidad de tu garantía podría resultar en una liquidación inmediatamente. Intenta con una cantidad menor para mantenerte protegido.",
+  "Swapping this much of your collateral could instantly trigger liquidation.": "Intercambiar esta cantidad de tu garantía podría resultar en una liquidación inmediatamente.",
   "Swapping": "Intercambiando",
   "Swaps": "Intercambios",
   "Switch amount currency": "Cambiar moneda del monto",
