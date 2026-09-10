@@ -392,7 +392,7 @@ function encodeAddress(receiver: Address | undefined) {
   return receiver && encodeAbiParameters([{ type: "address" }], [receiver]);
 }
 
-const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi];
+const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi];
 const legacyProposeAbi = [
   ...upgradeableModularAccountAbi,
   {

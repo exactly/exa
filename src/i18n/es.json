@@ -840,6 +840,7 @@
   "This network isn't supported yet, so assets on it can't be recovered through the app for now. We're continuously working to add support for more networks, and this one may be supported in the future.": "Esta red aún no está soportada, por lo que los activos en ella no pueden ser recuperados a través de la app por ahora. Trabajamos continuamente para agregar soporte a más redes, y esta podría ser soportada en el futuro.",
   "This payment is no longer available": "Este pago ya no está disponible",
   "This route is temporarily unavailable. Retrying automatically...": "Esta ruta no está disponible por ahora. Reintentamos automáticamente...",
+  "This swap would leave your collateral below what your debt requires. Try a smaller amount.": "Este intercambio dejaría tu garantía por debajo de lo que exige tu deuda. Prueba con un monto menor.",
   "This total includes all your purchases, loans, interest, and any applicable late fees.": "Este total incluye todas tus compras, préstamos, intereses y cualquier cargo por pago tardío.",
   "this merchant is not accepted": "comercio no aceptado",
   "Time": "Hora",
