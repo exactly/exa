@@ -114,7 +114,8 @@ export const defaultSwap: Swap = {
 
 const SLIPPAGE_PERCENT = 5n;
 const insufficientAccountLiquidity = /InsufficientAccountLiquidity|0x15d58176/;
-const liquidationBuffer = (WAD * 105n) / 100n;
+const liquidationRisk = (WAD * 105n) / 100n;
+const liquidationCaution = (WAD * 115n) / 100n;
 
 export default function Swaps() {
   const insets = useSafeAreaInsets();
@@ -693,8 +694,8 @@ export default function Swaps() {
       Number(timestamp),
     );
   }, [fromAmount, fromToken, getSwapAddress, markets, timestamp]);
-  const caution = projectedHealth !== undefined && projectedHealth < liquidationBuffer;
-  const danger = projectedHealth !== undefined && projectedHealth < WAD;
+  const caution = projectedHealth !== undefined && projectedHealth < liquidationCaution;
+  const danger = projectedHealth !== undefined && projectedHealth < liquidationRisk;
 
   const shortfallFee =
     insufficientGas && nativeToken
@@ -723,7 +724,7 @@ export default function Swaps() {
       )
     : undefined;
 
-  const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
+  const showWarning = !failure && fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
   const disabled =
     !route ||
     quoteExpired ||
@@ -732,14 +733,12 @@ export default function Swaps() {
     stalled ||
     !!failure ||
     isInsufficientBalance ||
-    insufficientGas ||
-    danger;
+    insufficientGas;
   const buttonLabel = useMemo(() => {
     if (isInsufficientBalance) return t("Insufficient balance");
     if (insufficientGas) return t("Not enough for network fees");
     if (rerouting || quoteExpired || (isSimulating && route)) return t("Please wait...");
     if (failure) return t("Cannot proceed");
-    if (danger) return t("Enter a lower amount to swap");
     if (fromToken && toToken) {
       return t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol });
     }
@@ -752,7 +751,6 @@ export default function Swaps() {
     isInsufficientBalance,
     insufficientGas,
     failure,
-    danger,
     fromToken,
     toToken,
     t,
@@ -985,42 +983,26 @@ export default function Swaps() {
             </ScrollView>
             <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
               <YStack gap="$s3">
-                {(caution || danger) && showWarning && (
-                  <YStack gap="$s4_5">
-                    <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
-                    <XStack
-                      gap="$s3"
-                      alignItems="center"
-                      cursor="pointer"
-                      onPress={() => {
-                        setAcknowledged(!acknowledged);
+                <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
+                  <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                    <Trans
+                      i18nKey="Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
+                      components={{
+                        link: (
+                          <Text
+                            cursor="pointer"
+                            caption2
+                            color="$interactiveOnDisabled"
+                            textDecorationLine="underline"
+                            onPress={() => {
+                              openBrowser(`https://li.fi/`).catch(reportError);
+                            }}
+                          />
+                        ),
                       }}
-                    >
-                      {danger ? (
-                        <TriangleAlert size={16} color="$uiErrorSecondary" />
-                      ) : (
-                        <Checkbox
-                          pointerEvents="none"
-                          borderColor="$backgroundBrand"
-                          backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                          checked={acknowledged}
-                        >
-                          <Checkbox.Indicator>
-                            <Check size={16} color="$uiNeutralPrimary" />
-                          </Checkbox.Indicator>
-                        </Checkbox>
-                      )}
-                      <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
-                        {danger
-                          ? t(
-                              "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.",
-                            )
-                          : t("I acknowledge the risks of swapping this much of my collateral assets.")}
-                      </Text>
-                    </XStack>
-                    <Separator borderColor="$borderNeutralSoft" />
-                  </YStack>
-                )}
+                    />
+                  </Text>
+                </XStack>
                 {(!!failure || insufficientGas || rerouting || transient) && (
                   <XStack
                     gap="$s4"
@@ -1058,32 +1040,55 @@ export default function Swaps() {
                     </Text>
                   </XStack>
                 )}
-                <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
-                  <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                    <Trans
-                      i18nKey="Swap functionality is provided via <link>LI.FI</link> and executed on decentralized networks. Availability and pricing depend on network conditions and third-party protocols."
-                      components={{
-                        link: (
-                          <Text
-                            cursor="pointer"
-                            caption2
-                            color="$interactiveOnDisabled"
-                            textDecorationLine="underline"
-                            onPress={() => {
-                              openBrowser(`https://li.fi/`).catch(reportError);
-                            }}
-                          />
-                        ),
-                      }}
-                    />
-                  </Text>
-                </XStack>
+                {showWarning && (
+                  <YStack gap="$s4_5">
+                    <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
+                    <YStack gap="$s3_5">
+                      {danger ? (
+                        <XStack gap="$s3" alignItems="flex-start">
+                          <TriangleAlert size={16} color="$uiErrorSecondary" />
+                          <Text caption color="$uiErrorSecondary" flex={1}>
+                            {t("Swapping this much of your collateral could instantly trigger liquidation.")}
+                          </Text>
+                        </XStack>
+                      ) : null}
+                      <XStack
+                        gap="$s3"
+                        alignItems="center"
+                        cursor="pointer"
+                        onPress={() => {
+                          setAcknowledged(!acknowledged);
+                        }}
+                      >
+                        <Checkbox
+                          pointerEvents="none"
+                          borderColor={danger ? "$borderErrorStrong" : "$backgroundBrand"}
+                          backgroundColor={
+                            acknowledged ? (danger ? "$uiErrorSecondary" : "$backgroundBrand") : "transparent"
+                          }
+                          checked={acknowledged}
+                        >
+                          <Checkbox.Indicator>
+                            <Check
+                              size={16}
+                              color={danger ? "$interactiveOnBaseErrorDefault" : "$interactiveOnBaseBrandDefault"}
+                            />
+                          </Checkbox.Indicator>
+                        </Checkbox>
+                        <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
+                          {t("I acknowledge the risks of swapping this much of my collateral assets.")}
+                        </Text>
+                      </XStack>
+                    </YStack>
+                    <Separator borderColor="$borderNeutralSoft" />
+                  </YStack>
+                )}
               </YStack>
               <Button
                 primary={!(caution && acknowledged)}
                 dangerSecondary={caution && acknowledged}
                 disabled={disabled || (caution && !acknowledged)}
-                loading={!danger && isSimulating && !!route && !isInsufficientBalance}
+                loading={isSimulating && !!route && !isInsufficientBalance}
                 width="100%"
                 onPress={() => {
                   swap();
