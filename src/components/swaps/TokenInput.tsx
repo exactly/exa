@@ -86,9 +86,12 @@ export default function TokenInput({
 
   useEffect(() => {
     if (!isActive && token) {
-      setFieldValue("amountInput", amount > 0n ? formatUnits(amount, token.decimals) : getFieldValue("amountInput"));
+      setFieldValue(
+        "amountInput",
+        amount > 0n ? formatUnits(amount, token.decimals) : disabled ? "" : getFieldValue("amountInput"),
+      );
     }
-  }, [isActive, amount, token, setFieldValue, getFieldValue]);
+  }, [isActive, amount, token, disabled, setFieldValue, getFieldValue]);
 
   useEffect(() => {
     setFieldValue("amountInput", "");
