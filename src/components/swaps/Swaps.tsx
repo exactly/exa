@@ -62,7 +62,6 @@ import {
   bridgeSlippage,
   classify,
   getAllowTokens,
-  getRoute,
   getRouteFrom,
   lifiChainsOptions,
   lifiTokensOptions,
@@ -131,7 +130,6 @@ export default function Swaps() {
     refetch: refetchBalances,
   } = useQuery(balancesOptions(account));
   const [acknowledged, setAcknowledged] = useState(false);
-  const [activeInput, setActiveInput] = useState<"from" | "to">("from");
   const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
   const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
   const toast = useToastController();
@@ -324,17 +322,11 @@ export default function Swaps() {
   };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const handleAmountChange = (value: bigint, type: "from" | "to") => {
+  const handleAmountChange = (value: bigint) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      const token = type === "from" ? fromToken : toToken;
-      if (!token?.token) return;
-      updateSwap((old) => ({
-        ...old,
-        fromAmount: type === "from" ? value : old.fromAmount,
-        toAmount: type === "to" ? value : old.toAmount,
-        denied: [],
-      }));
+      if (!fromToken) return;
+      updateSwap((old) => ({ ...old, fromAmount: value, denied: [] }));
     }, 400);
   };
 
@@ -353,56 +345,25 @@ export default function Swaps() {
     isFetching: isRouteFetching,
     isLoading: isRouteLoading,
   } = useQuery({
-    queryKey: [
-      "lifi",
-      "route",
-      account,
-      fromChain,
-      fromToken,
-      toChain,
-      toToken,
-      crossChain,
-      activeInput,
-      activeInput === "from" ? inputFromAmount : inputToAmount,
-      denied,
-    ],
+    queryKey: ["lifi", "route", account, fromChain, fromToken, toChain, toToken, crossChain, inputFromAmount, denied],
     queryFn: async () => {
       if (!account || !fromToken || !toToken) throw new Error("implementation error");
       const fromTokenAddress = parse(Address, fromToken.token.address);
       const toTokenAddress = parse(Address, toToken.token.address);
       const denyExchanges = denied.length > 0 ? Object.fromEntries(denied.map((item) => [item, true])) : undefined;
       try {
-        if (activeInput === "from" || crossChain) {
-          const result = await getRouteFrom({
-            fromChainId: fromChain,
-            toChainId: toChain,
-            fromTokenAddress,
-            toTokenAddress,
-            fromAmount: inputFromAmount,
-            fromAddress: account,
-            toAddress: account,
-            nativeless: !fromToken.external, // cspell:ignore nativeless
-            denyBridges: crossChain ? denied : undefined,
-            denyExchanges: crossChain ? undefined : denyExchanges,
-          });
-          return { ...result, toAmount: result.toAmount, fromAmount: undefined, tool: result.tool };
-        } else {
-          const result = await getRoute(
-            fromTokenAddress,
-            toTokenAddress,
-            inputToAmount,
-            account,
-            account,
-            denyExchanges,
-          );
-          return {
-            ...result,
-            fromAmount: result.fromAmount,
-            toAmount: undefined,
-            tool: result.tool,
-            exchange: undefined,
-          };
-        }
+        return await getRouteFrom({
+          fromChainId: fromChain,
+          toChainId: toChain,
+          fromTokenAddress,
+          toTokenAddress,
+          fromAmount: inputFromAmount,
+          fromAddress: account,
+          toAddress: account,
+          nativeless: !fromToken.external, // cspell:ignore nativeless
+          denyBridges: crossChain ? denied : undefined,
+          denyExchanges: crossChain ? undefined : denyExchanges,
+        });
       } catch (error: unknown) {
         reportError(error, {
           level: "warning",
@@ -411,12 +372,7 @@ export default function Swaps() {
         throw error;
       }
     },
-    enabled:
-      enableSimulations &&
-      !!account &&
-      !!fromToken &&
-      !!toToken &&
-      (activeInput === "from" ? !!inputFromAmount : !!inputToAmount),
+    enabled: enableSimulations && !!account && !!fromToken && !!toToken && !!inputFromAmount,
     refetchInterval: ({ state }) => (state.error && classify(state.error) !== "quote" ? false : 20_000),
     retry: false,
     staleTime: 10_000,
@@ -431,8 +387,8 @@ export default function Swaps() {
   }, [routeUpdatedAt]);
   const quoteExpired = !!route && now >= routeUpdatedAt + quoteValidity;
 
-  const fromAmount = activeInput === "to" && route?.fromAmount != null ? route.fromAmount : inputFromAmount;
-  const toAmount = activeInput === "from" && route?.toAmount != null ? route.toAmount : inputToAmount;
+  const fromAmount = inputFromAmount;
+  const toAmount = route?.toAmount ?? inputToAmount;
   const tool = route?.tool ?? "";
 
   const isInsufficientBalance = useMemo(() => {
@@ -454,15 +410,11 @@ export default function Swaps() {
     isPending: isSimulatingSwap,
   } = useSimulateProposal({
     account,
-    amount: activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
+    amount: fromAmount,
     market: getSwapAddress(fromToken),
     proposalType: ProposalType.Swap,
     assetOut: crossChain ? neutralAsset : parse(Address, toToken?.token.address ?? zeroAddress),
-    minAmountOut: crossChain
-      ? 0n
-      : activeInput === "from"
-        ? (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD
-        : toAmount,
+    minAmountOut: crossChain ? 0n : (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD,
     route: route?.data,
     enabled:
       enableSimulations &&
@@ -490,8 +442,8 @@ export default function Swaps() {
     args: [
       parse(Address, fromToken?.token.address ?? zeroAddress),
       parse(Address, toToken?.token.address ?? zeroAddress),
-      activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
-      activeInput === "from" ? (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD : toAmount,
+      fromAmount,
+      (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD,
       route?.data ?? "0x",
     ],
     abi: [
@@ -677,7 +629,7 @@ export default function Swaps() {
     },
     onMutate() {
       resultRef.current = {
-        duration: route?.estimate?.executionDuration,
+        duration: route?.estimate.executionDuration,
         fromAmount,
         fromToken: fromToken?.token,
         networkFeeUSD,
@@ -975,20 +927,19 @@ export default function Swaps() {
                 <YStack paddingBottom="$s3" gap="$s4_5">
                   <YStack gap="$s3_5">
                     {(["from", "to"] as const).map((type) => {
-                      const tokenData = type === "from" ? fromToken : toToken;
-                      const amount = type === "from" ? fromAmount : toAmount;
-                      const isActive = activeInput === type;
+                      const paying = type === "from";
+                      const tokenData = paying ? fromToken : toToken;
                       return (
                         <TokenInput
                           key={type}
-                          label={t(type === "from" ? "You pay" : "You receive")}
+                          label={t(paying ? "You pay" : "You receive")}
                           token={tokenData?.token}
-                          amount={amount}
+                          amount={paying ? fromAmount : toAmount}
                           balance={getBalance(tokenData?.token)}
-                          disabled={type === "to"}
+                          disabled={!paying}
                           isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
-                          isActive={isActive}
-                          isDanger={type === "from" && showWarning}
+                          isActive={paying}
+                          isDanger={paying && showWarning}
                           onTokenSelect={() => {
                             updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
                             setAcknowledged(false);
@@ -996,16 +947,22 @@ export default function Swaps() {
                           onFocus={() => {
                             setAcknowledged(false);
                           }}
-                          onChange={(value: bigint) => {
-                            setActiveInput(type);
-                            handleAmountChange(value, type);
-                            setAcknowledged(false);
-                          }}
-                          onUseMax={(value: bigint) => {
-                            setActiveInput(type);
-                            handleAmountChange(value, type);
-                            setAcknowledged(false);
-                          }}
+                          onChange={
+                            paying
+                              ? (value: bigint) => {
+                                  handleAmountChange(value);
+                                  setAcknowledged(false);
+                                }
+                              : undefined
+                          }
+                          onUseMax={
+                            paying
+                              ? (value: bigint) => {
+                                  handleAmountChange(value);
+                                  setAcknowledged(false);
+                                }
+                              : undefined
+                          }
                           usdValue={quotedUSD(route?.estimate, type)}
                         />
                       );
@@ -1014,16 +971,13 @@ export default function Swaps() {
                   {fromToken && toToken && route && (
                     <SwapDetails
                       exchange={tool}
-                      fee={route.estimate?.feeCosts?.reduce(
-                        (sum, { percentage }) => sum + (Number(percentage) || 0),
-                        0,
-                      )}
+                      fee={route.estimate.feeCosts?.reduce((sum, { percentage }) => sum + (Number(percentage) || 0), 0)}
                       slippage={crossChain || routed ? BigInt(bridgeSlippage * 1000) : SLIPPAGE_PERCENT}
                       exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
                       fromToken={fromToken.token}
                       toToken={toToken.token}
                       networkFeeUSD={networkFeeUSD}
-                      duration={crossChain ? route.estimate?.executionDuration : undefined}
+                      duration={crossChain ? route.estimate.executionDuration : undefined}
                     />
                   )}
                 </YStack>

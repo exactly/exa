@@ -68,7 +68,7 @@ export default function TokenInput({
         maximumFractionDigits: significantDecimals,
       })
     : "0";
-  const canUseMax = Boolean(token && !disabled);
+  const canUseMax = !!token && !!onUseMax;
 
   const handleAmountChange = useCallback(
     (value: string) => {
@@ -127,20 +127,20 @@ export default function TokenInput({
             </Text>
           ) : null}
         </YStack>
-        <View
-          padding="$s3"
-          borderRadius="$r2"
-          backgroundColor="$interactiveBaseBrandSoftDefault"
-          onPress={canUseMax ? useMax : undefined}
-          pointerEvents={canUseMax ? "auto" : "none"}
-          opacity={canUseMax ? 1 : 0.4}
-          cursor="pointer"
-          pressStyle={{ opacity: 0.85 }}
-        >
-          <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
-            {t("MAX")}
-          </Text>
-        </View>
+        {canUseMax ? (
+          <View
+            padding="$s3"
+            borderRadius="$r2"
+            backgroundColor="$interactiveBaseBrandSoftDefault"
+            onPress={useMax}
+            cursor="pointer"
+            pressStyle={{ opacity: 0.85 }}
+          >
+            <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
+              {t("MAX")}
+            </Text>
+          </View>
+        ) : null}
       </XStack>
       <YStack gap="$s3_5">
         <XStack gap="$s3_5" alignItems="center">
