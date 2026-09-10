@@ -53,7 +53,15 @@ function TokenListItem({
           </YStack>
           <YStack alignItems="flex-end" justifyContent="flex-end" gap="$s2">
             <Text emphasized callout color="$uiNeutralPrimary" textAlign="right">
-              {formatUSDValue(matchingAsset?.usdValue ?? 0, language)}
+              {formatUSDValue(
+                matchingAsset?.type === "protocol"
+                  ? Number(
+                      (matchingAsset.floatingDepositAssets * matchingAsset.usdPrice) /
+                        BigInt(10 ** matchingAsset.decimals),
+                    ) / 1e18
+                  : (matchingAsset?.usdValue ?? 0),
+                language,
+              )}
             </Text>
             <Text footnote color="$uiNeutralSecondary" textAlign="right">
               {matchingAsset
