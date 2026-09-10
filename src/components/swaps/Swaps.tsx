@@ -30,7 +30,7 @@ import chain from "@exactly/common/generated/chain";
 import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
-import { WAD } from "@exactly/lib";
+import { healthFactor, max, WAD } from "@exactly/lib";
 
 import Failure from "./Failure";
 import Pending from "./Pending";
@@ -44,7 +44,6 @@ import openBrowser from "../../utils/openBrowser";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -82,6 +81,7 @@ export const defaultSwap: Swap = {
 };
 
 const SLIPPAGE_PERCENT = 5n;
+const liquidationBuffer = (WAD * 105n) / 100n;
 
 export default function Swaps() {
   const insets = useSafeAreaInsets();
@@ -95,7 +95,7 @@ export default function Swaps() {
   } = useQuery(balancesOptions(account));
   const [acknowledged, setAcknowledged] = useState(false);
   const [activeInput, setActiveInput] = useState<"from" | "to">("from");
-  const { markets, queryKey: marketsQueryKey } = useMarkets();
+  const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
   const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
   const toast = useToastController();
   const beginKYC = useBeginKYC();
@@ -156,8 +156,6 @@ export default function Swaps() {
     },
     [externalAssets, isExternal, protocolAssets],
   );
-
-  const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
 
   const payableTokens = useMemo(() => (tokens ?? []).filter((token) => getBalance(token) > 0n), [tokens, getBalance]);
 
@@ -430,15 +428,21 @@ export default function Swaps() {
     },
   });
 
-  const toTokenIsUSDC = toToken?.token.symbol === "USDC";
-  const caution =
-    !fromToken?.external &&
-    !toTokenIsUSDC &&
-    aboveThreshold(fromAmount, selectedTokenAvailable, 75, selectedTokenMarket?.decimals ?? 0);
-  const danger =
-    !fromToken?.external &&
-    !toTokenIsUSDC &&
-    aboveThreshold(fromAmount, selectedTokenAvailable, 90, selectedTokenMarket?.decimals ?? 0);
+  const projectedHealth = useMemo(() => {
+    if (!markets || !fromToken || fromToken.external || fromAmount === 0n) return;
+    const fromMarket = getSwapAddress(fromToken);
+    if (!fromMarket) return;
+    return healthFactor(
+      markets.map((item) =>
+        item.market === fromMarket
+          ? { ...item, floatingDepositAssets: max(0n, item.floatingDepositAssets - fromAmount) }
+          : item,
+      ),
+      Number(timestamp),
+    );
+  }, [fromAmount, fromToken, getSwapAddress, markets, timestamp]);
+  const caution = projectedHealth !== undefined && projectedHealth < liquidationBuffer;
+  const danger = projectedHealth !== undefined && projectedHealth < WAD;
 
   const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
   const disabled = !route || isSimulating || !!simulationError || isInsufficientBalance || danger;
@@ -811,10 +815,6 @@ function onClose() {
   } else {
     router.replace("/(main)/(home)");
   }
-}
-
-function aboveThreshold(amount: bigint, available: bigint, threshold: number, decimals: number) {
-  return Number(formatUnits(amount, decimals)) >= Number(formatUnits((available * BigInt(threshold)) / 100n, decimals));
 }
 
 function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, toAmount: bigint) {
