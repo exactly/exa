@@ -27,10 +27,12 @@ function TokenListItem({
   onPress,
   language,
   matchingAsset,
+  network,
 }: {
   isSelected: boolean;
   language: string;
   matchingAsset?: PortfolioAsset;
+  network?: string;
   onPress: () => void;
   token: Token;
 }) {
@@ -50,7 +52,7 @@ function TokenListItem({
               {token.symbol}
             </Text>
             <Text footnote color="$uiNeutralSecondary" numberOfLines={1} textAlign="left">
-              {token.name}
+              {network ? `${token.name} · ${network}` : token.name}
             </Text>
           </YStack>
           <YStack alignItems="flex-end" justifyContent="flex-end" gap="$s2">
@@ -209,6 +211,11 @@ export default function TokenSelectModal({
                     }}
                     language={language}
                     matchingAsset={assetByToken.get(`${item.chainId}:${item.address}`)}
+                    network={
+                      (item.chainId as number) === chain.id
+                        ? undefined
+                        : networks?.find(({ id }) => id === (item.chainId as number))?.name
+                    }
                   />
                 )}
                 keyExtractor={(item) => `${item.chainId}:${item.address}`}

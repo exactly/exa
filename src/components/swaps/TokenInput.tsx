@@ -60,12 +60,12 @@ export default function TokenInput({
     (amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0);
   const balanceUSD =
     token && balance ? Number(formatUnits((balance * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+  const significantDecimals = token
+    ? Math.min(8, Math.max(0, token.decimals - Math.ceil(Math.log10(Math.max(1, Number(token.priceUSD)))) + 2))
+    : 0;
   const balanceAmount = token
     ? Number(formatUnits(balance, token.decimals)).toLocaleString(language, {
-        maximumFractionDigits: Math.min(
-          8,
-          Math.max(0, token.decimals - Math.ceil(Math.log10(Math.max(1, Number(token.priceUSD))))),
-        ),
+        maximumFractionDigits: significantDecimals,
       })
     : "0";
   const canUseMax = Boolean(token && !disabled);
@@ -89,12 +89,19 @@ export default function TokenInput({
 
   useEffect(() => {
     if (!isActive && token) {
+      const value = formatUnits(amount, token.decimals);
       setFieldValue(
         "amountInput",
-        amount > 0n ? formatUnits(amount, token.decimals) : disabled ? "" : getFieldValue("amountInput"),
+        amount > 0n
+          ? disabled
+            ? trimDecimals(value, significantDecimals)
+            : value
+          : disabled
+            ? ""
+            : getFieldValue("amountInput"),
       );
     }
-  }, [isActive, amount, token, disabled, setFieldValue, getFieldValue]);
+  }, [isActive, amount, token, disabled, significantDecimals, setFieldValue, getFieldValue]);
 
   useEffect(() => {
     setFieldValue("amountInput", "");
@@ -232,4 +239,10 @@ export default function TokenInput({
       </YStack>
     </YStack>
   );
+}
+
+function trimDecimals(value: string, decimals: number) {
+  const [whole, fraction = ""] = value.split(".");
+  const trimmed = fraction.slice(0, decimals).replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : (whole ?? value);
 }
