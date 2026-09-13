@@ -23,6 +23,16 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
 
 const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
 
+describe("decline reasons", () => {
+  it.each([
+    ["frozen card", "frozen card"],
+    ["bad collection", "transaction declined"],
+    ["unexpected error", "transaction declined"],
+  ])("maps %s to %s", (reason, message) => {
+    expect(Panda.declineMessage(reason)).toStrictEqual(message);
+  });
+});
+
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({

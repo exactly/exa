@@ -7,6 +7,7 @@ import * as v from "valibot";
 
 import { attempts, name, type Job } from "./job";
 import { credentials, transactions } from "../../database/schema";
+import { declineMessage } from "../../utils/panda";
 import createWorker from "../worker";
 
 import type * as schema from "../../database/schema";
@@ -101,7 +102,7 @@ export default function worker({
           ? stored.output.bodies.findLast(({ action }) => action === "requested")
           : undefined;
         const reason = requested?.body.spend.declinedReason ?? requested?.reason;
-        if (reason) payload.body.spend.declinedReason = reason;
+        if (reason) payload.body.spend.declinedReason = declineMessage(reason) ? reason : "webhook declined";
       }
       const timestamp = new Date().toISOString();
       const outbound = v.safeParse(
