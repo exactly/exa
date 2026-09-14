@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.2.25
+
+### Patch Changes
+
+- [#1304](https://github.com/exactly/exa/pull/1304) [`bd3e120`](https://github.com/exactly/exa/commit/bd3e120b080223aaa6a5f79c603fb07b2044795b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 stop simulating sent transfers
+
+- [#1304](https://github.com/exactly/exa/pull/1304) [`c7fb5a0`](https://github.com/exactly/exa/commit/c7fb5a0d5c632551b9778d32e030bd4b228f0d80) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix web layout on samsung browsers
+
+- [#1304](https://github.com/exactly/exa/pull/1304) [`e4b1ad4`](https://github.com/exactly/exa/commit/e4b1ad451220abf5267de9fa08b3284882331a89) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 align sheet frame with app frame on web
+
+- [#1291](https://github.com/exactly/exa/pull/1291) [`1f9bce2`](https://github.com/exactly/exa/commit/1f9bce20a73104e9b73824f08f1c4d34f5189cc4) Thanks [@franm91](https://github.com/franm91)! - ✨ add kyc review and failure states
+
+- Updated dependencies [[`a0b2e92`](https://github.com/exactly/exa/commit/a0b2e929715a64c28d67cbfdb193c0e76728fbe7), [`ad46a53`](https://github.com/exactly/exa/commit/ad46a53c82bc30462695a2a909bbaf27896a8f2f)]:
+  - @exactly/server@0.2.117
+
 ## 1.2.24
 
 ### Patch Changes
