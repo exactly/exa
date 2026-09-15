@@ -45,6 +45,8 @@ import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation"
 import { credentials } from "../../database/schema";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { decode, encode } from "../../utils/authChallenge";
+import { accountSalt, isBusinessSalt } from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
@@ -176,6 +178,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
         tags: ["Credential"],
         validateResponse: true,
       }),
+      vValidator("header", optional(object({ "account-type": optional(literal("business")) }))),
       vValidator(
         "query",
         object({
@@ -208,6 +211,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
         });
         c.header("X-Session-Id", sessionId);
+        const { "account-type": accountType } = c.req.valid("header") ?? {};
         const { credentialId } = c.req.valid("query");
         if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
           const message = createSiweMessage({
@@ -223,7 +227,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
             domain,
             scheme,
           });
-          await redis.set(sessionId, message, "PX", timeout);
+          await redis.set(sessionId, encode(message, accountType), "PX", timeout);
           return c.json(
             { method: "siwe" as const, address: credentialId, message } satisfies InferOutput<
               typeof AuthenticationOptions
@@ -236,7 +240,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
           timeout,
         });
-        await redis.set(sessionId, options.challenge, "PX", timeout);
+        await redis.set(sessionId, encode(options.challenge, accountType), "PX", timeout);
         return c.json(
           {
             method: "webauthn" as const,
@@ -283,6 +287,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "account-type": optional(literal("business")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -365,22 +370,24 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         setContext("auth", assertion);
         const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
-        const [credential, challenge] = await Promise.all([
+        const [credential, storedChallenge] = await Promise.all([
           database.query.credentials.findFirst({
             columns: { publicKey: true, account: true, factory: true, salt: true, transports: true },
             where: eq(credentials.id, assertion.id),
           }),
           redis.getdel(sessionId),
         ]);
-        if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
+        if (!storedChallenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
+        const challenge = decode(storedChallenge);
+        if (challenge.accountType !== headers?.["account-type"]) return c.json({ code: "bad account type" }, 400);
         if (!credential) {
           if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
           try {
-            const message = parseSiweMessage(challenge);
+            const message = parseSiweMessage(challenge.challenge);
             if (
               !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
               !(await publicClient.verifySiweMessage({
-                message: challenge,
+                message: challenge.challenge,
                 address: assertion.id,
                 signature: assertion.signature,
               }))
@@ -390,6 +397,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
             const result = await createCredential(c, assertion.id, {
               factory,
+              salt: accountSalt(headers?.["account-type"]),
               source: c.req.header("Client-Fid"),
               ip: headers?.["do-connecting-ip"],
             });
@@ -410,16 +418,19 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           }
         }
         if (factory && factory !== parse(Address, credential.factory)) return c.json({ code: "bad factory" }, 400);
+        if ((headers?.["account-type"] === "business") !== isBusinessSalt(parse(Address, credential.salt))) {
+          return c.json({ code: "bad account type" }, 400);
+        }
         setUser({ id: parse(Address, credential.account) });
 
         try {
           switch (assertion.method) {
             case "siwe": {
-              const message = parseSiweMessage(challenge);
+              const message = parseSiweMessage(challenge.challenge);
               if (
                 !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
                 !(await publicClient.verifySiweMessage({
-                  message: challenge,
+                  message: challenge.challenge,
                   address: assertion.id,
                   signature: assertion.signature,
                 }))
@@ -433,7 +444,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 response: assertion,
                 expectedRPID: domain,
                 expectedOrigin: [appOrigin, ...androidOrigins],
-                expectedChallenge: challenge,
+                expectedChallenge: challenge.challenge,
                 credential: {
                   id: assertion.id,
                   publicKey: credential.publicKey,
