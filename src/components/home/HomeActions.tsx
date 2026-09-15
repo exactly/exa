@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
@@ -41,6 +41,10 @@ export default function HomeActions() {
     ],
     [bytecode, t],
   );
+  const [column, setColumn] = useState(0);
+  const [labels, setLabels] = useState<Record<string, number>>({});
+  const widest = Math.max(0, ...actions.map(({ title }) => labels[title] ?? 0));
+  const scale = column && widest ? Math.min(1, (column * 0.94) / widest) : 1;
 
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address: account,
@@ -88,6 +92,24 @@ export default function HomeActions() {
   };
   return (
     <XStack gap="$s3" justifyContent="space-between" width="100%">
+      {actions
+        .filter(({ title }) => !labels[title])
+        .map(({ title }) => (
+          <Button.Label
+            key={title}
+            aria-hidden
+            position="absolute"
+            opacity={0}
+            pointerEvents="none"
+            fontSize={probe}
+            onLayout={({ nativeEvent }) => {
+              if (!nativeEvent.layout.width) return;
+              setLabels((current) => ({ ...current, [title]: nativeEvent.layout.width }));
+            }}
+          >
+            {title}
+          </Button.Label>
+        ))}
       {actions.map(({ key, title, Icon }) => {
         const disabled = key !== "deposit" && !bytecode;
         const handlePress = disabled
@@ -120,16 +142,21 @@ export default function HomeActions() {
             role="button"
             aria-disabled={disabled}
             onPress={handlePress}
+            onLayout={({ nativeEvent }) => {
+              setColumn(nativeEvent.layout.width);
+            }}
           >
             <Button width="100%" padding="$s3_5" justifyContent="center" minHeight="auto">
               <Button.Icon>
                 <Icon />
               </Button.Icon>
             </Button>
-            <Button.Label>{title}</Button.Label>
+            <Button.Label fontSize={probe * scale}>{title}</Button.Label>
           </Button.Column>
         );
       })}
     </XStack>
   );
 }
+
+const probe = 14;
