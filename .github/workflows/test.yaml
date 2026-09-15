@@ -49,12 +49,15 @@ jobs:
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
+          disable_search: true
+          files: contracts/lcov.info,server/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           name: test
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
           report_type: test_results
+          disable_search: true
           files: server/coverage/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           name: test
@@ -129,6 +132,7 @@ jobs:
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
+          disable_search: true
           files: server/coverage/lcov.info,server/coverage/app.json
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: e2e
@@ -137,6 +141,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           report_type: test_results
+          disable_search: true
           files: .maestro/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: e2e
