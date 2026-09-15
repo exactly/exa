@@ -10,6 +10,8 @@ import {
   Check,
   CircleHelp,
   IdCard,
+  Info,
+  OctagonX,
   RefreshCw,
   Repeat,
   TriangleAlert,
@@ -17,20 +19,32 @@ import {
 import { useToastController } from "@tamagui/toast";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
-import { parse } from "valibot";
-import { encodeFunctionData, formatUnits, parseUnits, zeroAddress } from "viem";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { readContract } from "@wagmi/core/actions";
+import { parse, safeParse } from "valibot";
+import {
+  encodeEventTopics,
+  encodeFunctionData,
+  erc20Abi,
+  formatUnits,
+  getAddress,
+  parseUnits,
+  zeroAddress,
+} from "viem";
 import { base } from "viem/chains";
-import { useSendCalls, useSimulateContract } from "wagmi";
+import { useReadContract, useSimulateContract } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain from "@exactly/common/generated/chain";
-import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
+import chain, { allowlists } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  marketAbi,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
+import revertReason from "@exactly/common/revertReason";
 import { Address } from "@exactly/common/validation";
-import { WAD } from "@exactly/lib";
+import { healthFactor, max, WAD } from "@exactly/lib";
 
 import Failure from "./Failure";
 import Pending from "./Pending";
@@ -38,14 +52,28 @@ import TokenSelectModal from "./SelectorModal";
 import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
+import { estimateCalls } from "../../utils/accountClient";
+import alchemyChainById from "../../utils/alchemyChains";
+import deployedOptions from "../../utils/deployedOptions";
+import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
-import { balancesOptions, getAllowTokens, getRoute, getRouteFrom } from "../../utils/lifi";
+import {
+  balancesOptions,
+  bridgeSlippage,
+  classify,
+  getAllowTokens,
+  getRouteFrom,
+  lifiChainsOptions,
+  lifiTokensOptions,
+  quoteValidity,
+  statusOptions,
+} from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useCrossChainGas from "../../utils/useCrossChainGas";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -57,9 +85,11 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Token } from "@lifi/sdk";
+import type { Credential } from "@exactly/common/validation";
+import type { Estimate, ExtendedTransactionInfo, Token } from "@lifi/sdk";
 
 export type Swap = {
+  denied: string[];
   enableSimulations: boolean;
   fromAmount: bigint;
   fromToken?: { external: boolean; token: Token };
@@ -75,6 +105,7 @@ export const defaultSwap: Swap = {
   toToken: undefined,
   fromAmount: 0n,
   toAmount: 0n,
+  denied: [],
   tokenSelectionType: "to",
   enableSimulations: true,
   tokenModalOpen: false,
@@ -82,20 +113,25 @@ export const defaultSwap: Swap = {
 };
 
 const SLIPPAGE_PERCENT = 5n;
+const insufficientAccountLiquidity = /InsufficientAccountLiquidity|0x15d58176/;
+const liquidationRisk = (WAD * 105n) / 100n;
+const liquidationCaution = (WAD * 115n) / 100n;
 
 export default function Swaps() {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const {
+    t,
+    i18n: { language },
+  } = useTranslation();
   const { address: account } = useAccount();
-  const { externalAssets, protocolAssets, isBalancesPending } = usePortfolio();
+  const { allAssets, externalAssets, crossChainAssets, protocolAssets, isBalancesPending } = usePortfolio();
   const {
     error: balancesError,
     isFetching: isBalancesFetching,
     refetch: refetchBalances,
   } = useQuery(balancesOptions(account));
   const [acknowledged, setAcknowledged] = useState(false);
-  const [activeInput, setActiveInput] = useState<"from" | "to">("from");
-  const { markets, queryKey: marketsQueryKey } = useMarkets();
+  const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
   const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
   const toast = useToastController();
   const beginKYC = useBeginKYC();
@@ -110,27 +146,59 @@ export default function Swaps() {
     refetch: refetchKYC,
   } = useKYC(chain.id === base.id);
   const {
-    data: tokens,
+    data: homeTokens,
     isLoading: isTokensLoading,
     error: tokensError,
   } = useQuery({ queryKey: ["allowTokens", protocolMarkets], queryFn: () => getAllowTokens(protocolMarkets) });
+  const { data: lifiTokens } = useQuery(lifiTokensOptions);
+  const { data: lifiChains } = useQuery(lifiChainsOptions);
   const {
     data: {
       fromToken,
       toToken,
       fromAmount: inputFromAmount,
       toAmount: inputToAmount,
+      denied,
       tokenSelectionType,
       enableSimulations,
       tokenModalOpen,
     } = defaultSwap,
   } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
+  const fromChain = (fromToken?.token.chainId as number | undefined) ?? chain.id;
+  const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
+  const crossChain = fromChain !== toChain;
+
+  const allowedChains = useMemo(
+    () =>
+      Object.keys(allowlists)
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChainById.has(id))),
+    [],
+  );
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
+  const deployedFactories = useQueries({
+    queries: allowedChains.map((chainId) => deployedOptions(credential?.factory, chainId)),
+    combine: (results) =>
+      new Set(allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true)),
+  });
+  const networks = useMemo(
+    () =>
+      allowedChains
+        .filter((id) => deployedFactories.has(id))
+        .map((id) => ({ id, name: lifiChains?.find((item) => item.id === id)?.name ?? String(id) }))
+        .sort((a, b) => {
+          if (a.id === chain.id) return -1;
+          if (b.id === chain.id) return 1;
+          return a.name.localeCompare(b.name);
+        }),
+    [allowedChains, deployedFactories, lifiChains],
+  );
 
   const isExternal = useCallback(
-    (address: string) => {
+    (chainId: number, address: string) => {
+      if (chainId !== chain.id) return true;
       if (!markets) return false;
-      const normalized = address.toLowerCase();
-      return !markets.some((m) => m.asset.toLowerCase() === normalized);
+      return !markets.some((m) => m.asset === address);
     },
     [markets],
   );
@@ -147,35 +215,68 @@ export default function Swaps() {
   const getBalance = useCallback(
     (token?: Token) => {
       if (!token) return 0n;
-      if (isExternal(token.address)) {
-        const address = parse(Address, token.address);
+      const address = parse(Address, token.address);
+      const tokenChain = token.chainId as number;
+      if (tokenChain !== chain.id) {
+        return crossChainAssets.find((a) => a.chainId === tokenChain && a.address === address)?.amount ?? 0n;
+      }
+      if (isExternal(tokenChain, token.address)) {
         return externalAssets.find((a) => a.address === address)?.amount ?? 0n;
       }
-      const address = parse(Address, token.address);
       return protocolAssets.find((a) => a.asset === address)?.floatingDepositAssets ?? 0n;
     },
-    [externalAssets, isExternal, protocolAssets],
+    [crossChainAssets, externalAssets, isExternal, protocolAssets],
   );
 
-  const { market: selectedTokenMarket, available: selectedTokenAvailable } = useAsset(getSwapAddress(fromToken));
+  const candidates = useMemo(() => {
+    const reachable = new Set(networks.map(({ id }) => id));
+    return [
+      ...(homeTokens ?? []),
+      ...(lifiTokens ?? []).filter(
+        (token) => (token.chainId as number) !== chain.id && reachable.has(token.chainId as number),
+      ),
+    ];
+  }, [homeTokens, lifiTokens, networks]);
 
-  const payableTokens = useMemo(() => (tokens ?? []).filter((token) => getBalance(token) > 0n), [tokens, getBalance]);
+  const held = useMemo(
+    () =>
+      new Set(
+        allAssets
+          .filter((asset) =>
+            asset.type === "protocol"
+              ? asset.floatingDepositAssets > 0n
+              : (asset.amount ?? 0n) > 0n && isExternal(asset.chainId, asset.address),
+          )
+          .map((asset) =>
+            asset.type === "protocol" ? `${chain.id}:${asset.asset}` : `${asset.chainId}:${asset.address}`,
+          ),
+      ),
+    [allAssets, isExternal],
+  );
+  const payableTokens = useMemo(
+    () => candidates.filter((token) => held.has(`${token.chainId}:${token.address}`)),
+    [candidates, held],
+  );
 
   useEffect(() => {
-    if (!fromToken && !toToken && tokens && markets) {
-      const payable = payableTokens.find(({ symbol }) => symbol === "USDC") ?? payableTokens[0];
-      const target = ["EXA", "WETH", "USDC"]
-        .map((symbol) => tokens.find((token) => token.symbol === symbol))
-        .find((token) => token !== undefined && token.address !== payable?.address);
-      if (payable && target) {
-        updateSwap((old) => ({
-          ...old,
-          fromToken: { token: payable, external: isExternal(payable.address) },
-          toToken: { token: target, external: isExternal(target.address) },
-        }));
-      }
-    }
-  }, [fromToken, isExternal, markets, payableTokens, toToken, tokens]);
+    if (!markets || !homeTokens || (fromToken && toToken)) return;
+    updateSwap((old) => {
+      const home = payableTokens.filter((token) => (token.chainId as number) === chain.id);
+      const preferred = home.length > 0 ? home : payableTokens;
+      const payable = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
+      const target =
+        old.toToken?.token ??
+        ["EXA", "WETH", "USDC"]
+          .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
+          .find((token) => token !== undefined && !sameToken(token, payable)) ??
+        homeTokens.find((token) => !sameToken(token, payable));
+      return {
+        ...old,
+        fromToken: payable ? { token: payable, external: isExternal(payable.chainId, payable.address) } : undefined,
+        toToken: target ? { token: target, external: isExternal(target.chainId, target.address) } : undefined,
+      };
+    });
+  }, [fromToken, homeTokens, isExternal, markets, payableTokens, toToken]);
 
   const processing = chain.id === base.id && isKYCInReview;
   const failed = chain.id === base.id && isKYCFailed;
@@ -185,7 +286,8 @@ export default function Swaps() {
   const unavailable =
     chain.id === base.id && isKYCFetched && (!!kycError || !isKYCApproved) && !processing && !failed && !unverified;
 
-  const balancesUnavailable = !!balancesError && !isTokensLoading && !fromToken && payableTokens.length === 0;
+  const balancesUnavailable =
+    !!balancesError && !isTokensLoading && fromChain === chain.id && !fromToken && payableTokens.length === 0;
 
   const empty =
     !isTokensLoading &&
@@ -193,6 +295,7 @@ export default function Swaps() {
     !isBalancesPending &&
     !balancesError &&
     !!markets &&
+    fromChain === chain.id &&
     !fromToken &&
     payableTokens.length === 0;
 
@@ -200,19 +303,19 @@ export default function Swaps() {
     if (!fromToken || !toToken) return;
     updateSwap((old) => ({
       ...old,
-      fromAmount:
-        tokenSelectionType === "to" ? (selected.address === fromToken.token.address ? toAmount : fromAmount) : 0n,
+      fromAmount: tokenSelectionType === "to" && !sameToken(selected, fromToken.token) ? fromAmount : 0n,
       toAmount: 0n,
+      denied: [],
       fromToken:
         tokenSelectionType === "from"
-          ? { token: selected, external: isExternal(selected.address) }
-          : selected.address === fromToken.token.address
+          ? { token: selected, external: isExternal(selected.chainId, selected.address) }
+          : sameToken(selected, fromToken.token)
             ? { token: toToken.token, external: toToken.external }
             : fromToken,
       toToken:
         tokenSelectionType === "to"
-          ? { token: selected, external: isExternal(selected.address) }
-          : selected.address === toToken.token.address
+          ? { token: selected, external: isExternal(selected.chainId, selected.address) }
+          : sameToken(selected, toToken.token)
             ? { token: fromToken.token, external: fromToken.external }
             : toToken,
       tokenModalOpen: false,
@@ -220,16 +323,11 @@ export default function Swaps() {
   };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const handleAmountChange = (value: bigint, type: "from" | "to") => {
+  const handleAmountChange = (value: bigint) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      const token = type === "from" ? fromToken : toToken;
-      if (!token?.token) return;
-      updateSwap((old) => ({
-        ...old,
-        fromAmount: type === "from" ? value : old.fromAmount,
-        toAmount: type === "to" ? value : old.toAmount,
-      }));
+      if (!fromToken) return;
+      updateSwap((old) => ({ ...old, fromAmount: value, denied: [] }));
     }, 400);
   };
 
@@ -241,48 +339,57 @@ export default function Swaps() {
 
   const {
     data: route,
+    dataUpdatedAt: routeUpdatedAt,
     error: routeError,
+    errorUpdatedAt: routeErroredAt,
+    errorUpdateCount: routeErrors,
+    isFetching: isRouteFetching,
     isLoading: isRouteLoading,
   } = useQuery({
-    queryKey: [
-      "lifi",
-      "route",
-      account,
-      fromToken,
-      toToken,
-      activeInput,
-      activeInput === "from" ? inputFromAmount : inputToAmount,
-    ],
+    queryKey: ["lifi", "route", account, fromChain, fromToken, toChain, toToken, crossChain, inputFromAmount, denied],
     queryFn: async () => {
       if (!account || !fromToken || !toToken) throw new Error("implementation error");
       const fromTokenAddress = parse(Address, fromToken.token.address);
       const toTokenAddress = parse(Address, toToken.token.address);
-      if (activeInput === "from") {
-        const result = await getRouteFrom({
+      const denyExchanges = denied.length > 0 ? Object.fromEntries(denied.map((item) => [item, true])) : undefined;
+      try {
+        return await getRouteFrom({
+          fromChainId: fromChain,
+          toChainId: toChain,
           fromTokenAddress,
           toTokenAddress,
           fromAmount: inputFromAmount,
           fromAddress: account,
           toAddress: account,
+          nativeless: !fromToken.external, // cspell:ignore nativeless
+          denyBridges: crossChain ? denied : undefined,
+          denyExchanges: crossChain ? undefined : denyExchanges,
         });
-        return { ...result, toAmount: result.toAmount, fromAmount: undefined, tool: result.tool };
-      } else {
-        const result = await getRoute(fromTokenAddress, toTokenAddress, inputToAmount, account, account);
-        return { ...result, fromAmount: result.fromAmount, toAmount: undefined, tool: result.tool };
+      } catch (error: unknown) {
+        reportError(error, {
+          level: "warning",
+          extra: { lifi: (error as { cause?: { responseBody?: unknown } }).cause?.responseBody },
+        });
+        throw error;
       }
     },
-    enabled:
-      enableSimulations &&
-      !!account &&
-      !!fromToken &&
-      !!toToken &&
-      (activeInput === "from" ? !!inputFromAmount : !!inputToAmount),
-    refetchInterval: 20_000,
+    enabled: enableSimulations && !!account && !!fromToken && !!toToken && !!inputFromAmount,
+    refetchInterval: ({ state }) => (state.error && classify(state.error) !== "quote" ? false : 20_000),
+    retry: false,
     staleTime: 10_000,
+    meta: { dropError: () => true },
   });
 
-  const fromAmount = activeInput === "to" && route?.fromAmount != null ? route.fromAmount : inputFromAmount;
-  const toAmount = activeInput === "from" && route?.toAmount != null ? route.toAmount : inputToAmount;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!routeUpdatedAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [routeUpdatedAt]);
+  const quoteExpired = !!route && now >= routeUpdatedAt + quoteValidity;
+
+  const fromAmount = inputFromAmount;
+  const toAmount = route?.toAmount ?? inputToAmount;
   const tool = route?.tool ?? "";
 
   const isInsufficientBalance = useMemo(() => {
@@ -290,17 +397,25 @@ export default function Swaps() {
     return fromAmount > getBalance(fromToken.token);
   }, [fromToken, fromAmount, getBalance]);
 
+  const neutralAsset = useMemo(() => {
+    const { success, output } = safeParse(
+      Address,
+      markets?.find(({ asset }) => asset !== fromToken?.token.address)?.asset,
+    );
+    return success ? output : undefined;
+  }, [markets, fromToken]);
+
   const {
     request: swapPropose,
     error: swapExecuteProposalError,
     isPending: isSimulatingSwap,
   } = useSimulateProposal({
     account,
-    amount: activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
+    amount: fromAmount,
     market: getSwapAddress(fromToken),
     proposalType: ProposalType.Swap,
-    assetOut: parse(Address, toToken?.token.address ?? zeroAddress),
-    minAmountOut: activeInput === "from" ? (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD : toAmount,
+    assetOut: crossChain ? neutralAsset : parse(Address, toToken?.token.address ?? zeroAddress),
+    minAmountOut: crossChain ? 0n : (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD,
     route: route?.data,
     enabled:
       enableSimulations &&
@@ -313,7 +428,8 @@ export default function Swaps() {
       toAmount > 0n &&
       !!route &&
       !isInsufficientBalance &&
-      !fromToken.external,
+      !fromToken.external &&
+      (!crossChain || !!neutralAsset),
   });
 
   const {
@@ -327,8 +443,8 @@ export default function Swaps() {
     args: [
       parse(Address, fromToken?.token.address ?? zeroAddress),
       parse(Address, toToken?.token.address ?? zeroAddress),
-      activeInput === "from" ? fromAmount : (fromAmount * (WAD * (1000n + SLIPPAGE_PERCENT))) / 1000n / WAD,
-      activeInput === "from" ? (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD : toAmount,
+      fromAmount,
+      (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD,
       route?.data ?? "0x",
     ],
     abi: [
@@ -364,56 +480,164 @@ export default function Swaps() {
         toAmount > 0n &&
         !!route &&
         fromToken.external &&
+        !crossChain &&
+        fromChain === chain.id &&
         !isInsufficientBalance,
     },
   });
 
-  const simulationError = {
-    external: externalSwapError ?? routeError,
-    protocol: swapExecuteProposalError,
-  }[fromToken?.external ? "external" : "protocol"];
+  const routed = !!fromToken?.external && (crossChain || fromChain !== chain.id);
 
-  const isSimulating = {
-    external: isSimulatingExternalSwap,
-    protocol: isSimulatingSwap,
-  }[fromToken?.external ? "external" : "protocol"];
+  const {
+    data: routedSwap,
+    error: routedError,
+    isPending: isSimulatingRouted,
+  } = useQuery({
+    queryKey: ["lifi", "route", "calls", account, fromChain, fromToken, route],
+    queryFn: async () => {
+      if (!account || !fromToken || !route?.to) throw new Error("implementation error");
+      const call = { to: route.to, data: route.data, value: route.value };
+      const calls: { data: `0x${string}`; to: `0x${string}`; value?: bigint }[] = await (async () => {
+        if (fromToken.token.address === zeroAddress) return [call];
+        const spender = getAddress(route.estimate.approvalAddress);
+        const required = BigInt(route.estimate.fromAmount);
+        const token = getAddress(fromToken.token.address);
+        const allowance = await readContract(exaConfig, {
+          address: token,
+          chainId: fromChain,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [account, spender],
+        });
+        return [
+          ...(allowance >= required ? [] : allowance > 0n ? [0n, required] : [required]).map((value) => ({
+            to: token,
+            data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, value] }),
+          })),
+          call,
+        ];
+      })();
+      return { calls, gas: await estimateCalls(exaConfig, fromChain, calls) };
+    },
+    enabled: enableSimulations && routed && !!account && !!route && !isInsufficientBalance,
+    retry: false,
+    meta: { dropError: () => true },
+  });
 
-  const resultRef = useRef({ fromAmount: 0n, toAmount: 0n });
-  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const prepareError = fromToken?.external ? (routed ? routedError : externalSwapError) : swapExecuteProposalError;
+  const wrapped = !!route && "wrapped" in route && route.wrapped === true;
+  const { data: dust } = useReadContract({
+    address: wrapped && fromToken ? parse(Address, fromToken.token.address) : undefined,
+    chainId: fromChain,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: route?.to ? [route.to] : undefined,
+    query: { enabled: wrapped, refetchInterval: quoteValidity / 3 },
+  });
+  const stalled = !!prepareError && wrapped && !!dust && dust > 0n;
+  const insufficientCollateral =
+    !!prepareError && insufficientAccountLiquidity.test(revertReason(prepareError, { fallback: "message" }));
+
+  const isSimulating = fromToken?.external
+    ? routed
+      ? isSimulatingRouted
+      : isSimulatingExternalSwap
+    : isSimulatingSwap;
+
+  useEffect(() => {
+    if (!prepareError) return;
+    reportError(prepareError, { level: "warning" });
+    if (!tool || stalled || insufficientCollateral) return;
+    updateSwap((old) => ({
+      ...old,
+      denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
+    }));
+  }, [insufficientCollateral, prepareError, stalled, tool]);
+  const rerouting = denied.length > 0 && !route && isRouteFetching;
+  const transient =
+    !!routeError &&
+    classify(routeError) === "quote" &&
+    (route ? routeErroredAt < routeUpdatedAt + quoteValidity : routeErrors < 3);
+  const failure =
+    routeError && !transient
+      ? classify(routeError)
+      : prepareError
+        ? insufficientCollateral
+          ? "collateral"
+          : stalled || (tool && denied.length < 3 && !denied.includes(tool))
+            ? undefined
+            : "route"
+        : undefined;
+
+  const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
+  const fromNetworkName = lifiChains?.find((item) => item.id === fromChain)?.name;
+  const networkName = lifiChains?.find((item) => item.id === toChain)?.name;
+  const sponsored = fromChain === chain.id;
+  const networkCost = sponsored ? 0n : routedSwap?.gas;
+  const networkFeeUSD = sponsored
+    ? 0
+    : networkCost !== undefined && nativeToken
+      ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
+      : undefined;
+  const gasSource = useMemo(
+    () => (fromToken?.external ? { ...fromToken.token, amount: getBalance(fromToken.token) } : null),
+    [fromToken, getBalance],
+  );
+  const { erc20GasReserve, feeIsSource, gasToken, insufficientGas, nativeGasReserve, paymasterAddress, sendCalls } =
+    useCrossChainGas({
+      account,
+      amount: fromAmount,
+      chainId: fromChain,
+      networkCost,
+      token: gasSource,
+      value: routed ? (route?.value ?? 0n) : undefined,
+    });
+
+  const resultRef = useRef<{
+    duration?: number;
+    fromAmount: bigint;
+    fromToken?: Token;
+    networkFeeUSD?: number;
+    toAmount: bigint;
+    tool: string;
+    toToken?: Token;
+  }>({ fromAmount: 0n, toAmount: 0n, tool: "" });
   const {
     mutate: swap,
+    data: receipt,
     isPending: isSwapping,
     isSuccess: isSwapSuccess,
     error: writeContractError,
     reset: resetSwap,
   } = useMutation({
-    async mutationFn() {
+    mutationFn() {
       if (!route) throw new Error("no route");
-      const call = (() => {
-        if (fromToken?.external) {
+      const calls = (() => {
+        if (!fromToken?.external) {
+          if (!swapPropose) throw new Error("no swap proposal simulation");
+          const { address, abi, functionName, args } = swapPropose;
+          return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
+        }
+        if (!routed) {
           if (!externalSwap) throw new Error("no external swap simulation");
           const { address, abi, functionName, args } = externalSwap.request;
-          return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+          return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
         }
-        if (!swapPropose) throw new Error("no swap proposal simulation");
-        const { address, abi, functionName, args } = swapPropose;
-        return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
+        if (!routedSwap) throw new Error("no routed swap simulation");
+        return routedSwap.calls;
       })();
-      const { id } = await mutateSendCalls({
-        chainId: chain.id,
-        calls: [call],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
-      });
-      const { status } = await waitForCallsStatus(exaConfig, { id });
-      if (status === "failure") throw new Error("failed to swap");
+      return sendCalls(calls);
     },
     onMutate() {
-      resultRef.current = { fromAmount, toAmount };
+      resultRef.current = {
+        duration: route?.estimate.executionDuration,
+        fromAmount,
+        fromToken: fromToken?.token,
+        networkFeeUSD,
+        toAmount,
+        toToken: toToken?.token,
+        tool,
+      };
       updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
     onSuccess() {
@@ -430,28 +654,107 @@ export default function Swaps() {
     },
   });
 
-  const toTokenIsUSDC = toToken?.token.symbol === "USDC";
-  const caution =
-    !fromToken?.external &&
-    !toTokenIsUSDC &&
-    aboveThreshold(fromAmount, selectedTokenAvailable, 75, selectedTokenMarket?.decimals ?? 0);
-  const danger =
-    !fromToken?.external &&
-    !toTokenIsUSDC &&
-    aboveThreshold(fromAmount, selectedTokenAvailable, 90, selectedTokenMarket?.decimals ?? 0);
+  const proposal = useMemo(() => {
+    if (!receipt) return;
+    const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
+    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
+    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
+  }, [receipt]);
+  const { data: execution } = useQuery(executionOptions(account, proposal?.nonce, proposal?.since));
+  const executionHash = execution?.executed ? execution.hash : undefined;
+  const { data: routeStatus } = useQuery(
+    statusOptions(
+      routed || crossChain ? (proposal ? executionHash : receipt?.transactionHash) : undefined,
+      toChain,
+      tool || resultRef.current.tool || undefined,
+      fromChain,
+      resultRef.current.duration,
+    ),
+  );
+  const delivered = !crossChain || routeStatus?.status === "DONE";
+  const undelivered =
+    crossChain &&
+    (execution?.executed === false || routeStatus?.status === "FAILED" || routeStatus?.substatus === "REFUNDED"); // cspell:ignore substatus
+  useEffect(() => {
+    if (!executionHash && routeStatus?.status !== "DONE") return;
+    queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
+    queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+  }, [executionHash, routeStatus?.status]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
 
-  const showWarning = fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
-  const disabled = !route || isSimulating || !!simulationError || isInsufficientBalance || danger;
+  const projectedHealth = useMemo(() => {
+    if (!markets || !fromToken || fromToken.external || fromAmount === 0n) return;
+    const fromMarket = getSwapAddress(fromToken);
+    if (!fromMarket) return;
+    return healthFactor(
+      markets.map((item) =>
+        item.market === fromMarket
+          ? { ...item, floatingDepositAssets: max(0n, item.floatingDepositAssets - fromAmount) }
+          : item,
+      ),
+      Number(timestamp),
+    );
+  }, [fromAmount, fromToken, getSwapAddress, markets, timestamp]);
+  const caution = projectedHealth !== undefined && projectedHealth < liquidationCaution;
+  const danger = projectedHealth !== undefined && projectedHealth < liquidationRisk;
+
+  const shortfallFee =
+    insufficientGas && nativeToken
+      ? gasToken && feeIsSource && paymasterAddress && erc20GasReserve > 0n
+        ? { reserve: erc20GasReserve, token: gasToken, network: undefined }
+        : {
+            reserve: (routed ? (route?.value ?? 0n) : 0n) + nativeGasReserve,
+            token: nativeToken,
+            network: fromNetworkName ?? String(fromChain),
+          }
+      : undefined;
+  const shortfall = shortfallFee
+    ? t(
+        shortfallFee.network
+          ? "You need ~{{amount}} {{symbol}} on {{network}} for network fees."
+          : "Keep ~{{amount}} {{symbol}} for network fees.",
+        {
+          amount: Number(formatUnits(shortfallFee.reserve, shortfallFee.token.decimals)).toLocaleString(language, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: shortfallFee.token.decimals,
+            useGrouping: false,
+          }),
+          symbol: shortfallFee.token.symbol,
+          network: shortfallFee.network,
+        },
+      )
+    : undefined;
+
+  const showWarning = !failure && fromToken && !fromToken.external && fromAmount > 0n && (caution || danger);
+  const disabled =
+    !route ||
+    quoteExpired ||
+    isSimulating ||
+    rerouting ||
+    stalled ||
+    !!failure ||
+    isInsufficientBalance ||
+    insufficientGas;
   const buttonLabel = useMemo(() => {
     if (isInsufficientBalance) return t("Insufficient balance");
-    if (isSimulating && route) return t("Please wait...");
-    if (simulationError) return t("Cannot proceed");
-    if (danger) return t("Enter a lower amount to swap");
+    if (insufficientGas) return t("Not enough for network fees");
+    if (rerouting || quoteExpired || (isSimulating && route)) return t("Please wait...");
+    if (failure) return t("Cannot proceed");
     if (fromToken && toToken) {
       return t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol });
     }
     return t("Swap");
-  }, [isSimulating, route, isInsufficientBalance, simulationError, danger, fromToken, toToken, t]);
+  }, [
+    isSimulating,
+    rerouting,
+    quoteExpired,
+    route,
+    isInsufficientBalance,
+    insufficientGas,
+    failure,
+    fromToken,
+    toToken,
+    t,
+  ]);
 
   if (!isSwapping && !isSwapSuccess && !writeContractError)
     return (
@@ -622,20 +925,19 @@ export default function Swaps() {
                 <YStack paddingBottom="$s3" gap="$s4_5">
                   <YStack gap="$s3_5">
                     {(["from", "to"] as const).map((type) => {
-                      const tokenData = type === "from" ? fromToken : toToken;
-                      const amount = type === "from" ? fromAmount : toAmount;
-                      const isActive = activeInput === type;
+                      const paying = type === "from";
+                      const tokenData = paying ? fromToken : toToken;
                       return (
                         <TokenInput
                           key={type}
-                          label={t(type === "from" ? "You pay" : "You receive")}
+                          label={t(paying ? "You pay" : "You receive")}
                           token={tokenData?.token}
-                          amount={amount}
+                          amount={paying ? fromAmount : toAmount}
                           balance={getBalance(tokenData?.token)}
-                          disabled={type === "to"}
+                          disabled={!paying}
                           isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
-                          isActive={isActive}
-                          isDanger={type === "from" && showWarning}
+                          isActive={paying}
+                          isDanger={paying && showWarning}
                           onTokenSelect={() => {
                             updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
                             setAcknowledged(false);
@@ -643,16 +945,23 @@ export default function Swaps() {
                           onFocus={() => {
                             setAcknowledged(false);
                           }}
-                          onChange={(value: bigint) => {
-                            setActiveInput(type);
-                            handleAmountChange(value, type);
-                            setAcknowledged(false);
-                          }}
-                          onUseMax={(value: bigint) => {
-                            setActiveInput(type);
-                            handleAmountChange(value, type);
-                            setAcknowledged(false);
-                          }}
+                          onChange={
+                            paying
+                              ? (value: bigint) => {
+                                  handleAmountChange(value);
+                                  setAcknowledged(false);
+                                }
+                              : undefined
+                          }
+                          onUseMax={
+                            paying
+                              ? (value: bigint) => {
+                                  handleAmountChange(value);
+                                  setAcknowledged(false);
+                                }
+                              : undefined
+                          }
+                          usdValue={quotedUSD(route?.estimate, type)}
                         />
                       );
                     })}
@@ -660,10 +969,13 @@ export default function Swaps() {
                   {fromToken && toToken && route && (
                     <SwapDetails
                       exchange={tool}
-                      slippage={SLIPPAGE_PERCENT}
+                      fee={route.estimate.feeCosts?.reduce((sum, { percentage }) => sum + (Number(percentage) || 0), 0)}
+                      slippage={crossChain || routed ? BigInt(bridgeSlippage * 1000) : SLIPPAGE_PERCENT}
                       exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
                       fromToken={fromToken.token}
                       toToken={toToken.token}
+                      networkFeeUSD={networkFeeUSD}
+                      duration={crossChain ? route.estimate.executionDuration : undefined}
                     />
                   )}
                 </YStack>
@@ -671,42 +983,6 @@ export default function Swaps() {
             </ScrollView>
             <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
               <YStack gap="$s3">
-                {(caution || danger) && showWarning && (
-                  <YStack gap="$s4_5">
-                    <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
-                    <XStack
-                      gap="$s3"
-                      alignItems="center"
-                      cursor="pointer"
-                      onPress={() => {
-                        setAcknowledged(!acknowledged);
-                      }}
-                    >
-                      {danger ? (
-                        <TriangleAlert size={16} color="$uiErrorSecondary" />
-                      ) : (
-                        <Checkbox
-                          pointerEvents="none"
-                          borderColor="$backgroundBrand"
-                          backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                          checked={acknowledged}
-                        >
-                          <Checkbox.Indicator>
-                            <Check size={16} color="$uiNeutralPrimary" />
-                          </Checkbox.Indicator>
-                        </Checkbox>
-                      )}
-                      <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
-                        {danger
-                          ? t(
-                              "Swapping this much of your collateral could instantly trigger liquidation. Try a smaller amount to stay protected.",
-                            )
-                          : t("I acknowledge the risks of swapping this much of my collateral assets.")}
-                      </Text>
-                    </XStack>
-                    <Separator borderColor="$borderNeutralSoft" />
-                  </YStack>
-                )}
                 <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
                   <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
                     <Trans
@@ -727,12 +1003,92 @@ export default function Swaps() {
                     />
                   </Text>
                 </XStack>
+                {(!!failure || insufficientGas || rerouting || transient) && (
+                  <XStack
+                    gap="$s4"
+                    alignItems="center"
+                    backgroundColor={
+                      failure || insufficientGas
+                        ? "$interactiveBaseErrorSoftDefault"
+                        : "$interactiveBaseInformationSoftDefault"
+                    }
+                    borderRadius="$r3"
+                    paddingHorizontal="$s4"
+                    paddingVertical="$s3"
+                  >
+                    {failure || insufficientGas ? (
+                      <OctagonX size={16} color="$uiErrorSecondary" />
+                    ) : (
+                      <Info size={16} color="$uiInfoSecondary" />
+                    )}
+                    <Text
+                      caption2
+                      color={failure || insufficientGas ? "$uiErrorSecondary" : "$uiInfoSecondary"}
+                      flex={1}
+                    >
+                      {failure === "collateral"
+                        ? t(
+                            "This swap would leave your collateral below what your debt requires. Try a smaller amount.",
+                          )
+                        : failure === "route"
+                          ? t("No route available for this swap. Try a different asset or network.")
+                          : failure === "liquidity"
+                            ? t("Not enough liquidity for this amount currently. Try a different amount.")
+                            : failure
+                              ? t("We can’t get a quote right now. Try again in a moment.")
+                              : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                    </Text>
+                  </XStack>
+                )}
+                {showWarning && (
+                  <YStack gap="$s4_5">
+                    <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
+                    <YStack gap="$s3_5">
+                      {danger ? (
+                        <XStack gap="$s3" alignItems="flex-start">
+                          <TriangleAlert size={16} color="$uiErrorSecondary" />
+                          <Text caption color="$uiErrorSecondary" flex={1}>
+                            {t("Swapping this much of your collateral could instantly trigger liquidation.")}
+                          </Text>
+                        </XStack>
+                      ) : null}
+                      <XStack
+                        gap="$s3"
+                        alignItems="center"
+                        cursor="pointer"
+                        onPress={() => {
+                          setAcknowledged(!acknowledged);
+                        }}
+                      >
+                        <Checkbox
+                          pointerEvents="none"
+                          borderColor={danger ? "$borderErrorStrong" : "$backgroundBrand"}
+                          backgroundColor={
+                            acknowledged ? (danger ? "$uiErrorSecondary" : "$backgroundBrand") : "transparent"
+                          }
+                          checked={acknowledged}
+                        >
+                          <Checkbox.Indicator>
+                            <Check
+                              size={16}
+                              color={danger ? "$interactiveOnBaseErrorDefault" : "$interactiveOnBaseBrandDefault"}
+                            />
+                          </Checkbox.Indicator>
+                        </Checkbox>
+                        <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
+                          {t("I acknowledge the risks of swapping this much of my collateral assets.")}
+                        </Text>
+                      </XStack>
+                    </YStack>
+                    <Separator borderColor="$borderNeutralSoft" />
+                  </YStack>
+                )}
               </YStack>
               <Button
                 primary={!(caution && acknowledged)}
                 dangerSecondary={caution && acknowledged}
                 disabled={disabled || (caution && !acknowledged)}
-                loading={!danger && isSimulating && !!route && !isInsufficientBalance}
+                loading={isSimulating && !!route && !isInsufficientBalance}
                 width="100%"
                 onPress={() => {
                   swap();
@@ -743,9 +1099,12 @@ export default function Swaps() {
               </Button>
             </YStack>
             <TokenSelectModal
+              key={`${tokenSelectionType}:${fromChain}:${toChain}`}
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
-              tokens={tokens ?? []}
+              tokens={candidates}
+              networks={networks}
+              chainId={tokenSelectionType === "from" ? fromChain : toChain}
               selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
@@ -757,34 +1116,42 @@ export default function Swaps() {
       </SafeView>
     );
   {
-    if (!fromToken || !toToken) return null;
-    const { fromAmount: resultFromAmount, toAmount: resultToAmount } = resultRef.current;
+    const { fromAmount: resultFromAmount, fromToken: paid } = resultRef.current;
+    const settled =
+      routeStatus && "receiving" in routeStatus ? (routeStatus.receiving as ExtendedTransactionInfo) : undefined;
+    const received = settled?.token && settled.amount ? settled.token : resultRef.current.toToken;
+    if (!paid || !received) return null;
+    const resultToAmount = settled?.token && settled.amount ? BigInt(settled.amount) : resultRef.current.toAmount;
     const properties = {
-      fromUsdAmount: Number(
-        formatUnits((resultFromAmount * parseUnits(fromToken.token.priceUSD, 18)) / WAD, fromToken.token.decimals),
-      ),
+      fromUsdAmount: Number(formatUnits((resultFromAmount * parseUnits(paid.priceUSD, 18)) / WAD, paid.decimals)),
       fromAmount: resultFromAmount,
-      fromToken: fromToken.token,
-      toUsdAmount: Number(
-        formatUnits((resultToAmount * parseUnits(toToken.token.priceUSD, 18)) / WAD, toToken.token.decimals),
-      ),
+      fromToken: paid,
+      toUsdAmount: Number(formatUnits((resultToAmount * parseUnits(received.priceUSD, 18)) / WAD, received.decimals)),
       toAmount: resultToAmount,
-      toToken: toToken.token,
+      toToken: received,
     };
-    if (isSwapping)
+    if (isSwapping || (isSwapSuccess && !delivered && !undelivered))
       return (
         <Pending
           {...properties}
+          network={crossChain ? networkName : undefined}
           onClose={() => {
             onClose();
           }}
         />
       );
-    if (isSwapSuccess)
+    if (isSwapSuccess && !undelivered)
       return (
         <Success
           {...properties}
-          external={fromToken.external}
+          chainId={fromChain}
+          completed={!!fromToken?.external || crossChain}
+          fee={
+            resultRef.current.networkFeeUSD
+              ? `$${resultRef.current.networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : undefined
+          }
+          hash={executionHash ?? receipt?.transactionHash}
           onClose={() => {
             onClose();
           }}
@@ -809,8 +1176,8 @@ function onClose() {
   }
 }
 
-function aboveThreshold(amount: bigint, available: bigint, threshold: number, decimals: number) {
-  return Number(formatUnits(amount, decimals)) >= Number(formatUnits((available * BigInt(threshold)) / 100n, decimals));
+function sameToken(token: Token, other?: Token) {
+  return !!other && token.chainId === other.chainId && token.address === other.address;
 }
 
 function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, toAmount: bigint) {
@@ -822,3 +1189,8 @@ function updateSwap(updater: (old: Swap) => Swap) {
 }
 
 export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };
+
+function quotedUSD(estimate: Estimate | undefined, type: "from" | "to") {
+  const quoted = type === "from" ? estimate?.fromAmountUSD : estimate?.toAmountUSD;
+  return quoted === undefined ? undefined : Number(quoted) || undefined;
+}

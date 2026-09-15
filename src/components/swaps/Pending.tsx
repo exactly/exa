@@ -6,8 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
-import { formatUnits } from "viem";
-
+import formatTokenAmount from "../../utils/formatTokenAmount";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -24,11 +23,13 @@ export default function Pending({
   toUsdAmount,
   toAmount,
   toToken,
+  network,
   onClose,
 }: {
   fromAmount: bigint;
   fromToken: Token;
   fromUsdAmount: number;
+  network?: string;
   onClose: () => void;
   toAmount: bigint;
   toToken: Token;
@@ -67,13 +68,24 @@ export default function Pending({
                   components={{ em: <Text secondary body emphasized /> }}
                 />
               </Text>
+              {network ? (
+                <Text footnote secondary textAlign="center">
+                  {t("Funds are on their way to {{network}}. This can take a few minutes.", { network })}
+                </Text>
+              ) : null}
               <Text title primary color="$uiNeutralPrimary">
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
               <XStack gap="$s2" alignItems="center">
-                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={fromToken.logoURI}
+                  symbol={fromToken.symbol}
+                  chainId={fromToken.chainId}
+                  width={16}
+                  height={16}
+                />
                 <Text emphasized secondary subHeadline>
-                  {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
+                  {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
               </XStack>
               <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
@@ -81,9 +93,15 @@ export default function Pending({
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
               <XStack gap="$s2" alignItems="center">
-                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={toToken.logoURI}
+                  symbol={toToken.symbol}
+                  chainId={toToken.chainId}
+                  width={16}
+                  height={16}
+                />
                 <Text emphasized secondary subHeadline>
-                  {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
+                  {formatTokenAmount(toAmount, toToken.decimals, language)}
                 </Text>
               </XStack>
             </YStack>

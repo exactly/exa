@@ -32,6 +32,7 @@ export default function TokenInput({
   onFocus,
   onChange,
   onUseMax,
+  usdValue,
 }: {
   amount: bigint;
   balance: bigint;
@@ -46,6 +47,7 @@ export default function TokenInput({
   onUseMax?: (amount: bigint) => void;
   subLabel?: string;
   token?: Token;
+  usdValue?: number;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
   const {
@@ -54,10 +56,19 @@ export default function TokenInput({
   } = useTranslation();
 
   const valueUSD =
-    amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+    usdValue ??
+    (amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0);
   const balanceUSD =
     token && balance ? Number(formatUnits((balance * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
-  const canUseMax = Boolean(token && !disabled);
+  const significantDecimals = token
+    ? Math.min(8, Math.max(0, token.decimals - Math.ceil(Math.log10(Math.max(1, Number(token.priceUSD)))) + 2))
+    : 0;
+  const balanceAmount = token
+    ? Number(formatUnits(balance, token.decimals)).toLocaleString(language, {
+        maximumFractionDigits: significantDecimals,
+      })
+    : "0";
+  const canUseMax = !!token && !!onUseMax;
 
   const handleAmountChange = useCallback(
     (value: string) => {
@@ -78,9 +89,19 @@ export default function TokenInput({
 
   useEffect(() => {
     if (!isActive && token) {
-      setFieldValue("amountInput", amount > 0n ? formatUnits(amount, token.decimals) : getFieldValue("amountInput"));
+      const value = formatUnits(amount, token.decimals);
+      setFieldValue(
+        "amountInput",
+        amount > 0n
+          ? disabled
+            ? trimDecimals(value, significantDecimals)
+            : value
+          : disabled
+            ? ""
+            : getFieldValue("amountInput"),
+      );
     }
-  }, [isActive, amount, token, setFieldValue, getFieldValue]);
+  }, [isActive, amount, token, disabled, significantDecimals, setFieldValue, getFieldValue]);
 
   useEffect(() => {
     setFieldValue("amountInput", "");
@@ -106,20 +127,20 @@ export default function TokenInput({
             </Text>
           ) : null}
         </YStack>
-        <View
-          padding="$s3"
-          borderRadius="$r2"
-          backgroundColor="$interactiveBaseBrandSoftDefault"
-          onPress={canUseMax ? useMax : undefined}
-          pointerEvents={canUseMax ? "auto" : "none"}
-          opacity={canUseMax ? 1 : 0.4}
-          cursor="pointer"
-          pressStyle={{ opacity: 0.85 }}
-        >
-          <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
-            {t("MAX")}
-          </Text>
-        </View>
+        {canUseMax ? (
+          <View
+            padding="$s3"
+            borderRadius="$r2"
+            backgroundColor="$interactiveBaseBrandSoftDefault"
+            onPress={useMax}
+            cursor="pointer"
+            pressStyle={{ opacity: 0.85 }}
+          >
+            <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
+              {t("MAX")}
+            </Text>
+          </View>
+        ) : null}
       </XStack>
       <YStack gap="$s3_5">
         <XStack gap="$s3_5" alignItems="center">
@@ -184,7 +205,7 @@ export default function TokenInput({
                     </View>
                   )}
                 </Field>
-                <XStack justifyContent="space-between" alignItems="center">
+                <XStack justifyContent="space-between" alignItems="flex-start">
                   {isLoading && !isActive ? (
                     <View flex={1}>
                       <Skeleton height={16} width={120} />
@@ -199,11 +220,16 @@ export default function TokenInput({
                     </Text>
                   )}
                   {token ? (
-                    <Text footnote color="$uiNeutralSecondary">
-                      {t("Balance: {{value}}", {
-                        value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                      })}
-                    </Text>
+                    <YStack alignItems="flex-end" gap="$s1">
+                      <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
+                        {t("Balance: {{value}}", {
+                          value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        })}
+                      </Text>
+                      <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
+                        {`${balanceAmount} ${token.symbol}`}
+                      </Text>
+                    </YStack>
                   ) : null}
                 </XStack>
               </>
@@ -213,4 +239,10 @@ export default function TokenInput({
       </YStack>
     </YStack>
   );
+}
+
+function trimDecimals(value: string, decimals: number) {
+  const [whole, fraction = ""] = value.split(".");
+  const trimmed = fraction.slice(0, decimals).replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : (whole ?? value);
 }

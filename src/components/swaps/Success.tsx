@@ -5,11 +5,10 @@ import { Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 
-import { ArrowDown, ArrowRight, X } from "@tamagui/lucide-icons";
+import { ArrowDown, ArrowRight, Check, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
-import { formatUnits } from "viem";
-
+import formatTokenAmount from "../../utils/formatTokenAmount";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import AssetLogo from "../shared/AssetLogo";
@@ -24,19 +23,25 @@ import View from "../shared/View";
 import type { Token } from "@lifi/sdk";
 
 export default function Success({
-  external,
+  chainId,
+  completed,
+  fee,
   fromUsdAmount,
   fromAmount,
   fromToken,
+  hash,
   toUsdAmount,
   toAmount,
   toToken,
   onClose,
 }: {
-  external: boolean;
+  chainId: number;
+  completed: boolean;
+  fee?: string;
   fromAmount: bigint;
   fromToken: Token;
   fromUsdAmount: number;
+  hash?: string;
   onClose: () => void;
   toAmount: bigint;
   toToken: Token;
@@ -58,7 +63,7 @@ export default function Success({
         right={0}
         height={220}
         opacity={0.2}
-        colors={[theme.uiInfoSecondary.val, theme.backgroundSoft.val]}
+        colors={[completed ? theme.uiSuccessSecondary.val : theme.uiInfoSecondary.val, theme.backgroundSoft.val]}
       />
       <SafeView flex={1} backgroundColor="transparent">
         <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
@@ -73,21 +78,40 @@ export default function Success({
               }}
             />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="$r4" backgroundColor="$interactiveBaseInformationSoftDefault" size={80}>
-                <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />
+              <Square
+                borderRadius="$r4"
+                backgroundColor={
+                  completed ? "$interactiveBaseSuccessSoftDefault" : "$interactiveBaseInformationSoftDefault"
+                }
+                size={80}
+              >
+                {completed ? (
+                  <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />
+                ) : (
+                  <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />
+                )}
               </Square>
             </XStack>
             <YStack gap="$s4_5" justifyContent="center" alignItems="center">
               <Text secondary body>
-                <Trans i18nKey="Swap request <em>sent</em>" components={{ em: <Text secondary body emphasized /> }} />
+                <Trans
+                  i18nKey={completed ? "Swap <em>completed</em>" : "Swap request <em>sent</em>"}
+                  components={{ em: <Text secondary body emphasized /> }}
+                />
               </Text>
               <Text title primary color="$uiNeutralPrimary">
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
               <XStack gap="$s2" alignItems="center">
-                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={fromToken.logoURI}
+                  symbol={fromToken.symbol}
+                  chainId={fromToken.chainId}
+                  width={16}
+                  height={16}
+                />
                 <Text emphasized secondary subHeadline>
-                  {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
+                  {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
               </XStack>
               <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
@@ -95,17 +119,23 @@ export default function Success({
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
               <XStack gap="$s2" alignItems="center">
-                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={toToken.logoURI}
+                  symbol={toToken.symbol}
+                  chainId={toToken.chainId}
+                  width={16}
+                  height={16}
+                />
                 <Text emphasized secondary subHeadline>
-                  {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
+                  {formatTokenAmount(toAmount, toToken.decimals, language)}
                 </Text>
               </XStack>
             </YStack>
           </YStack>
-          <TransactionDetails />
+          <TransactionDetails chainId={chainId} fee={fee} hash={hash} />
         </ScrollView>
         <YStack alignItems="center" gap="$s4" padding="$s4">
-          {!external && (
+          {!completed && (
             <Button
               primary
               width="100%"

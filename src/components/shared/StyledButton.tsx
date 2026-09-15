@@ -212,6 +212,7 @@ function ButtonLabel(properties: ComponentPropsWithoutRef<typeof Text>) {
   return (
     <Text
       footnote
+      numberOfLines={1}
       color={disabled ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
       textAlign="center"
       {...properties}
