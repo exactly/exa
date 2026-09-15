@@ -2,5 +2,6 @@ encryptionsalt: v1::v1:AAAAAAAAAAAAAAAb:rYjVO7/uF2+Qv1LhWq5c2S0ZR4rZaQ==
 config:
   gcp:project: eexxxaa
   exa:domain: web.exactly.app
+  exa:pokeMinimum: 1
   exa:subscribeTimeout: 900s
   exa:whatsappPhoneNumberId: "1287864854409817"

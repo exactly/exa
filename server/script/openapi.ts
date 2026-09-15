@@ -25,6 +25,7 @@ import("../api")
     const handle = api({
       authSecret: zeroHash,
       bridge: createBridge("bridge", "https://bridge.test"),
+      credit: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       database,
       intercom: createIntercom("intercom"),
       manteca: createManteca("manteca", "https://manteca.test"),

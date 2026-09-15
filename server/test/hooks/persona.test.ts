@@ -1,4 +1,4 @@
-import "../mocks/deployments";
+import deployments from "../mocks/deployments";
 import "../mocks/panda";
 import * as pax from "../mocks/pax";
 import "../mocks/persona";
@@ -13,6 +13,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import chain from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import createPersonaHook from "../../hooks/persona";
@@ -21,6 +22,12 @@ import createPax from "../../utils/pax";
 import createPersona, * as Persona from "../../utils/persona";
 import createSardine from "../../utils/sardine";
 
+import type createAllow from "../../workers/allow/queue";
+
+const allow = {
+  close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
+  enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
+};
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const paxConfig = { associateKey: "pax", key: "pax", url: "https://pax.test" };
 const personaConfig = { key: "persona", url: "https://persona.test" };
@@ -28,6 +35,7 @@ const panda = createPanda(pandaConfig);
 const persona = Object.assign(createPersona(personaConfig.key, personaConfig.url), Persona);
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
 const personaHook = createPersonaHook({
+  allow,
   database,
   panda,
   pax: createPax(paxConfig),
@@ -40,6 +48,11 @@ const appClient = testClient(app);
 
 vi.mock("@sentry/node", { spy: true });
 
+beforeEach(() => {
+  deployments.setFirewall(inject("Firewall"));
+  allow.close.mockReset().mockResolvedValue();
+  allow.enqueue.mockReset().mockResolvedValue();
+});
 describe("with reference", () => {
   const referenceId = "hook-persona";
   const owner = privateKeyToAddress(padHex("0x123"));
@@ -92,6 +105,13 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
+    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      chainId: chain.id,
+      factory,
+      publicKey: owner.toLowerCase(),
+      source: null,
+    });
     expect(response.status).toBe(200);
   });
 
@@ -218,6 +238,13 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
+    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      chainId: chain.id,
+      factory,
+      publicKey: owner.toLowerCase(),
+      source: null,
+    });
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -405,15 +432,16 @@ describe("with reference", () => {
 });
 
 describe("persona hook", () => {
+  const account = deriveAddress(inject("ExaAccountFactory"), {
+    x: padHex(privateKeyToAddress(padHex("0x420"))),
+    y: zeroHash,
+  });
   beforeAll(async () => {
     await database.insert(credentials).values({
       id: "persona-ref",
       publicKey: new Uint8Array(),
       factory: inject("ExaAccountFactory"),
-      account: deriveAddress(inject("ExaAccountFactory"), {
-        x: padHex(privateKeyToAddress(padHex("0x420"))),
-        y: zeroHash,
-      }),
+      account,
       pandaId: null,
     });
   });
@@ -427,7 +455,8 @@ describe("persona hook", () => {
 
   afterEach(async () => {
     await new Promise((resolve) => setImmediate(resolve));
-    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    await database.update(credentials).set({ account, pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -452,6 +481,13 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
+    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      chainId: chain.id,
+      factory: inject("ExaAccountFactory"),
+      publicKey: "0x",
+      source: null,
+    });
     expect(panda.createUser).toHaveBeenCalledWith({
       accountPurpose: "business",
       annualSalary: "100000",
@@ -503,6 +539,57 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+
+  it("skips allow for invalid credential accounts", async () => {
+    await database.update(credentials).set({ account: "invalid" }).where(eq(credentials.id, "persona-ref"));
+
+    const response = await postInquiry();
+
+    expect(response.status).toBe(200);
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(panda.createUser).toHaveBeenCalledOnce();
+  });
+
+  it("skips allow without a firewall deployment", async () => {
+    deployments.setFirewall(undefined);
+
+    const response = await postInquiry();
+
+    expect(response.status).toBe(200);
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(panda.createUser).toHaveBeenCalledOnce();
+  });
+
+  it("fails before panda creation when allow cannot be queued", async () => {
+    const error = new Error("redis unavailable");
+    const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    allow.enqueue.mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorConsole).toHaveBeenCalledWith(error);
+    expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -1885,3 +1972,24 @@ const mantecaPayload = {
     },
   },
 } as const;
+
+function postInquiry() {
+  return appClient.index.$post({
+    header: {
+      "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+    },
+    json: {
+      ...validPayload,
+      data: {
+        ...validPayload.data,
+        attributes: {
+          ...validPayload.data.attributes,
+          payload: {
+            ...validPayload.data.attributes.payload,
+            included: [...validPayload.data.attributes.payload.included],
+          },
+        },
+      },
+    },
+  });
+}
