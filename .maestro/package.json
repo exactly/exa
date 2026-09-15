@@ -29,6 +29,9 @@
         "{projectRoot}/package.json",
         "{projectRoot}/tsconfig.json",
         "{projectRoot}/esbuild.config.cjs",
+        {
+          "env": "CHAIN_ID"
+        },
         "sharedGlobals"
       ]
     },
