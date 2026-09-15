@@ -327,7 +327,13 @@
           "env": "APP_DOMAIN"
         },
         {
+          "env": "CHAIN_ID"
+        },
+        {
           "env": "EAS_BUILD_RUNNER"
+        },
+        {
+          "env": "EXPO_PUBLIC_ENV"
         },
         {
           "env": "EXPO_PUBLIC_INTERCOM_APP_ID"
