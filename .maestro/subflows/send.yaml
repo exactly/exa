@@ -4,31 +4,83 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Send
-- tapOn: Cryptocurrencies
-- tapOn: On chain
-- tapOn: Enter Anvil address
+- tapOn: Digital assets
+- assertVisible: Select asset to send
+- runFlow: { file: tapAria.yaml, env: { aria: Select network } }
+- tapOn: All networks
+- tapOn: Search assets
+- inputText: ${asset}
+- runFlow:
+    file: tapAria.yaml
+    env: { aria: "^${asset}, [\\s\\d,.\\xa0]+ available$" }
+- runFlow: { file: tapAria.yaml, env: { aria: Amount } }
+- inputText: "9999"
+- assertNotVisible: Continue
+- eraseText: 4
+- inputText: ${amount}
+- tapOn: "^Send .+ on .+$"
+- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow: { file: tapAria.yaml, env: { aria: Select asset to pay with } }
+- assertVisible: Search assets
+- runFlow: { file: tapAria.yaml, env: { aria: "^${pay ?? asset}, [\\s\\d,.\\xa0]+ available$" } }
+- assertNotVisible: Search assets
+- tapOn: Continue
+- runFlow:
+    when: { true: "${!!pay && pay !== asset}" }
+    commands:
+      - assertVisible: Swap assets
+      - runFlow: { file: tapAria.yaml, env: { aria: Don't show again } }
+      - tapOn: { text: Continue, above: { text: Continue } }
+      - assertNotVisible: Swap assets
+      - runFlow: { file: tapAria.yaml, env: { aria: "${to}" } }
+      - assertVisible: Review and send
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - tapOn: Continue
+- tapOn: Enter ENS or wallet address
+- inputText: not-a-real-name.eth
+- extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
+- eraseText
+- inputText: "0xdead"
+- eraseText: 6
 - inputText: ${to}
+- runFlow:
+    when: { true: "${!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Save contact } }
+      - assertNotVisible: Save contact
+      - runFlow: { file: tapAria.yaml, env: { aria: Clear } }
+      - assertVisible: Contacts
+      - runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+      - assertVisible: Delete contact
+      - runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+      - assertNotVisible: Contacts
+      - tapOn: Enter ENS or wallet address
+      - inputText: ${to}
 - hideKeyboard
-- tapOn: { text: Next, waitToSettleTimeoutMs: 0 }
+- tapOn: Continue
+- assertVisible: Review and send
+- runFlow:
+    when: { true: "${!!pay && pay !== asset}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - tapOn: Continue
+      - assertVisible: Review and send
+      - runFlow: { file: scrollTo.yaml, env: { element: Total } }
+      - copyTextFrom:
+          text: \$[\d,.]+
+          below: Total
+          index: 0
+      - evalScript: ${output.total = Number(maestro.copiedText.slice(1).split(",").join(""))}
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - tapOn:
-          text: ^${asset}, [\s\d,.\xa0]+ available$
-          waitToSettleTimeoutMs: 0
-- runFlow: # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
+    commands: [{ longPressOn: "Hold to send ${asset}" }]
+- runFlow:
     when: { platform: web }
-    commands:
-      - tapOn:
-          id: ^${asset}, [\s\d,.\xa0]+ available$
-          waitToSettleTimeoutMs: 0
-- tapOn: ${asset}
-- inputText: ${amount}
-- runFlow: # HACK
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ tapOn: "To:" }]
-- tapOn: Review
-- tapOn: Send
+    commands: [{ tapOn: "Send ${asset}" }]
 - assertVisible: Transaction details
 - runFlow: getAccount.yaml
 - runScript:
@@ -40,4 +92,4 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount)}
+- assertTrue: "${!!pay && pay !== asset ? Math.abs(output.portfolioBefore - output.portfolio - output.total) < 0.02 : output.portfolioBefore - output.portfolio === Number(amount)}"

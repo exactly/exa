@@ -68,7 +68,7 @@ export default function useSimulateProposal({
   | { proposalType: typeof ProposalType.Redeem; receiver: Address | undefined }
   | { proposalType: typeof ProposalType.Withdraw; receiver: Address | undefined }
 )) {
-  const { data: reads } = useReadContracts({
+  const { data: reads, refetch } = useReadContracts({
     contracts: [
       { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
       { address: proposalManagerAddress, abi: proposalManagerAbi, functionName: "delay" },
@@ -76,6 +76,12 @@ export default function useSimulateProposal({
         address: proposalManagerAddress,
         abi: proposalManagerAbi,
         functionName: "queueNonces",
+        args: account ? [account] : undefined,
+      },
+      {
+        address: proposalManagerAddress,
+        abi: proposalManagerAbi,
+        functionName: "nonces",
         args: account ? [account] : undefined,
       },
       { address: multicall3Address, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
@@ -97,7 +103,7 @@ export default function useSimulateProposal({
     allowFailure: true,
     query: { enabled: enabled && !!account },
   });
-  const [plugins, delay, nonce, timestamp, blockNumber, assets] = reads ?? [];
+  const [plugins, delay, nonce, executed, timestamp, blockNumber, assets] = reads ?? [];
   const installedPlugins = plugins?.status === "success" ? plugins.result : undefined;
   const { data: pluginMetadata } = useReadExaPluginPluginMetadata({
     address: installedPlugins?.[0],
@@ -213,6 +219,7 @@ export default function useSimulateProposal({
   });
   const propose = simulation.data?.[0]?.calls[0];
   const execute = simulation.data?.[1]?.calls[0];
+  const queued = nonce?.status === "success" && executed?.status === "success" && nonce.result > executed.result;
   return {
     request:
       propose?.status === "success" && execute?.status === "success"
@@ -223,6 +230,8 @@ export default function useSimulateProposal({
       simulation.error ??
       (propose?.status === "failure" ? propose.error : null) ??
       (execute?.status === "failure" ? execute.error : null),
+    queued,
+    refetch,
   };
 }
 

@@ -22,7 +22,7 @@ export default function SelectSheet({
   onChange: (value: string) => void;
   onClose: () => void;
   open: boolean;
-  options: { label: string; value: string }[];
+  options: { icon?: React.ReactNode; label: string; value: string }[];
   searchable?: boolean;
   title: string;
   value: string;
@@ -45,8 +45,8 @@ export default function SelectSheet({
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        paddingTop="$s7"
-        paddingHorizontal="$s5"
+        paddingTop="$s5"
+        paddingHorizontal="$s4"
         paddingBottom="$s7"
         $platform-android={{ paddingBottom: "$s5" }}
       >
@@ -78,7 +78,8 @@ export default function SelectSheet({
             {filtered.map((option) => (
               <XStack
                 key={option.value}
-                padding="$s4"
+                paddingVertical="$s4"
+                paddingHorizontal="$s3"
                 borderRadius="$r3"
                 backgroundColor={option.value === value ? "$interactiveBaseBrandSoftDefault" : "transparent"}
                 justifyContent="space-between"
@@ -90,9 +91,12 @@ export default function SelectSheet({
                   close();
                 }}
               >
-                <Text emphasized headline primary>
-                  {option.label}
-                </Text>
+                <XStack alignItems="center" gap="$s3">
+                  {option.icon}
+                  <Text emphasized headline primary>
+                    {option.label}
+                  </Text>
+                </XStack>
                 {option.value === value && <Check size={20} color="$interactiveBaseBrandDefault" />}
               </XStack>
             ))}
