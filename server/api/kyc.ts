@@ -9,6 +9,7 @@ import {
   fallback,
   literal,
   metadata,
+  nonEmpty,
   number,
   object,
   optional,
@@ -19,6 +20,7 @@ import {
   string,
   transform,
   union,
+  variant,
 } from "valibot";
 import { getAddress, sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
@@ -56,6 +58,7 @@ import {
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
+import * as Bridge from "../utils/ramps/bridge";
 import { IpAddress } from "../utils/sardine";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -64,6 +67,7 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type createPanda from "../utils/panda";
 import type createPersona from "../utils/persona";
+import type createBridge from "../utils/ramps/bridge";
 import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createCredit from "../workers/credit/queue";
@@ -96,6 +100,7 @@ function buildBaseResponse(example = "string") {
 
 export default function route({
   auth,
+  bridge,
   credit,
   database,
   panda,
@@ -104,6 +109,7 @@ export default function route({
   segment,
 }: {
   auth: Auth;
+  bridge: ReturnType<typeof createBridge>;
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
@@ -465,7 +471,11 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             content: {
               "application/json": {
                 schema: resolver(
-                  union([CompanyApplicationResponse, CompanyApplicationStatusResponse, object({ status: string() })]),
+                  union([
+                    CompanyApplicationResponse,
+                    CompanyApplicationStatusResponse,
+                    object({ kycLink: optional(string()), status: string() }),
+                  ]),
                   { errorMode: "ignore" },
                 ),
               },
@@ -479,6 +489,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                   union([
                     object({ code: picklist(["invalid encryption", "no account", "bad chain"]), message: string() }),
                     object({ code: literal("not supported") }),
+                    object({ code: literal("already onboarded") }),
                     object({
                       ...buildBaseResponse(BadRequestCodes.BAD_REQUEST).entries,
                       message: optional(array(string())),
@@ -572,7 +583,10 @@ The admin should add a member using [addMember method](https://www.better-auth.c
               verify: object({ message: string(), signature: Hex, walletAddress: Address, chainId: number() }),
             }),
             strictObject({}),
-            object({ scope: picklist(["panda", "bridge"]) }),
+            variant("scope", [
+              object({ acceptedTermsId: pipe(string(), nonEmpty()), scope: literal("bridge") }),
+              object({ scope: literal("panda") }),
+            ]),
           ]),
         ),
         validatorHook({ debug }),
@@ -590,16 +604,41 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           const account = parse(Address, credential.account);
           if (!isBusinessSalt(parse(Address, credential.salt))) return c.json({ code: "not supported" }, 400);
           if (payload && "verify" in payload) return c.json({ code: BadRequestCodes.BAD_REQUEST }, 400);
-          if (!payload || !("scope" in payload) || payload.scope !== "panda")
-            return c.json({ code: "not supported" }, 400);
+          if (!payload || !("scope" in payload)) return c.json({ code: "not supported" }, 400);
           setUser({ id: account });
           return withMutex(account, async () => {
             const current = await database.query.credentials.findFirst({
-              columns: { pandaId: true },
+              columns: { bridgeId: true, pandaId: true },
               where: eq(credentials.id, credentialId),
             });
             if (!current) return c.json({ code: "no credential" }, 500);
             try {
+              if (payload.scope === "bridge") {
+                if (current.bridgeId) return c.json({ code: Bridge.ErrorCodes.ALREADY_ONBOARDED }, 400);
+                const application = await panda.businessApplication(
+                  credentialId,
+                  account,
+                  c.req.valid("header")?.["client-ip"],
+                  persona,
+                );
+                const customer = await bridge.createCustomer(
+                  {
+                    business_legal_name: application.name,
+                    client_reference_id: credentialId,
+                    email: application.initialUser.email,
+                    endorsements: ["base", "sepa"], // cspell:ignore sepa
+                    signed_agreement_id: payload.acceptedTermsId,
+                    type: "business",
+                  },
+                  `bridge-business-customer:${credentialId}`,
+                );
+                const kycLink = await bridge.getKYCLink(customer.id);
+                await database
+                  .update(credentials)
+                  .set({ bridgeId: customer.id })
+                  .where(eq(credentials.id, credentialId));
+                return c.json({ kycLink, status: "pending" }, 200);
+              }
               if (current.pandaId) {
                 const existing = await database.query.cards.findFirst({
                   columns: { id: true },
@@ -640,7 +679,9 @@ The admin should add a member using [addMember method](https://www.better-auth.c
             } catch (error) {
               if (error instanceof BusinessApplicationError)
                 return c.json({ code: error.code, message: [error.message] }, 400);
-              if (error instanceof ServiceError && error.status === 400)
+              if (error instanceof Error && error.message === Bridge.ErrorCodes.EMAIL_ALREADY_EXISTS)
+                return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
+              if (error instanceof ServiceError && (error.status === 400 || error.status === 422))
                 return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
               throw error;
             }
