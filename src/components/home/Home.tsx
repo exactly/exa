@@ -27,7 +27,6 @@ import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
 import InstallmentsSheet from "./InstallmentsSheet";
-import InstallmentsSpotlight from "./InstallmentsSpotlight";
 import PayModeSheet from "./PayModeSheet";
 import PortfolioSummary from "./PortfolioSummary";
 import PromoSheet from "./PromoSheet";
@@ -60,6 +59,7 @@ import LiquidationAlert from "../shared/LiquidationAlert";
 import ProfileHeader from "../shared/ProfileHeader";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
+import Spotlight from "../shared/Spotlight";
 import View from "../shared/View";
 
 import type { ActivityItem } from "../../utils/queryClient";
@@ -428,7 +428,8 @@ export default function Home() {
             }}
           />
           {card && card.mode > 0 && !spotlightShown && focused && (
-            <InstallmentsSpotlight
+            <Spotlight
+              label={t("Tap here to change the number of installments")}
               scrollOffset={scrollOffsetRef}
               scrollRef={scrollRef}
               targetRef={spotlightRef}
