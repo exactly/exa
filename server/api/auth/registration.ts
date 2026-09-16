@@ -42,6 +42,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { accountSalt } from "../../utils/createCredential";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -277,6 +278,7 @@ export default function route({
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "account-type": optional(literal("business")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -409,6 +411,7 @@ export default function route({
         try {
           const result = await createCredential(c, attestation.id, {
             factory,
+            salt: accountSalt(headers?.["account-type"]),
             webauthn,
             source: headers?.["Client-Fid"],
             ip: headers?.["do-connecting-ip"],

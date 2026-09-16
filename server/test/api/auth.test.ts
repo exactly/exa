@@ -12,11 +12,11 @@ import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
-import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
+import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress, zeroHash } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
-import * as derive from "@exactly/common/deriveAddress";
+import deriveAddress, * as derive from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
@@ -89,6 +89,22 @@ describe("authentication", () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await redis.del("test-session");
+  });
+
+  it.each([
+    { name: "siwe", query: { credentialId: zeroAddress } },
+    { name: "webauthn", query: {} },
+  ])("stores the bare $name challenge, ignoring account type", async ({ query }) => {
+    const response = await appClient.index.$get({ query }, { headers: { "account-type": "business" } });
+    const sessionId = response.headers.get("X-Session-Id") ?? "";
+    onTestFinished(async () => {
+      await redis.del(sessionId);
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(sessionId).not.toBe("");
+    await expect(redis.get(sessionId)).resolves.toBe(body.method === "siwe" ? body.message : body.challenge);
   });
 
   it("returns intercom token on successful login", async () => {
@@ -252,6 +268,51 @@ describe("authentication", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
+  });
+
+  it("authenticates a credential with a business salt regardless of header", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:business-authentication")), 12)));
+    const salt = parse(Address, slice(keccak256(toBytes("salt:business-authentication")), 0, 20));
+    const factory = parse(Address, inject("ExaAccountFactory"));
+    await database.insert(credentials).values({
+      id,
+      publicKey: new Uint8Array(65),
+      account: deriveAddress(factory, { x: zeroHash, y: zeroHash, salt }),
+      factory,
+      salt,
+      transports: [],
+    });
+    await redis.set("test-session", "test-challenge");
+    vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: {
+        credentialID: id,
+        newCounter: 0,
+        userVerified: false,
+        credentialDeviceType: "singleDevice",
+        credentialBackedUp: false,
+        origin: "http://localhost",
+        rpID: "localhost",
+      },
+    });
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id,
+          rawId: id,
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expect.objectContaining({ salt }));
+    await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
   it("returns 400 for missing credential with non-siwe assertion", async () => {
@@ -660,6 +721,22 @@ describe("registration", () => {
     await redis.del("test-session");
   });
 
+  it.each([
+    { name: "siwe", query: { credentialId: zeroAddress } },
+    { name: "webauthn", query: {} },
+  ])("stores the bare $name challenge, ignoring account type", async ({ query }) => {
+    const response = await registrationAppClient.index.$get({ query }, { headers: { "account-type": "business" } });
+    const sessionId = response.headers.get("X-Session-Id") ?? "";
+    onTestFinished(async () => {
+      await redis.del(sessionId);
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(sessionId).not.toBe("");
+    await expect(redis.get(sessionId)).resolves.toBe(body.method === "siwe" ? body.message : body.challenge);
+  });
+
   it("returns 400 if registration challenge is missing", async () => {
     await redis.del("test-session");
     const response = await postRegistrationWebauthn();
@@ -957,6 +1034,28 @@ describe("registration", () => {
     });
     expect(credential).toBeDefined();
     expect(credential?.source).toBeNull();
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("creates a business credential with a nonzero salt using webauthn", async () => {
+    const id = own("YnVzaW5lc3MtcmVnaXN0cmF0aW9u"); // cspell:ignore YnVzaW5lc3MtcmVnaXN0cmF0aW9u
+    await redis.set("test-session", "test-challenge");
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", "account-type": "business" } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { account: true, salt: true },
+    });
+    if (!credential) throw new Error("missing credential");
+    expect(credential.salt).not.toBe(zeroAddress);
+    expect(await response.json()).toEqual(expect.objectContaining({ salt: credential.salt }));
+    expect(credential.account).toBe(
+      deriveAddress(exaAccountFactoryAddress, { x: zeroHash, y: zeroHash, salt: credential.salt }),
+    );
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 });

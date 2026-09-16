@@ -1,7 +1,8 @@
 import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
+import { randomBytes } from "node:crypto";
 import { parse } from "valibot";
-import { hexToBytes, isAddress, zeroAddress } from "viem";
+import { bytesToHex, hexToBytes, isAddress, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -38,15 +39,15 @@ export default function createCredential({
   return async function credential<C extends string>(
     c: Context,
     credentialId: C,
-    options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
+    options?: { factory?: Address; ip?: IpAddress; salt?: Address; source?: string; webauthn?: WebAuthnCredential },
   ) {
     if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
     const factory = options?.factory ?? exaAccountFactoryAddress;
+    const salt = options?.salt ?? parse(Address, zeroAddress);
     const publicKey =
       options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
     if (!publicKey) throw new Error("bad credential");
     const { x, y } = decodePublicKey(publicKey);
-    const salt = parse(Address, zeroAddress);
     const account = deriveAddress(factory, { x, y, salt });
 
     setUser({ id: account });
@@ -91,4 +92,13 @@ export default function createCredential({
     segment.identify({ userId: account });
     return { credentialId, factory: parse(Address, factory), x, y, salt, auth: expires.getTime() };
   };
+}
+
+export function accountSalt(accountType?: "business") {
+  if (accountType !== "business") return parse(Address, zeroAddress);
+  return parse(Address, bytesToHex(randomBytes(20)));
+}
+
+export function isBusinessSalt(value: Address) {
+  return value !== parse(Address, zeroAddress);
 }

@@ -45,6 +45,7 @@ import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation"
 import { credentials } from "../../database/schema";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { accountSalt } from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
@@ -283,6 +284,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "account-type": optional(literal("business")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -390,6 +392,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
             const result = await createCredential(c, assertion.id, {
               factory,
+              salt: accountSalt(headers?.["account-type"]),
               source: c.req.header("Client-Fid"),
               ip: headers?.["do-connecting-ip"],
             });
