@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
   Modal,
   Platform,
@@ -13,22 +12,25 @@ import SVG, { Defs, Mask, Rect } from "react-native-svg";
 
 import { Theme, View, YStack, type ScrollView } from "tamagui";
 
-import Text from "../shared/Text";
+import Text from "./Text";
 
-export default function InstallmentsSpotlight({
+export default function Spotlight({
+  children,
+  label,
   onDismiss,
   onPress,
   scrollOffset,
   scrollRef,
   targetRef,
 }: {
+  children?: React.ReactNode;
+  label: string;
   onDismiss: () => void;
-  onPress: () => void;
-  scrollOffset: React.RefObject<number>;
-  scrollRef: React.RefObject<null | ScrollView>;
+  onPress?: () => void;
+  scrollOffset?: React.RefObject<number>;
+  scrollRef?: React.RefObject<null | ScrollView>;
   targetRef: React.RefObject<null | RNView>;
 }) {
-  const { t } = useTranslation();
   const { width: screenWidth, height: windowHeight } = useWindowDimensions();
   const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
   const screenHeight = windowHeight + statusBarHeight;
@@ -50,7 +52,7 @@ export default function InstallmentsSpotlight({
           return;
         }
         previous = valid ? { x, y, width, height } : undefined;
-        if (valid || scrolled) return;
+        if (valid || scrolled || !scrollRef || !scrollOffset) return;
         scrolled = true;
         if (width > 0 && height > 0) {
           const contentY = scrollOffset.current + y;
@@ -102,13 +104,13 @@ export default function InstallmentsSpotlight({
         </SVG>
       </View>
       <Pressable
-        aria-label={t("Tap here to change the number of installments")}
+        aria-label={label}
         style={[
           styles.cutoutPress,
           { top: cutout.y, left: cutout.x, width: cutout.width, height: cutout.height, borderRadius: cutoutRadius },
         ]}
         onPress={() => {
-          onPress();
+          onPress?.();
           onDismiss();
         }}
       />
@@ -126,7 +128,7 @@ export default function InstallmentsSpotlight({
           shadowOpacity={0.15}
           shadowRadius={8}
           onPress={() => {
-            onPress();
+            onPress?.();
             onDismiss();
           }}
         >
@@ -140,9 +142,11 @@ export default function InstallmentsSpotlight({
             borderRadius={2}
             transform={[{ rotate: "45deg" }]}
           />
-          <Text footnote textAlign="center">
-            {t("Tap here to change the number of installments")}
-          </Text>
+          {children ?? (
+            <Text footnote textAlign="center">
+              {label}
+            </Text>
+          )}
         </YStack>
       </Theme>
     </Modal>
