@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Modal,
   Platform,
@@ -16,6 +17,7 @@ import Text from "./Text";
 
 export default function Spotlight({
   children,
+  dismissible = false,
   label,
   onDismiss,
   onPress,
@@ -24,6 +26,7 @@ export default function Spotlight({
   targetRef,
 }: {
   children?: React.ReactNode;
+  dismissible?: boolean;
   label: string;
   onDismiss: () => void;
   onPress?: () => void;
@@ -31,6 +34,7 @@ export default function Spotlight({
   scrollRef?: React.RefObject<null | ScrollView>;
   targetRef: React.RefObject<null | RNView>;
 }) {
+  const { t } = useTranslation();
   const { width: screenWidth, height: windowHeight } = useWindowDimensions();
   const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
   const screenHeight = windowHeight + statusBarHeight;
@@ -75,34 +79,41 @@ export default function Spotlight({
   const tooltipTop = cutout.y + cutout.height + 12;
   const tooltipLeft = Math.max(16, Math.min(cutout.x + cutout.width / 2 - 100, screenWidth - 216));
   const arrowLeft = cutout.x + cutout.width / 2 - tooltipLeft - 6;
-  return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent>
-      <View style={StyleSheet.absoluteFill}>
-        <SVG width={screenWidth} height={screenHeight}>
-          <Defs>
-            <Mask id="cutout">
-              <Rect width={screenWidth} height={screenHeight} fill="white" />
-              <Rect
-                transform={[{ translateX: cutout.x }, { translateY: cutout.y }]}
-                width={cutout.width}
-                height={cutout.height}
-                rx={cutoutRadius}
-                fill="black"
-              />
-            </Mask>
-          </Defs>
-          <Rect width={screenWidth} height={screenHeight} fill="rgba(0,0,0,0.56)" mask="url(#cutout)" />
+  const backdrop = (
+    <SVG width={screenWidth} height={screenHeight}>
+      <Defs>
+        <Mask id="cutout">
+          <Rect width={screenWidth} height={screenHeight} fill="white" />
           <Rect
             transform={[{ translateX: cutout.x }, { translateY: cutout.y }]}
             width={cutout.width}
             height={cutout.height}
             rx={cutoutRadius}
-            fill="none"
-            stroke="white"
-            strokeWidth={2}
+            fill="black"
           />
-        </SVG>
-      </View>
+        </Mask>
+      </Defs>
+      <Rect width={screenWidth} height={screenHeight} fill="rgba(0,0,0,0.56)" mask="url(#cutout)" />
+      <Rect
+        transform={[{ translateX: cutout.x }, { translateY: cutout.y }]}
+        width={cutout.width}
+        height={cutout.height}
+        rx={cutoutRadius}
+        fill="none"
+        stroke="white"
+        strokeWidth={2}
+      />
+    </SVG>
+  );
+  return (
+    <Modal transparent visible animationType="fade" statusBarTranslucent>
+      {dismissible ? (
+        <Pressable style={StyleSheet.absoluteFill} aria-label={t("Dismiss")} onPress={onDismiss}>
+          {backdrop}
+        </Pressable>
+      ) : (
+        <View style={StyleSheet.absoluteFill}>{backdrop}</View>
+      )}
       <Pressable
         aria-label={label}
         style={[

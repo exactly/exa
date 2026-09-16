@@ -6,6 +6,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Send to
+- runFlow:
+    when: { visible: "Send anything, anywhere" }
+    commands:
+      - tapOn: Not now
+      - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
 - tapOn: Enter ENS or wallet address
 - inputText: not-a-real-name.eth
 - extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
