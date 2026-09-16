@@ -36,6 +36,7 @@ import ensOptions, { ensName } from "../../utils/ensOptions";
 import { chainTypeOf, lifiChainsOptions, receiverSchema } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import Blocky from "../shared/Blocky";
+import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
@@ -62,7 +63,14 @@ export default function ReceiverSelection() {
 
   const { data: savedContacts } = useQuery<Contact[] | undefined>({ queryKey: ["contacts", "saved"] });
   const { data: recentContacts } = useQuery<Contact[] | undefined>({ queryKey: ["contacts", "recent"] });
-  const [editing, setEditing] = useState<{ address: Address; ens: string; list: "recent" | "saved" }>();
+  const [editing, setEditing] = useState<{ address: string; ens: string; list: "recent" | "saved" }>();
+
+  function setAdvanced(enabled: boolean) {
+    queryClient.setQueryData(["settings", "advanced-mode"], enabled);
+    toast.show(enabled ? t("Advanced mode enabled") : t("Advanced mode disabled"), {
+      burntOptions: { haptic: "success", preset: "done" },
+    });
+  }
 
   const form = useForm({ defaultValues: { receiver: "" } });
   useEffect(() => {
@@ -82,8 +90,7 @@ export default function ReceiverSelection() {
   const chainType = chainTypeOf(value);
   const incompatible = !advanced && !!chainType && chainType !== ChainType.EVM;
   const parsed = chainType && safeParse(receiverSchema(chainType), value);
-  const hex = safeParse(Address, resolved ?? (parsed?.success ? value.trim() : ""));
-  const recipient = hex.success ? hex.output : undefined;
+  const target = resolved ?? (parsed?.success ? parsed.output : undefined);
   const ready = name ? !!resolved : !!chainType && !incompatible;
 
   function submit(to: string, type: ChainType, ens?: string) {
@@ -126,8 +133,8 @@ export default function ReceiverSelection() {
           keyboardShouldPersistTaps="handled"
         >
           <YStack flex={1} justifyContent="space-between" gap="$s5">
-            <YStack gap="$s6">
-              <YStack gap="$s3">
+            <YStack gap="$s4">
+              <YStack gap="$s5">
                 <form.Field name="receiver">
                   {({ state: { meta }, handleBlur, handleChange }) => (
                     <YStack gap="$s2">
@@ -217,23 +224,23 @@ export default function ReceiverSelection() {
                       alignSelf="center"
                       alignItems="center"
                       paddingHorizontal="$s3_5"
-                      paddingVertical="$s2"
-                      borderRadius="$r_0"
-                      backgroundColor="$backgroundMild"
+                      paddingVertical="$s3"
+                      borderRadius="$r3"
+                      backgroundColor="$backgroundStrong"
                     >
-                      <Text caption secondary>
+                      <Text caption2 secondary>
                         {t("Advanced mode on.")}
                       </Text>
                       <Text
                         emphasized
-                        caption
+                        caption2
                         brand
                         textDecorationLine="underline"
                         role="button"
                         cursor="pointer"
                         pressStyle={{ opacity: 0.7 }}
                         onPress={() => {
-                          queryClient.setQueryData(["settings", "advanced-mode"], false);
+                          setAdvanced(false);
                         }}
                       >
                         {t("Turn off")}
@@ -242,47 +249,41 @@ export default function ReceiverSelection() {
                   )}
                 </AnimatePresence>
                 {incompatible && (
-                  <XStack
-                    gap="$s3"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    padding="$s3_5"
-                    borderRadius="$r3"
-                    backgroundColor="$interactiveBaseErrorSoftDefault"
-                  >
-                    <Text flex={1} caption2 color="$uiErrorSecondary">
+                  <View padding="$s3_5" borderRadius="$r3" backgroundColor="$interactiveBaseErrorSoftDefault">
+                    <Text caption2 color="$uiErrorSecondary">
                       {t("This is a {{network}} address. Turn on Advanced mode to send to other networks.", {
                         network: chains?.find((item) => item.chainType === chainType)?.name ?? "",
-                      })}
+                      })}{" "}
+                      <Text
+                        emphasized
+                        caption2
+                        brand
+                        textDecorationLine="underline"
+                        role="button"
+                        cursor="pointer"
+                        pressStyle={{ opacity: 0.7 }}
+                        onPress={() => {
+                          setAdvanced(true);
+                        }}
+                      >
+                        {t("Turn it on")}
+                      </Text>
                     </Text>
-                    <Text
-                      emphasized
-                      caption2
-                      brand
-                      role="button"
-                      cursor="pointer"
-                      pressStyle={{ opacity: 0.7 }}
-                      onPress={() => {
-                        queryClient.setQueryData(["settings", "advanced-mode"], true);
-                      }}
-                    >
-                      {t("Turn it on")}
-                    </Text>
-                  </XStack>
+                  </View>
                 )}
               </YStack>
-              {!!recipient && (
+              {!!target && (
                 <YStack gap="$s4">
                   <XStack gap="$s3" alignItems="center">
                     <View padding="$s3" borderRadius="$r3" backgroundColor="$backgroundMild">
                       <Wallet size={20} color="$uiNeutralPrimary" />
                     </View>
                     <Text flex={1} subHeadline primary mono={!name} numberOfLines={1}>
-                      {name ?? shortenHex(recipient, 6, 6)}
+                      {name ?? shortenHex(target, 6, 6)}
                     </Text>
                     <Check size={16} color="$uiSuccessSecondary" />
                   </XStack>
-                  {!savedContacts?.some(({ address }) => address === recipient) && (
+                  {!savedContacts?.some(({ address }) => address === target) && (
                     <XStack
                       gap="$s3"
                       alignItems="center"
@@ -292,7 +293,7 @@ export default function ReceiverSelection() {
                       aria-label={t("Save contact")}
                       onPress={() => {
                         queryClient.setQueryData<Contact[] | undefined>(["contacts", "saved"], (old) => [
-                          { address: recipient, ens: name ?? "" },
+                          { address: target, chainType: chainType ?? ChainType.EVM, ens: name ?? "" },
                           ...(old ?? []),
                         ]);
                         toast.show(t("Contact saved successfully"), {
@@ -311,77 +312,105 @@ export default function ReceiverSelection() {
                   )}
                 </YStack>
               )}
-              {!value &&
-                (
-                  [
-                    { title: t("Contacts"), contacts: savedContacts, list: "saved" },
-                    { title: t("Recent"), contacts: recentContacts, list: "recent" },
-                  ] as const
-                ).map(({ title, contacts, list }) =>
-                  contacts?.length ? (
-                    <YStack key={title} gap="$s5">
-                      <Text subHeadline color="$uiNeutralPlaceholder">
-                        {title}
-                      </Text>
-                      {contacts.map((contact) => (
-                        <XStack
-                          key={contact.address}
-                          gap="$s3"
-                          alignItems="center"
-                          cursor="pointer"
-                          pressStyle={{ opacity: 0.7 }}
-                          role="button"
-                          aria-label={contact.ens || contact.address}
-                          onPress={() => {
-                            if (contact.ens) {
-                              queryClient
-                                .fetchQuery(ensOptions(contact.ens, chain.id))
-                                .then((address) => submit(address ?? contact.address, ChainType.EVM, contact.ens))
-                                .catch(() => submit(contact.address, ChainType.EVM, contact.ens));
-                            } else {
-                              submit(contact.address, ChainType.EVM);
-                            }
-                          }}
-                        >
-                          <View borderRadius="$r_0" overflow="hidden">
-                            <Blocky seed={contact.address} />
-                          </View>
-                          <YStack gap="$s2" flex={1}>
-                            <Text subHeadline primary mono={!contact.ens}>
-                              {contact.ens || shortenHex(contact.address, 6, 6)}
-                            </Text>
-                            {!!contact.ens && (
-                              <Text caption secondary mono>
-                                {shortenHex(contact.address, 6, 6)}
-                              </Text>
-                            )}
-                            {!!contact.date && (
-                              <Text caption secondary numberOfLines={1}>
-                                {t("Sent to on {{date}}", {
-                                  date: new Date(contact.date).toLocaleDateString(language, {
-                                    month: "long",
-                                    day: "numeric",
-                                  }),
-                                })}
-                              </Text>
-                            )}
-                          </YStack>
-                          <IconButton
-                            icon={Pencil}
-                            size={16}
-                            color="$uiBrandSecondary"
-                            aria-label={t("Edit contact")}
-                            onPress={(event) => {
-                              event.stopPropagation();
-                              Keyboard.dismiss();
-                              setEditing({ address: contact.address, ens: contact.ens, list });
-                            }}
-                          />
-                        </XStack>
-                      ))}
-                    </YStack>
-                  ) : undefined,
-                )}
+              {!value && (
+                <YStack gap="$s3">
+                  {(
+                    [
+                      {
+                        title: t("Contacts"),
+                        contacts: savedContacts,
+                        list: "saved",
+                      },
+                      {
+                        title: t("Recent"),
+                        contacts: recentContacts,
+                        list: "recent",
+                      },
+                    ] as const
+                  ).map(({ title, contacts, list }) =>
+                    contacts?.length ? (
+                      <YStack key={title} gap="$s3">
+                        <Text subHeadline color="$uiNeutralPlaceholder">
+                          {title}
+                        </Text>
+                        <YStack gap="$s4_5">
+                          {contacts.map((contact) => (
+                            <XStack
+                              key={contact.address}
+                              gap="$s3"
+                              alignItems="center"
+                              cursor="pointer"
+                              pressStyle={{ opacity: 0.7 }}
+                              role="button"
+                              aria-label={contact.ens || contact.address}
+                              onPress={() => {
+                                const type = contact.chainType ?? ChainType.EVM;
+                                if (type !== ChainType.EVM && !advanced) setAdvanced(true);
+                                if (contact.ens) {
+                                  queryClient
+                                    .fetchQuery(ensOptions(contact.ens, chain.id))
+                                    .then((address) => submit(address ?? contact.address, type, contact.ens))
+                                    .catch(() => submit(contact.address, type, contact.ens));
+                                } else {
+                                  submit(contact.address, type);
+                                }
+                              }}
+                            >
+                              <View>
+                                <View borderRadius="$r_0" overflow="hidden">
+                                  <Blocky seed={contact.address} />
+                                </View>
+                                {!!contact.chainType && contact.chainType !== ChainType.EVM && (
+                                  <View
+                                    position="absolute"
+                                    bottom={-2}
+                                    right={-2}
+                                    borderWidth={1}
+                                    borderColor="$backgroundSoft"
+                                    borderRadius="$r_0"
+                                    overflow="hidden"
+                                  >
+                                    <ChainLogo
+                                      chainId={chains?.find((item) => item.chainType === contact.chainType)?.id}
+                                      size={16}
+                                    />
+                                  </View>
+                                )}
+                              </View>
+                              <YStack gap="$s2" flex={1}>
+                                <Text subHeadline primary>
+                                  {contact.ens || shortenHex(contact.address, 6, 6)}
+                                </Text>
+                                {!!contact.date && (
+                                  <Text caption secondary numberOfLines={1}>
+                                    {t("Sent to on {{date}}", {
+                                      date: new Date(contact.date).toLocaleDateString(language, {
+                                        month: "long",
+                                        day: "numeric",
+                                      }),
+                                    })}
+                                  </Text>
+                                )}
+                              </YStack>
+                              <IconButton
+                                icon={Pencil}
+                                size={16}
+                                color="$uiBrandSecondary"
+                                aria-label={t("Edit contact")}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  Keyboard.dismiss();
+                                  setEditing({ address: contact.address, ens: contact.ens, list });
+                                }}
+                              />
+                            </XStack>
+                          ))}
+                        </YStack>
+                      </YStack>
+                    ) : undefined,
+                  )}
+                </YStack>
+              )}
             </YStack>
             <Button
               primary
@@ -404,7 +433,7 @@ export default function ReceiverSelection() {
       <AdvancedIntroSheet
         open={!introSeen}
         onEnable={() => {
-          queryClient.setQueryData(["settings", "advanced-mode"], true);
+          setAdvanced(true);
           queryClient.setQueryData(["settings", "advanced-intro"], true);
         }}
         onDismiss={() => {
@@ -414,9 +443,7 @@ export default function ReceiverSelection() {
       <AdvancedSheet
         advanced={!!advanced}
         open={settings}
-        onChange={(enabled) => {
-          queryClient.setQueryData(["settings", "advanced-mode"], enabled);
-        }}
+        onChange={setAdvanced}
         onClose={() => {
           setSettings(false);
         }}
@@ -458,4 +485,4 @@ export default function ReceiverSelection() {
   );
 }
 
-type Contact = { address: Address; date?: number; ens: string };
+type Contact = { address: string; chainType?: ChainType; date?: number; ens: string };

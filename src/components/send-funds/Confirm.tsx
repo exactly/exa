@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, OctagonX, TriangleAlert, X } from "@tamagui/lucide-icons";
 import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
+import { ChainType } from "@lifi/sdk";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { parse, safeParse } from "valibot";
 import {
@@ -86,6 +87,7 @@ export default function Confirm() {
     fromAmount: fromAmountParameter,
     receiver: receiverParameter,
     ens: ensParameter,
+    chainType,
   } = useLocalSearchParams();
   const payParse = safeParse(Address, assetParameter);
   const pay = payParse.success ? payParse.output : undefined;
@@ -513,18 +515,22 @@ export default function Confirm() {
   }, [routeStatus?.status]);
   const exit = market ? "/activity" : "/";
 
-  const { data: recentContacts } = useQuery<undefined | { address: Address; date?: number; ens: string }[]>({
-    queryKey: ["contacts", "recent"],
-  });
-
   useEffect(() => {
-    if (success && receiverHex && !recentContacts?.some((contact) => contact.address === receiverHex)) {
-      queryClient.setQueryData<undefined | { address: Address; date?: number; ens: string }[]>(
-        ["contacts", "recent"],
-        (old) => [{ address: receiverHex, ens, date: Date.now() }, ...(old ?? [])].slice(0, 3),
-      );
-    }
-  }, [success, receiverHex, ens, recentContacts]);
+    if (!success || !receiver) return;
+    queryClient.setQueryData<undefined | { address: string; chainType?: ChainType; date?: number; ens: string }[]>(
+      ["contacts", "recent"],
+      (old) =>
+        [
+          {
+            address: receiver,
+            chainType: typeof chainType === "string" ? (chainType as ChainType) : ChainType.EVM,
+            ens,
+            date: Date.now(),
+          },
+          ...(old ?? []).filter((contact) => contact.address !== receiver),
+        ].slice(0, 3),
+    );
+  }, [success, receiver, chainType, ens]);
 
   const received = useMemo(() => {
     const settled =

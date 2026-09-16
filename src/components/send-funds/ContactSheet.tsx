@@ -11,14 +11,12 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Address } from "@exactly/common/validation";
-
 export default function ContactSheet({
   contact,
   onClose,
   onDelete,
 }: {
-  contact?: { address: Address; ens: string };
+  contact?: { address: string; ens: string };
   onClose: () => void;
   onDelete: () => void;
 }) {
