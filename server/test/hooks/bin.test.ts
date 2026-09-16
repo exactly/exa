@@ -17,6 +17,7 @@ const pax = {};
 const persona = {};
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
+const credit = { close: vi.fn<() => Promise<void>>() };
 const allow = { close: vi.fn<() => Promise<void>>() };
 const poke = { close: vi.fn<() => Promise<void>>() };
 const refund = { close: vi.fn<() => Promise<void>>() };
@@ -25,6 +26,7 @@ const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
   allow: vi.fn<(bullmq: object) => typeof allow>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
+  credit: vi.fn<(bullmq: object) => typeof credit>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<(config: Record<string, unknown>) => Handle>(),
   manteca: vi.fn<(key: string, url: string) => object>(),
@@ -51,6 +53,7 @@ beforeEach(() => {
   mocks.alchemy.mockReset().mockReturnValue(alchemy);
   mocks.allow.mockReset().mockReturnValue(allow);
   mocks.bridge.mockReset().mockReturnValue(bridge);
+  mocks.credit.mockReset().mockReturnValue(credit);
   mocks.drizzle.mockReset().mockReturnValue(database);
   mocks.hook.mockReset().mockReturnValue({
     app: new Hono().get("/", (c) => c.json({ status: "ok" })),
@@ -101,6 +104,7 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../workers/credit/queue", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/allow/queue", () => ({ default: mocks.allow }));
   vi.doMock("../../workers/hook/queue", () => ({ default: mocks.webhook }));
   vi.doMock("../../workers/poke/queue", () => ({ default: mocks.poke }));
@@ -165,7 +169,19 @@ describe("hook bin", () => {
     },
     {
       accounts: ["issuer", "settler"],
-      config: { database, issuer, onesignal, panda, refund, sardine, segment, settler: account, webhook },
+      config: {
+        credit,
+        database,
+        issuer,
+        onesignal,
+        panda,
+        persona,
+        refund,
+        sardine,
+        segment,
+        settler: account,
+        webhook,
+      },
       load: () => import("../../hooks/bin/panda"),
       name: "panda",
       secrets: [
@@ -173,6 +189,8 @@ describe("hook bin", () => {
         "panda-onesignal-api-key",
         "panda-panda-api-key",
         "panda-api-url",
+        "panda-persona-api-key",
+        "persona-api-url",
         "redis-url",
         "panda-sardine-api-key",
         "sardine-api-url",
