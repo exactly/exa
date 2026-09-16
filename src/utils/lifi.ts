@@ -52,8 +52,10 @@ export const lifiTokensOptions = queryOptions({
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
     ensureConfig();
-    const { tokens } = await getTokens({ chainTypes: [ChainType.EVM] });
-    const allTokens = Object.values(tokens).flat();
+    const { tokens } = await getTokens({ chainTypes: [ChainType.EVM], orderBy: "volumeUSD24H" });
+    const allTokens = Object.values(tokens)
+      .flat()
+      .filter((token) => token.verificationStatus !== "flagged");
     if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
       throw new Error("missing destination tokens");
     }
