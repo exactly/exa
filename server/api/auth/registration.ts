@@ -22,6 +22,7 @@ import {
   number,
   object,
   optional,
+  parse,
   pipe,
   record,
   safeParse,
@@ -31,6 +32,7 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
+import { zeroAddress } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -51,6 +53,8 @@ import type createCredentialFactory from "../../utils/createCredential";
 import type createIntercom from "../../utils/intercom";
 import type createWalletExtension from "../../utils/walletExtension";
 import type { Redis } from "ioredis";
+
+const accountTypeSchema = optional(literal("business"));
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -152,11 +156,13 @@ const RegistrationOptions = variant("method", [
 ]);
 
 export default function route({
+  businessSalt,
   createCredential,
   intercom,
   redis,
   walletExtension,
 }: {
+  businessSalt: string;
   createCredential: ReturnType<typeof createCredentialFactory>;
   intercom: ReturnType<typeof createIntercom>;
   redis: Redis;
@@ -277,6 +283,7 @@ export default function route({
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "Account-Type": accountTypeSchema,
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -349,6 +356,8 @@ export default function route({
         const attestation = c.req.valid("json");
         const factory = c.req.valid("query")?.factory ?? undefined;
         const headers = c.req.valid("header");
+        const accountType = safeParse(accountTypeSchema, c.req.header("Account-Type"));
+        if (!accountType.success) return c.json({ code: "bad account type" }, 400);
         const platform = safeParse(optional(literal("ios")), headers?.["Client-Platform"]);
         if (!platform.success) return c.json({ code: "bad client platform" }, 400);
         setContext("auth", attestation);
@@ -409,6 +418,7 @@ export default function route({
         try {
           const result = await createCredential(c, attestation.id, {
             factory,
+            salt: accountType.output === "business" ? parse(Address, businessSalt) : parse(Address, zeroAddress),
             webauthn,
             source: headers?.["Client-Fid"],
             ip: headers?.["do-connecting-ip"],

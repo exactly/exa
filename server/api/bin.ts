@@ -1,6 +1,8 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
+import { env } from "node:process";
+import { nonEmpty, parse, pipe, string } from "valibot";
 
 import api from ".";
 import * as schema from "../database/schema";
@@ -72,6 +74,7 @@ supervise(
         api({
           authSecret,
           bridge,
+          businessSalt: parse(pipe(string("business salt"), nonEmpty("business salt")), env.BUSINESS_SALT),
           credit,
           database,
           intercom,

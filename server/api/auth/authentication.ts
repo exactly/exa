@@ -33,7 +33,7 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { isAddress } from "viem";
+import { isAddress, zeroAddress } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -57,6 +57,8 @@ import type createIntercom from "../../utils/intercom";
 import type createWalletExtension from "../../utils/walletExtension";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
+
+const accountTypeSchema = optional(literal("business"));
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -140,6 +142,7 @@ export const LegacyAuthentication = object({
 
 export default function route({
   authSecret,
+  businessSalt,
   createCredential,
   database,
   intercom,
@@ -147,6 +150,7 @@ export default function route({
   walletExtension,
 }: {
   authSecret: string;
+  businessSalt: string;
   createCredential: ReturnType<typeof createCredentialFactory>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
@@ -283,6 +287,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "Account-Type": accountTypeSchema,
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -375,6 +380,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
         if (!credential) {
           if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
+          const accountType = safeParse(accountTypeSchema, c.req.header("Account-Type"));
+          if (!accountType.success) return c.json({ code: "bad account type" }, 400);
           try {
             const message = parseSiweMessage(challenge);
             if (
@@ -390,6 +397,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
             const result = await createCredential(c, assertion.id, {
               factory,
+              salt: accountType.output === "business" ? parse(Address, businessSalt) : parse(Address, zeroAddress),
               source: c.req.header("Client-Fid"),
               ip: headers?.["do-connecting-ip"],
             });

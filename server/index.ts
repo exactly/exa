@@ -88,6 +88,7 @@ setupMaturity(onesignal);
 const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
+  businessSalt: parse(pipe(string("business salt"), nonEmpty("business salt")), env.BUSINESS_SALT),
   credit,
   database,
   intercom,

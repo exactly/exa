@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { env } from "node:process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as Supervise from "../../supervise";
@@ -117,6 +118,7 @@ describe("api bin", () => {
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith({
       authSecret: "api-auth-secret",
       bridge,
+      businessSalt: env.BUSINESS_SALT,
       credit,
       database,
       intercom,

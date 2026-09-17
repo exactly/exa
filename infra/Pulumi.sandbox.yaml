@@ -1,5 +1,6 @@
 encryptionsalt: v1::v1:AAAAAAAAAAAAAAAb:rYjVO7/uF2+Qv1LhWq5c2S0ZR4rZaQ==
 config:
   gcp:project: exa-dev
+  exa:businessSalt: "0x0000000000000000000000000000000000000001" # TODO replace with the address registered on chain
   exa:subscribeTimeout: 600s
   exa:whatsappPhoneNumberId: "1287864854409817"
