@@ -3,6 +3,7 @@ import type { Environment } from "react-native-persona";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
+import business from "@exactly/common/business";
 import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
@@ -44,7 +45,7 @@ export function startKYC() {
     if (Platform.OS === "web") {
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
-        getKYCTokens("basic", await getRedirectURI()),
+        getKYCTokens(business ? "business" : "basic", await getRedirectURI()),
       ]);
       if (signal.aborted) throw signal.reason;
 
@@ -84,7 +85,7 @@ export function startKYC() {
       });
     }
 
-    const { inquiryId, sessionToken } = await getKYCTokens("basic", await getRedirectURI());
+    const { inquiryId, sessionToken } = await getKYCTokens(business ? "business" : "basic", await getRedirectURI());
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");
@@ -117,6 +118,43 @@ export function startKYC() {
 
   current = { scope: "basic", controller, promise };
   return promise;
+}
+
+export async function startBridgeKYB(link: string) {
+  const url = new URL(link);
+  const templateId = url.searchParams.get("inquiry-template-id");
+  const environmentId = url.searchParams.get("environment-id");
+  if (Platform.OS !== "web" || url.pathname !== "/verify" || !templateId || !environmentId) {
+    throw new Error("unsupported bridge kyb link");
+  }
+  const { Client } = await import("persona");
+  return new Promise<KYCResult>((resolve, reject) => {
+    const client = new Client({
+      host: url.origin,
+      templateId,
+      environmentId,
+      referenceId: url.searchParams.get("reference-id") ?? undefined,
+      fields: Object.fromEntries(
+        [...url.searchParams].flatMap(([key, value]) => {
+          const field = /^fields\[(.+)\]$/.exec(key)?.[1];
+          return field ? [[field, value]] : [];
+        }),
+      ),
+      onReady: () => client.open(),
+      onComplete: () => {
+        client.destroy();
+        resolve({ status: "complete" });
+      },
+      onCancel: () => {
+        client.destroy();
+        resolve({ status: "cancel" });
+      },
+      onError: (error) => {
+        client.destroy();
+        reject(new Error("persona inquiry failed", { cause: error }));
+      },
+    });
+  });
 }
 
 export function cancelKYC() {
