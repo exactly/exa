@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
+import business from "@exactly/common/business";
 import chain from "@exactly/common/generated/chain";
 
 import { bridgeMethods, currencies } from "../../utils/currencies";
@@ -34,6 +35,10 @@ export default function RampButton({
   if (status === "NOT_AVAILABLE") return null;
 
   function handlePress() {
+    if (business && status !== "ACTIVE") {
+      router.push("/business");
+      return;
+    }
     const params = { currency, provider, ...(network && { network }) };
     switch (status) {
       case "NOT_STARTED":

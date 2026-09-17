@@ -10,6 +10,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { base } from "viem/chains";
 
+import business from "@exactly/common/business";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
@@ -18,8 +19,10 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useBusiness from "../../utils/useBusiness";
 import useKYC from "../../utils/useKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
+import Transfers from "../business/Transfers";
 import RampButton from "../ramp/RampButton";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
@@ -45,13 +48,15 @@ export default function SendFunds() {
     },
     staleTime: (query) => (query.state.data ? Infinity : 0),
     retry: false,
+    enabled: !business,
   });
+  const { transfers } = useBusiness();
 
   const redirectURL = `https://${domain}/send-funds`;
   const { data: providers, isPending } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
-    enabled: !!countryCode,
+    enabled: business || !!countryCode,
     staleTime: 0,
   });
 
@@ -137,7 +142,15 @@ export default function SendFunds() {
                     router.push({ pathname: "/send-funds", params: { type: "crypto" } });
                   }}
                 />
-                {hasFiat !== false && chain.id !== base.id && (
+                {business && transfers !== "completed" && (
+                  <Transfers
+                    step={transfers}
+                    onPress={() => {
+                      router.push("/business");
+                    }}
+                  />
+                )}
+                {(!business || transfers === "completed") && hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
