@@ -10,7 +10,6 @@ import { formatUnits, parseUnits } from "viem";
 import { WAD } from "@exactly/lib";
 
 import AssetLogo from "../shared/AssetLogo";
-import ChainLogo from "../shared/ChainLogo";
 import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -148,27 +147,18 @@ export default function TokenInput({
             onPress={onTokenSelect}
             cursor="pointer"
             hitSlop={20}
-            position="relative"
             width={40}
             height={40}
           >
             {token ? (
-              <>
-                <AssetLogo symbol={token.symbol} uri={token.logoURI} width={40} height={40} />
-                <View
-                  borderRadius="$r_0"
-                  position="absolute"
-                  bottom={0}
-                  right={0}
-                  width={20}
-                  height={20}
-                  borderWidth={1}
-                  borderColor="white"
-                  overflow="hidden"
-                >
-                  <ChainLogo chainId={token.chainId} size={18} />
-                </View>
-              </>
+              <AssetLogo
+                symbol={token.symbol}
+                uri={token.logoURI}
+                chainId={token.chainId}
+                width={40}
+                height={40}
+                network
+              />
             ) : (
               <Skeleton radius="round" height={40} width={40} />
             )}
