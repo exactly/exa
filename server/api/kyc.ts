@@ -4,8 +4,23 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { array, literal, metadata, number, object, optional, parse, picklist, pipe, string, union } from "valibot";
-import { getAddress, sha256, verifyMessage } from "viem";
+import {
+  array,
+  fallback,
+  literal,
+  metadata,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  pipe,
+  safeParse,
+  string,
+  transform,
+  union,
+} from "valibot";
+import { getAddress, sha256, verifyMessage, zeroAddress } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
@@ -19,8 +34,16 @@ import { Address, Hex } from "@exactly/common/validation";
 
 import { credentials, walletAddresses } from "../database/schema";
 import decodePublicKey from "../utils/decodePublicKey";
-import { Application, UpdateApplicationRequest as ApplicationUpdate } from "../utils/panda";
 import {
+  Application,
+  UpdateApplicationRequest as ApplicationUpdate,
+  withMutex,
+  type CompanyApplicationStatusResponse,
+} from "../utils/panda";
+import {
+  BUSINESS_ACCOUNT_TYPE_ID,
+  BUSINESS_TEMPLATE,
+  BusinessApplicationError,
   CARD_LIMIT_TEMPLATE,
   CRYPTOMATE_TEMPLATE,
   PANDA_TEMPLATE,
@@ -28,6 +51,7 @@ import {
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
+import { IpAddress } from "../utils/sardine";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 
@@ -36,6 +60,7 @@ import type { Auth } from "../middleware/auth";
 import type createPanda from "../utils/panda";
 import type createPersona from "../utils/persona";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { InferOutput } from "valibot";
 
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -45,8 +70,8 @@ const canonicalize = import("canonicalize").then(({ default: serialize }) => ser
 const KYCStatusResponse = object({
   code: pipe(string(), metadata({ examples: ["ok"] })),
   legacy: pipe(string(), metadata({ examples: ["ok"] })),
-  status: pipe(string(), metadata({ examples: ["approved", "denied"] })),
   reason: pipe(string(), metadata({ examples: ["", "BAD_SELFIE"] })),
+  status: pipe(string(), metadata({ examples: ["approved", "denied"] })),
 });
 
 const BadRequestCodes = {
@@ -60,6 +85,21 @@ function buildBaseResponse(example = "string") {
     code: pipe(string(), metadata({ examples: [example] })),
     legacy: pipe(string(), metadata({ examples: [example] })),
   });
+}
+
+function kybState(application: InferOutput<typeof CompanyApplicationStatusResponse>) {
+  const status = application.applicationStatus ?? "unknown";
+  const reason = application.applicationReason ?? "unknown";
+  if (status === "denied" || status === "locked" || status === "canceled")
+    return { code: "bad kyb", legacy: "bad kyb", reason, status };
+  return {
+    completionLink: application.applicationCompletionLink ?? undefined,
+    verificationLink: application.applicationExternalVerificationLink ?? undefined,
+    code: status === "approved" ? "ok" : "processing",
+    legacy: status === "approved" ? "ok" : "processing",
+    reason,
+    status,
+  };
 }
 
 export default function route({
@@ -81,7 +121,7 @@ export default function route({
         "query",
         object({
           countryCode: optional(literal("true")),
-          scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+          scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"])),
         }),
         validatorHook(),
       ),
@@ -98,6 +138,20 @@ export default function route({
         const account = parse(Address, credential.account);
         setUser({ id: account });
         setContext("exa", { credential });
+        if (
+          (scope === "business" || scope === "panda-business") !==
+          (parse(Address, credential.salt) !== parse(Address, zeroAddress))
+        ) {
+          return c.json({ code: "not supported" }, 400);
+        }
+
+        if (scope === "panda-business") {
+          const application = await panda.getCompanyApplication(credentialId);
+          if (!application)
+            return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
+          const state = kybState(application);
+          return state.code === "bad kyb" ? c.json(state, 400) : c.json(state, 200);
+        }
 
         if (scope === "cardLimit") {
           const unknownAccount = c.req.valid("query").countryCode
@@ -170,7 +224,8 @@ export default function route({
             const personaAccount = await persona.getAccount(credentialId, scope).catch((error: unknown) => {
               captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
             });
-            const countryCode = personaAccount?.attributes["country-code"];
+            const attributes = personaAccount?.attributes;
+            const countryCode = attributes && "country-code" in attributes ? attributes["country-code"] : undefined;
             countryCode && c.header("User-Country", countryCode);
           }
           return c.json({ code: "ok", legacy: "ok" }, 200);
@@ -179,10 +234,11 @@ export default function route({
         if (!inquiry) return c.json({ code: "not started", legacy: "kyc not started" }, 400);
         switch (inquiry.attributes.status) {
           case "approved":
-            captureException(new Error("inquiry approved but account not updated"), {
-              level: "error",
-              contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
-            });
+            if (scope !== "business")
+              captureException(new Error("inquiry approved but account not updated"), {
+                level: "error",
+                contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
+              });
             return c.json({ code: "ok", legacy: "ok" }, 200);
           case "created":
           case "pending":
@@ -203,10 +259,25 @@ export default function route({
       "/",
       auth,
       vValidator(
+        "header",
+        optional(
+          pipe(
+            object({
+              "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+              "x-forwarded-for": fallback(optional(string()), () => undefined),
+            }),
+            transform(({ "do-connecting-ip": ip, "x-forwarded-for": forwarded }) => ({
+              "client-ip": ip ?? forwarded?.split(",").at(-1)?.trim(),
+            })),
+          ),
+        ),
+        validatorHook({ debug }),
+      ),
+      vValidator(
         "json",
         object({
           redirectURI: optional(string()),
-          scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+          scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"])),
         }),
         validatorHook({ debug }),
       ),
@@ -216,12 +287,49 @@ export default function route({
         const scope = payload.scope ?? "basic";
         const redirectURI = payload.redirectURI;
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true },
+          columns: { id: true, account: true, pandaId: true, salt: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-        setUser({ id: parse(Address, credential.account) });
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
         setContext("exa", { credential });
+
+        if (
+          (scope === "business" || scope === "panda-business") !==
+          (parse(Address, credential.salt) !== parse(Address, zeroAddress))
+        ) {
+          return c.json({ code: "not supported" }, 400);
+        }
+
+        if (scope === "panda-business") {
+          const clientIp = safeParse(IpAddress, c.req.valid("header")?.["client-ip"]);
+          if (!clientIp.success)
+            return c.json({ code: BadRequestCodes.BAD_REQUEST, message: ["missing valid client IP address"] }, 400);
+          return withMutex(account, async () => {
+            const application =
+              (await panda.getCompanyApplication(credentialId)) ??
+              (await panda.createCompanyApplication(
+                panda.businessApplication(
+                  credentialId,
+                  account,
+                  clientIp.output,
+                  await persona.businessProfile(credentialId),
+                ),
+                { idempotencyKey: `business-application:${credentialId}` },
+              ));
+            const state = kybState(application);
+            return state.code === "bad kyb"
+              ? c.json(state, 400)
+              : c.json({ ...state, inquiryId: "", sessionToken: "", type: "panda" as const }, 200);
+          }).catch((error: unknown) => {
+            if (error instanceof BusinessApplicationError)
+              return c.json({ code: error.code, message: [error.message] }, 400);
+            if (error instanceof ServiceError && error.status === 400)
+              return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
+            throw error;
+          });
+        }
 
         if (scope === "cardLimit") {
           const cardLimit = await persona.getCardLimitStatus(credentialId);
@@ -243,17 +351,15 @@ export default function route({
                   contexts: { details: { credentialId, scope: "cardLimit" } },
                 });
               });
-              const { data } = await persona.createInquiry(
-                credentialId,
-                CARD_LIMIT_TEMPLATE,
+              const { data } = await persona.createInquiry(credentialId, CARD_LIMIT_TEMPLATE, {
                 redirectURI,
-                basicAccount
+                fields: basicAccount
                   ? {
                       "name-first": basicAccount.attributes["name-first"],
                       "name-last": basicAccount.attributes["name-last"],
                     }
                   : undefined,
-              );
+              });
               return c.json(await generateInquiryTokens(data.id, persona), 200);
             }
             case "completed":
@@ -271,45 +377,50 @@ export default function route({
           }
         }
 
-        let inquiryTemplateId: Awaited<ReturnType<(typeof persona)["getPendingInquiryTemplate"]>>;
-        try {
-          inquiryTemplateId = await persona.getPendingInquiryTemplate(credentialId, scope);
-        } catch (error: unknown) {
-          if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
-            return c.json({ code: "not supported" }, 400);
-          }
-          throw error;
-        }
-        if (!inquiryTemplateId) {
-          return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
-        }
-
-        const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
-        if (!inquiry) {
-          const { data } = await persona.createInquiry(credentialId, inquiryTemplateId, redirectURI);
-          return c.json(await generateInquiryTokens(data.id, persona), 200);
-        }
-
-        switch (inquiry.attributes.status) {
-          case "approved":
-            captureException(new Error("inquiry approved but account not updated"), {
-              level: "error",
-              contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
-            });
+        const processInquiry = async () => {
+          const inquiryTemplateId = await persona.getPendingInquiryTemplate(credentialId, scope);
+          if (!inquiryTemplateId) {
             return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
-          case "failed":
-          case "declined":
-            return c.json({ code: "failed", legacy: "kyc failed" }, 400);
-          case "completed":
-          case "needs_review":
-            return c.json({ code: "processing", legacy: "kyc failed" }, 400);
-          case "pending":
-          case "created":
-          case "expired":
-            return c.json(await generateInquiryTokens(inquiry.id, persona), 200);
-          default:
-            throw new Error("unknown inquiry status");
-        }
+          }
+
+          const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
+          if (!inquiry) {
+            const { data } = await persona.createInquiry(credentialId, inquiryTemplateId, {
+              redirectURI,
+              ...(inquiryTemplateId === BUSINESS_TEMPLATE && { accountTypeId: BUSINESS_ACCOUNT_TYPE_ID }),
+            });
+            return c.json(await generateInquiryTokens(data.id, persona), 200);
+          }
+
+          switch (inquiry.attributes.status) {
+            case "approved":
+              if (scope !== "business")
+                captureException(new Error("inquiry approved but account not updated"), {
+                  level: "error",
+                  contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
+                });
+              return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
+            case "failed":
+            case "declined":
+              return c.json({ code: "failed", legacy: "kyc failed" }, 400);
+            case "completed":
+            case "needs_review":
+              return c.json({ code: "processing", legacy: "kyc failed" }, 400);
+            case "pending":
+            case "created":
+            case "expired":
+              return c.json(await generateInquiryTokens(inquiry.id, persona), 200);
+            default:
+              throw new Error("unknown inquiry status");
+          }
+        };
+        return (scope === "business" ? withMutex(account, processInquiry) : processInquiry()).catch(
+          (error: unknown) => {
+            if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED)
+              return c.json({ code: "not supported" }, 400);
+            throw error;
+          },
+        );
       },
     )
     .post(
@@ -736,7 +847,7 @@ async function isLegacy(
 async function generateInquiryTokens(
   inquiryId: string,
   persona: ReturnType<typeof createPersona>,
-): Promise<{ inquiryId: string; sessionToken: string }> {
+): Promise<{ inquiryId: string; sessionToken: string; type: "persona" }> {
   const { meta: sessionTokenMeta } = await persona.resumeInquiry(inquiryId);
-  return { inquiryId, sessionToken: sessionTokenMeta["session-token"] };
+  return { inquiryId, sessionToken: sessionTokenMeta["session-token"], type: "persona" };
 }

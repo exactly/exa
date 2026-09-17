@@ -33,13 +33,14 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { isAddress } from "viem";
+import { isAddress, zeroAddress } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../../database/schema";
@@ -388,8 +389,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
+            const origin = c.req.raw.headers.get("Origin") ?? "";
+            const salt = Object.hasOwn(tenants, origin) ? tenants[origin] : "";
             const result = await createCredential(c, assertion.id, {
               factory,
+              salt: salt === "" ? parse(Address, zeroAddress) : salt,
               source: c.req.header("Client-Fid"),
               ip: headers?.["do-connecting-ip"],
             });

@@ -170,6 +170,50 @@ describe("is missing or null util", () => {
   });
 });
 
+describe("createInquiry", () => {
+  it("selects the configured Persona account type when provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "created", "reference-id": "reference-id" },
+        },
+      }),
+    );
+
+    await persona.createInquiry("reference-id", "template-id", { accountTypeId: "acttp_company" });
+
+    const body = fetchSpy.mock.calls[0]?.[1]?.body;
+    if (typeof body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(body)).toMatchObject({
+      meta: {
+        "auto-create-account": true,
+        "auto-create-account-reference-id": "reference-id",
+        "auto-create-account-type-id": "acttp_company",
+      },
+    });
+  });
+});
+
+describe("getInquiry", () => {
+  it("prefers an approved business inquiry", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: "inquiry-1", type: "inquiry", attributes: { status: "approved", "reference-id": "reference-id" } },
+        ],
+      }),
+    );
+    fetchSpy.mockClear();
+
+    await expect(persona.getInquiry("reference-id", persona.BUSINESS_TEMPLATE)).resolves.toMatchObject({
+      id: "inquiry-1",
+    });
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("filter[status]=approved");
+  });
+});
+
 describe("evaluateAccount", () => {
   let fetchSpy: MockInstance<typeof fetch>;
   beforeEach(() => {
@@ -575,6 +619,15 @@ describe("evaluateAccount", () => {
     });
   });
 
+  describe("business", () => {
+    it("returns the business template without a persona lookup", async () => {
+      await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBe(
+        persona.BUSINESS_TEMPLATE,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("bridge", () => {
     it("returns panda template when account not found", async () => {
       const result = await persona.evaluateAccount({ data: [] }, "bridge");
@@ -830,6 +883,240 @@ describe("getUnknownAccount", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=1&filter[reference-id]=ref_123");
     expect(result).toStrictEqual({ data: [account] });
+  });
+});
+
+describe("getAccount", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not return a personal account for a business lookup", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "personal-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "User" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).resolves.toBeUndefined();
+  });
+
+  it("returns the business account when a personal account is on the same page", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "personal-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "User" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+          },
+          {
+            id: "business-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "Company" },
+            relationships: { "account-type": { data: { type: "account-type", id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).resolves.toMatchObject({ id: "business-account" });
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=10&filter[reference-id]=ref_123");
+  });
+});
+
+describe("businessProfile", () => {
+  const businessFields = {
+    business_name: { value: "Account Acme" },
+    collected_email_address: { value: "jane@example.com" },
+    company_description: { value: "Account software" },
+  };
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function mockInquiry({
+    fields = {},
+    referenceId = "reference-id",
+    status = "approved",
+  }: {
+    fields?: Record<string, { value: unknown }>;
+    referenceId?: string;
+    status?: "approved" | "completed" | "created" | "declined" | "expired" | "failed" | "needs_review" | "pending";
+  } = {}) {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [{ id: "inquiry-id", type: "inquiry", attributes: { fields, status, "reference-id": referenceId } }],
+      }),
+    );
+  }
+
+  function mockAccount({
+    fields = businessFields,
+    referenceId = "reference-id",
+  }: { fields?: Record<string, { value: unknown }>; referenceId?: string } = {}) {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "account-id",
+            type: "account",
+            attributes: { fields, "reference-id": referenceId },
+            relationships: { "account-type": { data: { id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
+          },
+        ],
+      }),
+    );
+  }
+
+  it("returns the required business fields", async () => {
+    mockInquiry();
+    mockAccount();
+
+    await expect(persona.businessProfile("reference-id")).resolves.toStrictEqual({
+      email: "jane@example.com",
+      fields: {
+        business_name: "Account Acme",
+        collected_email_address: "jane@example.com",
+        company_description: "Account software",
+      },
+      name: "Account Acme",
+    });
+  });
+
+  it("prefers an account field over an inquiry field", async () => {
+    mockInquiry({ fields: { "company-description": { value: "Inquiry software" } } });
+    mockAccount();
+
+    const { fields } = await persona.businessProfile("reference-id");
+
+    expect(fields.company_description).toBe("Account software");
+  });
+
+  it("falls back to a normalized inquiry field when the account field is blank", async () => {
+    mockInquiry({ fields: { "company-description": { value: "Inquiry software" } } });
+    mockAccount({ fields: { ...businessFields, company_description: { value: "" } } });
+
+    const { fields } = await persona.businessProfile("reference-id");
+
+    expect(fields.company_description).toBe("Inquiry software");
+  });
+
+  it("trims a padded required field", async () => {
+    mockInquiry();
+    mockAccount({ fields: { ...businessFields, business_name: { value: " Account Acme " } } });
+
+    await expect(persona.businessProfile("reference-id")).resolves.toMatchObject({ name: "Account Acme" });
+  });
+
+  it("rejects a missing inquiry", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business inquiry not started",
+      code: "not started",
+    });
+  });
+
+  it("rejects a mismatched inquiry reference id", async () => {
+    mockInquiry({ referenceId: "other-reference-id" });
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business inquiry does not match credential",
+      code: "bad request",
+    });
+  });
+
+  it.each([
+    ["created", "business inquiry is not started", "not started"],
+    ["expired", "business inquiry is not started", "not started"],
+    ["pending", "business inquiry is not started", "not started"],
+    ["failed", "business inquiry failed", "bad kyb"],
+    ["declined", "business inquiry failed", "bad kyb"],
+    ["needs_review", "business inquiry is not complete", "processing"],
+    ["completed", "business inquiry is not approved", "processing"],
+  ] as const)("rejects a %s inquiry", async (status, message, code) => {
+    mockInquiry({ status });
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({ message, code });
+  });
+
+  it("rejects a missing business account", async () => {
+    mockInquiry();
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business account not started",
+      code: "not started",
+    });
+  });
+
+  it("rejects a business account without fields", async () => {
+    mockInquiry();
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "account-id",
+            type: "account",
+            attributes: { "reference-id": "reference-id" },
+            relationships: { "account-type": { data: { id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business account is not complete",
+      code: "processing",
+    });
+  });
+
+  it("rejects a mismatched business account", async () => {
+    mockInquiry();
+    mockAccount({ referenceId: "other-reference-id" });
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business account is not complete",
+      code: "processing",
+    });
+  });
+
+  it.each([["business_name"], ["collected_email_address"]] as const)("rejects a missing %s", async (name) => {
+    mockInquiry();
+    mockAccount({ fields: { ...businessFields, [name]: { value: "" } } });
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business account is not complete",
+      code: "processing",
+    });
+  });
+
+  it("rejects a business field with the wrong type", async () => {
+    mockInquiry();
+    mockAccount({ fields: { ...businessFields, business_name: { value: 123 } } });
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "invalid business Persona fields",
+      code: "bad request",
+    });
   });
 });
 
