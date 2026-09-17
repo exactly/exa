@@ -7,13 +7,14 @@ import { hc, parseResponse, type InferRequestType, type InferResponseType } from
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
+import business from "@exactly/common/business";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import { Credential } from "@exactly/common/validation";
 
 import { login as loginIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
-import queryClient, { APIError, isServer, type AuthMethod } from "./queryClient";
+import queryClient, { APIError, isServer, triage, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import ownerConfig from "./wagmi/owner";
 
@@ -76,6 +77,7 @@ const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `h
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     if (Platform.OS === "ios") headers.set("Client-Platform", Platform.OS);
+    if (business) headers.set("account-type", "business");
     if (!(await sdk.isInMiniApp())) return fetch(input, { ...init, headers });
     const { client } = await sdk.context;
     headers.set("Client-Fid", String(client.clientFid));
@@ -205,7 +207,7 @@ queryClient.setQueryDefaults(["kyc", "status"], {
   staleTime: 5 * 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
   queryFn: () =>
-    getKYCStatus("basic", true).catch((error: unknown) => {
+    getKYCStatus(business ? "business" : "basic", !business).catch((error: unknown) => {
       const status = kycFallback(error);
       if (status.code === "bad kyc" || status.code === "processing") reportError(error, { level: "warning" });
       return status;
@@ -226,6 +228,56 @@ function kycFallback(error: unknown) {
 }
 
 const KYCCode = picklist(["bad kyc", "no kyc", "not started", "processing"]);
+
+export function getApplication() {
+  // TODO use real endpoint
+  // await auth();
+  // const response = await api.kyc.application.$get();
+  // if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  // return response.json();
+  return Promise.resolve({ code: "ok", legacy: "ok", status: "pending", reason: "unknown" } satisfies InferResponseType<
+    typeof api.kyc.application.$get,
+    200
+  >);
+}
+
+queryClient.setQueryDefaults(["kyc", "application"], {
+  staleTime: 5 * 60_000,
+  gcTime: isServer ? Infinity : 60 * 60_000,
+  retry: (count, error) => count < 3 && triage(error) === undefined,
+  meta: { warnError: (error) => triage(error) === "warn" },
+  queryFn: getApplication,
+});
+
+export function createApplication() {
+  // TODO use real endpoint
+  // await auth();
+  // const response = await api.kyc.application.$post({ json: { scope: "panda" } });
+  // if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  // return response.json();
+  return Promise.resolve({
+    id: "00000000-0000-0000-0000-000000000000",
+    applicationStatus: "needsVerification",
+    applicationReason: null,
+    applicationCompletionLink: null,
+    applicationExternalVerificationLink: {
+      url: "https://use.rain.xyz/verify",
+      params: { signature: "signature", userId: "00000000-0000-0000-0000-000000000000" },
+    },
+  } satisfies InferResponseType<typeof api.kyc.application.$post, 200>);
+}
+
+export function onboardBridge(acceptedTermsId: string, redirectURL?: string) {
+  // TODO use real endpoint
+  // await auth();
+  // const response = await api.kyc.application.$post({ json: { scope: "bridge", acceptedTermsId, redirectURL } });
+  // if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  // return response.json();
+  return Promise.resolve({
+    kycLink: `https://bridge.xyz/kyc?${new URLSearchParams({ acceptedTermsId, redirectURL: redirectURL ?? "" })}`,
+    status: "pending",
+  });
+}
 
 export async function getCredential() {
   const cached = queryClient.getQueryData<Credential>(["credential"]);
@@ -352,6 +404,19 @@ queryClient.setQueryDefaults(["pax", "id"], { queryFn: getPaxId });
 export type PaxId = Awaited<ReturnType<typeof getPaxId>>;
 
 export async function getRampProviders(countryCode?: string, redirectURL?: string) {
+  if (business) {
+    // TODO use real endpoint
+    return {
+      manteca: { onramp: { currencies: [] } as never, status: "NOT_AVAILABLE", provider: "manteca" },
+      bridge: {
+        provider: "bridge",
+        status: "NOT_STARTED",
+        tosLink: `https://bridge.xyz/tos?${new URLSearchParams({ redirectURL: redirectURL ?? "" })}`,
+        onramp: { currencies: ["USD", "EUR"] },
+        offramp: { currencies: ["USD", "EUR"] },
+      },
+    } satisfies InferResponseType<typeof api.ramp.$get, 200>;
+  }
   await auth();
   const query = { countryCode, redirectURL };
   const response = await api.ramp.$get({ query });

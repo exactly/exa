@@ -3,6 +3,7 @@ import type { Environment } from "react-native-persona";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 
+import business from "@exactly/common/business";
 import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
@@ -44,7 +45,7 @@ export function startKYC() {
     if (Platform.OS === "web") {
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
-        getKYCTokens("basic", await getRedirectURI()),
+        getKYCTokens(business ? "business" : "basic", await getRedirectURI()),
       ]);
       if (signal.aborted) throw signal.reason;
 
@@ -84,7 +85,7 @@ export function startKYC() {
       });
     }
 
-    const { inquiryId, sessionToken } = await getKYCTokens("basic", await getRedirectURI());
+    const { inquiryId, sessionToken } = await getKYCTokens(business ? "business" : "basic", await getRedirectURI());
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");

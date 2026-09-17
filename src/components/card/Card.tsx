@@ -22,6 +22,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
+import business from "@exactly/common/business";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
@@ -48,10 +49,12 @@ import {
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
+import Banner from "../business/Banner";
 import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
@@ -117,6 +120,7 @@ export default function Card() {
   });
 
   const { refetch: refetchMarkets } = useMarkets();
+  const { card: application, reason } = useBusiness();
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () =>
@@ -125,6 +129,7 @@ export default function Card() {
       queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      business ? queryClient.invalidateQueries({ queryKey: ["kyc", "application"], exact: true }) : undefined,
       address ? refetchBytecode() : undefined,
       address ? refetchMarkets() : undefined,
       address && credential ? refetchInstalledPlugins() : undefined,
@@ -144,6 +149,12 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
+      if (business && !cardDetails) {
+        const { data } = await refetchCard();
+        if (data) queryClient.setQueryData(["card-details-open"], true);
+        else router.push("/business");
+        return;
+      }
       if (!cardDetails) {
         const { data: code, isSuccess } = await refetchBytecode();
         if (!code) {
@@ -328,14 +339,32 @@ export default function Card() {
                     />
                   </View>
                 </XStack>
-                {isKYCInReview && !cardDetails && (
+                {!cardDetails &&
+                  (application === "pending" || application === "review" || application === "action") && (
+                    <Banner
+                      step={application}
+                      title={t("Get a business Exa Card")}
+                      description={
+                        application === "pending"
+                          ? t("Finish your business account set up")
+                          : application === "review"
+                            ? t("Review takes 3 to 5 business days.")
+                            : (reason ?? t("We need more information before we can continue."))
+                      }
+                      onPress={() => {
+                        router.push("/business");
+                      }}
+                    />
+                  )}
+                {!business && isKYCInReview && !cardDetails && (
                   <InfoAlert
                     variant="warning"
                     icon={ClockAlert}
                     title={t("We’re reviewing your documents. Your card will be ready once your identity is verified.")}
                   />
                 )}
-                {isKYCFetched &&
+                {!business &&
+                  isKYCFetched &&
                   !isKYCInReview &&
                   !cardDetails &&
                   ((isBytecodeFetched && !bytecode) || !isKYCApproved) && (
