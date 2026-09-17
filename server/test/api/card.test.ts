@@ -2679,18 +2679,25 @@ describe("wallet extension", () => {
     expect(getProcessorDetails).not.toHaveBeenCalled();
   });
 
-  it("rejects bearer card secret when provider card belongs to another user", async () => {
+  it("returns bearer card secret when provider card belongs to another company user", async () => {
     vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: "wallet-extension-card", userId: "other" });
-    vi.spyOn(panda, "getProcessorDetails");
+    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
+      processorCardId: "proc-wallet-extension",
+      timeBasedSecret: "secret-wallet-extension",
+    });
 
     const response = await app.request("/provisioning", {
       headers: { authorization: await bearer() },
     });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(panda.getProcessorDetails).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toStrictEqual({
+      id: "proc-wallet-extension",
+      secret: "secret-wallet-extension",
+    });
+    expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
+    expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
   });
 
   it("rejects bearer card secret when provider card is not active", async () => {
