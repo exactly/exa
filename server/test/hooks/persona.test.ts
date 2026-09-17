@@ -4,15 +4,18 @@ import "../mocks/persona";
 import * as sardine from "../mocks/sardine";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { parse } from "valibot";
 import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../../database";
 import createPersonaHook from "../../hooks/persona";
@@ -336,7 +339,8 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_AWN3X1Rf5Qg7tHSAsT6toxZbCGenVo" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo" | "itmpl_AWN3X1RFC36VkwnvPJzMF26DUMwmjV") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -389,7 +393,8 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_AWN3X1Rf5Qg7tHSAsT6toxZbCGenVo" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo" | "itmpl_AWN3X1RFC36VkwnvPJzMF26DUMwmjV") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -442,7 +447,8 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected "itmpl_AWN3X1Rf5Qg7tHSAsT6toxZbCGenVo" but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo" | "itmpl_AWN3X1RFC36VkwnvPJzMF26DUMwmjV") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -589,24 +595,7 @@ describe("persona hook", () => {
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
     allow.enqueue.mockRejectedValueOnce(error);
 
-    const response = await appClient.index.$post({
-      header: {
-        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
-      },
-      json: {
-        ...validPayload,
-        data: {
-          ...validPayload.data,
-          attributes: {
-            ...validPayload.data.attributes,
-            payload: {
-              ...validPayload.data.attributes.payload,
-              included: [...validPayload.data.attributes.payload.included],
-            },
-          },
-        },
-      },
-    });
+    const response = await postInquiry();
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
@@ -677,6 +666,32 @@ describe("ignored template", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(panda.createUser).not.toHaveBeenCalled();
     expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for business template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload(persona.BUSINESS_TEMPLATE),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for panda business checkbox template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload(persona.PANDA_BUSINESS_CHECKBOX_TEMPLATE),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
   });
 });
 
@@ -950,6 +965,264 @@ describe("card limit case", () => {
   });
 });
 
+describe("business representative", () => {
+  const referenceId = "hook-representative";
+  const owner = privateKeyToAddress(padHex("0x789"));
+  const factory = exaAccountFactoryAddress;
+  const salt = parse(Address, padHex("0x77", { size: 20 }));
+  const account = deriveAddress(factory, { salt, x: padHex(owner), y: zeroHash });
+  const card = { ...cardUpdateResponse, id: "business-card", userId: "business-user", last4: "4321" };
+
+  beforeAll(async () => {
+    await database
+      .insert(credentials)
+      .values([
+        { id: referenceId, publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: null, salt },
+      ]);
+  });
+
+  beforeEach(() => {
+    vi.spyOn(panda, "createCard");
+    vi.spyOn(panda, "getCards");
+    vi.spyOn(panda, "getCompanyApplication");
+    vi.spyOn(panda, "getCompanyUsers");
+  });
+
+  afterEach(async () => {
+    vi.resetAllMocks();
+    await database.delete(cards).where(eq(cards.credentialId, referenceId));
+    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
+  });
+
+  afterAll(async () => {
+    await database.delete(credentials).where(eq(credentials.id, referenceId));
+  });
+
+  it("creates the card", async () => {
+    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
+    vi.mocked(panda.getCompanyUsers).mockResolvedValueOnce([
+      { id: "other-user", walletAddress: zeroAddress },
+      { id: "business-user", walletAddress: account.toLowerCase() },
+    ]);
+    vi.mocked(panda.getCards).mockResolvedValueOnce([]);
+    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.getCompanyApplication).toHaveBeenCalledExactlyOnceWith(referenceId);
+    expect(panda.getCompanyUsers).toHaveBeenCalledExactlyOnceWith("company-id");
+    expect(panda.getCards).toHaveBeenCalledExactlyOnceWith("business-user");
+    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith("business-user", SIGNATURE_PRODUCT_ID);
+    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      chainId: chain.id,
+      factory,
+      publicKey: owner.toLowerCase(),
+      salt,
+      source: null,
+    });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+    ).resolves.toStrictEqual({ pandaId: "business-user" });
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, lastFour: true, productId: true, status: true },
+        where: eq(cards.credentialId, referenceId),
+      }),
+    ).resolves.toStrictEqual([
+      { id: "business-card", lastFour: "4321", productId: SIGNATURE_PRODUCT_ID, status: "ACTIVE" },
+    ]);
+  });
+
+  it("ignores a representative inquiry that is not approved", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "completed" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.getCards).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
+      [],
+    );
+  });
+
+  it("captures an unknown reference", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId: "unknown-representative", status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "no credential" }), {
+      level: "error",
+      contexts: { credential: { referenceId: "unknown-representative" } },
+    });
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.getCards).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+  });
+
+  it("returns already created when an active card exists", async () => {
+    await database.insert(cards).values([{ id: "business-card", credentialId: referenceId, lastFour: "4321" }]);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "already created" });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.getCards).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+    ).resolves.toStrictEqual({ pandaId: null });
+  });
+
+  it("reuses a stored panda user", async () => {
+    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
+    vi.mocked(panda.getCards).mockResolvedValueOnce([]);
+    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.getCards).toHaveBeenCalledExactlyOnceWith("business-user");
+    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith("business-user", SIGNATURE_PRODUCT_ID);
+    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, lastFour: true, productId: true },
+        where: eq(cards.credentialId, referenceId),
+      }),
+    ).resolves.toStrictEqual([{ id: "business-card", lastFour: "4321", productId: SIGNATURE_PRODUCT_ID }]);
+  });
+
+  it("adopts an active panda card", async () => {
+    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
+    vi.mocked(panda.getCards).mockResolvedValueOnce([
+      { id: "canceled-card", status: "canceled", last4: "1111", expirationMonth: "9", expirationYear: "2029" },
+      { id: "active-card", status: "active", last4: "9876", expirationMonth: "9", expirationYear: "2029" },
+    ]);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.getCards).toHaveBeenCalledExactlyOnceWith("business-user");
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, lastFour: true, productId: true },
+        where: eq(cards.credentialId, referenceId),
+      }),
+    ).resolves.toStrictEqual([{ id: "active-card", lastFour: "9876", productId: SIGNATURE_PRODUCT_ID }]);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["pending", { id: "company-id", applicationStatus: "pending" as const }],
+  ])("returns not approved when the company application is %s", async (_, application) => {
+    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce(application);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "not approved" });
+    expect(panda.getCompanyApplication).toHaveBeenCalledExactlyOnceWith(referenceId);
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.getCards).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+    ).resolves.toStrictEqual({ pandaId: null });
+  });
+
+  it("fails when the company user is not found", async () => {
+    const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
+    vi.mocked(panda.getCompanyUsers).mockResolvedValueOnce([{ id: "other-user" }]);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "company user not found" }));
+    expect(panda.getCompanyUsers).toHaveBeenCalledExactlyOnceWith("company-id");
+    expect(panda.getCards).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+    ).resolves.toStrictEqual({ pandaId: null });
+    await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
+      [],
+    );
+  });
+
+  it("skips allow without a firewall deployment", async () => {
+    mocks.firewall.mockReset();
+    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
+    vi.mocked(panda.getCards).mockResolvedValueOnce([]);
+    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith("business-user", SIGNATURE_PRODUCT_ID);
+    await expect(
+      database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
+    ).resolves.toStrictEqual([{ id: "business-card" }]);
+  });
+});
+
 describe("ignored card limit inquiry template", () => {
   beforeEach(() => {
     vi.spyOn(panda, "createUser");
@@ -1003,6 +1276,21 @@ function casePayload({
 function postCase(json: ReturnType<typeof casePayload>) {
   // @ts-expect-error hono client can't discriminate nested union for case payloads
   return appClient.index.$post({ header: { "persona-signature": "t=1,v1=sha256" }, json });
+}
+function representativePayload({ referenceId, status }: { referenceId: string; status: string }) {
+  return {
+    data: {
+      attributes: {
+        payload: {
+          data: {
+            id: "inq_representative_123",
+            attributes: { status, referenceId },
+            relationships: { inquiryTemplate: { data: { id: persona.BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE } } },
+          },
+        },
+      },
+    },
+  } as const;
 }
 function ignoredPayload<T extends string>(templateId: T) {
   return {

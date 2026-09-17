@@ -170,6 +170,50 @@ describe("is missing or null util", () => {
   });
 });
 
+describe("createInquiry", () => {
+  it("selects the configured Persona account type when provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "created", "reference-id": "reference-id" },
+        },
+      }),
+    );
+
+    await persona.createInquiry("reference-id", "template-id", { accountTypeId: "acttp_company" });
+
+    const body = fetchSpy.mock.calls[0]?.[1]?.body;
+    if (typeof body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(body)).toMatchObject({
+      meta: {
+        "auto-create-account": true,
+        "auto-create-account-reference-id": "reference-id",
+        "auto-create-account-type-id": "acttp_company",
+      },
+    });
+  });
+});
+
+describe("getInquiry", () => {
+  it("prefers an approved business inquiry", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: "inquiry-1", type: "inquiry", attributes: { status: "approved", "reference-id": "reference-id" } },
+        ],
+      }),
+    );
+    fetchSpy.mockClear();
+
+    await expect(persona.getInquiry("reference-id", persona.BUSINESS_TEMPLATE)).resolves.toMatchObject({
+      id: "inquiry-1",
+    });
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("filter[status]=approved");
+  });
+});
+
 describe("evaluateAccount", () => {
   let fetchSpy: MockInstance<typeof fetch>;
   beforeEach(() => {
@@ -575,6 +619,15 @@ describe("evaluateAccount", () => {
     });
   });
 
+  describe("business", () => {
+    it("returns the business template without a persona lookup", async () => {
+      await expect(persona.getPendingInquiryTemplate("reference-id", "business")).resolves.toBe(
+        persona.BUSINESS_TEMPLATE,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("bridge", () => {
     it("returns panda template when account not found", async () => {
       const result = await persona.evaluateAccount({ data: [] }, "bridge");
@@ -830,6 +883,57 @@ describe("getUnknownAccount", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=1&filter[reference-id]=ref_123");
     expect(result).toStrictEqual({ data: [account] });
+  });
+});
+
+describe("getAccount", () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not return a personal account for a business lookup", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "personal-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "User" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).resolves.toBeUndefined();
+  });
+
+  it("returns the business account when a personal account is on the same page", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({
+        data: [
+          {
+            id: "personal-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "User" },
+            relationships: { "account-type": { data: { type: "account-type", id: "acttp_user" } } },
+          },
+          {
+            id: "business-account",
+            type: "account",
+            attributes: { "reference-id": "ref_123", "account-type-name": "Company" },
+            relationships: { "account-type": { data: { type: "account-type", id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
+          },
+        ],
+      }),
+    );
+
+    await expect(persona.getAccount("ref_123", "business")).resolves.toMatchObject({ id: "business-account" });
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=10&filter[reference-id]=ref_123");
   });
 });
 
