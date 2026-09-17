@@ -8,6 +8,7 @@ import {
   boolean,
   flatten,
   literal,
+  minLength,
   minValue,
   nullable,
   nullish,
@@ -16,12 +17,16 @@ import {
   optional,
   picklist,
   pipe,
+  record,
   safeParse,
   string,
+  transform,
+  trim,
   unknown,
   ValiError,
   type BaseIssue,
   type BaseSchema,
+  type GenericSchema,
   type InferOutput,
 } from "valibot";
 import { baseSepolia, optimismSepolia } from "viem/chains";
@@ -37,15 +42,18 @@ export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; //
 export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
+export const BUSINESS_TEMPLATE = "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
 export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
 
 const PERSONA_API_VERSION = "2023-01-05";
+export const BUSINESS_ACCOUNT_TYPE_ID = "acttp_AWN3X1Rb7Rnt5o7EA4e8VcU7D61xH2";
 
 export default function persona(key: string, url: string) {
   return {
     addDocument,
+    businessProfile,
     createInquiry,
     evaluateAccount,
     getAccount,
@@ -103,11 +111,50 @@ export default function persona(key: string, url: string) {
       10_000,
     );
   }
+  async function businessProfile(referenceId: string) {
+    const inquiry = await getInquiry(referenceId, BUSINESS_TEMPLATE);
+    if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started");
+    if (inquiry.attributes["reference-id"] !== referenceId)
+      throw new BusinessApplicationError("business inquiry does not match credential", "bad request");
+    switch (inquiry.attributes.status) {
+      case "created":
+      case "expired":
+      case "pending":
+        throw new BusinessApplicationError("business inquiry is not started", "not started");
+      case "failed":
+      case "declined":
+        throw new BusinessApplicationError("business inquiry failed", "bad kyb");
+      case "needs_review":
+        throw new BusinessApplicationError("business inquiry is not complete", "processing");
+      case "completed":
+        throw new BusinessApplicationError("business inquiry is not approved", "processing");
+      case "approved":
+        break;
+    }
+    const account = await getAccount(referenceId, "business");
+    if (!account) throw new BusinessApplicationError("business account not started", "not started");
+    if (account.attributes["reference-id"] !== referenceId)
+      throw new BusinessApplicationError("business account is not complete", "processing");
+    const merged = { ...account.attributes.fields };
+    for (const [inquiryName, inquiryField] of Object.entries(inquiry.attributes.fields ?? {})) {
+      const name = inquiryName.replaceAll("-", "_");
+      if (isBlank(merged[name]?.value) && !isBlank(inquiryField.value)) merged[name] = inquiryField;
+    }
+    const { collected_email_address, company_name } = requireFields(BusinessProfileFields, merged);
+    return {
+      email: collected_email_address,
+      name: company_name,
+      fields: Object.fromEntries(Object.entries(merged).map(([name, field]) => [name, field.value])),
+    };
+  }
   function createInquiry(
     referenceId: string,
     templateId: string,
-    redirectURI?: string,
-    fields?: { "name-first": string; "name-last": string },
+    options: {
+      accountTypeId?: string;
+      fields?: { "name-first": string; "name-last": string };
+      redirectURI?: string;
+    } = {},
   ) {
     return request(
       CreateInquiryResponse,
@@ -116,11 +163,15 @@ export default function persona(key: string, url: string) {
         data: {
           attributes: {
             "inquiry-template-id": templateId,
-            "redirect-uri": `${redirectURI ?? appOrigin}/card`,
-            ...(fields && { fields }),
+            "redirect-uri": `${options.redirectURI ?? appOrigin}/card`,
+            ...(options.fields && { fields: options.fields }),
           },
         },
-        meta: { "auto-create-account": true, "auto-create-account-reference-id": referenceId },
+        meta: {
+          "auto-create-account": true,
+          "auto-create-account-reference-id": referenceId,
+          ...(options.accountTypeId && { "auto-create-account-type-id": options.accountTypeId }),
+        },
       },
       "POST",
       10_000,
@@ -137,6 +188,8 @@ export default function persona(key: string, url: string) {
     | undefined
   > {
     switch (scope) {
+      case "business":
+        throw new Error("business account scope not supported");
       case "document":
         throw new Error("document account scope not supported");
       case "cardLimit":
@@ -212,13 +265,17 @@ export default function persona(key: string, url: string) {
     referenceId: string,
     scope: T,
   ): Promise<AccountOutput<T> | undefined> {
+    if (scope === "business") {
+      const { data } = await getAccounts(referenceId, "business", 10);
+      return data.find((account) => account.relationships["account-type"].data.id === BUSINESS_ACCOUNT_TYPE_ID);
+    }
     const { data } = await getAccounts(referenceId, scope);
     return data[0];
   }
-  function getAccounts<T extends AccountScope>(referenceId: string, scope: T) {
+  function getAccounts<T extends AccountScope>(referenceId: string, scope: T, size = 1) {
     return request<unknown, AccountResponse<T>, BaseIssue<unknown>>(
       accountScopeSchemas[scope],
-      `/accounts?page[size]=1&filter[reference-id]=${referenceId}`,
+      `/accounts?page[size]=${size}&filter[reference-id]=${referenceId}`,
       undefined,
       "GET",
       10_000,
@@ -294,6 +351,7 @@ export default function persona(key: string, url: string) {
     );
   }
   async function getPendingInquiryTemplate(referenceId: string, scope: AccountScope) {
+    if (scope === "business") return BUSINESS_TEMPLATE;
     const unknownAccount = await getUnknownAccount(referenceId);
     return evaluateAccount(unknownAccount, scope);
   }
@@ -520,12 +578,51 @@ const CardLimitAccount = object({
   }),
 });
 
+const FieldValue = object({ value: unknown() });
+
+const required = pipe(
+  FieldValue,
+  transform((field) => field.value),
+  string(),
+  trim(),
+  minLength(1),
+);
+
+const BusinessProfileFields = object({
+  collected_email_address: required,
+  company_name: required,
+});
+
+export function requireFields<TSchema extends GenericSchema>(schema: TSchema, input: unknown) {
+  const result = safeParse(schema, input);
+  if (result.success) return result.output;
+  if (result.issues.filter((issue) => !isMissingOrNull(issue)).length === 0)
+    throw new BusinessApplicationError("business account is not complete", "processing");
+  setContext("validation", { flatten: flatten(result.issues) });
+  throw new BusinessApplicationError("invalid business Persona fields", "bad request");
+}
+
+function isBlank(value: unknown) {
+  return value == null || (typeof value === "string" && value.trim().length === 0);
+}
+
+const BusinessAccount = object({
+  attributes: object({
+    fields: optional(record(string(), FieldValue)),
+    "reference-id": optional(string()),
+  }),
+  id: string(),
+  relationships: object({ "account-type": object({ data: object({ id: string() }) }) }),
+  type: literal("account"),
+});
+
 const accountScopeSchemas = {
-  bridge: object({ data: array(BridgeAccount) }),
   basic: object({ data: array(BaseAccount) }),
-  manteca: object({ data: array(MantecaAccount) }),
-  document: object({ data: array(DocumentAccount) }),
+  bridge: object({ data: array(BridgeAccount) }),
+  business: object({ data: array(BusinessAccount) }),
   cardLimit: object({ data: array(CardLimitAccount) }),
+  document: object({ data: array(DocumentAccount) }),
+  manteca: object({ data: array(MantecaAccount) }),
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
@@ -546,8 +643,9 @@ export const Inquiry = object({
   id: string(),
   type: literal("inquiry"),
   attributes: object({
-    status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
+    fields: optional(record(string(), FieldValue)),
     "reference-id": string(),
+    status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
   }),
 });
 
@@ -665,6 +763,15 @@ export const scopeValidationErrors = {
   INVALID_ACCOUNT: "invalid account",
   NOT_SUPPORTED: "not supported",
 } as const;
+
+export class BusinessApplicationError extends Error {
+  constructor(
+    message: string,
+    readonly code: "bad kyb" | "bad request" | "not started" | "processing",
+  ) {
+    super(message);
+  }
+}
 
 function getWebhookSecret() {
   if (!env.PERSONA_WEBHOOK_SECRET) throw new Error("missing persona webhook secret");

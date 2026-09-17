@@ -11,13 +11,14 @@ import { testClient } from "hono/testing";
 import crypto from "node:crypto";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { getAddress, sha256 } from "viem";
+import { getAddress, padHex, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
 import route from "../../api/kyc";
 import database, { credentials, organizations, sources } from "../../database";
@@ -26,7 +27,7 @@ import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
 import createPanda, * as Panda from "../../utils/panda";
 import createPersona, * as Persona from "../../utils/persona";
-import { scopeValidationErrors } from "../../utils/persona";
+import { BusinessApplicationError, scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 import ServiceError from "../../utils/ServiceError";
 
@@ -367,7 +368,7 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, { redirectURI: undefined });
         await expect(response.json()).resolves.toStrictEqual({
           sessionToken,
           inquiryId: resumeTemplate.data.id,
@@ -913,7 +914,9 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS, undefined);
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS, {
+          redirectURI: undefined,
+        });
         await expect(response.json()).resolves.toStrictEqual({
           sessionToken,
           inquiryId: resumeTemplate.data.id,
@@ -943,7 +946,9 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_WITH_ID_CLASS, undefined);
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_WITH_ID_CLASS, {
+          redirectURI: undefined,
+        });
         await expect(response.json()).resolves.toStrictEqual({
           sessionToken,
           inquiryId: resumeTemplate.data.id,
@@ -1218,7 +1223,7 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, { redirectURI: undefined });
         await expect(response.json()).resolves.toStrictEqual({
           sessionToken,
           inquiryId: resumeTemplate.data.id,
@@ -1481,9 +1486,12 @@ describe("authenticated", () => {
         );
 
         expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
-        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, {
-          "name-first": "ALEXANDER J",
-          "name-last": "SAMPLE",
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, {
+          redirectURI: undefined,
+          fields: {
+            "name-first": "ALEXANDER J",
+            "name-last": "SAMPLE",
+          },
         });
         await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
         expect(response.status).toBe(200);
@@ -1506,7 +1514,10 @@ describe("authenticated", () => {
         );
 
         expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
-        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, undefined);
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, {
+          redirectURI: undefined,
+          fields: undefined,
+        });
         await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
         expect(response.status).toBe(200);
       });
@@ -1532,7 +1543,10 @@ describe("authenticated", () => {
           level: "error",
           contexts: { details: { credentialId: "bob", scope: "cardLimit" } },
         });
-        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, undefined);
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, {
+          redirectURI: undefined,
+          fields: undefined,
+        });
         await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
         expect(response.status).toBe(200);
       });
@@ -1643,12 +1657,520 @@ describe("authenticated", () => {
         );
 
         expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
-        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, "https://example.com", {
-          "name-first": "ALEXANDER J",
-          "name-last": "SAMPLE",
+        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, {
+          redirectURI: "https://example.com",
+          fields: {
+            "name-first": "ALEXANDER J",
+            "name-last": "SAMPLE",
+          },
         });
         await expect(response.json()).resolves.toStrictEqual({ inquiryId: resumeTemplate.data.id, sessionToken });
         expect(response.status).toBe(200);
+      });
+    });
+  });
+
+  describe("panda-business scope", () => {
+    const businessId = "bob-panda-business";
+    const businessAccount = parse(Address, padHex("0xb0e", { size: 20 }));
+    const businessSalt = parse(Address, padHex("0x7e", { size: 20 }));
+    const legacyFactory = "0x0000000000000000000000000000000000001234";
+    const businessFields = {
+      company_name: "Account Acme",
+      company_description: "Account software",
+      company_industry: "541511",
+      company_registration_number: "123",
+      company_tax_id: "456",
+      company_website: "https://example.com",
+      company_type: "corporation",
+      company_expected_spend: 1000,
+      auth_user_name: "Jane",
+      auth_user_last_name: "Doe",
+      birth_date: "1990-01-01",
+      id_number: "123456789",
+      id_country: "US",
+      collected_email_address: "jane@example.com",
+      authorized_user_phone_country_code: "1",
+      authorized_user_phone_number: "5555555555",
+      terms_and_conditions: true,
+      street_1: "1 Main St",
+      city: "New York",
+      subdivision: "NY",
+      postal_code: "10001",
+      country_code: "US",
+      street_1_1: "1 Main St",
+      city_1: "New York",
+      subdivision_1: "NY",
+      postal_code_1: "10001",
+      country_code_1: "US",
+    };
+    const pendingApplication = {
+      id: "company-1",
+      name: "Account Acme",
+      address: {
+        line1: "1 Main St",
+        city: "New York",
+        region: "NY",
+        postalCode: "10001",
+        countryCode: "US",
+      },
+      applicationStatus: "pending" as const,
+    };
+    const completionLink = {
+      url: "https://cardmemberportal.com/completion",
+      params: { signature: "y".repeat(156), userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000" },
+    };
+    const verificationLink = {
+      url: "https://cardmemberportal.com/kyc",
+      params: { signature: "x".repeat(156), userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000" },
+    };
+
+    function getStatus(scope: "business" | "panda-business") {
+      return appClient.index.$get(
+        { query: { scope } },
+        { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+      );
+    }
+
+    function submit(scope: "business" | "panda-business", header: Record<string, string> = {}) {
+      return appClient.index.$post(
+        { json: { scope } },
+        { headers: { "test-credential-id": businessId, SessionID: "fakeSession", ...header } },
+      );
+    }
+
+    function mockProfile() {
+      vi.spyOn(persona, "businessProfile").mockResolvedValue({
+        email: "jane@example.com",
+        name: "Account Acme",
+        fields: businessFields,
+      });
+    }
+
+    beforeAll(async () => {
+      await database.insert(credentials).values([
+        {
+          id: businessId,
+          publicKey: new Uint8Array(),
+          account: businessAccount,
+          factory: inject("ExaAccountFactory"),
+          salt: businessSalt,
+        },
+      ]);
+    });
+
+    afterEach(async () => {
+      await database
+        .update(credentials)
+        .set({ factory: inject("ExaAccountFactory") })
+        .where(eq(credentials.id, businessId));
+    });
+
+    afterAll(async () => {
+      await database.delete(credentials).where(eq(credentials.id, businessId));
+    });
+
+    describe("getting kyc", () => {
+      it("returns not started when the company application is missing", async () => {
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(400);
+        expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "not started" });
+      });
+
+      it("returns processing with the external verification link", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "needsVerification",
+          applicationReason: "needs verification",
+          applicationExternalVerificationLink: verificationLink,
+        });
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "processing",
+          legacy: "processing",
+          reason: "needs verification",
+          status: "needsVerification",
+          applicationExternalVerificationLink: verificationLink,
+        });
+      });
+
+      it("returns processing with the completion link", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "needsInformation",
+          applicationReason: "needs information",
+          applicationCompletionLink: completionLink,
+        });
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          applicationCompletionLink: completionLink,
+          code: "processing",
+          legacy: "processing",
+          reason: "needs information",
+          status: "needsInformation",
+        });
+      });
+
+      it.each(["manualReview", "notStarted", "pending"] as const)(
+        "returns processing when the status is %s",
+        async (status) => {
+          vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+            id: businessId,
+            applicationStatus: status,
+            applicationReason: `${status} reason`,
+          });
+
+          const response = await getStatus("panda-business");
+
+          expect(response.status).toBe(200);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "processing",
+            legacy: "processing",
+            reason: `${status} reason`,
+            status,
+          });
+        },
+      );
+
+      it("returns ok when the company application is approved", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "ok",
+          legacy: "ok",
+          reason: "",
+          status: "approved",
+        });
+      });
+
+      it.each(["denied", "locked", "canceled"] as const)(
+        "returns bad kyb when the company application is %s",
+        async (status) => {
+          vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+            id: businessId,
+            applicationStatus: status,
+            applicationReason: "not approved",
+          });
+
+          const response = await getStatus("panda-business");
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "bad kyb",
+            legacy: "bad kyb",
+            reason: "not approved",
+            status,
+          });
+        },
+      );
+
+      it("returns not supported for an individual credential", async () => {
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication");
+
+        const response = await appClient.index.$get(
+          { query: { scope: "panda-business" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(400);
+        expect(getCompanyApplication).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+      });
+
+      it("skips the legacy check", async () => {
+        await database.update(credentials).set({ factory: legacyFactory }).where(eq(credentials.id, businessId));
+        const readContract = vi.spyOn(publicClient, "readContract");
+        const getPendingInquiryTemplate = vi.spyOn(persona, "getPendingInquiryTemplate");
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(200);
+        expect(readContract).not.toHaveBeenCalled();
+        expect(getPendingInquiryTemplate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("posting kyc", () => {
+      it("creates the company application for a business credential", async () => {
+        mockProfile();
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const createCompanyApplication = vi
+          .spyOn(panda, "createCompanyApplication")
+          .mockResolvedValue(pendingApplication);
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(200);
+        expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
+        expect(createCompanyApplication).toHaveBeenCalledWith(expect.objectContaining({ name: "Account Acme" }), {
+          idempotencyKey: `business-application:${businessId}`,
+        });
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "processing",
+          legacy: "processing",
+          reason: "unknown",
+          status: "pending",
+        });
+      });
+
+      it("serializes company application creation", async () => {
+        mockProfile();
+        let created = false;
+        vi.spyOn(panda, "getCompanyApplication").mockImplementation(() =>
+          Promise.resolve(created ? pendingApplication : undefined),
+        );
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication").mockImplementation(() => {
+          created = true;
+          return Promise.resolve(pendingApplication);
+        });
+
+        await Promise.all([
+          submit("panda-business", { "do-connecting-ip": "127.0.0.1" }),
+          submit("panda-business", { "do-connecting-ip": "127.0.0.1" }),
+        ]);
+
+        expect(createCompanyApplication).toHaveBeenCalledOnce();
+      });
+
+      it("reads the client ip from the last forwarded entry", async () => {
+        mockProfile();
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const createCompanyApplication = vi
+          .spyOn(panda, "createCompanyApplication")
+          .mockResolvedValue(pendingApplication);
+
+        const response = await submit("panda-business", { "x-forwarded-for": "1.2.3.4, 203.0.113.7" });
+
+        expect(response.status).toBe(200);
+        expect(createCompanyApplication.mock.calls.at(-1)?.[0].initialUser.ipAddress).toBe("203.0.113.7");
+      });
+
+      it("returns bad request without a client ip", async () => {
+        mockProfile();
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
+
+        const response = await submit("panda-business");
+
+        expect(response.status).toBe(400);
+        expect(getCompanyApplication).not.toHaveBeenCalled();
+        expect(createCompanyApplication).not.toHaveBeenCalled();
+        expect(persona.businessProfile).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "bad request",
+          message: ["missing valid client IP address"],
+        });
+      });
+
+      it("returns the current state when the company application already exists", async () => {
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
+        const businessProfile = vi.spyOn(persona, "businessProfile");
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(200);
+        expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
+        expect(createCompanyApplication).not.toHaveBeenCalled();
+        expect(businessProfile).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "ok",
+          legacy: "ok",
+          reason: "",
+          status: "approved",
+        });
+      });
+
+      it("returns bad kyb when the existing company application is denied", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "denied",
+          applicationReason: "sanctions",
+        });
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(400);
+        expect(createCompanyApplication).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "bad kyb",
+          legacy: "bad kyb",
+          reason: "sanctions",
+          status: "denied",
+        });
+      });
+
+      it.each([
+        { code: "not started" as const, message: "business inquiry not started" },
+        { code: "processing" as const, message: "business account is not complete" },
+        { code: "bad kyb" as const, message: "business inquiry failed" },
+      ])("returns $code when the persona phase throws", async ({ code, message }) => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "businessProfile").mockRejectedValueOnce(new BusinessApplicationError(message, code));
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(400);
+        expect(createCompanyApplication).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({ code, message: [message] });
+      });
+
+      it("returns bad request when panda rejects the company application", async () => {
+        mockProfile();
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(panda, "createCompanyApplication").mockRejectedValueOnce(
+          new ServiceError("Panda", 400, '{"message":"invalid company"}', undefined, "invalid company"),
+        );
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "bad request",
+          message: ["invalid company"],
+        });
+      });
+
+      it("returns not supported for an individual credential", async () => {
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication");
+
+        const response = await appClient.index.$post(
+          { json: { scope: "panda-business" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(400);
+        expect(getCompanyApplication).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+      });
+    });
+
+    describe("state walk", () => {
+      it("walks from the business inquiry to the approved company application", async () => {
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.BUSINESS_TEMPLATE);
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue(resumeTemplate);
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValue(inquiry);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const businessNotStarted = await getStatus("business");
+        expect(businessNotStarted.status).toBe(400);
+        await expect(businessNotStarted.json()).resolves.toStrictEqual({
+          code: "not started",
+          legacy: "kyc not started",
+        });
+
+        const tokens = await submit("business");
+        expect(tokens.status).toBe(200);
+        expect(createInquiry).toHaveBeenCalledWith(businessId, persona.BUSINESS_TEMPLATE, {
+          accountTypeId: persona.BUSINESS_ACCOUNT_TYPE_ID,
+          redirectURI: undefined,
+        });
+        await expect(tokens.json()).resolves.toStrictEqual({
+          inquiryId: resumeTemplate.data.id,
+          sessionToken: resumeTemplate.meta["session-token"],
+        });
+
+        getInquiry.mockResolvedValue({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "completed" },
+        });
+        const businessProcessing = await getStatus("business");
+        expect(businessProcessing.status).toBe(400);
+        await expect(businessProcessing.json()).resolves.toStrictEqual({
+          code: "processing",
+          legacy: "kyc not approved",
+        });
+
+        getInquiry.mockResolvedValue({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved" },
+        });
+        const businessApproved = await getStatus("business");
+        expect(businessApproved.status).toBe(200);
+        await expect(businessApproved.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const pandaNotStarted = await getStatus("panda-business");
+        expect(pandaNotStarted.status).toBe(400);
+        await expect(pandaNotStarted.json()).resolves.toStrictEqual({ code: "not started", legacy: "not started" });
+
+        mockProfile();
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication").mockResolvedValue({
+          ...pendingApplication,
+          applicationStatus: "needsVerification",
+          applicationReason: "needs verification",
+          applicationExternalVerificationLink: verificationLink,
+        });
+        const pandaSubmitted = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+        expect(pandaSubmitted.status).toBe(200);
+        expect(createCompanyApplication).toHaveBeenCalledWith(expect.objectContaining({ name: "Account Acme" }), {
+          idempotencyKey: `business-application:${businessId}`,
+        });
+        await expect(pandaSubmitted.json()).resolves.toStrictEqual({
+          code: "processing",
+          legacy: "processing",
+          reason: "needs verification",
+          status: "needsVerification",
+          applicationExternalVerificationLink: verificationLink,
+        });
+
+        getCompanyApplication.mockResolvedValue({
+          id: businessId,
+          applicationStatus: "needsVerification",
+          applicationReason: "needs verification",
+          applicationExternalVerificationLink: verificationLink,
+        });
+        const pandaProcessing = await getStatus("panda-business");
+        expect(pandaProcessing.status).toBe(200);
+        await expect(pandaProcessing.json()).resolves.toStrictEqual({
+          code: "processing",
+          legacy: "processing",
+          reason: "needs verification",
+          status: "needsVerification",
+          applicationExternalVerificationLink: verificationLink,
+        });
+
+        getCompanyApplication.mockResolvedValue({
+          id: businessId,
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        const pandaApproved = await getStatus("panda-business");
+        expect(pandaApproved.status).toBe(200);
+        await expect(pandaApproved.json()).resolves.toStrictEqual({
+          code: "ok",
+          legacy: "ok",
+          reason: "",
+          status: "approved",
+        });
       });
     });
   });
@@ -1952,16 +2474,16 @@ describe("authenticated", () => {
         });
 
         it("returns 400 when payload is invalid", async () => {
-          const response = await appClient.application.$post(
-            { json: {} as unknown as NonNullable<Parameters<typeof appClient.application.$post>[0]["json"]> },
-            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
-          );
+          const response = await app.request("/application", {
+            method: "POST",
+            headers: { "content-type": "application/json", "test-credential-id": account, SessionID: "fakeSession" },
+            body: "{}",
+          });
 
           expect(response.status).toBe(400);
           await expect(response.json()).resolves.toMatchObject({
             code: "bad request",
             legacy: "bad request",
-            message: expect.any(Array), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
           });
         });
 
@@ -2523,6 +3045,72 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
           );
 
           expect(response.status).toBe(500);
+        });
+      });
+    });
+
+    describe("business application", () => {
+      const businessId = "bob-business";
+      const businessAccount = parse(Address, padHex("0xb0d", { size: 20 }));
+      const businessSalt = parse(Address, padHex("0x7e", { size: 20 }));
+
+      beforeAll(async () => {
+        await database.insert(credentials).values([
+          {
+            id: businessId,
+            publicKey: new Uint8Array(),
+            account: businessAccount,
+            factory: inject("ExaAccountFactory"),
+            salt: businessSalt,
+          },
+        ]);
+      });
+
+      afterAll(async () => {
+        await database.delete(credentials).where(eq(credentials.id, businessId));
+      });
+
+      it("serializes business inquiry creation", async () => {
+        let created = false;
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.BUSINESS_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockImplementation(() =>
+          Promise.resolve(created ? personaTemplate : undefined),
+        );
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockImplementation(() => {
+          created = true;
+          return Promise.resolve(inquiry);
+        });
+
+        await Promise.all([
+          appClient.index.$post(
+            { json: { scope: "business" } },
+            { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+          ),
+          appClient.index.$post(
+            { json: { scope: "business" } },
+            { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+          ),
+        ]);
+
+        expect(createInquiry).toHaveBeenCalledOnce();
+      });
+
+      it("returns not started while the business inquiry is pending", async () => {
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "pending", "reference-id": businessId, fields: {} },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "business" } },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "not started",
+          legacy: "kyc not started",
         });
       });
     });

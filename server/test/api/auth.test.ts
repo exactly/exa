@@ -12,11 +12,11 @@ import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
-import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
+import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress, zeroHash } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
-import * as derive from "@exactly/common/deriveAddress";
+import deriveAddress, * as derive from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
@@ -43,6 +43,10 @@ const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 vi.mock("@sentry/node", { spy: true });
 
 const walletExtension = createWalletExtension(parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET));
+const tenant = parse(Address, "0x2dA79825d578F195aEDC5287642E16161b895Ced");
+const consumer = "https://web.exactly.app";
+const origin = "https://business.sandbox.exactly.app";
+const unregistered = "https://corporate.exactly.app";
 const subscribe = {
   close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
@@ -91,6 +95,22 @@ describe("authentication", () => {
     await redis.del("test-session");
   });
 
+  it.each([
+    { name: "siwe", query: { credentialId: zeroAddress } },
+    { name: "webauthn", query: {} },
+  ])("stores the bare $name challenge, ignoring the origin", async ({ query }) => {
+    const response = await appClient.index.$get({ query }, { headers: { origin } });
+    const sessionId = response.headers.get("X-Session-Id") ?? "";
+    onTestFinished(async () => {
+      await redis.del(sessionId);
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(sessionId).not.toBe("");
+    await expect(redis.get(sessionId)).resolves.toBe(body.method === "siwe" ? body.message : body.challenge);
+  });
+
   it("returns intercom token on successful login", async () => {
     const response = await appClient.index.$post(
       {
@@ -103,7 +123,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session", "do-connecting-ip": "203.0.113.42" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "do-connecting-ip": "203.0.113.42" } },
     );
 
     expect(response.status).toBe(200);
@@ -136,7 +156,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "Client-Platform": "ios" } },
     );
 
     expect(response.status).toBe(200);
@@ -178,7 +198,7 @@ describe("authentication", () => {
     const start = Date.now();
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "Client-Platform": "ios" } },
     );
 
     expect(response.status).toBe(200);
@@ -205,7 +225,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "Client-Platform": "desktop" } },
     );
 
     expect(response.status).toBe(400);
@@ -224,7 +244,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(200);
@@ -247,11 +267,55 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
+  });
+
+  it("authenticates a credential with a tenant salt regardless of origin", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:business-authentication")), 12)));
+    const factory = parse(Address, inject("ExaAccountFactory"));
+    await database.insert(credentials).values({
+      id,
+      publicKey: new Uint8Array(65),
+      account: deriveAddress(factory, { x: zeroHash, y: zeroHash, salt: tenant }),
+      factory,
+      salt: tenant,
+      transports: [],
+    });
+    await redis.set("test-session", "test-challenge");
+    vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: {
+        credentialID: id,
+        newCounter: 0,
+        userVerified: false,
+        credentialDeviceType: "singleDevice",
+        credentialBackedUp: false,
+        origin: "http://localhost",
+        rpID: "localhost",
+      },
+    });
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id,
+          rawId: id,
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", origin: unregistered } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(expect.objectContaining({ salt: tenant }));
+    await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
   it("returns 400 for missing credential with non-siwe assertion", async () => {
@@ -266,7 +330,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(400);
@@ -286,7 +350,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await appClient.index.$post(
       {
@@ -299,7 +363,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(400);
@@ -322,7 +386,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await appClient.index.$post(
       {
@@ -335,7 +399,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(500);
@@ -361,7 +425,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await appClient.index.$post(
       {
@@ -374,7 +438,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(400);
@@ -400,7 +464,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await appClient.index.$post(
       {
@@ -413,7 +477,7 @@ describe("authentication", () => {
           type: "public-key",
         },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(400);
@@ -431,11 +495,11 @@ describe("authentication", () => {
 
     const firstResponse = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(500);
@@ -452,6 +516,7 @@ describe("authentication", () => {
       {
         headers: {
           cookie: "session_id=test-session",
+          origin: consumer,
           "Client-Fid": "12345",
           "do-connecting-ip": "203.0.113.42",
         },
@@ -488,7 +553,7 @@ describe("authentication", () => {
 
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session", "do-connecting-ip": "not-an-ip" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "do-connecting-ip": "not-an-ip" } },
     );
 
     expect(response.status).toBe(200);
@@ -510,7 +575,7 @@ describe("authentication", () => {
 
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(200);
@@ -536,13 +601,64 @@ describe("authentication", () => {
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
+  it("accepts a registered origin using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-app-origin")), 12)));
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
+  });
+
+  it("returns 400 for an unregistered origin using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-unregistered-origin")), 12)));
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: unregistered } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "bad origin" }));
+    const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, id) });
+    expect(credential).toBeUndefined();
+  });
+
+  it.each<{ header: Record<string, string>; name: string }>([
+    { header: { origin: "http://localhost:8081" }, name: "the local origin" },
+    { header: {}, name: "no origin" },
+  ])("creates a personal credential with $name using siwe", async ({ header, name }) => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes(`auth:siwe-${name}`)), 12)));
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", ...header } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
+  });
+
   it("returns 400 if the siwe message is invalid", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(false);
     const id = "0xaBcDef1234567890123456789012345678901234";
 
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
@@ -555,11 +671,11 @@ describe("authentication", () => {
 
     const firstResponse = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(400);
@@ -575,7 +691,7 @@ describe("authentication", () => {
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-factory")), 12)));
     const response = await appClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: { factory } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(200);
@@ -596,7 +712,7 @@ describe("authentication", () => {
         json: { method: "siwe", id, signature: "0xdeadbeef" },
         query: { factory: getAddress(padHex("0xdead", { size: 20 })) },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(400);
@@ -618,7 +734,7 @@ describe("authentication", () => {
         },
         query: { factory },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(200);
@@ -642,7 +758,7 @@ describe("authentication", () => {
         },
         query: { factory },
       },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(400);
@@ -658,6 +774,22 @@ describe("registration", () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await redis.del("test-session");
+  });
+
+  it.each([
+    { name: "siwe", query: { credentialId: zeroAddress } },
+    { name: "webauthn", query: {} },
+  ])("stores the bare $name challenge, ignoring the origin", async ({ query }) => {
+    const response = await registrationAppClient.index.$get({ query }, { headers: { origin } });
+    const sessionId = response.headers.get("X-Session-Id") ?? "";
+    onTestFinished(async () => {
+      await redis.del(sessionId);
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(sessionId).not.toBe("");
+    await expect(redis.get(sessionId)).resolves.toBe(body.method === "siwe" ? body.message : body.challenge);
   });
 
   it("returns 400 if registration challenge is missing", async () => {
@@ -758,7 +890,7 @@ describe("registration", () => {
 
     const response = await registrationAppClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(200);
@@ -794,7 +926,7 @@ describe("registration", () => {
 
     const response = await registrationAppClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(500);
@@ -816,11 +948,11 @@ describe("registration", () => {
 
     const firstResponse = await registrationAppClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
     const secondResponse = await registrationAppClient.index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(firstResponse.status).toBe(400);
@@ -840,6 +972,7 @@ describe("registration", () => {
       {
         headers: {
           cookie: "session_id=test-session",
+          origin: consumer,
           "Client-Fid": "12345",
           "do-connecting-ip": ip,
         },
@@ -873,7 +1006,7 @@ describe("registration", () => {
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
-      { headers: { cookie: "session_id=test-session", "do-connecting-ip": "not-an-ip" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "do-connecting-ip": "not-an-ip" } },
     );
 
     expect(response.status).toBe(200);
@@ -894,7 +1027,7 @@ describe("registration", () => {
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
-      { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "Client-Platform": "ios" } },
     );
 
     expect(response.status).toBe(200);
@@ -909,7 +1042,7 @@ describe("registration", () => {
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
-      { headers: { cookie: "session_id=test-session" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
     expect(response.status).toBe(200);
@@ -923,10 +1056,64 @@ describe("registration", () => {
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
-      { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer, "Client-Platform": "desktop" } },
     );
 
     expect(response.status).toBe(200);
+  });
+
+  it.each<{ header: Record<string, string>; name: string }>([
+    { header: { origin: consumer }, name: "a consumer origin" },
+    { header: { origin: "http://localhost:8081" }, name: "the local origin" },
+    { header: {}, name: "no origin" },
+  ])("creates a personal credential with $name", async ({ header }) => {
+    const id = own("cGVyc29uYWwtcmVnaXN0cmF0aW9u"); // cspell:ignore cGVyc29uYWwtcmVnaXN0cmF0aW9u
+    await redis.set("test-session", "test-challenge");
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", ...header } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("accepts a registered origin using webauthn", async () => {
+    const id = own("ZGVwbG95bWVudC1vcmlnaW4"); // cspell:ignore ZGVwbG95bWVudC1vcmlnaW4
+    await redis.set("test-session", "test-challenge");
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
+  });
+
+  it.each([
+    { header: { origin: unregistered }, name: "an unregistered origin" },
+    { header: { origin: "toString" }, name: "an inherited object key" },
+  ])("returns 400 for $name using webauthn", async ({ header }) => {
+    const id = own("dW5yZWdpc3RlcmVkLW9yaWdpbg"); // cspell:ignore dW5yZWdpc3RlcmVkLW9yaWdpbg
+    await redis.set("test-session", "test-challenge");
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", ...header } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "bad origin" }));
+    const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, id) });
+    expect(credential).toBeUndefined();
   });
 
   it("creates a credential using webauthn", async () => {
@@ -957,6 +1144,45 @@ describe("registration", () => {
     });
     expect(credential).toBeDefined();
     expect(credential?.source).toBeNull();
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("creates a credential with the tenant salt from the origin using webauthn", async () => {
+    const id = own("YnVzaW5lc3MtcmVnaXN0cmF0aW9u"); // cspell:ignore YnVzaW5lc3MtcmVnaXN0cmF0aW9u
+    await redis.set("test-session", "test-challenge");
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", origin } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { account: true, salt: true },
+    });
+    if (!credential) throw new Error("missing credential");
+    expect(credential.salt).toBe(tenant);
+    expect(await response.json()).toEqual(expect.objectContaining({ salt: credential.salt }));
+    expect(credential.account).toBe(
+      deriveAddress(exaAccountFactoryAddress, { x: zeroHash, y: zeroHash, salt: credential.salt }),
+    );
+    await expect(redis.exists("test-session")).resolves.toBe(0);
+  });
+
+  it("ignores the referer when creating a credential using webauthn", async () => {
+    const id = own("cmVmZXJlci1yZWdpc3RyYXRpb24"); // cspell:ignore cmVmZXJlci1yZWdpc3RyYXRpb24
+    await redis.set("test-session", "test-challenge");
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", origin: consumer, referer: origin } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 });
@@ -1058,7 +1284,7 @@ function registrationWebauthnAssertion(
 function postRegistrationWebauthn(override: RegistrationWebauthnAssertionOverride = {}) {
   return registrationAppClient.index.$post(
     { json: registrationWebauthnAssertion(override) },
-    { headers: { cookie: "session_id=test-session" } },
+    { headers: { cookie: "session_id=test-session", origin: consumer } },
   );
 }
 

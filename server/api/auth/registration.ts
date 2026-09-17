@@ -22,6 +22,7 @@ import {
   number,
   object,
   optional,
+  parse,
   pipe,
   record,
   safeParse,
@@ -31,12 +32,14 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
+import { zeroAddress } from "viem";
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { Authentication } from "./authentication";
@@ -406,9 +409,13 @@ export default function route({
           return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }
 
+        const origin = c.req.raw.headers.get("Origin") ?? "";
+        const salt = origin ? tenants.get(origin) : "";
+        if (salt === undefined) return c.json({ code: "bad origin", legacy: "bad origin" }, 400);
         try {
           const result = await createCredential(c, attestation.id, {
             factory,
+            salt: salt === "" ? parse(Address, zeroAddress) : salt,
             webauthn,
             source: headers?.["Client-Fid"],
             ip: headers?.["do-connecting-ip"],
