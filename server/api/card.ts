@@ -490,7 +490,6 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           throw error;
         });
         if (!provider) return c.json({ code: "no card" }, 404);
-        if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
         if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
         try {
           const { processorCardId, timeBasedSecret } = await panda.getProcessorDetails(card.id);
