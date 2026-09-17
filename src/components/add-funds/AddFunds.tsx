@@ -16,6 +16,7 @@ import { isAddress } from "viem";
 import { base, mainnet } from "viem/chains";
 import { useEnsName } from "wagmi";
 
+import business from "@exactly/common/business";
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
@@ -24,8 +25,10 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders, origin } from "../../utils/server";
+import useBusiness from "../../utils/useBusiness";
 import useKYC from "../../utils/useKYC";
 import ownerConfig from "../../utils/wagmi/owner";
+import Transfers from "../business/Transfers";
 import RampButton from "../ramp/RampButton";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -59,13 +62,16 @@ export default function AddFunds() {
     },
     staleTime: (query) => (query.state.data ? Infinity : 0),
     retry: false,
+    enabled: !business,
   });
+  const { transfers: step, locked, profile } = useBusiness();
+  const transfers = locked ? profile : step;
 
   const redirectURL = `${origin}/add-funds`;
   const { data: providers, isPending } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
-    enabled: !!countryCode,
+    enabled: business || !!countryCode,
     staleTime: 0,
   });
 
@@ -129,7 +135,15 @@ export default function AddFunds() {
                     router.push("/add-funds/assets");
                   }}
                 />
-                {hasFiat !== false && chain.id !== base.id && (
+                {business && transfers !== "completed" && (
+                  <Transfers
+                    step={transfers}
+                    onPress={() => {
+                      router.push("/business");
+                    }}
+                  />
+                )}
+                {(!business || transfers === "completed") && hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
