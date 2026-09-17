@@ -7,6 +7,7 @@ import chain from "@exactly/common/generated/chain";
 
 import { bridgeMethods, currencies } from "../../utils/currencies";
 import networkLogos from "../../utils/networkLogos";
+import useIsBusiness from "../../utils/useIsBusiness";
 import AddFundsOption from "../add-funds/AddFundsOption";
 import AssetLogo from "../shared/AssetLogo";
 import Image from "../shared/Image";
@@ -26,6 +27,7 @@ export default function RampButton({
   provider: "bridge" | "manteca";
   status: "ACTIVE" | "CONTACT_SUPPORT" | "NOT_AVAILABLE" | "NOT_STARTED" | "ONBOARDING";
 }) {
+  const business = useIsBusiness();
   const { t } = useTranslation();
   const router = useRouter();
   const isCrypto = !!network;
@@ -34,6 +36,10 @@ export default function RampButton({
   if (status === "NOT_AVAILABLE") return null;
 
   function handlePress() {
+    if (business && status !== "ACTIVE") {
+      router.push("/business");
+      return;
+    }
     const params = { currency, provider, ...(network && { network }) };
     switch (status) {
       case "NOT_STARTED":

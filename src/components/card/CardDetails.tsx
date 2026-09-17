@@ -15,12 +15,14 @@ import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import ExaLogoSignature from "../../assets/images/exa-logo-signature.svg";
+import VisaLogoCorporate from "../../assets/images/visa-logo-corporate.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
 import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { Copy } from "../../generated/icons/Copy";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useIsBusiness from "../../utils/useIsBusiness";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -32,6 +34,7 @@ import type { CardDetails as CardDetailsData, CardSecrets } from "../../utils/se
 
 export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
   const theme = useThemeName();
+  const business = useIsBusiness();
   const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: details } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
@@ -59,7 +62,9 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                       card.productId === BASE_PRODUCT_ID
                         ? "baseBlue"
                         : card.productId === SIGNATURE_PRODUCT_ID
-                          ? "cardBackground"
+                          ? business
+                            ? "cardBusinessBackground"
+                            : "cardBackground"
                           : "uiNeutralPrimary"
                     }
                     paddingHorizontal="s5"
@@ -75,7 +80,11 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                           <ExaLogoSignature height={20} width={63} />
                         </View>
                         <View position="absolute" top="s4" right="s5">
-                          <VisaLogoSignature height={40} width={72} />
+                          {business && card.productId === SIGNATURE_PRODUCT_ID ? (
+                            <VisaLogoCorporate height={38} width={72} />
+                          ) : (
+                            <VisaLogoSignature height={40} width={72} />
+                          )}
                         </View>
                       </>
                     ) : (
