@@ -15,6 +15,7 @@ import { login as loginIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
 import queryClient, { APIError, isServer, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
+import { isBusiness } from "./useIsBusiness";
 import ownerConfig from "./wagmi/owner";
 
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
@@ -230,12 +231,14 @@ export async function getKYCStatus(
 queryClient.setQueryDefaults(["kyc", "status"], {
   staleTime: 5 * 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () =>
-    getKYCStatus("basic", true).catch((error: unknown) => {
+  queryFn: () => {
+    const business = isBusiness();
+    return getKYCStatus(business ? "business" : "basic", !business).catch((error: unknown) => {
       const status = kycFallback(error);
       if (status.code === "bad kyc" || status.code === "processing") reportError(error, { level: "warning" });
       return status;
-    }),
+    });
+  },
 });
 queryClient.setQueryDefaults(["kyc", "cardLimit"], {
   staleTime: 5 * 60_000,
@@ -251,7 +254,30 @@ function kycFallback(error: unknown) {
   return { code: result.output };
 }
 
-const KYCCode = picklist(["bad kyc", "no kyc", "not started", "processing"]);
+const KYCCode = picklist(["bad kyb", "bad kyc", "no kyc", "not started", "not supported", "processing"]);
+
+queryClient.setQueryDefaults(["kyc", "panda-business"], {
+  staleTime: 5 * 60_000,
+  gcTime: isServer ? Infinity : 60 * 60_000,
+  queryFn: async () => {
+    const previous = queryClient.getQueryData<{ approved?: boolean; code: string }>(["kyc", "panda-business"]);
+    const application = await getKYCStatus("panda-business").catch(kycFallback);
+    if (application.code === "ok" && !queryClient.getQueryData(["card", "details"])) {
+      await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
+    }
+    if (application.code === "not started" && previous && (previous.approved || previous.code !== "not started")) {
+      return { ...application, approved: true };
+    }
+    return application;
+  },
+});
+
+export async function startApplication() {
+  await auth();
+  const response = await api.kyc.$post({ json: { scope: "panda-business" } });
+  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  return response.json();
+}
 
 export async function getCredential() {
   const cached = queryClient.getQueryData<Credential>(["credential"]);

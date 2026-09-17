@@ -42,13 +42,16 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
+import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
+import Banner from "../business/Banner";
 import CardDetailsSheet from "../card/CardDetails";
 import TabBarContext from "../context/TabBarContext";
 import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
@@ -74,6 +77,7 @@ import type { CardDetails } from "../../utils/server";
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
+  const business = useIsBusiness();
   const router = useRouter();
   const { t } = useTranslation();
   const [creditLimitSheetOpen, setCreditLimitSheetOpen] = useState(false);
@@ -131,6 +135,8 @@ export default function Home() {
     queryKey: ["card", "details"],
     enabled: !!account && !!bytecode,
   });
+  const { current, approved, refresh: refreshBusiness } = useBusiness();
+  useFocusEffect(refreshBusiness);
   const {
     increase: increaseLimit,
     usage,
@@ -207,6 +213,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }),
       queryClient.invalidateQueries({ queryKey: balancesOptions(account).queryKey }),
+      business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
       account ? refetchBytecode() : undefined,
@@ -255,6 +262,34 @@ export default function Home() {
                 />
               )}
               <PluginUpgrade />
+              {current && (
+                <Banner
+                  step={current.step}
+                  title={
+                    current.id === "profile"
+                      ? t("Business profile")
+                      : current.id === "card"
+                        ? t("Get a business Exa Card")
+                        : t("Enable bank transfers")
+                  }
+                  description={
+                    current.step === "pending"
+                      ? current.id === "card" && approved
+                        ? t("Your business is approved. Finish setting up your card.")
+                        : t("Verify your business")
+                      : current.step === "review"
+                        ? current.id === "card" && approved
+                          ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                          : t("Review takes 3 to 5 business days.")
+                        : current.step === "failed" || current.step === "unavailable"
+                          ? t("Contact support to continue.")
+                          : t("We need more information before we can continue.")
+                  }
+                  onPress={() => {
+                    router.push("/business");
+                  }}
+                />
+              )}
               <FundingAlert />
               <YStack gap="s5">
                 <PortfolioSummary
@@ -266,7 +301,7 @@ export default function Home() {
                 <HomeActions />
               </YStack>
             </YStack>
-            {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
+            {(card ?? (!business && isKYCFetched && (!isKYCApproved || !bytecode))) && (
               <View paddingHorizontal="s4" gap="s5">
                 <AnimatePresence>
                   {card && (
@@ -318,7 +353,7 @@ export default function Home() {
                   />
                 )}
                 <AnimatePresence>
-                  {isKYCFetched && (!isKYCApproved || !bytecode) && (
+                  {!business && isKYCFetched && (!isKYCApproved || !bytecode) && (
                     <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
                   )}
                 </AnimatePresence>
