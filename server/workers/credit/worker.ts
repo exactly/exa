@@ -1,12 +1,10 @@
 import { captureException, withScope } from "@sentry/node";
 import { eq, inArray } from "drizzle-orm";
 
-import { marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
-
 import { attempts, name, type Job } from "./job";
 import { cards, credentials } from "../../database/schema";
 import t from "../../i18n";
-import publicClient from "../../utils/publicClient";
+import { autoCredit } from "../../utils/panda";
 import createWorker from "../worker";
 
 import type * as schema from "../../database/schema";
@@ -38,21 +36,7 @@ export default function worker({
     },
     name,
     async process(job, span) {
-      const markets = await publicClient.readContract({
-        address: previewerAddress,
-        functionName: "exactly",
-        abi: previewerAbi,
-        args: [job.data.account],
-      });
-      let auto = false;
-      for (const { floatingDepositAssets, market } of markets) {
-        if (floatingDepositAssets <= 0n) continue;
-        if (market === marketUSDCAddress) {
-          auto = false;
-          break;
-        }
-        auto = true;
-      }
+      const auto = await autoCredit(job.data.account);
       span.setAttribute("exa.autoCredit", auto);
       if (auto) {
         const credential = await database.query.credentials.findFirst({

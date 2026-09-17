@@ -8,8 +8,6 @@ export default function queue(redis: Redis, removeOnComplete: DefaultJobOptions[
   const instance = createQueue<Job>(name, attempts, redis, { removeOnComplete });
   return {
     close: () => instance.close(),
-    async enqueue(account: Job["account"], jobId: string = account) {
-      await instance.enqueue({ account }, jobId);
-    },
+    enqueue: (account: Job["account"], jobId: string = account) => instance.enqueue({ account }, jobId),
   };
 }

@@ -3,6 +3,7 @@ export default define({
   crema: ["redis-address", "redis-password", "redis-username"],
   services: {
     api: {
+      env: { BUSINESS_SALT: "businessSalt" },
       secrets: [
         "auth-secret",
         "bridge-api-key",

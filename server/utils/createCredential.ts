@@ -1,5 +1,6 @@
 import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
+import { env } from "node:process";
 import { parse } from "valibot";
 import { hexToBytes, isAddress, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
@@ -38,15 +39,15 @@ export default function createCredential({
   return async function credential<C extends string>(
     c: Context,
     credentialId: C,
-    options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
+    options?: { factory?: Address; ip?: IpAddress; salt?: Address; source?: string; webauthn?: WebAuthnCredential },
   ) {
     if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
     const factory = options?.factory ?? exaAccountFactoryAddress;
+    const salt = options?.salt ?? parse(Address, zeroAddress);
     const publicKey =
       options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
     if (!publicKey) throw new Error("bad credential");
     const { x, y } = decodePublicKey(publicKey);
-    const salt = parse(Address, zeroAddress);
     const account = deriveAddress(factory, { x, y, salt });
 
     setUser({ id: account });
@@ -92,3 +93,14 @@ export default function createCredential({
     return { credentialId, factory: parse(Address, factory), x, y, salt, auth: expires.getTime() };
   };
 }
+
+export function accountSalt(accountType?: "business") {
+  if (accountType !== "business") return parse(Address, zeroAddress);
+  return businessSalt;
+}
+
+export function isBusinessSalt(value: Address) {
+  return value === businessSalt;
+}
+
+const businessSalt = parse(Address, env.BUSINESS_SALT ?? "0x0000000000000000000000000000000000000001");

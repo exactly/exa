@@ -7,20 +7,7 @@ export default function queue(bullmq: Redis) {
   const instance = createQueue<Job>(name, attempts, bullmq);
   return {
     close: () => instance.close(),
-    async enqueue({
-      account,
-      assets,
-      chainId,
-      factory,
-      origin,
-      publicKey,
-      salt,
-      source,
-    }: Omit<Job, "sentryBaggage" | "sentryTrace">) {
-      await instance.enqueue(
-        { account, assets, chainId, factory, origin, publicKey, salt, source },
-        [chainId, account, ...(assets ?? [])].join("-"),
-      );
-    },
+    enqueue: (data: Omit<Job, "sentryBaggage" | "sentryTrace">) =>
+      instance.enqueue(data, [data.chainId, data.account, ...(data.assets ?? [])].join("-")),
   };
 }

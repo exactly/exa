@@ -32,6 +32,7 @@ import { Address } from "@exactly/common/validation";
 import { cards, credentials } from "../database/schema";
 import {
   ADDRESS_TEMPLATE,
+  BUSINESS_TEMPLATE,
   CARD_LIMIT_CASE_TEMPLATE,
   CARD_LIMIT_TEMPLATE,
   CRYPTOMATE_TEMPLATE,
@@ -249,6 +250,7 @@ export default function hook({
                             CARD_LIMIT_TEMPLATE,
                             CRYPTOMATE_TEMPLATE,
                             MANTECA_TEMPLATE_EXTRA_FIELDS,
+                            BUSINESS_TEMPLATE,
                           ]),
                         }),
                       }),

@@ -45,6 +45,7 @@ import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation"
 import { credentials } from "../../database/schema";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { accountSalt } from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
@@ -57,6 +58,8 @@ import type createIntercom from "../../utils/intercom";
 import type createWalletExtension from "../../utils/walletExtension";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
+
+const accountTypeSchema = optional(literal("business"));
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -283,6 +286,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "Account-Type": accountTypeSchema,
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -360,6 +364,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         const assertion = c.req.valid("json");
         const headers = c.req.valid("header");
         const factory = c.req.valid("query")?.factory ?? undefined;
+        const accountType = safeParse(accountTypeSchema, c.req.header("Account-Type"));
+        if (!accountType.success) return c.json({ code: "bad account type" }, 400);
         const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
         if (!platform.success) return c.json({ code: "bad client platform" }, 400);
         setContext("auth", assertion);
@@ -390,6 +396,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
             const result = await createCredential(c, assertion.id, {
               factory,
+              salt: accountSalt(accountType.output),
               source: c.req.header("Client-Fid"),
               ip: headers?.["do-connecting-ip"],
             });

@@ -114,9 +114,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 1 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 1 });
     expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
       userId: account,
       headings: t("Credit mode activated"),
@@ -141,9 +139,7 @@ describe("credit worker", () => {
   it("keeps debit mode without deposits", async () => {
     await jobFinished(account);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 0 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -152,9 +148,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 0 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -166,9 +160,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 0 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -178,9 +170,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 1 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 1 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -190,9 +180,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 0 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -201,9 +189,7 @@ describe("credit worker", () => {
 
     await jobFinished(unknown);
 
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 0 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -216,9 +202,7 @@ describe("credit worker", () => {
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
     expect(publicClient.readContract).toHaveBeenCalledOnce();
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 1 });
+    await expect(findCard()).resolves.toStrictEqual({ mode: 1 });
   });
 
   it("retries automatic credit failures", async () => {
@@ -302,6 +286,10 @@ describe("credit worker", () => {
     });
   });
 });
+
+function findCard() {
+  return database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") });
+}
 
 async function jobFinished(
   current: Address,

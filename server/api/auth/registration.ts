@@ -42,6 +42,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import appOrigin from "../../utils/appOrigin";
+import { accountSalt } from "../../utils/createCredential";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -51,6 +52,8 @@ import type createCredentialFactory from "../../utils/createCredential";
 import type createIntercom from "../../utils/intercom";
 import type createWalletExtension from "../../utils/walletExtension";
 import type { Redis } from "ioredis";
+
+const accountTypeSchema = optional(literal("business"));
 
 const Cookie = object({
   session_id: optional(pipe(Base64URL, title("Session identifier"), description("HTTP-only cookie."))),
@@ -277,6 +280,7 @@ export default function route({
           object({
             "Client-Fid": optional(pipe(string(), maxLength(36))),
             "Client-Platform": optional(literal("ios")),
+            "Account-Type": accountTypeSchema,
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
           }),
         ),
@@ -349,6 +353,8 @@ export default function route({
         const attestation = c.req.valid("json");
         const factory = c.req.valid("query")?.factory ?? undefined;
         const headers = c.req.valid("header");
+        const accountType = safeParse(accountTypeSchema, c.req.header("Account-Type"));
+        if (!accountType.success) return c.json({ code: "bad account type" }, 400);
         const platform = safeParse(optional(literal("ios")), headers?.["Client-Platform"]);
         if (!platform.success) return c.json({ code: "bad client platform" }, 400);
         setContext("auth", attestation);
@@ -409,6 +415,7 @@ export default function route({
         try {
           const result = await createCredential(c, attestation.id, {
             factory,
+            salt: accountSalt(accountType.output),
             webauthn,
             source: headers?.["Client-Fid"],
             ip: headers?.["do-connecting-ip"],
