@@ -6,7 +6,7 @@ import { createHmac } from "node:crypto";
 import * as v from "valibot";
 
 import { attempts, name, type Job } from "./job";
-import { credentials, transactions } from "../../database/schema";
+import { cards, credentials, transactions } from "../../database/schema";
 import { declineMessage } from "../../utils/panda";
 import createWorker from "../worker";
 
@@ -56,23 +56,24 @@ export default function worker({
       if (payload.resource === "transaction" && payload.action === "requested") return;
       if (payload.resource === "dispute") return;
       if (payload.resource === "card" && payload.action === "notification") return;
-      const user = await database.query.credentials.findFirst({
-        columns: { account: true, id: true, source: true },
-        with: { source: { columns: { config: true } } },
-        where: eq(
-          credentials.pandaId,
-          (() => {
-            switch (payload.resource) {
-              case "card":
-                return payload.body.userId;
-              case "user":
-                return payload.body.id;
-              case "transaction":
-                return payload.body.spend.userId;
-            }
-          })(),
-        ),
-      });
+      const user = await (payload.resource === "user"
+        ? database.query.credentials.findFirst({
+            columns: { account: true, id: true, source: true },
+            with: { source: { columns: { config: true } } },
+            where: eq(credentials.pandaId, payload.body.id),
+          })
+        : database.query.cards
+            .findFirst({
+              columns: {},
+              with: {
+                credential: {
+                  columns: { account: true, id: true, source: true },
+                  with: { source: { columns: { config: true } } },
+                },
+              },
+              where: eq(cards.id, payload.resource === "card" ? payload.body.id : payload.body.spend.cardId),
+            })
+            .then((card) => card?.credential));
       if (user) setUser({ id: user.account });
       if (!user?.source) return;
       const config = v.safeParse(Config, user.source.config);

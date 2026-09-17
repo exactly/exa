@@ -35,7 +35,7 @@ import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siw
 
 import chain from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
@@ -80,8 +80,8 @@ const CardResponse = object({
     ]),
   }),
   productId: pipe(
-    picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
   ),
   challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
   provisioning: optional(
@@ -97,8 +97,8 @@ const CreatedCardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   productId: pipe(
-    picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    metadata({ examples: [BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
   ),
 });
 
@@ -327,36 +327,38 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         if (credential.cards.length > 0 && credential.cards[0]) {
           const { id, lastFour, status, mode, productId } = credential.cards[0];
           if (status === "DELETED") throw new Error("card deleted");
-          const [{ expirationMonth, expirationYear, limit }, pan, user, pin, challenge, provisioning] =
+          const [{ expirationMonth, expirationYear, limit, user }, pan, pin, challenge, provisioning] =
             await Promise.all([
-              panda.getCard(id),
+              panda.getCard(id).then(async (card) => ({
+                ...card,
+                user: await panda.getUser(card.userId).catch((error: unknown) => {
+                  const issue = noUser(error);
+                  if (!issue) throw error;
+                  const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+                  if (shouldCapture) {
+                    withScope((s) => {
+                      s.addEventProcessor((event) => {
+                        if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                        return event;
+                      });
+                      captureException(issue.error, {
+                        level: "warning",
+                        fingerprint: ["{{ default }}", issue.type],
+                        extra: {
+                          cardId: id,
+                          credentialId,
+                          pandaId: credential.pandaId,
+                          status,
+                          shouldCapture,
+                          userIssue: issue.type,
+                        },
+                      });
+                    });
+                  }
+                  return null;
+                }),
+              })),
               sessionid && panda.getSecrets(id, sessionid),
-              panda.getUser(credential.pandaId).catch((error: unknown) => {
-                const issue = noUser(error);
-                if (!issue) throw error;
-                const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
-                if (shouldCapture) {
-                  withScope((s) => {
-                    s.addEventProcessor((event) => {
-                      if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
-                      return event;
-                    });
-                    captureException(issue.error, {
-                      level: "warning",
-                      fingerprint: ["{{ default }}", issue.type],
-                      extra: {
-                        cardId: id,
-                        credentialId,
-                        pandaId: credential.pandaId,
-                        status,
-                        shouldCapture,
-                        userIssue: issue.type,
-                      },
-                    });
-                  });
-                }
-                return null;
-              }),
               sessionid && panda.getPIN(id, sessionid),
               (async () => {
                 if (include("siwe")) {
@@ -490,7 +492,6 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           throw error;
         });
         if (!provider) return c.json({ code: "no card" }, 404);
-        if (provider.userId !== credential.pandaId) return c.json({ code: "no panda" }, 403);
         if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
         try {
           const { processorCardId, timeBasedSecret } = await panda.getProcessorDetails(card.id);
