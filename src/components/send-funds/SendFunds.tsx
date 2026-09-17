@@ -18,9 +18,12 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders, origin } from "../../utils/server";
+import useBusiness from "../../utils/useBusiness";
 import useInsets from "../../utils/useInsets";
+import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
+import Transfers from "../business/Transfers";
 import RampButton from "../ramp/RampButton";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -29,6 +32,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function SendFunds() {
+  const business = useIsBusiness();
   const { type } = useLocalSearchParams();
   const router = useRouter();
   const insets = useInsets();
@@ -44,13 +48,16 @@ export default function SendFunds() {
     },
     staleTime: (query) => (query.state.data ? Infinity : 0),
     retry: false,
+    enabled: !business,
   });
+  const { transfers: step, locked, profile } = useBusiness();
+  const transfers = locked ? profile : step;
 
   const redirectURL = `${origin}/send-funds`;
   const { data: providers, isPending } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
-    enabled: !!countryCode,
+    enabled: business || !!countryCode,
     staleTime: 0,
   });
 
@@ -61,7 +68,7 @@ export default function SendFunds() {
     );
 
   function renderProviders(filter: "crypto" | "fiat") {
-    if (countryCode && isPending) {
+    if ((business || countryCode) && isPending) {
       return (
         <View justifyContent="center" alignItems="center">
           <Skeleton width="100%" height={82} />
@@ -136,19 +143,28 @@ export default function SendFunds() {
                     router.push("/send-funds/receiver");
                   }}
                 />
-                {hasFiat !== false && chain.id !== base.id && (
-                  <AddFundsOption
-                    icon={<Banknote size={24} color="iconBrandDefault" />}
-                    title={t("Bank transfers")}
-                    subtitle={t("Pesos, dollars, or euros")}
-                    disabled={isKYCApproved && !hasFiat}
+                {business && transfers !== "completed" && (
+                  <Transfers
+                    step={transfers}
                     onPress={() => {
-                      router.push(
-                        isKYCApproved ? { pathname: "/send-funds", params: { type: "fiat" } } : "/send-funds/welcome",
-                      );
+                      router.push("/business");
                     }}
                   />
                 )}
+                {(!business || transfers === "completed") &&
+                  (business ? hasFiat : hasFiat !== false && chain.id !== base.id) && (
+                    <AddFundsOption
+                      icon={<Banknote size={24} color="iconBrandDefault" />}
+                      title={t("Bank transfers")}
+                      subtitle={t("Pesos, dollars, or euros")}
+                      disabled={isKYCApproved && !hasFiat}
+                      onPress={() => {
+                        router.push(
+                          isKYCApproved ? { pathname: "/send-funds", params: { type: "fiat" } } : "/send-funds/welcome",
+                        );
+                      }}
+                    />
+                  )}
               </>
             )}
             {type === "fiat" && renderProviders("fiat")}

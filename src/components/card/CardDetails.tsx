@@ -9,12 +9,13 @@ import { ScrollView, useThemeName, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
 import DismissableAlert from "./DismissableAlert";
 import ExaLogoDark from "../../assets/images/exa-logo-dark.svg";
 import ExaLogoLight from "../../assets/images/exa-logo-light.svg";
 import ExaLogoSignature from "../../assets/images/exa-logo-signature.svg";
+import VisaLogoCorporate from "../../assets/images/visa-logo-corporate.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
 import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
@@ -41,7 +42,8 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
     staleTime: (query) => (query.state.data ? Infinity : 0),
   });
   const card = isPending ? { ...placeholder, ...details } : data;
-  const banner = card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
+  const corporate = card?.productId === CLASSIC_PRODUCT_ID;
+  const banner = corporate || card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
@@ -58,9 +60,11 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                     backgroundColor={
                       card.productId === BASE_PRODUCT_ID
                         ? "baseBlue"
-                        : card.productId === SIGNATURE_PRODUCT_ID
-                          ? "cardBackground"
-                          : "uiNeutralPrimary"
+                        : corporate
+                          ? "cardBusinessBackground"
+                          : card.productId === SIGNATURE_PRODUCT_ID
+                            ? "cardBackground"
+                            : "uiNeutralPrimary"
                     }
                     paddingHorizontal="s5"
                     paddingTop="s9"
@@ -75,7 +79,11 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                           <ExaLogoSignature height={20} width={63} />
                         </View>
                         <View position="absolute" top="s4" right="s5">
-                          <VisaLogoSignature height={40} width={72} />
+                          {corporate ? (
+                            <VisaLogoCorporate height={38} width={72} />
+                          ) : (
+                            <VisaLogoSignature height={40} width={72} />
+                          )}
                         </View>
                       </>
                     ) : (

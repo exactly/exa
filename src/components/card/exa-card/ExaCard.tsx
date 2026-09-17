@@ -5,7 +5,7 @@ import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 import CardContents from "./CardContents";
 import View from "../../shared/View";
@@ -24,6 +24,7 @@ export default function ExaCard({
   revealing: boolean;
 }) {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
+  const corporate = card?.productId === CLASSIC_PRODUCT_ID;
   return (
     <YStack width="100%" borderRadius="r4" borderWidth={0}>
       <Pressable onPress={onPress}>
@@ -34,14 +35,18 @@ export default function ExaCard({
               ? "black"
               : card?.productId === BASE_PRODUCT_ID
                 ? "baseBlue"
-                : "cardBackground"
+                : corporate
+                  ? "cardBusinessBackground"
+                  : "cardBackground"
           }
           borderColor={
             card?.productId === PLATINUM_PRODUCT_ID
               ? "black"
               : card?.productId === BASE_PRODUCT_ID
                 ? "baseBlue"
-                : "cardBackground"
+                : corporate
+                  ? "cardBusinessBackground"
+                  : "cardBackground"
           }
           borderRadius="r4"
           borderWidth={1}

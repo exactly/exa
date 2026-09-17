@@ -6,9 +6,10 @@ import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
+import CorporateCard from "../../../assets/images/card-corporate.svg";
 import BaseCard from "../../../assets/images/card-signature-base.svg";
 import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
@@ -115,6 +116,13 @@ export default function CardContents({
           />
         ) : productId === BASE_PRODUCT_ID ? (
           <BaseCard
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        ) : productId === CLASSIC_PRODUCT_ID ? (
+          <CorporateCard
             width="100%"
             height="100%"
             preserveAspectRatio="xMaxYMid"
