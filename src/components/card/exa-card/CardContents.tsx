@@ -9,12 +9,14 @@ import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
+import CorporateCard from "../../../assets/images/card-corporate.svg";
 import BaseCard from "../../../assets/images/card-signature-base.svg";
 import SignatureCard from "../../../assets/images/card-signature.svg";
 import Card from "../../../assets/images/card.svg";
 import { Loader } from "../../../generated/icons/Loader";
 import { LockKeyhole } from "../../../generated/icons/LockKeyhole";
 import { Snowflake } from "../../../generated/icons/Snowflake";
+import useIsBusiness from "../../../utils/useIsBusiness";
 import useMarkets from "../../../utils/useMarkets";
 import AnimatedView from "../../shared/AnimatedView";
 import Text from "../../shared/Text";
@@ -34,6 +36,7 @@ export default function CardContents({
   revealing: boolean;
 }) {
   const { markets } = useMarkets();
+  const business = useIsBusiness();
   const {
     t,
     i18n: { language },
@@ -115,6 +118,13 @@ export default function CardContents({
           />
         ) : productId === BASE_PRODUCT_ID ? (
           <BaseCard
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMaxYMid"
+            {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+          />
+        ) : business ? (
+          <CorporateCard
             width="100%"
             height="100%"
             preserveAspectRatio="xMaxYMid"

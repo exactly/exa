@@ -36,6 +36,7 @@ const tokens = createTokens({
     baseGray50: "#717886",
     baseGray80: "#32353D",
     cardBackground: "#1A211E",
+    cardBusinessBackground: "#19181A",
     cardPreviewBackground: "#1A181A",
     creditDark1: "#18111B",
     creditDark5: "#48295C",
@@ -372,6 +373,7 @@ const tamagui = createTamagui({
   themes: {
     light: {
       cardBackground: tokens.color.cardBackground,
+      cardBusinessBackground: tokens.color.cardBusinessBackground,
       cardPreviewBackground: tokens.color.cardPreviewBackground,
       cardDebitBackground: tokens.color.debitLight1,
       cardDebitInteractive: tokens.color.debitLight9,
@@ -521,6 +523,7 @@ const tamagui = createTamagui({
     },
     dark: {
       cardBackground: tokens.color.cardBackground,
+      cardBusinessBackground: tokens.color.cardBusinessBackground,
       cardPreviewBackground: tokens.color.cardPreviewBackground,
       cardDebitBackground: tokens.color.debitDark1,
       cardDebitInteractive: tokens.color.debitDark9,
