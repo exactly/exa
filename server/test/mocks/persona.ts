@@ -18,6 +18,8 @@ const mock = vi.hoisted(() => {
     },
     persona: {
       addDocument: (...parameters: Parameters<Persona["addDocument"]>) => current().addDocument(...parameters),
+      businessProfile: (...parameters: Parameters<Persona["businessProfile"]>) =>
+        current().businessProfile(...parameters),
       createInquiry: (...parameters: Parameters<Persona["createInquiry"]>) => current().createInquiry(...parameters),
       evaluateAccount: (...parameters: Parameters<Persona["evaluateAccount"]>) =>
         current().evaluateAccount(...parameters),
