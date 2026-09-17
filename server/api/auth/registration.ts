@@ -37,6 +37,7 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { Authentication } from "./authentication";
@@ -280,6 +281,7 @@ export default function route({
             "client-fid": optional(pipe(string(), maxLength(36))),
             "client-platform": optional(literal("ios")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+            origin: optional(string()),
             "x-session-id": optional(Base64URL),
           }),
         ),
@@ -421,6 +423,7 @@ export default function route({
             webauthn,
             source: headers?.["client-fid"],
             ip: headers?.["do-connecting-ip"],
+            ...(headers?.origin && Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
           });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
           const intercomToken = await intercom(account, new Date(Date.now() + AUTH_EXPIRY));
