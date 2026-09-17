@@ -40,6 +40,7 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../../database/schema";
@@ -287,6 +288,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             "client-fid": optional(pipe(string(), maxLength(36))),
             "client-platform": optional(literal("ios")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+            origin: optional(string()),
             "x-session-id": optional(Base64URL),
           }),
         ),
@@ -402,6 +404,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               factory,
               source: headers?.["client-fid"],
               ip: headers?.["do-connecting-ip"],
+              ...(headers?.origin && Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
             });
             const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
             const intercomToken = await intercom(account, result.auth);
