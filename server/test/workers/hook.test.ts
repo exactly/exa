@@ -162,7 +162,12 @@ describe("hook worker", () => {
           pandaId: "webhook-user-sourceless",
         },
       ]);
-      await tx.insert(cards).values([{ id: "webhook-card", credentialId: "webhook-cred", lastFour: "1234" }]);
+      await tx.insert(cards).values([
+        { id: "webhook-card", credentialId: "webhook-cred", lastFour: "1234" },
+        { id: "webhook-card-multi", credentialId: "webhook-cred-multi", lastFour: "1235" },
+        { id: "webhook-card-broken", credentialId: "webhook-cred-broken", lastFour: "1236" },
+        { id: "webhook-card-sourceless", credentialId: "webhook-cred-sourceless", lastFour: "1237" },
+      ]);
     });
     connection = connect(redisUrl);
     worker = hookWorker({
@@ -273,8 +278,26 @@ describe("hook worker", () => {
     });
   });
 
+  it("delivers transactions of cards held by another company user", async () => {
+    transaction("wk-company", { userId: "webhook-company-user" });
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-company");
+
+    expect(mockFetch).toHaveBeenCalledExactlyOnceWith("https://exa.test", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(parse(string(), mockFetch.mock.calls[0]?.[1]?.body))).toStrictEqual({
+      id: "wk-company",
+      timestamp: expect.any(String) as string,
+      resource: "transaction",
+      action: "created",
+      body: { id: "tx-wk-company", type: "spend", spend },
+    });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: parse(Address, padHex("0xfab1", { size: 20 })) });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("fans out to routed and fallback urls", async () => {
-    transaction("wk-multi", { exchangeRate: 1.17, userId: "webhook-user-multi" });
+    transaction("wk-multi", { cardId: "webhook-card-multi", exchangeRate: 1.17 });
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
     await jobFinished("wk-multi");
@@ -311,7 +334,7 @@ describe("hook worker", () => {
       resource: "card",
       action: "updated",
       body: {
-        id: "card-1",
+        id: "webhook-card",
         last4: "1234",
         limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
         status: mapped,
@@ -321,7 +344,7 @@ describe("hook worker", () => {
   });
 
   it("routes card updates", async () => {
-    card("wk-card-route", "active", "webhook-user-multi");
+    card("wk-card-route", "active", { id: "webhook-card-multi" });
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
     await jobFinished("wk-card-route");
@@ -330,6 +353,30 @@ describe("hook worker", () => {
       "https://exa.test",
       "https://routed.test/card",
     ]);
+  });
+
+  it("delivers card updates of cards held by another company user", async () => {
+    card("wk-card-company", "active", { userId: "webhook-company-user" });
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-card-company");
+
+    expect(mockFetch).toHaveBeenCalledExactlyOnceWith("https://exa.test", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(parse(string(), mockFetch.mock.calls[0]?.[1]?.body))).toStrictEqual({
+      id: "wk-card-company",
+      timestamp: expect.any(String) as string,
+      resource: "card",
+      action: "updated",
+      body: {
+        id: "webhook-card",
+        last4: "1234",
+        limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+        status: "ACTIVE",
+        tokenWallets: ["Apple"],
+      },
+    });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: parse(Address, padHex("0xfab1", { size: 20 })) });
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("delivers user updates with credential ids", async () => {
@@ -491,8 +538,8 @@ describe("hook worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("skips unknown users", async () => {
-    transaction("wk-ghost", { userId: "webhook-ghost" });
+  it("skips unknown cards", async () => {
+    transaction("wk-ghost", { cardId: "webhook-ghost" });
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
     await jobFinished("wk-ghost");
@@ -502,8 +549,19 @@ describe("hook worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("skips unknown users", async () => {
+    user("wk-ghost-user", "webhook-ghost");
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-ghost-user");
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("skips sourceless users", async () => {
-    transaction("wk-sourceless", { userId: "webhook-user-sourceless" });
+    transaction("wk-sourceless", { cardId: "webhook-card-sourceless" });
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
     await jobFinished("wk-sourceless");
@@ -530,7 +588,7 @@ describe("hook worker", () => {
   });
 
   it("fails without retries on invalid configs", async () => {
-    transaction("wk-bad-config", { userId: "webhook-user-broken" });
+    transaction("wk-bad-config", { cardId: "webhook-card-broken" });
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
     const result = jobFinished("wk-bad-config", { attempts: 2, backoff: { type: "fixed", delay: 1 } });
@@ -555,7 +613,7 @@ describe("hook worker", () => {
         resource: "card",
         action: "updated",
         body: {
-          id: "card-1",
+          id: "webhook-card",
           userId: "webhook-user",
           limit: { amount: 1, frequency: "per7DayPeriod" },
           status: "active",
@@ -619,7 +677,7 @@ describe("hook worker", () => {
   });
 
   it("delivers remaining targets on partial failures", async () => {
-    transaction("wk-partial", { userId: "webhook-user-multi" });
+    transaction("wk-partial", { cardId: "webhook-card-multi" });
     const routed = vi
       .fn<() => Promise<Response>>()
       .mockImplementationOnce(() => Promise.resolve(new Response("oops", { status: 500 })))
@@ -732,7 +790,7 @@ function transaction(id: string, override: Record<string, unknown>, action = "cr
   });
 }
 
-function card(id: string, status: string, userId = "webhook-user") {
+function card(id: string, status: string, override: Record<string, unknown> = {}) {
   webhooks.set(id, {
     id,
     requestBody: {
@@ -740,12 +798,13 @@ function card(id: string, status: string, userId = "webhook-user") {
       resource: "card",
       action: "updated",
       body: {
-        id: "card-1",
-        userId,
+        id: "webhook-card",
+        userId: "webhook-user",
         last4: "1234",
         limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
         status,
         tokenWallets: ["Apple"],
+        ...override,
       },
     },
     requestSentAt: "2026-01-01T00:00:00.000Z",
