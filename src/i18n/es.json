@@ -548,6 +548,7 @@
   "Passkeys are intrinsically linked with the app or website they were created for, so people can never be tricked into using their passkey to sign in to a fraudulent app or website.": "Las llaves de acceso están intrínsecamente vinculadas con la aplicación o sitio web para el que fueron creadas, por lo que las personas nunca pueden ser engañadas para usarlas en una aplicación o sitio web fraudulento.",
   "Passkeys replace passwords with cryptographic keys. Your private key stays on your device, while the public key is shared with the service. This ensures secure and seamless authentication.": "Las llaves de acceso reemplazan las contraseñas con claves criptográficas. Tu clave privada permanece en tu dispositivo, mientras que la clave pública se comparte con el servicio. Esto garantiza una autenticación segura y fluida.",
   "Paste BR Code": "Pegar BR Code",
+  "Pax Assistance": "Pax Assistance",
   "Pay due {{date}}": "Pagar antes del {{date}}",
   "Pay in 1, 2, or 3 installments at 0% interest on Exa Card purchases up to {{limit}}, through {{promoEnd}}. Interest is reimbursed in early {{refund}}.": "Paga en 1, 2 o 3 cuotas al 0% de interés en compras con Exa Card de hasta {{limit}}, hasta fin de {{promoEnd}}. El interés se reembolsa a principios de {{refund}}.",
   "Pay Later at 0% interest": "Paga Después al 0% de interés",
