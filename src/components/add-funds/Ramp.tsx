@@ -29,6 +29,7 @@ import { isValidCurrency, fees as rampFees } from "../../utils/currencies";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote, origin } from "../../utils/server";
+import useIsBusiness from "../../utils/useIsBusiness";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
@@ -46,6 +47,7 @@ type DetailRowProperties = {
 };
 
 export default function Ramp() {
+  const business = useIsBusiness();
   const {
     t,
     i18n: { language },
@@ -82,7 +84,7 @@ export default function Ramp() {
   const { data: providers } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
-    enabled: !!countryCode,
+    enabled: business || !!countryCode,
     staleTime: 60_000,
   });
   const bridge = providers?.bridge;
