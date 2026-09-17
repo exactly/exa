@@ -27,17 +27,21 @@ import {
 import { bytesToHex } from "viem";
 
 import chain, { firewallAddress } from "@exactly/common/generated/chain";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import {
   ADDRESS_TEMPLATE,
+  BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
+  BUSINESS_TEMPLATE,
   CARD_LIMIT_CASE_TEMPLATE,
   CARD_LIMIT_TEMPLATE,
   CRYPTOMATE_TEMPLATE,
   headerValidator,
   MANTECA_TEMPLATE_EXTRA_FIELDS,
   MANTECA_TEMPLATE_WITH_ID_CLASS,
+  PANDA_BUSINESS_CHECKBOX_TEMPLATE,
   PANDA_TEMPLATE,
 } from "../utils/persona";
 import validatorHook from "../utils/validatorHook";
@@ -243,12 +247,28 @@ export default function hook({
                     attributes: object({ status: string(), referenceId: string() }),
                     relationships: object({
                       inquiryTemplate: object({
+                        data: object({ id: literal(BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE) }),
+                      }),
+                    }),
+                  }),
+                }),
+                transform((payload) => ({ template: "representative" as const, ...payload })),
+              ),
+              pipe(
+                object({
+                  data: object({
+                    id: string(),
+                    attributes: object({ status: string(), referenceId: string() }),
+                    relationships: object({
+                      inquiryTemplate: object({
                         data: object({
                           id: picklist([
                             ADDRESS_TEMPLATE,
+                            BUSINESS_TEMPLATE,
                             CARD_LIMIT_TEMPLATE,
                             CRYPTOMATE_TEMPLATE,
                             MANTECA_TEMPLATE_EXTRA_FIELDS,
+                            PANDA_BUSINESS_CHECKBOX_TEMPLATE,
                           ]),
                         }),
                       }),
@@ -329,6 +349,51 @@ export default function hook({
           id_issuing_country: { value: payload.data.attributes.fields.selectedCountryCode.value },
           id_document_id: { value: payload.data.attributes.fields.currentGovernmentId1.value.id },
         });
+        return c.json({ code: "ok" }, 200);
+      }
+      if (payload.template === "representative") {
+        getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.representative");
+        if (payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
+        const { referenceId } = payload.data.attributes;
+        const credential = await database.query.credentials.findFirst({
+          columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
+          where: eq(credentials.id, referenceId),
+          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
+        });
+        if (!credential) {
+          captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
+          return c.json({ code: "no credential" }, 200);
+        }
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
+        if (credential.cards.length > 0) return c.json({ code: "already created" }, 200);
+        let pandaId = credential.pandaId;
+        if (!pandaId) {
+          const application = await panda.getCompanyApplication(referenceId);
+          if (application?.applicationStatus !== "approved") return c.json({ code: "not approved" }, 200);
+          const user = await panda
+            .getCompanyUsers(application.id)
+            .then((users) => users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase()));
+          if (!user) throw new Error("company user not found");
+          await database.update(credentials).set({ pandaId: user.id }).where(eq(credentials.id, referenceId));
+          pandaId = user.id;
+        }
+        if (firewallAddress)
+          await allow.enqueue({
+            account,
+            chainId: chain.id,
+            factory: parse(Address, credential.factory),
+            publicKey: bytesToHex(credential.publicKey),
+            salt: parse(Address, credential.salt),
+            source: credential.source,
+          });
+        const card =
+          (await panda.getCards(pandaId).then((existing) => existing.find(({ status }) => status === "active"))) ??
+          (await panda.createCard(pandaId, SIGNATURE_PRODUCT_ID));
+        await database
+          .insert(cards)
+          .values({ id: card.id, credentialId: referenceId, lastFour: card.last4, productId: SIGNATURE_PRODUCT_ID })
+          .onConflictDoNothing();
         return c.json({ code: "ok" }, 200);
       }
 

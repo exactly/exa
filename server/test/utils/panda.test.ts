@@ -1,15 +1,16 @@
 import "../mocks/sentry";
 
-import { parse } from "valibot";
+import { parse, ValiError } from "valibot";
 import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { usdcAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
-import createPanda, * as Panda from "../../utils/panda";
+import createPanda from "../../utils/panda";
+import * as Panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
@@ -44,6 +45,25 @@ describe("panda request", () => {
     const rejection = panda.getUser("some-id");
     await expect(rejection).rejects.toBeInstanceOf(ServiceError);
     await expect(rejection).rejects.toMatchObject({ name: "PandaNotFound", status: 404, message: "user" });
+  });
+
+  it("gets a company user without a phone", async () => {
+    const user = {
+      id: "user-id",
+      firstName: "Jhon",
+      lastName: "Doe",
+      email: "jhon@example.com",
+      isActive: true,
+      applicationStatus: "approved",
+      applicationReason: "",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(user));
+
+    await expect(panda.getUser("user-id")).resolves.toStrictEqual(user);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/users/user-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("extracts card entity from url on not found", async () => {
@@ -100,6 +120,150 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/tenants/contracts"),
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("lists company users through the parent tenant", async () => {
+    const users = [{ id: "user-id", walletAddress: "0x1234" }];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(users));
+
+    await expect(panda.getCompanyUsers("company-id")).resolves.toStrictEqual(users);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/users?companyId=company-id"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+});
+
+describe("business application", () => {
+  const account = parse(Address, padHex("0xb0b", { size: 20 }));
+  const address = {
+    line1: "1 Main St",
+    city: "New York",
+    region: "NY",
+    postalCode: "10001",
+    countryCode: "US",
+  };
+  const owner = {
+    firstName: "Jane",
+    lastName: "Doe",
+    birthDate: "1990-01-01",
+    nationalId: "123456789",
+    countryOfIssue: "US",
+    email: "jane@example.com",
+    address,
+  };
+  const company = {
+    name: "Account Acme",
+    address,
+    entity: {
+      name: "Account Acme",
+      description: "Account software",
+      industry: "541511",
+      registrationNumber: "123",
+      taxId: "456",
+      website: "https://example.com",
+    },
+    initialUser: { ...owner, ipAddress: "127.0.0.1", walletAddress: account },
+    representatives: [owner],
+    ultimateBeneficialOwners: [owner],
+  } satisfies Parameters<typeof panda.createCompanyApplication>[1];
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("creates a company application", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "company-1", name: "Account Acme", address }));
+
+    await expect(panda.createCompanyApplication("reference-id", company)).resolves.toStrictEqual({
+      id: "company-1",
+      name: "Account Acme",
+      address,
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/applications/company"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "business-application:reference-id" }) as unknown,
+      }),
+    );
+    expect(JSON.parse(fetchSpy.mock.lastCall?.[1]?.body as string)).toStrictEqual({
+      ...company,
+      sourceKey: "EXA",
+      externalId: "reference-id",
+    });
+  });
+
+  it("rejects semantic company-field validation failures", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      panda.createCompanyApplication("reference-id", {
+        ...company,
+        entity: { ...company.entity, website: "not a url" },
+      }),
+    ).rejects.toThrow(ValiError);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves the verification link signature", async () => {
+    const externalId = "0x7fE85c89A8406B6Fc911f064e344fac2DFfD1C1b";
+    const signature = "x".repeat(156);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        id: "company-1",
+        externalId,
+        applicationStatus: "needsVerification",
+        applicationExternalVerificationLink: {
+          url: "https://cardmemberportal.com/kyc",
+          params: { userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000", signature },
+        },
+      }),
+    );
+    const application = await panda.getCompanyApplication(externalId);
+
+    expect(application?.applicationExternalVerificationLink).toStrictEqual({
+      url: "https://cardmemberportal.com/kyc",
+      params: { userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000", signature },
+    });
+  });
+
+  it("returns nothing when the company application does not exist", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
+
+    await expect(panda.getCompanyApplication("0x269E1Eb82cc3c3Ee64b47cDA34acAED8203aF066")).resolves.toBeUndefined();
+  });
+
+  it("rethrows non-404 company application errors", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("server error", { status: 500 }));
+    await expect(panda.getCompanyApplication("0xbeef")).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("rejects a company application for another reference id", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", externalId: "0xdead", applicationStatus: "pending" }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).rejects.toThrow("panda company external id mismatch");
+  });
+
+  it("accepts a company application without a reference id", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", applicationStatus: "pending" }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).resolves.toMatchObject({ id: "company-1" });
+  });
+
+  it("accepts a not started company application", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", applicationStatus: "notStarted" }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).resolves.toMatchObject({
+      id: "company-1",
+      applicationStatus: "notStarted",
+    });
   });
 });
 
