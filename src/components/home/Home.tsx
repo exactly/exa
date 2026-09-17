@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
+import business from "@exactly/common/business";
 import chain, { exaPluginAddress, exaPreviewerAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
@@ -41,6 +42,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -48,6 +50,7 @@ import usePendingOperations from "../../utils/usePendingOperations";
 import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
+import Banner from "../business/Banner";
 import CardDetailsSheet from "../card/CardDetails";
 import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
 import OverduePayments from "../pay/OverduePayments";
@@ -139,6 +142,7 @@ export default function Home() {
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
   const { approved: isKYCApproved, legacy: needsMigration, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
+  const { current } = useBusiness();
   const {
     increase: increaseLimit,
     usage,
@@ -230,6 +234,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }),
+      business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
       account ? refetchBytecode() : undefined,
@@ -297,6 +302,30 @@ export default function Home() {
                   }}
                 />
               )}
+              {current && (
+                <Banner
+                  step={current.step}
+                  title={
+                    current.id === "profile"
+                      ? t("Business profile")
+                      : current.id === "card"
+                        ? t("Get a business Exa Card")
+                        : t("Enable bank transfers")
+                  }
+                  description={
+                    current.step === "pending"
+                      ? t("Verify your business")
+                      : current.step === "review"
+                        ? t("Review takes 3 to 5 business days.")
+                        : current.step === "failed" || current.step === "unavailable"
+                          ? t("Contact support to continue.")
+                          : t("We need more information before we can continue.")
+                  }
+                  onPress={() => {
+                    router.push("/business");
+                  }}
+                />
+              )}
               <FundingAlert />
               <YStack gap="$s5">
                 <PortfolioSummary
@@ -308,7 +337,7 @@ export default function Home() {
                 <HomeActions />
               </YStack>
             </YStack>
-            {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
+            {(card ?? (!business && isKYCFetched && (!isKYCApproved || !bytecode))) && (
               <View paddingHorizontal="$s4" gap="$s5">
                 <AnimatePresence>
                   {card && (
@@ -348,7 +377,7 @@ export default function Home() {
                   />
                 )}
                 <AnimatePresence>
-                  {isKYCFetched && (!isKYCApproved || !bytecode) && (
+                  {!business && isKYCFetched && (!isKYCApproved || !bytecode) && (
                     <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
                   )}
                 </AnimatePresence>

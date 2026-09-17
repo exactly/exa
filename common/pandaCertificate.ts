@@ -20,6 +20,7 @@ export default process.env.EXPO_PUBLIC_PANDA_PUBLIC_KEY ||
     "web.exactly.app": production,
     "base.exactly.app": production,
     "base-sepolia.exactly.app": sandbox,
+    "business.sandbox.exactly.app": sandbox,
     "sandbox.exactly.app": sandbox,
   }[domain] ||
   `-----BEGIN PUBLIC KEY-----
