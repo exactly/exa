@@ -1,4 +1,3 @@
-import { vValidator } from "@hono/valibot-validator";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import {
   array,
@@ -44,7 +43,6 @@ import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
-import verifySignature from "./verifySignature";
 
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
@@ -61,7 +59,6 @@ export default function panda({ key, url }: { key: string; url: string }) {
     getUser,
     getWebhook,
     getWithdrawal,
-    headerValidator: headerValidator(),
     setPIN,
     submitApplication,
     updateApplication,
@@ -201,14 +198,6 @@ export default function panda({ key, url }: { key: string; url: string }) {
       Withdrawal,
       `/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${amount}&recipientAddress=${recipient}&adminAddress=${admin}&chainId=${chain.id}`,
     );
-  }
-  function headerValidator() {
-    return vValidator("header", object({ signature: string() }), async (r, c) => {
-      if (!r.success) return c.text("bad request", 400);
-      const payload = await c.req.arrayBuffer();
-      if (verifySignature({ signature: r.output.signature, signingKey: key, payload })) return;
-      return c.text("unauthorized", 401);
-    });
   }
   async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     schema: BaseSchema<TInput, TOutput, TIssue>,

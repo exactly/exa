@@ -118,6 +118,10 @@ services:
       - key: PANDA_API_URL
         scope: RUN_TIME
         value: ${{ env.PANDA_API_URL }}
+      - key: PANDA_WEBHOOKS_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_PANDA_WEBHOOKS_KEY || env.PANDA_WEBHOOKS_KEY }}
       - key: ISSUER_ADDRESS
         scope: RUN_TIME
         value: ${{ env.ISSUER_ADDRESS }}

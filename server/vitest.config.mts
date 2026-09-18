@@ -27,6 +27,7 @@ export default defineConfig({
       KEEPER_PRIVATE_KEY: padHex("0x69"),
       PANDA_API_KEY: "panda",
       PANDA_API_URL: "https://panda.test",
+      PANDA_WEBHOOKS_KEY: "panda",
       PANDA_E2E_PRIVATE_KEY: `-----BEGIN PRIVATE KEY-----
 MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAK7Zg545uRpiJCZz
 j23YKeTyzIDVQGoUExWGQlfK5ID1/6EYLbZ9eBC2l8CNCYVGm3mrh/qLSsbZtSLw
