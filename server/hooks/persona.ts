@@ -342,7 +342,7 @@ export default function hook({
       const { referenceId, fields } = attributes;
 
       const credential = await database.query.credentials.findFirst({
-        columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true },
+        columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
         where: eq(credentials.id, referenceId),
       });
       if (!credential) {
@@ -361,6 +361,7 @@ export default function hook({
             chainId: chain.id,
             factory: parse(Address, current.factory),
             publicKey: bytesToHex(current.publicKey),
+            salt: parse(Address, current.salt),
             source: current.source,
           });
       }
