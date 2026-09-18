@@ -1,8 +1,7 @@
-import { vValidator } from "@hono/valibot-validator";
-import { object, string } from "valibot";
 import { vi } from "vitest";
 
 import type * as PandaModule from "../../utils/panda";
+import type { VerifySignature } from "../../utils/verifySignature";
 
 type Panda = ReturnType<typeof PandaModule.default>;
 
@@ -52,12 +51,11 @@ vi.mock("../../utils/panda", async (importOriginal) => {
     ...module,
     default: (...parameters: Parameters<typeof module.default>) => {
       mock.set(module.default(...parameters));
-      return Object.assign(panda, {
-        headerValidator: vValidator("header", object({ signature: string() }), (result, c) => {
-          if (!result.success) return c.text("bad request", 400);
-          return result.output.signature === "bad" ? c.text("unauthorized", 401) : undefined;
-        }),
-      });
+      return panda;
     },
   };
 });
+
+vi.mock("../../utils/verifySignature", () => ({
+  default: ({ signature, signingKey }: VerifySignature) => signature !== "bad" && signingKey === "panda",
+}));
