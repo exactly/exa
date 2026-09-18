@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import { env } from "node:process";
-import { nonEmpty, parse, pipe, string } from "valibot";
+import { array, nonEmpty, parse, pipe, string, transform, trim } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
@@ -124,6 +124,15 @@ const pandaHook = createPandaHook({
   issuer,
   onesignal,
   panda,
+  pandaWebhookKeys: parse(
+    pipe(
+      string("panda webhooks"),
+      nonEmpty("panda webhooks"),
+      transform((keys) => keys.split(",")),
+      array(pipe(string(), trim(), nonEmpty("panda webhooks"))),
+    ),
+    env.PANDA_WEBHOOKS_KEY,
+  ),
   refund,
   sardine,
   segment,

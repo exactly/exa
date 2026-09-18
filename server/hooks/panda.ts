@@ -66,6 +66,7 @@ import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
+import verifySignature from "../utils/verifySignature";
 import createWallet from "../utils/wallet";
 import { name as hookName } from "../workers/hook/job";
 import { name as refundName } from "../workers/refund/job";
@@ -88,6 +89,7 @@ export default function hook({
   issuer,
   onesignal,
   panda,
+  pandaWebhookKeys,
   refund,
   sardine,
   segment,
@@ -98,6 +100,7 @@ export default function hook({
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  pandaWebhookKeys: string[];
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -107,7 +110,12 @@ export default function hook({
   const wallet = createWallet(settler);
   const app = new Hono().post(
     "/",
-    panda.headerValidator,
+    vValidator("header", v.object({ signature: v.string() }), async (r, c) => {
+      if (!r.success) return c.text("bad request", 400);
+      const payload = await c.req.arrayBuffer();
+      if (pandaWebhookKeys.some((signingKey) => verifySignature({ ...r.output, signingKey, payload }))) return;
+      return c.text("unauthorized", 401);
+    }),
     vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
     async (c) => {
       const payload = c.req.valid("json");

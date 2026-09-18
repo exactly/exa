@@ -80,6 +80,7 @@ const pandaHook = createPandaHook({
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  pandaWebhookKeys: ["stale", "panda"],
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -122,6 +123,14 @@ describe("validation", () => {
     const response = await appClient.index.$post({ ...authorization, header: { signature: "bad" } });
 
     expect(response.status).toBe(401);
+    await expect(response.text()).resolves.toBe("unauthorized");
+  });
+
+  it("fails without signature", async () => {
+    const response = await app.request("/", { method: "POST", body: JSON.stringify(authorization.json) });
+
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toBe("bad request");
   });
 });
 
