@@ -346,6 +346,7 @@ export type RouteFrom = {
   chainId: number;
   data: Hex;
   estimate: Estimate;
+  exchange?: string;
   gas?: bigint;
   gasPrice?: bigint;
   maxFeePerGas?: bigint;
@@ -460,6 +461,7 @@ export async function getRouteFrom({
       ? BigInt(transactionRequest.maxPriorityFeePerGas)
       : undefined,
     tool,
+    exchange: quote.includedSteps.find(({ type }) => type === "swap")?.tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
     wrapped: quote.includedSteps.some((step) => step.tool === "wrapper"),
@@ -469,13 +471,14 @@ export async function getRouteFrom({
 export function classify(error: unknown) {
   let current = error;
   while (current && typeof current === "object") {
-    const { cause, message, responseBody } = current as {
+    const { cause, message, responseBody, status } = current as {
       cause?: unknown;
       message?: string;
       responseBody?: {
         code?: number;
         errors?: { failed?: { subpaths: Record<string, { code: string }[]> }[]; filteredOut?: { reason: string }[] };
       };
+      status?: number;
     };
     if (message === nativeFeeRoute) return "route";
     if (responseBody?.code === 1002) {
@@ -488,6 +491,7 @@ export function classify(error: unknown) {
         ? "liquidity"
         : "route";
     }
+    if (status === 404 || (message !== undefined && /no available quotes/i.test(message))) return "route";
     current = cause;
   }
   return "quote";

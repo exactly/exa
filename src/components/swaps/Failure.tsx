@@ -7,8 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ArrowDown, X } from "@tamagui/lucide-icons";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
-import { formatUnits } from "viem";
-
+import formatTokenAmount from "../../utils/formatTokenAmount";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import AssetLogo from "../shared/AssetLogo";
@@ -79,12 +78,18 @@ export default function Failure({
               </Text>
               <XStack gap="$s2" alignItems="center">
                 <Text emphasized secondary subHeadline>
-                  {Number(formatUnits(fromAmount, fromToken.decimals)).toFixed(8)}
+                  {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
                 <Text emphasized secondary subHeadline>
                   {fromToken.symbol}
                 </Text>
-                <AssetLogo symbol={fromToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={fromToken.logoURI}
+                  symbol={fromToken.symbol}
+                  chainId={fromToken.chainId}
+                  width={16}
+                  height={16}
+                />
               </XStack>
               <ArrowDown size={24} color="$uiNeutralPrimary" />
               <Text title primary color="$uiNeutralPrimary">
@@ -92,12 +97,18 @@ export default function Failure({
               </Text>
               <XStack gap="$s2" alignItems="center">
                 <Text emphasized secondary subHeadline>
-                  {Number(formatUnits(toAmount, toToken.decimals)).toFixed(8)}
+                  {formatTokenAmount(toAmount, toToken.decimals, language)}
                 </Text>
                 <Text emphasized secondary subHeadline>
                   {toToken.symbol}
                 </Text>
-                <AssetLogo symbol={toToken.symbol} width={16} height={16} />
+                <AssetLogo
+                  uri={toToken.logoURI}
+                  symbol={toToken.symbol}
+                  chainId={toToken.chainId}
+                  width={16}
+                  height={16}
+                />
               </XStack>
             </YStack>
           </YStack>

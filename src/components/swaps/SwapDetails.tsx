@@ -3,20 +3,27 @@ import { useTranslation } from "react-i18next";
 
 import { XStack, YStack } from "tamagui";
 
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
 import type { Token } from "@lifi/sdk";
 
 export default function SwapDetails({
   exchange,
+  fee,
   slippage,
   exchangeRate,
   fromToken,
   toToken,
+  networkFeeUSD,
+  duration,
 }: {
+  duration?: number;
   exchange: string;
   exchangeRate: number;
+  fee?: number;
   fromToken: Token;
+  networkFeeUSD?: number;
   slippage: bigint;
   toToken: Token;
 }) {
@@ -41,10 +48,28 @@ export default function SwapDetails({
           <Text caption color="$uiNeutralSecondary">
             {t("Network fee")}
           </Text>
-          <Text caption color="$uiSuccessSecondary">
-            {t("FREE")}
-          </Text>
+          {networkFeeUSD === undefined ? (
+            <Skeleton width={60} height={17} />
+          ) : networkFeeUSD ? (
+            <Text caption color="$uiNeutralPrimary">
+              {`$${networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </Text>
+          ) : (
+            <Text caption color="$uiSuccessSecondary">
+              {t("FREE")}
+            </Text>
+          )}
         </XStack>
+        {duration === undefined ? null : (
+          <XStack justifyContent="space-between">
+            <Text caption color="$uiNeutralSecondary">
+              {t("Estimated time")}
+            </Text>
+            <Text caption color="$uiNeutralPrimary">
+              {t("~{{minutes}} min", { minutes: Math.max(1, Math.round(duration / 60)) })}
+            </Text>
+          </XStack>
+        )}
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
             {t("Swap via")}
@@ -53,18 +78,16 @@ export default function SwapDetails({
             {exchange}
           </Text>
         </XStack>
-        <XStack justifyContent="space-between">
-          <Text caption color="$uiNeutralSecondary">
-            {t("Swap fee")}
-          </Text>
-          <Text caption color="$uiNeutralPrimary">
-            {(0.000_25).toLocaleString(language, {
-              style: "percent",
-              minimumFractionDigits: 3,
-              maximumFractionDigits: 3,
-            })}
-          </Text>
-        </XStack>
+        {fee === undefined ? null : (
+          <XStack justifyContent="space-between">
+            <Text caption color="$uiNeutralSecondary">
+              {t("Swap fee")}
+            </Text>
+            <Text caption color="$uiNeutralPrimary">
+              {fee.toLocaleString(language, { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+            </Text>
+          </XStack>
+        )}
         <XStack justifyContent="space-between">
           <Text caption color="$uiNeutralSecondary">
             {t("Max slippage")}
