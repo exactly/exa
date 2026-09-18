@@ -74,7 +74,7 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "kyc", "card", "deeplink", "pax", "lifi"].includes(queryKey[0] as string) &&
+    !["activity", "externalAssets", "kyc", "card", "deeplink", "ens", "pax", "lifi"].includes(queryKey[0] as string) &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens"),
 };
 
@@ -139,6 +139,27 @@ queryClient.setQueryDefaults(["settings", "installments-spotlight"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "installments-spotlight"]),
 });
+queryClient.setQueryDefaults<boolean>(["settings", "advanced-intro"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
+queryClient.setQueryDefaults<boolean>(["settings", "advanced-mode"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
+queryClient.setQueryDefaults<boolean>(["settings", "advanced-spotlight"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
 queryClient.setQueryDefaults<boolean>(["settings", "card-support-contacted"], {
   initialData: false,
   retry: false,
@@ -147,6 +168,13 @@ queryClient.setQueryDefaults<boolean>(["settings", "card-support-contacted"], {
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
 queryClient.setQueryDefaults<boolean>(["settings", "promo-seen"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
+queryClient.setQueryDefaults<boolean>(["settings", "swap-sheet"], {
   initialData: false,
   retry: false,
   staleTime: Infinity,

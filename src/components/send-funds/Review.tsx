@@ -56,7 +56,9 @@ export default function Review() {
   const contactString = typeof contactId === "string" ? contactId : "";
   const fiatCurrency = isFiatCurrency(currencyString) ? currencyString : undefined;
   const providerString = typeof provider === "string" ? provider : "";
-  const amount = parseAmount(typeof amountParameter === "string" ? amountParameter : "0");
+  const amount = parseAmount(
+    typeof amountParameter === "string" ? amountParameter.replaceAll(/[.,](?=.*[.,])/g, "").replace(",", ".") : "0",
+  );
   const ready = !!fiatCurrency && !!contactString && amount > 0n && providerString === "bridge";
   const symbol = getSymbol(currencyString);
 

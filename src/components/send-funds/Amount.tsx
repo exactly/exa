@@ -1,499 +1,562 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
+import type { TextInput } from "react-native";
 
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { selectionAsync } from "expo-haptics";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Check, Coins, FilePen, X } from "@tamagui/lucide-icons";
-import { Avatar, ScrollView, Square, XStack, YStack } from "tamagui";
+import { ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ChevronRight, CircleHelp, CircleX } from "@tamagui/lucide-icons";
+import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
-import { bigint, check, parse, pipe, safeParse } from "valibot";
-import { encodeFunctionData, erc20Abi, formatUnits, parseUnits, zeroAddress as viemZeroAddress } from "viem";
-import { useEstimateGas, useSendCalls, useSimulateContract } from "wagmi";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { safeParse } from "valibot";
+import { formatUnits, parseUnits, zeroAddress } from "viem";
 
-import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
-import ProposalType from "@exactly/common/ProposalType";
-import shortenHex from "@exactly/common/shortenHex";
-import { Address, type Credential } from "@exactly/common/validation";
-import { WAD } from "@exactly/lib";
+import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
+import { WAD, withdrawLimit } from "@exactly/lib";
 
-import ReviewSheet from "./ReviewSheet";
-import queryClient from "../../utils/queryClient";
+import PaySheet from "./PaySheet";
+import SwapSheet from "./SwapSheet";
+import alchemyChainById from "../../utils/alchemyChains";
+import deployedOptions from "../../utils/deployedOptions";
+import { presentArticle } from "../../utils/intercom";
+import { lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
-import useSimulateProposal from "../../utils/useSimulateProposal";
-import exa from "../../utils/wagmi/exa";
-import AmountSelector from "../shared/AmountSelector";
+import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
-import Blocky from "../shared/Blocky";
-import GradientScrollView from "../shared/GradientScrollView";
 import IconButton from "../shared/IconButton";
+import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
-import ExaSpinner from "../shared/Spinner";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
-import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
 export default function Amount() {
   const router = useRouter();
-  const { address } = useAccount();
   const {
     t,
     i18n: { language },
   } = useTranslation();
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const { asset: assetParameter, fromChain, toChain, toToken, receiver, ens, chainType } = useLocalSearchParams();
+  const payParse = safeParse(Address, assetParameter);
+  const payOverride = payParse.success ? payParse.output : undefined;
+  const payChainParameter = typeof fromChain === "string" ? Number(fromChain) : chain.id;
+  const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
 
-  const { asset: assetAddress, receiver: receiverAddress, amount } = useLocalSearchParams();
-  const withdrawAssetParse = safeParse(Address, assetAddress);
-  const withdrawReceiverParse = safeParse(Address, receiverAddress);
-  const zeroAddress = parse(Address, viemZeroAddress);
-  const withdrawAsset = withdrawAssetParse.success ? withdrawAssetParse.output : undefined;
-  const receiver = withdrawReceiverParse.success ? withdrawReceiverParse.output : undefined;
+  const inputRef = useRef<null | TextInput>(null);
+  const [entry, setEntry] = useState<{ mode: "token" | "usd"; text: string }>({ mode: "usd", text: "" });
+  const [mode, setMode] = useState<"token" | "usd">("usd");
+  const [room, setRoom] = useState(0);
+  const [digits, setDigits] = useState(0);
+  const [unit, setUnit] = useState(0);
+  const [payOpen, setPayOpen] = useState(false);
+  const [swapOpen, setSwapOpen] = useState(false);
 
-  const { market, externalAsset: external, available, isFetching } = useAsset(withdrawAsset ?? zeroAddress);
-
-  const form = useForm({ defaultValues: { amount: typeof amount === "string" ? BigInt(amount) : 0n } });
-  const formAmount = useStore(form.store, (state) => state.values.amount);
-
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-
-  const { mutateAsync: mutateSendCalls } = useSendCalls();
-  const sendCalls = async (calls: readonly { data?: `0x${string}`; to: `0x${string}`; value?: bigint }[]) => {
-    const { id } = await mutateSendCalls({
-      chainId: chain.id,
-      calls,
-      capabilities: {
-        paymasterService: {
-          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-          context: { policyId: alchemyGasPolicyId },
-        },
-      },
-    });
-    const result = await waitForCallsStatus(exa, { id });
-    if (result.status === "failure") throw new Error("failed to send");
-    return result.receipts?.[0]?.transactionHash;
-  };
+  const { address } = useAccount();
+  const { allAssets, markets } = usePortfolio();
+  const { data: chains } = useQuery(lifiChainsOptions);
+  const { data: reach } = useQuery(reachOptions);
   const {
-    mutate: send,
-    data: hash,
-    isPending: pending,
-    isSuccess: success,
-    isError: sendError,
-    reset,
-  } = useMutation({
-    async mutationFn(): Promise<`0x${string}` | undefined> {
-      if (!sendReady || !receiver) throw new Error("not ready");
-      if (proposeSimulation) {
-        const { address: to, abi, functionName, args } = proposeSimulation;
-        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
-      }
-      if (isNativeTransfer) return sendCalls([{ to: receiver, value: formAmount }]);
-      if (erc20TransferSimulation) {
-        const { address: to, abi, functionName, args } = erc20TransferSimulation.request;
-        return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
-      }
-      throw new Error("no simulation ready");
-    },
-    onError(error) {
-      if (reportError(error).authKnown) reset();
-    },
-  });
+    data: tokens,
+    isPending: isTokensPending,
+    isFetching: isTokensFetching,
+    isError: isTokensError,
+    refetch: refetchTokens,
+  } = useQuery(lifiTokensOptions);
+  const { data: swapSheetHidden } = useQuery<boolean>({ queryKey: ["settings", "swap-sheet"] });
+  const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
 
-  const enabled =
-    !pending &&
-    !success &&
-    !!address &&
-    formAmount > 0n &&
-    formAmount <= available &&
-    !!receiver &&
-    receiver !== zeroAddress;
-
-  const { request: proposeSimulation } = useSimulateProposal({
-    account: address,
-    amount: formAmount,
-    market: market?.market,
-    proposalType: ProposalType.Withdraw,
-    receiver,
-    enabled: enabled && !!market,
-  });
-
-  const externalAddress = useMemo(() => {
-    const parsed = safeParse(Address, external?.address);
-    return parsed.success ? parsed.output : zeroAddress;
-  }, [external?.address, zeroAddress]);
-
-  const isNativeTransfer = !!external && externalAddress === zeroAddress;
-
-  const { data: erc20TransferSimulation } = useSimulateContract({
-    address: externalAddress,
-    chainId: chain.id,
-    abi: erc20Abi,
-    functionName: "transfer",
-    args: receiver ? [receiver, formAmount] : undefined,
-    query: { enabled: enabled && !!external && !isNativeTransfer },
-  });
-
-  const { data: nativeTransferEstimate } = useEstimateGas({
-    chainId: chain.id,
-    to: receiver,
-    value: formAmount,
-    query: { enabled: enabled && !!external && isNativeTransfer },
-  });
-
-  const sendReady = useMemo(
+  const destinationToken = useMemo(
     () =>
-      formAmount > 0n &&
-      (market
-        ? !!proposeSimulation
-        : !!external && (isNativeTransfer ? !!nativeTransferEstimate : !!erc20TransferSimulation)),
-    [
-      external,
-      formAmount,
-      isNativeTransfer,
-      market,
-      nativeTransferEstimate,
-      proposeSimulation,
-      erc20TransferSimulation,
-    ],
+      typeof toToken === "string"
+        ? tokens?.find(
+            (token) =>
+              token.chainId === (destinationChain as typeof token.chainId) &&
+              token.address.toLowerCase() === toToken.toLowerCase(),
+          )
+        : undefined,
+    [tokens, toToken, destinationChain],
   );
 
-  const details: {
-    amount: string;
-    external: boolean;
-    symbol?: string;
-    usdValue: string;
-  } = useMemo(() => {
-    if (market) {
-      const symbol = market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
-      return {
-        amount: formatUnits(formAmount, market.decimals),
-        external: false,
-        symbol,
-        usdValue: formatUnits((formAmount * market.usdPrice) / WAD, market.decimals),
-      };
-    }
-    return {
-      amount: formatUnits(formAmount, external?.decimals ?? 0),
-      external: true,
-      symbol: external?.symbol,
-      usdValue: formatUnits((formAmount * parseUnits(external?.priceUSD ?? "0", 18)) / WAD, external?.decimals ?? 0),
-    };
-  }, [external, market, formAmount]);
-
-  const { data: recentContacts } = useQuery<undefined | { address: Address; ens: string }[]>({
-    queryKey: ["contacts", "recent"],
+  const payChains = useMemo(
+    () =>
+      [
+        ...new Set(
+          allAssets.flatMap((item) =>
+            item.type === "external" && item.chainId !== chain.id && alchemyChainById.has(item.chainId)
+              ? [item.chainId]
+              : [],
+          ),
+        ),
+      ].sort((a, b) => a - b),
+    [allAssets],
+  );
+  const deployedChains = useQueries({
+    queries: payChains.map((id) => deployedOptions(address, id)),
+    combine: (results) => payChains.filter((_, index) => results[index]?.data === true),
   });
+  const candidates = useMemo(
+    () =>
+      allAssets.filter((item) => {
+        const from = item.type === "protocol" ? chain.id : item.chainId;
+        return (
+          (item.type === "external" || item.usdValue > 0 || item.market === payOverride) &&
+          (from === chain.id || deployedChains.includes(from)) &&
+          (from === destinationChain || !reach || !!reach[from]?.includes(destinationChain))
+        );
+      }),
+    [allAssets, deployedChains, destinationChain, payOverride, reach],
+  );
 
-  const isFirstSend = !recentContacts?.some((contact) => contact.address === receiver);
+  const pay = useMemo(
+    () =>
+      payOverride
+        ? candidates.find(
+            (item) =>
+              (item.type === "external" ? item.address : item.market) === payOverride &&
+              (item.type === "external" ? item.chainId : chain.id) === payChainParameter,
+          )
+        : undefined,
+    [candidates, payOverride, payChainParameter],
+  );
 
-  useEffect(() => {
-    if (success && receiver && !recentContacts?.some((contact) => contact.address === receiver)) {
-      queryClient.setQueryData<undefined | { address: Address; ens: string }[]>(["contacts", "recent"], (old) =>
-        [{ address: receiver, ens: "" }, ...(old ?? [])].slice(0, 3),
-      );
-    }
-  }, [success, receiver, recentContacts]);
+  const payChain = pay?.type === "external" ? pay.chainId : chain.id;
+  const paySymbol = pay?.symbol;
+  const payDecimals = pay?.decimals ?? 18;
+  const payPrice = pay ? (pay.type === "external" ? parseAmount(pay.priceUSD, 18) : pay.usdPrice) : 0n;
+  const payUnderlying = pay && (pay.type === "external" ? pay.address : pay.asset);
+  const payDelivered = pay?.type === "protocol" && pay.market === marketWETHAddress ? zeroAddress : payUnderlying;
+  const payLogoURI = pay?.type === "external" ? pay.logoURI : undefined;
+  const available = pay
+    ? pay.type === "external"
+      ? (pay.amount ?? 0n)
+      : markets
+        ? withdrawLimit(markets, pay.market)
+        : 0n
+    : 0n;
 
-  const invalidReceiver = !receiver || receiver === zeroAddress;
-  const invalidAsset = !withdrawAsset;
-  if (invalidReceiver || invalidAsset) {
-    return (
-      <SafeView fullScreen>
-        <View gap="$s5" fullScreen padded justifyContent="center" alignItems="center">
-          <Text body primary color="$uiNeutralPrimary">
-            {invalidReceiver ? t("Invalid receiver address") : t("Invalid asset address")}
-          </Text>
-          <Button
-            dangerSecondary
-            alignSelf="center"
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/send-funds/asset");
-              }
-            }}
-          >
-            <Button.Text>{t("Go back")}</Button.Text>
-            <Button.Icon>
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
-            </Button.Icon>
-          </Button>
-        </View>
-      </SafeView>
-    );
+  const destination = destinationToken
+    ? {
+        address: destinationToken.address,
+        decimals: destinationToken.decimals,
+        logoURI: destinationToken.logoURI,
+        price: parseAmount(destinationToken.priceUSD, 18),
+        symbol: destinationToken.symbol,
+      }
+    : payDelivered &&
+        paySymbol &&
+        (typeof toToken !== "string" ||
+          (destinationChain === payChain && toToken.toLowerCase() === payDelivered.toLowerCase()))
+      ? {
+          address: payDelivered,
+          decimals: payDecimals,
+          logoURI: payLogoURI,
+          price: payPrice,
+          symbol: paySymbol,
+        }
+      : undefined;
+
+  const routed =
+    !!destination &&
+    !!payDelivered &&
+    (destinationChain !== payChain || destination.address.toLowerCase() !== payDelivered.toLowerCase());
+
+  const destinationDecimals = destination?.decimals ?? 18;
+  const destinationUnit = 10n ** BigInt(destinationDecimals);
+  const amount = parseUnits(entry.text || "0", entry.mode === "usd" ? 18 : destinationDecimals);
+  const usdAmount = entry.mode === "usd" ? amount : (amount * (destination?.price ?? 0n)) / destinationUnit;
+  const destinationAmount =
+    !destination || (entry.mode === "usd" && destination.price <= 0n)
+      ? 0n
+      : entry.mode === "token"
+        ? amount
+        : (amount * destinationUnit) / destination.price;
+  const [whole = "0", part = ""] = formatUnits(
+    mode === "usd" ? usdAmount : destinationAmount,
+    mode === "usd" ? 18 : destinationDecimals,
+  ).split(".");
+  let converted = `${whole}.${part.slice(0, mode === "usd" ? 2 : Math.min(8, destinationDecimals))}`;
+  while (converted.includes(".") && (converted.endsWith("0") || converted.endsWith("."))) {
+    converted = converted.slice(0, -1);
+  }
+  const value = mode === entry.mode || entry.text === "" ? entry.text : converted;
+  const fromAmount = routed
+    ? payPrice > 0n
+      ? (usdAmount * 10n ** BigInt(payDecimals)) / payPrice
+      : 0n
+    : destinationAmount;
+  const exceeds = fromAmount > available;
+  const unpriced = !!destination && destination.price <= 0n && (mode === "usd" || entry.mode === "usd" || routed);
+  const unpricedPay = !unpriced && routed && !!paySymbol && payPrice <= 0n;
+  const unavailable = typeof toToken === "string" && !isTokensPending && !destination;
+
+  if (!payOverride && typeof toToken !== "string") return <Redirect href="/send-funds/asset" />;
+
+  const networkName =
+    chains?.find((item) => item.id === destinationChain)?.name ??
+    alchemyChainById.get(destinationChain)?.name ??
+    chain.name;
+  const color = exceeds ? "$uiErrorSecondary" : amount > 0n ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
+  const size = room && digits ? Math.min(56, Math.max(20, Math.floor((probe * room * 0.9) / (digits + unit)))) : 56;
+
+  function change(text: string) {
+    const next = text.replaceAll(",", ".");
+    if (!/^\d*(?:\.\d*)?$/.test(next)) return;
+    const fraction = next.split(".")[1];
+    if (fraction && fraction.length > (mode === "usd" ? 2 : (destination?.decimals ?? 18))) return;
+    if (next.replace(".", "").length > 30) return;
+    setEntry({ mode, text: next === "." ? "0." : next });
   }
 
-  if (!pending && !sendError && !success) {
-    return (
-      <SafeView fullScreen>
-        <View gap="$s4_5" fullScreen padded>
-          <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
-            <View position="absolute" left={0}>
-              <IconButton
-                icon={ArrowLeft}
-                aria-label={t("Back")}
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace("/send-funds/asset");
-                  }
-                }}
-              />
-            </View>
-            <Text color="$uiNeutralPrimary" fontSize={15} fontWeight="bold">
-              {t("Enter amount")}
-            </Text>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }} gap="$s5">
-            <View flex={1} gap="$s5" paddingBottom="$s5">
-              <View gap="$s3">
-                <XStack
-                  alignItems="center"
-                  backgroundColor="$backgroundBrandSoft"
-                  borderRadius="$r2"
-                  justifyContent="space-between"
-                >
-                  <XStack alignItems="center" gap="$s3" padding="$s3">
-                    <View borderRadius="$r_0" overflow="hidden">
-                      <Blocky seed={receiver} />
-                    </View>
-                    <Text emphasized callout color="$uiNeutralSecondary">
-                      {t("To:")}
-                    </Text>
-                    <Text callout color="$uiNeutralPrimary" mono>
-                      {shortenHex(receiver)}
-                    </Text>
-                  </XStack>
-                </XStack>
-                <XStack
-                  alignItems="center"
-                  backgroundColor="$backgroundBrandSoft"
-                  borderRadius="$r2"
-                  justifyContent="space-between"
-                  gap="$s3"
-                >
-                  {isFetching ? (
-                    <Skeleton width="100%" height={45} />
-                  ) : (
-                    <XStack alignItems="center" gap="$s3" padding="$s3">
-                      <Avatar size={32} backgroundColor="$interactiveBaseBrandDefault" borderRadius="$r_0">
-                        <Coins size={20} color="$interactiveOnBaseBrandDefault" />
-                      </Avatar>
-                      <Text callout color="$uiNeutralSecondary">
-                        {t("Available:")}
-                      </Text>
-                      <Text callout color="$uiNeutralPrimary" numberOfLines={1}>
-                        {market ? (
-                          <>
-                            {`${(Number(available) / 10 ** market.decimals).toLocaleString(language, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: market.decimals,
-                            })} ${market.symbol.slice(3)}`}
-                          </>
-                        ) : external ? (
-                          <>
-                            {`${(Number(available) / 10 ** external.decimals).toLocaleString(language, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: external.decimals,
-                            })} ${external.symbol}`}
-                          </>
-                        ) : null}
-                      </Text>
-                    </XStack>
-                  )}
-                </XStack>
-              </View>
-              <form.Field
-                name="amount"
-                validators={{
-                  onChange: pipe(
-                    bigint(),
-                    check((value) => {
-                      return value !== 0n;
-                    }, t("Amount cannot be zero")),
-                    check((value) => {
-                      return value <= available;
-                    }, t("Amount cannot be greater than available")),
-                  ),
-                }}
-              >
-                {({ state: { meta }, handleChange }) => (
-                  <>
-                    <AmountSelector onChange={handleChange} />
-                    {meta.errors.length > 0 ? (
-                      <Text padding="$s3" footnote color="$uiNeutralSecondary">
-                        {meta.errors[0]?.message.split(",")[0]}
-                      </Text>
-                    ) : undefined}
-                  </>
-                )}
-              </form.Field>
-            </View>
-            <form.Subscribe selector={({ isValid, isTouched }) => [isValid, isTouched]}>
-              {([isValid, isTouched]) => {
-                return (
-                  <Button
-                    primary
-                    disabled={!isValid || !isTouched}
-                    onPress={() => {
-                      setReviewOpen(true);
-                    }}
-                  >
-                    <Button.Text>{t("Review")}</Button.Text>
-                    <Button.Icon>
-                      <FilePen size={24} />
-                    </Button.Icon>
-                  </Button>
-                );
-              }}
-            </form.Subscribe>
-          </ScrollView>
-        </View>
-        <ReviewSheet
-          amount={details.amount}
-          isFirstSend={isFirstSend}
-          onClose={() => {
-            setReviewOpen(false);
-          }}
-          onSend={() => {
-            setReviewOpen(false);
-            send();
-          }}
-          open={reviewOpen}
-          receiver={receiver}
-          sendReady={sendReady}
-          symbol={details.symbol}
-          usdValue={details.usdValue}
-        />
-      </SafeView>
-    );
+  function proceed() {
+    if (!pay || !destination) return;
+    router.push({
+      pathname: "/send-funds/confirm",
+      params: {
+        receiver,
+        ens,
+        chainType,
+        asset: pay.type === "external" ? pay.address : pay.market,
+        fromChain: String(payChain),
+        toChain: String(destinationChain),
+        toToken: destination.address,
+        toSymbol: destination.symbol,
+        amount: String(destinationAmount),
+        fromAmount: String(fromAmount),
+      },
+    });
   }
 
   return (
-    <GradientScrollView variant={sendError ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
-      <View flex={1}>
-        <YStack gap="$s7" paddingBottom="$s9">
+    <SafeView fullScreen>
+      <View gap="$s4_5" fullScreen padded>
+        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
-            alignSelf="flex-start"
-            icon={X}
-            aria-label={t("Close")}
+            icon={ArrowLeft}
+            aria-label={t("Back")}
             onPress={() => {
-              router.dismissTo("/activity");
+              if (router.canGoBack()) router.back();
+              else router.replace("/send-funds/asset");
             }}
           />
-          <XStack justifyContent="center" alignItems="center">
-            <Square
-              size={80}
-              borderRadius="$r4"
-              backgroundColor={
-                sendError
-                  ? "$interactiveBaseErrorSoftDefault"
-                  : success
-                    ? isLatestPlugin
-                      ? "$interactiveBaseInformationSoftDefault"
-                      : "$interactiveBaseSuccessSoftDefault"
-                    : "$backgroundStrong"
-              }
+          {destination || unavailable ? (
+            <Text
+              emphasized
+              subHeadline
+              primary
+              numberOfLines={1}
+              onPress={() => {
+                inputRef.current?.blur();
+              }}
             >
-              {pending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
-              {success && isLatestPlugin && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
-              {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-              {sendError && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
-            </Square>
-          </XStack>
-          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
-            <Text secondary body>
-              {pending && (
-                <>
-                  {t("Sending to")}{" "}
-                  <Text emphasized primary body color="$uiNeutralPrimary">
-                    {shortenHex(receiver, 5, 7)}
-                  </Text>
-                </>
-              )}
-              {success && (
-                <>
-                  {t(isLatestPlugin ? "Processing" : "Paid")}{" "}
-                  <Text emphasized primary body color="$uiNeutralPrimary">
-                    {t("Withdrawal")}
-                  </Text>
-                </>
-              )}
-              {sendError && (
-                <>
-                  {t("Failed")}{" "}
-                  <Text emphasized primary body color="$uiNeutralPrimary">
-                    {shortenHex(receiver, 3, 5)}
-                  </Text>
-                </>
-              )}
+              {destination
+                ? t("Send {{symbol}} on {{network}}", { symbol: destination.symbol, network: networkName })
+                : t("Send on {{network}}", { network: networkName })}
             </Text>
-            <Text title primary color="$uiNeutralPrimary">
-              {`$${Number(details.usdValue).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          ) : (
+            <Skeleton width={200} height={21} />
+          )}
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
+            onPress={() => {
+              presentArticle("8950801").catch(reportError);
+            }}
+          />
+        </XStack>
+        <ScrollView
+          flex={1}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ flexGrow: 1 }}
+          onLayout={({ nativeEvent }) => {
+            setRoom(nativeEvent.layout.width);
+          }}
+        >
+          <YStack flex={1} gap="$s6" alignItems="center" justifyContent="center">
+            <Text
+              aria-hidden
+              position="absolute"
+              opacity={0}
+              fontSize={probe}
+              numberOfLines={1}
+              onLayout={({ nativeEvent }) => {
+                setDigits(nativeEvent.layout.width);
+              }}
+            >
+              {value || "0"}
             </Text>
-            <XStack gap="$s2" alignItems="center">
-              <Text emphasized secondary subHeadline>
-                {Number(details.amount).toLocaleString(language, { maximumFractionDigits: 8 })}
+            <Text
+              aria-hidden
+              position="absolute"
+              opacity={0}
+              fontSize={probe}
+              numberOfLines={1}
+              onLayout={({ nativeEvent }) => {
+                setUnit(nativeEvent.layout.width);
+              }}
+            >
+              {mode === "usd" ? "$" : (destination?.symbol ?? "")}
+            </Text>
+            <XStack
+              gap="$s2"
+              alignItems="center"
+              justifyContent="center"
+              maxWidth="100%"
+              hitSlop={12}
+              onPress={() => {
+                inputRef.current?.focus();
+              }}
+            >
+              {mode === "usd" && (
+                <Text fontSize={size} lineHeight={64} color={color}>
+                  $
+                </Text>
+              )}
+              <Input
+                ref={inputRef}
+                aria-label={t("Amount")}
+                value={value}
+                onChangeText={change}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                fontSize={size}
+                width={(digits * size) / probe}
+                height={64}
+                padding={0}
+                borderWidth={0}
+                backgroundColor="transparent"
+                textAlign="center"
+                maxWidth="100%"
+                color={color}
+                placeholderTextColor="$uiNeutralPlaceholder"
+              />
+              {mode === "token" && !!destination && (
+                <Text fontSize={size} lineHeight={64} color={color}>
+                  {destination.symbol}
+                </Text>
+              )}
+            </XStack>
+            <XStack
+              gap="$s3"
+              alignItems="center"
+              cursor="pointer"
+              hitSlop={12}
+              role="button"
+              aria-label={t("Switch amount currency")}
+              pressStyle={{ opacity: 0.7 }}
+              onPress={() => {
+                selectionAsync().catch(reportError);
+                setMode(mode === "usd" ? "token" : "usd");
+              }}
+            >
+              <ArrowDownUp size={20} color="$interactiveBaseBrandDefault" />
+              <Text title3 color="$uiNeutralPlaceholder">
+                {mode === "usd"
+                  ? `${Number(formatUnits(destinationAmount, destinationDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
+                  : `$${Number(formatUnits(usdAmount, 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <Text emphasized secondary subHeadline>
-                &nbsp;{details.symbol}&nbsp;
-              </Text>
-              <AssetLogo height={16} symbol={details.symbol} width={16} />
             </XStack>
           </YStack>
-        </YStack>
-        {(success || sendError) && <TransactionDetails hash={hash} />}
-      </View>
-      {!pending && (
-        <YStack flex={2} justifyContent="flex-end" gap="$s5">
-          {success && (
-            <View padded alignItems="center">
-              <Text
-                emphasized
-                footnote
-                color="$interactiveBaseBrandDefault"
-                alignSelf="center"
-                hitSlop={20}
-                cursor="pointer"
-                onPress={() => {
-                  router.dismissTo("/activity");
-                }}
-              >
-                {!details.external && isLatestPlugin ? t("View pending requests") : t("Close")}
-              </Text>
-            </View>
-          )}
-          {sendError && (
-            <YStack alignItems="center" gap="$s4">
-              <Pressable onPress={reset}>
-                <Text emphasized footnote color="$uiBrandSecondary">
-                  {t("Close")}
+          <YStack gap="$s3" marginTop="$s4_5">
+            {advanced && (
+              <>
+                <Text emphasized subHeadline primary paddingHorizontal="$s4">
+                  {t("Pay with")}
                 </Text>
-              </Pressable>
-            </YStack>
-          )}
-        </YStack>
-      )}
-    </GradientScrollView>
+                <XStack
+                  gap="$s3"
+                  padding="$s4"
+                  alignItems="center"
+                  borderWidth={1}
+                  borderColor="$borderNeutralStrong"
+                  borderRadius="$r3"
+                  cursor="pointer"
+                  role="button"
+                  aria-label={t("Select an asset")}
+                  pressStyle={{ opacity: 0.7 }}
+                  onPress={() => {
+                    setPayOpen(true);
+                  }}
+                >
+                  {paySymbol ? (
+                    <>
+                      <AssetLogo
+                        uri={payLogoURI}
+                        symbol={paySymbol}
+                        width={32}
+                        height={32}
+                        chainId={payChain}
+                        network
+                      />
+                      <YStack gap="$s2" flex={1}>
+                        <Text callout primary>
+                          {paySymbol}
+                        </Text>
+                        <Text footnote secondary>
+                          {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
+                          <Text footnote color="$uiNeutralPlaceholder">
+                            {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
+                          </Text>
+                        </Text>
+                      </YStack>
+                    </>
+                  ) : (
+                    <>
+                      <View width={32} height={32} borderRadius="$r_0" backgroundColor="$interactiveDisabled" />
+                      <Text flex={1} callout primary>
+                        {t("Select an asset")}
+                      </Text>
+                    </>
+                  )}
+                  <ChevronRight size={20} color="$interactiveBaseBrandDefault" />
+                </XStack>
+              </>
+            )}
+            {exceeds && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {t("Insufficient balance. Try a different amount or another asset to pay with.")}
+                </Text>
+              </XStack>
+            )}
+            {unpriced && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {t("Price unavailable for {{symbol}}. Choose another asset to send.", {
+                    symbol: destination.symbol,
+                  })}
+                </Text>
+              </XStack>
+            )}
+            {unpricedPay && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {t("Price unavailable for {{symbol}}. Choose another asset to pay with.", { symbol: paySymbol })}
+                </Text>
+              </XStack>
+            )}
+            {unavailable && (
+              <XStack
+                gap="$s4"
+                alignItems="center"
+                backgroundColor="$interactiveBaseErrorSoftDefault"
+                borderRadius="$r3"
+                paddingHorizontal="$s4"
+                paddingVertical="$s3_5"
+              >
+                <CircleX size={16} color="$uiErrorSecondary" />
+                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  {isTokensError
+                    ? t("Couldn't load asset details. Please try again.")
+                    : t("This asset is no longer available on {{network}}. Choose another asset to send.", {
+                        network: networkName,
+                      })}
+                </Text>
+              </XStack>
+            )}
+          </YStack>
+        </ScrollView>
+        {unavailable && (
+          <Button
+            primary
+            loading={isTokensError && isTokensFetching}
+            onPress={() => {
+              if (isTokensError) refetchTokens().catch(reportError);
+              else router.dismissTo("/send-funds/asset");
+            }}
+          >
+            <Button.Text>{isTokensError ? t("Try again") : t("Change send asset")}</Button.Text>
+            <Button.Icon>
+              <ArrowRight size={20} />
+            </Button.Icon>
+          </Button>
+        )}
+        {!exceeds && !unpriced && !unpricedPay && !unavailable && (
+          <Button
+            primary
+            loading={typeof toToken === "string" && isTokensPending}
+            disabled={
+              destinationAmount <= 0n ||
+              fromAmount <= 0n ||
+              !pay ||
+              !destination ||
+              (typeof toToken === "string" && isTokensPending)
+            }
+            onPress={() => {
+              if (routed && !swapSheetHidden) {
+                setSwapOpen(true);
+                return;
+              }
+              proceed();
+            }}
+          >
+            <Button.Text>{destinationAmount > 0n ? t("Review") : t("Enter amount")}</Button.Text>
+            <Button.Icon>{destinationAmount > 0n ? <ArrowRight size={20} /> : <ArrowUp size={20} />}</Button.Icon>
+          </Button>
+        )}
+      </View>
+      <PaySheet
+        open={payOpen}
+        assets={candidates}
+        onClose={() => {
+          setPayOpen(false);
+        }}
+        onSelect={(selected, chainId) => {
+          router.setParams({
+            asset: selected,
+            fromChain: String(chainId),
+            toChain: String(destinationChain),
+            ...(destination && { toToken: destination.address }),
+          });
+        }}
+      />
+      <SwapSheet
+        open={swapOpen}
+        onClose={() => {
+          setSwapOpen(false);
+        }}
+        onContinue={() => {
+          setSwapOpen(false);
+          proceed();
+        }}
+        payChain={payChain}
+        paySymbol={paySymbol}
+        payUri={payLogoURI}
+        toChain={destinationChain}
+        toSymbol={destination?.symbol}
+        toUri={destination?.logoURI}
+      />
+    </SafeView>
   );
 }
+
+const probe = 12;

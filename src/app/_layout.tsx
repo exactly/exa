@@ -80,6 +80,10 @@ configI18n(initReactI18next)
     },
     keySeparator: false,
     nsSeparator: false,
+    saveMissing: __DEV__ || !!e2e,
+    missingKeyHandler: (languages, namespace, key) => {
+      if (languages[0] !== "en") console.error("missing translation", languages.join(","), key); // eslint-disable-line no-console -- keys are the english copy
+    },
     resources: {
       en: { translation: en },
       es: { translation: es },

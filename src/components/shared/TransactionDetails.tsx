@@ -7,19 +7,29 @@ import { setStringAsync } from "expo-clipboard";
 import { ExternalLink } from "@tamagui/lucide-icons";
 import { Separator, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import ChainLogo from "./ChainLogo";
+import { lifiChainsOptions } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import Text from "../shared/Text";
 
-export default function TransactionDetails({ hash }: { hash?: string }) {
+export default function TransactionDetails({ chainId, fee, hash }: { chainId?: number; fee?: string; hash?: string }) {
   const { t } = useTranslation();
   const now = useMemo(() => new Date(), []);
+  const { data: chains } = useQuery(lifiChainsOptions);
+  const network = useMemo(() => {
+    if (chainId === undefined || chainId === chain.id) {
+      return { name: chain.name, explorer: chain.blockExplorers?.default.url };
+    }
+    const found = chains?.find((item) => item.id === chainId);
+    return found && { name: found.name, explorer: found.metamask.blockExplorerUrls[0] };
+  }, [chainId, chains]);
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -33,8 +43,8 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
           <Text emphasized footnote color="$uiNeutralSecondary">
             {t("Network fee")}
           </Text>
-          <Text callout color="$uiSuccessSecondary">
-            {t("FREE")}
+          <Text callout color={fee ? "$uiNeutralPrimary" : "$uiSuccessSecondary"}>
+            {fee ?? t("FREE")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
@@ -43,9 +53,9 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
           </Text>
           <XStack gap="$s3" alignItems="center">
             <Text callout color="$uiNeutralPrimary" alignContent="center">
-              {chain.name}
+              {network?.name}
             </Text>
-            <ChainLogo size={20} />
+            <ChainLogo chainId={chainId} size={20} />
           </XStack>
         </XStack>
         {hash && (
@@ -72,9 +82,8 @@ export default function TransactionDetails({ hash }: { hash?: string }) {
               cursor="pointer"
               onPress={(event) => {
                 event.stopPropagation();
-                const explorerUrl = chain.blockExplorers?.default.url;
-                if (!explorerUrl) return;
-                openBrowser(`${explorerUrl}/tx/${hash}`).catch(reportError);
+                if (!network?.explorer) return;
+                openBrowser(`${network.explorer.replace(/\/$/, "")}/tx/${hash}`).catch(reportError);
               }}
             >
               <Text callout mono textDecorationLine="underline">
