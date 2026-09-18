@@ -579,6 +579,8 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential" }, 500);
+        setUser({ id: parse(Address, credential.account) });
+        setContext("exa", { credential });
         if (parse(Address, credential.salt) === parse(Address, env.BUSINESS_SALT)) {
           const account = parse(Address, credential.account);
           if (payload && "verify" in payload) return c.json({ code: BadRequestCodes.BAD_REQUEST }, 400);
@@ -603,7 +605,6 @@ The admin should add a member using [addMember method](https://www.better-auth.c
                 ["denied", "locked", "canceled"].includes(application.applicationStatus)
               )
                 return c.json({ code: "bad kyb" }, 400);
-              setUser({ id: account });
               return c.json(application, 200);
             } catch (error) {
               if (error instanceof BusinessApplicationError)
@@ -641,9 +642,6 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         if (!member) return c.json({ code: "no organization" }, 403);
         if (member.role !== "admin" && member.role !== "owner") return c.json({ code: "no permission" }, 403);
         if (member.organization.role !== "kyc") return c.json({ code: "no permission" }, 403);
-
-        setUser({ id: parse(Address, credential.account) });
-        setContext("exa", { credential });
 
         const siweMessage = parseSiweMessage(payload.verify.message);
 
