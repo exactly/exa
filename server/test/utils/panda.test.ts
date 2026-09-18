@@ -1,7 +1,5 @@
 import "../mocks/sentry";
 
-import { Hono } from "hono";
-import { createHmac } from "node:crypto";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -106,38 +104,6 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/tenants/contracts"),
       expect.objectContaining({ method: "GET" }),
     );
-  });
-});
-
-describe("panda webhook signature", () => {
-  const payload = "payload";
-  const primary = createPanda({ key: "primary", url: "https://panda.test" });
-  const primaryApp = new Hono().post("/", primary.headerValidator, (c) => c.text("ok"));
-
-  it("accepts the primary signature", async () => {
-    const response = await primaryApp.request("/", {
-      method: "POST",
-      headers: { signature: createHmac("sha256", "primary").update(payload).digest("hex") },
-      body: payload,
-    });
-
-    expect(response.status).toBe(200);
-  });
-
-  it("rejects a missing signature", async () => {
-    const response = await primaryApp.request("/", { method: "POST" });
-
-    expect(response.status).toBe(400);
-  });
-
-  it("rejects an invalid signature", async () => {
-    const response = await primaryApp.request("/", {
-      method: "POST",
-      headers: { signature: createHmac("sha256", "invalid").update(payload).digest("hex") },
-      body: payload,
-    });
-
-    expect(response.status).toBe(401);
   });
 });
 

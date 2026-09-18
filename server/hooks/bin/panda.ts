@@ -29,6 +29,7 @@ supervise(
     Promise.all([secret("panda-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
       createPanda({ key, url }),
     ),
+    secret("panda-webhooks-key", secrets),
     Promise.all([secret("panda-persona-api-key", secrets), secret("persona-api-url", secrets)]).then(([key, url]) =>
       createPersona(key, url),
     ),
@@ -41,7 +42,18 @@ supervise(
     secret("panda-segment-write-key", secrets).then((key) => createSegment(key)),
     signer("settler", kms),
   ]).then(
-    ([database, issuer, onesignal, provider, persona, [bullmq, credit, refund, webhook], sardine, segment, settler]) =>
+    ([
+      database,
+      issuer,
+      onesignal,
+      provider,
+      webhookKey,
+      persona,
+      [bullmq, credit, refund, webhook],
+      sardine,
+      segment,
+      settler,
+    ]) =>
       own(
         panda({
           credit,
@@ -55,6 +67,7 @@ supervise(
           segment,
           settler,
           webhook,
+          webhookKey,
         }),
         () => database.$client.end(),
         () => kms.close(),

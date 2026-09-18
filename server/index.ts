@@ -144,6 +144,7 @@ const pandaHook = createPandaHook({
   segment,
   settler: keeper,
   webhook,
+  webhookKey: parse(pipe(string("panda webhooks"), nonEmpty("panda webhooks")), env.PANDA_WEBHOOKS_KEY),
 });
 const personaHook = createPersonaHook({
   allow,

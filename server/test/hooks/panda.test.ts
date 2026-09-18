@@ -85,7 +85,7 @@ const panda = createPanda(pandaConfig);
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
 const issuer = privateKeyToAccount(padHex("0x420"));
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
-const pandaHook = createPandaHook({
+const dependencies = {
   credit,
   database,
   issuer,
@@ -97,7 +97,9 @@ const pandaHook = createPandaHook({
   segment: createSegment("segment"),
   settler: owner.account,
   webhook: hookQueue,
-});
+  webhookKey: "stale,panda",
+};
+const pandaHook = createPandaHook(dependencies);
 const app = pandaHook.app;
 
 vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
@@ -134,6 +136,18 @@ describe("validation", () => {
     const response = await appClient.index.$post({ ...authorization, header: { signature: "bad" } });
 
     expect(response.status).toBe(401);
+    await expect(response.text()).resolves.toBe("unauthorized");
+  });
+
+  it("fails without signature", async () => {
+    const response = await app.request("/", { method: "POST", body: JSON.stringify(authorization.json) });
+
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toBe("bad request");
+  });
+
+  it.each(["", ",", "panda,"])("never signs with an empty webhook key from %j", (webhookKey) => {
+    expect(() => createPandaHook({ ...dependencies, webhookKey })).toThrow("panda webhooks");
   });
 });
 

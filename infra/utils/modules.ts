@@ -55,6 +55,7 @@ export default define({
         "postgres-url",
         "sardine-api-key",
         "segment-write-key",
+        "webhooks-key",
       ],
       shared: ["panda-api-url", "persona-api-url", "sardine-api-url"],
       signers: ["settler", "issuer"],
