@@ -23,6 +23,7 @@ import("../api")
     const redis = new Redis({ lazyConnect: true });
     const segment = createSegment("segment");
     const handle = api({
+      allow: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       authSecret: zeroHash,
       bridge: createBridge("bridge", "https://bridge.test"),
       credit: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },

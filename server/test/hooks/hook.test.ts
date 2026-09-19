@@ -12,7 +12,7 @@ afterAll(() => {
 
 beforeAll(() => {
   vi.resetModules();
-  for (const name of Object.keys(env)) vi.stubEnv(name, undefined); // eslint-disable-line unicorn/no-useless-undefined
+  for (const name of Object.keys(env)) if (name !== "BUSINESS_SALT") vi.stubEnv(name, undefined); // eslint-disable-line unicorn/no-useless-undefined
 });
 
 describe("hook", () => {

@@ -1,4 +1,4 @@
-import "../mocks/deployments";
+import deployments from "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/panda";
 import * as sardine from "../mocks/sardine";
@@ -9,6 +9,7 @@ import "../mocks/wallet";
 import { captureException, captureMessage, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { env } from "node:process";
 import { parse } from "valibot";
 import {
   BaseError,
@@ -42,6 +43,7 @@ import chain, {
   marketAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
+import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address, type Hash } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
@@ -51,6 +53,7 @@ import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
+import createPersona from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
@@ -58,10 +61,23 @@ import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
+import type createAllow from "../../workers/allow/queue";
+import type createCredit from "../../workers/credit/queue";
 import type createHookQueue from "../../workers/hook/queue";
 import type createRefund from "../../workers/refund/queue";
 import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
+const allow = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createAllow>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>().mockResolvedValue(),
+}));
+const credit = vi.hoisted(() => ({
+  close: vi.fn<ReturnType<typeof createCredit>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createCredit>["enqueue"]>().mockResolvedValue(),
+}));
+const persona = Object.assign(createPersona("persona", "https://persona.test"), {
+  getAccount: vi.fn().mockResolvedValue(null),
+});
 const refund = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
@@ -76,10 +92,13 @@ const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
 const issuer = privateKeyToAccount(padHex("0x420"));
 const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
 const pandaHook = createPandaHook({
+  allow,
+  credit,
   database,
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  persona,
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -2764,6 +2783,38 @@ describe("concurrency", () => {
       expect(spendAuthorization.status).toBe(200);
       expect(collectSpendAuthorization.status).toBe(200);
     });
+
+    it("does not release a mutex held by a card operation", async () => {
+      const mutex = Panda.createMutex(account2);
+      await mutex.acquire();
+      Panda.markCardLock(account2, true);
+
+      try {
+        const post = (status: "declined" | "pending") =>
+          appClient.index.$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: "card-held-mutex-tx",
+                spend: { ...authorization.json.body.spend, amount: 700, cardId: `${account2}-card`, status },
+              },
+            } as unknown as typeof authorization.json,
+          });
+
+        const pending = await post("pending");
+        const declined = await post("declined");
+
+        expect(pending.status).toBe(200);
+        expect(declined.status).toBe(200);
+        expect(mutex.isLocked()).toBe(true);
+      } finally {
+        Panda.markCardLock(account2, false);
+        mutex.release();
+      }
+    });
   });
 
   it("inserts declined transaction with zero-hash placeholder", async () => {
@@ -3658,6 +3709,647 @@ describe("concurrency", () => {
 });
 
 describe("webhooks", () => {
+  it.each([
+    { name: "missing status", body: { id: "company-missing-status" } },
+    { name: "pending status", body: { id: "company-pending", applicationStatus: "pending" } },
+    { name: "not started status", body: { id: "company-not-started", applicationStatus: "notStarted" } },
+  ] satisfies { body: { applicationStatus?: "notStarted" | "pending"; id: string }; name: string }[])(
+    "ignores company.updated with $name",
+    async ({ body }) => {
+      const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers");
+      const createCard = vi.spyOn(panda, "createCard");
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: { id: `ignored-${body.id}`, resource: "company", action: "updated", body },
+      });
+
+      expect(response.status).toBe(200);
+      expect(getCompanyUsers).not.toHaveBeenCalled();
+      expect(createCard).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects company.updated with an invalid application status", async () => {
+    const response = await app.request("/", {
+      body: JSON.stringify({
+        id: "company-invalid-status",
+        resource: "company",
+        action: "updated",
+        body: { id: "company-invalid-status", applicationStatus: "approvedLater" },
+      }),
+      headers: { "content-type": "application/json", signature: "panda-signature" },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("acknowledges a company webhook for another action", async () => {
+    const getCompany = vi.spyOn(panda, "getCompany").mockResolvedValue({ id: "business-company-created" });
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers");
+    const createCard = vi.spyOn(panda, "createCard");
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        id: "company-created",
+        resource: "company",
+        action: "created",
+        body: { id: "business-company-created", applicationStatus: "approved" },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(getCompany).toHaveBeenCalledExactlyOnceWith("business-company-created");
+    expect(getCompanyUsers).not.toHaveBeenCalled();
+    expect(createCard).not.toHaveBeenCalled();
+  });
+
+  it("finalizes an approved company without a firewall deployment", async () => {
+    const credentialId = "business-hook-no-firewall";
+    const companyId = "business-company-no-firewall";
+    const businessAccount = parse(Address, padHex("0xb051", { size: 20 }));
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: businessAccount,
+      factory: inject("ExaAccountFactory"),
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([
+      { id: "business-user-no-firewall", walletAddress: businessAccount },
+    ]);
+    vi.spyOn(panda, "getCards").mockResolvedValue([]);
+    vi.spyOn(panda, "createCard").mockResolvedValue({
+      id: "business-card-no-firewall",
+      userId: "business-user-no-firewall",
+      type: "virtual",
+      status: "active",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "1234",
+      expirationMonth: "12",
+      expirationYear: "2030",
+    });
+
+    try {
+      deployments.setFirewall(undefined);
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved-no-firewall",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(allow.enqueue).not.toHaveBeenCalled();
+      expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+        businessAccount,
+        `business-approval:${credentialId}:business-card-no-firewall`,
+      );
+    } finally {
+      deployments.setFirewall(inject("Firewall"));
+      Panda.getMutex(businessAccount)?.release();
+      await database.delete(cards).where(eq(cards.id, "business-card-no-firewall"));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("adopts the company user and issues the card for an approved company", async () => {
+    const credentialId = "business-hook";
+    const companyId = "business-company";
+    const businessAccount = parse(Address, padHex("0xb051", { size: 20 }));
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: businessAccount,
+      factory: inject("ExaAccountFactory"),
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([
+      { id: "other-business-user", walletAddress: zeroAddress },
+      { id: "business-user", walletAddress: businessAccount },
+    ]);
+    vi.spyOn(panda, "getCards").mockResolvedValue([]);
+    const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+      id: "business-card",
+      userId: "business-user",
+      type: "virtual",
+      status: "active",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "1234",
+      expirationMonth: "12",
+      expirationYear: "2030",
+    });
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, credentialId) });
+      const card = await database.query.cards.findFirst({ where: eq(cards.id, "business-card") });
+      expect(response.status).toBe(200);
+      expect(getCompanyUsers).toHaveBeenCalledExactlyOnceWith(companyId);
+      expect(createCard).toHaveBeenCalledExactlyOnceWith("business-user", SIGNATURE_PRODUCT_ID, {
+        amount: undefined,
+        idempotencyKey: `business-approval:${credentialId}:0`,
+      });
+      expect(card).toMatchObject({
+        credentialId,
+        lastFour: "1234",
+        productId: SIGNATURE_PRODUCT_ID,
+      });
+      expect(credential).toMatchObject({ pandaId: "business-user" });
+      expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+        account: businessAccount,
+        chainId: chain.id,
+        factory: inject("ExaAccountFactory"),
+        publicKey: "0x",
+        salt: parse(Address, env.BUSINESS_SALT),
+        source: null,
+      });
+      expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+        businessAccount,
+        `business-approval:${credentialId}:business-card`,
+      );
+      expect(hookQueue.enqueue).not.toHaveBeenCalled();
+      expect(Panda.getMutex(businessAccount)).toBeUndefined();
+    } finally {
+      Panda.getMutex(businessAccount)?.release();
+      await database.delete(cards).where(eq(cards.id, "business-card"));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("adopts an existing active panda card for an approved company", async () => {
+    const credentialId = "business-hook-orphan";
+    const companyId = "business-company-orphan";
+    const businessAccount = parse(Address, padHex("0xb052", { size: 20 }));
+    const orphanId = "00000000-0000-4000-8000-0000000000b1";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: businessAccount,
+      factory: inject("ExaAccountFactory"),
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([
+      { id: "business-orphan-unmatched" },
+      { id: "business-orphan-user", walletAddress: businessAccount },
+    ]);
+    vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+      { id: orphanId, status: "active", last4: "4321", expirationMonth: "9", expirationYear: "2029" },
+    ]);
+    const createCard = vi.spyOn(panda, "createCard");
+    const getAccount = vi.spyOn(persona, "getAccount");
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved-orphan",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      const card = await database.query.cards.findFirst({
+        columns: { credentialId: true, id: true, lastFour: true, productId: true },
+        where: eq(cards.id, orphanId),
+      });
+      expect(response.status).toBe(200);
+      expect(createCard).not.toHaveBeenCalled();
+      expect(getAccount).not.toHaveBeenCalled();
+      expect(card).toStrictEqual({
+        credentialId,
+        id: orphanId,
+        lastFour: "4321",
+        productId: SIGNATURE_PRODUCT_ID,
+      });
+      expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ account: businessAccount, salt: parse(Address, env.BUSINESS_SALT) }),
+      );
+      expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+        businessAccount,
+        `business-approval:${credentialId}:${orphanId}`,
+      );
+      expect(hookQueue.enqueue).not.toHaveBeenCalled();
+      expect(Panda.getMutex(businessAccount)).toBeUndefined();
+      expect(
+        vi
+          .mocked(captureException)
+          .mock.calls.filter(([, context]) =>
+            (context as undefined | { fingerprint?: string[] })?.fingerprint?.includes("orphan-card-adopted"),
+          ),
+      ).toStrictEqual([
+        [
+          expect.any(Error) as Error,
+          {
+            level: "warning",
+            fingerprint: ["orphan-card-adopted"],
+            extra: { credentialId, pandaId: "business-orphan-user", cardId: orphanId },
+          },
+        ],
+      ]);
+    } finally {
+      Panda.getMutex(businessAccount)?.release();
+      await database.delete(cards).where(eq(cards.id, orphanId));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("returns a retryable error when the company user is unavailable", async () => {
+    const credentialId = "business-unavailable";
+    const companyId = "business-company-unavailable";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0xb052", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([]);
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-user-unavailable",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, credentialId) });
+      expect(response.status).toBe(500);
+      expect(credential?.pandaId).toBeNull();
+    } finally {
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("acknowledges an approved company without a company lookup", async () => {
+    vi.spyOn(panda, "getCompany").mockImplementation(() => Promise.resolve());
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers");
+    const createCard = vi.spyOn(panda, "createCard");
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        id: "company-mapping-missing-company",
+        resource: "company",
+        action: "updated",
+        body: { id: "business-company-missing", applicationStatus: "approved" },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(getCompanyUsers).not.toHaveBeenCalled();
+    expect(createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(credit.enqueue).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges an approved company without an external id", async () => {
+    vi.spyOn(panda, "getCompany").mockResolvedValue({ id: "business-company-unmapped" });
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers");
+    const createCard = vi.spyOn(panda, "createCard");
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        id: "company-mapping-missing",
+        resource: "company",
+        action: "updated",
+        body: { id: "business-company-unmapped", applicationStatus: "approved" },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(getCompanyUsers).not.toHaveBeenCalled();
+    expect(createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(credit.enqueue).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("returns a retryable error when the approved company maps to an unknown credential", async () => {
+    vi.spyOn(panda, "getCompany").mockImplementation((id) =>
+      Promise.resolve({ externalId: "unknown-business-credential", id }),
+    );
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers");
+    const createCard = vi.spyOn(panda, "createCard");
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        id: "company-mapping-unknown",
+        resource: "company",
+        action: "updated",
+        body: { id: "business-company-mapping-unknown", applicationStatus: "approved" },
+      },
+    });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toStrictEqual({ code: "retry" });
+    expect(getCompanyUsers).not.toHaveBeenCalled();
+    expect(createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(credit.enqueue).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges an approved company for an individual credential", async () => {
+    const credentialId = "individual-company-hook";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0xb056", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
+    });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers");
+    const createCard = vi.spyOn(panda, "createCard");
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-individual-approved",
+          resource: "company",
+          action: "updated",
+          body: { id: "business-company-individual", applicationStatus: "approved" },
+        },
+      });
+
+      const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, credentialId) });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(getCompanyUsers).not.toHaveBeenCalled();
+      expect(createCard).not.toHaveBeenCalled();
+      expect(credit.enqueue).not.toHaveBeenCalled();
+      expect(hookQueue.enqueue).not.toHaveBeenCalled();
+      expect(credential?.pandaId).toBeNull();
+    } finally {
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("retries when the stored company user is missing from the company users", async () => {
+    const credentialId = "business-stale-user";
+    const companyId = "business-company-stale-user";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0xb055", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "stale-business-user",
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([]);
+    const createCard = vi.spyOn(panda, "createCard");
+    const enqueue = vi.spyOn(credit, "enqueue");
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved-stale-user",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      expect(response.status).toBe(500);
+      expect(createCard).not.toHaveBeenCalled();
+      expect(enqueue).not.toHaveBeenCalled();
+    } finally {
+      await database.delete(cards).where(eq(cards.credentialId, credentialId));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("reuses the company user and local card for repeated approvals", async () => {
+    const credentialId = "business-repeated";
+    const companyId = "business-company-repeated";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0xb053", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "business-user",
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    await database.insert(cards).values({ id: "business-repeated-card", credentialId, lastFour: "1234" });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    const getCompanyUsers = vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user" }]);
+    const createCard = vi.spyOn(panda, "createCard");
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved-repeated",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(getCompanyUsers).toHaveBeenCalledExactlyOnceWith(companyId);
+      expect(createCard).not.toHaveBeenCalled();
+      expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
+        parse(Address, padHex("0xb053", { size: 20 })),
+        `business-approval:${credentialId}:business-repeated-card`,
+      );
+    } finally {
+      await database.delete(cards).where(eq(cards.credentialId, credentialId));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("rotates the idempotency key when reissuing after a deleted card", async () => {
+    const credentialId = "business-reissue";
+    const companyId = "business-company-reissue";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0xb054", { size: 20 }),
+      factory: inject("ExaAccountFactory"),
+      pandaId: "business-user",
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    await database
+      .insert(cards)
+      .values({ id: "business-reissue-card", credentialId, lastFour: "1234", status: "DELETED" });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    vi.spyOn(panda, "getCompanyUsers").mockResolvedValue([{ id: "business-user" }]);
+    vi.spyOn(panda, "getCards").mockResolvedValue([]);
+    const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+      id: "business-reissue-card-2",
+      userId: "business-user",
+      type: "virtual",
+      status: "active",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "5678",
+      expirationMonth: "12",
+      expirationYear: "2030",
+    });
+
+    try {
+      const response = await appClient.index.$post({
+        header: { signature: "panda-signature" },
+        json: {
+          id: "company-approved-reissue",
+          resource: "company",
+          action: "updated",
+          body: { id: companyId, applicationStatus: "approved" },
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(createCard).toHaveBeenCalledExactlyOnceWith("business-user", SIGNATURE_PRODUCT_ID, {
+        amount: undefined,
+        idempotencyKey: `business-approval:${credentialId}:1`,
+      });
+    } finally {
+      await database.delete(cards).where(eq(cards.credentialId, credentialId));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("captures Sardine failures after issuing a card", async () => {
+    const error = new Error("sardine unavailable");
+    vi.spyOn(sardine, "customer").mockRejectedValueOnce(error);
+
+    Panda.notifyCardIssued(createSardine(sardineConfig.key, sardineConfig.url), {
+      credentialId: "business-sardine-failure",
+      card: { id: "business-sardine-card", last4: "1234", expirationMonth: "12", expirationYear: "2030" },
+    });
+
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" }));
+  });
+
+  it("runs integrations before awaiting credit for an approved company", async () => {
+    const credentialId = "business-hook-reconcile";
+    const companyId = "business-company-reconcile";
+    const businessAccount = parse(Address, padHex("0xb055", { size: 20 }));
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: businessAccount,
+      factory: inject("ExaAccountFactory"),
+      salt: parse(Address, env.BUSINESS_SALT),
+    });
+    vi.spyOn(panda, "getCompany").mockImplementation((id) => Promise.resolve({ externalId: credentialId, id }));
+    const getCompanyUsers = vi
+      .spyOn(panda, "getCompanyUsers")
+      .mockResolvedValue([{ id: "business-user-reconcile", walletAddress: businessAccount }]);
+    vi.spyOn(panda, "getCards").mockResolvedValue([]);
+    const createCard = vi.spyOn(panda, "createCard").mockResolvedValue({
+      id: "business-reconcile-card",
+      userId: "business-user-reconcile",
+      type: "virtual",
+      status: "active",
+      limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+      last4: "1234",
+      expirationMonth: "12",
+      expirationYear: "2030",
+    });
+    const customer = vi.spyOn(sardine, "customer").mockResolvedValue({
+      status: "Success",
+      level: "low",
+      sessionKey: "mock-session-key",
+    });
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+    const payload = {
+      header: { signature: "panda-signature" },
+      json: {
+        id: "company-approved-reconcile",
+        resource: "company",
+        action: "updated",
+        body: { id: companyId, applicationStatus: "approved" },
+      },
+    } as const;
+
+    try {
+      credit.enqueue.mockRejectedValueOnce(new Error("redis unavailable"));
+      const failed = await appClient.index.$post(payload);
+      expect(failed.status).toBe(500);
+      expect(track).toHaveBeenCalledTimes(1);
+      expect(customer).toHaveBeenCalledTimes(1);
+      expect(credit.enqueue).toHaveBeenCalledTimes(1);
+
+      const response = await appClient.index.$post(payload);
+      expect(response.status).toBe(200);
+      expect(getCompanyUsers).toHaveBeenCalledTimes(2);
+      expect(createCard).toHaveBeenCalledTimes(1);
+      expect(customer).toHaveBeenCalledExactlyOnceWith({
+        flow: { name: "card.issued", type: "payment_method_link" },
+        customer: { id: credentialId, type: "customer" },
+        transaction: {
+          id: "business-reconcile-card",
+          paymentMethod: {
+            type: "card",
+            card: { hash: "business-reconcile-card", last4: "1234", expiryMonth: "12", expiryYear: "2030" },
+          },
+        },
+      });
+      expect(credit.enqueue).toHaveBeenCalledTimes(2);
+      expect(credit.enqueue).toHaveBeenNthCalledWith(
+        1,
+        businessAccount,
+        `business-approval:${credentialId}:business-reconcile-card`,
+      );
+      expect(credit.enqueue).toHaveBeenNthCalledWith(
+        2,
+        businessAccount,
+        `business-approval:${credentialId}:business-reconcile-card`,
+      );
+    } finally {
+      await database.delete(cards).where(eq(cards.credentialId, credentialId));
+      await database.delete(credentials).where(eq(credentials.id, credentialId));
+    }
+  });
+
+  it("acknowledges individual application webhooks without company provisioning", async () => {
+    const createCard = vi.spyOn(panda, "createCard");
+
+    const response = await appClient.index.$post({
+      header: { signature: "panda-signature" },
+      json: {
+        id: "application-pending",
+        resource: "application",
+        action: "updated",
+        body: { id: "business-company-application" },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(createCard).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+  });
+
   it("enqueues declined transaction webhooks", async () => {
     const response = await appClient.index.$post({
       ...authorization,

@@ -1,5 +1,8 @@
 import { vValidator } from "@hono/valibot-validator";
+import { captureException } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
+import { and, eq, isNull } from "drizzle-orm";
+import { env } from "node:process";
 import {
   array,
   boolean,
@@ -41,10 +44,10 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { recoverTypedDataAddress, type LocalAccount } from "viem";
+import { bytesToHex, recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
+import chain, { firewallAddress, issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
@@ -52,15 +55,24 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import { requireFields } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
+import { cards, credentials } from "../database/schema";
 
 import type createPersona from "./persona";
+import type createSardine from "./sardine";
+import type createSegment from "./segment";
+import type * as schema from "../database/schema";
+import type createAllow from "../workers/allow/queue";
+import type createCredit from "../workers/credit/queue";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
     createCard,
     createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompany,
     getCompanyApplication,
+    getCompanyUsers,
     getCard,
     getCards,
     getNonce,
@@ -84,12 +96,12 @@ export default function panda({ key, url }: { key: string; url: string }) {
   async function createCard(
     userId: string,
     productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
-    amount = 1_000_000,
+    { amount = 1_000_000, idempotencyKey }: { amount?: number; idempotencyKey?: string } = {},
   ) {
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
-      {},
+      idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
       parse(CreateCardRequest, {
         type: "virtual",
         status: "active",
@@ -134,6 +146,24 @@ export default function panda({ key, url }: { key: string; url: string }) {
       10_000,
     );
   }
+  function getCompany(companyId: string) {
+    return request(
+      object({ externalId: optional(nullable(string())), id: string() }),
+      `/issuing/companies/${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    )
+      .catch((error: unknown) => {
+        if (error instanceof ServiceError && error.status === 404) return;
+        throw error;
+      })
+      .then((company) => {
+        if (company && company.id !== companyId) throw new Error("panda company id mismatch");
+        return company;
+      });
+  }
   async function getCompanyApplication(externalId: string) {
     const application = await request(
       CompanyApplicationStatusResponse,
@@ -150,6 +180,16 @@ export default function panda({ key, url }: { key: string; url: string }) {
     if (application.externalId != null && application.externalId !== externalId)
       throw new Error("panda company external id mismatch");
     return application;
+  }
+  function getCompanyUsers(companyId: string) {
+    return request(
+      array(object({ id: string(), companyId: optional(string()), walletAddress: optional(string()) })),
+      `/issuing/users?companyId=${companyId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    );
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -556,9 +596,33 @@ const Card = variant("action", [
   }),
 ]);
 
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
 export const Payload = variant("resource", [
   Transaction,
   Card,
+  object({
+    resource: literal("company"),
+    action: string(),
+    body: looseObject({ id: string(), applicationStatus: optional(nullable(picklist(kycStatus))) }),
+    id: string(),
+  }),
+  object({
+    resource: literal("application"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
   object({
     resource: literal("dispute"),
     action: string(),
@@ -795,6 +859,171 @@ async function businessApplication(
 }
 
 const mutexes = new Map<Address, MutexInterface>();
+export const activeStatuses: (typeof cards.$inferSelect.status)[] = ["ACTIVE", "FROZEN"];
+
+export function issuanceKey(
+  credentialId: string,
+  previous: { status: typeof cards.$inferSelect.status }[],
+  cleaned = 0,
+) {
+  return `business-approval:${credentialId}:${previous.filter(({ status }) => status === "DELETED").length + cleaned}`;
+}
+
+export async function adoptOrphanCard(
+  client: ReturnType<typeof panda>,
+  { credentialId, userId }: { credentialId: string; userId: string },
+) {
+  const pandaCards = await client.getCards(userId);
+  const orphan = pandaCards.find(({ status }) => status === "active");
+  if (!orphan) return;
+  captureException(new Error("orphan card adopted"), {
+    level: "warning",
+    fingerprint: ["orphan-card-adopted"],
+    extra: { credentialId, pandaId: userId, cardId: orphan.id },
+  });
+  return orphan;
+}
+
+export async function finalizeApproval(
+  credentialId: string,
+  companyId: string,
+  account: Address,
+  database: NodePgDatabase<typeof schema>,
+  client: ReturnType<typeof panda>,
+  {
+    allow,
+    credit,
+    persona,
+    sardine,
+    segment,
+  }: {
+    allow: ReturnType<typeof createAllow>;
+    credit: ReturnType<typeof createCredit>;
+    persona: ReturnType<typeof createPersona>;
+    sardine: ReturnType<typeof createSardine>;
+    segment: ReturnType<typeof createSegment>;
+  },
+) {
+  const row = await database.query.credentials.findFirst({
+    columns: { factory: true, pandaId: true, publicKey: true, salt: true, source: true },
+    where: eq(credentials.id, credentialId),
+  });
+  if (!env.BUSINESS_SALT) throw new Error("missing business salt");
+  if (!row || parse(Address, row.salt) !== parse(Address, env.BUSINESS_SALT)) return;
+  if (firewallAddress)
+    await allow.enqueue({
+      account,
+      chainId: chain.id,
+      factory: parse(Address, row.factory),
+      publicKey: bytesToHex(row.publicKey),
+      salt: parse(Address, row.salt),
+      source: row.source,
+    });
+  const existingCards = await database.query.cards.findMany({
+    columns: { id: true, status: true },
+    where: eq(cards.credentialId, credentialId),
+  });
+  const localCard = existingCards.find(({ status }) => activeStatuses.includes(status));
+  const users = await client.getCompanyUsers(companyId);
+  if (row.pandaId && !users.some(({ id }) => id === row.pandaId)) throw new Error("company user not found");
+  if (!row.pandaId) {
+    const user = users.find(({ walletAddress }) => walletAddress?.toLowerCase() === account.toLowerCase());
+    if (!user) throw new Error("company user not found");
+    await database
+      .update(credentials)
+      .set({ pandaId: user.id })
+      .where(and(eq(credentials.id, credentialId), isNull(credentials.pandaId)));
+  }
+  const userId =
+    row.pandaId ??
+    (await database.query.credentials
+      .findFirst({ columns: { pandaId: true }, where: eq(credentials.id, credentialId) })
+      .then((current) => current?.pandaId));
+  if (!userId) throw new Error("company user not found");
+  if (localCard) {
+    await credit.enqueue(account, `business-approval:${credentialId}:${localCard.id}`);
+    return;
+  }
+  const card =
+    (await adoptOrphanCard(client, { credentialId, userId })) ??
+    (await client.createCard(userId, SIGNATURE_PRODUCT_ID, {
+      amount: await cardLimit(credentialId, persona).catch((error: unknown) => {
+        captureException(error, {
+          level: "error",
+          contexts: { details: { credentialId, scope: "cardLimit" } },
+        });
+        throw error;
+      }),
+      idempotencyKey: issuanceKey(credentialId, existingCards),
+    }));
+  const [inserted] = await database
+    .insert(cards)
+    .values({ id: card.id, lastFour: card.last4, credentialId, productId: SIGNATURE_PRODUCT_ID })
+    .onConflictDoNothing()
+    .returning({ id: cards.id });
+  if (!inserted) {
+    await credit.enqueue(account, `business-approval:${credentialId}:${card.id}`);
+    return;
+  }
+  segment.track({
+    event: "CardIssued",
+    userId: account,
+    properties: { productId: SIGNATURE_PRODUCT_ID, source: row.source },
+  });
+  notifyCardIssued(sardine, { credentialId, card });
+  await credit.enqueue(account, `business-approval:${credentialId}:${card.id}`);
+}
+
+export function cardLimit(credentialId: string, persona: ReturnType<typeof createPersona>) {
+  return persona
+    .getAccount(credentialId, "cardLimit")
+    .then((profile) =>
+      profile?.attributes.fields.card_limit_usd?.value == null
+        ? undefined
+        : profile.attributes.fields.card_limit_usd.value * 100,
+    );
+}
+
+export function notifyCardIssued(
+  sardine: ReturnType<typeof createSardine>,
+  {
+    card,
+    credentialId,
+  }: {
+    card: Pick<InferOutput<typeof CardResponse>, "expirationMonth" | "expirationYear" | "id" | "last4">;
+    credentialId: string;
+  },
+) {
+  sardine
+    .customer({
+      flow: { name: "card.issued", type: "payment_method_link" },
+      customer: { id: credentialId, type: "customer" },
+      transaction: {
+        id: card.id,
+        paymentMethod: {
+          type: "card",
+          card: {
+            hash: card.id,
+            last4: card.last4,
+            expiryMonth: card.expirationMonth,
+            expiryYear: card.expirationYear,
+          },
+        },
+      },
+    })
+    .catch((error: unknown) => captureException(error, { level: "error" }));
+}
+
+const cardLocks = new Set<Address>();
+
+export function markCardLock(address: Address, locked: boolean) {
+  if (locked) cardLocks.add(address);
+  else cardLocks.delete(address);
+}
+export function isCardLocked(address: Address) {
+  return cardLocks.has(address);
+}
+
 export function createMutex(address: Address) {
   const mutex = withTimeout(
     new Mutex(),
@@ -806,11 +1035,23 @@ export function createMutex(address: Address) {
 export function getMutex(address: Address) {
   return mutexes.get(address);
 }
+export function deleteMutex(address: Address) {
+  mutexes.delete(address);
+}
 export function withMutex<T>(address: Address, task: () => Promise<T>) {
   const mutex = getMutex(address) ?? createMutex(address);
-  return mutex.runExclusive(task).finally(() => {
-    if (!mutex.isLocked()) mutexes.delete(address);
-  });
+  return mutex
+    .runExclusive(async () => {
+      markCardLock(address, true);
+      try {
+        return await task();
+      } finally {
+        markCardLock(address, false);
+      }
+    })
+    .finally(() => {
+      if (!mutex.isLocked()) mutexes.delete(address);
+    });
 }
 
 const AddressSchema = object({
@@ -940,18 +1181,6 @@ const ApplicationReview = {
   applicationCompletionLink: optional(nullable(ApplicationLink)),
   applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
 };
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 export const CompanyApplicationStatusResponse = object({
   id: string(),

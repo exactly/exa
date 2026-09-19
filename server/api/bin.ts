@@ -15,6 +15,7 @@ import createSardine from "../utils/sardine";
 import secret from "../utils/secret";
 import createSegment from "../utils/segment";
 import createWalletExtension from "../utils/walletExtension";
+import createAllow from "../workers/allow/queue";
 import createCredit from "../workers/credit/queue";
 import createSubscribe from "../workers/subscribe/queue";
 import { connect } from "../workers/worker";
@@ -26,7 +27,7 @@ supervise(
   Promise.all([
     secret("redis-url", secrets).then((url) => {
       const bullmq = connect(url);
-      return [new Redis(url), bullmq, createCredit(bullmq), createSubscribe(bullmq)] as const;
+      return [new Redis(url), bullmq, createAllow(bullmq), createCredit(bullmq), createSubscribe(bullmq)] as const;
     }),
     secret("api-auth-secret", secrets),
     Promise.all([secret("api-bridge-api-key", secrets), secret("bridge-api-url", secrets)]).then(([key, url]) =>
@@ -55,7 +56,7 @@ supervise(
     secret("api-wallet-extension-secret", secrets).then((value) => createWalletExtension(value)),
   ]).then(
     ([
-      [redis, bullmq, credit, subscribe],
+      [redis, bullmq, allow, credit, subscribe],
       authSecret,
       bridge,
       database,
@@ -70,6 +71,7 @@ supervise(
     ]) =>
       own(
         api({
+          allow,
           authSecret,
           bridge,
           credit,
@@ -89,7 +91,7 @@ supervise(
         () => redis.quit(),
         () => secrets.close(),
         () => segment.close(),
-        () => Promise.all([credit.close(), subscribe.close()]).finally(() => bullmq.quit()),
+        () => Promise.all([allow.close(), credit.close(), subscribe.close()]).finally(() => bullmq.quit()),
       ),
   ),
 );
