@@ -6,7 +6,7 @@
     "build": "pkgroll --clean-dist --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
     "prepare:generated": "mkdir -p generated",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
-    "generate:openapi": "tsx script/openapi.ts",
+    "generate:openapi": "BUSINESS_SALT=0x0000000000000000000000000000000000000001 tsx script/openapi.ts",
     "generate:sql": "POSTGRES_URL=postgres drizzle-kit export > generated/schema.sql",
     "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || NODE_ENV=development tsx -e 'require(\"./test/anvil\").default({ provide: () => undefined }).then((teardown) => teardown())'",
     "db:push": "drizzle-kit push",

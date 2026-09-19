@@ -1,6 +1,7 @@
 encryptionsalt: v1::v1:AAAAAAAAAAAAAAAb:rYjVO7/uF2+Qv1LhWq5c2S0ZR4rZaQ==
 config:
   gcp:project: eexxxaa
+  exa:businessSalt: "0x0000000000000000000000000000000000000001" # TODO replace with the address registered on chain
   exa:domain: web.exactly.app
   exa:pokeMinimum: 1
   exa:subscribeTimeout: 900s
