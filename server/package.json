@@ -84,7 +84,7 @@
     "viem": "catalog:"
   },
   "devDependencies": {
-    "@eslint/compat": "^2.0.3",
+    "@eslint/compat": "^2.1.1",
     "@exactly/common": "workspace:^0.0.20",
     "@exactly/plugin": "workspace:^1.1.0",
     "@exactly/substreams": "workspace:^0.1.0",
@@ -101,7 +101,7 @@
     "drizzle-kit": "^0.31.10",
     "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "catalog:",
-    "eslint-config-universe": "^15.0.3",
+    "eslint-config-universe": "^16.0.0",
     "eslint-plugin-drizzle": "^0.2.3",
     "execa": "^10.0.1",
     "openapi-types": "^12.1.3",

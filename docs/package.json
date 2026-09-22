@@ -22,7 +22,7 @@
     "astro": "^7.2.8",
     "astro-mermaid": "^2.1.0",
     "eslint": "catalog:",
-    "eslint-config-universe": "^15.0.3",
+    "eslint-config-universe": "^16.0.0",
     "eslint-plugin-astro": "^1.7.0",
     "mermaid": "^11.17.0",
     "openapi-types": "^12.1.3",

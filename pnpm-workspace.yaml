@@ -66,6 +66,7 @@ catalog:
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
   ox: ^1.7.1
+  prettier: ^3.9.8
   react: &react "19.2.3"
   react-dom: *react
   react-native: &reactNative "0.86.3"
@@ -120,7 +121,6 @@ overrides:
   postcss-selector-parser@7.1.1: ^7.1.3
   postcss@8: ^8.5.10
   qs@6.15.2: ^6.16.0
-  react-native-webview: 13.16.1
   sharp: ^0.35.4
   smol-toml: ^1.7.1
   svgo@3: ^3.3.5
