@@ -84,7 +84,7 @@ export default function Assets() {
             }}
           />
           <Text emphasized subHeadline primary>
-            {t("Cryptocurrencies")}
+            {t("Digital assets")}
           </Text>
           <IconButton
             icon={CircleHelp}

@@ -23,7 +23,6 @@ import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useKYC from "../../utils/useKYC";
-import useMarkets from "../../utils/useMarkets";
 import ownerConfig from "../../utils/wagmi/owner";
 import RampButton from "../ramp/RampButton";
 import IconButton from "../shared/IconButton";
@@ -49,7 +48,6 @@ export default function AddFunds() {
   });
 
   const { data: method } = useQuery<AuthMethod>({ queryKey: ["method"] });
-  const { supportedAssets } = useMarkets();
   const { approved: isKYCApproved } = useKYC();
   const beginKYC = useBeginKYC();
 
@@ -125,12 +123,8 @@ export default function AddFunds() {
                 )}
                 <AddFundsOption
                   icon={<Blocks size={24} color="$iconBrandDefault" />}
-                  title={t("Cryptocurrencies")}
-                  subtitle={
-                    supportedAssets.length > 3
-                      ? t("{{assets}} and more", { assets: supportedAssets.slice(0, 3).join(", ") })
-                      : supportedAssets.join(", ")
-                  }
+                  title={t("Digital assets")}
+                  subtitle={t("USDC, ETH, stocks, and more")}
                   onPress={() => {
                     router.push("/add-funds/assets");
                   }}
