@@ -139,6 +139,16 @@ export default defineConfig([
           content: `export const allowlists: Record<string, readonly string[] | undefined> = ${JSON.stringify(allowlists)}`,
         }),
       },
+      {
+        name: "Stocks",
+        run() {
+          const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
+            .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
+            .map((address) => address.toLowerCase());
+          if (stocks.length === 0) throw new Error("missing stocks");
+          return { content: `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})` };
+        },
+      },
       foundry({
         forge: { build: false },
         project: "../contracts",
