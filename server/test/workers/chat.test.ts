@@ -134,7 +134,7 @@ describe("chat queue", () => {
       backoff: { type: "exponential", delay: 1000 },
       jobId: "whatsapp-queue",
       removeOnComplete: true,
-      removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
+      removeOnFail: true,
     });
     await job.remove();
   });

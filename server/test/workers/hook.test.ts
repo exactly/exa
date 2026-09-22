@@ -62,7 +62,7 @@ describe("hook queue", () => {
       backoff: { type: "exponential", delay: 500 },
       jobId: "wk-queue",
       removeOnComplete: true,
-      removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
+      removeOnFail: true,
     });
     await expect(job.getState()).resolves.toBe("waiting");
     expect(startSpan).toHaveBeenCalledWith(

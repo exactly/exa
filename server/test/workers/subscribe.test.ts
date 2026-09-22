@@ -83,7 +83,7 @@ describe("subscribe queue", () => {
       backoff: { type: "exponential", delay: 1000 },
       jobId: account,
       removeOnComplete: true,
-      removeOnFail: { count: 1000, age: 7 * 24 * 3600 },
+      removeOnFail: true,
     });
     await expect(job.getState()).resolves.toBe("waiting");
     expect(vi.mocked(startSpan)).toHaveBeenCalledWith(

@@ -1,5 +1,5 @@
 import { spanToBaggageHeader, spanToTraceHeader, startSpan } from "@sentry/node";
-import { Queue, type BackoffOptions, type DefaultJobOptions, type KeepJobs } from "bullmq";
+import { Queue, type BackoffOptions, type DefaultJobOptions } from "bullmq";
 
 import type { Redis } from "ioredis";
 
@@ -7,19 +7,16 @@ export default function queue<Job extends Trace>(
   name: string,
   attempts: number,
   redis: Redis,
-  options: Partial<Omit<DefaultJobOptions, "backoff" | "removeOnFail">> & {
-    backoff?: Partial<BackoffOptions>;
-    removeOnFail?: Partial<KeepJobs>;
-  } = {},
+  options: Partial<Omit<DefaultJobOptions, "backoff">> & { backoff?: Partial<BackoffOptions> } = {},
 ) {
   const instance = new Queue<Trace, void>(name, {
     connection: redis,
     defaultJobOptions: {
       attempts,
       removeOnComplete: true,
+      removeOnFail: true,
       ...options,
       backoff: { type: "exponential", delay: 1000, ...options.backoff },
-      removeOnFail: { count: 1000, age: 7 * 24 * 3600, ...options.removeOnFail },
     },
   });
   return {
