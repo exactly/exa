@@ -14,12 +14,12 @@
     "node": "^24.21.0"
   },
   "dependencies": {
-    "@pulumi/gcp": "^9.35.0",
-    "@pulumi/pulumi": "^3.259.0"
+    "@pulumi/gcp": "^9.37.0",
+    "@pulumi/pulumi": "^3.263.0"
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.20",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.2",
     "eslint": "catalog:",
     "eslint-config-universe": "^16.0.0",
     "typescript": "catalog:"

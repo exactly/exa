@@ -50,22 +50,22 @@ catalog:
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
   "@hono/node-server": ^2.1.1
-  "@sentry/core": &sentry ^10.71.0
+  "@sentry/core": &sentry ^10.75.1
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
-  "@wagmi/core": ^3.6.4
+  "@wagmi/core": ^3.6.5
   comlink: ^4.4.2
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
-  hono: ^4.13.5
-  i18next: ^26.3.6
+  hono: ^4.13.8
+  i18next: ^26.4.2
   ioredis: ^6.0.0
-  nx: &nx ^23.1.1
+  nx: &nx ^23.2.1
   "@nx/esbuild": *nx
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  ox: ^1.7.1
+  ox: ^1.7.5
   prettier: ^3.9.8
   react: &react "19.2.3"
   react-dom: *react
@@ -81,9 +81,9 @@ catalog:
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   typescript: ^5.9.3
-  valibot: ^1.4.2
-  viem: ^2.55.19
-  wagmi: ^3.7.6
+  valibot: ^1.5.0
+  viem: ^2.56.8
+  wagmi: ^3.7.7
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440

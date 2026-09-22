@@ -12,8 +12,8 @@
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.20",
-    "@noble/curves": "^2.3.0",
-    "@noble/hashes": "^2.3.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "esbuild": "^0.28.2",
     "eslint": "catalog:",
     "fast-text-encoding": "^1.0.6",
