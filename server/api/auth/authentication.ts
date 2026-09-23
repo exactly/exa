@@ -1,9 +1,5 @@
 import { captureException, setContext, setUser } from "@sentry/node";
-import {
-  generateAuthenticationOptions,
-  verifyAuthenticationResponse,
-  type AuthenticatorTransportFuture,
-} from "@simplewebauthn/server";
+import { generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
@@ -12,6 +8,7 @@ import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   any,
   array,
+  assert,
   description,
   fallback,
   literal,
@@ -237,17 +234,9 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           timeout,
         });
         await redis.set(sessionId, options.challenge, "PX", timeout);
-        return c.json(
-          {
-            method: "webauthn" as const,
-            ...options,
-            extensions: options.extensions as Extract<
-              InferOutput<typeof AuthenticationOptions>,
-              { method: "webauthn" }
-            >["extensions"],
-          } satisfies InferOutput<typeof AuthenticationOptions>,
-          200,
-        );
+        const response = { method: "webauthn" as const, ...options };
+        assert(AuthenticationOptions, response);
+        return c.json(response, 200);
       },
     )
     .post(
@@ -437,7 +426,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 credential: {
                   id: assertion.id,
                   publicKey: credential.publicKey,
-                  transports: (credential.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
+                  transports: credential.transports ?? undefined,
                   counter: 0,
                 },
               });
