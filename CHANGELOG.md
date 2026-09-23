@@ -1,5 +1,87 @@
 # @exactly/mobile
 
+## 1.2.26
+
+### Patch Changes
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`877eab6`](https://github.com/exactly/exa/commit/877eab6d92088001363495b6014ffbffc4b5586f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ redesign send asset selector
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`a3670e4`](https://github.com/exactly/exa/commit/a3670e410c6c0586431d5c726af5fa0ca93990a5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ route swaps across networks
+
+- [#1322](https://github.com/exactly/exa/pull/1322) [`ca5d67b`](https://github.com/exactly/exa/commit/ca5d67b05db9df112039d28eadbdb584026b2b70) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add stocks card to portfolio
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`1a5c7f3`](https://github.com/exactly/exa/commit/1a5c7f3f6eaeef5ad1c894c1eb33229d3ea441ab) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add consent to swap collateral at risk
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`c08ca8a`](https://github.com/exactly/exa/commit/c08ca8a5df9d2955461b6c0584c28ed5e4fd9196) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 gate swap risk on health factor
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`08951b2`](https://github.com/exactly/exa/commit/08951b2c32fd7975db87fd9179907976cc411e57) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 fall back to asset symbol on logo error
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`0fdb520`](https://github.com/exactly/exa/commit/0fdb520a8cf2bf33daa3f4e9e02f86bd2a269575) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ redesign send receiver screen
+
+- [#1322](https://github.com/exactly/exa/pull/1322) [`e611973`](https://github.com/exactly/exa/commit/e611973fdf1e6708e46cc12652913fd7020267bd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add filter chips to token selector
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`1be4234`](https://github.com/exactly/exa/commit/1be4234c3c6d006ceb3d0f238bc4a5a2b4978482) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 report insufficient collateral on swaps
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`e7a9423`](https://github.com/exactly/exa/commit/e7a9423b778b8e0267be8c2be349283f460f3664) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 unify amount formatting on swap screens
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`81e6757`](https://github.com/exactly/exa/commit/81e675756a843d2d1cfa9bb74308d95045b75ce5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ compute send amounts in bigint
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`a7add93`](https://github.com/exactly/exa/commit/a7add9383eecd853a4779fa690e53b305f5b3288) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add review and send screen
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`253cd83`](https://github.com/exactly/exa/commit/253cd83734e74b720d7ef25b6804b96750e17c32) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 reset received amount when paying token changes
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`e4ce8b8`](https://github.com/exactly/exa/commit/e4ce8b8810e1bf1426c2c5a89113d8e2e79e5dc7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 show token balance in token units
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`b06a45f`](https://github.com/exactly/exa/commit/b06a45ffa61eef55aec323dcab56704e4b53742c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add network badge to asset logo
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`09770bd`](https://github.com/exactly/exa/commit/09770bdbb0c65a056f3f60122a230668b1f5b7d2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 curate tokens
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`2532c34`](https://github.com/exactly/exa/commit/2532c342775247c2ef746c05aecb99432c088638) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 localize swap home label
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`b7b6f64`](https://github.com/exactly/exa/commit/b7b6f645cb44ee0ca5e6fa81262f5bb070faabfe) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ track cross-chain swap delivery
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`51b8381`](https://github.com/exactly/exa/commit/51b83810bf99db6659791f2d6eb2e0f50066c304) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ scope contacts by chain type
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`ecf58a7`](https://github.com/exactly/exa/commit/ecf58a7f2639259503e5279bcf5103185f1af74a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add network selector to swap input
+
+- [#1322](https://github.com/exactly/exa/pull/1322) [`1173f77`](https://github.com/exactly/exa/commit/1173f77afbc846e8cfb71256b81dd5b661ea839e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 add price impact warning to swaps
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`5d29da1`](https://github.com/exactly/exa/commit/5d29da1a7f14fc4590ba25ac04cc241a11da28dc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 surface swap route errors
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`1887a45`](https://github.com/exactly/exa/commit/1887a45861d069cdab4ffe8aba789cd962130e65) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update send options copy
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`e8a683e`](https://github.com/exactly/exa/commit/e8a683e66c41462c3d6d0eab416f753bcfd15a99) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ remove unused receive input controls
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`a81796d`](https://github.com/exactly/exa/commit/a81796da7eed5ce0f1c2a2c6d9664f679fd89e47) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 distinguish tokens by network on swaps
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`8897c6d`](https://github.com/exactly/exa/commit/8897c6d88842e24edb847a2022f9937189deeadf) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ redesign send amount entry
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`d893d9d`](https://github.com/exactly/exa/commit/d893d9da547e5718941650e691e1d9d35b59a499) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ index token logos by chain
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`20f836f`](https://github.com/exactly/exa/commit/20f836f73207e373b015dd017213f216c187d12f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 measure swap collateral by deposit
+
+- [#1322](https://github.com/exactly/exa/pull/1322) [`7e12020`](https://github.com/exactly/exa/commit/7e12020cd0181841ff172fe0e59d3862d0d9c0a3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 add market hours notice to swaps
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`c39b731`](https://github.com/exactly/exa/commit/c39b731d1eefc522d60b547bbbeec0b936d0de6a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix hidden accessibility tree behind closed sheets
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`c19c3ce`](https://github.com/exactly/exa/commit/c19c3ce89a3cfa691396d9bc2e4ccdecf1191641) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 fit home action labels to column width
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`c106303`](https://github.com/exactly/exa/commit/c106303bdc30444b9e9d3fcf8931e44a764f736d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ swap without native balance
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`10394c6`](https://github.com/exactly/exa/commit/10394c6b7079e0666dba2919688bc70dde1d3afa) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add advanced send mode
+
+- [#1300](https://github.com/exactly/exa/pull/1300) [`9a01773`](https://github.com/exactly/exa/commit/9a01773ec1147970e85a3d08eef4c5edc1ea4745) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 report actual swap fee from quote
+
+- [#1322](https://github.com/exactly/exa/pull/1322) [`ab4ef7b`](https://github.com/exactly/exa/commit/ab4ef7b2fc2481aad8f10bcd1be74a568d3f27b5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 unify network badge on swaps
+
+- [#1322](https://github.com/exactly/exa/pull/1322) [`547de12`](https://github.com/exactly/exa/commit/547de12b6317e50f8f1beb169afcecc8dd10755d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ hide stocks for restricted countries
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`f7d0f25`](https://github.com/exactly/exa/commit/f7d0f25efea34612eb52cf26f02e175eb21fa7ba) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add cross-chain send utils
+
+- Updated dependencies [[`75650c8`](https://github.com/exactly/exa/commit/75650c8c40f47e1cf5ffb0ee8c24aa78ad36f4e9)]:
+  - @exactly/common@0.0.20
+  - @exactly/server@0.2.117
+
 ## 1.2.25
 
 ### Patch Changes

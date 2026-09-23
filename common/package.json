@@ -1,6 +1,6 @@
 {
   "name": "@exactly/common",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "private": true,
   "scripts": {
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",

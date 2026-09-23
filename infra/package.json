@@ -18,7 +18,7 @@
     "@pulumi/pulumi": "^3.259.0"
   },
   "devDependencies": {
-    "@exactly/common": "workspace:^0.0.19",
+    "@exactly/common": "workspace:^0.0.20",
     "@types/node": "^25.5.0",
     "eslint": "catalog:",
     "eslint-config-universe": "^15.0.3",

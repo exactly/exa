@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.20
+
+### Patch Changes
+
+- [#1292](https://github.com/exactly/exa/pull/1292) [`75650c8`](https://github.com/exactly/exa/commit/75650c8c40f47e1cf5ffb0ee8c24aa78ad36f4e9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔨 add stocks allowlist to codegen
+
 ## 0.0.19
 
 ### Patch Changes
