@@ -91,8 +91,8 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import { dataSuffix } from "@exactly/common/attribution";
 import deriveAddress from "@exactly/common/deriveAddress";
-import domain from "@exactly/common/domain";
 import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import rpId from "@exactly/common/rpId";
 
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
@@ -113,7 +113,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
     if (isSiwe()) return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
     const credential = await get({
-      rpId: domain,
+      rpId,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
       allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
       userVerification: "preferred",
@@ -419,7 +419,7 @@ function dummySignature(challenge: string) {
         ? `android:apk-key-hash:${"A".repeat(43)}`
         : Platform.OS === "web" && typeof window !== "undefined"
           ? window.location.origin
-          : `https://${domain}`
+          : `https://${rpId}`
     }"${Platform.OS === "ios" ? "" : ',"crossOrigin":false'}}`,
     typeIndex: 1n,
     challengeIndex: 23n,
