@@ -1,4 +1,5 @@
 import { vValidator } from "@hono/valibot-validator";
+import { setContext } from "@sentry/core";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import {
   array,
@@ -6,6 +7,8 @@ import {
   check,
   digits,
   email,
+  flatten,
+  ip,
   ipv4,
   ipv6,
   isoTimestamp,
@@ -26,14 +29,19 @@ import {
   picklist,
   pipe,
   regex,
+  safeParse,
   string,
   transform,
+  trim,
   tuple,
   union,
+  url as urlValidator,
+  uuid,
   variant,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 import { recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -43,14 +51,19 @@ import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exa
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
+import { BusinessApplicationError, requireFields } from "./persona";
 import ServiceError from "./ServiceError";
 import verifySignature from "./verifySignature";
 
+import type createPersona from "./persona";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
+    businessApplication,
     createCard,
+    createCompanyApplication,
     createUser,
     getApplicationStatus,
+    getCompanyApplication,
     getCard,
     getCards,
     getNonce,
@@ -109,6 +122,36 @@ export default function panda({ key, url }: { key: string; url: string }) {
     personaShareToken: string;
   }) {
     return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000);
+  }
+  function createCompanyApplication(
+    application: InferInput<typeof CreateCompanyApplicationRequest>,
+    options: { idempotencyKey?: string } = {},
+  ) {
+    return request(
+      CompanyApplicationResponse,
+      "/issuing/applications/company",
+      options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {},
+      parse(CreateCompanyApplicationRequest, application),
+      "POST",
+      10_000,
+    );
+  }
+  async function getCompanyApplication(externalId: string) {
+    const application = await request(
+      CompanyApplicationStatusResponse,
+      `/issuing/applications/company/external/${externalId}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    ).catch((error: unknown) => {
+      if (error instanceof ServiceError && error.status === 404) return;
+      throw error;
+    });
+    if (!application) return;
+    if (application.externalId != null && application.externalId !== externalId)
+      throw new Error("panda company external id mismatch");
+    return application;
   }
   async function getApplicationStatus(applicationId: string) {
     return request(
@@ -702,6 +745,68 @@ export function signIssuerOp(
     message: { account, amount: amount < 0n ? -amount : amount, timestamp },
   });
 }
+function personAddress(fields: InferOutput<typeof BusinessFields>) {
+  return {
+    line1: fields.street_1_1,
+    line2: fields.street_2_1,
+    city: fields.city_1,
+    region: fields.subdivision_1,
+    postalCode: fields.postal_code_1,
+    countryCode: fields.country_code_1,
+  };
+}
+
+function companyAddress(fields: InferOutput<typeof BusinessFields>) {
+  return {
+    line1: fields.street_1,
+    line2: fields.street_2,
+    city: fields.city,
+    region: fields.subdivision,
+    postalCode: fields.postal_code,
+    countryCode: fields.country_code,
+  };
+}
+
+function businessApplication(
+  credentialId: string,
+  accountAddress: Address,
+  ipAddress: string,
+  profile: Awaited<ReturnType<ReturnType<typeof createPersona>["businessProfile"]>>,
+) {
+  const fields = requireFields(BusinessFields, profile.fields);
+  const person = {
+    firstName: fields.auth_user_name,
+    lastName: fields.auth_user_last_name,
+    birthDate: fields.birth_date,
+    nationalId: fields.id_number,
+    countryOfIssue: fields.id_country,
+    email: profile.email,
+    address: personAddress(fields),
+  };
+  const result = safeParse(CreateCompanyApplicationRequest, {
+    initialUser: { ...person, ipAddress, walletAddress: accountAddress },
+    name: profile.name,
+    address: companyAddress(fields),
+    entity: {
+      name: profile.name,
+      description: fields.company_description,
+      industry: fields.company_industry,
+      registrationNumber: fields.company_registration_number,
+      taxId: fields.company_tax_id,
+      website: fields.company_website,
+    },
+    representatives: [person],
+    ultimateBeneficialOwners: [],
+    sourceKey: "EXA",
+    externalId: credentialId,
+  });
+  if (!result.success) {
+    setContext("validation", { flatten: flatten(result.issues) });
+    throw new BusinessApplicationError("invalid company application", "bad request");
+  }
+  return result.output;
+}
+
 const mutexes = new Map<Address, MutexInterface>();
 export function createMutex(address: Address) {
   const mutex = withTimeout(
@@ -714,6 +819,12 @@ export function createMutex(address: Address) {
 export function getMutex(address: Address) {
   return mutexes.get(address);
 }
+export function withMutex<T>(address: Address, task: () => Promise<T>) {
+  const mutex = getMutex(address) ?? createMutex(address);
+  return mutex.runExclusive(task).finally(() => {
+    if (!mutex.isLocked()) mutexes.delete(address);
+  });
+}
 
 const AddressSchema = object({
   line1: pipe(string(), minLength(1), maxLength(100)),
@@ -725,6 +836,160 @@ const AddressSchema = object({
   countryCode: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
 });
 
+const BirthDate = pipe(
+  string(),
+  regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD format"),
+  check((value) => {
+    const date = new Date(value);
+    return !Number.isNaN(date.getTime());
+  }, "must be a valid date"),
+);
+
+const CorporatePerson = object({
+  address: AddressSchema,
+  birthDate: BirthDate,
+  countryOfIssue: pipe(string(), length(2), regex(/^[A-Z]{2}$/i)),
+  email: pipe(string(), email()),
+  firstName: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  lastName: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+  nationalId: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(50),
+  ),
+});
+
+const requiredValue = pipe(string(), trim(), minLength(1));
+
+const optionalValue = optional(
+  pipe(
+    nullable(string()),
+    transform((value) => {
+      const trimmed = value?.trim();
+      return trimmed === "" ? undefined : trimmed;
+    }),
+  ),
+);
+
+const BusinessFields = object({
+  auth_user_last_name: requiredValue,
+  auth_user_name: requiredValue,
+  birth_date: requiredValue,
+  city: requiredValue,
+  city_1: requiredValue,
+  collected_email_address: requiredValue,
+  company_description: requiredValue,
+  company_industry: requiredValue,
+  company_name: requiredValue,
+  company_registration_number: requiredValue,
+  company_tax_id: requiredValue,
+  company_website: requiredValue,
+  country_code: requiredValue,
+  country_code_1: requiredValue,
+  id_country: requiredValue,
+  id_number: requiredValue,
+  postal_code: requiredValue,
+  postal_code_1: requiredValue,
+  street_1: requiredValue,
+  street_1_1: requiredValue,
+  street_2: optionalValue,
+  street_2_1: optionalValue,
+  subdivision: requiredValue,
+  subdivision_1: requiredValue,
+});
+
+const CreateCompanyApplicationRequest = object({
+  address: AddressSchema,
+  entity: object({
+    description: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(500),
+    ),
+    industry: pipe(string(), regex(/^\d{6}$/)),
+    name: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(100),
+    ),
+    registrationNumber: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(100),
+    ),
+    taxId: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(100),
+    ),
+    website: pipe(
+      string(),
+      check((value) => value.trim().length > 0),
+      maxLength(255),
+      urlValidator(),
+    ),
+  }),
+  externalId: string(),
+  initialUser: object({
+    ...CorporatePerson.entries,
+    ipAddress: pipe(string(), maxLength(50), ip()),
+    walletAddress: Address,
+  }),
+  name: pipe(
+    string(),
+    check((value) => value.trim().length > 0),
+    maxLength(100),
+  ),
+  representatives: array(CorporatePerson),
+  sourceKey: string(),
+  ultimateBeneficialOwners: array(CorporatePerson),
+});
+
+const ApplicationLink = object({
+  params: object({ signature: string(), userId: pipe(string(), uuid()) }),
+  url: pipe(string(), urlValidator()),
+});
+const ApplicationReview = {
+  applicationCompletionLink: optional(nullable(ApplicationLink)),
+  applicationExternalVerificationLink: optional(nullable(ApplicationLink)),
+  applicationReason: optional(nullable(string())),
+};
+
+export const kycStatus = [
+  "needsVerification",
+  "needsInformation",
+  "manualReview",
+  "notStarted",
+  "approved",
+  "canceled",
+  "pending",
+  "denied",
+  "locked",
+] as const;
+
+export const CompanyApplicationStatusResponse = object({
+  ...ApplicationReview,
+  applicationStatus: optional(nullable(picklist(kycStatus))),
+  externalId: optional(nullable(string())),
+  id: string(),
+});
+
+const CompanyApplicationResponse = object({
+  ...CompanyApplicationStatusResponse.entries,
+  address: AddressSchema,
+  name: string(),
+  sourceKey: optional(nullable(string())),
+  ultimateBeneficialOwners: optional(nullable(array(object({ ...ApplicationReview, id: string() })))),
+});
+
 export const Application = object({
   email: pipe(
     string(),
@@ -734,15 +999,7 @@ export const Application = object({
   lastName: pipe(string(), maxLength(50), metadata({ description: "The person's last name" })),
   firstName: pipe(string(), maxLength(50), metadata({ description: "The person's first name" })),
   nationalId: pipe(string(), maxLength(50), metadata({ description: "The person's national ID" })),
-  birthDate: pipe(
-    string(),
-    regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD format"),
-    check((value) => {
-      const date = new Date(value);
-      return !Number.isNaN(date.getTime());
-    }, "must be a valid date"),
-    metadata({ description: "Birth date (YYYY-MM-DD)", examples: ["1970-01-01"] }),
-  ),
+  birthDate: pipe(BirthDate, metadata({ description: "Birth date (YYYY-MM-DD)", examples: ["1970-01-01"] })),
   countryOfIssue: pipe(
     string(),
     length(2),
@@ -793,18 +1050,6 @@ const ApplicationResponse = object({
   id: pipe(string(), maxLength(50)),
   applicationStatus: pipe(string(), maxLength(50)),
 });
-
-export const kycStatus = [
-  "needsVerification",
-  "needsInformation",
-  "manualReview",
-  "notStarted",
-  "approved",
-  "canceled",
-  "pending",
-  "denied",
-  "locked",
-] as const;
 
 const ApplicationStatusResponse = object({
   id: string(),

@@ -326,7 +326,7 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -379,7 +379,7 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -432,7 +432,7 @@ describe("with reference", () => {
           'data/attributes/status Invalid type: Expected ("Approved" | "Declined" | "Open" | "Pending") but received "approved"',
           'data/relationships/caseTemplate Invalid key: Expected "caseTemplate" but received undefined',
           'data/relationships/inquiries Invalid key: Expected "inquiries" but received undefined',
-          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
+          'data/relationships/inquiryTemplate/data/id Invalid type: Expected ("itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx" | "itmpl_AWN3X1RhJtk9rW529jr9nuoh1Ks7Km" | "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2" | "itmpl_8uim4FvD5P3kFpKHX37CW817" | "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo") but received "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2"',
         ],
       });
       expect(panda.createUser).not.toHaveBeenCalled();
@@ -579,24 +579,7 @@ describe("persona hook", () => {
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
     allow.enqueue.mockRejectedValueOnce(error);
 
-    const response = await appClient.index.$post({
-      header: {
-        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
-      },
-      json: {
-        ...validPayload,
-        data: {
-          ...validPayload.data,
-          attributes: {
-            ...validPayload.data.attributes,
-            payload: {
-              ...validPayload.data.attributes.payload,
-              included: [...validPayload.data.attributes.payload.included],
-            },
-          },
-        },
-      },
-    });
+    const response = await postInquiry();
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
@@ -667,6 +650,19 @@ describe("ignored template", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(panda.createUser).not.toHaveBeenCalled();
     expect(persona.addDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns ok for business template", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: ignoredPayload(persona.BUSINESS_TEMPLATE),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createUser).not.toHaveBeenCalled();
+    expect(persona.addDocument).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
   });
 });
 

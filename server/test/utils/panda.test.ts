@@ -9,7 +9,8 @@ import { usdcAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
-import createPanda, * as Panda from "../../utils/panda";
+import createPanda from "../../utils/panda";
+import * as Panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
 const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
@@ -78,6 +79,293 @@ describe("panda request", () => {
       expect.stringContaining("/issuing/cards?userId=e5cd86bb-a19e-4a66-9728-9e6c5d97e616&limit=100"),
       expect.objectContaining({ method: "GET" }),
     );
+  });
+});
+
+describe("business application", () => {
+  const account = parse(Address, padHex("0xb0b", { size: 20 }));
+  const businessFields = {
+    company_name: "Account Acme",
+    company_description: "Account software",
+    company_industry: "541511",
+    company_registration_number: "123",
+    company_tax_id: "456",
+    company_website: "https://example.com",
+    auth_user_name: "Jane",
+    auth_user_last_name: "Doe",
+    birth_date: "1990-01-01",
+    id_number: "123456789",
+    id_country: "US",
+    collected_email_address: "jane@example.com",
+    street_1: "1 Main St",
+    city: "New York",
+    subdivision: "NY",
+    postal_code: "10001",
+    country_code: "US",
+    street_1_1: "1 Main St",
+    city_1: "New York",
+    subdivision_1: "NY",
+    postal_code_1: "10001",
+    country_code_1: "US",
+  };
+  const address = {
+    line1: "1 Main St",
+    city: "New York",
+    region: "NY",
+    postalCode: "10001",
+    countryCode: "US",
+  };
+
+  function profile(fields: Record<string, unknown> = businessFields) {
+    return { email: "jane@example.com", name: "Account Acme", fields };
+  }
+
+  it("maps the business profile to a company application", () => {
+    const application = panda.businessApplication("reference-id", account, "127.0.0.1", profile());
+    const person = {
+      firstName: "Jane",
+      lastName: "Doe",
+      birthDate: "1990-01-01",
+      nationalId: "123456789",
+      countryOfIssue: "US",
+      email: "jane@example.com",
+      address: { ...address, line2: undefined },
+    };
+    expect(application).toStrictEqual({
+      initialUser: { ...person, ipAddress: "127.0.0.1", walletAddress: account },
+      name: "Account Acme",
+      address: { ...address, line2: undefined },
+      entity: {
+        name: "Account Acme",
+        description: "Account software",
+        industry: "541511",
+        registrationNumber: "123",
+        taxId: "456",
+        website: "https://example.com",
+      },
+      representatives: [person],
+      ultimateBeneficialOwners: [],
+      sourceKey: "EXA",
+      externalId: "reference-id",
+    });
+  });
+
+  it.each([[null], [""], ["   "], ["Suite 2"]] as const)("normalizes a line2 value %s", (line2) => {
+    const application = panda.businessApplication(
+      "reference-id",
+      account,
+      "127.0.0.1",
+      profile({ ...businessFields, street_2: line2 }),
+    );
+    expect(application.address.line2).toBe(typeof line2 === "string" ? line2.trim() || undefined : undefined);
+  });
+
+  it("rejects a malformed line2 value", () => {
+    expect(() =>
+      panda.businessApplication("reference-id", account, "127.0.0.1", profile({ ...businessFields, street_2: 123 })),
+    ).toThrow(
+      expect.objectContaining({
+        message: "invalid business Persona fields",
+        code: "bad request",
+      }),
+    );
+  });
+
+  it.each([["company_name"], ["company_description"]] as const)("rejects a missing %s", (name) => {
+    expect(() =>
+      panda.businessApplication(
+        "reference-id",
+        account,
+        "127.0.0.1",
+        profile(Object.fromEntries(Object.entries(businessFields).filter(([field]) => field !== name))),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        message: "business account is not complete",
+        code: "processing",
+      }),
+    );
+  });
+
+  it("rejects a blank business field", () => {
+    expect(() =>
+      panda.businessApplication(
+        "reference-id",
+        account,
+        "127.0.0.1",
+        profile({ ...businessFields, company_description: " " }),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        message: "business account is not complete",
+        code: "processing",
+      }),
+    );
+  });
+
+  it("rejects a business account field with the wrong type", () => {
+    expect(() =>
+      panda.businessApplication(
+        "reference-id",
+        account,
+        "127.0.0.1",
+        profile({ ...businessFields, company_name: 123 }),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        message: "invalid business Persona fields",
+        code: "bad request",
+      }),
+    );
+  });
+
+  it("rejects semantic company-field validation failures", () => {
+    expect(() =>
+      panda.businessApplication(
+        "reference-id",
+        account,
+        "127.0.0.1",
+        profile({ ...businessFields, company_website: "not a url" }),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        message: "invalid company application",
+        code: "bad request",
+      }),
+    );
+  });
+
+  it("preserves the verification link signature", async () => {
+    const externalId = "0x7fE85c89A8406B6Fc911f064e344fac2DFfD1C1b";
+    const signature = "x".repeat(156);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        id: "company-1",
+        externalId,
+        applicationStatus: "needsVerification",
+        applicationExternalVerificationLink: {
+          url: "https://cardmemberportal.com/kyc",
+          params: { userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000", signature },
+        },
+      }),
+    );
+    const application = await panda.getCompanyApplication(externalId);
+
+    expect(application?.applicationExternalVerificationLink).toStrictEqual({
+      url: "https://cardmemberportal.com/kyc",
+      params: { userId: "0e3c467c-01e3-4fe8-8778-1c88e02fd000", signature },
+    });
+  });
+
+  it("returns nothing when the company application does not exist", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
+
+    await expect(panda.getCompanyApplication("0x269E1Eb82cc3c3Ee64b47cDA34acAED8203aF066")).resolves.toBeUndefined();
+  });
+
+  it("rethrows non-404 company application errors", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("server error", { status: 500 }));
+    await expect(panda.getCompanyApplication("0xbeef")).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("rejects a company application for another reference id", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", externalId: "0xdead", applicationStatus: "pending" }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).rejects.toThrow("panda company external id mismatch");
+  });
+
+  it("accepts a company application without a reference id", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", applicationStatus: "pending" }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).resolves.toMatchObject({ id: "company-1" });
+  });
+
+  it("accepts a not started company application", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", applicationStatus: "notStarted" }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).resolves.toMatchObject({
+      id: "company-1",
+      applicationStatus: "notStarted",
+    });
+  });
+
+  it("creates a company application with and without an idempotency key", async () => {
+    const application = {
+      initialUser: {
+        firstName: "Jane",
+        lastName: "Doe",
+        birthDate: "1990-01-01",
+        nationalId: "123456789",
+        countryOfIssue: "US",
+        email: "jane@example.com",
+        ipAddress: "127.0.0.1",
+        walletAddress: account,
+        address,
+      },
+      name: "Account Acme",
+      address,
+      entity: {
+        name: "Account Acme",
+        description: "Account software",
+        industry: "541511",
+        registrationNumber: "123",
+        taxId: "456",
+        website: "https://example.com",
+      },
+      representatives: [],
+      ultimateBeneficialOwners: [],
+      sourceKey: "EXA",
+      externalId: "reference-id",
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "company-1", name: "Account Acme", address }))
+      .mockResolvedValueOnce(Response.json({ id: "company-1", name: "Account Acme", address }));
+
+    await panda.createCompanyApplication(application, { idempotencyKey: "business-application:reference-id" });
+    await panda.createCompanyApplication(application);
+
+    const [keyed, plain] = fetchSpy.mock.calls.slice(-2);
+    if (!keyed || !plain) throw new Error("missing panda requests");
+    const raw = keyed[1]?.body;
+    if (typeof raw !== "string") throw new Error("missing panda request body");
+    expect(JSON.parse(raw)).toStrictEqual(application);
+    expect(keyed[0]).toEqual(expect.stringContaining("/issuing/applications/company"));
+    expect(keyed[1]?.headers).toMatchObject({
+      "Idempotency-Key": "business-application:reference-id",
+    });
+    expect(plain[1]?.headers).not.toHaveProperty("Idempotency-Key");
+  });
+});
+
+describe("mutex", () => {
+  it("purges the mutex entry after the exclusive run", async () => {
+    const account = parse(Address, "0x29684075a3C86ea11D9964BcAf0F956e801396bD");
+    await Panda.withMutex(account, () => {
+      expect(Panda.getMutex(account)).toBeDefined();
+      return Promise.resolve();
+    });
+    expect(Panda.getMutex(account)).toBeUndefined();
+  });
+
+  it("serializes concurrent exclusive runs for the same account", async () => {
+    const account = parse(Address, "0x29684075a3C86ea11D9964BcAf0F956e801396bD");
+    const order: string[] = [];
+    const run = (name: string) =>
+      Panda.withMutex(account, async () => {
+        order.push(`${name}:start`);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        order.push(`${name}:end`);
+      });
+    await Promise.all([run("a"), run("b")]);
+    expect(order).toEqual(["a:start", "a:end", "b:start", "b:end"]);
+    expect(Panda.getMutex(account)).toBeUndefined();
   });
 });
 
