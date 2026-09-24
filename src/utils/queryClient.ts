@@ -16,7 +16,7 @@ import release from "../generated/release";
 import type { Activity } from "./server";
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
 
-const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "pax"]);
+const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "swap", "pax"]);
 export const isServer = typeof window === "undefined";
 
 export function triage(error: unknown) {
