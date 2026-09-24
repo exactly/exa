@@ -101,7 +101,7 @@ export default function worker({
 
   async function request<T>(callback: () => Promise<T>) {
     await wait(Math.max(0, next - Date.now()));
-    next = Date.now() + 200;
+    next = Date.now() + 500;
     return callback();
   }
 }
