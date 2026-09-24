@@ -119,6 +119,7 @@ export default function Activity() {
           initialNumToRender={14}
           maxToRenderPerBatch={8}
           windowSize={5}
+          removeClippedSubviews={false}
           onEndReachedThreshold={1}
           onEndReached={() => setLimit((current) => (activity && current < activity.length ? current + page : current))}
           stickyHeaderIndices={layout.stickies}
