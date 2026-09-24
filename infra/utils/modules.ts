@@ -2,9 +2,60 @@ export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
   services: {
+    api: {
+      secrets: [
+        "auth-secret",
+        "bridge-api-key",
+        "intercom-identity-key",
+        "manteca-api-key",
+        "panda-api-key",
+        "pax-associate-id-key",
+        "pax-api-key",
+        "persona-api-key",
+        "postgres-url",
+        "sardine-api-key",
+        "segment-write-key",
+        "wallet-extension-secret",
+      ],
+      shared: [
+        "bridge-api-url",
+        "manteca-api-url",
+        "panda-api-url",
+        "pax-api-url",
+        "persona-api-url",
+        "sardine-api-url",
+      ],
+    },
+    activity: { secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"] },
+    block: { secrets: ["alchemy-webhooks-key", "onesignal-api-key"], signers: ["executor"] },
+    bridge: {
+      secrets: ["bridge-api-key", "onesignal-api-key", "persona-api-key", "postgres-url", "segment-write-key"],
+      shared: ["bridge-api-url", "persona-api-url"],
+    },
     chat: {
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["whatsapp-app-secret", "whatsapp-verify-token"],
+    },
+    manteca: {
+      secrets: ["manteca-api-key", "onesignal-api-key", "postgres-url", "segment-write-key", "webhooks-key"],
+      shared: ["manteca-api-url"],
+    },
+    panda: {
+      secrets: ["onesignal-api-key", "panda-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
+      shared: ["panda-api-url", "sardine-api-url"],
+      signers: ["settler", "issuer"],
+    },
+    persona: {
+      secrets: [
+        "panda-api-key",
+        "pax-associate-id-key",
+        "pax-api-key",
+        "persona-api-key",
+        "persona-webhook-secret",
+        "postgres-url",
+        "sardine-api-key",
+      ],
+      shared: ["panda-api-url", "pax-api-url", "persona-api-url", "sardine-api-url"],
     },
   },
   workers: {
