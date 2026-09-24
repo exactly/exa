@@ -16,6 +16,7 @@ import {
   number,
   object,
   optional,
+  parse,
   picklist,
   pipe,
   safeParse,
@@ -23,7 +24,9 @@ import {
   transform,
   union,
 } from "valibot";
+import { bytesToHex } from "viem";
 
+import chain, { firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
@@ -44,6 +47,7 @@ import type createPanda from "../utils/panda";
 import type createPax from "../utils/pax";
 import type createPersona from "../utils/persona";
 import type createSardine from "../utils/sardine";
+import type createAllow from "../workers/allow/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { InferOutput } from "valibot";
 
@@ -64,6 +68,7 @@ const Session = pipe(
 );
 
 export default function hook({
+  allow,
   database,
   panda,
   pax,
@@ -71,6 +76,7 @@ export default function hook({
   personaWebhookSecret,
   sardine,
 }: {
+  allow: ReturnType<typeof createAllow>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
   pax: ReturnType<typeof createPax>;
@@ -336,7 +342,7 @@ export default function hook({
       const { referenceId, fields } = attributes;
 
       const credential = await database.query.credentials.findFirst({
-        columns: { account: true, pandaId: true },
+        columns: { account: true, factory: true, pandaId: true, publicKey: true, source: true },
         where: eq(credentials.id, referenceId),
       });
       if (!credential) {
@@ -348,7 +354,18 @@ export default function hook({
       getActiveSpan()?.setAttribute("exa.inquiryId", personaShareToken);
 
       const account = safeParse(Address, credential.account);
+      async function enqueueAllow(current: NonNullable<typeof credential>) {
+        if (account.success && firewallAddress)
+          await allow.enqueue({
+            account: account.output,
+            chainId: chain.id,
+            factory: parse(Address, current.factory),
+            publicKey: bytesToHex(current.publicKey),
+            source: current.source,
+          });
+      }
       if (credential.pandaId) {
+        await enqueueAllow(credential);
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.already-created");
         return c.json({ code: "already created" }, 200);
       }
@@ -406,6 +423,8 @@ export default function hook({
         getActiveSpan()?.setAttributes({ "exa.risk": risk.level, "exa.score": risk.customer?.score });
         if (risk.level === "very_high") return c.json({ code: "very high risk" }, 200);
       }
+
+      await enqueueAllow(credential);
 
       // TODO implement error handling to return 200 if event should not be retried
       const { id } = await panda.createUser({

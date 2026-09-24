@@ -21,7 +21,10 @@ import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
+import allowWorker from "../workers/allow/worker";
+import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
+import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 import { connect } from "../workers/worker";
@@ -43,6 +46,9 @@ describe("e2e", () => {
       const sardine = createSardine("sardine", "https://sardine.test");
       const segment = createSegment("segment");
       const workers = [
+        allowWorker({ allower: privateKeyToAccount(padHex("0xa11")), bullmq }),
+        creditWorker({ bullmq, database, onesignal }),
+        pokeWorker({ bullmq, onesignal, poker: privateKeyToAccount(padHex("0xb0b")), segment }),
         refundWorker({
           bullmq,
           database,
@@ -97,7 +103,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const cards = new Map<string, Card>();
   return {
     ...original,
-    autoCredit: vi.fn().mockResolvedValue(false),
     signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
     default: (...parameters: Parameters<typeof original.default>) => ({
       ...original.default(...parameters),
