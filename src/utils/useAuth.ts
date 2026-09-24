@@ -4,10 +4,7 @@ import { useToastController } from "@tamagui/toast";
 
 import { useMutation } from "@tanstack/react-query";
 import { getConnection } from "@wagmi/core";
-import { base } from "viem/chains";
 import { useConnect } from "wagmi";
-
-import chain from "@exactly/common/generated/chain";
 
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
@@ -25,7 +22,7 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
     mutationFn: async ({ method, register }: { method: AuthMethod; register?: boolean }) => {
-      queryClient.setQueryData(["method"], chain.id === base.id ? "siwe" : method);
+      queryClient.setQueryData(["method"], method);
       if (method === "siwe") {
         const connection = getConnection(ownerConfig);
         if (connection.isDisconnected || !connection.address) {
