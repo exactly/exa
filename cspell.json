@@ -350,6 +350,7 @@
   ],
   "ignoreRegExpList": [
     "\\bitmpl_\\w+\\b",
+    "\\bacttp_\\w+\\b",
     "\\b(w|stat)?aBas\\w+\\b",
     "\\baOpt\\w+\\b"
   ]
