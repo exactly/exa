@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.2.118
+
+### Patch Changes
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`719c38e`](https://github.com/exactly/exa/commit/719c38ef60317f844f1475210ca0553d22f75cd6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ automate firewall allow after kyc approval
+
+- [`3c17d59`](https://github.com/exactly/exa/commit/3c17d59c213a11911d15300b2370de402ea718ae) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚀 deploy new app version
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`06937bd`](https://github.com/exactly/exa/commit/06937bda6a611cb0642c5c5ecb063536f54c3537) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ process poke in worker
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`40643f7`](https://github.com/exactly/exa/commit/40643f7c9abe552c60888050f6e92c7780e347a1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 remove failed job retention
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`7dfddc3`](https://github.com/exactly/exa/commit/7dfddc36772ba7f652f771b4369b50c1f1a04875) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ process auto-credit in worker
+
 ## 0.2.117
 
 ### Patch Changes

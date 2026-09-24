@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.27
+
+### Patch Changes
+
+- [`b45f8e5`](https://github.com/exactly/exa/commit/b45f8e5d1df6f0eaf0270c220d6dc772f1b71393) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑 reset persisted swap on upgrade
+
+- [`50894cf`](https://github.com/exactly/exa/commit/50894cf117476bedea0654e61b6521ecfa350dad) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix activity crash on android
+
+- Updated dependencies [[`719c38e`](https://github.com/exactly/exa/commit/719c38ef60317f844f1475210ca0553d22f75cd6), [`3c17d59`](https://github.com/exactly/exa/commit/3c17d59c213a11911d15300b2370de402ea718ae), [`06937bd`](https://github.com/exactly/exa/commit/06937bda6a611cb0642c5c5ecb063536f54c3537), [`40643f7`](https://github.com/exactly/exa/commit/40643f7c9abe552c60888050f6e92c7780e347a1), [`7dfddc3`](https://github.com/exactly/exa/commit/7dfddc36772ba7f652f771b4369b50c1f1a04875)]:
+  - @exactly/server@0.2.118
+
 ## 1.2.26
 
 ### Patch Changes

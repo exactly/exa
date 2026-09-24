@@ -1,5 +1,15 @@
 # @exactly/infra
 
+## 0.3.0
+
+### Minor Changes
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`7dfddc3`](https://github.com/exactly/exa/commit/7dfddc36772ba7f652f771b4369b50c1f1a04875) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 setup credit queue worker
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`06937bd`](https://github.com/exactly/exa/commit/06937bda6a611cb0642c5c5ecb063536f54c3537) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 setup poke queue worker
+
+- [#1225](https://github.com/exactly/exa/pull/1225) [`719c38e`](https://github.com/exactly/exa/commit/719c38ef60317f844f1475210ca0553d22f75cd6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 setup allow queue worker
+
 ## 0.2.0
 
 ### Minor Changes
