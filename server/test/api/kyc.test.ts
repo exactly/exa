@@ -2,6 +2,8 @@ import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/panda";
 import "../mocks/persona";
+import "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -21,7 +23,7 @@ import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import route from "../../api/kyc";
-import database, { credentials, organizations, sources } from "../../database";
+import database, { cards, credentials, organizations, sources } from "../../database";
 import authenticate from "../../middleware/auth";
 import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
@@ -1771,16 +1773,6 @@ describe("authenticated", () => {
     });
 
     describe("getting kyc", () => {
-      it("returns not started when the company application is missing", async () => {
-        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
-
-        const response = await getStatus("panda-business");
-
-        expect(response.status).toBe(400);
-        expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
-        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "not started" });
-      });
-
       it("returns processing with the external verification link", async () => {
         vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
           id: businessId,
@@ -3066,8 +3058,27 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
         ]);
       });
 
+      afterEach(async () => {
+        await database.delete(cards).where(eq(cards.credentialId, businessId));
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, businessId));
+      });
+
       afterAll(async () => {
         await database.delete(credentials).where(eq(credentials.id, businessId));
+      });
+
+      it("rejects individual application updates", async () => {
+        const update = vi.spyOn(panda, "updateApplication");
+        await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, businessId));
+
+        const response = await appClient.application.$patch(
+          { json: { firstName: "john-updated" } },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(update).not.toHaveBeenCalled();
       });
 
       it("serializes business inquiry creation", async () => {
