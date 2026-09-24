@@ -31,9 +31,11 @@ import PayModeSheet from "./PayModeSheet";
 import PortfolioSummary from "./PortfolioSummary";
 import PromoSheet from "./PromoSheet";
 import SpendingLimitSheet from "./SpendingLimitSheet";
+import StocksIntroSheet from "./StocksIntroSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
+import { restrictedCountries } from "../../utils/lifi";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -145,6 +147,8 @@ export default function Home() {
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
   const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
   const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
+  const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
+  const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
   const promoSheetOpen =
     isPromoActive() && !promoSeen && !!card && card.status !== "FROZEN" && !spotlightVisible && focused;
@@ -385,6 +389,18 @@ export default function Home() {
             open={promoSheetOpen}
             onClose={() => queryClient.setQueryData(["settings", "promo-seen", PROMO.id], true)}
             onActionPress={openInstallments}
+          />
+          <StocksIntroSheet
+            open={
+              isKYCFetched &&
+              !stocksIntroShown &&
+              !!country &&
+              !restrictedCountries.has(country) &&
+              !spotlightVisible &&
+              focused
+            }
+            onClose={() => queryClient.setQueryData(["settings", "stocks-intro-shown"], true)}
+            onActionPress={() => router.push({ pathname: "/swaps", params: { filter: "stocks" } })}
           />
           <CreditLimitSheet
             open={creditLimitSheetOpen}
