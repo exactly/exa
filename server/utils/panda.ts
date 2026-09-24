@@ -502,6 +502,7 @@ const Card = variant("action", [
     id: string(),
     resource: literal("card"),
     action: literal("updated"),
+    statusChangeReason: optional(picklist(["card_replaced", "wallet_provisioned"])),
     body: object({
       expirationMonth: pipe(string(), minLength(1), maxLength(2)),
       expirationYear: pipe(string(), length(4)),
