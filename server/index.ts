@@ -160,6 +160,15 @@ app.route("/hooks/persona", personaHook.app);
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
 );
+app.get("/.well-known/webauthn", (c) =>
+  c.json({
+    origins:
+      {
+        "sandbox.exactly.app": ["https://base-sepolia.exactly.app"],
+        "web.exactly.app": ["https://base.exactly.app"],
+      }[domain] ?? [],
+  }),
+);
 app.get("/.well-known/assetlinks.json", (c) =>
   c.json([
     {
