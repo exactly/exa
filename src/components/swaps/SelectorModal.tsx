@@ -104,7 +104,9 @@ export default function TokenSelectModal({
   title,
   withBalanceOnly = false,
   networks = empty,
+  defaultFilter,
 }: {
+  defaultFilter?: "stocks" | number;
   isLoading?: boolean;
   networks?: { id: number; name: string }[];
   onClose: () => void;
@@ -116,7 +118,7 @@ export default function TokenSelectModal({
   withBalanceOnly?: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<"stocks" | number>();
+  const [selection, setSelection] = useState(defaultFilter);
   const [picking, setPicking] = useState(false);
   const { allAssets } = usePortfolio();
   const { markets } = useMarkets();
@@ -137,15 +139,17 @@ export default function TokenSelectModal({
 
   const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => `${chain.id}:${asset}`)), [markets]);
 
+  const hasStocks = useMemo(() => tokens.some((token) => isStock(token)), [tokens]);
+  const filter = selection === "stocks" && !hasStocks ? undefined : selection;
+
   const pills = useMemo(
     () => [...networks.slice(0, 10), ...networks.slice(10).filter(({ id }) => id === filter)],
     [filter, networks],
   );
 
   const chips = useMemo(
-    () =>
-      tokens.some((token) => isStock(token)) ? [...pills.slice(0, 2), "stocks" as const, ...pills.slice(2)] : pills,
-    [pills, tokens],
+    () => (hasStocks ? [...pills.slice(0, 2), "stocks" as const, ...pills.slice(2)] : pills),
+    [hasStocks, pills],
   );
 
   const filteredTokens = useMemo(() => {
@@ -204,7 +208,7 @@ export default function TokenSelectModal({
                     <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" />
                   ) : undefined
                 }
-                onChange={setFilter}
+                onChange={setSelection}
                 onOpenChange={setPicking}
               />
             )}
@@ -226,7 +230,7 @@ export default function TokenSelectModal({
                       label={t("Stocks")}
                       selected={filter === "stocks"}
                       onPress={() => {
-                        setFilter(filter === "stocks" ? undefined : "stocks");
+                        setSelection(filter === "stocks" ? undefined : "stocks");
                       }}
                     />
                   ) : (
@@ -236,7 +240,7 @@ export default function TokenSelectModal({
                       label={item.name}
                       selected={filter === item.id}
                       onPress={() => {
-                        setFilter(filter === item.id ? undefined : item.id);
+                        setSelection(filter === item.id ? undefined : item.id);
                       }}
                     />
                   ),
