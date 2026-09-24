@@ -40,6 +40,7 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import rpId from "@exactly/common/rpId";
 import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../../database/schema";
@@ -232,7 +233,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           );
         }
         const options = await generateAuthenticationOptions({
-          rpID: domain,
+          rpID: rpId,
           allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
           timeout,
         });
@@ -431,7 +432,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             default: {
               const { verified, authenticationInfo } = await verifyAuthenticationResponse({
                 response: assertion,
-                expectedRPID: domain,
+                expectedRPID: rpId,
                 expectedOrigin: [appOrigin, ...androidOrigins],
                 expectedChallenge: challenge,
                 credential: {
