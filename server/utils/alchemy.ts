@@ -90,12 +90,21 @@ export default function alchemy(key: string) {
 
   async function addWebhookAddresses(id: string, addresses: Address[]) {
     if (addresses.length === 0) return;
-    const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
-      headers,
-      method: "PATCH",
-      body: JSON.stringify({ webhook_id: id, addresses_to_add: addresses, addresses_to_remove: [] }),
-    });
-    if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
+    await withRetry(
+      async () => {
+        const update = await fetch("https://dashboard.alchemy.com/api/update-webhook-addresses", {
+          headers,
+          method: "PATCH",
+          body: JSON.stringify({ webhook_id: id, addresses_to_add: addresses, addresses_to_remove: [] }),
+        });
+        if (!update.ok) throw new ServiceError("Alchemy", update.status, await update.text());
+      },
+      {
+        delay: ({ count }) => Math.min(30_000, 1000 * 2 ** count),
+        retryCount: 6,
+        shouldRetry: ({ error }) => error instanceof ServiceError && (error.status === 429 || error.status >= 500),
+      },
+    );
   }
 
   async function getWebhookAddresses(id: string, after?: string) {

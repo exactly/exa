@@ -11,6 +11,7 @@ import ServiceError from "../../utils/ServiceError";
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -64,13 +65,57 @@ describe("alchemy", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("fails when alchemy rejects the update", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("activity failed", { status: 500 }));
+  it("retries rate limits and server errors with exponential backoff", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response("{}"));
+
+    const update = createAlchemy("key").addWebhookAddresses("activity", [account]);
+
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(update).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails without retrying rejected client requests", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("activity failed", { status: 400 }));
 
     await expect(createAlchemy("key").addWebhookAddresses("activity", [account])).rejects.toBeInstanceOf(ServiceError);
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(bodies()).toStrictEqual([{ webhook_id: "activity", addresses_to_add: [account], addresses_to_remove: [] }]);
+  });
+
+  it("does not retry unexpected failures", async () => {
+    const error = new Error("unexpected failure");
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(error);
+
+    await expect(createAlchemy("key").addWebhookAddresses("activity", [account])).rejects.toBe(error);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails after exhausting rate limit retries", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response("rate limited", { status: 429 })),
+    );
+
+    const update = createAlchemy("key").addWebhookAddresses("activity", [account]);
+    const failure = update.catch((error: unknown) => error);
+    await vi.runAllTimersAsync();
+
+    await expect(failure).resolves.toMatchObject({ name: "Alchemy429", status: 429 });
+    expect(fetch).toHaveBeenCalledTimes(7);
   });
 
   it("lists and finds the active webhook for the compiled network", async () => {
