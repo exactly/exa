@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.119
+
+### Patch Changes
+
+- [`978096b`](https://github.com/exactly/exa/commit/978096be737e82331173865d53a01ceb001873a7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 throttle webhook reconciliation requests
+
+- [`157f846`](https://github.com/exactly/exa/commit/157f846edbcc9e833b6ea0d616c91b5d61e790a6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 retry failed alchemy address updates
+
 ## 0.2.118
 
 ### Patch Changes
