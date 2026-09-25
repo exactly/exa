@@ -50,6 +50,7 @@ catalog:
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
   "@hono/node-server": ^2.1.1
+  "@segment/analytics-next": ^1.84.3
   "@sentry/core": &sentry ^11.0.0
   "@sentry/browser": *sentry
   "@sentry/node": *sentry
@@ -95,6 +96,7 @@ overrides:
   "@opentelemetry/core@2": ^2.8.0
   "@react-pdf/render": 4.6.1
   "@react-pdf/textkit": 6.4.1 # cspell:ignore textkit
+  "@segment/analytics-next": "catalog:"
   "eslint-config-universe>eslint-plugin-n": ^18.3.0
   "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": ^6.0.0
   "@wagmi/core>zustand": 5.0.15 # cspell:ignore zustand

@@ -50,7 +50,7 @@
     "@pix.js/qrcode": "^1.1.0",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@scure/base": "^2.4.0",
-    "@segment/analytics-next": "^1.84.3",
+    "@segment/analytics-next": "catalog:",
     "@sentry/browser": "catalog:",
     "@sentry/react-native": "^8.28.0",
     "@simplewebauthn/browser": "^14.0.0",
