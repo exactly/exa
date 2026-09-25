@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObjec
 import { Trans, useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 import {
   ArrowLeft,
@@ -68,6 +68,7 @@ import {
   lifiChainsOptions,
   lifiTokensOptions,
   quoteValidity,
+  restrictedCountries,
   statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -148,7 +149,7 @@ export default function Swaps() {
     refetch: refetchKYC,
   } = useKYC(chain.id === base.id);
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
-  const restricted = ["AU", "CA", "GB", "SG", "US"].includes(country ?? "");
+  const restricted = restrictedCountries.has(country ?? "");
   const {
     data: homeTokens,
     isLoading: isTokensLoading,
@@ -173,6 +174,7 @@ export default function Swaps() {
       tokenModalOpen,
     } = defaultSwap,
   } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
+  const { filter } = useLocalSearchParams();
   const fromChain = (fromToken?.token.chainId as number | undefined) ?? chain.id;
   const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
   const crossChain = fromChain !== toChain;
@@ -1149,6 +1151,7 @@ export default function Swaps() {
             </YStack>
             <TokenSelectModal
               key={tokenSelectionType}
+              defaultFilter={tokenSelectionType === "to" && filter === "stocks" ? filter : undefined}
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
               tokens={selectableTokens}

@@ -5,5 +5,10 @@ tags: [production]
 - runFlow: ../subflows/hideDevtools.yaml
 - runFlow: ../subflows/signIn.yaml
 - runFlow: { when: { visible: Stay updated }, commands: [{ tapOn: Not now }] }
+- extendedWaitUntil: { visible: Invest in companies you know, timeout: 10000, optional: true }
+- runFlow:
+    when: { visible: Invest in companies you know }
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Invest in companies you know, tap: Close }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolio > 1}

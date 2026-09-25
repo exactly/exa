@@ -142,6 +142,8 @@ export function isStock({ address, chainId }: Token) {
   return chainId === (base.id as ChainId) && stocks.has(address.toLowerCase());
 }
 
+export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
+
 export function balancesOptions(account: Address | undefined) {
   return queryOptions({
     queryKey: ["lifi", "balances", account],

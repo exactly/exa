@@ -236,6 +236,13 @@ queryClient.setQueryDefaults(["settings", "rollover-intro-shown"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "rollover-intro-shown"]),
 });
+queryClient.setQueryDefaults<boolean>(["settings", "stocks-intro-shown"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
 queryClient.setQueryDefaults(["settings", "explore-defi-shown"], {
   initialData: true,
   retry: false,
