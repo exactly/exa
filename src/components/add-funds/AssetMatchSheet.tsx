@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { ArrowRight, Check, CheckCircle } from "@tamagui/lucide-icons";
+import { ArrowRight, Check, CheckCircle } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

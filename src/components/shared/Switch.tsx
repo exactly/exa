@@ -10,7 +10,7 @@ const SwitchFrame = styled(View, {
   height: "$s5",
   borderRadius: "$r_0",
   padding: "$s1",
-  animation: "default",
+  transition: "default",
   animateOnly: ["backgroundColor"],
   variants: {
     checked: {
@@ -26,7 +26,7 @@ const SwitchThumb = styled(View, {
   width: "$s4_5",
   height: "$s4_5",
   borderRadius: "$r_0",
-  animation: "default",
+  transition: "default",
   animateOnly: ["transform", "backgroundColor"],
   variants: {
     checked: {

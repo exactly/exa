@@ -14,7 +14,7 @@ import {
   EyeOff,
   Hash,
   Snowflake,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 

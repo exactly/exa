@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { ThumbsUp } from "@tamagui/lucide-icons";
+import { ThumbsUp } from "@tamagui/lucide-icons-2";
 import { ScrollView, YStack } from "tamagui";
 
 import { presentArticle } from "../../utils/intercom";

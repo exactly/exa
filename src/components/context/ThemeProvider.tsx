@@ -3,7 +3,7 @@ import { useColorScheme } from "react-native";
 
 import { StatusBar } from "expo-status-bar";
 
-import { TamaguiProvider } from "tamagui";
+import { TamaguiProvider, useDidFinishSSR } from "tamagui";
 
 import { isBase } from "@exactly/common/generated/chain";
 
@@ -13,7 +13,7 @@ import SafeToastViewport from "../shared/ToastViewport";
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useColorScheme();
-  const dark = !isBase && theme === "dark";
+  const dark = useDidFinishSSR() && !isBase && theme === "dark";
   return (
     <TamaguiProvider config={tamagui} defaultTheme={dark ? "dark" : "light"}>
       {children}

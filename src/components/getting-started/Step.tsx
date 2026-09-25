@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable } from "react-native";
 
-import { Check } from "@tamagui/lucide-icons";
+import { Check } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";

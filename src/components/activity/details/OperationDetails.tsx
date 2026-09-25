@@ -4,7 +4,7 @@ import { Alert } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucide-icons";
+import { CalendarClock, CreditCard, SquareArrowOutUpRight } from "@tamagui/lucide-icons-2";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";

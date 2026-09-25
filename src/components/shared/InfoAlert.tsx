@@ -2,7 +2,7 @@ import React from "react";
 import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import { Pressable } from "react-native";
 
-import { AlertTriangle, ChevronRight, Info } from "@tamagui/lucide-icons";
+import { AlertTriangle, ChevronRight, Info } from "@tamagui/lucide-icons-2";
 import { Spinner, View, XStack } from "tamagui";
 
 import Text from "./Text";

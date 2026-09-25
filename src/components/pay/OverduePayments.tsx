@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { selectionAsync } from "expo-haptics";
 
-import { ChevronRight } from "@tamagui/lucide-icons";
+import { ChevronRight } from "@tamagui/lucide-icons-2";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { useBytecode } from "wagmi";

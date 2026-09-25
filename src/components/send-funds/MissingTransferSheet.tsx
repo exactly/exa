@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { Trash2 } from "@tamagui/lucide-icons";
+import { Trash2 } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { YStack } from "tamagui";
 

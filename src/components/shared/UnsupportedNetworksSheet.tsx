@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Headphones } from "@tamagui/lucide-icons";
+import { Headphones } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
 import { formatUnits } from "viem";

@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import type { GestureResponderEvent } from "react-native";
 
-import { TrendingUp } from "@tamagui/lucide-icons";
+import { TrendingUp } from "@tamagui/lucide-icons-2";
 import { XStack } from "tamagui";
 
 import AssetLogo from "./AssetLogo";

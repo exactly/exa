@@ -1,10 +1,10 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, type TextInput } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { useLocalSearchParams } from "expo-router";
 
-import { YStack } from "tamagui";
+import { YStack, type TamaguiElement } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";
 import { nonEmpty, parse, pipe, string } from "valibot";
@@ -24,7 +24,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
     t,
     i18n: { language },
   } = useTranslation();
-  const usdInputReference = useRef<null | TextInput>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
+  const usdInputReference = useRef<null | TamaguiElement>(null); // eslint-disable-line @eslint-react/naming-convention/ref-name
   const [overlayShown, setOverlayShown] = useState(false);
 
   const { asset: assetAddress } = useLocalSearchParams();

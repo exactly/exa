@@ -13,7 +13,7 @@ import {
   RefreshCw,
   SearchSlash,
   Shuffle,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import { extractChain, type Chain } from "viem";

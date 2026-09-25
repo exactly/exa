@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { Snowflake } from "@tamagui/lucide-icons";
+import { Snowflake } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";

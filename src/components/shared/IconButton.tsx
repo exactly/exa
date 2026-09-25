@@ -2,8 +2,8 @@ import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import React from "react";
 import { Platform } from "react-native";
 
-import type { ArrowRight } from "@tamagui/lucide-icons";
-import { Stack, styled } from "tamagui";
+import type { ArrowRight } from "@tamagui/lucide-icons-2";
+import { styled, View } from "tamagui";
 
 export default function IconButton({
   icon: Icon,
@@ -31,8 +31,8 @@ export default function IconButton({
   );
 }
 
-const Frame = styled(Stack, {
-  tag: "button",
+const Frame = styled(View, {
+  render: "button",
   alignItems: "center",
   justifyContent: "center",
   minWidth: 24,

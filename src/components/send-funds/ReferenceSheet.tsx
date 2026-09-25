@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ThumbsUp } from "@tamagui/lucide-icons";
+import { ThumbsUp } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";

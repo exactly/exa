@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import { getStringAsync } from "expo-clipboard";
 
-import type { ArrowRight } from "@tamagui/lucide-icons";
-import { ChevronDown, ClipboardPaste } from "@tamagui/lucide-icons";
+import type { ArrowRight } from "@tamagui/lucide-icons-2";
+import { ChevronDown, ClipboardPaste } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
 import { check, length, maxLength, minLength, pipe, regex, safeParse, string } from "valibot";

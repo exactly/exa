@@ -17,7 +17,7 @@ import {
   Settings,
   Wallet,
   X,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, ScrollView, Spinner, XStack, YStack } from "tamagui";
 
@@ -217,7 +217,7 @@ export default function ReceiverSelection() {
                   {advanced && (
                     <XStack
                       key="advanced"
-                      animation="default"
+                      transition="default"
                       animateOnly={["opacity", "transform"]}
                       enterStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
                       exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}

@@ -1,0 +1,39 @@
+diff --git a/dist/cjs/Slider.cjs b/dist/cjs/Slider.cjs
+index 21655e54d1a554c7c8a3650fdcfe73dce37aaa3e..d0d2cf7f67aa6330d4fec30cc16a513982e9a2db 100644
+--- a/dist/cjs/Slider.cjs
++++ b/dist/cjs/Slider.cjs
+@@ -63,7 +63,7 @@ if (!process.env.TAMAGUI_DISABLE_SLIDER_INTERVAL) setInterval?.(() => {
+   activeSliderMeasureListeners.forEach(cb => cb());
+ },
+ // really doesn't need to be super often
+-1e3);
++1e3)?.unref?.();
+ const SliderHorizontal = React.forwardRef((props, forwardedRef) => {
+   const {
+     min,
+diff --git a/dist/esm/Slider.mjs b/dist/esm/Slider.mjs
+index 3c1fa8095efc934ab81a4dc6b4484a4aa7ae88b9..e3ec07adf81320b6264d3f12ffff31fc36887bf1 100644
+--- a/dist/esm/Slider.mjs
++++ b/dist/esm/Slider.mjs
+@@ -14,7 +14,7 @@ import { jsx } from "react/jsx-runtime";
+ const activeSliderMeasureListeners = /* @__PURE__ */new Set();
+ if (!process.env.TAMAGUI_DISABLE_SLIDER_INTERVAL) setInterval?.(() => {
+   activeSliderMeasureListeners.forEach(cb => cb());
+-}, 1e3);
++}, 1e3)?.unref?.();
+ const SliderHorizontal = React.forwardRef((props, forwardedRef) => {
+   const {
+     min,
+diff --git a/dist/jsx/Slider.mjs b/dist/jsx/Slider.mjs
+index 3c1fa8095efc934ab81a4dc6b4484a4aa7ae88b9..e3ec07adf81320b6264d3f12ffff31fc36887bf1 100644
+--- a/dist/jsx/Slider.mjs
++++ b/dist/jsx/Slider.mjs
+@@ -14,7 +14,7 @@ import { jsx } from "react/jsx-runtime";
+ const activeSliderMeasureListeners = /* @__PURE__ */new Set();
+ if (!process.env.TAMAGUI_DISABLE_SLIDER_INTERVAL) setInterval?.(() => {
+   activeSliderMeasureListeners.forEach(cb => cb());
+-}, 1e3);
++}, 1e3)?.unref?.();
+ const SliderHorizontal = React.forwardRef((props, forwardedRef) => {
+   const {
+     min,

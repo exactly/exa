@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet } from "react-native";
 
-import { ArrowRight, X } from "@tamagui/lucide-icons";
+import { ArrowRight, X } from "@tamagui/lucide-icons-2";
 import { View, XStack, YStack } from "tamagui";
 
 import exaPromo from "../../assets/images/exa-promo.svg";

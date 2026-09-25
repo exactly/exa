@@ -11,7 +11,7 @@ import {
   Ellipsis,
   Search,
   TrendingUp,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";

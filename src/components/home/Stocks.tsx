@@ -22,7 +22,7 @@ export default function Stocks() {
   if (stocks.length === 0) return null;
   return (
     <YStack
-      animation="default"
+      transition="default"
       enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
       transform={[{ translateY: 0 }]}
       backgroundColor="$backgroundSoft"

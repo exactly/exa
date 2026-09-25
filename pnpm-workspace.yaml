@@ -34,12 +34,16 @@ catalog:
   "@sentry/core": &sentry ^10.71.0
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
-  tamagui: &tamagui ^1.144.4
-  "@tamagui/animations-moti": *tamagui
+  tamagui: &tamagui ^2.7.7
+  "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
   "@tamagui/config": *tamagui
-  "@tamagui/lucide-icons": *tamagui
+  "@tamagui/core": *tamagui
+  "@tamagui/helpers-icon": *tamagui
+  "@tamagui/lucide-icons-2": *tamagui
+  "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
+  "@tamagui/web": *tamagui
   "@wagmi/core": ^3.4.1
   hono: ^4.13.5
   i18next: ^26.0.5

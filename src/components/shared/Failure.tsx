@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { X } from "@tamagui/lucide-icons";
+import { X } from "@tamagui/lucide-icons-2";
 import { Square, XStack, YStack } from "tamagui";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";

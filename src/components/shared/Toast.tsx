@@ -1,6 +1,6 @@
 import React from "react";
 
-import { Info as InfoIcon } from "@tamagui/lucide-icons";
+import { Info as InfoIcon } from "@tamagui/lucide-icons-2";
 import { Toast, useToastState } from "@tamagui/toast";
 import { XStack } from "tamagui";
 
@@ -26,7 +26,7 @@ export default function NotificationToast() {
       borderWidth={1}
       opacity={1}
       scale={1}
-      animation="quicker"
+      transition="quick"
       viewportName={toast.viewportName}
       borderRadius="$r3"
     >
