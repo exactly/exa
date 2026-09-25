@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons";
+import { ClockAlert, Import, ShoppingCart } from "@tamagui/lucide-icons-2";
 import { Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

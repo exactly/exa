@@ -1,6 +1,6 @@
 import { Easing } from "react-native-reanimated";
 
-import { createAnimations } from "@tamagui/animations-moti";
+import { createAnimations } from "@tamagui/animations-reanimated";
 import { config } from "@tamagui/config/v3";
 import { createFont, createTamagui, createTokens } from "tamagui";
 
@@ -310,7 +310,6 @@ const tamagui = createTamagui({
       size: sizes,
     }),
   },
-  defaultFont: "body",
   animations: createAnimations({
     bouncy: { type: "spring", damping: 9, mass: 0.9, stiffness: 150 },
     lazy: { type: "spring", damping: 18, stiffness: 50 },
@@ -319,7 +318,7 @@ const tamagui = createTamagui({
     quick: { type: "spring", damping: 25, mass: 1.2, stiffness: 250 },
     tooltip: { type: "spring", damping: 10, mass: 0.9, stiffness: 100 },
   }),
-  settings: { ...config.settings, fastSchemeChange: false },
+  settings: { ...config.settings, defaultPosition: "relative", fastSchemeChange: false, styleCompat: "legacy" },
   themes: {
     light: {
       cardBackground: tokens.color.cardBackground,

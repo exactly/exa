@@ -7,7 +7,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, OctagonX, TriangleAlert, X } from "@tamagui/lucide-icons";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, OctagonX, TriangleAlert, X } from "@tamagui/lucide-icons-2";
 import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
@@ -996,7 +996,7 @@ export default function Confirm() {
                   right={0}
                   bottom={0}
                   backgroundColor="$backgroundMild"
-                  animation="default"
+                  transition="default"
                   animateOnly={["opacity"]}
                   opacity={1}
                   enterStyle={{ opacity: 0 }}

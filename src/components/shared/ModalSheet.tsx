@@ -35,8 +35,8 @@ export default function ModalSheet({
       open={open}
       dismissOnSnapToBottom={dismissible}
       unmountChildrenWhenHidden
-      forceRemoveScrollEnabled={open}
-      animation="default"
+      disableRemoveScroll={!open}
+      transition="default"
       dismissOnOverlayPress={dismissible}
       onOpenChange={(isOpen: boolean) => {
         if (!isOpen) onClose();
@@ -49,7 +49,7 @@ export default function ModalSheet({
     >
       <Sheet.Overlay
         backgroundColor="#00000090"
-        animation="quicker"
+        transition="default"
         enterStyle={{ opacity: 0 }}
         exitStyle={{ opacity: 0 }}
       />

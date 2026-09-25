@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { ArrowRight, Check } from "@tamagui/lucide-icons";
+import { ArrowRight, Check } from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";

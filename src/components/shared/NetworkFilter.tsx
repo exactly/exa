@@ -1,7 +1,7 @@
 import React, { type ComponentPropsWithoutRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChevronDown } from "@tamagui/lucide-icons";
+import { ChevronDown } from "@tamagui/lucide-icons-2";
 import { XStack } from "tamagui";
 
 import ChainLogo from "./ChainLogo";
@@ -18,7 +18,7 @@ export default function NetworkFilter({
   icon,
   size = 18,
   ...properties
-}: ComponentPropsWithoutRef<typeof XStack> & {
+}: Omit<ComponentPropsWithoutRef<typeof XStack>, "onChange"> & {
   all?: boolean;
   chains: { disabled?: boolean; id: number; name: string }[];
   icon?: React.ReactNode;

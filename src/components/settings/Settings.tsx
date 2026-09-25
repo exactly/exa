@@ -5,7 +5,7 @@ import { Alert, Pressable } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/lucide-icons";
+import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, XStack } from "tamagui";
 
 import { useDisconnect } from "wagmi";

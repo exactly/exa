@@ -13,7 +13,7 @@ import {
   Info,
   Percent,
   TriangleAlert,
-} from "@tamagui/lucide-icons";
+} from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
