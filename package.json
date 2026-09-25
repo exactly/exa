@@ -238,6 +238,7 @@
     },
     "patchedDependencies": {
       "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "@tamagui/sheet": "patches/@tamagui__sheet.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
       "eslint-config-universe": "patches/eslint-config-universe.patch"
     },

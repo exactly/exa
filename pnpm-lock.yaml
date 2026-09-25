@@ -161,6 +161,9 @@ patchedDependencies:
   '@lifi/sdk':
     hash: ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
     path: patches/@lifi__sdk.patch
+  '@tamagui/sheet':
+    hash: fc99e4517c71905d91674c37299929ad9a6e7c94ff5d8909b236f090ebbfb18b
+    path: patches/@tamagui__sheet.patch
   embedded-postgres:
     hash: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
     path: patches/embedded-postgres.patch
@@ -21365,7 +21368,7 @@ snapshots:
       '@tamagui/polyfill-dev': 2.7.7
       '@tamagui/portal': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/remove-scroll': 2.7.7(react@19.2.0)
-      '@tamagui/sheet': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@tamagui/sheet': 2.7.7(patch_hash=fc99e4517c71905d91674c37299929ad9a6e7c94ff5d8909b236f090ebbfb18b)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/stacks': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/text': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/use-controllable-state': 2.7.7(react@19.2.0)
@@ -21653,7 +21656,7 @@ snapshots:
       '@tamagui/portal': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/remove-scroll': 2.7.7(react@19.2.0)
       '@tamagui/scroll-view': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@tamagui/sheet': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@tamagui/sheet': 2.7.7(patch_hash=fc99e4517c71905d91674c37299929ad9a6e7c94ff5d8909b236f090ebbfb18b)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/stacks': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/use-controllable-state': 2.7.7(react@19.2.0)
       '@tamagui/z-index-stack': 2.7.7(react@19.2.0)
@@ -21822,7 +21825,7 @@ snapshots:
       '@tamagui/portal': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/remove-scroll': 2.7.7(react@19.2.0)
       '@tamagui/separator': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@tamagui/sheet': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@tamagui/sheet': 2.7.7(patch_hash=fc99e4517c71905d91674c37299929ad9a6e7c94ff5d8909b236f090ebbfb18b)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/stacks': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/text': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/use-controllable-state': 2.7.7(react@19.2.0)
@@ -21851,7 +21854,7 @@ snapshots:
     transitivePeerDependencies:
       - react-dom
 
-  '@tamagui/sheet@2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@tamagui/sheet@2.7.7(patch_hash=fc99e4517c71905d91674c37299929ad9a6e7c94ff5d8909b236f090ebbfb18b)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@tamagui/adapt': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/animate-presence': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -32104,7 +32107,7 @@ snapshots:
       '@tamagui/select': 2.7.7(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       '@tamagui/separator': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/shapes': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@tamagui/sheet': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@tamagui/sheet': 2.7.7(patch_hash=fc99e4517c71905d91674c37299929ad9a6e7c94ff5d8909b236f090ebbfb18b)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/slider': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/spacer': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/spinner': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)

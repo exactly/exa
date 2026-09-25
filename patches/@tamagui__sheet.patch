@@ -1,0 +1,39 @@
+diff --git a/dist/cjs/SheetImplementationCustom.native.js b/dist/cjs/SheetImplementationCustom.native.js
+index 31076e3c58598391693303370d4183c2f1361fab..502baac2f90028b7192dd827ae1708530a1af475 100644
+--- a/dist/cjs/SheetImplementationCustom.native.js
++++ b/dist/cjs/SheetImplementationCustom.native.js
+@@ -648,7 +648,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
+     var mountedContents = shouldMountChildren ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(ContainerComponent, {
+       children: contents
+     }) : null;
+-    var modalContents = /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
++    var modalContents = mountedContents == null ? null : /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
+       stackZIndex: zIndex,
+       ...portalProps,
+       children: mountedContents && RNGHRoot ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(RNGHRoot, {
+diff --git a/dist/esm/SheetImplementationCustom.native.js b/dist/esm/SheetImplementationCustom.native.js
+index f613eee0d967b62a3c26a632cbfc2756fba59d92..965a0a596d770b242cd6694fc3457e6af4ee31b4 100644
+--- a/dist/esm/SheetImplementationCustom.native.js
++++ b/dist/esm/SheetImplementationCustom.native.js
+@@ -596,7 +596,7 @@ var SheetImplementationCustom = /* @__PURE__ */React.forwardRef(function SheetIm
+     var mountedContents = shouldMountChildren ? /* @__PURE__ */jsx(ContainerComponent, {
+       children: contents
+     }) : null;
+-    var modalContents = /* @__PURE__ */jsx(Portal, {
++    var modalContents = mountedContents == null ? null : /* @__PURE__ */jsx(Portal, {
+       stackZIndex: zIndex,
+       ...portalProps,
+       children: mountedContents && RNGHRoot ? /* @__PURE__ */jsx(RNGHRoot, {
+diff --git a/dist/jsx/SheetImplementationCustom.native.js b/dist/jsx/SheetImplementationCustom.native.js
+index 31076e3c58598391693303370d4183c2f1361fab..502baac2f90028b7192dd827ae1708530a1af475 100644
+--- a/dist/jsx/SheetImplementationCustom.native.js
++++ b/dist/jsx/SheetImplementationCustom.native.js
+@@ -648,7 +648,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
+     var mountedContents = shouldMountChildren ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(ContainerComponent, {
+       children: contents
+     }) : null;
+-    var modalContents = /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
++    var modalContents = mountedContents == null ? null : /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
+       stackZIndex: zIndex,
+       ...portalProps,
+       children: mountedContents && RNGHRoot ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(RNGHRoot, {
