@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Platform } from "react-native";
 
 import { Sheet } from "tamagui";
@@ -18,18 +18,6 @@ export default function ModalSheet({
   onClose: () => void;
   open: boolean;
 }) {
-  const [mounted, setMounted] = useState(open);
-  if (open && !mounted) setMounted(true);
-  useEffect(() => {
-    if (open) return;
-    const timeout = setTimeout(() => {
-      setMounted(false);
-    }, exitDuration);
-    return () => {
-      clearTimeout(timeout);
-    };
-  }, [open]);
-  if (!mounted) return null; // HACK ios 26 reads the empty portal wrapper of a closed sheet as modal and hides the whole a11y tree
   return (
     <Sheet
       open={open}
@@ -57,5 +45,3 @@ export default function ModalSheet({
     </Sheet>
   );
 }
-
-const exitDuration = 400; // TODO replace with onAnimationComplete after upgrading @tamagui/sheet to 2.x
