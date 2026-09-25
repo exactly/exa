@@ -56,7 +56,7 @@ export function startKYC() {
         const client = new Client({
           inquiryId,
           sessionToken,
-          environment: environment as "production" | "sandbox", // TODO implement environmentId
+          environment, // TODO implement environmentId
           onReady: () => client.open(),
           onComplete: () => {
             signal.removeEventListener("abort", onAbort);
@@ -170,7 +170,7 @@ function startScopedInquiry(
         const client = new Client({
           inquiryId,
           sessionToken,
-          environment: environment as "production" | "sandbox",
+          environment,
           onReady: () => client.open(),
           onComplete: () => {
             signal.removeEventListener("abort", onAbort);
@@ -260,9 +260,7 @@ function handleCancel() {
 }
 
 export type KYCMutationResult =
-  | { kyc: KYCStatus; status: "blocked" }
-  | { kyc: KYCStatus; status: "complete" }
-  | { status: "cancel" };
+  { kyc: KYCStatus; status: "blocked" } | { kyc: KYCStatus; status: "complete" } | { status: "cancel" };
 
 export function kycMutationOptions(): Pick<
   UseMutationOptions<KYCMutationResult>,

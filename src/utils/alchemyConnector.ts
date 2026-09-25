@@ -13,8 +13,7 @@ import type { ClientWithAlchemyMethods } from "@account-kit/infra";
 import type { Credential } from "@exactly/common/validation";
 
 export let accountClient:
-  | SmartAccountClient<Transport, Chain, SmartContractAccount<"WebauthnAccount", "0.6.0">>
-  | undefined;
+  SmartAccountClient<Transport, Chain, SmartContractAccount<"WebauthnAccount", "0.6.0">> | undefined;
 
 export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({ emitter }) => ({
   id: "alchemy" as const,

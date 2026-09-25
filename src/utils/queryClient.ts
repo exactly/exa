@@ -345,14 +345,7 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
 });
 export type AuthMethod = "siwe" | "webauthn";
 export type EmbeddingContext =
-  | "base"
-  | "e2e"
-  | "farcaster"
-  | "farcaster-web"
-  | "metamask"
-  | "phantom"
-  | "unknown"
-  | null;
+  "base" | "e2e" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
 export type ActivityItem = Activity[number];
 
 export default queryClient;

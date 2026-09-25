@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@pulumi/gcp": "^9.37.0",
-    "@pulumi/pulumi": "^3.263.0"
+    "@pulumi/pulumi": "^3.264.0"
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.20",

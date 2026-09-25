@@ -7,7 +7,6 @@ import {
   getTraceData,
   SEMANTIC_ATTRIBUTE_SENTRY_OP,
   setContext,
-  setExtra,
   startSpan,
   withScope,
 } from "@sentry/node";
@@ -135,7 +134,7 @@ export default function hook({
       const { timestamp, logs } = c.req.valid("json").event.data.block;
 
       if (logs.length === 0) {
-        setExtra("exa.ignore", true);
+        getActiveSpan()?.setAttribute("exa.ignore", true);
         return c.json({}, 200);
       }
       setContext("alchemy", await c.req.json());

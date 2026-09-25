@@ -5,7 +5,8 @@ import "../mocks/sentry";
 import "../mocks/traceClient";
 import "../mocks/wallet";
 
-import { captureException, continueTrace, withScope } from "@sentry/node";
+import { spanToJSON } from "@sentry/core";
+import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
@@ -120,10 +121,16 @@ describe("initialization", () => {
 });
 
 describe("validation", () => {
-  it("accepts valid request", async () => {
-    const response = await appClient.index.$post(blockPayload);
+  it("marks empty requests so their native http trace can be dropped", async () => {
+    vi.mocked(startSpan).mockClear();
+    const response = await startSpan({ name: "POST /hooks/block", op: "http.server" }, async (span) => {
+      const result = await appClient.index.$post(blockPayload);
+      expect(spanToJSON(span).attributes["exa.ignore"]).toBe(true);
+      return result;
+    });
 
     expect(response.status).toBe(200);
+    expect(startSpan).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -231,6 +238,10 @@ describe("proposal", () => {
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(removals).toStrictEqual([1, 1]);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "exa.execute", op: "exa.execute" }),
+        expect.any(Function),
+      );
     });
 
     it("executes withdrawals despite a notification failure", async () => {
@@ -1795,7 +1806,7 @@ describe("legacy withdraw", () => {
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
     const removals = waitForRemovals([match]);
-    const terminalError = getContractError(
+    const terminalError: Error = getContractError(
       new RawContractError({
         data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
       }),
@@ -1803,7 +1814,7 @@ describe("legacy withdraw", () => {
     );
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
     const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(terminalError as Error);
+    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(terminalError);
     vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
       call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
     );
@@ -1821,7 +1832,7 @@ describe("legacy withdraw", () => {
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const initialCaptureExceptionCalls = vi.mocked(captureException).mock.calls.length;
     const removals = waitForRemovals([match]);
-    const noProposalError = getContractError(
+    const noProposalError: Error = getContractError(
       new RawContractError({
         data: encodeErrorResult({
           abi: upgradeableModularAccountAbi,
@@ -1833,7 +1844,7 @@ describe("legacy withdraw", () => {
     );
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
     const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(noProposalError as Error);
+    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(noProposalError);
     vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
       call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
     );

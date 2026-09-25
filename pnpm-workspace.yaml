@@ -50,7 +50,7 @@ catalog:
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
   "@hono/node-server": ^2.1.1
-  "@sentry/core": &sentry ^10.75.2
+  "@sentry/core": &sentry ^11.0.0
   "@sentry/browser": *sentry
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
@@ -58,7 +58,7 @@ catalog:
   comlink: ^4.4.2
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
-  hono: ^4.13.8
+  hono: ^4.13.9
   i18next: ^26.4.2
   ioredis: ^6.0.0
   nx: &nx ^23.2.1
@@ -67,11 +67,10 @@ catalog:
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
   ox: ^1.8.1
-  prettier: ^3.9.8
+  prettier: ^3.9.9
   react: &react "19.2.3"
   react-dom: *react
-  react-native: &reactNative "0.86.3"
-  "@react-native/metro-config": *reactNative
+  react-native: "0.86.3"
   tamagui: &tamagui ^2.7.7
   "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
@@ -88,14 +87,19 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude: [unicorn-magic@0.4.1]
 minimumReleaseAgeStrict: true
 overrides:
   "@hono/node-server": "catalog:"
   "@humanfs/node@0.16.7": ^0.16.8
+  "@mastra/sentry>@sentry/node": "catalog:"
   "@opentelemetry/core@2": ^2.8.0
-  "@sentry/core@10": "catalog:"
-  "@sentry/node@10": "catalog:"
-  "@sentry/profiling-node@10": "catalog:"
+  "@react-pdf/render": 4.6.1
+  "@react-pdf/textkit": 6.4.1 # cspell:ignore textkit
+  "@sentry/core@11": "catalog:"
+  "@sentry/node@11": "catalog:"
+  "@sentry/profiling-node@11": "catalog:"
+  "eslint-config-universe>eslint-plugin-n": ^18.3.0
   "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": ^6.0.0
   "@xmldom/xmldom@0.8.13": ^0.8.15 # cspell:ignore xmldom
   "@wagmi/core>zustand": 5.0.15 # cspell:ignore zustand
@@ -127,6 +131,8 @@ overrides:
   svgo@3: ^3.3.5
   tar: ^7.5.21
   typescript@5: "catalog:"
+  unicorn-magic@0.3: 0.4.1
+  unicorn-magic@0.4: 0.4.1
   wagmi>use-sync-external-store: ^1.6.0
   ws@8: ^8.21.0
   yauzl: ^3.2.1 # cspell:ignore yauzl
@@ -191,7 +197,6 @@ updateConfig:
     - "@openzeppelin/contracts-v4"
     - "@openzeppelin/contracts-upgradeable-v4"
     - "@react-native-async-storage/async-storage"
-    - "@react-native/metro-config"
     - "@types/react"
     - account-abstraction
     - better-auth
@@ -213,7 +218,6 @@ updateConfig:
     - expo-updates
     - expo-web-browser
     - hono-openapi
-    - metro-config
     - react
     - react-dom
     - react-native

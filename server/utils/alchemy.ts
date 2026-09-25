@@ -196,7 +196,7 @@ export const NETWORKS = new Map<string, AlchemyChain>([
   ["SONEIUM_MINATO", soneiumMinato as AlchemyChain], // cspell:ignore minato
   ["WORLDCHAIN_MAINNET", worldChain as AlchemyChain], // cspell:ignore worldchain
   ["WORLDCHAIN_SEPOLIA", worldChainSepolia as AlchemyChain],
-  ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } } as AlchemyChain],
+  ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } }],
 ]);
 
 type AlchemyChain = Chain & { rpcUrls: { alchemy: { http: readonly [string] } } };

@@ -1,4 +1,4 @@
-const { consoleLoggingIntegration, extraErrorDataIntegration, init } = require("@sentry/node");
+const { consoleLoggingIntegration, extraErrorDataIntegration, httpIntegration, init } = require("@sentry/node");
 const { nodeProfilingIntegration } = require("@sentry/profiling-node");
 const { env } = require("node:process");
 
@@ -12,14 +12,16 @@ const config = {
   release: require("./generated/release"),
   environment: stack,
   tracesSampleRate: 1,
+  traceLifecycle: "static",
   strictTraceContinuation: true,
-  streamGenAiSpans: false,
-  profilesSampleRate: 1,
+  profileSessionSampleRate: 1,
+  profileLifecycle: "trace",
   attachStacktrace: true,
   maxValueLength: 8192,
   normalizeDepth: 69,
-  enableLogs: true,
+  dataCollection: { cookies: { deny: ["credential_id", "session_token"] } },
   integrations: [
+    httpIntegration({ ignoreIncomingRequests: (path) => !/^\/(?:api|hooks|\.well-known)(?:[/?]|$)/.test(path) }),
     nodeProfilingIntegration(),
     extraErrorDataIntegration({ depth: 69 }),
     ...(development ? [consoleLoggingIntegration()] : []),
@@ -48,7 +50,7 @@ const config = {
     return event;
   },
   beforeSendTransaction: (transaction) => {
-    if (transaction.extra?.["exa.ignore"]) return null;
+    if (transaction.contexts?.trace?.data?.["exa.ignore"]) return null;
     if (env.K_SERVICE) transaction.transaction = `${transaction.transaction} · ${env.K_SERVICE}`;
     return transaction;
   },

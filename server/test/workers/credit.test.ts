@@ -338,7 +338,7 @@ async function spyScopeSetUser() {
 async function spySpanSetAttribute() {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
-  vi.mocked(startSpan).mockImplementation(((options, callback) =>
+  vi.mocked(startSpan).mockImplementation((options, callback) =>
     realStartSpan(options, (span) => {
       const originalSetAttribute = span.setAttribute.bind(span);
       span.setAttribute = (...args: Parameters<typeof span.setAttribute>) => {
@@ -346,6 +346,7 @@ async function spySpanSetAttribute() {
         return originalSetAttribute(...args);
       };
       return callback(span);
-    })) as typeof startSpan);
+    }),
+  );
   return setAttribute;
 }

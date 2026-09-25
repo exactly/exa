@@ -46,7 +46,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
         : await assert({
             ...options,
             allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
-            extensions: options.extensions as Record<string, unknown> | undefined,
+            extensions: options.extensions,
           }).then((assertion) => {
             if (!assertion) throw new Error("bad assertion");
             return { method: "webauthn" as const, ...assertion };
@@ -254,7 +254,7 @@ export async function createCredential() {
             }
           : await create({
               ...options,
-              extensions: options.extensions as Record<string, unknown> | undefined,
+              extensions: options.extensions,
             }).then((attestation) => {
               if (!attestation) throw new Error("bad attestation");
               return attestation;

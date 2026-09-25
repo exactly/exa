@@ -56,7 +56,7 @@
           "platform": "neutral",
           "tsConfig": "{projectRoot}/tsconfig.json",
           "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
-          "main": "src/script/*.ts"
+          "main": ".maestro/src/script/*.ts"
         }
       },
       "dev": {
@@ -80,7 +80,7 @@
           "platform": "neutral",
           "tsConfig": "{projectRoot}/tsconfig.json",
           "esbuildConfig": "{projectRoot}/esbuild.config.cjs",
-          "main": "src/script/*.ts"
+          "main": ".maestro/src/script/*.ts"
         }
       },
       "test": {

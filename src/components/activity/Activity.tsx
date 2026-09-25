@@ -135,7 +135,7 @@ type ActivityItemType =
   | { date: string; height: number; type: "header" }
   | { event: ActivityEvent; height: number; isLast: boolean; type: "event" };
 
-const ListHeader = memo(function ListHeader({ onLayout }: { onLayout: (event: LayoutChangeEvent) => void }) {
+const ListHeader = memo(function ActivityListHeader({ onLayout }: { onLayout: (event: LayoutChangeEvent) => void }) {
   const { t } = useTranslation();
   return (
     <View onLayout={onLayout}>
@@ -151,7 +151,7 @@ const ListHeader = memo(function ListHeader({ onLayout }: { onLayout: (event: La
 });
 ListHeader.displayName = "ListHeader";
 
-const HeaderRow = memo(function HeaderRow({ date, height }: { date: string; height: number }) {
+const HeaderRow = memo(function ActivityHeaderRow({ date, height }: { date: string; height: number }) {
   return (
     <View height={height} paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
       <Text subHeadline color="$uiNeutralSecondary">

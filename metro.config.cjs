@@ -9,7 +9,7 @@ const themeable = /\b(fill|stroke)="#([0-9a-f]{6})"/g;
 module.exports = function config() {
   const { getSentryExpoConfig } = require("@sentry/react-native/metro");
   const base = getSentryExpoConfig(__dirname, { annotateReactComponents: true });
-  /** @type {import('metro-config').InputConfigT} */
+  /** @type {typeof base} */
   const merged = {
     ...base,
     resolver: {

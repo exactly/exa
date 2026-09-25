@@ -15,11 +15,11 @@
     "node": "^24.21.0"
   },
   "devDependencies": {
-    "@astrojs/starlight": "^0.42.2",
+    "@astrojs/starlight": "^0.42.4",
     "@eslint/markdown": "^8.0.3",
     "@exactly/common": "workspace:^0.0.20",
     "@exactly/server": "workspace:^0.2.117",
-    "astro": "^7.3.3",
+    "astro": "^7.3.5",
     "astro-mermaid": "^2.1.0",
     "eslint": "catalog:",
     "eslint-config-universe": "^16.0.0",

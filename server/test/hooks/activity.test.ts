@@ -124,7 +124,7 @@ describe("address activity", () => {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
               value: 0,
-              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
+              rawContract: { address: inject("WETH"), rawValue: "0x1" },
             },
           ],
         },
