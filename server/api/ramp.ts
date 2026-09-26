@@ -17,11 +17,12 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { getAddress, zeroAddress } from "viem";
 
 import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
-import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS } from "../utils/persona";
+import { ADDRESS_TEMPLATE, BusinessApplicationError, MANTECA_TEMPLATE_EXTRA_FIELDS } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
@@ -43,6 +44,7 @@ const ErrorCodes = {
   NO_CREDENTIAL: "no credential",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
+  NOT_SUPPORTED: "not supported",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_NOT_FOUND: "transfer not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
@@ -76,21 +78,25 @@ export default function route({
         const countryCode = c.req.valid("query").countryCode;
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
         const redirectURL = c.req.valid("query").redirectURL;
+        const business = getAddress(credential.salt) === zeroAddress ? undefined : "business";
         const [mantecaProvider, bridgeProvider] = await Promise.all([
-          manteca.getProvider(account, countryCode).catch((error: unknown) => {
-            captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
-            return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
-          }),
+          business
+            ? { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const }
+            : manteca.getProvider(account, countryCode).catch((error: unknown) => {
+                captureException(error, { level: "error", contexts: { credential, params: { countryCode } } });
+                return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+              }),
           bridge
             .getProvider(
               {
+                accountType: business,
                 credentialId,
                 customerId: credential.bridgeId,
                 countryCode,
@@ -328,12 +334,14 @@ export default function route({
         const onboarding = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, bridgeId: true },
+          columns: { account: true, bridgeId: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
         setUser({ id: account });
 
+        const business = getAddress(credential.salt) === zeroAddress ? undefined : "business";
+        if (business && onboarding.provider !== "bridge") return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
         switch (onboarding.provider) {
           case "manteca":
             try {
@@ -361,20 +369,24 @@ export default function route({
             try {
               await bridge.onboarding(
                 {
+                  accountType: business,
+                  acceptedTermsId: onboarding.acceptedTermsId,
                   credentialId,
                   customerId: credential.bridgeId,
-                  acceptedTermsId: onboarding.acceptedTermsId,
                 },
                 database,
                 persona,
               );
             } catch (error) {
               captureException(error, { level: "error", contexts: { credential } });
+              if (error instanceof BusinessApplicationError) return c.json({ code: error.code }, 400);
               if (error instanceof Error && Object.values(Bridge.ErrorCodes).includes(error.message)) {
                 switch (error.message) {
                   case Bridge.ErrorCodes.ALREADY_ONBOARDED:
                   case Bridge.ErrorCodes.DENYLISTED_COUNTRY:
+                  case Bridge.ErrorCodes.EMAIL_ALREADY_EXISTS:
                   case Bridge.ErrorCodes.NOT_ENABLED:
+                  case Bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID:
                     return c.json({ code: error.message }, 400);
                   case Bridge.ErrorCodes.INVALID_ADDRESS: {
                     const { inquiryId, sessionToken } = await getOrCreateInquiry(
