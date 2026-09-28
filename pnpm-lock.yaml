@@ -51,6 +51,9 @@ catalogs:
     '@tamagui/lucide-icons-2':
       specifier: ^2.7.7
       version: 2.7.7
+    '@tamagui/native':
+      specifier: ^2.7.7
+      version: 2.7.7
     '@tamagui/toast':
       specifier: ^2.7.7
       version: 2.7.7
@@ -255,6 +258,9 @@ importers:
       '@tamagui/lucide-icons-2':
         specifier: 'catalog:'
         version: 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@tamagui/native':
+        specifier: 'catalog:'
+        version: 2.7.7(react@19.2.0)
       '@tamagui/toast':
         specifier: 'catalog:'
         version: 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)

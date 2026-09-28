@@ -41,6 +41,7 @@ catalog:
   "@tamagui/core": *tamagui
   "@tamagui/helpers-icon": *tamagui
   "@tamagui/lucide-icons-2": *tamagui
+  "@tamagui/native": *tamagui
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   "@tamagui/web": *tamagui

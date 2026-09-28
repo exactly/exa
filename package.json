@@ -58,6 +58,7 @@
     "@tamagui/config": "catalog:",
     "@tamagui/core": "catalog:",
     "@tamagui/lucide-icons-2": "catalog:",
+    "@tamagui/native": "catalog:",
     "@tamagui/toast": "catalog:",
     "@tanstack/query-async-storage-persister": "^5.95.2",
     "@tanstack/query-persist-client-core": "^5.95.2",
