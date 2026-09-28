@@ -299,6 +299,7 @@ const body = createFont({
 const tamagui = createTamagui({
   ...config,
   tokens,
+  defaultProps: { Text: { fontFamily: "$body" } } as Record<string, object>,
   groups: { column: { pseudo: true }, portfolio: { pseudo: true } },
   fonts: {
     body,
