@@ -1,0 +1,69 @@
+diff --git a/dist/cjs/SheetImplementationCustom.native.js b/dist/cjs/SheetImplementationCustom.native.js
+index 31076e3c58598391693303370d4183c2f1361fab..2342c0378ab652cb01bf8cad9055833a3732a4e9 100644
+--- a/dist/cjs/SheetImplementationCustom.native.js
++++ b/dist/cjs/SheetImplementationCustom.native.js
+@@ -326,8 +326,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
+     if (hasntMeasured && screenSize && frameSize) {
+       at.current = screenSize;
+       animatedNumber.setValue(screenSize, {
+-        type: "timing",
+-        duration: 0
++        type: "direct"
+       }, function () {
+         syncAnimatedPosition(screenSize);
+         setTimeout(function () {
+@@ -648,7 +647,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
+     var mountedContents = shouldMountChildren ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(ContainerComponent, {
+       children: contents
+     }) : null;
+-    var modalContents = /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
++    var modalContents = mountedContents == null ? null : /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
+       stackZIndex: zIndex,
+       ...portalProps,
+       children: mountedContents && RNGHRoot ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(RNGHRoot, {
+diff --git a/dist/esm/SheetImplementationCustom.native.js b/dist/esm/SheetImplementationCustom.native.js
+index f613eee0d967b62a3c26a632cbfc2756fba59d92..4befb9bd757acf5f0e5663beadb2fc997d3b6cd7 100644
+--- a/dist/esm/SheetImplementationCustom.native.js
++++ b/dist/esm/SheetImplementationCustom.native.js
+@@ -285,8 +285,7 @@ var SheetImplementationCustom = /* @__PURE__ */React.forwardRef(function SheetIm
+     if (hasntMeasured && screenSize && frameSize) {
+       at.current = screenSize;
+       animatedNumber.setValue(screenSize, {
+-        type: "timing",
+-        duration: 0
++        type: "direct"
+       }, function () {
+         syncAnimatedPosition(screenSize);
+         setTimeout(function () {
+@@ -596,7 +595,7 @@ var SheetImplementationCustom = /* @__PURE__ */React.forwardRef(function SheetIm
+     var mountedContents = shouldMountChildren ? /* @__PURE__ */jsx(ContainerComponent, {
+       children: contents
+     }) : null;
+-    var modalContents = /* @__PURE__ */jsx(Portal, {
++    var modalContents = mountedContents == null ? null : /* @__PURE__ */jsx(Portal, {
+       stackZIndex: zIndex,
+       ...portalProps,
+       children: mountedContents && RNGHRoot ? /* @__PURE__ */jsx(RNGHRoot, {
+diff --git a/dist/jsx/SheetImplementationCustom.native.js b/dist/jsx/SheetImplementationCustom.native.js
+index 31076e3c58598391693303370d4183c2f1361fab..2342c0378ab652cb01bf8cad9055833a3732a4e9 100644
+--- a/dist/jsx/SheetImplementationCustom.native.js
++++ b/dist/jsx/SheetImplementationCustom.native.js
+@@ -326,8 +326,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
+     if (hasntMeasured && screenSize && frameSize) {
+       at.current = screenSize;
+       animatedNumber.setValue(screenSize, {
+-        type: "timing",
+-        duration: 0
++        type: "direct"
+       }, function () {
+         syncAnimatedPosition(screenSize);
+         setTimeout(function () {
+@@ -648,7 +647,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
+     var mountedContents = shouldMountChildren ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(ContainerComponent, {
+       children: contents
+     }) : null;
+-    var modalContents = /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
++    var modalContents = mountedContents == null ? null : /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
+       stackZIndex: zIndex,
+       ...portalProps,
+       children: mountedContents && RNGHRoot ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(RNGHRoot, {
