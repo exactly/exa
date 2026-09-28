@@ -180,7 +180,9 @@ export async function getKYCTokens(
     const { code } = await response.json();
     throw new APIError(response.status, code);
   }
-  return response.json();
+  const result = await response.json();
+  if (result.type !== "persona") throw new Error("panda inquiry returns no tokens");
+  return result;
 }
 
 export async function getKYCStatus(
