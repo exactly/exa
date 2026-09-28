@@ -39,7 +39,7 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
           source={{ uri: "https://assets.exactly.app/signature-banner.png" }}
           height="100%"
           width="100%"
-          objectFit="cover"
+          contentFit="cover"
         />
       </YStack>
     </XStack>

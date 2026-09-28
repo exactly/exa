@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 
 import { Image } from "expo-image";
 
-import { styled, View } from "tamagui";
+import { View } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -13,16 +13,6 @@ import ChainLogo from "./ChainLogo";
 import Text from "./Text";
 import { getTokenLogoURI } from "../../utils/assetLogos";
 import { lifiTokensOptions } from "../../utils/lifi";
-
-const StyledImage = styled(Image, {
-  name: "AssetLogo",
-  cachePolicy: "memory-disk",
-  contentFit: "contain",
-  transition: Platform.OS === "web" ? "smooth" : undefined,
-  placeholderContentFit: "cover",
-  borderRadius: "$r_0",
-  overflow: "hidden",
-});
 
 export default function AssetLogo({
   chainId = chain.id,
@@ -44,14 +34,19 @@ export default function AssetLogo({
   const source = defaultUri ?? (symbol ? getTokenLogoURI(tokens, symbol, chainId) : undefined);
   const uri = source === failed ? undefined : source;
   const logo = uri ? (
-    <StyledImage
-      source={{ uri }}
-      width={width}
-      height={height}
-      onError={() => {
-        setFailed(uri);
-      }}
-    />
+    <View width={width} height={height} borderRadius="$r_0" overflow="hidden">
+      <Image
+        source={{ uri }}
+        cachePolicy="memory-disk"
+        contentFit="contain"
+        transition={Platform.OS === "web" ? 200 : undefined}
+        placeholderContentFit="cover"
+        style={{ width: "100%", height: "100%" }}
+        onError={() => {
+          setFailed(uri);
+        }}
+      />
+    </View>
   ) : (
     <View
       width={width}
