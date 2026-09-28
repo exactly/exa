@@ -139,9 +139,7 @@ export default function Confirm() {
       };
     }
     const token = tokens?.find(
-      (item) =>
-        item.chainId === (destinationChain as typeof item.chainId) &&
-        item.address.toLowerCase() === toToken.toLowerCase(),
+      (item) => (item.chainId as number) === destinationChain && item.address.toLowerCase() === toToken.toLowerCase(),
     );
     if (token) {
       return {
@@ -459,29 +457,17 @@ export default function Confirm() {
   /* istanbul ignore next */
   const fillStyle = useAnimatedStyle(() => ({ width: `${hold.value * 100}%` }));
 
-  const sendReady = useMemo(() => {
-    if (fromAmount <= 0n || !destination || insufficientGas || quoteExpired) return false;
-    const estimated = !!transferEstimate && !isTransferEstimateStale && networkCost !== undefined;
-    if (routed) return !!route && (market ? !!bridgePropose : !!payUnderlying && estimated);
-    return market ? !!proposeSimulation : !!external && estimated && (isNativeTransfer || !!erc20TransferSimulation);
-  }, [
-    bridgePropose,
-    destination,
-    external,
-    fromAmount,
-    insufficientGas,
-    isNativeTransfer,
-    isTransferEstimateStale,
-    market,
-    networkCost,
-    payUnderlying,
-    proposeSimulation,
-    quoteExpired,
-    route,
-    routed,
-    erc20TransferSimulation,
-    transferEstimate,
-  ]);
+  const estimated = !!transferEstimate && !isTransferEstimateStale && networkCost !== undefined;
+  const sendReady =
+    fromAmount > 0n &&
+    !!destination &&
+    !insufficientGas &&
+    !quoteExpired &&
+    (routed
+      ? !!route && (market ? !!bridgePropose : !!payUnderlying && estimated)
+      : market
+        ? !!proposeSimulation
+        : !!external && estimated && (isNativeTransfer || !!erc20TransferSimulation));
 
   const hash = receipt?.transactionHash;
   const proposal = useMemo(() => {
@@ -598,7 +584,7 @@ export default function Confirm() {
     if (!prepareError) return;
     reportError(prepareError, { level: "warning" });
     if (!routed || !tool || stalled || outage) return;
-    setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line @eslint-react/set-state-in-effect
+    setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line @eslint-react/set-state-in-effect, react-hooks/set-state-in-effect
   }, [outage, prepareError, routed, stalled, tool]);
   const failure =
     routeError && !transient

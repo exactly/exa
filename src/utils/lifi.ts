@@ -16,7 +16,7 @@ import {
   type TokenAmount,
 } from "@lifi/sdk";
 import { base58, bech32, bech32m, createBase58check } from "@scure/base";
-import { queryOptions, skipToken } from "@tanstack/react-query";
+import { noop, queryOptions, skipToken } from "@tanstack/react-query";
 import {
   array,
   boolean,
@@ -104,7 +104,7 @@ export const lifiTokensOptions = queryOptions({
       return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
         const token = {
           address: asset,
-          chainId: chain.id as ChainId,
+          chainId: chain.id,
           decimals,
           name: symbol,
           priceUSD: formatUnits(usdPrice, 18),
@@ -120,7 +120,7 @@ export const lifiTokensOptions = queryOptions({
     const allTokens = Object.values(tokens)
       .flat()
       .filter((token) => token.verificationStatus !== "flagged");
-    if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
+    if (!allTokens.some((token) => (token.chainId as number) === chain.id)) {
       throw new Error("missing destination tokens");
     }
     if (!exaAddress) return allTokens;
@@ -149,11 +149,11 @@ export function balancesOptions(account: Address | undefined) {
     gcTime: isServer ? Infinity : 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
     queryFn: async () => {
-      if (!account) return {} as Record<number, TokenAmount[]>;
+      if (!account) return {};
       ensureConfig();
       const [amounts, lifiTokens, exa] = await Promise.all([
         getWalletBalances(account),
-        queryClient.fetchQuery(lifiTokensOptions),
+        queryClient.query(lifiTokensOptions),
         exaAddress
           ? getToken(chain.id, exaAddress).catch((error: unknown) => {
               reportError(error);
@@ -252,7 +252,7 @@ function ensureConfig() {
       reportError(error);
     });
   configured = true;
-  queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
+  queryClient.query(lifiTokensOptions).catch(noop);
 }
 
 export async function getRoute(
@@ -537,19 +537,19 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
   if (!account) throw new Error("account is required");
   const cachedTokens = queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey);
   const [supportedChains, allTokens, allBalances] = await Promise.all([
-    queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
-    cachedTokens?.some((token) => token.chainId === (chain.id as typeof token.chainId))
+    queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.query(lifiChainsOptions),
+    cachedTokens?.some((token) => (token.chainId as number) === chain.id)
       ? cachedTokens
-      : queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
+      : queryClient.query(lifiTokensOptions).catch((error: unknown) => {
           reportError(error);
           return [] as Token[];
         }),
-    queryClient.fetchQuery(balancesOptions(account)),
+    queryClient.query(balancesOptions(account)),
   ]);
 
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
-  const destinationTokens = allTokens.filter((token) => token.chainId === (chain.id as typeof token.chainId));
+  const destinationTokens = allTokens.filter((token) => (token.chainId as number) === chain.id);
   const balancesByChain: Record<number, TokenBalance[]> = {};
 
   for (const [chainId, tokenAmounts] of Object.entries(allBalances)) {
@@ -601,7 +601,7 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 async function getWalletBalances(account: Address) {
   const [chains, networks] = await Promise.all([
     config.getChains(),
-    queryClient.fetchQuery(networksOptions).catch((error: unknown) => {
+    queryClient.query(networksOptions).catch((error: unknown) => {
       reportError(error);
       return [];
     }),
@@ -800,7 +800,7 @@ function legacy(input: string, ...versions: number[]) {
 }
 
 function witness(coder: typeof bech32, input: string, valid: (version: number, size: number) => boolean) {
-  const parsed = coder.decodeUnsafe(input as `${string}1${string}`);
+  const parsed = coder.decodeUnsafe(input);
   if (parsed?.prefix !== "bc") return false;
   const [version, ...program] = parsed.words;
   const bytes = coder.fromWordsUnsafe(program);

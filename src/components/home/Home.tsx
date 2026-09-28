@@ -442,7 +442,7 @@ export default function Home() {
             />
           )}
         </ScrollView>
-        <TimeToFullDisplay record={!!markets && !!activity} />
+        <TimeToFullDisplay ready={!!markets && !!activity} />
       </View>
     </SafeView>
   );

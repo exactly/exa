@@ -40,7 +40,7 @@ export default function InstallmentsSheet({
   const { promoEnd, refund } = getPromoMonths(language);
   const [selected, setSelected] = useState(mode > 0 ? mode : 1);
   useEffect(() => {
-    if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
+    if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect, react-hooks/set-state-in-effect
   }, [mode, open]);
   const carouselRef = useRef<CarouselRef>(null);
   const rates = useInstallmentRates();

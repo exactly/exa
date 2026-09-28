@@ -20,14 +20,13 @@ export default function useAsset(address?: Address) {
     () => balances?.[chain.id]?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
     [balances, address],
   );
-  const available = useMemo(() => {
-    if (markets && market) return withdrawLimit(markets, market.market);
-    return externalAsset?.amount ?? 0n;
-  }, [markets, market, externalAsset]);
-  const borrowAvailable = useMemo(() => {
-    if (markets && market && !externalAsset) return borrowLimit(markets, market.market);
-    return 0n;
-  }, [markets, market, externalAsset]);
+  const { available, borrowAvailable } = useMemo(
+    () => ({
+      available: markets && market ? withdrawLimit(markets, market.market) : (externalAsset?.amount ?? 0n),
+      borrowAvailable: externalAsset || !markets || !market ? 0n : borrowLimit(markets, market.market),
+    }),
+    [markets, market, externalAsset],
+  );
 
   return {
     address,

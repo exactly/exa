@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, CircleHelp } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
 import {
@@ -107,9 +107,9 @@ export default function EditRecipient() {
     },
   });
 
-  const currentCountry = useStore(form.store, ({ values }) => values.address_country ?? "");
+  const currentCountry = useSelector(form.store, ({ values }) => values.address_country ?? "");
 
-  const canContinue = useStore(form.store, ({ values, fieldMeta }) => {
+  const canContinue = useSelector(form.store, ({ values, fieldMeta }) => {
     if (fields.some((field) => fieldMeta[field.path]?.errors.some((error) => !!error))) return false;
     const filled = (path: string) => !!values[path]?.trim();
     if (isUSD) {

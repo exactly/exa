@@ -173,8 +173,8 @@ export default function Swaps() {
       tokenModalOpen,
     } = defaultSwap,
   } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
-  const fromChain = (fromToken?.token.chainId as number | undefined) ?? chain.id;
-  const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
+  const fromChain = fromToken?.token.chainId ?? chain.id;
+  const toChain = toToken?.token.chainId ?? chain.id;
   const crossChain = fromChain !== toChain;
 
   const allowedChains = useMemo(
@@ -241,9 +241,7 @@ export default function Swaps() {
     const reachable = new Set(networks.map(({ id }) => id));
     return [
       ...(homeTokens ?? []),
-      ...(lifiTokens ?? []).filter(
-        (token) => (token.chainId as number) !== chain.id && reachable.has(token.chainId as number),
-      ),
+      ...(lifiTokens ?? []).filter((token) => (token.chainId as number) !== chain.id && reachable.has(token.chainId)),
     ];
   }, [homeTokens, lifiTokens, networks]);
 
@@ -622,17 +620,9 @@ export default function Swaps() {
     value: routed ? (route?.value ?? 0n) : undefined,
   });
 
-  const resultRef = useRef<{
-    duration?: number;
-    fromAmount: bigint;
-    fromToken?: Token;
-    networkFeeUSD?: number;
-    toAmount: bigint;
-    tool: string;
-    toToken?: Token;
-  }>({ fromAmount: 0n, toAmount: 0n, tool: "" });
   const {
     mutate: swap,
+    context: submitted,
     data: receipt,
     isPending: isSwapping,
     isSuccess: isSwapSuccess,
@@ -658,16 +648,16 @@ export default function Swaps() {
       return sendCalls(calls);
     },
     onMutate() {
-      resultRef.current = {
+      updateSwap((old) => ({ ...old, enableSimulations: false }));
+      return {
         duration: route?.estimate.executionDuration,
         fromAmount,
         fromToken: fromToken?.token,
         networkFeeUSD,
         toAmount,
         toToken: toToken?.token,
-        tool,
+        tool: tool || undefined,
       };
-      updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
@@ -695,9 +685,9 @@ export default function Swaps() {
     statusOptions(
       routed || crossChain ? (proposal ? executionHash : receipt?.transactionHash) : undefined,
       toChain,
-      tool || resultRef.current.tool || undefined,
+      tool || submitted?.tool,
       fromChain,
-      resultRef.current.duration,
+      submitted?.duration,
     ),
   );
   const delivered = !crossChain || routeStatus?.status === "DONE";
@@ -1164,12 +1154,13 @@ export default function Swaps() {
       </SafeView>
     );
   {
-    const { fromAmount: resultFromAmount, fromToken: paid } = resultRef.current;
+    if (!submitted) return null;
+    const { fromAmount: resultFromAmount, fromToken: paid } = submitted;
     const settled =
       routeStatus && "receiving" in routeStatus ? (routeStatus.receiving as ExtendedTransactionInfo) : undefined;
-    const received = settled?.token && settled.amount ? settled.token : resultRef.current.toToken;
+    const received = settled?.token && settled.amount ? settled.token : submitted.toToken;
     if (!paid || !received) return null;
-    const resultToAmount = settled?.token && settled.amount ? BigInt(settled.amount) : resultRef.current.toAmount;
+    const resultToAmount = settled?.token && settled.amount ? BigInt(settled.amount) : submitted.toAmount;
     const properties = {
       fromUsdAmount: Number(formatUnits((resultFromAmount * parseUnits(paid.priceUSD, 18)) / WAD, paid.decimals)),
       fromAmount: resultFromAmount,
@@ -1195,8 +1186,8 @@ export default function Swaps() {
           chainId={fromChain}
           completed={!!fromToken?.external || crossChain}
           fee={
-            resultRef.current.networkFeeUSD
-              ? `$${resultRef.current.networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            submitted.networkFeeUSD
+              ? `$${submitted.networkFeeUSD.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               : undefined
           }
           hash={executionHash ?? receipt?.transactionHash}

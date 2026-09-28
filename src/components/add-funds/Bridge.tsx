@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -106,7 +106,7 @@ export default function Bridge() {
     if (!isAddress(params.sourceToken)) return;
     return { chain: chainId, address: params.sourceToken.toLowerCase() };
   });
-  const [selectedDestinationAddress, setSelectedDestinationAddress] = useState<string | undefined>();
+  const [destination, setDestination] = useState<{ address?: string; source?: string }>();
   const [sourceAmount, setSourceAmount] = useState(0n);
 
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
@@ -171,8 +171,6 @@ export default function Bridge() {
     return next;
   }, [chains, balancesByChain, sameChainAssets]);
 
-  const previousSourceRef = useRef<string | undefined>(undefined);
-
   const source = useMemo(() => {
     if (assetGroups.length === 0) return;
     if (selectedSource) {
@@ -188,7 +186,7 @@ export default function Bridge() {
     const group = defaultAsset ? defaultGroup : assetGroups[0];
     const asset = defaultAsset ?? assetGroups[0]?.assets[0];
     if (group && asset) return { chain: group.chain.id, address: asset.token.address };
-  }, [assetGroups, selectedSource, bridge?.defaultChainId, bridge?.defaultTokenAddress]);
+  }, [assetGroups, selectedSource, bridge]);
 
   const selectedGroup = assetGroups.find((group) => group.chain.id === source?.chain);
   const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === source?.address);
@@ -208,27 +206,22 @@ export default function Bridge() {
     : source?.address === zeroAddress;
 
   const destinationTokens = useMemo(
-    () =>
-      bridge?.tokensByChain[chain.id]?.filter((token) => token.chainId === (chain.id as typeof token.chainId)) ?? [],
+    () => bridge?.tokensByChain[chain.id]?.filter((token) => (token.chainId as number) === chain.id) ?? [],
     [bridge?.tokensByChain],
   );
 
-  const effectiveDestinationAddress = useMemo(() => {
+  const effectiveDestinationAddress = (() => {
     if (!sourceTokenAddress) return;
-    if (previousSourceRef.current === sourceTokenAddress && selectedDestinationAddress) {
-      return selectedDestinationAddress;
+    if (destination?.source === sourceTokenAddress && destination.address) {
+      return destination.address;
     }
     const correlatedSymbol = sourceTokenSymbol && tokenCorrelation[sourceTokenSymbol as keyof typeof tokenCorrelation];
     const correlatedToken = correlatedSymbol
       ? destinationTokens.find((token) => token.symbol === correlatedSymbol)
       : undefined;
     const nextToken = correlatedToken ?? destinationTokens.find((token) => token.symbol === "USDC");
-    return nextToken?.address ?? selectedDestinationAddress;
-  }, [sourceTokenAddress, sourceTokenSymbol, selectedDestinationAddress, destinationTokens]);
-
-  useEffect(() => {
-    previousSourceRef.current = sourceTokenAddress;
-  }, [sourceTokenAddress]);
+    return nextToken?.address ?? destination?.address;
+  })();
 
   const destinationToken = destinationTokens.find((token) => token.address === effectiveDestinationAddress);
   const destinationMarketSymbol = destinationToken?.symbol === "WETH" ? "ETH" : destinationToken?.symbol;
@@ -345,7 +338,7 @@ export default function Bridge() {
     .filter(({ type }) => type !== "APPROVE" || approvalRequired)
     .reduce((sum, { amountUSD }) => sum + (Number(amountUSD) || 0), 0);
 
-  const nativeGasReserve = useMemo(() => {
+  const nativeGasReserve = (() => {
     if (!quote?.estimate.gasCosts || !nativeAddress) return 0n;
     const estimatedNativeGas = quote.estimate.gasCosts
       .filter(
@@ -353,26 +346,26 @@ export default function Bridge() {
       )
       .reduce((sum, { amount }) => sum + BigInt(amount), 0n);
     return (estimatedNativeGas * gasReserveBuffer) / 100n;
-  }, [approvalRequired, quote, nativeAddress]);
+  })();
 
-  const gasToken = useMemo<undefined | { balance: bigint; token: Token }>(() => {
+  const gasToken = (() => {
     if (!isExaSender || isNativeSource || !source || !sourceToken) return;
     if (bridgePolicySymbols.has(sourceToken.symbol)) {
       return { balance: sourceBalance, token: sourceToken };
     }
-    return bridge?.balancesByChain[source.chain]?.find(
+    return balancesByChain?.[source.chain]?.find(
       (item) =>
         item.token.address.toLowerCase() !== nativeAddress &&
         bridgePolicySymbols.has(item.token.symbol) &&
         item.balance > 0n,
     );
-  }, [bridge?.balancesByChain, isExaSender, source, sourceToken, sourceBalance, isNativeSource, nativeAddress]);
+  })();
 
   const feeIsSource = !!gasToken && !!source && gasToken.token.address.toLowerCase() === source.address.toLowerCase();
   const paymasterChain = source ? alchemyChainById.get(source.chain) : undefined;
   const paymasterAddress = paymasterChain ? getAlchemyPaymasterAddress(paymasterChain, "0.6.0") : undefined;
 
-  const erc20GasReserve = useMemo(() => {
+  const erc20GasReserve = (() => {
     if (nativeGasReserve === 0n || !sourceChain || !gasToken) return 0n;
     const nativeUsd = parseAmount(sourceChain.nativeToken.priceUSD, 18);
     const tokenUsd = parseAmount(gasToken.token.priceUSD, 18);
@@ -381,7 +374,7 @@ export default function Bridge() {
       (nativeGasReserve * nativeUsd * 10n ** BigInt(gasToken.token.decimals)) /
       (tokenUsd * 10n ** BigInt(sourceChain.nativeToken.decimals))
     );
-  }, [nativeGasReserve, sourceChain, gasToken]);
+  })();
 
   const paymasterFee =
     isExaSender && source && gasToken && paymasterAddress && erc20GasReserve > 0n && gasToken.balance > erc20GasReserve
@@ -668,7 +661,7 @@ export default function Bridge() {
         accounts.map((item) =>
           queryClient
             .cancelQueries({ queryKey: balancesOptions(item).queryKey })
-            .then(() => queryClient.fetchQuery({ ...balancesOptions(item), staleTime: 0 }))
+            .then(() => queryClient.query({ ...balancesOptions(item), staleTime: 0 }))
             .catch(reportError),
         ),
       )
@@ -1188,7 +1181,7 @@ export default function Bridge() {
                 : undefined;
             const correlatedToken =
               correlatedSymbol && correlatedSymbol !== token.symbol && (isExaSender || chainId !== chain.id)
-                ? destinationTokens.find((destination) => destination.symbol === correlatedSymbol)
+                ? destinationTokens.find((item) => item.symbol === correlatedSymbol)
                 : undefined;
             if (correlatedToken) {
               setAssetMatch({ chainId, destinationSymbol: correlatedToken.symbol, token });
@@ -1208,9 +1201,10 @@ export default function Bridge() {
             if (!assetMatch) return;
             setSourceAmount(0n);
             setSelectedSource({ chain: assetMatch.chainId, address: assetMatch.token.address.toLowerCase() });
-            setSelectedDestinationAddress(
-              destinationTokens.find((token) => token.symbol === assetMatch.destinationSymbol)?.address,
-            );
+            setDestination({
+              address: destinationTokens.find((token) => token.symbol === assetMatch.destinationSymbol)?.address,
+              source: assetMatch.token.address,
+            });
             setAssetMatch(undefined);
           }}
           onSelectAnother={() => {
@@ -1228,7 +1222,7 @@ export default function Bridge() {
           groups={destinationAssetGroups}
           selected={destinationToken ? { chain: chain.id, address: destinationToken.address } : undefined}
           onSelect={(_, token) => {
-            setSelectedDestinationAddress(token.address);
+            setDestination({ address: token.address, source: sourceTokenAddress });
             setDestinationModalOpen(false);
           }}
         />

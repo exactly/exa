@@ -13,6 +13,7 @@ export default defineConfig([
   {
     languageOptions: { parserOptions: { projectService: true } },
     rules: {
+      "@typescript-eslint/no-unnecessary-type-assertion": ["error", { typesToIgnore: ["number"] }], // TODO remove when typescript-eslint#12271 is fixed
       "@nx/enforce-module-boundaries": ["error", { allow: ["@exactly/server/api/*"] }],
       "no-restricted-imports": [
         "error",

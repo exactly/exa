@@ -16,7 +16,7 @@ import {
 } from "@tamagui/lucide-icons-2";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { nonEmpty, pipe, string } from "valibot";
 import { formatUnits, parseUnits } from "viem";
@@ -95,7 +95,7 @@ export default function SendAmount() {
   });
 
   const [focused, setFocused] = useState(false);
-  const amountValue = useStore(form.store, ({ values }) => values.amount);
+  const amountValue = useSelector(form.store, ({ values }) => values.amount);
   const amountInTargetCurrency = parseAmount(amountValue.replaceAll(/[.,](?=.*[.,])/g, "").replace(",", "."));
   const usdcRequired = rate ? (amountInTargetCurrency * WAD + rate - 1n) / rate : 0n;
   const insufficient = usdcRequired > available;

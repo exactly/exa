@@ -220,8 +220,7 @@ export default function AssetSelection() {
       .sort(
         (a, b) =>
           a.rank - b.rank ||
-          Number(b.token.chainId === (chain.id as typeof b.token.chainId)) -
-            Number(a.token.chainId === (chain.id as typeof a.token.chainId)) ||
+          Number((b.token.chainId as number) === chain.id) - Number((a.token.chainId as number) === chain.id) ||
           (names.get(a.token.chainId) ?? "").localeCompare(names.get(b.token.chainId) ?? ""),
       )
       .slice(0, 20)

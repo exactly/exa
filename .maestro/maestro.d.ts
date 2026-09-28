@@ -14,6 +14,5 @@ export declare global {
 }
 
 export type Body =
-  | { body?: string }
-  | { multipartForm?: { data: { filePath: string; mediaType?: string }; uploadType: string } };
+  { body?: string } | { multipartForm?: { data: { filePath: string; mediaType?: string }; uploadType: string } };
 export type Response = { body: string; headers: Headers; ok: boolean; status: number };

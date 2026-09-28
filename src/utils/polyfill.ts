@@ -11,9 +11,9 @@ global.crypto ??= new (require("@peculiar/webcrypto") as typeof crypto).Crypto()
 if (global.window) {
   // @ts-expect-error -- enough for mipd
   global.CustomEvent ??= class {}; // eslint-disable-line @typescript-eslint/no-extraneous-class
-  global.window.addEventListener ??= () => undefined;
-  global.window.removeEventListener ??= () => undefined;
-  global.window.dispatchEvent ??= () => false;
+  global.window.addEventListener ??= () => undefined; // eslint-disable-line @typescript-eslint/unbound-method -- polyfill initialization
+  global.window.removeEventListener ??= () => undefined; // eslint-disable-line @typescript-eslint/unbound-method -- polyfill initialization
+  global.window.dispatchEvent ??= () => false; // eslint-disable-line @typescript-eslint/unbound-method -- polyfill initialization
 }
 
 /* eslint-enable @typescript-eslint/no-unnecessary-condition */

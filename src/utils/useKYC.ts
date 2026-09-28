@@ -8,13 +8,7 @@ export default function useKYC(enabled = true) {
   const approved = code === "ok" || code === "legacy kyc";
   return {
     approved,
-    status: (approved
-      ? "approved"
-      : code === "processing"
-        ? "review"
-        : code === "bad kyc"
-          ? "failed"
-          : "pending") as KYCState,
+    status: approved ? "approved" : code === "processing" ? "review" : code === "bad kyc" ? "failed" : "pending",
     legacy: code === "legacy kyc",
     review: code === "processing",
     failed: code === "bad kyc",
@@ -23,7 +17,7 @@ export default function useKYC(enabled = true) {
     isFetched,
     isFetching,
     refetch,
-  };
+  } as const;
 }
 
-export type KYCState = "approved" | "failed" | "pending" | "review";
+export type KYCState = ReturnType<typeof useKYC>["status"];

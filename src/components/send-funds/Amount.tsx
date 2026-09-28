@@ -82,8 +82,7 @@ export default function Amount() {
       typeof toToken === "string"
         ? tokens?.find(
             (token) =>
-              token.chainId === (destinationChain as typeof token.chainId) &&
-              token.address.toLowerCase() === toToken.toLowerCase(),
+              (token.chainId as number) === destinationChain && token.address.toLowerCase() === toToken.toLowerCase(),
           )
         : undefined,
     [tokens, toToken, destinationChain],

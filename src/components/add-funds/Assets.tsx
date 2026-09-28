@@ -55,7 +55,7 @@ export default function Assets() {
     const excluded = new Set(supportedAssets);
     const bySymbol = new Map<string, (typeof tokens)[number]>();
     for (const token of tokens) {
-      const home = token.chainId === (chain.id as (typeof token)["chainId"]);
+      const home = (token.chainId as number) === chain.id;
       const allowed = allowlists[String(token.chainId)];
       if (!allowed?.some((address) => address.toLowerCase() === token.address.toLowerCase())) continue;
       if (home && underlying.has(token.address.toLowerCase())) continue;

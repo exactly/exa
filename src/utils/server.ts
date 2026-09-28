@@ -314,7 +314,7 @@ export async function auth() {
   if (authenticating) return authenticating;
   if (safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"])).success) return;
   await (authenticating = queryClient
-    .fetchQuery({ ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"], staleTime: 0 })
+    .query({ ...queryClient.getQueryDefaults(["auth"]), queryKey: ["auth"], staleTime: 0 })
     .finally(() => {
       authenticating = undefined;
     }));

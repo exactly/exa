@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import reportError from "./reportError";
 
@@ -7,11 +7,10 @@ type TabName = "activity" | "card" | "defi" | "index" | "pay-mode";
 const subscribers = new Map<TabName, Set<() => void>>();
 
 export default function useTabPress(name: TabName, onPress: () => void) {
-  const handlerRef = useRef(onPress);
-  handlerRef.current = onPress;
+  const onTabPress = useEffectEvent(onPress);
 
   useEffect(() => {
-    const handler: () => void = () => handlerRef.current();
+    const handler: () => void = () => onTabPress();
     let handlers = subscribers.get(name);
     if (!handlers) {
       handlers = new Set();
