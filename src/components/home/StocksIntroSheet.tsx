@@ -84,7 +84,7 @@ export default function StocksIntroSheet({
               centered
               cursor="pointer"
               onPress={() => {
-                presentArticle("11757863").catch(reportError);
+                presentArticle("17155255").catch(reportError);
               }}
             >
               {t("Learn more")}
