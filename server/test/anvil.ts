@@ -140,6 +140,8 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
 
   await $(shell)`forge script test/mocks/Account.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+  await $(shell)`forge script test/mocks/ExaBusinessTenant.s.sol
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/IssuerChecker.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/ProposalManager.s.sol
@@ -168,37 +170,49 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await anvilClient.stopImpersonatingAccount({ address: keeper.address });
 
-  const [issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] = await Promise.all([
-    readFile("node_modules/@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", "utf8"),
-    readFile("node_modules/@exactly/plugin/broadcast/ProposalManager.s.sol/31337/run-latest.json", "utf8"),
-    readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
-    readFile("node_modules/@exactly/plugin/broadcast/ExaPreviewer.s.sol/31337/run-latest.json", "utf8"),
-    readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
-    readFile("node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", "utf8"),
-  ]).then(
-    ([issuerChecker_, proposalManager_, refunder_, exaPreviewer_, exaPlugin_, exaAccountFactory_]) =>
-      [
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(issuerChecker_))
-          .transactions[0].contractAddress,
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(proposalManager_))
-          .transactions[0].contractAddress,
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(refunder_))
-          .transactions[0].contractAddress,
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPreviewer_))
-          .transactions[0].contractAddress,
-        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
-          .transactions[0].contractAddress,
-        parse(
-          object({
-            transactions: tuple([
-              object({ transactionType: literal("CALL"), function: literal("deploy(bytes32,bytes)") }),
-              object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
-            ]),
-          }),
-          JSON.parse(exaAccountFactory_),
-        ).transactions[1].contractAddress,
-      ] as const,
-  );
+  const [exaBusinessTenant, issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] =
+    await Promise.all([
+      readFile("node_modules/@exactly/plugin/broadcast/ExaBusinessTenant.s.sol/31337/run-latest.json", "utf8"),
+      readFile("node_modules/@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", "utf8"),
+      readFile("node_modules/@exactly/plugin/broadcast/ProposalManager.s.sol/31337/run-latest.json", "utf8"),
+      readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
+      readFile("node_modules/@exactly/plugin/broadcast/ExaPreviewer.s.sol/31337/run-latest.json", "utf8"),
+      readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
+      readFile("node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", "utf8"),
+    ]).then(
+      ([
+        exaBusinessTenant_,
+        issuerChecker_,
+        proposalManager_,
+        refunder_,
+        exaPreviewer_,
+        exaPlugin_,
+        exaAccountFactory_,
+      ]) =>
+        [
+          parse(object({ returns: object({ manager: object({ value: Address }) }) }), JSON.parse(exaBusinessTenant_))
+            .returns.manager.value,
+          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(issuerChecker_))
+            .transactions[0].contractAddress,
+          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(proposalManager_))
+            .transactions[0].contractAddress,
+          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(refunder_))
+            .transactions[0].contractAddress,
+          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPreviewer_))
+            .transactions[0].contractAddress,
+          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
+            .transactions[0].contractAddress,
+          parse(
+            object({
+              transactions: tuple([
+                object({ transactionType: literal("CALL"), function: literal("deploy(bytes32,bytes)") }),
+                object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
+              ]),
+            }),
+            JSON.parse(exaAccountFactory_),
+          ).transactions[1].contractAddress,
+        ] as const,
+    );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
   for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
@@ -276,6 +290,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
         .map(({ contractAddress, contractName }) => verify(contractAddress, contractName)),
       verify("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789", "EntryPoint"),
       verify("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "MockPaymaster"),
+      verify(exaBusinessTenant, "AccessManager", encodeAbiParameters([{ type: "address" }], [deployer])),
       verify(
         "0x0046000000000151008789797b54fdb500E2a61e",
         "UpgradeableModularAccount",
@@ -290,6 +305,7 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
   provide("ExaPreviewer", exaPreviewer);
   provide("EXA", exa);
   provide("ExaAccountFactory", exaAccountFactory);
+  provide("ExaBusinessTenant", exaBusinessTenant);
   provide("ExaPlugin", exaPlugin);
   provide("Firewall", firewall);
   provide("InstallmentsRouter", installmentsRouter);
@@ -370,6 +386,7 @@ declare module "vitest" {
     DebtManager: Address;
     EXA: Address;
     ExaAccountFactory: Address;
+    ExaBusinessTenant: Address;
     ExaPlugin: Address;
     ExaPreviewer: Address;
     Firewall: Address;
