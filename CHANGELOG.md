@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.29
+
+### Patch Changes
+
+- [`8c46edb`](https://github.com/exactly/exa/commit/8c46edbb2b66944b17df92771087aed2b4fa9a87) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix stocks help link
+
+- [`14f9479`](https://github.com/exactly/exa/commit/14f9479f89af9747ce566de22383423c1c1f4c52) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 simulate erc20 transfer without return value
+
+- Updated dependencies [[`186e09e`](https://github.com/exactly/exa/commit/186e09ece0b6c205e4b780000eb5112cd5a6db44)]:
+  - @exactly/server@0.2.121
+
 ## 1.2.28
 
 ### Patch Changes
