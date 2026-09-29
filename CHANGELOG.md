@@ -1,5 +1,24 @@
 # @exactly/mobile
 
+## 1.2.28
+
+### Patch Changes
+
+- [#1344](https://github.com/exactly/exa/pull/1344) [`1a18142`](https://github.com/exactly/exa/commit/1a18142ac281806571bcffaabb9c881dd60c88c8) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 restore default font on native
+
+- [#1344](https://github.com/exactly/exa/pull/1344) [`04016da`](https://github.com/exactly/exa/commit/04016da3bfba46b0e45f0b252bbe11805f49175a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove sheet unmount hack
+
+- [#1328](https://github.com/exactly/exa/pull/1328) [`bae6462`](https://github.com/exactly/exa/commit/bae6462accc13630148589e266e296df0e3609bd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add stocks intro sheet
+
+- [#1344](https://github.com/exactly/exa/pull/1344) [`78a9fc9`](https://github.com/exactly/exa/commit/78a9fc9125a791b25eda18cd85181324db0befe6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⬆️ upgrade tamagui to v2
+
+- [#1344](https://github.com/exactly/exa/pull/1344) [`2a3b5b6`](https://github.com/exactly/exa/commit/2a3b5b602fef47cdce96d0da898f57b64e57eb01) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 restore native toasts
+
+- [#1344](https://github.com/exactly/exa/pull/1344) [`991f9ef`](https://github.com/exactly/exa/commit/991f9ef08e25a02502c479d1b09c6e1bb2e67fe5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix dev crash on image refs
+
+- Updated dependencies [[`6cf37ae`](https://github.com/exactly/exa/commit/6cf37aee65e260fa092acebf9623111f1cec9e64)]:
+  - @exactly/server@0.2.120
+
 ## 1.2.27
 
 ### Patch Changes
