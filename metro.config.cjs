@@ -32,6 +32,12 @@ module.exports = function config() {
       ],
       resolveRequest: (context, moduleName, platform) => {
         if (moduleName === "tslib") return context.resolveRequest(context, "tslib/tslib.es6.js", platform);
+        if (moduleName === "react-native-reanimated-carousel")
+          return context.resolveRequest(
+            { ...context, mainFields: ["react-native", ...context.mainFields], unstable_enablePackageExports: false },
+            moduleName,
+            platform,
+          );
         if (
           /date-fns\/locale\.(?:js|cjs|mjs)$/.test(context.originModulePath) &&
           moduleName.startsWith("./locale/") &&

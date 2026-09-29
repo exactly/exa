@@ -1,11 +1,11 @@
-import type { Router } from "expo-router";
+import type { ImperativeRouter } from "expo-router";
 
 import queryClient from "./queryClient";
 import reportError from "./reportError";
 import { startRampOnboarding } from "./server";
 
 export default async function completeOnboarding(
-  router: Router,
+  router: ImperativeRouter,
   currency: string,
   provider: "bridge" | "manteca" = "manteca",
   acceptedTermsId?: string,
