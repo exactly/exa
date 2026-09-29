@@ -20,6 +20,7 @@ import {
   formatUnits,
   getAddress,
   maxUint256,
+  parseAbi,
   zeroAddress as viemZeroAddress,
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
@@ -298,7 +299,7 @@ export default function Confirm() {
   } = useSimulateContract({
     address: externalAddress,
     chainId: payChain,
-    abi: erc20Abi,
+    abi: parseAbi(["function transfer(address to, uint256 amount)"]),
     functionName: "transfer",
     args: receiverHex ? [receiverHex, fromAmount] : undefined,
     query: {
@@ -334,7 +335,11 @@ export default function Confirm() {
         ? { to: receiverHex, value: fromAmount }
         : {
             to: externalAddress,
-            data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [receiverHex, fromAmount] }),
+            data: encodeFunctionData({
+              abi: parseAbi(["function transfer(address to, uint256 amount)"]),
+              functionName: "transfer",
+              args: [receiverHex, fromAmount],
+            }),
           },
     ];
   }, [
