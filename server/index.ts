@@ -22,7 +22,7 @@ import createPersonaHook from "./hooks/persona";
 import supervise, { own } from "./supervise";
 import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
-import appOrigin from "./utils/appOrigin";
+import appOrigin, { origins } from "./utils/appOrigin";
 import createIntercom from "./utils/intercom";
 import { closeQueue as closeMaturity, reminders, setup as setupMaturity } from "./utils/maturity";
 import createOnesignal from "./utils/onesignal";
@@ -157,6 +157,7 @@ app.route("/hooks/manteca", mantecaHook.app);
 app.route("/hooks/panda", pandaHook.app);
 app.route("/hooks/persona", personaHook.app);
 
+app.get("/.well-known/webauthn", (c) => c.json({ origins }));
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
 );

@@ -67,7 +67,7 @@ export default function createCredential({
         httpOnly: true,
         ...(domain === "localhost"
           ? { sameSite: "lax", secure: false }
-          : { domain, sameSite: "none", secure: true, partitioned: true }),
+          : { sameSite: "none", secure: true, partitioned: true }),
       }),
       sardine
         .customer({
