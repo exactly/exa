@@ -21,7 +21,61 @@ beforeAll(() => {
 describe("api", () => {
   it("loads the factory without environment variables", async () => {
     await expect(import("../../api").then(({ default: api }) => api)).resolves.toBeTypeOf("function");
+    const { default: origin, origins } = await import("../../utils/appOrigin");
+    expect(origins).toStrictEqual([origin]);
   });
+
+  it("resolves only configured frontend origins, including behind a tls proxy", async () => {
+    vi.stubEnv("APP_ORIGINS", "https://secondary.example");
+    vi.resetModules();
+    const { default: appOrigin, origin, origins } = await import("../../utils/appOrigin");
+
+    expect(origins).toStrictEqual([appOrigin, "https://secondary.example"]);
+    expect(origin(new Request("http://secondary.example/api"))).toBe("https://secondary.example");
+    expect(origin(new Request("http://internal/api", { headers: { origin: "https://secondary.example" } }))).toBe(
+      "https://secondary.example",
+    );
+    expect(origin(new Request("http://internal/api"))).toBe(appOrigin);
+    expect(origin(new Request("http://internal/api", { headers: { origin: "https://untrusted.example" } }))).toBe(
+      appOrigin,
+    );
+  });
+
+  it.each(["", "  ", " , , "])("ignores empty configured origins: %j", async (value) => {
+    vi.stubEnv("APP_ORIGINS", value);
+    vi.resetModules();
+    const { default: appOrigin, origins } = await import("../../utils/appOrigin");
+    expect(origins).toStrictEqual([appOrigin]);
+  });
+
+  it("normalizes and deduplicates configured origins", async () => {
+    const { default: appOrigin } = await import("../../utils/appOrigin");
+    vi.stubEnv(
+      "APP_ORIGINS",
+      ` ${appOrigin}/, HTTPS://SECONDARY.example:443/, https://user:password@secondary.example/app?query=value#fragment, http://localhost:8081/, https://secondary.example:8443/, , `,
+    );
+    vi.resetModules();
+    const { origin, origins } = await import("../../utils/appOrigin");
+
+    expect(origins).toStrictEqual([
+      appOrigin,
+      "https://secondary.example",
+      "http://localhost:8081",
+      "https://secondary.example:8443",
+    ]);
+    expect(origin(new Request("http://internal/api", { headers: { origin: "https://secondary.example" } }))).toBe(
+      "https://secondary.example",
+    );
+  });
+
+  it.each(["invalid", "https://secondary.example:invalid", "file:///frontend"])(
+    "rejects invalid configured origins: %s",
+    async (value) => {
+      vi.stubEnv("APP_ORIGINS", value);
+      vi.resetModules();
+      await expect(import("../../utils/appOrigin")).rejects.toThrow();
+    },
+  );
 
   it("preserves every client response type", () => {
     expectTypeOf<AnyResponses<ReturnType<typeof hc<ExaAPI>>>>().toBeNever();

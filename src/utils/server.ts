@@ -71,7 +71,9 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   },
 });
 
-const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `https://${domain}/api`, {
+export const origin = Platform.OS === "web" && !isServer ? window.location.origin : `https://${domain}`;
+
+const api = hc<ExaAPI>(domain === "localhost" ? "http://localhost:3000/api" : `${origin}/api`, {
   init: { credentials: "include" },
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);

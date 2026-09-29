@@ -11,7 +11,7 @@ import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address, Hex } from "@exactly/common/validation";
 
-import appOrigin from "./appOrigin";
+import appOrigin, { origins } from "./appOrigin";
 import publicClient from "./publicClient";
 import * as schema from "../database/schema";
 
@@ -22,7 +22,7 @@ const ac = createAccessControl({
   kyc: ["create", "delete", "read"],
 });
 
-export default function auth(database: NodePgDatabase<typeof schema>, secret: string) {
+export default function auth(database: NodePgDatabase<typeof schema>, secret: string, origin = appOrigin) {
   return betterAuth({
     database: drizzleAdapter(database, {
       provider: "pg",
@@ -37,12 +37,12 @@ export default function auth(database: NodePgDatabase<typeof schema>, secret: st
         invitation: schema.invitations,
       },
     }),
-    baseURL: appOrigin,
-    trustedOrigins: [appOrigin],
+    baseURL: origin,
+    trustedOrigins: origins,
     secret,
     plugins: [
       siwe({
-        domain,
+        domain: new URL(origin).hostname,
         emailDomainName: domain === "localhost" ? "localhost.com" : domain,
         anonymous: true,
         getNonce: () => Promise.resolve(generateSiweNonce()),
@@ -55,7 +55,7 @@ export default function auth(database: NodePgDatabase<typeof schema>, secret: st
           const siweMessage = parseSiweMessage(message);
           if (
             siweMessage.nonce !== cacao.p.nonce ||
-            siweMessage.domain !== domain ||
+            siweMessage.domain !== new URL(origin).hostname ||
             siweMessage.chainId !== chain.id
           ) {
             return false;

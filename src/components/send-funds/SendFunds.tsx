@@ -10,13 +10,12 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { base } from "viem/chains";
 
-import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getKYCStatus, getRampProviders } from "../../utils/server";
+import { getKYCStatus, getRampProviders, origin } from "../../utils/server";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useKYC from "../../utils/useKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
@@ -46,7 +45,7 @@ export default function SendFunds() {
     retry: false,
   });
 
-  const redirectURL = `https://${domain}/send-funds`;
+  const redirectURL = `${origin}/send-funds`;
   const { data: providers, isPending } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),

@@ -14,15 +14,13 @@ import { createStatic } from "@pix.js/qrcode";
 import { useQuery } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 
-import domain from "@exactly/common/domain";
-
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import RampWebView from "./RampWebView";
 import { isValidCurrency, fees as rampFees } from "../../utils/currencies";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getRampProviders, getRampQuote } from "../../utils/server";
+import { getRampProviders, getRampQuote, origin } from "../../utils/server";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
@@ -71,7 +69,7 @@ export default function Ramp() {
     staleTime: 10_000,
   });
 
-  const redirectURL = `https://${domain}/add-funds`;
+  const redirectURL = `${origin}/add-funds`;
   const { data: providers } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),
