@@ -41,7 +41,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
-import appOrigin from "../../utils/appOrigin";
+import { origin, origins } from "../../utils/appOrigin";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -205,11 +205,13 @@ export default function route({
           path: "/",
           expires,
           httpOnly: true,
-          ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
+          sameSite: domain === "localhost" ? "lax" : "none",
+          secure: domain !== "localhost",
         });
         c.header("X-Session-Id", sessionId);
         const query = c.req.valid("query");
         if (query?.credentialId) {
+          const url = new URL(origin(c.req.raw));
           const message = createSiweMessage({
             resources: ["https://exactly.github.io/exa"],
             statement: "Sign-in to the Exa App",
@@ -217,11 +219,11 @@ export default function route({
             address: query.credentialId,
             chainId: chain.id,
             nonce: sessionId,
-            uri: appOrigin,
+            uri: url.origin,
             version: "1",
             issuedAt,
-            domain,
-            scheme,
+            domain: url.host,
+            scheme: url.protocol.slice(0, -1),
           });
           await redis.set(sessionId, message, "PX", timeout);
           return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
@@ -363,8 +365,15 @@ export default function route({
           switch (attestation.method) {
             case "siwe": {
               const message = parseSiweMessage(challenge);
+              const url = new URL(origin(c.req.raw));
               if (
-                !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
+                !validateSiweMessage({
+                  message,
+                  address: attestation.id,
+                  nonce: sessionId,
+                  domain: url.host,
+                  scheme: url.protocol.slice(0, -1),
+                }) ||
                 !(await publicClient.verifySiweMessage({
                   message: challenge,
                   address: attestation.id,
@@ -386,7 +395,7 @@ export default function route({
                   },
                 },
                 expectedRPID: domain,
-                expectedOrigin: [appOrigin, ...androidOrigins],
+                expectedOrigin: [...origins, ...androidOrigins],
                 expectedChallenge: challenge,
                 supportedAlgorithmIDs: [cose.COSEALG.ES256],
               });
@@ -430,5 +439,3 @@ export default function route({
       },
     );
 }
-
-const scheme = domain === "localhost" ? "http" : "https";

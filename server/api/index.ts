@@ -13,7 +13,7 @@ import ramp from "./ramp";
 import webhook from "./webhook";
 import createAuth from "../middleware/auth";
 import createOrg from "../middleware/org";
-import appOrigin from "../utils/appOrigin";
+import { origins } from "../utils/appOrigin";
 import createBetterAuth from "../utils/auth";
 import createCredential from "../utils/createCredential";
 
@@ -68,11 +68,11 @@ export default function api({
   const org = createOrg(betterAuth);
   const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
   const app = new Hono()
-    .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
+    .use(cors({ origin: [...origins, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
     .use((c, next) => {
       if (c.req.method.toUpperCase() === "OPTIONS") return next();
       if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
-      return csrf({ origin: [appOrigin, "http://localhost:8081"] })(c, next);
+      return csrf({ origin: [...origins, "http://localhost:8081"] })(c, next);
     })
     .route("/auth/registration", registration({ createCredential: credential, intercom, redis, walletExtension }))
     .route(

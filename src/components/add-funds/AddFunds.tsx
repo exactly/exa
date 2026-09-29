@@ -11,7 +11,6 @@ import { isAddress } from "viem";
 import { base, mainnet } from "viem/chains";
 import { useEnsName } from "wagmi";
 
-import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
@@ -19,7 +18,7 @@ import AddFundsOption from "./AddFundsOption";
 import { presentArticle } from "../../utils/intercom";
 import queryClient, { type AuthMethod } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getKYCStatus, getRampProviders } from "../../utils/server";
+import { getKYCStatus, getRampProviders, origin } from "../../utils/server";
 import useKYC from "../../utils/useKYC";
 import ownerConfig from "../../utils/wagmi/owner";
 import RampButton from "../ramp/RampButton";
@@ -57,7 +56,7 @@ export default function AddFunds() {
     retry: false,
   });
 
-  const redirectURL = `https://${domain}/add-funds`;
+  const redirectURL = `${origin}/add-funds`;
   const { data: providers, isPending } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),

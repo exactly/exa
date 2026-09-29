@@ -7,12 +7,10 @@ import { useToastController } from "@tamagui/toast";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import domain from "@exactly/common/domain";
-
 import completeOnboarding from "./completeOnboarding";
 import { APIError } from "./queryClient";
 import reportError from "./reportError";
-import { getKYCStatus, getRampProviders } from "./server";
+import { getKYCStatus, getRampProviders, origin } from "./server";
 
 export default function useRampOnboarding(direction: "offramp" | "onramp" = "onramp") {
   const { t } = useTranslation();
@@ -25,7 +23,7 @@ export default function useRampOnboarding(direction: "offramp" | "onramp" = "onr
   const [tosLink, setTOSLink] = useState<string>();
 
   const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
-  const redirectURL = `https://${domain}/${offramp ? "send-funds" : "add-funds"}`;
+  const redirectURL = `${origin}/${offramp ? "send-funds" : "add-funds"}`;
 
   const { data: providers } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],

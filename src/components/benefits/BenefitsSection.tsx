@@ -11,7 +11,6 @@ import { useTheme, View } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import domain from "@exactly/common/domain";
 import { isBase } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID } from "@exactly/common/panda";
 
@@ -27,7 +26,7 @@ import VisaBaseImage from "../../assets/images/visa-base.webp";
 import VisaLogo from "../../assets/images/visa.svg";
 import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
-import { getRampProviders } from "../../utils/server";
+import { getRampProviders, origin } from "../../utils/server";
 import useKYC from "../../utils/useKYC";
 import Image from "../shared/Image";
 import Skeleton from "../shared/Skeleton";
@@ -149,7 +148,7 @@ export default function BenefitsSection({
   const router = useRouter();
   const { approved: isKYCApproved } = useKYC();
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
-  const redirectURL = `https://${domain}/add-funds`;
+  const redirectURL = `${origin}/add-funds`;
   const { data: providers, isLoading } = useQuery({
     queryKey: ["ramp", "providers", country, redirectURL],
     queryFn: () => getRampProviders(country, redirectURL),

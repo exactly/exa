@@ -44,7 +44,7 @@ import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation"
 
 import { credentials } from "../../database/schema";
 import androidOrigins from "../../utils/android/origins";
-import appOrigin from "../../utils/appOrigin";
+import { origin, origins } from "../../utils/appOrigin";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
@@ -205,11 +205,13 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           path: "/",
           expires,
           httpOnly: true,
-          ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
+          sameSite: domain === "localhost" ? "lax" : "none",
+          secure: domain !== "localhost",
         });
         c.header("X-Session-Id", sessionId);
         const { credentialId } = c.req.valid("query");
         if (credentialId && (isAddress as (address: string) => address is Address)(credentialId)) {
+          const url = new URL(origin(c.req.raw));
           const message = createSiweMessage({
             resources: ["https://exactly.github.io/exa"],
             statement: "Sign-in to the Exa App",
@@ -217,11 +219,11 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
             address: credentialId,
             chainId: chain.id,
             nonce: sessionId,
-            uri: appOrigin,
+            uri: url.origin,
             version: "1",
             issuedAt,
-            domain,
-            scheme,
+            domain: url.host,
+            scheme: url.protocol.slice(0, -1),
           });
           await redis.set(sessionId, message, "PX", timeout);
           return c.json(
@@ -377,8 +379,15 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
           try {
             const message = parseSiweMessage(challenge);
+            const url = new URL(origin(c.req.raw));
             if (
-              !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
+              !validateSiweMessage({
+                message,
+                address: assertion.id,
+                nonce: sessionId,
+                domain: url.host,
+                scheme: url.protocol.slice(0, -1),
+              }) ||
               !(await publicClient.verifySiweMessage({
                 message: challenge,
                 address: assertion.id,
@@ -416,8 +425,15 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           switch (assertion.method) {
             case "siwe": {
               const message = parseSiweMessage(challenge);
+              const url = new URL(origin(c.req.raw));
               if (
-                !validateSiweMessage({ message, address: assertion.id, nonce: sessionId, domain, scheme }) ||
+                !validateSiweMessage({
+                  message,
+                  address: assertion.id,
+                  nonce: sessionId,
+                  domain: url.host,
+                  scheme: url.protocol.slice(0, -1),
+                }) ||
                 !(await publicClient.verifySiweMessage({
                   message: challenge,
                   address: assertion.id,
@@ -432,7 +448,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               const { verified, authenticationInfo } = await verifyAuthenticationResponse({
                 response: assertion,
                 expectedRPID: domain,
-                expectedOrigin: [appOrigin, ...androidOrigins],
+                expectedOrigin: [...origins, ...androidOrigins],
                 expectedChallenge: challenge,
                 credential: {
                   id: assertion.id,
@@ -459,7 +475,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             httpOnly: true,
             ...(domain === "localhost"
               ? { sameSite: "lax", secure: false }
-              : { domain, sameSite: "none", secure: true, partitioned: true }),
+              : { sameSite: "none", secure: true, partitioned: true }),
           }),
         ]);
 
@@ -478,5 +494,3 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
       },
     );
 }
-
-const scheme = domain === "localhost" ? "http" : "https";

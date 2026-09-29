@@ -10,6 +10,8 @@ Then the owner can add members with admin role and those admins will be able to 
 
 Better auth client and viem are the recommended libraries to use for authentication and signing using SIWE.
 
+Integrator SIWE messages must use the primary application origin. Additional frontend origins apply to app sign-in only.
+
 > ⚠️ **Note:**  
 > If you need to perform an encrypted KYC operation, please ask the exa team for `kyc` permissions.
 
@@ -47,12 +49,12 @@ authClient.siwe
       statement,
       resources: ["https://exactly.github.io/exa"],
       nonce,
-      uri: "https://localhost",
+      uri: "http://localhost:8081",
       address: owner.address,
       chainId,
-      scheme: "https",
+      scheme: "http",
       version: "1",
-      domain: "localhost",
+      domain: "localhost:8081",
     });
     const signature = await owner.signMessage({ message });
 
@@ -72,7 +74,8 @@ authClient.siwe
         },
       },
     );
-  }).catch((error: unknown) => {
+  })
+  .catch((error: unknown) => {
     console.error("nonce error", error);
   });
 ```
@@ -117,7 +120,7 @@ authClient.siwe
       chainId,
       scheme: "https",
       version: "1",
-      domain: new URL(API_BASE_URL).hostname,
+      domain: new URL(API_BASE_URL).host,
     });
     const signature = await owner.signMessage({ message });
 
@@ -149,14 +152,15 @@ authClient.siwe
         },
       },
     );
-  }).catch((error: unknown) => {
+  })
+  .catch((error: unknown) => {
     console.error("nonce error", error);
   });
-  ```
+```
 
 ## Creating a webhook with the authenticated header
 
-  ```typescript
+```typescript
 import { createAuthClient } from "better-auth/client";
 import { siweClient, organizationClient } from "better-auth/client/plugins";
 import { mnemonicToAccount } from "viem/accounts";
@@ -250,12 +254,12 @@ authClient.siwe
   .catch((error: unknown) => {
     console.error("nonce error", error);
   });
-
-  ```
+```
 
 ## How to create the encrypted KYC payload with SIWE statement
 
 <!-- cspell:ignore oaep pkcs cipheriv -->
+
 ```typescript
 import crypto from "node:crypto";
 import { getAddress, sha256 } from "viem";
@@ -341,7 +345,8 @@ const message = createSiweMessage({
   version: "1",
   domain: "sandbox.exactly.app",
 });
-owner.signMessage({ message })
+owner
+  .signMessage({ message })
   .then((signature) => {
     const verify = {
       message,
@@ -355,7 +360,7 @@ owner.signMessage({ message })
   .catch((error: unknown) => {
     console.error("error", error);
   });
-  ```
+```
 
 ## How to send an invitation to the Integrator organization
 
@@ -435,7 +440,7 @@ authClient.siwe
   .catch((error: unknown) => {
     console.error("nonce error", error);
   });
-  ```
+```
 
 ## How to accept an invitation from the integrator organization
 
@@ -515,4 +520,4 @@ authClient.siwe
   .catch((error: unknown) => {
     console.error("error", error);
   });
-  ```
+```

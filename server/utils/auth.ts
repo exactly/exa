@@ -42,7 +42,7 @@ export default function auth(database: NodePgDatabase<typeof schema>, secret: st
     secret,
     plugins: [
       siwe({
-        domain,
+        domain: new URL(appOrigin).host,
         emailDomainName: domain === "localhost" ? "localhost.com" : domain,
         anonymous: true,
         getNonce: () => Promise.resolve(generateSiweNonce()),
@@ -55,7 +55,7 @@ export default function auth(database: NodePgDatabase<typeof schema>, secret: st
           const siweMessage = parseSiweMessage(message);
           if (
             siweMessage.nonce !== cacao.p.nonce ||
-            siweMessage.domain !== domain ||
+            siweMessage.domain !== new URL(appOrigin).host ||
             siweMessage.chainId !== chain.id
           ) {
             return false;

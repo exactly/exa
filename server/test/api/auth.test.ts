@@ -11,18 +11,23 @@ import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
-import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
-import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
+import { nonEmpty, object, parse, pipe, string, type InferOutput } from "valibot";
+import { getAddress, keccak256, padHex, slice, toBytes, verifyMessage, zeroAddress } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { optimism } from "viem/chains";
+import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
+import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import authentication, { Authentication } from "../../api/auth/authentication";
 import registration from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import androidOrigins from "../../utils/android/origins";
+import { origins } from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
 import createIntercom from "../../utils/intercom";
@@ -89,6 +94,86 @@ describe("authentication", () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await redis.del("test-session");
+  });
+
+  it.each(origins)("accepts related-origin passkey authentication from %s", async (origin) => {
+    const json = {
+      method: "webauthn" as const,
+      id: "dGVzdC1jcmVkLWlk",
+      rawId: "dGVzdC1jcmVkLWlk",
+      response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+      clientExtensionResults: {},
+      type: "public-key" as const,
+    };
+    const response = await appClient.index.$post({ json }, { headers: { origin, cookie: "session_id=test-session" } });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).not.toContain("Domain=");
+    expect(verifyAuthenticationResponse).toHaveBeenCalledExactlyOnceWith({
+      response: json,
+      expectedRPID: domain,
+      expectedOrigin: [...origins, ...androidOrigins],
+      expectedChallenge: "test-challenge",
+      credential: { id: json.id, publicKey: Buffer.alloc(0), transports: [], counter: 0 },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each(origins)("issues wallet challenges for %s", async (origin) => {
+    const siwe = await vi.importActual<typeof ViemSiwe>("viem/siwe");
+    for (const client of [appClient, registrationAppClient]) {
+      const response = await client.index.$get({ query: { credentialId: zeroAddress } }, { headers: { origin } });
+      expect(response.status).toBe(200);
+      const message = siwe.parseSiweMessage(parse(object({ message: string() }), await response.json()).message);
+      expect(message.address).toBe(zeroAddress);
+      expect(message.chainId).toBe(chain.id);
+      expect(message.domain).toBe(new URL(origin).host);
+      expect(message.scheme).toBe(new URL(origin).protocol.slice(0, -1));
+      expect(message.uri).toBe(origin);
+      expect(message.nonce).toBe(response.headers.get("x-session-id"));
+      expect(siwe.validateSiweMessage({ message, domain: new URL(origin).host, address: zeroAddress })).toBe(true);
+      expect(response.headers.get("set-cookie")).not.toContain("Domain=");
+    }
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each(origins)("verifies wallet signup, login, and registration from %s", async (origin) => {
+    const siwe = await vi.importActual<typeof ViemSiwe>("viem/siwe");
+    const verify = vi
+      .spyOn(publicClient.default, "verifySiweMessage")
+      .mockImplementation((args) => verifyMessage({ ...args, address: parse(Address, args.address) }));
+    onTestFinished(() => verify.mockRestore());
+    for (const client of [appClient, appClient, registrationAppClient]) {
+      const account = privateKeyToAccount(
+        keccak256(toBytes(`${origin}:${client === appClient ? "authentication" : "registration"}`)),
+      );
+      const response = await client.index.$get(
+        { query: { credentialId: own(account.address) } },
+        { headers: { origin } },
+      );
+      expect(response.status).toBe(200);
+      const message = parse(object({ message: string() }), await response.json()).message;
+      const sessionId = response.headers.get("x-session-id");
+      assert.ok(sessionId);
+      vi.mocked(parseSiweMessage).mockImplementationOnce(siwe.parseSiweMessage);
+      vi.mocked(validateSiweMessage).mockImplementationOnce(siwe.validateSiweMessage);
+      const signed = await client.index.$post(
+        { json: { method: "siwe", id: account.address, signature: await account.signMessage({ message }) } },
+        { headers: { origin, "x-session-id": sessionId } },
+      );
+      expect(signed.status).toBe(200);
+      expect(parse(Authentication, await signed.json()).credentialId).toBe(account.address);
+      expect(
+        await database.query.credentials.findFirst({
+          columns: { id: true },
+          where: eq(credentials.id, account.address),
+        }),
+      ).toStrictEqual({ id: account.address });
+      await expect(redis.exists(sessionId)).resolves.toBe(0);
+    }
+    expect(verify).toHaveBeenCalledTimes(3);
+    expect(sardineCustomer).toHaveBeenCalledTimes(2);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("returns intercom token on successful login", async () => {
@@ -423,7 +508,6 @@ describe("authentication", () => {
   });
 
   it("handles exceptions in no-credential siwe authentication path", async () => {
-    const { parseSiweMessage } = await import("viem/siwe");
     vi.mocked(parseSiweMessage).mockImplementationOnce(() => {
       throw new Error("boom");
     });
@@ -658,6 +742,26 @@ describe("registration", () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await redis.del("test-session");
+  });
+
+  it.each(origins)("accepts related-origin passkey registration from %s", async (origin) => {
+    const id = own(Buffer.from(origin).toString("base64url"));
+    const json = registrationWebauthnAssertion({ id, rawId: id });
+    const response = await registrationAppClient.index.$post(
+      { json },
+      { headers: { origin, cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).not.toContain("Domain=");
+    expect(verifyRegistrationResponse).toHaveBeenCalledExactlyOnceWith({
+      response: json,
+      expectedRPID: domain,
+      expectedOrigin: [...origins, ...androidOrigins],
+      expectedChallenge: "test-challenge",
+      supportedAlgorithmIDs: [-7],
+    });
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("returns 400 if registration challenge is missing", async () => {
@@ -1016,12 +1120,13 @@ vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
 
 vi.mock("viem/siwe", async (importOriginal) => {
   const original = await importOriginal<typeof ViemSiwe>();
+  const { default: network } = await import("@exactly/common/generated/chain");
   return {
     ...original,
     validateSiweMessage: vi.fn<() => boolean>().mockReturnValue(true),
     parseSiweMessage: vi.fn<() => ViemSiwe.SiweMessage>().mockReturnValue({
       address: zeroAddress,
-      chainId: chain.id,
+      chainId: network.id,
       domain: "localhost",
       nonce: "test-nonce",
       uri: "http://localhost",

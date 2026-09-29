@@ -1,6 +1,7 @@
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/core";
+import assert from "node:assert";
 import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createSiweMessage } from "viem/siwe";
@@ -10,6 +11,7 @@ import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
 import database from "../../database";
+import appOrigin from "../../utils/appOrigin";
 import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
 import publicClient from "../../utils/publicClient";
@@ -119,6 +121,20 @@ describe("siwe verifyMessage", () => {
     const args = await verifyInput({ messageDomain: "evil.example" });
 
     await expect(verifySiweMessage(args)).resolves.toBe(false);
+    expect(verify).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps integrator authentication on the primary origin", async () => {
+    const options = auth.options.plugins.find((plugin) => plugin.id === "siwe")?.options;
+    assert.ok(options);
+    expect(auth.options.baseURL).toBe(appOrigin);
+    expect(auth.options.trustedOrigins).toStrictEqual([appOrigin]);
+    expect(options.domain).toBe(new URL(appOrigin).host);
+    const verify = vi.spyOn(publicClient, "verifyMessage");
+    await expect(options.verifyMessage(await verifyInput({ messageDomain: "secondary.example:8443" }))).resolves.toBe(
+      false,
+    );
     expect(verify).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
