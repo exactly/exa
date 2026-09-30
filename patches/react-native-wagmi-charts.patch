@@ -1,0 +1,134 @@
+diff --git a/lib/module/charts/line/Chart.js b/lib/module/charts/line/Chart.js
+index d30812d4014aac91635bd747e67ad8205239c0ce..bd481160fb06045e6d77dceb5e0fb224b8833d16 100644
+--- a/lib/module/charts/line/Chart.js
++++ b/lib/module/charts/line/Chart.js
+@@ -36,6 +36,7 @@ export function LineChart({
+   shape = d3Shape.curveBumpX,
+   id,
+   absolute,
++  xAxisLabelHeight = 40,
+   ...props
+ }) {
+   const {
+@@ -50,8 +51,7 @@ export function LineChart({
+   });
+ 
+   // Reserve space at the bottom for x-axis cursor labels
+-  const X_AXIS_LABEL_RESERVED_HEIGHT = 40;
+-  const chartDrawingHeight = height - X_AXIS_LABEL_RESERVED_HEIGHT;
++  const chartDrawingHeight = height - xAxisLabelHeight;
+   const pathWidth = React.useMemo(() => {
+     let allowedWidth = width;
+     if (data && xLength > data.length) {
+diff --git a/lib/module/charts/line/HorizontalLine.js b/lib/module/charts/line/HorizontalLine.js
+index 0a051131304b3c9f1c9f5e41a6453fcc96c40ff1..714150669f30abe668fbe72ef3af7c5504bf6f4c 100644
+--- a/lib/module/charts/line/HorizontalLine.js
++++ b/lib/module/charts/line/HorizontalLine.js
+@@ -21,15 +21,13 @@ export function LineChartHorizontalLine({
+   const {
+     width,
+     parsedPath,
+-    height,
++    chartDrawingHeight,
+     gutter
+   } = React.useContext(LineChartDimensionsContext);
+   const {
+     yDomain
+   } = useLineChart();
+ 
+-  // Reserve space at the bottom for x-axis cursor labels
+-  const X_AXIS_LABEL_RESERVED_HEIGHT = 40;
+   const y = useDerivedValue(() => {
+     if (typeof at === 'number' || at.index != null) {
+       const index = typeof at === 'number' ? at : at.index;
+@@ -48,11 +46,10 @@ export function LineChartHorizontalLine({
+ 
+     const offsetTop = yDomain.max - at.value;
+     const percentageOffsetTop = offsetTop / (yDomain.max - yDomain.min);
+-    const chartDrawingHeight = height - X_AXIS_LABEL_RESERVED_HEIGHT;
+     const heightBetweenGutters = chartDrawingHeight - gutter * 2;
+     const offsetTopPixels = gutter + percentageOffsetTop * heightBetweenGutters;
+     return withTiming(offsetTopPixels + offsetY);
+-  }, [at, gutter, height, offsetY, parsedPath, yDomain.max, yDomain.min]);
++  }, [at, chartDrawingHeight, gutter, offsetY, parsedPath, yDomain.max, yDomain.min]);
+   const lineAnimatedProps = useAnimatedProps(() => ({
+     x1: 0,
+     x2: width,
+diff --git a/lib/typescript/src/charts/line/Chart.d.ts b/lib/typescript/src/charts/line/Chart.d.ts
+index 39cfb47e938a53b835e030c40c725ffe117f3943..fbe1ebd4d69b674ffc7d3fba998b7c0d501c23c6 100644
+--- a/lib/typescript/src/charts/line/Chart.d.ts
++++ b/lib/typescript/src/charts/line/Chart.d.ts
+@@ -29,8 +29,9 @@ export type LineChartProps = ViewProps & {
+      */
+     id?: string;
+     absolute?: boolean;
++    xAxisLabelHeight?: number;
+ };
+-export declare function LineChart({ children, yGutter, width, height, shape, id, absolute, ...props }: LineChartProps): React.JSX.Element;
++export declare function LineChart({ children, yGutter, width, height, shape, id, absolute, xAxisLabelHeight, ...props }: LineChartProps): React.JSX.Element;
+ export declare namespace LineChart {
+     var displayName: string;
+ }
+diff --git a/src/charts/line/Chart.tsx b/src/charts/line/Chart.tsx
+index f99b0ea17cfcecaabc70f3e77465c4b9dedcb6dc..7149deea88ab534c6b06f057a180fd479c38ce51 100644
+--- a/src/charts/line/Chart.tsx
++++ b/src/charts/line/Chart.tsx
+@@ -38,6 +38,7 @@ export type LineChartProps = ViewProps & {
+    */
+   id?: string;
+   absolute?: boolean;
++  xAxisLabelHeight?: number;
+ };
+ 
+ const { width: screenWidth } = Dimensions.get('window');
+@@ -52,6 +53,7 @@ export function LineChart({
+   shape = d3Shape.curveBumpX,
+   id,
+   absolute,
++  xAxisLabelHeight = 40,
+   ...props
+ }: LineChartProps) {
+   const { yDomain, xLength, xDomain } = React.useContext(LineChartContext);
+@@ -60,8 +62,7 @@ export function LineChart({
+   });
+ 
+   // Reserve space at the bottom for x-axis cursor labels
+-  const X_AXIS_LABEL_RESERVED_HEIGHT = 40;
+-  const chartDrawingHeight = height - X_AXIS_LABEL_RESERVED_HEIGHT;
++  const chartDrawingHeight = height - xAxisLabelHeight;
+ 
+   const pathWidth = React.useMemo(() => {
+     let allowedWidth = width;
+diff --git a/src/charts/line/HorizontalLine.tsx b/src/charts/line/HorizontalLine.tsx
+index 3a1dc5f4cec3e1b0473e73a319b1cd017406e317..1257b5aa70a04318d39adef230175d4fa10791e9 100644
+--- a/src/charts/line/HorizontalLine.tsx
++++ b/src/charts/line/HorizontalLine.tsx
+@@ -51,13 +51,11 @@ export function LineChartHorizontalLine({
+   at = { index: 0 },
+   offsetY = 0,
+ }: HorizontalLineProps) {
+-  const { width, parsedPath, height, gutter } = React.useContext(
++  const { width, parsedPath, chartDrawingHeight, gutter } = React.useContext(
+     LineChartDimensionsContext
+   );
+   const { yDomain } = useLineChart();
+ 
+-  // Reserve space at the bottom for x-axis cursor labels
+-  const X_AXIS_LABEL_RESERVED_HEIGHT = 40;
+ 
+   const y = useDerivedValue(() => {
+     if (typeof at === 'number' || at.index != null) {
+@@ -78,12 +76,11 @@ export function LineChartHorizontalLine({
+ 
+     const offsetTop = yDomain.max - at.value;
+     const percentageOffsetTop = offsetTop / (yDomain.max - yDomain.min);
+-    const chartDrawingHeight = height - X_AXIS_LABEL_RESERVED_HEIGHT;
+     const heightBetweenGutters = chartDrawingHeight - gutter * 2;
+     const offsetTopPixels = gutter + percentageOffsetTop * heightBetweenGutters;
+ 
+     return withTiming(offsetTopPixels + offsetY);
+-  }, [at, gutter, height, offsetY, parsedPath, yDomain.max, yDomain.min]);
++  }, [at, chartDrawingHeight, gutter, offsetY, parsedPath, yDomain.max, yDomain.min]);
+ 
+   const lineAnimatedProps = useAnimatedProps(
+     () => ({
