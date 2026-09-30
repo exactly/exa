@@ -67,6 +67,7 @@ import {
   isStock,
   lifiChainsOptions,
   lifiTokensOptions,
+  marketOpen,
   quoteValidity,
   restrictedCountries,
   statusOptions,
@@ -1238,23 +1239,6 @@ function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, t
 function updateSwap(updater: (old: Swap) => Swap) {
   queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
 }
-
-function marketOpen() {
-  const parts = formatter.formatToParts(new Date());
-  const value = (type: string) => parts.find((unit) => unit.type === type)?.value ?? "";
-  const weekday = value("weekday");
-  if (weekday === "Sat" || weekday === "Sun") return false;
-  const minutes = Number(value("hour")) * 60 + Number(value("minute"));
-  return minutes >= 9.5 * 60 && minutes < 16 * 60;
-}
-
-const formatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  hour: "numeric",
-  minute: "numeric",
-  hourCycle: "h23",
-});
 
 export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };
 
