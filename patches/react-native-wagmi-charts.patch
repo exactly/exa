@@ -34,10 +34,10 @@ index 609a49f7e743f1161dac753e3c17d424cf1ea1b2..c328afc4a65619abd8580dc4673c766d
            children: backgroundChildren
          })]
 diff --git a/lib/module/charts/line/Cursor.js b/lib/module/charts/line/Cursor.js
-index 20a0471ea6a29b9c5e01de5f9aeb5835bdfc883b..442d740f1d2feda7634e960852056da3f21aac5b 100644
+index 20a0471ea6a29b9c5e01de5f9aeb5835bdfc883b..2ec6c5484751d1fb5b73c3b6f973faf8b6ac788e 100644
 --- a/lib/module/charts/line/Cursor.js
 +++ b/lib/module/charts/line/Cursor.js
-@@ -75,21 +75,17 @@ export function LineChartCursor({
+@@ -75,24 +75,27 @@ export function LineChartCursor({
    const updatePosition = xPosition => {
      'worklet';
  
@@ -68,7 +68,52 @@ index 20a0471ea6a29b9c5e01de5f9aeb5835bdfc883b..442d740f1d2feda7634e960852056da3
 +      currentX.value = snapToPoint && last !== first ? (xValues[closestIndex] - first) / (last - first) * width : xPosition;
      }
    };
-   const longPressGesture = Gesture.LongPress().minDuration(minDurationMs ?? 0).maxDistance(999999).shouldCancelWhenOutside(shouldCancelWhenOutside).onStart(event => {
+-  const longPressGesture = Gesture.LongPress().minDuration(minDurationMs ?? 0).maxDistance(999999).shouldCancelWhenOutside(shouldCancelWhenOutside).onStart(event => {
++  const panGesture = (minDurationMs ? Gesture.Pan().activateAfterLongPress(minDurationMs) : Gesture.Pan().activeOffsetX([-8, 8]).failOffsetY([-8, 8])).shouldCancelWhenOutside(shouldCancelWhenOutside).onBegin(event => {
++    'worklet';
++
++    if (parsedPath && !minDurationMs) {
++      isActive.value = true;
++      updatePosition(Math.max(0, event.x <= width ? event.x : width));
++    }
++  }).onStart(event => {
+     'worklet';
+ 
+     if (parsedPath) {
+@@ -103,17 +106,19 @@ export function LineChartCursor({
+         runOnJS(onActivated)();
+       }
+     }
+-  }).onTouchesMove(event => {
++  }).onUpdate(event => {
+     'worklet';
+ 
+-    if (parsedPath && isActive.value && event.allTouches.length > 0 && event.allTouches[0]) {
+-      const touchX = event.allTouches[0].x;
+-      const xPosition = Math.max(0, touchX <= width ? touchX : width);
++    if (parsedPath && isActive.value) {
++      const xPosition = Math.max(0, event.x <= width ? event.x : width);
+       updatePosition(xPosition);
+     }
+-  }).onEnd(() => {
++  }).onFinalize(() => {
+     'worklet';
+ 
++    if (!isActive.value) {
++      return;
++    }
+     if (!persistOnEnd) {
+       isActive.value = false;
+       currentIndex.value = -1;
+@@ -127,7 +132,7 @@ export function LineChartCursor({
+       type
+     },
+     children: /*#__PURE__*/_jsx(GestureDetector, {
+-      gesture: longPressGesture,
++      gesture: panGesture,
+       children: /*#__PURE__*/_jsx(Animated.View, {
+         style: StyleSheet.absoluteFill,
+         children: children
 diff --git a/lib/module/charts/line/HorizontalLine.js b/lib/module/charts/line/HorizontalLine.js
 index 0a051131304b3c9f1c9f5e41a6453fcc96c40ff1..714150669f30abe668fbe72ef3af7c5504bf6f4c 100644
 --- a/lib/module/charts/line/HorizontalLine.js
@@ -164,10 +209,19 @@ index c60993260b8d7ce5429dcdaeb6ad7834b44cb7e9..ebde7d00b07b4c303f7b107dc97a74eb
        </LineChartPathContext.Provider>
        <LineChartPathContext.Provider
 diff --git a/src/charts/line/Cursor.tsx b/src/charts/line/Cursor.tsx
-index 634ea79c28a54f1d2cad9ae729cb27420c79519b..3d57d59207dbe1c19e10f66b5e336b04b84be56a 100644
+index 634ea79c28a54f1d2cad9ae729cb27420c79519b..5048eb16e0eed4c55ecadef6f7c22f7e34385350 100644
 --- a/src/charts/line/Cursor.tsx
 +++ b/src/charts/line/Cursor.tsx
-@@ -96,23 +96,26 @@ export function LineChartCursor({
+@@ -3,7 +3,7 @@ import React from 'react';
+ import Animated, { runOnJS } from 'react-native-reanimated';
+ import type {
+   GestureStateChangeEvent,
+-  LongPressGestureHandlerEventPayload,
++  PanGestureHandlerEventPayload,
+ } from 'react-native-gesture-handler';
+ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+ 
+@@ -96,32 +96,44 @@ export function LineChartCursor({
  
    const updatePosition = (xPosition: number) => {
      'worklet';
@@ -210,6 +264,66 @@ index 634ea79c28a54f1d2cad9ae729cb27420c79519b..3d57d59207dbe1c19e10f66b5e336b04
      }
    };
  
+-  const longPressGesture = Gesture.LongPress()
+-    .minDuration(minDurationMs ?? 0)
+-    .maxDistance(999999)
++  const panGesture = (
++    minDurationMs
++      ? Gesture.Pan().activateAfterLongPress(minDurationMs)
++      : Gesture.Pan().activeOffsetX([-8, 8]).failOffsetY([-8, 8])
++  )
+     .shouldCancelWhenOutside(shouldCancelWhenOutside)
++    .onBegin((event) => {
++      'worklet';
++      if (parsedPath && !minDurationMs) {
++        isActive.value = true;
++        updatePosition(Math.max(0, event.x <= width ? event.x : width));
++      }
++    })
+     .onStart(
+-      (event: GestureStateChangeEvent<LongPressGestureHandlerEventPayload>) => {
++      (event: GestureStateChangeEvent<PanGestureHandlerEventPayload>) => {
+         'worklet';
+         if (parsedPath) {
+           const xPosition = Math.max(0, event.x <= width ? event.x : width);
+@@ -134,21 +146,18 @@ export function LineChartCursor({
+         }
+       }
+     )
+-    .onTouchesMove((event) => {
++    .onUpdate((event) => {
+       'worklet';
+-      if (
+-        parsedPath &&
+-        isActive.value &&
+-        event.allTouches.length > 0 &&
+-        event.allTouches[0]
+-      ) {
+-        const touchX = event.allTouches[0].x;
+-        const xPosition = Math.max(0, touchX <= width ? touchX : width);
++      if (parsedPath && isActive.value) {
++        const xPosition = Math.max(0, event.x <= width ? event.x : width);
+         updatePosition(xPosition);
+       }
+     })
+-    .onEnd(() => {
++    .onFinalize(() => {
+       'worklet';
++      if (!isActive.value) {
++        return;
++      }
+ 
+       if (!persistOnEnd) {
+         isActive.value = false;
+@@ -162,7 +171,7 @@ export function LineChartCursor({
+ 
+   return (
+     <CursorContext.Provider value={{ type }}>
+-      <GestureDetector gesture={longPressGesture}>
++      <GestureDetector gesture={panGesture}>
+         <Animated.View style={StyleSheet.absoluteFill}>
+           {children}
+         </Animated.View>
 diff --git a/src/charts/line/HorizontalLine.tsx b/src/charts/line/HorizontalLine.tsx
 index 3a1dc5f4cec3e1b0473e73a319b1cd017406e317..1257b5aa70a04318d39adef230175d4fa10791e9 100644
 --- a/src/charts/line/HorizontalLine.tsx
