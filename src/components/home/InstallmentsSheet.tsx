@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
-import Carousel, { type ICarouselInstance } from "react-native-reanimated-carousel";
+import { AccessibilityInfo, Platform, Pressable, type AccessibilityActionEvent } from "react-native";
+import { Carousel, type CarouselRef } from "react-native-reanimated-carousel";
 
 import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";
 import { useRouter } from "expo-router";
 
 import { Info, X } from "@tamagui/lucide-icons-2";
-import { View, XStack, YStack } from "tamagui";
+import { View, VisuallyHidden, XStack, YStack } from "tamagui";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
@@ -39,10 +39,15 @@ export default function InstallmentsSheet({
   } = useTranslation();
   const { promoEnd, refund } = getPromoMonths(language);
   const [selected, setSelected] = useState(mode > 0 ? mode : 1);
+  const [page, setPage] = useState<number>();
   useEffect(() => {
-    if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
+    if (open) {
+      setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
+      setPage(undefined); // eslint-disable-line @eslint-react/set-state-in-effect
+    }
   }, [mode, open]);
-  const carouselRef = useRef<ICarouselInstance>(null);
+  const carouselRef = useRef<CarouselRef>(null);
+  const id = useId();
   const rates = useInstallmentRates();
   const [width, setWidth] = useState(0);
   const handleLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
@@ -54,6 +59,7 @@ export default function InstallmentsSheet({
   for (let index = 0; index < INSTALLMENTS.length; index += perPage) {
     pages.push(INSTALLMENTS.slice(index, index + perPage));
   }
+  const current = page ?? Math.floor((Math.max(mode, 1) - 1) / perPage);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView paddingTop={0} borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="$backgroundSoft">
@@ -101,23 +107,50 @@ export default function InstallmentsSheet({
                 </YStack>
               )}
             </YStack>
-            <View overflow="hidden" onLayout={handleLayout}>
+            <View
+              overflow="hidden"
+              onLayout={handleLayout}
+              role="group"
+              aria-label={t("Set installments")}
+              tabIndex={0}
+              aria-describedby={Platform.OS === "web" ? id : undefined}
+              onKeyDown={(event) => {
+                if (!("key" in event) || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+                event.preventDefault();
+                if (typeof event.currentTarget !== "number") event.currentTarget.focus();
+                if (event.key === "ArrowLeft" && current > 0) carouselRef.current?.prev();
+                else if (event.key === "ArrowRight" && current < pages.length - 1) carouselRef.current?.next();
+              }}
+              aria-live={Platform.OS === "web" ? "polite" : undefined}
+              aria-atomic={false}
+            >
+              {Platform.OS === "web" && (
+                <VisuallyHidden id={id}>
+                  {t("Use the arrow keys to browse. Press Tab to focus an option, then Enter to select it.")}
+                </VisuallyHidden>
+              )}
               {width === 0 ? undefined : (
                 <Carousel
                   ref={carouselRef}
-                  width={pageWidth}
-                  height={CARD_SIZE}
-                  style={{ width: width - PADDING - GAP, marginLeft: PADDING, overflow: "visible" }}
+                  itemSize={pageWidth}
+                  style={{ width: width - PADDING - GAP, height: CARD_SIZE, marginLeft: PADDING, overflow: "visible" }}
                   data={pages}
                   defaultIndex={Math.floor((Math.max(mode, 1) - 1) / perPage)}
+                  onSnapToItem={(next) => {
+                    setPage(next);
+                    if (Platform.OS !== "web" && next !== current)
+                      AccessibilityInfo.announceForAccessibility(
+                        pages[next]?.map((count) => t("{{count}} installments", { count })).join(", ") ?? "",
+                      );
+                  }}
                   loop={false}
                   overscrollEnabled={false}
-                  renderItem={({ item: page }) => (
+                  renderItem={({ item: options, index }) => (
                     <XStack gap={GAP}>
-                      {page.map((installment) => {
+                      {options.map((installment) => {
                         const isSelected = selected === installment;
                         const entry = rates?.installments[installment - 1];
-                        const rateLabel =
+                        const label =
                           entry?.payments === undefined
                             ? null
                             : t("{{rate}} APR", {
@@ -127,11 +160,46 @@ export default function InstallmentsSheet({
                                   maximumFractionDigits: 2,
                                 }),
                               });
-                        const promoted = isPromoted(installment) && rateLabel !== null;
+                        const promoted = isPromoted(installment) && label !== null;
                         const accentColor = promoted ? "$interactiveBaseSuccessDefault" : "$cardCreditInteractive";
                         return (
                           <YStack
                             key={installment}
+                            role="button"
+                            accessible={Platform.OS === "web" ? undefined : true}
+                            aria-label={`${t("{{count}} installments", { count: installment })}, ${promoted ? t("0% APR*") : (label ?? t(rates ? "N/A" : "Loading..."))}`}
+                            {...(Platform.OS === "web"
+                              ? { "aria-pressed": isSelected }
+                              : { accessibilityState: { selected: isSelected } })}
+                            tabIndex={index === current ? 0 : -1}
+                            {...(Platform.OS === "web"
+                              ? {}
+                              : {
+                                  accessibilityActions: [
+                                    { name: "activate" },
+                                    ...(current > 0
+                                      ? [{ name: "previous", label: t("Previous installment options") }]
+                                      : []),
+                                    ...(current < pages.length - 1
+                                      ? [{ name: "next", label: t("Next installment options") }]
+                                      : []),
+                                  ],
+                                  onAccessibilityAction: ({
+                                    nativeEvent: { actionName },
+                                  }: AccessibilityActionEvent) => {
+                                    if (actionName === "activate") select(installment);
+                                    else if (actionName === "previous" && current > 0) carouselRef.current?.prev();
+                                    else if (actionName === "next" && current < pages.length - 1)
+                                      carouselRef.current?.next();
+                                  },
+                                })}
+                            padding={0}
+                            focusVisibleStyle={{
+                              outlineStyle: "solid",
+                              outlineWidth: 2,
+                              outlineColor: "$borderBrandStrong",
+                              outlineOffset: -3,
+                            }}
                             width={CARD_SIZE}
                             height={CARD_SIZE}
                             borderRadius="$r3"
@@ -145,16 +213,17 @@ export default function InstallmentsSheet({
                             animateOnly={["transform"]}
                             pressStyle={{ scale: 0.96 }}
                             cursor="pointer"
-                            onPress={() => {
-                              setSelected(installment);
-                              if (installment !== mode) onModeChange(installment);
-                              impactAsync(ImpactFeedbackStyle.Medium).catch(reportError);
-                              const target = Math.floor((installment - 1) / perPage);
-                              if (target !== carouselRef.current?.getCurrentIndex()) {
-                                requestAnimationFrame(() =>
-                                  carouselRef.current?.scrollTo({ index: target, animated: true }),
-                                );
-                              }
+                            onMouseDown={(event) => event.preventDefault()}
+                            onPress={() => select(installment)}
+                            onKeyDown={(event) => {
+                              if (!("key" in event) || (event.key !== "Enter" && event.key !== " ")) return;
+                              event.preventDefault();
+                              if (event.key === "Enter") select(installment);
+                            }}
+                            onKeyUp={(event) => {
+                              if (!("key" in event) || event.key !== " ") return;
+                              event.preventDefault();
+                              select(installment);
                             }}
                           >
                             <Text title2 emphasized color={isSelected ? "$cardCreditText" : accentColor}>
@@ -177,7 +246,7 @@ export default function InstallmentsSheet({
                                   textDecorationLine="line-through"
                                   opacity={0.6}
                                 >
-                                  {rateLabel}
+                                  {label}
                                 </Text>
                               </YStack>
                             ) : rates ? (
@@ -186,7 +255,7 @@ export default function InstallmentsSheet({
                                 color={isSelected ? "$cardCreditText" : "$uiNeutralSecondary"}
                                 numberOfLines={1}
                               >
-                                {rateLabel ?? t("N/A")}
+                                {label ?? t("N/A")}
                               </Text>
                             ) : (
                               <Skeleton height={12} width={48} />
@@ -215,6 +284,16 @@ export default function InstallmentsSheet({
       </SafeView>
     </ModalSheet>
   );
+
+  function select(installment: number) {
+    if (installment < 1 || installment > MAX_INSTALLMENTS) return;
+    setSelected(installment);
+    if (installment !== mode) onModeChange(installment);
+    impactAsync(ImpactFeedbackStyle.Medium).catch(reportError);
+    const target = Math.floor((installment - 1) / perPage);
+    if (target !== current)
+      requestAnimationFrame(() => carouselRef.current?.scrollTo({ index: target, animated: true }));
+  }
 }
 
 const CARD_SIZE = 104;

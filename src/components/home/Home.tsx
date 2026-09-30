@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { View as RNView } from "react-native";
+import type { ScrollViewInstance, ViewInstance } from "react-native";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
@@ -97,7 +97,7 @@ export default function Home() {
       };
     }, []),
   );
-  const spotlightRef = useRef<RNView>(null);
+  const spotlightRef = useRef<ViewInstance>(null);
 
   const { address: account } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -216,7 +216,7 @@ export default function Home() {
     return earliest;
   }, [markets, timestamp, isProcessing]);
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollOffsetRef = useRef(0);
   const refresh = () =>
     Promise.all([
@@ -241,6 +241,7 @@ export default function Home() {
       <View fullScreen backgroundColor="$backgroundMild">
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
+          // @ts-expect-error tamagui declares the component as the ref instance
           ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import type { ScrollViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { router, useLocalSearchParams } from "expo-router";
@@ -953,7 +954,12 @@ export default function Swaps() {
           </YStack>
         ) : (
           <>
-            <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
+            <ScrollView
+              // @ts-expect-error tamagui declares the component as the ref instance
+              ref={swapsScrollReference}
+              showsVerticalScrollIndicator={false}
+              flex={1}
+            >
               <View padded>
                 <YStack paddingBottom="$s3" gap="$s4_5">
                   <YStack gap="$s3_5">
@@ -1256,7 +1262,7 @@ const formatter = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };
+export const swapsScrollReference: RefObject<null | ScrollViewInstance> = { current: null };
 
 function quotedUSD(estimate: Estimate | undefined, type: "from" | "to") {
   const quoted = type === "from" ? estimate?.fromAmountUSD : estimate?.toAmountUSD;
