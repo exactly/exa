@@ -23,6 +23,7 @@ const mock = vi.hoisted(() => {
         current().getApplicationStatus(...parameters),
       getCard: (...parameters: Parameters<Panda["getCard"]>) => current().getCard(...parameters),
       getCards: (...parameters: Parameters<Panda["getCards"]>) => current().getCards(...parameters),
+      getContracts: (...parameters: Parameters<Panda["getContracts"]>) => current().getContracts(...parameters),
       getNonce: (...parameters: Parameters<Panda["getNonce"]>) => current().getNonce(...parameters),
       getPIN: (...parameters: Parameters<Panda["getPIN"]>) => current().getPIN(...parameters),
       getProcessorDetails: (...parameters: Parameters<Panda["getProcessorDetails"]>) =>

@@ -53,6 +53,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     getApplicationStatus,
     getCard,
     getCards,
+    getContracts,
     getNonce,
     getPIN,
     getProcessorDetails,
@@ -125,6 +126,14 @@ export default function panda({ key, url }: { key: string; url: string }) {
   }
   async function getCards(userId: string) {
     return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`, {}, undefined, "GET", 10_000);
+  }
+  async function getContracts() {
+    return await request(
+      array(
+        object({ chainId: number(), contractVersion: number(), controllerAddress: Address, proxyAddress: Address }),
+      ),
+      "/issuing/tenants/contracts",
+    );
   }
   function getNonce(userId: string) {
     return request(

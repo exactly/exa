@@ -13,7 +13,6 @@ import {
   toHex,
   type LocalAccount,
 } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
   issuerCheckerAbi,
@@ -164,11 +163,14 @@ export default function worker({
         setUser({ id: card.credential.account });
         const user = await panda.getUser(spend.userId);
         if (!user.isActive) throw new Error("user is not active");
-        const { parameters } = await panda.getWithdrawal(
-          cents,
-          parse(Address, refunderContract),
-          parse(Address, refunder.address),
-        );
+        const [{ parameters }, contracts] = await Promise.all([
+          panda.getWithdrawal(cents, parse(Address, refunderContract), parse(Address, refunder.address)),
+          panda.getContracts(),
+        ]);
+        const target = contracts.find(
+          ({ chainId, contractVersion }) => chainId === chain.id && contractVersion === 1,
+        )?.controllerAddress;
+        if (!target) throw new UnrecoverableError("controller not found");
         const receipt = await wallet
           .exaSend(
             { name: "panda.refund", op: "panda.refund", attributes: { account } },
@@ -200,15 +202,7 @@ export default function worker({
                       ],
                       functionName: "withdrawAsset",
                     }),
-                    target: parse(
-                      Address,
-                      {
-                        [baseSepolia.id]: "0x54d02DcB38B76A67dC9368D8457D1F384B865c70",
-                        [optimismSepolia.id]: "0x4A6321D536a510cfE95A919DE869C4179bFb4856",
-                        [base.id]: "0x753Fb325Ca30f229E616eA8E6Eb620D0Bb29D0Df",
-                        [optimism.id]: "0x753Fb325Ca30f229E616eA8E6Eb620D0Bb29D0Df",
-                      }[chain.id],
-                    ),
+                    target,
                     value: 0n,
                   },
                   {

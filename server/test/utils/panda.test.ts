@@ -79,6 +79,28 @@ describe("panda request", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("lists tenant contracts", async () => {
+    const contract = {
+      chainId: baseSepolia.id,
+      contractVersion: 1,
+      controllerAddress: parse(Address, padHex("0xc0", { size: 20 })),
+      proxyAddress: parse(Address, padHex("0xb0", { size: 20 })),
+    };
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json([
+          { ...contract, id: "contract", depositAddress: contract.proxyAddress, adminAddresses: [], tokens: [] },
+        ]),
+      );
+
+    await expect(panda.getContracts()).resolves.toStrictEqual([contract]);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/issuing/tenants/contracts"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });
 
 describe("withdrawals", () => {
