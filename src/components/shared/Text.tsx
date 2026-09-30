@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 
 const StyledText = styled(TamaguiText, {
   fontVariant: ["stylistic-one", "stylistic-two", "stylistic-three"],
+  ...(Platform.OS === "web" && { lineHeight: "normal" }),
   defaultVariants: { primary: true },
   variants: {
     emphasized: { true: { fontWeight: "bold" } },
