@@ -8,11 +8,9 @@ import { YStack } from "tamagui";
 
 import { AssetRow } from "./ExternalAssets";
 import { isStock } from "../../utils/lifi";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import usePortfolio from "../../utils/usePortfolio";
 import Text from "../shared/Text";
-import { defaultSwap, type Swap } from "../swaps/Swaps";
 
 export default function Stocks() {
   const { t } = useTranslation();
@@ -39,8 +37,7 @@ export default function Stocks() {
           asset={asset}
           onPress={() => {
             selectionAsync().catch(reportError);
-            queryClient.setQueryData<Swap>(["swap"], { ...defaultSwap, fromToken: { external: true, token: asset } });
-            router.push("/swaps");
+            router.push({ pathname: "/asset", params: { chainId: String(asset.chainId), address: asset.address } });
           }}
         />
       ))}

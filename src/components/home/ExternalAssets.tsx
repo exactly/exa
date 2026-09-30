@@ -89,21 +89,13 @@ export default function ExternalAssets() {
 
   function handleSelect(asset: ExternalAsset) {
     if (!exaAccount) return;
-    if (asset.chainId === chain.id) {
-      selectionAsync().catch(reportError);
-      router.push({ pathname: "/send-funds/receiver", params: { asset: asset.address } });
-      return;
-    }
     if (isUnsupported(asset.chainId, deployedChains)) {
       const group = groups.find(({ chainId }) => chainId === asset.chainId);
       setPendingUnsupported({ asset, chainName: group?.chainName ?? `Chain ${asset.chainId}` });
       return;
     }
     selectionAsync().catch(reportError);
-    router.push({
-      pathname: "/(main)/add-funds/bridge",
-      params: { sender: "exa", sourceChain: String(asset.chainId), sourceToken: asset.address },
-    });
+    router.push({ pathname: "/asset", params: { chainId: String(asset.chainId), address: asset.address } });
   }
 
   if (groups.length === 0) return null;
