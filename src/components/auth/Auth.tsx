@@ -16,12 +16,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
-import calendarBlob from "../../assets/images/calendar-blob.svg";
-import calendar from "../../assets/images/calendar.svg";
-import earningsBlob from "../../assets/images/earnings-blob.svg";
-import earnings from "../../assets/images/earnings.svg";
-import exaCardBlob from "../../assets/images/exa-card-blob.svg";
-import exaCard from "../../assets/images/exa-card.svg";
+import calendar from "../../assets/images/calendar.webp";
+import creditCard from "../../assets/images/credit-card.webp";
+import earnArrow from "../../assets/images/earn-arrow.webp";
 import { loginUnidentified, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
@@ -265,25 +262,21 @@ export default function Auth() {
 }
 
 export type Page = {
-  backgroundImage: unknown;
-  image: unknown;
+  image: number;
   title: string;
 };
 
 const pages: [Page, ...Page[]] = [
   {
-    backgroundImage: exaCardBlob,
-    image: exaCard,
+    image: creditCard,
     title: "Introducing the first onchain credit card",
   },
   {
-    backgroundImage: calendarBlob,
     image: calendar,
     title: "Pay later in installments and hold your crypto",
   },
   {
-    backgroundImage: earningsBlob,
-    image: earnings,
+    image: earnArrow,
     title: "Maximize earnings, effortlessly",
   },
 ];

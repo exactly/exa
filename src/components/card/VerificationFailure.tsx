@@ -4,15 +4,15 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, X } from "@tamagui/lucide-icons-2";
 import { ScrollView, YStack } from "tamagui";
 
-import verifyIdentity from "../../assets/images/verify-identity.svg";
+import verifyIdentity from "../../assets/images/verify-identity.webp";
 import { present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
+import Image from "../shared/Image";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
-import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function VerificationFailure({ open, onClose }: { onClose: () => void; open: boolean }) {
@@ -27,11 +27,13 @@ export default function VerificationFailure({ open, onClose }: { onClose: () => 
           <View fullScreen flex={1}>
             <YStack flex={1} padding="$s4">
               <YStack flex={1} justifyContent="center" gap="$s4">
-                <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
-                  <View width="100%" height="100%" justifyContent="center" alignItems="center">
-                    <ThemedSvg xml={verifyIdentity} width="100%" height="100%" />
-                  </View>
-                </View>
+                <Image
+                  source={verifyIdentity}
+                  contentFit="contain"
+                  width="100%"
+                  aspectRatio={1}
+                  paddingHorizontal="$s8"
+                />
               </YStack>
               <YStack gap="$s4_5">
                 <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>

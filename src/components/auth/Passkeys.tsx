@@ -1,24 +1,22 @@
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { StyleSheet } from "react-native";
 
 import { useRouter } from "expo-router";
 
 import { Key, X } from "@tamagui/lucide-icons-2";
 import { XStack } from "tamagui";
 
-import passkeysBlob from "../../assets/images/passkeys-blob.svg";
-import passkeys from "../../assets/images/passkeys.svg";
+import passkeys from "../../assets/images/passkeys.webp";
 import { loginUnidentified, present } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
 import ErrorDialog from "../shared/ErrorDialog";
 import IconButton from "../shared/IconButton";
+import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
-import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Passkeys() {
@@ -49,21 +47,14 @@ export default function Passkeys() {
           />
         </View>
         <View justifyContent="center" alignItems="center" flexGrow={1} flexShrink={1}>
-          <View
+          <Image
+            source={passkeys}
+            contentFit="contain"
             width="100%"
             aspectRatio={1}
-            justifyContent="center"
-            alignItems="center"
             flexShrink={1}
-            position="relative"
-          >
-            <View width="100%" height="100%" aspectRatio={1}>
-              <ThemedSvg xml={passkeysBlob} width="100%" height="100%" />
-            </View>
-            <View width="100%" height="100%" aspectRatio={1} style={StyleSheet.absoluteFill}>
-              <ThemedSvg xml={passkeys} width="100%" height="100%" />
-            </View>
-          </View>
+            paddingHorizontal="$s5"
+          />
           <View gap="$s5" justifyContent="center">
             <Text emphasized title brand centered>
               {t("A secure and easy way to access your account")}

@@ -16,7 +16,7 @@ import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import RampWebView from "./RampWebView";
 import denied from "../../assets/images/denied.svg";
-import documents from "../../assets/images/documents.svg";
+import documents from "../../assets/images/documents.webp";
 import faceId from "../../assets/images/face-id.svg";
 import { isValidCurrency } from "../../utils/currencies";
 import { newMessage } from "../../utils/intercom";
@@ -24,6 +24,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getRampProviders } from "../../utils/server";
 import IconButton from "../shared/IconButton";
+import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -157,7 +158,7 @@ export default function Status() {
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
                   {needsMoreInfo ? (
-                    <ThemedSvg xml={documents} width="100%" height="100%" />
+                    <Image source={documents} contentFit="contain" width="100%" height="100%" paddingHorizontal="$s7" />
                   ) : isOnboarding || needsSupport ? (
                     <ThemedSvg xml={faceId} width="100%" height="100%" />
                   ) : (

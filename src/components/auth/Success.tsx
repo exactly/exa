@@ -1,17 +1,15 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet } from "react-native";
 
 import { useRouter } from "expo-router";
 
 import { ArrowRight } from "@tamagui/lucide-icons-2";
 
-import accountCreatedBlob from "../../assets/images/account-created-blob.svg";
-import accountCreated from "../../assets/images/account-created.svg";
+import accountCreated from "../../assets/images/account-created.webp";
+import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
-import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Success() {
@@ -21,21 +19,14 @@ export default function Success() {
     <SafeView fullScreen backgroundColor="$backgroundSoft">
       <View fullScreen padded>
         <View justifyContent="center" alignItems="center" flexGrow={1} flexShrink={1}>
-          <View
+          <Image
+            source={accountCreated}
+            contentFit="contain"
             width="100%"
             aspectRatio={1}
-            justifyContent="center"
-            alignItems="center"
             flexShrink={1}
-            position="relative"
-          >
-            <View width="100%" height="100%" aspectRatio={1}>
-              <ThemedSvg xml={accountCreatedBlob} width="100%" height="100%" />
-            </View>
-            <View width="100%" height="100%" aspectRatio={1} style={StyleSheet.absoluteFill}>
-              <ThemedSvg xml={accountCreated} width="100%" height="100%" />
-            </View>
-          </View>
+            paddingHorizontal="$s5"
+          />
           <View gap="$s5" justifyContent="center">
             <Text emphasized title brand centered>
               {t("Account created successfully!")}

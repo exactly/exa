@@ -1,12 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet } from "react-native";
 
 import { YStack } from "tamagui";
 
-import activityEmpty from "../../assets/images/activity-empty.svg";
+import activityEmpty from "../../assets/images/activity-empty.webp";
+import Image from "../shared/Image";
 import Text from "../shared/Text";
-import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 export default function Empty() {
@@ -14,11 +13,7 @@ export default function Empty() {
   return (
     <View fullScreen padding="$s5" alignItems="center" justifyContent="center" backgroundColor="$backgroundSoft">
       <YStack gap="$s6" alignItems="center" justifyContent="center">
-        <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
-          <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <ThemedSvg xml={activityEmpty} width="100%" height="100%" />
-          </View>
-        </View>
+        <Image source={activityEmpty} contentFit="contain" width="100%" aspectRatio={1} paddingHorizontal="$s7" />
         <YStack alignItems="center" justifyContent="center" gap="$s6">
           <Text emphasized title color="$interactiveTextBrandDefault" textAlign="center">
             {t("No activity yet")}
