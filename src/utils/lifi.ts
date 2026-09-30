@@ -156,6 +156,20 @@ export const lifiTokensOptions = queryOptions({
   },
 });
 
+export function statsOptions(chainId: number, address: string) {
+  return queryOptions({
+    queryKey: ["lifi", "stats", chainId, address.toLowerCase()],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      ensureConfig();
+      return parse(
+        object({ marketCapUSD: nullish(number()), volumeUSD24H: nullish(number()), fdvUSD: nullish(number()) }),
+        chain.testnet ? {} : await getToken(chainId as ChainId, address),
+      );
+    },
+  });
+}
+
 export function isStock({ address, chainId }: { address: string; chainId: number }) {
   return chainId === base.id && stocks.has(address.toLowerCase());
 }

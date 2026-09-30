@@ -19,8 +19,6 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Address } from "@exactly/common/validation";
-
 export default function AssetList() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -35,6 +33,7 @@ export default function AssetList() {
         const symbol = market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
         const rate = rates.find((r: { market: string; rate: bigint }) => r.market === market.market)?.rate;
         return {
+          asset: market.asset,
           symbol,
           name: symbol,
           assetName: market.assetName === "Wrapped Ether" ? "Ether" : market.assetName,
@@ -58,9 +57,11 @@ export default function AssetList() {
           setSheetOpen(true);
         }}
         onSelect={(asset) => {
-          if (!asset.market) return;
           selectionAsync().catch(reportError);
-          router.push({ pathname: "/send-funds/receiver", params: { asset: asset.market as Address } });
+          router.push({
+            pathname: "/asset",
+            params: { chainId: String(chain.id), address: asset.asset, market: asset.market },
+          });
         }}
       />
       <CollateralAssetsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
@@ -70,6 +71,7 @@ export default function AssetList() {
 
 type AssetItem = {
   amount: bigint;
+  asset: string;
   assetName?: string;
   decimals: number;
   market?: string;
@@ -176,11 +178,7 @@ function AssetSection({
         {onInfoPress ? <Info size={16} color="$interactiveOnBaseBrandSoft" /> : null}
       </XStack>
       {assets.map((asset) => (
-        <AssetRow
-          key={asset.symbol}
-          asset={asset}
-          onPress={onSelect && asset.amount > 0n ? () => onSelect(asset) : undefined}
-        />
+        <AssetRow key={asset.symbol} asset={asset} onPress={onSelect && (() => onSelect(asset))} />
       ))}
     </YStack>
   );

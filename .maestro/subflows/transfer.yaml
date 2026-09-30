@@ -9,7 +9,22 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Manage portfolio
 - assertVisible: Assets backing your credit
 - tapOn: USDC
+- assertVisible: Buy
+- assertVisible: Sell
+- runFlow: { file: tapAria.yaml, env: { aria: Sell } }
+- assertVisible: Swaps
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- assertVisible: USD Coin
+- runFlow: { file: tapAria.yaml, env: { aria: Send } }
 - assertVisible: Send to
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: scrollTo.yaml, env: { element: Balance } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- assertVisible: Assets backing your credit
+- tapOn: ETH
+- assertVisible: "\\+\\$100\\.00 \\(\\+4\\.17%\\)"
+- tapOn: 1M
+- assertVisible: "\\+\\$200\\.00 \\(\\+8\\.70%\\)"
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - assertVisible: Assets backing your credit
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
