@@ -33,6 +33,42 @@ index 609a49f7e743f1161dac753e3c17d424cf1ea1b2..c328afc4a65619abd8580dc4673c766d
            style: StyleSheet.absoluteFill,
            children: backgroundChildren
          })]
+diff --git a/lib/module/charts/line/Cursor.js b/lib/module/charts/line/Cursor.js
+index 20a0471ea6a29b9c5e01de5f9aeb5835bdfc883b..442d740f1d2feda7634e960852056da3f21aac5b 100644
+--- a/lib/module/charts/line/Cursor.js
++++ b/lib/module/charts/line/Cursor.js
+@@ -75,21 +75,17 @@ export function LineChartCursor({
+   const updatePosition = xPosition => {
+     'worklet';
+ 
+-    if (parsedPath) {
+-      // on Web, we could drag the cursor to be negative, breaking it
+-      // so we clamp the index at 0 to fix it
+-      // https://github.com/coinjar/react-native-wagmi-charts/issues/24
+-      const minIndex = 0;
+-      const boundedIndex = Math.max(minIndex, Math.round(xPosition / width / (1 / (data ? data.length - 1 : 1))));
+-      if (snapToPoint) {
+-        // We have to run this on the JS thread unfortunately as the scaleLinear functions won't work on UI thread
+-        runOnJS(linearScalePositionAndIndex)({
+-          xPosition
+-        });
+-      } else if (!snapToPoint) {
+-        currentX.value = xPosition;
+-        currentIndex.value = boundedIndex;
++    if (parsedPath && xValues.length > 0) {
++      const [first, last] = xDomain ?? [xValues[0], xValues[xValues.length - 1]];
++      const target = first + xPosition / width * (last - first);
++      let closestIndex = 0;
++      for (let index = 1; index < xValues.length; index++) {
++        if (Math.abs(xValues[index] - target) < Math.abs(xValues[closestIndex] - target)) {
++          closestIndex = index;
++        }
+       }
++      currentIndex.value = closestIndex;
++      currentX.value = snapToPoint && last !== first ? (xValues[closestIndex] - first) / (last - first) * width : xPosition;
+     }
+   };
+   const longPressGesture = Gesture.LongPress().minDuration(minDurationMs ?? 0).maxDistance(999999).shouldCancelWhenOutside(shouldCancelWhenOutside).onStart(event => {
 diff --git a/lib/module/charts/line/HorizontalLine.js b/lib/module/charts/line/HorizontalLine.js
 index 0a051131304b3c9f1c9f5e41a6453fcc96c40ff1..714150669f30abe668fbe72ef3af7c5504bf6f4c 100644
 --- a/lib/module/charts/line/HorizontalLine.js
@@ -127,6 +163,53 @@ index c60993260b8d7ce5429dcdaeb6ad7834b44cb7e9..ebde7d00b07b4c303f7b107dc97a74eb
          </View>
        </LineChartPathContext.Provider>
        <LineChartPathContext.Provider
+diff --git a/src/charts/line/Cursor.tsx b/src/charts/line/Cursor.tsx
+index 634ea79c28a54f1d2cad9ae729cb27420c79519b..3d57d59207dbe1c19e10f66b5e336b04b84be56a 100644
+--- a/src/charts/line/Cursor.tsx
++++ b/src/charts/line/Cursor.tsx
+@@ -96,23 +96,26 @@ export function LineChartCursor({
+ 
+   const updatePosition = (xPosition: number) => {
+     'worklet';
+-    if (parsedPath) {
+-      // on Web, we could drag the cursor to be negative, breaking it
+-      // so we clamp the index at 0 to fix it
+-      // https://github.com/coinjar/react-native-wagmi-charts/issues/24
+-      const minIndex = 0;
+-      const boundedIndex = Math.max(
+-        minIndex,
+-        Math.round(xPosition / width / (1 / (data ? data.length - 1 : 1)))
+-      );
+-
+-      if (snapToPoint) {
+-        // We have to run this on the JS thread unfortunately as the scaleLinear functions won't work on UI thread
+-        runOnJS(linearScalePositionAndIndex)({ xPosition });
+-      } else if (!snapToPoint) {
+-        currentX.value = xPosition;
+-        currentIndex.value = boundedIndex;
++    if (parsedPath && xValues.length > 0) {
++      const [first, last] = xDomain ?? [
++        xValues[0]!,
++        xValues[xValues.length - 1]!,
++      ];
++      const target = first + (xPosition / width) * (last - first);
++      let closestIndex = 0;
++      for (let index = 1; index < xValues.length; index++) {
++        if (
++          Math.abs(xValues[index]! - target) <
++          Math.abs(xValues[closestIndex]! - target)
++        ) {
++          closestIndex = index;
++        }
+       }
++      currentIndex.value = closestIndex;
++      currentX.value =
++        snapToPoint && last !== first
++          ? ((xValues[closestIndex]! - first) / (last - first)) * width
++          : xPosition;
+     }
+   };
+ 
 diff --git a/src/charts/line/HorizontalLine.tsx b/src/charts/line/HorizontalLine.tsx
 index 3a1dc5f4cec3e1b0473e73a319b1cd017406e317..1257b5aa70a04318d39adef230175d4fa10791e9 100644
 --- a/src/charts/line/HorizontalLine.tsx
