@@ -72,6 +72,7 @@ import {
   statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
+import { useFeed } from "../../utils/prices";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -84,6 +85,7 @@ import useSimulateProposal from "../../utils/useSimulateProposal";
 import exaConfig from "../../utils/wagmi/exa";
 import IconButton from "../shared/IconButton";
 import MarketClosedBanner from "../shared/MarketClosedBanner";
+import { PriceSummary } from "../shared/PriceChart";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -416,6 +418,10 @@ export default function Swaps() {
   const fromUSD = Number(route?.estimate.fromAmountUSD);
   const toUSD = Number(route?.estimate.toAmountUSD);
   const impact = fromUSD > 0 && toUSD > 0 ? 1 - toUSD / fromUSD : 0;
+  const feeds = [useFeed(toToken?.token), useFeed(fromToken?.token)];
+  const priced = feeds.includes(undefined)
+    ? undefined
+    : [toToken, fromToken].find((side, index) => !!side && !feeds[index]?.stablecoin);
 
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken) return false;
@@ -1004,6 +1010,24 @@ export default function Swaps() {
                       );
                     })}
                   </YStack>
+                  {priced && (
+                    <PriceSummary
+                      key={`${priced.token.chainId}:${priced.token.address}`}
+                      token={priced.token}
+                      onPress={() => {
+                        router.push({
+                          pathname: "/asset",
+                          params: {
+                            chainId: String(priced.token.chainId),
+                            address: priced.token.address,
+                            market: priced.external
+                              ? undefined
+                              : markets?.find(({ asset }) => asset === priced.token.address)?.market,
+                          },
+                        });
+                      }}
+                    />
+                  )}
                   {fromToken && toToken && route && (
                     <SwapDetails
                       exchange={tool}
