@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.30
+
+### Patch Changes
+
+- [#1356](https://github.com/exactly/exa/pull/1356) [`e607ffc`](https://github.com/exactly/exa/commit/e607ffc9a8b44ecc61911de16f330330446570cd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix clipped text on web
+
+- Updated dependencies [[`b1e424f`](https://github.com/exactly/exa/commit/b1e424f9db25f2796e2a61ff76057297188431f0), [`18b57e2`](https://github.com/exactly/exa/commit/18b57e2c978fe37b56b4571578c800623afee235)]:
+  - @exactly/server@0.2.122
+
 ## 1.2.29
 
 ### Patch Changes

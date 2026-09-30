@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.122
+
+### Patch Changes
+
+- [#1355](https://github.com/exactly/exa/pull/1355) [`b1e424f`](https://github.com/exactly/exa/commit/b1e424f9db25f2796e2a61ff76057297188431f0) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 👽️ resolve panda controller
+
+- [#1352](https://github.com/exactly/exa/pull/1352) [`18b57e2`](https://github.com/exactly/exa/commit/18b57e2c978fe37b56b4571578c800623afee235) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🥅 retry trace on resource not found
+
 ## 0.2.121
 
 ### Patch Changes
