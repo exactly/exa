@@ -23,9 +23,10 @@ import {
   type TransactionReceipt,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { optimismSepolia } from "viem/chains";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
-import { refunderAbi, refunderAddress, simple7702AccountAddress } from "@exactly/common/generated/chain";
+import chain, { refunderAbi, refunderAddress, simple7702AccountAddress } from "@exactly/common/generated/chain";
 import { Address, type Hash } from "@exactly/common/validation";
 
 import database, { cards, credentials, transactions } from "../../database";
@@ -206,6 +207,11 @@ describe("refund worker", () => {
     webhooks.clear();
     mocks.getWebhook.mockReset().mockImplementation((id) => Promise.resolve(webhooks.get(id)));
     mocks.getUser.mockReset().mockResolvedValue(user);
+    mocks.getContracts.mockReset().mockResolvedValue([
+      { chainId: optimismSepolia.id, contractVersion: 1, controllerAddress: account, proxyAddress: account },
+      { chainId: chain.id, contractVersion: 2, controllerAddress: account, proxyAddress: account },
+      { chainId: chain.id, contractVersion: 1, controllerAddress: pandaAddress, proxyAddress: account },
+    ]);
     mocks.getWithdrawal.mockReset().mockImplementation((amount) =>
       Promise.resolve({
         parameters: [account, account, String(amount), refunderAddress, 1_700_000_000, salt, "0x1234"],
@@ -289,6 +295,7 @@ describe("refund worker", () => {
     expect(mocks.getWebhook).toHaveBeenCalledExactlyOnceWith("wh-authorized");
     expect(mocks.getUser).toHaveBeenCalledExactlyOnceWith("user");
     expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(1000, refunderAddress, refunder.address);
+    expect(mocks.getContracts).toHaveBeenCalledExactlyOnceWith();
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: "panda.refund", op: "panda.refund", attributes: { account } }),
       expect.objectContaining({
@@ -636,6 +643,45 @@ describe("refund worker", () => {
       },
       extra: { attempts: 1, id: "wh-mismatch", recipient: refunderAddress },
     });
+  });
+
+  it("fails without retries on missing controllers", async () => {
+    mocks.getContracts.mockResolvedValueOnce([
+      { chainId: chain.id, contractVersion: 2, controllerAddress: pandaAddress, proxyAddress: account },
+    ]);
+    webhook("wh-no-controller", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+
+    const result = jobFinished("wh-no-controller", { attempts: 2, backoff: { type: "fixed", delay: 1 } });
+
+    await expect(result).rejects.toThrow("controller not found");
+    await vi.waitUntil(() => track.mock.calls.length > 0);
+    expect(mocks.getContracts).toHaveBeenCalledOnce();
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(track).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        event: "TransactionRejected",
+        properties: expect.objectContaining({
+          declinedReason: "refund:controller not found",
+          reasonName: "UnrecoverableError",
+        }) as unknown,
+      }),
+    );
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "controller not found" }),
+      {
+        level: "fatal",
+        fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+        tags: {
+          queue: "refund",
+          job: "refund",
+          "panda.reason": "controller not found",
+          "panda.reasonName": "UnrecoverableError",
+        },
+        extra: { attempts: 1, id: "wh-no-controller", recipient: refunderAddress },
+      },
+    );
   });
 
   it("fails on inactive users", async () => {
@@ -1031,6 +1077,7 @@ const user = {
 
 const mocks = vi.hoisted(() => ({
   exaSend: vi.fn<ReturnType<typeof W.extender>["exaSend"]>(),
+  getContracts: vi.fn<() => Promise<unknown>>(),
   getUser: vi.fn<(id: string) => Promise<unknown>>(),
   getWebhook: vi.fn<(id: string) => Promise<unknown>>(),
   getWithdrawal: vi.fn<(amount: number, recipient: string, admin: string) => Promise<unknown>>(),
@@ -1042,6 +1089,7 @@ vi.mock("../../utils/panda", async (importOriginal) => {
     ...original,
     default: ((options) => ({
       ...original.default(options),
+      getContracts: mocks.getContracts,
       getUser: mocks.getUser,
       getWebhook: mocks.getWebhook,
       getWithdrawal: mocks.getWithdrawal,
