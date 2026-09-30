@@ -156,8 +156,17 @@ export const lifiTokensOptions = queryOptions({
   },
 });
 
-export function isStock({ address, chainId }: Token) {
-  return chainId === (base.id as ChainId) && stocks.has(address.toLowerCase());
+export function isStock({ address, chainId }: { address: string; chainId: number }) {
+  return chainId === base.id && stocks.has(address.toLowerCase());
+}
+
+export function marketOpen() {
+  const parts = formatter.formatToParts(new Date());
+  const value = (type: string) => parts.find((unit) => unit.type === type)?.value ?? "";
+  const weekday = value("weekday");
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const minutes = Number(value("hour")) * 60 + Number(value("minute"));
+  return minutes >= 9.5 * 60 && minutes < 16 * 60;
 }
 
 export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
@@ -779,6 +788,14 @@ const Balances = object({
 });
 
 const knownTokens = new WeakMap<Token[], Map<string, Token>>();
+
+const formatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "numeric",
+  minute: "numeric",
+  hourCycle: "h23",
+});
 
 type Holding = { address: string; amount: bigint };
 
