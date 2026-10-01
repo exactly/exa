@@ -19,12 +19,10 @@ import { base58, bech32, bech32m, createBase58check } from "@scure/base";
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import {
   array,
-  boolean,
   check,
   nullish,
   number,
   object,
-  optional,
   parse,
   pipe,
   regex,
@@ -33,10 +31,22 @@ import {
   transform,
   trim,
   union,
-  unknown,
   type GenericSchema,
 } from "valibot";
-import { encodeFunctionData, formatUnits, getAddress, isAddressEqual, sha256, zeroAddress, type Address } from "viem";
+import {
+  createPublicClient,
+  encodeFunctionData,
+  erc20Abi,
+  fallback,
+  formatUnits,
+  getAddress,
+  http,
+  isAddressEqual,
+  multicall3Abi,
+  sha256,
+  zeroAddress,
+  type Address,
+} from "viem";
 import { anvil, base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -601,48 +611,70 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
 }
 
 async function getWalletBalances(account: Address) {
-  const [chains, networks] = await Promise.all([
-    config.getChains(),
-    queryClient.fetchQuery(networksOptions).catch((error: unknown) => {
-      reportError(error);
-      return [];
-    }),
-  ]);
-  const urls: Record<number, string> = { ...alchemyURLs };
-  for (const { isTestNet, kebabCaseId, networkChainId, supportedProducts } of networks) {
-    if (isTestNet || typeof networkChainId !== "number" || urls[networkChainId]) continue;
-    if (!supportedProducts.includes("token-api")) continue;
-    urls[networkChainId] = `https://${kebabCaseId}.g.alchemy.com/v2/${alchemyAPIKey}`;
-  }
+  const [chains, lifiTokens] = await Promise.all([config.getChains(), queryClient.fetchQuery(lifiTokensOptions)]);
+  const balanceOf = encodeFunctionData({ abi: erc20Abi, functionName: "balanceOf", args: [account] });
+  const getEthBalance = encodeFunctionData({ abi: multicall3Abi, functionName: "getEthBalance", args: [account] });
   const balances: Record<number, Holding[]> = {};
   const failures = new Map<string, { error: unknown; ids: number[] }>();
   await Promise.all(
-    chains.map(async ({ id, mainnet }) => {
-      const url = urls[id];
-      if (!mainnet || !url) return;
+    chains.map(async ({ chainType, diamondAddress, id, mainnet, multicallAddress }) => {
+      if (!mainnet || chainType !== ChainType.EVM || !diamondAddress || !multicallAddress) return;
+      const url = alchemyURLs[id];
       try {
-        const held: Holding[] = [];
-        let pageKey: string | undefined;
-        do {
-          const [tokens, native] = await Promise.all([
-            rpc(url, "alchemy_getTokenBalances", pageKey ? [account, "erc20", { pageKey }] : [account, "erc20"]),
-            pageKey ? undefined : rpc(url, "eth_getBalance", [account, "latest"]),
-          ]);
-          if (typeof native === "string") {
-            const amount = BigInt(native);
-            if (amount > 0n) held.push({ address: zeroAddress, amount });
-          }
-          pageKey = undefined;
-          if (tokens && typeof tokens !== "string") {
-            for (const { contractAddress, tokenBalance } of tokens.tokenBalances) {
-              if (!tokenBalance) continue;
-              const amount = BigInt(tokenBalance);
-              if (amount > 0n) held.push({ address: contractAddress, amount });
+        if (url) {
+          const held: Holding[] = [];
+          let pageKey: string | undefined;
+          do {
+            const [tokens, native] = await Promise.all([
+              rpc(url, "alchemy_getTokenBalances", pageKey ? [account, "erc20", { pageKey }] : [account, "erc20"]),
+              pageKey ? undefined : rpc(url, "eth_getBalance", [account, "latest"]),
+            ]);
+            if (typeof native === "string") {
+              const amount = BigInt(native);
+              if (amount > 0n) held.push({ address: zeroAddress, amount });
             }
-            pageKey = tokens.pageKey ?? undefined;
-          }
-        } while (pageKey);
-        if (held.length > 0) balances[id] = held;
+            pageKey = undefined;
+            if (tokens && typeof tokens !== "string") {
+              for (const { contractAddress, tokenBalance } of tokens.tokenBalances) {
+                if (!tokenBalance) continue;
+                const amount = BigInt(tokenBalance);
+                if (amount > 0n) held.push({ address: contractAddress, amount });
+              }
+              pageKey = tokens.pageKey ?? undefined;
+            }
+          } while (pageKey);
+          balances[id] = held;
+          return;
+        }
+        const listed = lifiTokens.filter((token) => token.chainId === (id as ChainId));
+        const client = await config
+          .getRPCUrls()
+          .then((urls) =>
+            createPublicClient({ transport: fallback((urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl))) }),
+          );
+        balances[id] = await Promise.all(
+          Array.from({ length: Math.ceil(listed.length / 200) }, (_, chunk) =>
+            listed.slice(chunk * 200, chunk * 200 + 200),
+          ).map(async (calls) => {
+            const results = await client.readContract({
+              address: multicallAddress as Address,
+              abi: multicall3Abi,
+              functionName: "aggregate3",
+              args: [
+                calls.map(({ address }) =>
+                  address === zeroAddress
+                    ? { target: multicallAddress as Address, allowFailure: true, callData: getEthBalance }
+                    : { target: address.toLowerCase() as Address, allowFailure: true, callData: balanceOf },
+                ),
+              ],
+            });
+            return calls.flatMap(({ address }, index) => {
+              const result = results[index];
+              const amount = result?.success && result.returnData.length === 66 ? BigInt(result.returnData) : 0n;
+              return amount > 0n ? [{ address, amount }] : [];
+            });
+          }),
+        ).then((results) => results.flat());
       } catch (error) {
         if (id === chain.id) throw error;
         const key = String(error);
@@ -668,30 +700,6 @@ async function rpc(url: string, method: string, params: unknown[]) {
   if (error) throw new Error(`${method} failed: ${error.code} ${error.message}`);
   return result;
 }
-
-const networksOptions = queryOptions({
-  queryKey: ["alchemy", "networks"],
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: async () => {
-    const response = await fetch("https://app-api.alchemy.com/trpc/config.getNetworkConfig");
-    if (!response.ok) throw new Error(`alchemy networks failed: ${response.status}`);
-    return parse(Networks, await response.json()).result.data;
-  },
-});
-
-const Networks = object({
-  result: object({
-    data: array(
-      object({
-        isTestNet: boolean(),
-        kebabCaseId: string(),
-        networkChainId: optional(unknown()),
-        supportedProducts: array(nullish(string())),
-      }),
-    ),
-  }),
-});
 
 const alchemyURLs = Object.fromEntries(
   [...alchemyChains.values()].flatMap(({ id, rpcUrls }) =>
