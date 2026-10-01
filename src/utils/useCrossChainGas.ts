@@ -34,7 +34,7 @@ export default function useCrossChainGas({
   token: null | TokenAmount | undefined;
   value?: bigint;
 }) {
-  const { data: balances } = useQuery(balancesOptions(account));
+  const { data: balances, isFetching: isBalancesFetching } = useQuery(balancesOptions(account));
   const { data: chains } = useQuery(lifiChainsOptions);
   const nativeToken = chains?.find((item) => item.id === chainId)?.nativeToken;
   const sponsored = chainId === chain.id;
@@ -78,8 +78,9 @@ export default function useCrossChainGas({
       ? gasToken
       : undefined;
   const insufficientGas =
-    (!!balances && !!nativeToken && (value ?? 0n) > (nativeBalance ?? 0n)) ||
-    (nativeGasReserve > 0n && !nativeCovered && !paymasterFee && (isNative || feeIsSource || !paymasterAddress));
+    (!!balances?.[chainId] || !isBalancesFetching) &&
+    ((!!balances && !!nativeToken && (value ?? 0n) > (nativeBalance ?? 0n)) ||
+      (nativeGasReserve > 0n && !nativeCovered && !paymasterFee && (isNative || feeIsSource || !paymasterAddress)));
 
   const { refetch: refetchPaymasterAllowance } = useReadContract({
     address: paymasterFee ? getAddress(paymasterFee.address) : undefined,

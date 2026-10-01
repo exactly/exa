@@ -48,9 +48,10 @@ import {
   bridgePolicyId,
   bridgePolicySymbols,
   bridgeSlippage,
-  bridgeSourcesOptions,
   gasReserveBuffer,
+  getBridgeSources,
   getRouteFrom,
+  lifiChainsOptions,
   lifiTokensOptions,
   tokenAmountsToBalances,
   tokenCorrelation,
@@ -130,19 +131,29 @@ export default function Bridge() {
   const { protocolSymbols, protocolAssets, externalAssets } = usePortfolio();
 
   const {
-    data: bridge,
-    isPending: isSourcesPending,
-    refetch: refetchSources,
+    data: balances,
+    isError: isBalancesError,
+    refetch: refetchBalances,
   } = useQuery({
-    ...bridgeSourcesOptions(senderAddress, protocolSymbols),
+    ...balancesOptions(senderAddress),
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
   });
-  const { data: balances, refetch: refetchBalances } = useQuery(balancesOptions(senderAddress));
+  const { data: lifiChains, isError: isChainsError, refetch: refetchChains } = useQuery(lifiChainsOptions);
+  const { data: lifiTokens, isPending: isTokensPending, refetch: refetchTokens } = useQuery(lifiTokensOptions);
+  const bridge = useMemo(
+    () =>
+      balances && lifiChains && !isTokensPending && protocolSymbols.length > 0
+        ? getBridgeSources(balances, lifiChains, lifiTokens ?? [])
+        : undefined,
+    [balances, lifiChains, lifiTokens, isTokensPending, protocolSymbols.length],
+  );
+  const isSourcesPending = !bridge && !isBalancesError && !isChainsError;
   async function refresh() {
     if (!senderAddress) return;
-    queryClient.removeQueries({ queryKey: lifiTokensOptions.queryKey });
-    await Promise.all([refetchSources(), refetchBalances()]);
+    await refetchTokens();
+    if (isChainsError) await refetchChains();
+    await refetchBalances();
   }
   const sameChainBalances = balances?.[chain.id];
 
@@ -190,6 +201,11 @@ export default function Bridge() {
     const asset = defaultAsset ?? assetGroups[0]?.assets[0];
     if (group && asset) return { chain: group.chain.id, address: asset.token.address };
   }, [assetGroups, selectedSource, bridge?.defaultChainId, bridge?.defaultTokenAddress]);
+
+  function changeAmount(value: bigint) {
+    if (source) setSelectedSource({ chain: source.chain, address: source.address.toLowerCase() });
+    setSourceAmount(value);
+  }
 
   const selectedGroup = assetGroups.find((group) => group.chain.id === source?.chain);
   const selectedAsset = selectedGroup?.assets.find((asset) => asset.token.address === source?.address);
@@ -672,9 +688,7 @@ export default function Bridge() {
             .then(() => queryClient.fetchQuery({ ...balancesOptions(item), staleTime: 0 }))
             .catch(reportError),
         ),
-      )
-        .then(() => queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] }))
-        .catch(reportError);
+      ).catch(reportError);
     },
     onError(error) {
       if (reportError(error).authKnown) {
@@ -730,10 +744,7 @@ export default function Bridge() {
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
       });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["bridge", "sources"] }),
-        queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] });
     },
     onError(error) {
       if (reportError(error).authKnown) {
@@ -914,12 +925,8 @@ export default function Bridge() {
                   onTokenSelect={() => {
                     if (assetGroups.length > 0) setAssetSheetOpen(true);
                   }}
-                  onChange={(value) => {
-                    setSourceAmount(value);
-                  }}
-                  onUseMax={(maxAmount) => {
-                    setSourceAmount(maxAmount);
-                  }}
+                  onChange={changeAmount}
+                  onUseMax={changeAmount}
                 />
               )}
               {!isTransfer && !isSourcesPending && assetGroups.length > 0 && destinationTokens.length === 0 && (

@@ -16,7 +16,7 @@ import {
   type TokenAmount,
 } from "@lifi/sdk";
 import { base58, bech32, bech32m, createBase58check } from "@scure/base";
-import { queryOptions, skipToken } from "@tanstack/react-query";
+import { queryOptions, skipToken, experimental_streamedQuery as streamedQuery } from "@tanstack/react-query";
 import {
   array,
   check,
@@ -160,50 +160,47 @@ export function balancesOptions(account: Address | undefined) {
     staleTime: 30_000,
     gcTime: isServer ? Infinity : 60_000,
     enabled: !!account && !chain.testnet && chain.id !== anvil.id,
-    queryFn: async () => {
-      if (!account) return {} as Record<number, TokenAmount[]>;
-      ensureConfig();
-      const [amounts, lifiTokens, exa] = await Promise.all([
-        getWalletBalances(account),
-        queryClient.fetchQuery(lifiTokensOptions),
-        exaAddress
+    queryFn: streamedQuery({
+      refetchMode: "append",
+      initialValue: {} as Record<number, TokenAmount[]>,
+      reducer: (balances, chunk: Record<number, TokenAmount[]>) =>
+        Object.fromEntries(Object.entries({ ...balances, ...chunk }).filter(([, tokens]) => tokens.length > 0)),
+      async *streamFn({ signal }) {
+        if (!account) return;
+        ensureConfig();
+        const [chains, lifiTokens] = await Promise.all([config.getChains(), queryClient.fetchQuery(lifiTokensOptions)]);
+        const known =
+          knownTokens.get(lifiTokens) ??
+          new Map(lifiTokens.map((token) => [`${token.chainId}:${token.address.toLowerCase()}`, token]));
+        knownTokens.set(lifiTokens, known);
+        const exa = exaAddress ? known.get(`${chain.id}:${exaAddress.toLowerCase()}`) : undefined;
+        const lookup = exaAddress
           ? getToken(chain.id, exaAddress).catch((error: unknown) => {
               reportError(error);
+              return exa;
             })
-          : undefined,
-      ]);
-      const known =
-        knownTokens.get(lifiTokens) ??
-        new Map(lifiTokens.map((token) => [`${token.chainId}:${token.address.toLowerCase()}`, token]));
-      knownTokens.set(lifiTokens, known);
-      const balances: Record<number, TokenAmount[]> = {};
-      for (const [chainId, holdings] of Object.entries(amounts)) {
-        const id = Number(chainId);
-        const found = holdings.flatMap(({ address, amount }) => {
-          const token = known.get(`${id}:${address.toLowerCase()}`);
-          return token ? [{ ...token, amount }] : [];
-        });
-        if (found.length > 0) balances[id] = found;
-      }
-      if (exa) {
-        const amount =
-          amounts[chain.id]?.find((t) => t.address.toLowerCase() === exa.address.toLowerCase())?.amount ?? 0n;
-        balances[chain.id] = [
-          { ...exa, amount },
-          ...(balances[chain.id] ?? []).filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase()),
-        ];
-      }
-      return balances;
-    },
-  });
-}
-
-export function bridgeSourcesOptions(account: Address | undefined, protocolSymbols: string[] = []) {
-  return queryOptions({
-    queryKey: ["bridge", "sources", account],
-    queryFn: () => getBridgeSources(account),
-    staleTime: 60_000,
-    enabled: !!account && protocolSymbols.length > 0 && !chain.testnet && chain.id !== anvil.id,
+          : undefined;
+        const balances: Record<number, TokenAmount[]> = {};
+        for await (const [id, holdings] of getWalletBalances(account, lifiTokens, chains, signal)) {
+          const tokens = holdings.flatMap(({ address, amount }) => {
+            const token = known.get(`${id}:${address.toLowerCase()}`);
+            return token ? [{ ...token, amount }] : [];
+          });
+          const latest = id === chain.id ? await lookup : undefined;
+          balances[id] = latest
+            ? [
+                {
+                  ...latest,
+                  amount: holdings.find((t) => t.address.toLowerCase() === latest.address.toLowerCase())?.amount ?? 0n,
+                },
+                ...tokens.filter((t) => t.address.toLowerCase() !== latest.address.toLowerCase()),
+              ]
+            : tokens;
+          if (chain.id in balances) yield balances;
+        }
+        if (!(chain.id in balances)) yield balances;
+      },
+    }),
   });
 }
 
@@ -544,21 +541,11 @@ export type BridgeSources = {
   usdByToken: Record<string, number>;
 };
 
-export async function getBridgeSources(account?: Address): Promise<BridgeSources> {
-  ensureConfig();
-  if (!account) throw new Error("account is required");
-  const cachedTokens = queryClient.getQueryData<Token[]>(lifiTokensOptions.queryKey);
-  const [supportedChains, allTokens, allBalances] = await Promise.all([
-    queryClient.getQueryData<ExtendedChain[]>(lifiChainsOptions.queryKey) ?? queryClient.fetchQuery(lifiChainsOptions),
-    cachedTokens?.some((token) => token.chainId === (chain.id as typeof token.chainId))
-      ? cachedTokens
-      : queryClient.fetchQuery(lifiTokensOptions).catch((error: unknown) => {
-          reportError(error);
-          return [] as Token[];
-        }),
-    queryClient.fetchQuery(balancesOptions(account)),
-  ]);
-
+export function getBridgeSources(
+  allBalances: Record<number, TokenAmount[]>,
+  supportedChains: ExtendedChain[],
+  allTokens: Token[],
+): BridgeSources {
   const usdByChain: Record<number, number> = {};
   const usdByToken: Record<string, number> = {};
   const destinationTokens = allTokens.filter((token) => token.chainId === (chain.id as typeof token.chainId));
@@ -610,21 +597,19 @@ export async function getBridgeSources(account?: Address): Promise<BridgeSources
   };
 }
 
-async function getWalletBalances(account: Address) {
-  const [chains, lifiTokens] = await Promise.all([config.getChains(), queryClient.fetchQuery(lifiTokensOptions)]);
+async function* getWalletBalances(account: Address, lifiTokens: Token[], chains: ExtendedChain[], signal: AbortSignal) {
   const balanceOf = encodeFunctionData({ abi: erc20Abi, functionName: "balanceOf", args: [account] });
   const getEthBalance = encodeFunctionData({ abi: multicall3Abi, functionName: "getEthBalance", args: [account] });
-  const balances: Record<number, Holding[]> = {};
   const failures = new Map<string, { error: unknown; ids: number[] }>();
-  await Promise.all(
+  const pending = new Set(
     chains.map(async ({ chainType, diamondAddress, id, mainnet, multicallAddress }) => {
       if (!mainnet || chainType !== ChainType.EVM || !diamondAddress || !multicallAddress) return;
       const url = alchemyURLs[id];
       try {
         if (url) {
           const [tokens, native] = await Promise.all([
-            rpc(url, "alchemy_getTokenBalances", [account, "erc20"]),
-            rpc(url, "eth_getBalance", [account, "latest"]),
+            rpc(url, "alchemy_getTokenBalances", [account, "erc20"], signal),
+            rpc(url, "eth_getBalance", [account, "latest"], signal),
           ]);
           if (typeof tokens === "string" || !tokens?.pageKey) {
             const held: Holding[] = [];
@@ -639,8 +624,7 @@ async function getWalletBalances(account: Address) {
                 if (amount > 0n) held.push({ address: contractAddress, amount });
               }
             }
-            balances[id] = held;
-            return;
+            return [id, held] as const;
           }
         }
         const listed = lifiTokens.filter((token) => token.chainId === (id as ChainId));
@@ -649,7 +633,7 @@ async function getWalletBalances(account: Address) {
           .then((urls) =>
             createPublicClient({ transport: fallback((urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl))) }),
           );
-        balances[id] = await Promise.all(
+        return await Promise.all(
           Array.from({ length: Math.ceil(listed.length / 200) }, (_, chunk) =>
             listed.slice(chunk * 200, chunk * 200 + 200),
           ).map(async (calls) => {
@@ -671,25 +655,33 @@ async function getWalletBalances(account: Address) {
               return amount > 0n ? [{ address, amount }] : [];
             });
           }),
-        ).then((results) => results.flat());
+        ).then((results) => [id, results.flat()] as const);
       } catch (error) {
         if (id === chain.id) throw error;
         const key = String(error);
         const failure = failures.get(key) ?? { ids: [], error };
         failure.ids.push(id);
         failures.set(key, failure);
+        return [id, []] as const;
       }
     }),
   );
-  for (const { error, ids } of failures.values()) reportError(error, { extra: { chains: ids } });
-  return balances;
+  while (pending.size > 0) {
+    const [settled, result] = await Promise.race(
+      [...pending].map((promise) => promise.then((value) => [promise, value] as const)),
+    );
+    pending.delete(settled);
+    if (result) yield result;
+  }
+  if (!signal.aborted) for (const { error, ids } of failures.values()) reportError(error, { extra: { chains: ids } });
 }
 
-async function rpc(url: string, method: string, params: unknown[]) {
+async function rpc(url: string, method: string, params: unknown[], signal: AbortSignal) {
   const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    signal,
   });
   if (response.status === 400 || response.status === 403) return;
   if (!response.ok) throw new Error(`${method} failed: ${response.status} ${await response.text()}`);
