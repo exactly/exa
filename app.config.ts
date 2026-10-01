@@ -1,7 +1,13 @@
 import type { PluginConfigType as BuildPropertiesConfig } from "expo-build-properties/build/pluginConfig";
 import type { FontProps } from "expo-font/plugin/build/withFonts";
 
-import { AndroidConfig, withAndroidManifest, withAppBuildGradle, type ConfigPlugin } from "expo/config-plugins";
+import {
+  AndroidConfig,
+  withAndroidManifest,
+  withAppBuildGradle,
+  withGradleProperties,
+  type ConfigPlugin,
+} from "expo/config-plugins";
 import { env } from "node:process";
 
 import metadata from "./package.json";
@@ -27,12 +33,6 @@ export default {
     permissions: ["android.permission.CAMERA"],
     userInterfaceStyle: "automatic",
     versionCode,
-    splash: {
-      backgroundColor: "#FCFCFC",
-      image: "src/assets/splash.png",
-      resizeMode: "contain",
-      dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
-    },
   },
   ios: {
     icon: "src/assets/icon.png",
@@ -47,12 +47,6 @@ export default {
       NSLocationWhenInUseUsageDescription: "Exa uses your location to verify your identity.",
     },
     userInterfaceStyle: "automatic",
-    splash: {
-      backgroundColor: "#FCFCFC",
-      image: "src/assets/splash.png",
-      resizeMode: "contain",
-      dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
-    },
   },
   web: { output: "static", favicon: "src/assets/favicon.png" },
   plugins: [
@@ -84,11 +78,23 @@ export default {
       } satisfies FontProps,
     ],
     "expo-asset",
+    "expo-image",
+    "expo-status-bar",
+    "expo-web-browser",
     [
       "expo-localization",
       { supportedLocales: ["en", "es", "es-AR", "es-CR", "es-GT", "es-HN", "es-NI", "es-PY", "es-SV", "es-UY", "pt"] },
     ],
     "expo-router",
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: "#FCFCFC",
+        image: "src/assets/splash.png",
+        resizeMode: "contain",
+        dark: { backgroundColor: "#1D1D1D", image: "src/assets/splash-dark.png" },
+      },
+    ],
     [
       "@intercom/intercom-react-native",
       {
@@ -115,6 +121,14 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       },
     ],
+    // @ts-expect-error inline plugin
+    ((config) =>
+      withGradleProperties(config, (c) => {
+        const key = "android.r8.proguardAndroidTxt.disallowed";
+        c.modResults = c.modResults.filter((property) => property.type !== "property" || property.key !== key);
+        c.modResults.push({ type: "property", key, value: "false" });
+        return c;
+      })) satisfies ConfigPlugin,
     // @ts-expect-error inline plugin
     ((config) =>
       withAndroidManifest(

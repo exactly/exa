@@ -7,11 +7,12 @@ import {
   StatusBar,
   StyleSheet,
   useWindowDimensions,
-  type View as RNView,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from "react-native";
 import SVG, { Defs, Mask, Rect } from "react-native-svg";
 
-import { Theme, View, YStack, type ScrollView } from "tamagui";
+import { Theme, View, YStack } from "tamagui";
 
 import Text from "./Text";
 
@@ -31,8 +32,8 @@ export default function Spotlight({
   onDismiss: () => void;
   onPress?: () => void;
   scrollOffset?: React.RefObject<number>;
-  scrollRef?: React.RefObject<null | ScrollView>;
-  targetRef: React.RefObject<null | RNView>;
+  scrollRef?: React.RefObject<null | ScrollViewInstance>;
+  targetRef: React.RefObject<null | ViewInstance>;
 }) {
   const { t } = useTranslation();
   const { width: screenWidth, height: windowHeight } = useWindowDimensions();

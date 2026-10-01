@@ -59,7 +59,7 @@ catalog:
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  "@sentry/core": &sentry ^10.71.0
+  "@sentry/core": &sentry ^10.75.3
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
   tamagui: &tamagui ^2.7.7
@@ -79,7 +79,7 @@ catalog:
   i18next: ^26.0.5
   ioredis: ^5.10.1
   ox: ^0.14.7
-  react: &react "19.2.0"
+  react: &react "19.3.0"
   react-dom: *react
   typescript: ^5.9.3
   valibot: ^1.4.2
@@ -92,7 +92,6 @@ overrides:
   "@hono/node-server": "catalog:"
   "@humanfs/node@0.16.7": ^0.16.8
   "@lifi/types@17.65.0": ^17.71.0
-  "@opentelemetry/core@2": ^2.8.0
   "@sentry/core@10": "catalog:"
   "@sentry/node@10": "catalog:"
   "@sentry/profiling-node@10": "catalog:"
@@ -194,6 +193,8 @@ publicHoistPattern:
   - sharp
 update:
   ignoreDeps:
+    - "@babel/core"
+    - "@babel/preset-env"
     - "@eslint/js"
     - "@expo/fingerprint"
     - "@expo/metro-runtime"
@@ -210,6 +211,7 @@ update:
     - expo-build-properties
     - expo-camera
     - expo-clipboard
+    - expo-constants
     - expo-dev-client
     - expo-font
     - expo-image
@@ -222,7 +224,7 @@ update:
     - expo-updates
     - expo-web-browser
     - hono-openapi
-    - metro-config
+    - onesignal-expo-plugin
     - react
     - react-dom
     - react-native
@@ -232,5 +234,6 @@ update:
     - react-native-safe-area-context
     - react-native-screens
     - react-native-svg
+    - react-native-webview
     - react-native-worklets
     - typescript

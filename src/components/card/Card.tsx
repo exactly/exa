@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import type { ScrollViewInstance } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -118,7 +119,7 @@ export default function Card() {
 
   const { refetch: refetchMarkets } = useMarkets();
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const refresh = () =>
     Promise.all([
       refetchCard(),
@@ -296,6 +297,7 @@ export default function Card() {
       <View fullScreen backgroundColor="$backgroundMild">
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
+          // @ts-expect-error tamagui declares the component as the ref instance
           ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "$backgroundMild" }}

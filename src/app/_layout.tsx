@@ -4,6 +4,7 @@ import "../utils/server";
 import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { isRunningInExpoGo } from "expo";
@@ -238,24 +239,26 @@ export default wrap(function RootLayout() {
     <WagmiProvider config={exaConfig}>
       <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
         <ToastProvider native="mobile">
-          <SafeAreaProvider>
-            <ThemeProvider>
-              <ErrorBoundary
-                onError={() => {
-                  SplashScreen.hideAsync().catch(reportError);
-                }}
-                fallback={(data) => (
-                  <Error
-                    resetError={() => {
-                      data.resetError();
-                    }}
-                  />
-                )}
-              >
-                <Navigator />
-              </ErrorBoundary>
-            </ThemeProvider>
-          </SafeAreaProvider>
+          <GestureHandlerRootView>
+            <SafeAreaProvider>
+              <ThemeProvider>
+                <ErrorBoundary
+                  onError={() => {
+                    SplashScreen.hideAsync().catch(reportError);
+                  }}
+                  fallback={(data) => (
+                    <Error
+                      resetError={() => {
+                        data.resetError();
+                      }}
+                    />
+                  )}
+                >
+                  <Navigator />
+                </ErrorBoundary>
+              </ThemeProvider>
+            </SafeAreaProvider>
+          </GestureHandlerRootView>
           {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
         </ToastProvider>
       </PersistQueryClientProvider>
