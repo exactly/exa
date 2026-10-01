@@ -28,7 +28,6 @@
     "expo-updates",
     "expo-web-browser",
     "hono-openapi",
-    "metro-config",
     "react",
     "react-dom",
     "react-native",

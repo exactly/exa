@@ -1,5 +1,5 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "module": "ESNext",
     "lib": ["ESNext", "DOM"],
@@ -12,10 +12,10 @@
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
+      "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types": ["./node_modules/@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types.d.ts"],
+      "expo-build-properties/build/pluginConfig": ["./node_modules/expo-build-properties/build/pluginConfig.d.ts"],
       "expo-font/plugin/build/withFonts": ["./node_modules/expo-font/plugin/build/withFonts.d.ts"],
-      "@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types": [
-        "./node_modules/@intercom/intercom-react-native/lib/typescript/module/expo-plugins/@types.d.ts"
-      ]
+      "react-native-reanimated-carousel": ["./node_modules/react-native-reanimated-carousel/lib/typescript/module/index.d.ts"]
     }
   },
   "include": [

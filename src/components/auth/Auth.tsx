@@ -1,14 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
-import type { SharedValue } from "react-native-reanimated";
+import { Platform, type AccessibilityActionEvent } from "react-native";
 import { cancelAnimation, Easing, useSharedValue, withTiming } from "react-native-reanimated";
-import Carousel from "react-native-reanimated-carousel";
+import { Carousel, type CarouselRef } from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
 import { CircleHelp, Key, User } from "@tamagui/lucide-icons-2";
-import { useWindowDimensions } from "tamagui";
+import { useWindowDimensions, VisuallyHidden } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
@@ -36,14 +35,16 @@ import View from "../shared/View";
 
 import type { EmbeddingContext } from "../../utils/queryClient";
 
-function renderItem({ item, animationValue }: { animationValue: SharedValue<number>; item: Page }) {
-  return <ListItem item={item} animationValue={animationValue} />;
-}
-
 export default function Auth() {
   const router = useRouter();
   const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [autoplay, setAutoplay] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const playing = autoplay && !hovered;
+  const playingRef = useRef(playing);
+  const carouselRef = useRef<CarouselRef>(null);
+  const id = useId();
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
@@ -66,19 +67,22 @@ export default function Auth() {
   });
 
   const startProgressAnimation = useCallback(() => {
+    cancelAnimation(progress);
     progress.value = 0;
-    progress.value = withTiming(1, { duration: 5000, easing: Easing.linear });
+    if (playingRef.current) progress.value = withTiming(1, { duration: 5000, easing: Easing.linear });
   }, [progress]);
 
-  const handleSnapToItem = useCallback((index: number) => setActiveIndex(index), []);
-
-  const handleScrollEnd = useCallback(() => {
-    isScrolling.value = false;
-    startProgressAnimation();
-  }, [isScrolling, startProgressAnimation]);
+  const handleSnapToItem = useCallback(
+    function (index: number) {
+      setActiveIndex(index);
+      isScrolling.value = false;
+      startProgressAnimation();
+    },
+    [isScrolling, startProgressAnimation],
+  );
 
   const handleProgressChange = useCallback(
-    (_: number, absoluteProgress: number) => {
+    function (absoluteProgress: number) {
       const previousOffset = scrollOffset.value;
       const delta = Math.abs(absoluteProgress - previousOffset);
       scrollOffset.value = absoluteProgress;
@@ -97,8 +101,9 @@ export default function Auth() {
   );
 
   useEffect(() => {
+    playingRef.current = playing;
     startProgressAnimation();
-  }, [startProgressAnimation]);
+  }, [playing, startProgressAnimation]);
 
   const { signIn, isPending: loadingAuth } = useAuth(
     () => {
@@ -125,18 +130,25 @@ export default function Auth() {
           />
         </View>
       )}
-      <View flexGrow={1} justifyContent="center" flexShrink={1}>
+      <View
+        flexGrow={1}
+        justifyContent="center"
+        flexShrink={1}
+        onPointerEnter={(event) => setHovered(event.nativeEvent.pointerType === "mouse")}
+        onPointerLeave={() => setHovered(false)}
+      >
         <Carousel
+          ref={carouselRef}
           data={pages}
-          width={itemWidth}
-          height={itemWidth / aspectRatio}
-          autoPlay
-          autoPlayInterval={5000}
-          withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
+          itemSize={itemWidth}
+          style={{ width: itemWidth, height: itemWidth / aspectRatio }}
+          loop
+          autoplay={playing}
+          autoplayInterval={5000}
+          animation={{ type: "timing", duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) }}
           onSnapToItem={handleSnapToItem}
-          onScrollEnd={handleScrollEnd}
           onProgressChange={handleProgressChange}
-          renderItem={renderItem}
+          renderItem={({ item, relativeProgress }) => <ListItem item={item} animationValue={relativeProgress} />}
         />
       </View>
       <View
@@ -148,7 +160,42 @@ export default function Auth() {
         justifyContent="flex-end"
       >
         <View flexDirection="column" alignSelf="stretch" gap="$s5">
-          <View flexDirection="row" justifyContent="center">
+          <View
+            flexDirection="row"
+            justifyContent="center"
+            alignItems="center"
+            role={Platform.OS === "web" ? "group" : "slider"}
+            aria-label={t("Exa Card")}
+            aria-valuemin={Platform.OS === "web" ? undefined : 1}
+            aria-valuemax={Platform.OS === "web" ? undefined : pages.length}
+            aria-valuenow={Platform.OS === "web" ? undefined : activeIndex + 1}
+            aria-valuetext={Platform.OS === "web" ? undefined : t(title)}
+            tabIndex={0}
+            aria-describedby={Platform.OS === "web" ? id : undefined}
+            onFocus={() => setAutoplay(false)}
+            onPointerEnter={(event) => setHovered(event.nativeEvent.pointerType === "mouse")}
+            onPointerLeave={() => setHovered(false)}
+            onKeyDown={(event) => {
+              if (!("key" in event)) return;
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                event.preventDefault();
+                if (event.key === "ArrowLeft") carouselRef.current?.prev();
+                else carouselRef.current?.next();
+              }
+            }}
+            accessible={Platform.OS === "web" ? undefined : true}
+            {...(Platform.OS === "web"
+              ? {}
+              : {
+                  accessibilityActions: [{ name: "increment" }, { name: "decrement" }],
+                  onAccessibilityAction: ({ nativeEvent: { actionName } }: AccessibilityActionEvent) => {
+                    setAutoplay(false);
+                    if (actionName === "decrement") carouselRef.current?.prev();
+                    else if (actionName === "increment") carouselRef.current?.next();
+                  },
+                })}
+          >
+            {Platform.OS === "web" && <VisuallyHidden id={id}>{t("Use the arrow keys to browse.")}</VisuallyHidden>}
             <Pagination
               length={pages.length}
               scrollOffset={scrollOffset}
@@ -156,7 +203,14 @@ export default function Auth() {
               isScrolling={isScrolling}
             />
           </View>
-          <Text emphasized title brand centered>
+          <Text
+            emphasized
+            title
+            brand
+            centered
+            onPointerEnter={(event) => setHovered(event.nativeEvent.pointerType === "mouse")}
+            onPointerLeave={() => setHovered(false)}
+          >
             {t(title)}
           </Text>
           <View alignItems="stretch" alignSelf="stretch" gap="$s3">
@@ -255,7 +309,7 @@ export default function Auth() {
           />
         </>
       ) : null}
-      <TimeToFullDisplay record />
+      <TimeToFullDisplay ready />
     </SafeView>
   );
 }

@@ -56,7 +56,7 @@ catalog:
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  "@sentry/core": &sentry ^10.71.0
+  "@sentry/core": &sentry ^10.75.3
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
   tamagui: &tamagui ^2.7.7
@@ -76,7 +76,7 @@ catalog:
   i18next: ^26.0.5
   ioredis: ^5.10.1
   ox: ^0.14.7
-  react: &react "19.2.0"
+  react: &react "19.3.0"
   react-dom: *react
   typescript: ^5.9.3
   valibot: ^1.4.2
@@ -85,10 +85,10 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude: ["@expo/*", "babel-*", expo, "expo-*"]
 overrides:
   "@hono/node-server": "catalog:"
   "@humanfs/node@0.16.7": ^0.16.8
-  "@opentelemetry/core@2": ^2.8.0
   "@sentry/core@10": "catalog:"
   "@sentry/node@10": "catalog:"
   "@sentry/profiling-node@10": "catalog:"
@@ -118,7 +118,6 @@ overrides:
   lodash-es@4: ^4.18.0
   markdown-it@14: ^14.3.1
   nanoid@3.3.11: ^3.3.12
-  picomatch@4: ^4.0.4 # cspell:ignore picomatch
   postcss-selector-parser@6.1.2: ^6.1.3
   postcss-selector-parser@7.1.1: ^7.1.3
   postcss@8: ^8.5.10
@@ -212,7 +211,6 @@ update:
     - expo-updates
     - expo-web-browser
     - hono-openapi
-    - metro-config
     - react
     - react-dom
     - react-native

@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import type { ComponentProps } from "react";
-import { StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Platform, StyleSheet, type AccessibilityActionEvent } from "react-native";
 import { Easing } from "react-native-reanimated";
-import Carousel from "react-native-reanimated-carousel";
+import { Carousel, type CarouselRef } from "react-native-reanimated-carousel";
 
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { useTheme, View } from "tamagui";
+import { useTheme, View, VisuallyHidden } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -124,9 +125,15 @@ const styles = StyleSheet.create({
 });
 
 export default function BenefitsSection({ onExaPress }: { onExaPress?: () => void }) {
+  const { t } = useTranslation();
   const benefits = isPromoActive() && onExaPress ? BENEFITS : BENEFITS.filter((benefit) => benefit.id !== "exa");
   const [selectedBenefit, setSelectedBenefit] = useState<Benefit>();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [autoplay, setAutoplay] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const carouselRef = useRef<CarouselRef>(null);
+  const id = useId();
+  const [index, setIndex] = useState(0);
 
   const [width, setWidth] = useState(0);
   const itemWidth = Math.max(width - 40, 250);
@@ -140,30 +147,73 @@ export default function BenefitsSection({ onExaPress }: { onExaPress?: () => voi
         borderBottomWidth={1}
         borderColor="$borderNeutralSoft"
       >
-        <View overflow="hidden" alignItems="center" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+        <View
+          overflow="hidden"
+          alignItems="center"
+          onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+          role="group"
+          aria-label={t("Benefits")}
+          tabIndex={0}
+          aria-describedby={Platform.OS === "web" ? id : undefined}
+          onFocus={(event) => {
+            if (Platform.OS !== "web" || ("matches" in event.target && event.target.matches(":focus-visible")))
+              setAutoplay(false);
+          }}
+          onPointerMove={(event) => setHovered(event.nativeEvent.pointerType === "mouse")}
+          onPointerLeave={() => setHovered(false)}
+          onKeyDown={(event) => {
+            if (!("key" in event)) return;
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+              event.preventDefault();
+              if (typeof event.currentTarget !== "number") event.currentTarget.focus();
+              if (event.key === "ArrowLeft") carouselRef.current?.prev();
+              else carouselRef.current?.next();
+            }
+          }}
+        >
+          {Platform.OS === "web" && <VisuallyHidden id={id}>{t("Use the arrow keys to browse.")}</VisuallyHidden>}
           {width === 0 ? undefined : (
             <Carousel
-              style={styles.overflow}
-              containerStyle={styles.overflow}
-              width={itemWidth}
-              height={160}
+              ref={carouselRef}
+              style={[styles.overflow, { width: itemWidth, height: 160 }]}
+              contentContainerStyle={styles.overflow}
+              itemSize={itemWidth}
               data={benefits}
-              autoPlay
-              autoPlayInterval={5000}
-              withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
-              onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}
-              renderItem={({ item }) => (
+              loop
+              autoplay={autoplay && !hovered && !sheetOpen}
+              onSnapToItem={setIndex}
+              autoplayInterval={5000}
+              animation={{ type: "timing", duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) }}
+              onConfigurePanGesture={(gesture) => {
+                gesture.config.touchAction = "pan-y";
+                gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5]);
+              }}
+              renderItem={({ item, index: itemIndex }) => (
                 <View paddingHorizontal="$s2">
                   <BenefitCard
                     benefit={item}
-                    onPress={() => {
-                      if (item.id === "exa" && onExaPress) {
-                        onExaPress();
-                        return;
-                      }
-                      setSelectedBenefit(item);
-                      setSheetOpen(true);
-                    }}
+                    tabIndex={itemIndex === Math.min(index, benefits.length - 1) ? 0 : -1}
+                    onPress={() => open(item)}
+                    {...(Platform.OS === "web"
+                      ? {}
+                      : {
+                          accessibilityActions: [
+                            { name: "activate" },
+                            { name: "previous", label: t("Previous benefit") },
+                            { name: "next", label: t("Next benefit") },
+                          ],
+                          onAccessibilityAction: ({ nativeEvent: { actionName } }: AccessibilityActionEvent) => {
+                            setAutoplay(false);
+                            switch (actionName) {
+                              case "activate":
+                                return open(item);
+                              case "previous":
+                                return carouselRef.current?.prev();
+                              case "next":
+                                return carouselRef.current?.next();
+                            }
+                          },
+                        })}
                   />
                 </View>
               )}
@@ -174,4 +224,13 @@ export default function BenefitsSection({ onExaPress }: { onExaPress?: () => voi
       <BenefitSheet benefit={selectedBenefit} open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
   );
+
+  function open(benefit: Benefit) {
+    if (benefit.id === "exa" && onExaPress) {
+      onExaPress();
+      return;
+    }
+    setSelectedBenefit(benefit);
+    setSheetOpen(true);
+  }
 }
