@@ -622,29 +622,26 @@ async function getWalletBalances(account: Address) {
       const url = alchemyURLs[id];
       try {
         if (url) {
-          const held: Holding[] = [];
-          let pageKey: string | undefined;
-          do {
-            const [tokens, native] = await Promise.all([
-              rpc(url, "alchemy_getTokenBalances", pageKey ? [account, "erc20", { pageKey }] : [account, "erc20"]),
-              pageKey ? undefined : rpc(url, "eth_getBalance", [account, "latest"]),
-            ]);
+          const [tokens, native] = await Promise.all([
+            rpc(url, "alchemy_getTokenBalances", [account, "erc20"]),
+            rpc(url, "eth_getBalance", [account, "latest"]),
+          ]);
+          if (typeof tokens === "string" || !tokens?.pageKey) {
+            const held: Holding[] = [];
             if (typeof native === "string") {
               const amount = BigInt(native);
               if (amount > 0n) held.push({ address: zeroAddress, amount });
             }
-            pageKey = undefined;
             if (tokens && typeof tokens !== "string") {
               for (const { contractAddress, tokenBalance } of tokens.tokenBalances) {
                 if (!tokenBalance) continue;
                 const amount = BigInt(tokenBalance);
                 if (amount > 0n) held.push({ address: contractAddress, amount });
               }
-              pageKey = tokens.pageKey ?? undefined;
             }
-          } while (pageKey);
-          balances[id] = held;
-          return;
+            balances[id] = held;
+            return;
+          }
         }
         const listed = lifiTokens.filter((token) => token.chainId === (id as ChainId));
         const client = await config
