@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.123
+
+### Patch Changes
+
+- [#1317](https://github.com/exactly/exa/pull/1317) [`e668b51`](https://github.com/exactly/exa/commit/e668b5106d6c3b8082cf2392e76ca0f5a9ecd665) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ decouple panda webhook verification from api key
+
 ## 0.2.122
 
 ### Patch Changes
