@@ -12,7 +12,7 @@ import {
   ShoppingCart,
   SquareDashed,
 } from "@tamagui/lucide-icons-2";
-import { XStack, YStack } from "tamagui";
+import { Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -161,7 +161,11 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
       if (refund) return <Import color="$uiSuccessSecondary" />;
       if (processing) return <ClockAlert color="$interactiveOnBaseWarningSoft" />;
       if (item.merchant.icon)
-        return <Image source={{ uri: item.merchant.icon }} minWidth={40} minHeight={40} borderRadius="$r3" />;
+        return (
+          <Square size={40} borderRadius="$r3" backgroundColor="white">
+            <Image source={{ uri: item.merchant.icon }} width={26} height={26} contentFit="contain" />
+          </Square>
+        );
       return <ShoppingCart color="$uiNeutralPrimary" />;
     default:
       return <SquareDashed color="$uiNeutralPrimary" />;

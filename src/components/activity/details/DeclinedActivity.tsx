@@ -48,9 +48,9 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
     <>
       <YStack gap="$s7" paddingBottom="$s7">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
+          <Square borderRadius="$r4" backgroundColor={item.merchant.icon ? "white" : "$backgroundStrong"} size={80}>
             {item.merchant.icon ? (
-              <Image source={{ uri: item.merchant.icon }} width={80} height={80} borderRadius="$r4" />
+              <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
             ) : (
               <ShoppingCart size={48} color="$uiNeutralPrimary" strokeWidth={2} />
             )}

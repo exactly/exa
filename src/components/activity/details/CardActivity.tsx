@@ -37,7 +37,9 @@ export default function CardActivity({
             ) : processing ? (
               <ClockAlert size={48} color="$interactiveOnBaseWarningSoft" strokeWidth={2} />
             ) : item.merchant.icon ? (
-              <Image source={{ uri: item.merchant.icon }} width={80} height={80} borderRadius="$r4" />
+              <Square size={80} borderRadius="$r4" backgroundColor="white">
+                <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
+              </Square>
             ) : (
               <ShoppingCart size={48} color="$uiNeutralPrimary" strokeWidth={2} />
             )}
