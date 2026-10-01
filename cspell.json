@@ -209,6 +209,7 @@
     "underspecified",
     "unshallow",
     "unstub",
+    "utxo",
     "valibot",
     "valierror",
     "valkey",
