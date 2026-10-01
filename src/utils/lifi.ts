@@ -600,6 +600,8 @@ export function getBridgeSources(
 async function* getWalletBalances(account: Address, lifiTokens: Token[], chains: ExtendedChain[], signal: AbortSignal) {
   const balanceOf = encodeFunctionData({ abi: erc20Abi, functionName: "balanceOf", args: [account] });
   const getEthBalance = encodeFunctionData({ abi: multicall3Abi, functionName: "getEthBalance", args: [account] });
+  const tokensByChain: Partial<Record<number, Token[]>> = {};
+  for (const token of lifiTokens) (tokensByChain[token.chainId] ??= []).push(token);
   const failures = new Map<string, { error: unknown; ids: number[] }>();
   const pending = new Set(
     chains.map(async ({ chainType, diamondAddress, id, mainnet, multicallAddress }) => {
@@ -627,7 +629,7 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
             return [id, held] as const;
           }
         }
-        const listed = lifiTokens.filter((token) => token.chainId === (id as ChainId));
+        const listed = tokensByChain[id] ?? [];
         const client = await config.getRPCUrls().then((urls) =>
           createPublicClient({
             transport: fallback(
