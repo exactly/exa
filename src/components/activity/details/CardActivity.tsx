@@ -66,7 +66,7 @@ export default function CardActivity({
         {item.type === "panda" ? (
           <>
             {item.operations.map((operation) => (
-              <YStack key={operation.id} gap="$s7">
+              <YStack key={operation.transactionHash} gap="$s7">
                 <PurchaseDetails item={operation} />
                 {item.usdAmount > 0 && <PaymentDetails item={operation} />}
               </YStack>
