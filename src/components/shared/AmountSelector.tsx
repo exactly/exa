@@ -134,7 +134,8 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
             <View
               onPress={() => {
                 setOverlayShown(false);
-                usdInputReference.current?.focus();
+                if (usdInputReference.current && "focus" in usdInputReference.current)
+                  usdInputReference.current.focus();
               }}
             >
               <Input

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Keyboard, type View as RNView } from "react-native";
+import { Keyboard, View as NativeView, type ViewInstance } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -60,7 +60,7 @@ export default function ReceiverSelection() {
   const { data: spotlightSeen } = useQuery<boolean>({ queryKey: ["settings", "advanced-spotlight"] });
   const { data: chains } = useQuery(lifiChainsOptions);
   const [settings, setSettings] = useState(false);
-  const cogRef = useRef<RNView>(null);
+  const cogRef = useRef<ViewInstance>(null);
 
   const { data: savedContacts } = useQuery<Contact[] | undefined>({ queryKey: ["contacts", "saved"] });
   const { data: recentContacts } = useQuery<Contact[] | undefined>({ queryKey: ["contacts", "recent"] });
@@ -118,7 +118,7 @@ export default function ReceiverSelection() {
           <Text emphasized subHeadline primary>
             {t("Send to")}
           </Text>
-          <View ref={cogRef}>
+          <NativeView ref={cogRef}>
             <IconButton
               icon={Settings}
               aria-label={t("Send settings")}
@@ -126,7 +126,7 @@ export default function ReceiverSelection() {
                 setSettings(true);
               }}
             />
-          </View>
+          </NativeView>
         </XStack>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
