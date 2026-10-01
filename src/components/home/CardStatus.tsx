@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable, StyleSheet, type View as RNView } from "react-native";
+import { Platform, Pressable, StyleSheet, type ViewInstance } from "react-native";
 import Animated, {
   Easing,
   interpolate,
@@ -57,7 +57,7 @@ export default function CardStatus({
   onModeChange: (mode: number) => void;
   onSpendingLimitInfoPress: () => void;
   spendingLimit: bigint;
-  spotlightRef?: React.RefObject<null | RNView>;
+  spotlightRef?: React.RefObject<null | ViewInstance>;
 }) {
   const { t } = useTranslation();
   const toast = useToastController();
@@ -297,7 +297,7 @@ function PayModeToggle({
   mode: number;
   onInstallmentsPress: () => void;
   onModeChange: (mode: number) => void;
-  spotlightRef?: React.RefObject<null | RNView>;
+  spotlightRef?: React.RefObject<null | ViewInstance>;
 }) {
   const { t } = useTranslation();
   const theme = useTheme();

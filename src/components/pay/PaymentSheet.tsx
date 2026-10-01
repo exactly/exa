@@ -49,17 +49,14 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [open, setOpen] = useState(() => !!maturity);
+  const open = !!maturity;
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const {
     t,
     i18n: { language },
   } = useTranslation();
-  if (maturity) {
-    if (maturity !== displayMaturity) setDisplayMaturity(maturity);
-    if (!open) setOpen(true);
-  }
+  if (maturity && maturity !== displayMaturity) setDisplayMaturity(maturity);
 
   const borrow = useMemo<
     | undefined
@@ -95,9 +92,8 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
 
   const close = useCallback(() => {
     setInfoOpen(false);
-    setOpen(false);
-    router.setParams({ ...parameters, maturity: undefined });
-  }, [parameters, router]);
+    router.setParams({ maturity: undefined });
+  }, [router]);
 
   const viewStatement = useCallback(() => {
     openBrowser(

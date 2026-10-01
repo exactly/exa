@@ -1,5 +1,6 @@
 import React, { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
+import type { ScrollViewInstance } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -33,6 +34,7 @@ export default function Loans() {
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
         <ScrollView
+          // @ts-expect-error tamagui declares the component as the ref instance
           ref={loansScrollReference}
           showsVerticalScrollIndicator={false}
           flex={1}
@@ -101,4 +103,4 @@ export default function Loans() {
   );
 }
 
-export const loansScrollReference: RefObject<null | ScrollView> = { current: null };
+export const loansScrollReference: RefObject<null | ScrollViewInstance> = { current: null };

@@ -1,5 +1,7 @@
 {
   "reject": [
+    "@babel/core",
+    "@babel/preset-env",
     "@eslint/js",
     "@expo/fingerprint",
     "@expo/metro-runtime",
@@ -16,6 +18,7 @@
     "expo-build-properties",
     "expo-camera",
     "expo-clipboard",
+    "expo-constants",
     "expo-dev-client",
     "expo-font",
     "expo-image",
@@ -28,16 +31,18 @@
     "expo-updates",
     "expo-web-browser",
     "hono-openapi",
-    "metro-config",
+    "onesignal-expo-plugin",
     "react",
     "react-dom",
     "react-native",
     "react-native-gesture-handler",
+    "react-native-onesignal",
     "react-native-quick-crypto",
     "react-native-reanimated",
     "react-native-safe-area-context",
     "react-native-screens",
     "react-native-svg",
+    "react-native-webview",
     "react-native-worklets",
     "typescript"
   ]

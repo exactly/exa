@@ -1,6 +1,8 @@
-import React, { memo, useMemo } from "react";
+import React, { memo } from "react";
+import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Platform } from "react-native";
+import { Pressable } from "react-native-gesture-handler";
 
 import { ChevronRight } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
@@ -9,22 +11,31 @@ import Text from "../shared/Text";
 
 import type { Benefit } from "./BenefitsSection";
 
-type BenefitCardProperties = {
+type BenefitCardProperties = Pick<
+  ComponentProps<typeof Pressable>,
+  "accessibilityActions" | "onAccessibilityAction"
+> & {
   benefit: Benefit;
   onPress: () => void;
+  tabIndex: -1 | 0;
 };
 
-export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProperties) {
+export default memo(function BenefitCard({ benefit, onPress, tabIndex, ...accessibility }: BenefitCardProperties) {
   const { t } = useTranslation();
   const BenefitLogo = benefit.logo;
-  const tap = useMemo(
-    () =>
-      /* istanbul ignore next */
-      Gesture.Tap().runOnJS(true).onEnd(onPress),
-    [onPress],
-  );
   return (
-    <GestureDetector gesture={tap}>
+    <Pressable
+      accessible={Platform.OS === "web"}
+      accessibilityRole={Platform.OS === "web" ? "button" : undefined}
+      accessibilityLabel={
+        Platform.OS === "web"
+          ? `${t(benefit.partner)}: ${t(benefit.title)}. ${benefit.linkText ? t(benefit.linkText) : t("Get now")}`
+          : undefined
+      }
+      tabIndex={tabIndex}
+      onPress={onPress}
+      {...(Platform.OS === "web" ? accessibility : {})}
+    >
       <YStack
         borderRadius="$r4"
         padding="$s4"
@@ -46,7 +57,17 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
           </Text>
         </YStack>
         <XStack justifyContent="space-between">
-          <XStack alignItems="center" gap="$1">
+          <XStack
+            alignItems="center"
+            gap="$1"
+            accessible={Platform.OS !== "web"}
+            accessibilityLabel={
+              Platform.OS === "web" ? undefined : benefit.linkText ? t(benefit.linkText) : t("Get now")
+            }
+            accessibilityRole={Platform.OS === "web" ? undefined : "button"}
+            accessibilityHint={Platform.OS === "web" ? undefined : `${t(benefit.partner)}: ${t(benefit.title)}`}
+            {...(Platform.OS !== "web" && { onAccessibilityTap: onPress, ...accessibility })}
+          >
             <Text emphasized footnote color="$interactiveBaseBrandSoftDefault">
               {benefit.linkText ? t(benefit.linkText) : t("Get now")}
             </Text>
@@ -54,6 +75,6 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
           </XStack>
         </XStack>
       </YStack>
-    </GestureDetector>
+    </Pressable>
   );
 });
