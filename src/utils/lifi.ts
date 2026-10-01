@@ -628,11 +628,14 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
           }
         }
         const listed = lifiTokens.filter((token) => token.chainId === (id as ChainId));
-        const client = await config
-          .getRPCUrls()
-          .then((urls) =>
-            createPublicClient({ transport: fallback((urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl))) }),
-          );
+        const client = await config.getRPCUrls().then((urls) =>
+          createPublicClient({
+            transport: fallback(
+              (urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl, { timeout: 5000, fetchOptions: { signal } })),
+              { retryCount: 3, retryDelay: 300 },
+            ),
+          }),
+        );
         return await Promise.all(
           Array.from({ length: Math.ceil(listed.length / 200) }, (_, chunk) =>
             listed.slice(chunk * 200, chunk * 200 + 200),
