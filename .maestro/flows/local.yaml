@@ -7,7 +7,7 @@ tags: [critical]
 - assertNotVisible: Sign in
 - runFlow: ../subflows/dismissNotifications.yaml
 - runFlow: ../subflows/getAccount.yaml
-- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
+- assertVisible: Good (morning|afternoon|evening)!
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }

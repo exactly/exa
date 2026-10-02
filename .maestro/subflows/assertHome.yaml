@@ -1,8 +1,12 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: Home
+- assertVisible: Hi, Test
 - runFlow: getAccount.yaml
-- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
+- runFlow: { file: tapAria.yaml, env: { aria: "Hi, Test" } }
+- assertVisible: Address copied
+- assertVisible: ${output.account}
+- tapOn: Close
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ assertVisible: Settings }]
@@ -10,6 +14,7 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { platform: web }
     commands: [{ assertVisible: { id: Settings } }]
 - runFlow: { file: tapAria.yaml, env: { aria: Hide sensitive } }
+- assertVisible: Good (morning|afternoon|evening)!
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands:
@@ -22,6 +27,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertNotVisible:
           id: \$[\s\d,.\xa0]+
 - runFlow: { file: tapAria.yaml, env: { aria: Show sensitive } }
+- assertVisible: Hi, Test
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands:

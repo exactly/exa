@@ -1,5 +1,4 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- runFlow: getAccount.yaml
 - tapOn: Sign in
-- assertVisible: ${output.account.slice(0, 6)}…${output.account.slice(-4)}
+- assertVisible: Hi, .+|Good (morning|afternoon|evening)!
