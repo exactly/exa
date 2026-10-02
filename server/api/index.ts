@@ -13,7 +13,7 @@ import ramp from "./ramp";
 import webhook from "./webhook";
 import createAuth from "../middleware/auth";
 import createOrg from "../middleware/org";
-import appOrigin from "../utils/appOrigin";
+import { origin, origins } from "../utils/appOrigin";
 import createBetterAuth from "../utils/auth";
 import createCredential from "../utils/createCredential";
 
@@ -64,15 +64,16 @@ export default function api({
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
   const betterAuth = createBetterAuth(database, authSecret);
+  const providers = new Map(origins.slice(1).map((url) => [url, createBetterAuth(database, authSecret, url)]));
   const auth = createAuth(authSecret);
   const org = createOrg(betterAuth);
   const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
   const app = new Hono()
-    .use(cors({ origin: [appOrigin, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
+    .use(cors({ origin: [...origins, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
     .use((c, next) => {
       if (c.req.method.toUpperCase() === "OPTIONS") return next();
       if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
-      return csrf({ origin: [appOrigin, "http://localhost:8081"] })(c, next);
+      return csrf({ origin: [...origins, "http://localhost:8081"] })(c, next);
     })
     .route("/auth/registration", registration({ createCredential: credential, intercom, redis, walletExtension }))
     .route(
@@ -86,7 +87,7 @@ export default function api({
     .route("/pax", paxRoute({ auth, database, pax }))
     .route("/ramp", ramp({ auth, bridge, database, manteca, persona }))
     .route("/webhook", webhook({ betterAuth, database, org }))
-    .on(["POST", "GET"], "/auth/*", (c) => betterAuth.handler(c.req.raw));
+    .on(["POST", "GET"], "/auth/*", (c) => (providers.get(origin(c.req.raw)) ?? betterAuth).handler(c.req.raw));
   return { app, ready: Promise.resolve() };
 }
 

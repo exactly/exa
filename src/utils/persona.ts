@@ -7,7 +7,7 @@ import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
-import { getKYCTokens, type KYCStatus } from "./server";
+import { getKYCTokens, origin, type KYCStatus } from "./server";
 
 import type { UseMutationOptions } from "@tanstack/react-query";
 
@@ -247,6 +247,7 @@ async function getRedirectURI() {
         }[domain]
       }/exa-app`;
   }
+  return origin;
 }
 
 function handleComplete() {

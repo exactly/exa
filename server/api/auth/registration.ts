@@ -41,7 +41,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
-import appOrigin from "../../utils/appOrigin";
+import { origin, origins } from "../../utils/appOrigin";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -205,7 +205,8 @@ export default function route({
           path: "/",
           expires,
           httpOnly: true,
-          ...(domain === "localhost" ? { sameSite: "lax", secure: false } : { domain, sameSite: "none", secure: true }),
+          sameSite: domain === "localhost" ? "lax" : "none",
+          secure: domain !== "localhost",
         });
         c.header("X-Session-Id", sessionId);
         const query = c.req.valid("query");
@@ -217,10 +218,10 @@ export default function route({
             address: query.credentialId,
             chainId: chain.id,
             nonce: sessionId,
-            uri: appOrigin,
+            uri: origin(c.req.raw),
             version: "1",
             issuedAt,
-            domain,
+            domain: new URL(origin(c.req.raw)).hostname,
             scheme,
           });
           await redis.set(sessionId, message, "PX", timeout);
@@ -364,7 +365,13 @@ export default function route({
             case "siwe": {
               const message = parseSiweMessage(challenge);
               if (
-                !validateSiweMessage({ message, address: attestation.id, nonce: sessionId, domain, scheme }) ||
+                !validateSiweMessage({
+                  message,
+                  address: attestation.id,
+                  nonce: sessionId,
+                  domain: new URL(origin(c.req.raw)).hostname,
+                  scheme,
+                }) ||
                 !(await publicClient.verifySiweMessage({
                   message: challenge,
                   address: attestation.id,
@@ -386,7 +393,7 @@ export default function route({
                   },
                 },
                 expectedRPID: domain,
-                expectedOrigin: [appOrigin, ...androidOrigins],
+                expectedOrigin: [...origins, ...androidOrigins],
                 expectedChallenge: challenge,
                 supportedAlgorithmIDs: [cose.COSEALG.ES256],
               });

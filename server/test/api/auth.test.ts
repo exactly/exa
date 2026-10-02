@@ -11,18 +11,21 @@ import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
-import { nonEmpty, parse, pipe, string, type InferOutput } from "valibot";
+import { nonEmpty, object, parse, pipe, string, type InferOutput } from "valibot";
 import { getAddress, keccak256, padHex, slice, toBytes, zeroAddress } from "viem";
 import { optimism } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
+import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import authentication, { Authentication } from "../../api/auth/authentication";
 import registration from "../../api/auth/registration";
 import database, { credentials } from "../../database";
+import androidOrigins from "../../utils/android/origins";
+import { origins } from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
 import createIntercom from "../../utils/intercom";
@@ -89,6 +92,39 @@ describe("authentication", () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await redis.del("test-session");
+  });
+
+  it.each(origins)("accepts related-origin passkey authentication from %s", async (origin) => {
+    const json = {
+      method: "webauthn" as const,
+      id: "dGVzdC1jcmVkLWlk",
+      rawId: "dGVzdC1jcmVkLWlk",
+      response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+      clientExtensionResults: {},
+      type: "public-key" as const,
+    };
+    const response = await appClient.index.$post({ json }, { headers: { origin, cookie: "session_id=test-session" } });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).not.toContain("Domain=");
+    expect(verifyAuthenticationResponse).toHaveBeenCalledExactlyOnceWith({
+      response: json,
+      expectedRPID: domain,
+      expectedOrigin: [...origins, ...androidOrigins],
+      expectedChallenge: "test-challenge",
+      credential: { id: json.id, publicKey: Buffer.alloc(0), transports: [], counter: 0 },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each(origins)("issues wallet challenges for %s", async (origin) => {
+    for (const client of [appClient, registrationAppClient]) {
+      const response = await client.index.$get({ query: { credentialId: zeroAddress } }, { headers: { origin } });
+      expect(response.status).toBe(200);
+      expect(parse(object({ message: string() }), await response.json()).message).toContain(`URI: ${origin}`);
+      expect(response.headers.get("set-cookie")).not.toContain("Domain=");
+    }
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("returns intercom token on successful login", async () => {
@@ -658,6 +694,26 @@ describe("registration", () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await redis.del("test-session");
+  });
+
+  it.each(origins)("accepts related-origin passkey registration from %s", async (origin) => {
+    const id = own(Buffer.from(origin).toString("base64url"));
+    const json = registrationWebauthnAssertion({ id, rawId: id });
+    const response = await registrationAppClient.index.$post(
+      { json },
+      { headers: { origin, cookie: "session_id=test-session" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).not.toContain("Domain=");
+    expect(verifyRegistrationResponse).toHaveBeenCalledExactlyOnceWith({
+      response: json,
+      expectedRPID: domain,
+      expectedOrigin: [...origins, ...androidOrigins],
+      expectedChallenge: "test-challenge",
+      supportedAlgorithmIDs: [-7],
+    });
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("returns 400 if registration challenge is missing", async () => {
