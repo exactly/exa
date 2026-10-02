@@ -7,7 +7,7 @@ import Carousel from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
-import { CircleHelp, Key, User } from "@tamagui/lucide-icons-2";
+import { Headphones, Key, User } from "@tamagui/lucide-icons-2";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -22,7 +22,7 @@ import earningsBlob from "../../assets/images/earnings-blob.svg";
 import earnings from "../../assets/images/earnings.svg";
 import exaCardBlob from "../../assets/images/exa-card-blob.svg";
 import exaCard from "../../assets/images/exa-card.svg";
-import openBrowser from "../../utils/openBrowser";
+import { support } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAuth from "../../utils/useAuth";
@@ -116,11 +116,11 @@ export default function Auth() {
       {!loadingContext && !embeddingContext && (
         <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch" zIndex={1}>
           <IconButton
-            icon={CircleHelp}
+            icon={Headphones}
             color="$uiNeutralSecondary"
-            aria-label={t("Help")}
+            aria-label={t("Contact support")}
             onPress={() => {
-              openBrowser("https://help.exactly.app/articles/14036461").catch(reportError);
+              support().catch(reportError);
             }}
           />
         </View>
@@ -220,6 +220,10 @@ export default function Auth() {
         )}
         onClose={() => {
           setErrorDialogOpen(false);
+        }}
+        onContact={() => {
+          setErrorDialogOpen(false);
+          support().catch(reportError);
         }}
       />
       {isOwnerAvailable ? (
