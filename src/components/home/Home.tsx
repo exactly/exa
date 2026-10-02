@@ -150,6 +150,7 @@ export default function Home() {
   const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
   const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
+  const stocksAvailable = !!country && !restrictedCountries.has(country);
   const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
   const promoSheetOpen =
     isPromoActive() && !promoSeen && !!card && card.status !== "FROZEN" && !spotlightVisible && focused;
@@ -189,6 +190,10 @@ export default function Home() {
     if (inNowMode) handleModeChange(lastInstallments ?? 1);
     setInstallmentsSheetOpen(true);
   }
+  function openStocks() {
+    queryClient.setQueryData<Swap>(["swap"], { ...defaultSwap, tokenModalOpen: true });
+    router.push({ pathname: "/swaps", params: { filter: "stocks" } });
+  }
 
   const collateralUSD = useMemo(
     () =>
@@ -224,6 +229,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["card", "details"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }),
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
       account ? refetchBytecode() : undefined,
@@ -354,6 +360,7 @@ export default function Home() {
                   if (card && card.status !== "FROZEN") openInstallments();
                   else router.push("/card");
                 }}
+                onStocksPress={stocksAvailable ? openStocks : undefined}
               />
             )}
             <View paddingHorizontal="$s4" gap="$s5">
@@ -392,19 +399,9 @@ export default function Home() {
             onActionPress={openInstallments}
           />
           <StocksIntroSheet
-            open={
-              isKYCApproved &&
-              !stocksIntroShown &&
-              !!country &&
-              !restrictedCountries.has(country) &&
-              !spotlightVisible &&
-              focused
-            }
+            open={isKYCApproved && !stocksIntroShown && stocksAvailable && !spotlightVisible && focused}
             onClose={() => queryClient.setQueryData(["settings", "stocks-intro-shown"], true)}
-            onActionPress={() => {
-              queryClient.setQueryData<Swap>(["swap"], { ...defaultSwap, tokenModalOpen: true });
-              router.push({ pathname: "/swaps", params: { filter: "stocks" } });
-            }}
+            onActionPress={openStocks}
           />
           <CreditLimitSheet
             open={creditLimitSheetOpen}

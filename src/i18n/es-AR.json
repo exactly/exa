@@ -138,6 +138,7 @@
   "Select the asset to fund": "Seleccioná el activo para financiar",
   "Select where to receive the funding": "Seleccioná dónde recibir el financiamiento",
   "Select your funding installment plan": "Seleccioná tu plan de cuotas de financiamiento",
+  "Send and receive USD and EUR": "Enviá y recibí USD y EUR",
   "Send any asset to any network, even ones you don't hold. We'll handle the swap or bridge and show the full cost before you confirm.": "Enviá cualquier activo a cualquier red, incluso los que no tenés. Nos encargamos del intercambio o la transferencia y te mostramos el costo total antes de confirmar.",
   "Send anything, anywhere": "Enviá lo que sea, a donde sea",
   "Send Bitcoin using your USDC balance. Choose what your recipient gets, pick what you pay with, and we'll find the best route.": "Enviá Bitcoin usando tu saldo en USDC. Elegí qué recibe el destinatario, elegí con qué pagás y encontramos la mejor ruta.",
