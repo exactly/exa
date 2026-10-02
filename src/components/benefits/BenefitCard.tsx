@@ -37,11 +37,11 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
         <YStack gap="$s3_5" maxWidth="60%">
           <XStack alignItems="center" gap="$s2">
             <BenefitLogo width={20} height={20} />
-            <Text subHeadline color="$backgroundBrandMild">
+            <Text subHeadline color="$backgroundBrandMild" numberOfLines={1} adjustsFontSizeToFit flexShrink={1}>
               {t(benefit.partner)}
             </Text>
           </XStack>
-          <Text emphasized title2 color="$backgroundBrandSoft">
+          <Text emphasized title2 color="$backgroundBrandSoft" numberOfLines={2} adjustsFontSizeToFit>
             {t(benefit.title)}
           </Text>
         </YStack>
