@@ -9,6 +9,7 @@ import { XStack } from "tamagui";
 
 import passkeysBlob from "../../assets/images/passkeys-blob.svg";
 import passkeys from "../../assets/images/passkeys.svg";
+import { loginUnidentified, present } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
@@ -140,6 +141,10 @@ export default function Passkeys() {
         )}
         onClose={() => {
           setErrorDialogOpen(false);
+        }}
+        onContact={() => {
+          setErrorDialogOpen(false);
+          loginUnidentified().then(present).catch(reportError);
         }}
       />
     </SafeView>

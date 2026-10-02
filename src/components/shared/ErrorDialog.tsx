@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { X } from "@tamagui/lucide-icons-2";
+import { Headphones, X } from "@tamagui/lucide-icons-2";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./StyledButton";
@@ -13,9 +13,11 @@ export default function ErrorDialog({
   title,
   description,
   onClose,
+  onContact,
 }: {
   description: string;
   onClose: () => void;
+  onContact?: () => void;
   open: boolean;
   title: string;
 }) {
@@ -60,8 +62,16 @@ export default function ErrorDialog({
                   {description}
                 </Text>
               </YStack>
-              <XStack>
-                <AlertDialog.Action asChild flex={1}>
+              <YStack gap="$s3">
+                {onContact && (
+                  <Button onPress={onContact} secondary width="100%">
+                    <Button.Text>{t("Contact support")}</Button.Text>
+                    <Button.Icon>
+                      <Headphones />
+                    </Button.Icon>
+                  </Button>
+                )}
+                <AlertDialog.Action asChild>
                   <Button onPress={onClose} dangerSecondary width="100%">
                     <Button.Text>{t("Close")}</Button.Text>
                     <Button.Icon>
@@ -69,7 +79,7 @@ export default function ErrorDialog({
                     </Button.Icon>
                   </Button>
                 </AlertDialog.Action>
-              </XStack>
+              </YStack>
             </YStack>
           </YStack>
         </AlertDialog.Content>

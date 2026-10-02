@@ -1,5 +1,9 @@
 import { Platform } from "react-native";
 
+import { safeParse } from "valibot";
+
+import { Address } from "@exactly/common/validation";
+
 import openBrowser from "./openBrowser";
 import queryClient, { hydrated, isServer } from "./queryClient";
 import reportError from "./reportError";
@@ -7,20 +11,21 @@ import reportError from "./reportError";
 import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
 
-export const { login, logout, newMessage, present, presentArticle, presentCollection } = (
+export const { login, loginUnidentified, logout, newMessage, present, presentArticle, presentCollection } = (
   Platform.OS === "web"
     ? () => {
-        const { Intercom, boot, showArticle, showSpace, showNewMessage, shutdown, update } =
+        const { Intercom, boot, show, showArticle, showNewMessage, shutdown, update } =
           require("@intercom/messenger-js-sdk") as typeof IntercomWeb; // eslint-disable-line unicorn/prefer-module
         return {
           login: (userId: string, token: string, expires: number) => {
             if (!appId) return Promise.resolve(false);
             try {
-              if (window.Intercom && queryClient.getQueryData<Session>(["intercom"])?.userId === userId) {
+              const session = queryClient.getQueryData<Session>(["intercom"]);
+              if (window.Intercom && session?.userId === userId) {
                 update({ user_id: userId, intercom_user_jwt: token });
               } else {
                 queryClient.removeQueries({ queryKey: ["intercom"] });
-                if (window.Intercom) shutdown();
+                if (window.Intercom && session) shutdown();
                 (window.Intercom ? boot : Intercom)({ app_id: appId, user_id: userId, intercom_user_jwt: token });
               }
               queryClient.setQueryData<Session>(["intercom"], { expires, userId });
@@ -30,13 +35,19 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
               return Promise.resolve(false);
             }
           },
+          loginUnidentified: () => {
+            if (!appId) return Promise.resolve(false);
+            if (queryClient.getQueryData(["intercom"])) return Promise.resolve(true);
+            (window.Intercom ? boot : Intercom)({ app_id: appId });
+            return Promise.resolve(true);
+          },
           logout: () => {
             if (window.Intercom) shutdown();
             queryClient.removeQueries({ queryKey: ["intercom"] });
             return Promise.resolve(true);
           },
           present: () => {
-            showSpace("home");
+            show();
             return Promise.resolve(true);
           },
           presentArticle: (articleId: string) => {
@@ -59,6 +70,11 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
           IntercomContent,
           Space,
         } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line unicorn/prefer-module
+        const identified = () =>
+          Intercom.fetchLoggedInUserAttributes().then(
+            ({ userId }) => safeParse(Address, userId).success,
+            () => false,
+          );
         return {
           login: async (userId: string, token: string, expires: number) => {
             if (!appId) return false;
@@ -66,7 +82,7 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
               const same = queryClient.getQueryData<Session>(["intercom"])?.userId === userId;
               if (!same) {
                 queryClient.removeQueries({ queryKey: ["intercom"] });
-                await Intercom.logout().catch(() => undefined);
+                if (await identified()) await Intercom.logout().catch(() => undefined);
               }
               await Intercom.setUserJwt(token);
               if (!same) await Intercom.loginUserWithUserAttributes({ userId });
@@ -76,6 +92,12 @@ export const { login, logout, newMessage, present, presentArticle, presentCollec
               reportError(error);
               return false;
             }
+          },
+          loginUnidentified: async () => {
+            if (!appId) return false;
+            if (queryClient.getQueryData(["intercom"])) return true;
+            if (await identified()) await Intercom.logout();
+            return (await Intercom.isUserLoggedIn()) || Intercom.loginUnidentifiedUser();
           },
           logout: async () => {
             await Intercom.logout().catch(reportError);
