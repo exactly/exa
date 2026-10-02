@@ -4,7 +4,8 @@ import "../mocks/sentry";
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
 import { eq } from "drizzle-orm";
-import { parse } from "valibot";
+import { Redis } from "ioredis";
+import { parse, string } from "valibot";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -14,7 +15,6 @@ import database, { cards, credentials } from "../../database";
 import t from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
-import { bullmq } from "../../utils/redis";
 import createCredit from "../../workers/credit/queue";
 import creditWorker from "../../workers/credit/worker";
 
@@ -25,6 +25,7 @@ import type { JobsOptions } from "bullmq";
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
 const unknown = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
+const bullmq = new Redis(parse(string(), process.env.REDIS_URL), { db: 1, maxRetriesPerRequest: null });
 const credit = createCredit(bullmq);
 const onesignal = createOnesignal("onesignal");
 const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
@@ -56,6 +57,7 @@ afterAll(async () => {
   await database.delete(cards).where(eq(cards.credentialId, "credit-worker"));
   await database.delete(credentials).where(eq(credentials.id, "credit-worker"));
   await Promise.all([queue.close(), events.close(), credit.close()]);
+  await bullmq.quit();
 });
 
 describe("credit queue", () => {
