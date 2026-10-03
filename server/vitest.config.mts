@@ -6,7 +6,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
-    coverage: { enabled: true, reporter: ["lcov"] },
+    coverage: { enabled: !!env.CI, reporter: ["lcov"] },
     reporters: ["default", "junit"],
     outputFile: { junit: fileURLToPath(new URL("coverage/junit.xml", import.meta.url)) },
     testTimeout: 36_666,
