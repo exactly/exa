@@ -30,6 +30,7 @@ import VisaLogo from "../../assets/images/visa.svg";
 import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
 import { getRampProviders } from "../../utils/server";
+import useKYC from "../../utils/useKYC";
 import Image from "../shared/Image";
 import Skeleton from "../shared/Skeleton";
 import ThemedSvg from "../shared/ThemedSvg";
@@ -162,6 +163,7 @@ export default function BenefitsSection({
   onStocksPress?: () => void;
 }) {
   const router = useRouter();
+  const { approved: isKYCApproved } = useKYC();
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const redirectURL = `https://${domain}/add-funds`;
   const { data: providers, isLoading } = useQuery({
@@ -174,15 +176,15 @@ export default function BenefitsSection({
   const benefits = BENEFITS.filter(({ id }) => {
     switch (id) {
       case "exa":
-        return isPromoActive() && !!onExaPress;
+        return isKYCApproved && isPromoActive() && !!onExaPress;
       case "accounts":
         return !!providers?.bridge.onramp.currencies.some((item) => typeof item === "string");
       case "airalo":
-        return bridge !== "NOT_STARTED" && bridge !== "ONBOARDING";
+        return isKYCApproved && bridge !== "NOT_STARTED" && bridge !== "ONBOARDING";
       case "stocks":
         return !!onStocksPress;
       default:
-        return true;
+        return isKYCApproved;
     }
   }).map((benefit) =>
     benefit.id === "accounts" && bridge === "ACTIVE" ? { ...benefit, linkText: "View accounts" } : benefit,
@@ -193,6 +195,7 @@ export default function BenefitsSection({
   const [width, setWidth] = useState(0);
   const itemWidth = Math.max(width - 40, 250);
 
+  if (!isLoading && benefits.length === 0) return null;
   return (
     <>
       <View
@@ -235,7 +238,7 @@ export default function BenefitsSection({
         onExaPress?.();
         return;
       case "accounts":
-        router.push({ pathname: "/add-funds", params: { type: "fiat" } });
+        router.push(isKYCApproved ? { pathname: "/add-funds", params: { type: "fiat" } } : "/add-funds/welcome");
         return;
       case "stocks":
         onStocksPress?.();

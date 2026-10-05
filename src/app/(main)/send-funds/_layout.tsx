@@ -11,6 +11,7 @@ export default function SendFundsLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="receiver" />
       <Stack.Screen name="onboard" />
+      <Stack.Screen name="welcome" />
       <Stack.Screen name="kyc" />
       <Stack.Screen name="status" />
       <Stack.Screen name="recipients" />

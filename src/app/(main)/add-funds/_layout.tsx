@@ -18,6 +18,7 @@ export default function AddFundsLayout() {
       <Stack.Screen name="onboard" />
       <Stack.Screen name="ramp" />
       <Stack.Screen name="status" />
+      <Stack.Screen name="welcome" />
     </Stack>
   );
 }

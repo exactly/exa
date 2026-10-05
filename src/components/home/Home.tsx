@@ -354,7 +354,7 @@ export default function Home() {
                 </AnimatePresence>
               </View>
             )}
-            {isKYCFetched && isKYCApproved && (
+            {isKYCFetched && (
               <BenefitsSection
                 onExaPress={() => {
                   if (card && card.status !== "FROZEN") openInstallments();

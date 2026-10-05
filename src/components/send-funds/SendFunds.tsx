@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, Banknote, Blocks, CircleHelp } from "@tamagui/lucide-icons-2";
-import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -17,7 +16,6 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders } from "../../utils/server";
-import useBeginKYC from "../../utils/useBeginKYC";
 import useKYC from "../../utils/useKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
 import RampButton from "../ramp/RampButton";
@@ -31,10 +29,8 @@ export default function SendFunds() {
   const { type } = useLocalSearchParams();
   const router = useRouter();
   const { t } = useTranslation();
-  const toast = useToastController();
 
   const { approved: isKYCApproved } = useKYC();
-  const beginKYC = useBeginKYC();
 
   const { data: countryCode } = useQuery({
     queryKey: ["user", "country"],
@@ -141,37 +137,11 @@ export default function SendFunds() {
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("Pesos, dollars, or euros")}
-                    disabled={(isKYCApproved && !hasFiat) || beginKYC.isPending}
-                    loading={beginKYC.isPending}
+                    disabled={isKYCApproved && !hasFiat}
                     onPress={() => {
-                      if (isKYCApproved) {
-                        router.push({ pathname: "/send-funds", params: { type: "fiat" } });
-                        return;
-                      }
-                      beginKYC.mutate(undefined, {
-                        onSuccess(result) {
-                          if (result.status === "cancel") return;
-                          if (result.status === "blocked") {
-                            router.push("/(main)/getting-started");
-                            return;
-                          }
-                          const approved =
-                            "code" in result.kyc && (result.kyc.code === "ok" || result.kyc.code === "legacy kyc");
-                          if (approved) {
-                            queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
-                            router.push({ pathname: "/send-funds", params: { type: "fiat" } });
-                          } else {
-                            router.replace("/(main)/(home)");
-                          }
-                        },
-                        onError(error) {
-                          toast.show(t("Error verifying identity"), {
-                            duration: 1000,
-                            burntOptions: { haptic: "error", preset: "error" },
-                          });
-                          reportError(error);
-                        },
-                      });
+                      router.push(
+                        isKYCApproved ? { pathname: "/send-funds", params: { type: "fiat" } } : "/send-funds/welcome",
+                      );
                     }}
                   />
                 )}
