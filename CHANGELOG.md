@@ -1,5 +1,32 @@
 # @exactly/mobile
 
+## 1.2.31
+
+### Patch Changes
+
+- [#1375](https://github.com/exactly/exa/pull/1375) [`c6c6a78`](https://github.com/exactly/exa/commit/c6c6a78a4d46185973f8b64ef805939be21a2865) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix dialog crash on empty theme background
+
+- [#1368](https://github.com/exactly/exa/pull/1368) [`f2de58e`](https://github.com/exactly/exa/commit/f2de58e7c85c5b84e7a30c4ba1c351c8b0628d03) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ skip alchemy pagination on spam wallets
+
+- [#1368](https://github.com/exactly/exa/pull/1368) [`cdec95a`](https://github.com/exactly/exa/commit/cdec95a083396294d087fd05bcf78cf1929a95d9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ stream balances per chain
+
+- [#1366](https://github.com/exactly/exa/pull/1366) [`67abbd7`](https://github.com/exactly/exa/commit/67abbd761a8155a0dc891221e7e9adc480a65253) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix cropped merchant logos
+
+- [#1366](https://github.com/exactly/exa/pull/1366) [`9789e19`](https://github.com/exactly/exa/commit/9789e1993dd681d4ef01db17b462b0a95c0178c7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 fix untranslated text in add funds
+
+- [#1368](https://github.com/exactly/exa/pull/1368) [`36761f2`](https://github.com/exactly/exa/commit/36761f24b73ebdb2a826d50b2568de645e9c18e0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ unblock js thread on balances
+
+- [#1366](https://github.com/exactly/exa/pull/1366) [`2febaf1`](https://github.com/exactly/exa/commit/2febaf1679bf67eaacbc092776a99b8dec2270ce) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix duplicate card operation keys
+
+- [#1368](https://github.com/exactly/exa/pull/1368) [`fc3cb3b`](https://github.com/exactly/exa/commit/fc3cb3b803663e19191a9f6e8c10d52b2ef88766) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix missing balances on web
+
+- [#1375](https://github.com/exactly/exa/pull/1375) [`12e3100`](https://github.com/exactly/exa/commit/12e310073af44093e26570ee271371c1e728ffbd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add intercom support to onboarding
+
+- [#1368](https://github.com/exactly/exa/pull/1368) [`2f2c5e8`](https://github.com/exactly/exa/commit/2f2c5e8ab07605a964de37b15a51bf10e786fc67) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 time out unresponsive rpcs
+
+- Updated dependencies [[`0dbc470`](https://github.com/exactly/exa/commit/0dbc470ca6a914161ca0e0df85978edc87a72b87)]:
+  - @exactly/server@0.2.124
+
 ## 1.2.30
 
 ### Patch Changes
