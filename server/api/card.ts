@@ -33,13 +33,13 @@ import {
 import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
-import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { origin } from "../utils/appOrigin";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -363,10 +363,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                   if (!credential.pandaId) return;
                   return panda.getNonce(credential.pandaId).then(({ nonce }) =>
                     createSiweMessage({
-                      domain,
+                      domain: new URL(origin(c.req.raw)).hostname,
                       address: parse(Address, credentialId),
                       statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
-                      uri: `https://${domain}`,
+                      uri: origin(c.req.raw),
                       version: "1",
                       chainId: chain.id,
                       nonce,
@@ -908,12 +908,16 @@ async function encryptPIN(pin: string) {
                     const verified = await Promise.resolve()
                       .then(() => parseSiweMessage(patch.message))
                       .then((m) => {
-                        if (m.statement !== statement || m.chainId !== chain.id || m.domain !== domain) {
+                        if (
+                          m.statement !== statement ||
+                          m.chainId !== chain.id ||
+                          m.domain !== new URL(origin(c.req.raw)).hostname
+                        ) {
                           return false;
                         }
                         return verifySiweMessage(publicClient, {
                           address: parse(Address, credentialId),
-                          domain,
+                          domain: new URL(origin(c.req.raw)).hostname,
                           message: patch.message,
                           signature: patch.signature,
                         });

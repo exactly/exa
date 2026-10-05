@@ -10,8 +10,6 @@ import { ScrollView, Spinner, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import domain from "@exactly/common/domain";
-
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
 import RampWebView from "./RampWebView";
@@ -22,7 +20,7 @@ import { isValidCurrency } from "../../utils/currencies";
 import { newMessage } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { getRampProviders } from "../../utils/server";
+import { getRampProviders, origin } from "../../utils/server";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -59,7 +57,7 @@ export default function Status() {
   }, [isPending]);
 
   const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
-  const redirectURL = `https://${domain}/${offramp ? "send-funds" : "add-funds"}`;
+  const redirectURL = `${origin}/${offramp ? "send-funds" : "add-funds"}`;
   const { data: providers, isFetching } = useQuery({
     queryKey: ["ramp", "providers", countryCode, redirectURL],
     queryFn: () => getRampProviders(countryCode, redirectURL),

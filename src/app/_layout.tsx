@@ -1,5 +1,4 @@
 import "../utils/onesignal";
-import "../utils/server";
 
 import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef } from "react";
 import { initReactI18next } from "react-i18next";
@@ -59,6 +58,7 @@ import { newMessage, present, type Session } from "../utils/intercom";
 import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import { page } from "../utils/segment";
+import { origin } from "../utils/server";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig from "../utils/wagmi/owner";
 
@@ -146,7 +146,7 @@ init({
   attachStacktrace: true,
   attachViewHierarchy: true,
   enableAutoSessionTracking: true,
-  tracePropagationTargets: [domain],
+  tracePropagationTargets: [domain, origin],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
   replaysOnErrorSampleRate: __DEV__ || e2e ? undefined : 1,

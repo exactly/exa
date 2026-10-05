@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import database from "../database";
 import createAlchemy from "../utils/alchemy";
+import { origins } from "../utils/appOrigin";
 import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
 import createSardine from "../utils/sardine";
@@ -89,6 +90,17 @@ describe("e2e", () => {
           Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
       ).resolves.toBeDefined();
+
+      const related = await app.request("/.well-known/webauthn");
+      expect(related.status).toBe(200);
+      expect(related.headers.get("content-type")).toBe("application/json");
+      await expect(related.json()).resolves.toStrictEqual({ origins });
+      for (const origin of origins) {
+        const response = await app.request(`${origin}/api/auth/get-session`, { headers: { origin } });
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toBeNull();
+        expect(response.headers.get("access-control-allow-origin")).toBe(origin);
+      }
     },
     Infinity,
   );
