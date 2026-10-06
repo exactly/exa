@@ -126,7 +126,7 @@ overrides:
   markdown-it@14: ^14.3.1
   nanoid@3.3.11: ^3.3.12
   picomatch@4: ^4.0.4
-  postcss-selector-parser@6.1.2: ^6.1.3
+  postcss-selector-parser@6: ^7.1.6
   postcss-selector-parser@7.1.1: ^7.1.3
   postcss@8: ^8.5.10
   qs@6.15.2: ^6.16.0
@@ -12887,10 +12887,6 @@ packages:
     engines: {node: '>=12.0'}
     peerDependencies:
       postcss: ^8.5.10
-
-  postcss-selector-parser@6.1.4:
-    resolution: {integrity: sha512-bIoJLOmjCO1S9XdY/DcnR5hJxvrDir1PbGChrzXG3vw0/FOliy/fA3dmdhQ441kah4gKv+TwckGzex6wNS5cnQ==}
-    engines: {node: '>=4'}
 
   postcss-selector-parser@7.1.6:
     resolution: {integrity: sha512-7qASPzhKF2l2KLboRZux8CCTRMdGiV08vWmyKzPz22qZ7ZjQBOeY7rNzNoCLSUiftJ7HUq0GERHmxw/t0dCdMw==}
@@ -31125,12 +31121,7 @@ snapshots:
   postcss-nested@6.2.0(postcss@8.5.10):
     dependencies:
       postcss: 8.5.10
-      postcss-selector-parser: 6.1.4
-
-  postcss-selector-parser@6.1.4:
-    dependencies:
-      cssesc: 3.0.0
-      util-deprecate: 1.0.2
+      postcss-selector-parser: 7.1.6
 
   postcss-selector-parser@7.1.6:
     dependencies:

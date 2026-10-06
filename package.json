@@ -206,7 +206,7 @@
       "markdown-it@14": "^14.3.1",
       "nanoid@3.3.11": "^3.3.12",
       "picomatch@4": "^4.0.4",
-      "postcss-selector-parser@6.1.2": "^6.1.3",
+      "postcss-selector-parser@6": "^7.1.6",
       "postcss-selector-parser@7.1.1": "^7.1.3",
       "postcss@8": "^8.5.10",
       "qs@6.15.2": "^6.16.0",
