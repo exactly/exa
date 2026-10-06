@@ -12,6 +12,7 @@ auditConfig:
     - GHSA-86w9-cpqp-85rv # cspell:ignore cpqp
     - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
     - GHSA-h67p-54hq-rp68
+    - GHSA-hp3w-g68c-fv3c
     - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
     - GHSA-mh99-v99m-4gvg
     - GHSA-r28c-9q8g-f849
