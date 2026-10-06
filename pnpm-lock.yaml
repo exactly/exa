@@ -4114,8 +4114,8 @@ packages:
     resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/sdk@1.28.0':
-    resolution: {integrity: sha512-gmloF+i+flI8ouQK7MWW4mOwuMh4RePBuPFAEPC6+pdqyWOUMDOixb6qZ69owLJpz6XmyllCouc4t8YWO+E2Nw==}
+  '@modelcontextprotocol/sdk@1.32.1':
+    resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -14493,10 +14493,6 @@ packages:
     resolution: {integrity: sha512-PlBfpQwiUvGViBNX84Yxwjsdhd1TUlXr6zjX7eoirtCPIr08NAmxwa+fcYBTeRQxHo9YC9wwF3m9i700sHma8g==}
     engines: {node: '>=20'}
 
-  type-is@2.0.1:
-    resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
-    engines: {node: '>= 0.6'}
-
   type-is@2.1.0:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
@@ -18288,7 +18284,7 @@ snapshots:
 
   '@eslint/mcp@0.3.2':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.28.0
+      '@modelcontextprotocol/sdk': 1.32.1
       eslint: 10.1.0
       zod: 4.3.6
     transitivePeerDependencies:
@@ -19063,9 +19059,9 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/mcp@0.2.4(@modelcontextprotocol/sdk@1.28.0)(hono-rate-limiter@0.5.3(hono@4.13.7)(unstorage@1.17.5(ioredis@5.10.1)))(hono@4.13.7)(zod@4.3.6)':
+  '@hono/mcp@0.2.4(@modelcontextprotocol/sdk@1.32.1)(hono-rate-limiter@0.5.3(hono@4.13.7)(unstorage@1.17.5(ioredis@5.10.1)))(hono@4.13.7)(zod@4.3.6)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.28.0
+      '@modelcontextprotocol/sdk': 1.32.1
       hono: 4.13.7
       hono-rate-limiter: 0.5.3(hono@4.13.7)(unstorage@1.17.5(ioredis@5.10.1))
       pkce-challenge: 5.0.1
@@ -19577,25 +19573,25 @@ snapshots:
     dependencies:
       zod: 4.5.4
 
-  '@modelcontextprotocol/sdk@1.28.0':
+  '@modelcontextprotocol/sdk@1.32.1':
     dependencies:
       '@hono/node-server': 2.0.12(hono@4.13.7)
-      ajv: 8.18.0
+      ajv: 8.20.0
       ajv-formats: 3.0.1
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
       eventsource: 3.0.7
-      eventsource-parser: 3.0.6
+      eventsource-parser: 3.1.1
       express: 5.2.1
       express-rate-limit: 8.5.1(express@5.2.1)
       hono: 4.13.7
-      jose: 6.2.2
+      jose: 6.2.10
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.3.6
-      zod-to-json-schema: 3.25.2(zod@4.3.6)
+      zod: 4.5.4
+      zod-to-json-schema: 3.25.2(zod@4.5.4)
     transitivePeerDependencies:
       - supports-color
 
@@ -21669,10 +21665,10 @@ snapshots:
 
   '@spotlightjs/spotlight@4.11.3(hono-rate-limiter@0.5.3(hono@4.13.7)(unstorage@1.17.5(ioredis@5.10.1)))':
     dependencies:
-      '@hono/mcp': 0.2.4(@modelcontextprotocol/sdk@1.28.0)(hono-rate-limiter@0.5.3(hono@4.13.7)(unstorage@1.17.5(ioredis@5.10.1)))(hono@4.13.7)(zod@4.3.6)
+      '@hono/mcp': 0.2.4(@modelcontextprotocol/sdk@1.32.1)(hono-rate-limiter@0.5.3(hono@4.13.7)(unstorage@1.17.5(ioredis@5.10.1)))(hono@4.13.7)(zod@4.3.6)
       '@hono/node-server': 2.0.12(hono@4.13.7)
       '@jridgewell/trace-mapping': 0.3.31
-      '@modelcontextprotocol/sdk': 1.28.0
+      '@modelcontextprotocol/sdk': 1.32.1
       '@sentry/core': 10.71.0
       '@sentry/node': 10.71.0(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))
       anser: 2.3.5
@@ -23882,7 +23878,7 @@ snapshots:
 
   ajv-formats@3.0.1:
     dependencies:
-      ajv: 8.18.0
+      ajv: 8.20.0
 
   ajv@6.14.0:
     dependencies:
@@ -27056,7 +27052,7 @@ snapshots:
       send: 1.2.1
       serve-static: 2.2.1
       statuses: 2.0.2
-      type-is: 2.0.1
+      type-is: 2.1.0
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
@@ -33126,12 +33122,6 @@ snapshots:
     dependencies:
       tagged-tag: 1.0.0
 
-  type-is@2.0.1:
-    dependencies:
-      content-type: 1.0.5
-      media-typer: 1.1.0
-      mime-types: 3.0.2
-
   type-is@2.1.0:
     dependencies:
       content-type: 2.0.0
@@ -33848,9 +33838,9 @@ snapshots:
     dependencies:
       zod: 4.5.4
 
-  zod-to-json-schema@3.25.2(zod@4.3.6):
+  zod-to-json-schema@3.25.2(zod@4.5.4):
     dependencies:
-      zod: 4.3.6
+      zod: 4.5.4
 
   zod-validation-error@4.0.2(zod@4.3.6):
     dependencies:
