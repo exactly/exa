@@ -3,12 +3,11 @@ const path = require("node:path");
 /** @satisfies {import("esbuild").BuildOptions} */
 module.exports = {
   bundle: true,
-  outdir: "dist",
   platform: "neutral",
   external: ["isows"],
   mainFields: ["module", "main"],
-  inject: ["src/polyfill.ts"],
-  absWorkingDir: __dirname,
+  outdir: path.join(__dirname, "dist"),
+  inject: [path.join(__dirname, "src/polyfill.ts")],
   plugins: [
     {
       name: "fix-tsconfig",
