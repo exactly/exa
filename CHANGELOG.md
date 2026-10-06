@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.2.32
+
+### Patch Changes
+
+- [#1378](https://github.com/exactly/exa/pull/1378) [`f13e4da`](https://github.com/exactly/exa/commit/f13e4dabde76b015e4f280c28a881de9f27b3fcc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix web theme hydration
+
+- [#1376](https://github.com/exactly/exa/pull/1376) [`b5210b9`](https://github.com/exactly/exa/commit/b5210b9b69e59eb31896ca7bdb6199f709aab3ff) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update illustrations
+
+- [#1376](https://github.com/exactly/exa/pull/1376) [`aaee5ff`](https://github.com/exactly/exa/commit/aaee5ff296e56b1133c3e9df42028ff31c67b956) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add ramp welcome screen
+
+- [#1378](https://github.com/exactly/exa/pull/1378) [`a566fcf`](https://github.com/exactly/exa/commit/a566fcffe8e163577ce7382f50c3cb2f7918375b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove theme hydration workaround
+
+- [#1376](https://github.com/exactly/exa/pull/1376) [`7824ca7`](https://github.com/exactly/exa/commit/7824ca7c5998540bb5e2f6e37e6a3cb6ac3cc9cd) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix missing send usdc translation
+
+- [#1376](https://github.com/exactly/exa/pull/1376) [`f9c54d4`](https://github.com/exactly/exa/commit/f9c54d4febd19310ad805d32065a00b2b7ce1293) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add bank accounts and stocks banners
+
+- [#1376](https://github.com/exactly/exa/pull/1376) [`c4c5af9`](https://github.com/exactly/exa/commit/c4c5af9385fd18989ad9aaed035a7d519374b31f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix overflowing card text
+
+- Updated dependencies [[`d266575`](https://github.com/exactly/exa/commit/d2665753e60654a3dc3b59292f61f2be7b370ba3)]:
+  - @exactly/server@0.2.125
+
 ## 1.2.31
 
 ### Patch Changes
