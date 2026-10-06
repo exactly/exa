@@ -193,6 +193,7 @@ patchedDependencies:
 peerDependencyRules:
   allowedVersions:
     "@hono/mcp>hono-rate-limiter": "0.5"
+    "@segment/analytics-react-native-plugin-facebook-app-events>react-native-fbsdk-next": "13"
     abitype>zod: "3"
     hono-openapi>zod: "4"
     rollup-plugin-import-trace>vite: "8" # cspell:ignore rollup
