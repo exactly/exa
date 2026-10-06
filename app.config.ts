@@ -106,6 +106,19 @@ export default {
         largeIcons: ["src/assets/notifications_default_large.png"],
       },
     ],
+    [
+      "react-native-fbsdk-next",
+      {
+        appID: "0000000000000000", // TODO replace with meta app id
+        clientToken: "00000000000000000000000000000000", // TODO replace with meta client token
+        displayName: "Exa",
+        scheme: "fb0000000000000000",
+        isAutoInitEnabled: false,
+        autoLogAppEventsEnabled: false,
+        advertiserIDCollectionEnabled: false,
+        iosUserTrackingPermission: false,
+      },
+    ],
     // @ts-expect-error inline plugin
     ((config) =>
       withAndroidManifest(

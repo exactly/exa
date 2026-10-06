@@ -325,7 +325,7 @@ function Navigator() {
       .catch(reportError);
   }, [authenticated, intercom, router, support]);
   useEffect(() => {
-    if (href) page();
+    if (href) page(href);
   }, [href]);
   useEffect(() => {
     if (!ready) return;
