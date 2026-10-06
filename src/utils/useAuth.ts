@@ -12,6 +12,7 @@ import chain from "@exactly/common/generated/chain";
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
+import { track } from "./segment";
 import { APIError, createCredential, getCredential } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
@@ -35,6 +36,7 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
         }
       }
       const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
+      if (register && method !== "siwe") track({ event: "AccountCreated" });
       queryClient.setQueryData<Credential>(["credential"], credential);
       await connectExa({ connector: alchemyConnector });
       return credential;
