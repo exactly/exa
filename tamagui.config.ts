@@ -319,7 +319,13 @@ const tamagui = createTamagui({
     quick: { type: "spring", damping: 25, mass: 1.2, stiffness: 250 },
     tooltip: { type: "spring", damping: 10, mass: 0.9, stiffness: 100 },
   }),
-  settings: { ...config.settings, defaultPosition: "relative", fastSchemeChange: false, styleCompat: "legacy" },
+  settings: {
+    ...config.settings,
+    addThemeClassName: "html",
+    defaultPosition: "relative",
+    fastSchemeChange: false,
+    styleCompat: "legacy",
+  },
   themes: {
     light: {
       cardBackground: tokens.color.cardBackground,
