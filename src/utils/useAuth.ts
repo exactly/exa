@@ -41,6 +41,7 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
         }
       }
       const credential = method === "siwe" || !register ? await getCredential() : await createCredential(hints);
+      if (register && method !== "siwe") track("Account Created");
       queryClient.setQueryData<Credential>(["credential"], credential);
       await connectExa({ connector: alchemyConnector });
       return credential;
