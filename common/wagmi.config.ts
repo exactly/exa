@@ -1,11 +1,10 @@
 import * as infra from "@account-kit/infra";
 import { defineConfig } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
-import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
 import { isDeepStrictEqual } from "node:util";
-import { getAddress, type Abi, type Chain } from "viem";
+import { encodeAbiParameters, encodePacked, getAddress, keccak256, slice, type Abi, type Chain } from "viem";
 import * as chains from "viem/chains";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
@@ -106,6 +105,46 @@ export default defineConfig([
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
+          const factories = {
+            versions: deploy.factory.versions.map((version) => {
+              const proxy = slice(
+                keccak256(
+                  encodePacked(
+                    ["uint8", "address", "bytes32", "bytes32"],
+                    [
+                      0xff,
+                      chainId === optimismSepolia.id
+                        ? "0xcc3f41204a1324DD91F1Dbfc46208535293A371e"
+                        : chainId === baseSepolia.id
+                          ? "0x9f275F6D25232FFf082082a53C62C6426c1cc94C"
+                          : "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+                      keccak256(
+                        encodePacked(
+                          ["address", "bytes32"],
+                          [
+                            getAddress(
+                              (deploy.accounts.admin as Record<string, string>)[chainId] ??
+                                deploy.accounts.admin.default,
+                            ),
+                            keccak256(
+                              encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", version]),
+                            ),
+                          ],
+                        ),
+                      ),
+                      "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
+                    ],
+                  ),
+                ),
+                12,
+              );
+              return getAddress(
+                slice(keccak256(encodePacked(["bytes2", "address", "uint8"], ["0xd694", proxy, 0x01])), 12),
+              );
+            }),
+            legacy: deploy.factory.legacy.map((address) => getAddress(address)),
+          };
+          const [factory] = factories.versions.slice(-1);
           const alchemyChains = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
@@ -151,16 +190,10 @@ export default defineConfig([
                 swapper:
                   (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
                 exaAccountFactory:
-                  chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
-                    ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
-                        execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
-                          env: { ...env, FOUNDRY_PROFILE: "tooling" },
-                          cwd: "../contracts",
-                          encoding: "utf8",
-                        }),
-                      )?.[1]
-                    : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
-                      "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC"),
+                  {
+                    [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
+                    [optimismSepolia.id]: "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
+                  }[chainId] ?? factory,
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;
@@ -185,6 +218,7 @@ export default defineConfig([
                 ),
               )}`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
+              `export const factories = ${JSON.stringify(factories)} as const`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain

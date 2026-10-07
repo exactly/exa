@@ -67,6 +67,7 @@ packages:
   - common
   - contracts
   - docs
+  - indexer
   - infra
   - server
   - .maestro
