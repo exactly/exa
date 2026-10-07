@@ -199,11 +199,11 @@ async function expectFailedReminder(data: SendReminder, attempts = 1) {
 }
 
 function notificationJobs() {
-  return notificationQueue.getJobs(["waiting", "active", "paused", "delayed"]);
+  return notificationQueue.getJobs(["waiting", "active", "delayed"]);
 }
 
 function scanJobs() {
-  return queue.getJobs(["waiting", "active", "paused", "delayed", "completed", "failed"]);
+  return queue.getJobs(["waiting", "active", "delayed", "completed", "failed"]);
 }
 
 function isScanJob(job: Job<CheckDebts | ScanChunk>): job is Job<ScanChunk> {
@@ -223,7 +223,7 @@ async function waitForScanJobs(maturity: number, window: Window) {
           (states) =>
             states.length > 0 &&
             states.every(
-              (state) => !["waiting", "active", "paused", "delayed", "prioritized", "waiting-children"].includes(state),
+              (state) => !["waiting", "active", "delayed", "prioritized", "waiting-children"].includes(state),
             ),
         ),
       ),
@@ -940,7 +940,7 @@ describe("worker", () => {
     const failed = await notificationQueue.getJob(reminderJobId(data));
     expect(await failed?.getState()).toBe("failed");
     expect(failed?.opts.removeOnFail).toStrictEqual({ age: 7 * 86_400, count: 10_000 });
-    await expect(notificationQueue.getJobs(["waiting", "paused"])).resolves.toHaveLength(0);
+    await expect(notificationQueue.getJobs(["waiting"])).resolves.toHaveLength(0);
   });
 
   it("schedules the next 24h window when the current one already passed", async () => {

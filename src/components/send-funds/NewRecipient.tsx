@@ -8,7 +8,7 @@ import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { getPixKeyType, isCNPJ, isCPF, PixKeyType } from "@pix.js/qrcode";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 
 import {
@@ -135,9 +135,11 @@ export default function NewRecipient() {
     },
   });
 
-  const currentOwnerType = useStore(form.store, ({ values }) => values.accountOwnerType ?? "");
-  const currentVariant = useStore(form.store, ({ values }) => (variantField ? (values[variantField.path] ?? "") : ""));
-  const currentCountry = useStore(form.store, ({ values }) => values.address_country ?? "");
+  const currentOwnerType = useSelector(form.store, ({ values }) => values.accountOwnerType ?? "");
+  const currentVariant = useSelector(form.store, ({ values }) =>
+    variantField ? (values[variantField.path] ?? "") : "",
+  );
+  const currentCountry = useSelector(form.store, ({ values }) => values.address_country ?? "");
 
   const visibleFields = build ? build({ ownerType: currentOwnerType, variant: currentVariant }) : [];
   const steps = getSteps(visibleFields);
@@ -145,7 +147,7 @@ export default function NewRecipient() {
   const totalSteps = steps.length;
   const isLastStep = step === totalSteps;
 
-  const canContinue = useStore(form.store, ({ values, fieldMeta }) => {
+  const canContinue = useSelector(form.store, ({ values, fieldMeta }) => {
     if (!currentStep) return false;
     return currentStep.fields.every((field) => {
       if (!field.optional && !values[field.path]) return false;

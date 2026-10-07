@@ -2,7 +2,6 @@ import { captureException, setContext } from "@sentry/node";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
-  type AuthenticatorTransportFuture,
   type WebAuthnCredential,
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
@@ -13,6 +12,7 @@ import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   any,
   array,
+  assert,
   boolean,
   description,
   fallback,
@@ -238,17 +238,9 @@ export default function route({
           timeout,
         });
         await redis.set(sessionId, options.challenge, "PX", timeout);
-        return c.json(
-          {
-            method: "webauthn" as const,
-            ...options,
-            extensions: options.extensions as Extract<
-              InferOutput<typeof RegistrationOptions>,
-              { method: "webauthn" }
-            >["extensions"],
-          } satisfies InferOutput<typeof RegistrationOptions>,
-          200,
-        );
+        const response = { method: "webauthn" as const, ...options };
+        assert(RegistrationOptions, response);
+        return c.json(response, 200);
       },
     )
     .post(
@@ -381,8 +373,7 @@ export default function route({
                   ...attestation,
                   response: {
                     ...attestation.response,
-                    transports:
-                      (attestation.response.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
+                    transports: attestation.response.transports ?? undefined,
                   },
                 },
                 expectedRPID: domain,

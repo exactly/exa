@@ -321,7 +321,7 @@ function Navigator() {
             getAddress: () => getConnection(exaConfig).address,
             hasCard: () =>
               queryClient
-                .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000 })
+                .query({ queryKey: ["card", "details"], staleTime: 3000 })
                 .then((card) => !!card)
                 .catch(() => undefined),
           }),

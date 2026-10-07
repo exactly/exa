@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, Check, CircleHelp, ClipboardPaste, TriangleAlert
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { parse, safeParse } from "valibot";
 
 import chain from "@exactly/common/generated/chain";
@@ -60,8 +60,8 @@ export default function Receiver() {
     },
   });
 
-  const receiver = useStore(form.store, (state) => state.values.receiver);
-  const isValid = useStore(form.store, (state) => state.isValid);
+  const receiver = useSelector(form.store, (state) => state.values.receiver);
+  const isValid = useSelector(form.store, (state) => state.isValid);
 
   if (!market || !amount || !installments || !maturity || (markets && !asset)) return <Redirect href="/loan" />;
   if (preset !== undefined && !address && (isConnecting || isReconnecting)) {

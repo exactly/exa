@@ -25,43 +25,37 @@ allowBuilds:
   utf-8-validate: true
 auditConfig:
   ignoreGhsas: # cspell:ignore ghsas
-    - GHSA-28wg-ghj8-5hjv
-    - GHSA-2v37-7h3g-55p8
-    - GHSA-395f-4hp3-45gv
-    - GHSA-4x5r-pxfx-6jf8 # cspell:ignore pxfx
-    - GHSA-52cp-r559-cp3m
-    - GHSA-5p4m-2wfm-xmqj # cspell:ignore xmqj
-    - GHSA-6g55-p6wh-862q
-    - GHSA-848j-6mx2-7j84
-    - GHSA-866g-f22w-33x8
     - GHSA-86w9-cpqp-85rv # cspell:ignore cpqp
-    - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
-    - GHSA-h67p-54hq-rp68
     - GHSA-hp3w-g68c-fv3c
-    - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
-    - GHSA-mh99-v99m-4gvg
-    - GHSA-r28c-9q8g-f849
-    - GHSA-rgw5-rvv9-x895
-    - GHSA-vcc3-ghjq-m6fr # cspell:ignore ghjq
     - GHSA-vfj7-8cjw-p6xm
-    - GHSA-w3rx-r6r6-pgpr # cspell:ignore pgpr
     - GHSA-w5hq-g745-h8pq
 autoInstallPeers: false
 catalog:
-  "@aa-sdk/core": &aaSDK ^4.86.1
+  "@aa-sdk/core": &aaSDK ^4.88.5
   "@account-kit/infra": *aaSDK
   "@account-kit/smart-contracts": *aaSDK
-  eslint: &eslint ^9.39.4
+  "@hono/node-server": ^2.1.3
+  "@segment/analytics-next": ^1.84.3
+  "@sentry/core": &sentry ^10.76.1
+  "@sentry/browser": *sentry
+  "@sentry/node": *sentry
+  "@sentry/profiling-node": *sentry
+  "@wagmi/core": ^3.6.5
+  comlink: ^4.4.2
+  eslint: &eslint ^9.39.5
   "@eslint/js": *eslint
-  "@hono/node-server": ^2.0.12
+  hono: ^4.13.13
+  i18next: ^26.4.2
+  ioredis: ^6.0.0
   nx: &nx ^23.2.1
   "@nx/esbuild": *nx
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  "@sentry/core": &sentry ^10.75.3
-  "@sentry/node": *sentry
-  "@sentry/profiling-node": *sentry
+  ox: ^1.8.5
+  prettier: ^3.9.9
+  react: &react "19.3.0"
+  react-dom: *react
   tamagui: &tamagui ^2.7.7
   "@tamagui/animations-reanimated": *tamagui
   "@tamagui/babel-plugin": *tamagui
@@ -73,25 +67,19 @@ catalog:
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   "@tamagui/web": *tamagui
-  "@wagmi/core": ^3.4.1
-  comlink: ^4.4.2
-  hono: ^4.13.5
-  i18next: ^26.0.5
-  ioredis: ^5.10.1
-  ox: ^0.14.7
-  react: &react "19.3.0"
-  react-dom: *react
   typescript: ^5.9.3
-  valibot: ^1.4.2
-  viem: ^2.47.6
-  wagmi: ^3.6.0
+  valibot: ^1.5.0
+  viem: ^2.57.3
+  wagmi: ^3.7.7
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
 overrides:
   "@hono/node-server": "catalog:"
-  "@humanfs/node@0.16.7": ^0.16.8
-  "@lifi/types@17.65.0": ^17.71.0
+  "@opentelemetry/core@2": ^2.8.0
+  "@react-pdf/render": 4.6.1
+  "@react-pdf/textkit": 6.4.1 # cspell:ignore textkit
+  "@segment/analytics-next": "catalog:"
   "@sentry/core@10": "catalog:"
   "@sentry/node@10": "catalog:"
   "@sentry/profiling-node@10": "catalog:"
@@ -100,52 +88,28 @@ overrides:
   "@tamagui/sizable-context": "catalog:"
   "@tamagui/web": "catalog:"
   "@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms": ^6.0.0
-  "@wagmi/core": "catalog:"
-  "@xmldom/xmldom@0.8.13": ^0.8.15 # cspell:ignore xmldom
-  abitype>zod: ^4.0.0
+  "@wagmi/core>zustand": 5.0.15 # cspell:ignore zustand
   axios@>=1 <1.20.0: ^1.20.0 # cspell:ignore axios
   brace-expansion@5: ^5.0.12
-  browserslist@4.28.1: ^4.28.7
   comlink: "catalog:"
   esbuild@0.18.20: ^0.25.0
   esbuild@0.27.7: ^0.28.1
-  fast-uri@3.1.5: ^3.1.7
-  fflate@0.8.2: ^0.8.3
   form-data@4: ^4.0.6
-  glob@11.0.3: ^11.1.0
-  joi@18: ^18.2.5
-  js-cookie@3.0.1: ^3.0.7
-  js-yaml@3: ^3.15.2
-  js-yaml@4: ^4.3.2
-  js-yaml@5: ^5.4.1
   katex@0.16.47: ^0.18.2
-  lodash-es@4: ^4.18.0
-  markdown-it@14: ^14.3.1
-  nanoid@3.3.11: ^3.3.12
-  picomatch@4: ^4.0.4 # cspell:ignore picomatch
   postcss-selector-parser@<7.1.6: ^7.1.6
-  postcss@8: ^8.5.10
-  qs@6.15.2: ^6.16.0
+  seroval@<1.6.3: ^1.6.3 # cspell:ignore seroval
   sharp@<0.35.5: ^0.35.5
-  smol-toml: ^1.7.1
-  svgo@3: ^3.3.5
+  smol-toml: ^1.9.0
   tamagui: "catalog:"
   tar: ^7.5.21
-  typescript@5: "catalog:"
-  unicorn-magic@0.3.0: ^0.2.0
-  ws@8: ^8.21.0
-  yauzl: ^3.2.1 # cspell:ignore yauzl
+  unicorn-magic@0.3: 0.4.1
+  wagmi>use-sync-external-store: ^1.6.0
   "@anthropic-ai/claude-code": "-"
-  "@bigmi/core": "-"
-  "@bitcoinerlab/secp256k1": "-" # cspell:ignore bitcoinerlab secp
   "@ethersproject/abi": "-" # cspell:ignore ethersproject
   "@ethersproject/providers": "-" # cspell:ignore ethersproject
   "@exactly/protocol>solmate": "-"
   "@gnosis.pm/safe-contracts": "-"
-  "@mysten/sui": "-"
-  "@mysten/wallet-standard": "-"
   "@nomiclabs/hardhat-etherscan": "-"
-  "@solana/wallet-adapter-base": "-"
   "@solana/web3.js": "-"
   "@thehubbleproject/bls": "-"
   "@typechain/hardhat": "-"
@@ -153,9 +117,6 @@ overrides:
   "@types/sinon-chai": "-"
   "@wagmi/connectors": "-"
   alchemy-sdk: "-"
-  bech32: "-"
-  bitcoinjs-lib: "-"
-  bs58: "-"
   ethereumjs-util: "-"
   ethereumjs-wallet: "-"
   hardhat-deploy: "-"
@@ -178,8 +139,10 @@ patchedDependencies:
   eslint-config-universe: patches/eslint-config-universe.patch
 peerDependencyRules:
   allowedVersions:
+    "@farcaster/miniapp-wagmi-connector>@wagmi/core": "3"
     "@hono/mcp>hono-rate-limiter": "0.5"
     abitype>zod: "3"
+    esbuild-register>esbuild: "0.27"
     hono-openapi>zod: "4"
     rollup-plugin-import-trace>vite: "8" # cspell:ignore rollup
 publicHoistPattern:
@@ -199,14 +162,23 @@ update:
     - "@expo/fingerprint"
     - "@expo/metro-runtime"
     - "@hono/valibot-validator"
-    - "@lifi/sdk"
     - "@openzeppelin/contracts-v4"
     - "@openzeppelin/contracts-upgradeable-v4"
     - "@react-native-async-storage/async-storage"
+    - "@react-pdf/renderer"
+    - "@sentry/browser"
+    - "@sentry/core"
+    - "@sentry/node"
+    - "@sentry/profiling-node"
     - "@types/react"
     - account-abstraction
     - babel-preset-expo
+    - better-auth
     - eslint
+    - eslint-config-universe
+    - eslint-plugin-astro
+    - eslint-plugin-n
+    - eslint-plugin-unicorn
     - expo-asset
     - expo-build-properties
     - expo-camera
@@ -237,3 +209,4 @@ update:
     - react-native-webview
     - react-native-worklets
     - typescript
+    - typescript-eslint

@@ -31,7 +31,7 @@ export default function usePendingOperations() {
   const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({
     filters: { mutationKey: ["bridge", "execute"], exact: true },
     select: ({ state, mutationId }) => {
-      return { ...state, id: mutationId, variables: state.variables as RouteFrom };
+      return { ...state, id: mutationId, variables: state.variables };
     },
   });
 
