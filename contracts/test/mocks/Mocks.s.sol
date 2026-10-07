@@ -44,7 +44,7 @@ contract DeployMocks is BaseScript {
       MockVelodromePool pool = velodromeFactory.createPool(address(asset), address(usdc), false);
       vm.label(address(pool), string.concat(assetSymbol, "/USDC"));
 
-      (,,,, IPriceFeed priceFeed) = auditor.markets(markets[i]);
+      (,,,, IPriceFeed priceFeed,) = auditor.markets(markets[i]);
       asset.mint(address(pool), uint256(1_000_000e18).mulDiv(10 ** asset.decimals(), auditor.assetPrice(priceFeed)));
       usdc.mint(address(pool), 1_000_000e6);
       pool.poke();
