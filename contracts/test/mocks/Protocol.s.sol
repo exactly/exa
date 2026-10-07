@@ -84,7 +84,7 @@ contract DeployProtocol is BaseScript {
     exaEXA.setInterestRateModel(new InterestRateModel(irmParams, exaEXA));
     vm.label(address(exaEXA), "exaEXA");
     MockPriceFeed exaFeed = new MockPriceFeed(18);
-    auditor.enableMarket(exaEXA, IPriceFeed(address(exaFeed)), 0.8e18);
+    auditor.enableMarket(exaEXA, IPriceFeed(address(exaFeed)), 0.8e18, false);
 
     usdc = new MockERC20("USD Coin", "USDC", 6);
     vm.label(address(usdc), "USDC");
@@ -101,7 +101,7 @@ contract DeployProtocol is BaseScript {
     exaUSDC.setInterestRateModel(new InterestRateModel(irmParams, exaUSDC));
     vm.label(address(exaUSDC), "exaUSDC");
     MockPriceFeed usdcFeed = new MockPriceFeed(18);
-    auditor.enableMarket(exaUSDC, IPriceFeed(address(usdcFeed)), 0.9e18);
+    auditor.enableMarket(exaUSDC, IPriceFeed(address(usdcFeed)), 0.9e18, false);
 
     weth = new MockWETH();
     vm.label(address(weth), "WETH");
@@ -118,7 +118,7 @@ contract DeployProtocol is BaseScript {
     exaWETH.setInterestRateModel(new InterestRateModel(irmParams, exaWETH));
     vm.label(address(exaWETH), "exaWETH");
     MockPriceFeed wethFeed = new MockPriceFeed(18);
-    auditor.enableMarket(exaWETH, IPriceFeed(address(wethFeed)), 0.86e18);
+    auditor.enableMarket(exaWETH, IPriceFeed(address(wethFeed)), 0.86e18, false);
 
     balancer = IFlashLoaner(address(new MockBalancerVault()));
     debtManager = new DebtManager(auditor, IPermit2(address(0)), IBalancerVault(address(balancer)));
