@@ -31,14 +31,9 @@ module.exports = function config() {
         new RegExp(path.join(__dirname, "server/")),
       ],
       resolveRequest: (context, moduleName, platform) => {
+        if (moduleName.startsWith("node:")) return context.resolveRequest(context, moduleName.slice(5), platform);
         if (moduleName === "tslib") return context.resolveRequest(context, "tslib/tslib.es6.js", platform);
         if (moduleName === "@solana/web3.js") return { type: "empty" };
-        if (
-          context.originModulePath.includes("/@lifi/sdk/") &&
-          /(?:^|\/)core\/(?:Solana|Sui|UTXO)\//.test(moduleName)
-        ) {
-          return { type: "empty" };
-        }
         if (moduleName === "react-native-reanimated-carousel")
           return context.resolveRequest(
             { ...context, mainFields: ["react-native", ...context.mainFields], unstable_enablePackageExports: false },
@@ -52,12 +47,7 @@ module.exports = function config() {
         ) {
           return { type: "empty" };
         }
-        try {
-          return context.resolveRequest(context, moduleName, platform);
-        } catch (error) {
-          if (moduleName.endsWith(".js")) return context.resolveRequest(context, moduleName.slice(0, -3), platform);
-          throw error;
-        }
+        return context.resolveRequest(context, moduleName, platform);
       },
     },
     transformer: { ...base.transformer, babelTransformerPath: require.resolve("./metro.config.cjs") },

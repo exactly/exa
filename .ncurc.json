@@ -6,14 +6,23 @@
     "@expo/fingerprint",
     "@expo/metro-runtime",
     "@hono/valibot-validator",
-    "@lifi/sdk",
     "@openzeppelin/contracts-v4",
     "@openzeppelin/contracts-upgradeable-v4",
     "@react-native-async-storage/async-storage",
+    "@react-pdf/renderer",
+    "@sentry/browser",
+    "@sentry/core",
+    "@sentry/node",
+    "@sentry/profiling-node",
     "@types/react",
     "account-abstraction",
     "babel-preset-expo",
+    "better-auth",
     "eslint",
+    "eslint-config-universe",
+    "eslint-plugin-astro",
+    "eslint-plugin-n",
+    "eslint-plugin-unicorn",
     "expo-asset",
     "expo-build-properties",
     "expo-camera",
@@ -44,6 +53,7 @@
     "react-native-svg",
     "react-native-webview",
     "react-native-worklets",
-    "typescript"
+    "typescript",
+    "typescript-eslint"
   ]
 }

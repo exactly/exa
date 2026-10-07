@@ -685,7 +685,7 @@ export default function Bridge() {
         accounts.map((item) =>
           queryClient
             .cancelQueries({ queryKey: balancesOptions(item).queryKey })
-            .then(() => queryClient.fetchQuery({ ...balancesOptions(item), staleTime: 0 }))
+            .then(() => queryClient.query({ ...balancesOptions(item), staleTime: 0 }))
             .catch(reportError),
         ),
       ).catch(reportError);

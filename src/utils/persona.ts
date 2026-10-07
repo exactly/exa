@@ -260,9 +260,7 @@ function handleCancel() {
 }
 
 export type KYCMutationResult =
-  | { kyc: KYCStatus; status: "blocked" }
-  | { kyc: KYCStatus; status: "complete" }
-  | { status: "cancel" };
+  { kyc: KYCStatus; status: "blocked" } | { kyc: KYCStatus; status: "complete" } | { status: "cancel" };
 
 export function kycMutationOptions(): Pick<
   UseMutationOptions<KYCMutationResult>,
@@ -271,13 +269,13 @@ export function kycMutationOptions(): Pick<
   return {
     mutationKey: ["kyc"],
     async mutationFn() {
-      const status = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
+      const status = await queryClient.query<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
       const code = "code" in status ? status.code : undefined;
       if (code === "ok" || code === "legacy kyc") return { status: "complete", kyc: status };
       if (code !== "not started" && code !== "no kyc") return { status: "blocked", kyc: status };
       const result = await startKYC();
       if (result.status === "cancel") return { status: "cancel" };
-      const kyc = await queryClient.fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
+      const kyc = await queryClient.query<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 });
       return {
         status: "code" in kyc && (kyc.code === "ok" || kyc.code === "legacy kyc") ? "complete" : "blocked",
         kyc,

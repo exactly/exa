@@ -48,7 +48,7 @@ export default function TokenInput({
   token?: Token;
   usdValue?: number;
 }) {
-  const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+  const form = useForm({ defaultValues: { amountInput: "" } });
   const {
     t,
     i18n: { language },
@@ -70,25 +70,25 @@ export default function TokenInput({
 
   const handleAmountChange = useCallback(
     (value: string) => {
-      setFieldValue("amountInput", value);
+      form.setFieldValue("amountInput", value);
       if (!token) return;
       const inputAmount = parseUnits(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), token.decimals);
       onChange?.(inputAmount);
     },
-    [setFieldValue, token, onChange],
+    [form, token, onChange],
   );
 
   const useMax = useCallback(() => {
     if (!token) return;
-    setFieldValue("amountInput", formatUnits(balance, token.decimals));
+    form.setFieldValue("amountInput", formatUnits(balance, token.decimals));
     onChange?.(balance);
     onUseMax?.(balance);
-  }, [balance, onChange, onUseMax, setFieldValue, token]);
+  }, [balance, onChange, onUseMax, form, token]);
 
   useEffect(() => {
     if (!isActive && token) {
       const value = formatUnits(amount, token.decimals);
-      setFieldValue(
+      form.setFieldValue(
         "amountInput",
         amount > 0n
           ? disabled
@@ -96,14 +96,14 @@ export default function TokenInput({
             : value
           : disabled
             ? ""
-            : getFieldValue("amountInput"),
+            : form.getFieldValue("amountInput"),
       );
     }
-  }, [isActive, amount, token, disabled, significantDecimals, setFieldValue, getFieldValue]);
+  }, [isActive, amount, token, disabled, significantDecimals, form]);
 
   useEffect(() => {
-    setFieldValue("amountInput", "");
-  }, [setFieldValue, token]);
+    form.setFieldValue("amountInput", "");
+  }, [form, token]);
 
   return (
     <YStack
@@ -168,7 +168,7 @@ export default function TokenInput({
               <Skeleton height={28} width="100%" />
             ) : (
               <>
-                <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
+                <form.Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
                   {({ state: { value } }) => (
                     <View width="100%">
                       <Input
@@ -193,7 +193,7 @@ export default function TokenInput({
                       />
                     </View>
                   )}
-                </Field>
+                </form.Field>
                 <XStack justifyContent="space-between" alignItems="flex-start">
                   {isLoading && !isActive ? (
                     <View flex={1}>

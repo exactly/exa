@@ -42,17 +42,19 @@ export default function HTML({ children }: { children: ReactNode }) {
               --loader-active: ${isBase ? "#0000ff" : "#12a594"};
             }
 
-            ${isBase
-              ? ""
-              : css`
-                  @media (prefers-color-scheme: dark) {
-                    :root {
-                      --loader-background: #171918;
-                      --loader-track: rgba(87, 246, 225, 0.2);
-                      --loader-active: #57f6e1;
+            ${
+              isBase
+                ? ""
+                : css`
+                    @media (prefers-color-scheme: dark) {
+                      :root {
+                        --loader-background: #171918;
+                        --loader-track: rgba(87, 246, 225, 0.2);
+                        --loader-active: #57f6e1;
+                      }
                     }
-                  }
-                `}
+                  `
+            }
             /* #endregion */
 
             /* #region layout */
