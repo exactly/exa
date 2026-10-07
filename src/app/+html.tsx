@@ -73,6 +73,10 @@ export default function HTML({ children }: { children: ReactNode }) {
               visibility: hidden;
             }
 
+            button {
+              text-align: inherit;
+            }
+
             .sheet-frame {
               max-width: 100vw;
               margin: 0 auto;
