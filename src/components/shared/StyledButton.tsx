@@ -33,8 +33,13 @@ const pressable = (hover: object, press: object) => ({
   "$group-column-press": press,
 });
 
+const focus = { outlineStyle: "solid", outlineWidth: 2, outlineColor: "$borderBrandStrong", outlineOffset: 2 } as const;
+
 const ButtonFrame = styled(XStack, {
   name: "Button",
+  render: <button type="button" />,
+  role: "button",
+  accessible: true,
   context: ButtonContext,
   cursor: "pointer",
   flexDirection: "row",
@@ -45,7 +50,9 @@ const ButtonFrame = styled(XStack, {
   userSelect: "none",
   gap: "$s3",
   paddingHorizontal: "$s4",
+  paddingVertical: 0,
   minHeight: 64,
+  focusVisibleStyle: focus,
   variants: {
     primary: {
       true: {
@@ -114,6 +121,7 @@ const ButtonFrame = styled(XStack, {
     loading: { true: {} }, // HACK satisfy prop type
     disabled: {
       true: {
+        "aria-disabled": true,
         backgroundColor: "$interactiveDisabled",
         borderColor: "transparent",
         cursor: "not-allowed",
@@ -170,12 +178,19 @@ const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWit
 
 const ButtonColumnFrame = styled(YStack, {
   name: "ButtonColumn",
+  render: <button type="button" />,
+  role: "button",
+  accessible: true,
   context: ButtonContext,
   alignItems: "center",
   gap: "$s3_5",
   cursor: "pointer",
   group: "column",
   pointerEvents: "box-only",
+  backgroundColor: "transparent",
+  borderWidth: 0,
+  padding: 0,
+  focusVisibleStyle: focus,
   variants: {
     primary: { true: {} },
     secondary: { true: {} },
@@ -184,7 +199,7 @@ const ButtonColumnFrame = styled(YStack, {
     outlined: { true: {} },
     transparent: { true: {} },
     loading: { true: {} },
-    disabled: { true: { cursor: "not-allowed" } },
+    disabled: { true: { "aria-disabled": true, cursor: "not-allowed" } },
   } as const,
 });
 
