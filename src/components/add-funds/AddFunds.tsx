@@ -77,14 +77,10 @@ export default function AddFunds() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                if (type === "fiat") {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace("/add-funds");
-                  }
+                if (router.canGoBack()) {
+                  router.back();
                 } else {
-                  router.replace("/(main)/(home)");
+                  router.replace(type === "fiat" ? "/add-funds" : "/(main)/(home)");
                 }
               }}
             />

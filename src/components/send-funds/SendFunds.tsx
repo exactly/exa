@@ -100,12 +100,8 @@ export default function SendFunds() {
               icon={ArrowLeft}
               aria-label={t("Back")}
               onPress={() => {
-                if (type === "fiat") {
-                  if (router.canGoBack()) router.back();
-                  else router.replace("/send-funds");
-                } else {
-                  router.replace("/(main)/(home)");
-                }
+                if (router.canGoBack()) router.back();
+                else router.replace(type === "fiat" ? "/send-funds" : "/(main)/(home)");
               }}
             />
             <Text emphasized subHeadline primary>
