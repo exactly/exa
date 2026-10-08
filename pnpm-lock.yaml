@@ -746,8 +746,8 @@ importers:
         version: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: ^0.2.24
-        version: 0.2.24
+        specifier: exactly/protocol#371e41a
+        version: https://codeload.github.com/exactly/protocol/tar.gz/371e41a5e2f3429301ecd7dd547bd36da38385de
       '@hyperlane-xyz/core':
         specifier: ^11.0.0
         version: 11.3.1(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
@@ -3413,6 +3413,11 @@ packages:
 
   '@exactly/protocol@0.2.24':
     resolution: {integrity: sha512-8Pz8E0C78CxqE7FXzILnOAHcchKttbgo0rtiWCgrqzzIo0b/OgVT7kgiIg4tucSLYLk7rgnmQyn9bPC4GmQxfQ==}
+    engines: {node: '>=18'}
+
+  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/371e41a5e2f3429301ecd7dd547bd36da38385de':
+    resolution: {tarball: https://codeload.github.com/exactly/protocol/tar.gz/371e41a5e2f3429301ecd7dd547bd36da38385de}
+    version: 0.2.24
     engines: {node: '>=18'}
 
   '@expo-google-fonts/material-symbols@0.4.27':
@@ -18567,6 +18572,15 @@ snapshots:
   '@exactly/lib@0.1.0': {}
 
   '@exactly/protocol@0.2.24':
+    dependencies:
+      '@openzeppelin/contracts': 5.6.1
+      '@openzeppelin/contracts-upgradeable': 5.6.1(@openzeppelin/contracts@5.6.1)
+      '@openzeppelin/contracts-upgradeable-v4': '@openzeppelin/contracts-upgradeable@4.9.6'
+      '@openzeppelin/contracts-v4': '@openzeppelin/contracts@4.9.6'
+      solady: 0.1.26
+      solmate: '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc'
+
+  '@exactly/protocol@https://codeload.github.com/exactly/protocol/tar.gz/371e41a5e2f3429301ecd7dd547bd36da38385de':
     dependencies:
       '@openzeppelin/contracts': 5.6.1
       '@openzeppelin/contracts-upgradeable': 5.6.1(@openzeppelin/contracts@5.6.1)

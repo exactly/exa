@@ -59,6 +59,7 @@ catalog:
   valibot: ^1.4.2
   viem: ^2.47.6
   wagmi: ^3.6.0
+dangerouslyAllowAllBuilds: true
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
