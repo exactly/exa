@@ -86,6 +86,7 @@ export default {
       { supportedLocales: ["en", "es", "es-AR", "es-CR", "es-GT", "es-HN", "es-NI", "es-PY", "es-SV", "es-UY", "pt"] },
     ],
     "expo-router",
+    "expo-sharing",
     [
       "expo-splash-screen",
       {
