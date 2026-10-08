@@ -83,22 +83,6 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               </Button.Text>
               <ExternalLink size={20} color="$interactiveOnBaseBrandDefault" />
             </Button>
-
-            {benefit.termsURL && (
-              <Button
-                flex={1}
-                transparent
-                justifyContent="center"
-                onPress={() => {
-                  if (!benefit.termsURL) return;
-                  openBrowser(benefit.termsURL).catch(reportError);
-                }}
-              >
-                <Button.Text emphasized footnote textAlign="center">
-                  {t("Terms & conditions")}
-                </Button.Text>
-              </Button>
-            )}
           </YStack>
         </ScrollView>
       </SafeView>
