@@ -30,6 +30,7 @@ import {
   init,
   mobileReplayIntegration,
   reactNavigationIntegration,
+  setContext,
   wrap,
 } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -41,7 +42,7 @@ import { use as configI18n } from "i18next";
 import { WagmiProvider } from "wagmi";
 
 import domain from "@exactly/common/domain";
-import { isBase } from "@exactly/common/generated/chain";
+import chain, { isBase } from "@exactly/common/generated/chain";
 
 import SplineSansRegular from "../assets/fonts/SplineSans-Regular.otf";
 import SplineSansSemiBold from "../assets/fonts/SplineSans-SemiBold.otf";
@@ -60,7 +61,7 @@ import queryClient, { isServer, persistOptions } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import { page } from "../utils/segment";
 import exaConfig from "../utils/wagmi/exa";
-import ownerConfig from "../utils/wagmi/owner";
+import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
 
@@ -202,6 +203,12 @@ export default wrap(function RootLayout() {
   useEffect(() => {
     reconnect(exaConfig)
       .then(() => reconnect(ownerConfig))
+      .catch(reportError);
+    getOwnerConnector()
+      .then(async (connector) => {
+        const provider = await connector.getProvider({ chainId: chain.id });
+        setContext("wallet", { connector: connector.id, keys: provider ? Object.keys(provider) : undefined });
+      })
       .catch(reportError);
     if (__DEV__) return;
     let shouldReload = false;
