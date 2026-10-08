@@ -14,6 +14,8 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
 
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
 import calendar from "../../assets/images/calendar.webp";
@@ -39,7 +41,7 @@ function renderItem({ item, animationValue }: { animationValue: SharedValue<numb
 
 export default function Auth() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
@@ -49,12 +51,15 @@ export default function Auth() {
   const scrollOffset = useSharedValue(0);
   const isScrolling = useSharedValue(false);
 
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const aspectRatio = useAspectRatio();
   const itemWidth = Math.max(Platform.OS === "web" ? height * aspectRatio : width, 250);
 
   const currentItem = pages[activeIndex] ?? pages[0];
-  const { title } = currentItem;
+  const layout = `${width}:${fontScale}:${i18n.language}`;
+  const [title, setTitle] = useState({ fits: {}, layout, size: 30 });
+  if (title.layout !== layout) setTitle({ fits: {}, layout, size: 30 });
+  const [subtitles, setSubtitles] = useState<Record<string, number>>({});
 
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
@@ -153,9 +158,76 @@ export default function Auth() {
               isScrolling={isScrolling}
             />
           </View>
-          <Text emphasized title brand centered>
-            {t(title)}
-          </Text>
+          <View
+            gap="$s3"
+            opacity={
+              Object.keys(title.fits).length === pages.length && Object.keys(subtitles).length === pages.length ? 1 : 0
+            }
+          >
+            <View>
+              {pages.map((page) => (
+                <Text
+                  key={`${title.layout}:${page.title}`}
+                  emphasized
+                  title
+                  centered
+                  fontSize={title.size}
+                  lineHeight={title.size * 1.3}
+                  position="absolute"
+                  left={0}
+                  right={0}
+                  opacity={0}
+                  pointerEvents="none"
+                  aria-hidden
+                  onLayout={({ nativeEvent }) => {
+                    const fits = nativeEvent.layout.height <= title.size * 2.6 * fontScale + 1;
+                    setTitle((previous) => {
+                      if (previous.size !== title.size || previous.layout !== title.layout) return previous;
+                      if (!fits && previous.size > 20) return { ...previous, fits: {}, size: previous.size - 1 };
+                      return { ...previous, fits: { ...previous.fits, [page.title]: fits } };
+                    });
+                  }}
+                >
+                  {t(page.title)}
+                </Text>
+              ))}
+              <Text
+                emphasized
+                title
+                brand
+                centered
+                fontSize={title.size}
+                lineHeight={title.size * 1.3}
+                height={Object.values(title.fits).every(Boolean) ? title.size * 2.6 * fontScale : undefined}
+              >
+                {t(currentItem.title)}
+              </Text>
+            </View>
+            <View>
+              {pages.map((page) => (
+                <Text
+                  key={page.subtitle}
+                  subHeadline
+                  secondary
+                  centered
+                  position="absolute"
+                  left={0}
+                  right={0}
+                  opacity={0}
+                  pointerEvents="none"
+                  aria-hidden
+                  onLayout={({ nativeEvent }) =>
+                    setSubtitles((previous) => ({ ...previous, [page.subtitle]: nativeEvent.layout.height }))
+                  }
+                >
+                  {t(page.subtitle, { max: MAX_INSTALLMENTS })}
+                </Text>
+              ))}
+              <Text subHeadline secondary centered height={Math.max(0, ...Object.values(subtitles))}>
+                {t(currentItem.subtitle, { max: MAX_INSTALLMENTS })}
+              </Text>
+            </View>
+          </View>
           <View alignItems="stretch" alignSelf="stretch" gap="$s3">
             <View flexDirection="row" alignSelf="stretch">
               <Button
@@ -263,20 +335,24 @@ export default function Auth() {
 
 export type Page = {
   image: number;
+  subtitle: string;
   title: string;
 };
 
 const pages: [Page, ...Page[]] = [
   {
     image: creditCard,
-    title: "Introducing the first onchain credit card",
+    title: "Spend your digital assets worldwide",
+    subtitle: "Do it with a free Visa Signature card and a US virtual bank account.",
   },
   {
     image: calendar,
-    title: "Pay later in installments and hold your crypto",
+    title: "Pay later and hold your digital assets",
+    subtitle: "Split any purchase into up to {{max}} fixed-rate installments.",
   },
   {
     image: earnArrow,
-    title: "Maximize earnings, effortlessly",
+    title: "Your assets grow while you spend",
+    subtitle: "Earn yield on your digital assets and still spend against them.",
   },
 ];
