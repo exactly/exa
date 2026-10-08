@@ -74,7 +74,9 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "kyc", "card", "deeplink", "ens", "pax", "lifi"].includes(queryKey[0] as string) &&
+    !["activity", "externalAssets", "kyc", "card", "capabilities", "deeplink", "ens", "pax", "lifi"].includes(
+      queryKey[0] as string,
+    ) &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens"),
 };
 

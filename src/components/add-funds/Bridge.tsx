@@ -11,6 +11,7 @@ import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 import { getAlchemyPaymasterAddress } from "@account-kit/infra";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
+import { is, literal, object } from "valibot";
 import {
   encodeFunctionData,
   erc20Abi,
@@ -25,6 +26,7 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 import {
+  useCapabilities,
   useEnsName,
   useReadContract,
   useSendCalls,
@@ -125,6 +127,16 @@ export default function Bridge() {
     address: isExaSender ? undefined : senderAddress,
     query: { staleTime: 24 * 60 * 60 * 1000, retry: false, meta: { dropError: () => true } },
   });
+  const { data: capabilities, isLoading: isCapabilitiesLoading } = useCapabilities({
+    config: ownerConfig,
+    account: senderAddress,
+    query: {
+      enabled: !isExaSender && !!senderAddress,
+      staleTime: 5 * 60_000,
+      retry: false,
+      meta: { dropError: () => true },
+    },
+  });
   const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
   const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
   const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
@@ -223,6 +235,8 @@ export default function Bridge() {
   const isNativeSource = nativeAddress
     ? source?.address.toLowerCase() === nativeAddress
     : source?.address === zeroAddress;
+  const sourceCapabilities: unknown =
+    !isExaSender && source ? { ...capabilities?.[0], ...capabilities?.[source.chain] } : undefined;
 
   const destinationTokens = useMemo(
     () =>
@@ -371,10 +385,18 @@ export default function Bridge() {
       .reduce((sum, { amount }) => sum + BigInt(amount), 0n);
     return (estimatedNativeGas * gasReserveBuffer) / 100n;
   }, [approvalRequired, quote, nativeAddress]);
+  const nativeBalance =
+    source && nativeAddress
+      ? (bridge?.balancesByChain[source.chain]?.find((item) => item.token.address.toLowerCase() === nativeAddress)
+          ?.balance ?? 0n)
+      : 0n;
+  const relayed =
+    nativeGasReserve > nativeBalance &&
+    is(object({ alternateGasFees: object({ supported: literal(true) }) }), sourceCapabilities);
 
   const gasToken = useMemo<undefined | { balance: bigint; token: Token }>(() => {
-    if (!isExaSender || isNativeSource || !source || !sourceToken) return;
-    if (bridgePolicyTokens[source.chain]?.includes(sourceToken.address.toLowerCase())) {
+    if ((!isExaSender && !relayed) || isNativeSource || !source || !sourceToken) return;
+    if (relayed || bridgePolicyTokens[source.chain]?.includes(sourceToken.address.toLowerCase())) {
       return { balance: sourceBalance, token: sourceToken };
     }
     return bridge?.balancesByChain[source.chain]?.find(
@@ -383,7 +405,16 @@ export default function Bridge() {
         bridgePolicyTokens[source.chain]?.includes(item.token.address.toLowerCase()) &&
         item.balance > 0n,
     );
-  }, [bridge?.balancesByChain, isExaSender, source, sourceToken, sourceBalance, isNativeSource, nativeAddress]);
+  }, [
+    bridge?.balancesByChain,
+    isExaSender,
+    relayed,
+    source,
+    sourceToken,
+    sourceBalance,
+    isNativeSource,
+    nativeAddress,
+  ]);
 
   const feeIsSource = !!gasToken && !!source && gasToken.token.address.toLowerCase() === source.address.toLowerCase();
   const paymasterChain = source ? alchemyChainById.get(source.chain) : undefined;
@@ -420,25 +451,20 @@ export default function Bridge() {
     query: { enabled: canReadPaymasterAllowance, staleTime: 0 },
   });
 
+  const reserveInSource = (!!paymasterFee || relayed) && feeIsSource && erc20GasReserve > 0n;
   let insufficientBalance: boolean;
   if (isNativeSource) {
     insufficientBalance = sourceAmount + nativeGasReserve > sourceBalance;
-  } else if (isExaSender) {
-    insufficientBalance =
-      paymasterFee && feeIsSource ? sourceAmount + erc20GasReserve > sourceBalance : sourceAmount > sourceBalance;
+  } else if (isExaSender || reserveInSource) {
+    insufficientBalance = sourceAmount + (reserveInSource ? erc20GasReserve : 0n) > sourceBalance;
   } else {
-    const nativeBalance =
-      source && nativeAddress
-        ? (bridge?.balancesByChain[source.chain]?.find((item) => item.token.address.toLowerCase() === nativeAddress)
-            ?.balance ?? 0n)
-        : 0n;
     insufficientBalance = sourceAmount > sourceBalance || nativeGasReserve > nativeBalance;
   }
 
   const withinBalance = sourceAmount <= sourceBalance;
   const fee =
-    paymasterFee && feeIsSource && withinBalance
-      ? { reserve: erc20GasReserve, token: paymasterFee.token, chain: undefined }
+    reserveInSource && withinBalance
+      ? { reserve: erc20GasReserve, token: gasToken.token, chain: undefined }
       : (isNativeSource || !isExaSender) && sourceChain && withinBalance
         ? {
             reserve: nativeGasReserve,
@@ -574,6 +600,7 @@ export default function Bridge() {
           }
           const result = await sendCallsTx({
             chainId: source.chain,
+            forceAtomic: is(object({ atomic: object({ status: literal("supported") }) }), sourceCapabilities),
             calls: [
               ...(paymasterFee && paymasterApproval
                 ? [{ to: getAddress(paymasterFee.token.address), data: paymasterApproval }]
@@ -606,7 +633,7 @@ export default function Bridge() {
           id = result.id;
         } catch (error) {
           if (classifyError(error).authKnown) throw error;
-          if (isExaSender && (!paymasterFee || !alchemyGasPolicyId)) throw error;
+          if (relayed || (isExaSender && (!paymasterFee || !alchemyGasPolicyId))) throw error;
           reportError(error, {
             level: "warning",
             extra: error instanceof Error ? { cause: error.cause } : undefined,
@@ -943,7 +970,7 @@ export default function Bridge() {
                   </Text>
                 </View>
               )}
-              {insufficientBalance && (
+              {insufficientBalance && !isCapabilitiesLoading && (
                 <Text caption2 color="$interactiveOnBaseWarningSoft">
                   {feeMessage}
                 </Text>
