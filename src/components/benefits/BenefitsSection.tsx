@@ -17,8 +17,6 @@ import { BASE_PRODUCT_ID } from "@exactly/common/panda";
 
 import BenefitCard from "./BenefitCard";
 import BenefitSheet from "./BenefitSheet";
-import AiraloLogo from "../../assets/images/airalo.svg";
-import AiraloImage from "../../assets/images/airalo.webp";
 import ExaLogo from "../../assets/images/exa-logo.svg";
 import exaPromo from "../../assets/images/exa-promo.svg";
 import PaxLogo from "../../assets/images/pax.svg";
@@ -110,20 +108,6 @@ const BENEFITS = [
     external: true,
   },
   {
-    id: "airalo" as const,
-    partner: "Airalo",
-    title: "20% OFF on eSims",
-    descriptions: [
-      "Stay connected around the world.",
-      "Activate your eSIM and get online from anywhere with 20% off on Airalo.",
-      "Available in 200+ countries and regions.",
-    ],
-    logo: AiraloLogo,
-    Background: () => <RasterBackground source={AiraloImage} />,
-    url: "https://airalo.pxf.io/c/6807698/3734384/15608?p.code=exaapp",
-    termsURL: "https://www.airalo.com/more-info/terms-conditions",
-  },
-  {
     id: "visa" as const,
     partner: "Visa",
     title: "Visa Signature benefits",
@@ -179,8 +163,6 @@ export default function BenefitsSection({
         return isKYCApproved && isPromoActive() && !!onExaPress;
       case "accounts":
         return !!providers?.bridge.onramp.currencies.some((item) => typeof item === "string");
-      case "airalo":
-        return isKYCApproved && bridge !== "NOT_STARTED" && bridge !== "ONBOARDING";
       case "stocks":
         return !!onStocksPress;
       default:
