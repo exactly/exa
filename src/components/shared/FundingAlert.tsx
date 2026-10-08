@@ -40,7 +40,7 @@ export default function FundingAlert() {
       const [largest] = swappable.sort((a, b) => b.usdValue - a.usdValue);
       if (!largest) throw new Error("no swappable asset");
       const protocolMarkets = markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [];
-      const tokens = await queryClient.fetchQuery({
+      const tokens = await queryClient.query({
         queryKey: ["allowTokens", protocolMarkets],
         queryFn: () => getAllowTokens(protocolMarkets),
       });

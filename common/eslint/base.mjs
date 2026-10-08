@@ -3,7 +3,7 @@ import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
 import nx from "@nx/eslint-plugin";
 import { defineConfig, globalIgnores } from "eslint/config";
 import { flatConfigs as importPlugin } from "eslint-plugin-import";
-import jsdoc from "eslint-plugin-jsdoc";
+import { configs as jsdoc } from "eslint-plugin-jsdoc";
 import perfectionist from "eslint-plugin-perfectionist";
 import { Alphabet } from "eslint-plugin-perfectionist/alphabet";
 import prettier from "eslint-plugin-prettier/recommended";
@@ -22,9 +22,7 @@ export default defineConfig([
   importPlugin.typescript,
   unicorn.configs.recommended,
   nx.configs["flat/base"],
-  // @ts-expect-error bad config types
   nx.configs["flat/javascript"],
-  // @ts-expect-error bad config types
   nx.configs["flat/typescript"],
   regexp["flat/recommended"],
   comments.recommended,
@@ -128,13 +126,12 @@ export default defineConfig([
   },
   {
     files: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/*.jsx"],
-    ...jsdoc.configs["flat/recommended"],
+    ...jsdoc["flat/recommended"],
     rules: {
-      ...jsdoc.configs["flat/recommended"].rules,
+      ...jsdoc["flat/recommended"].rules,
       "jsdoc/require-param-description": "off",
       "jsdoc/require-returns": "off",
     },
   },
-  // @ts-expect-error bad config types
   { files: ["**/*.ts", "**/*.cts", "**/*.mts", "**/*.tsx"], plugins: { tsdoc }, rules: { "tsdoc/syntax": "error" } },
 ]);

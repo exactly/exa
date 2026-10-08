@@ -1,8 +1,6 @@
 import {
   ChainType,
-  config,
-  createConfig as createLifiConfig,
-  EVM,
+  createClient,
   getChains,
   getQuote,
   getStatus,
@@ -77,7 +75,7 @@ export const lifiChainsOptions = queryOptions({
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return [];
     ensureConfig();
-    return getChains({ chainTypes });
+    return getChains(sdk, { chainTypes });
   },
 });
 
@@ -88,7 +86,7 @@ export const reachOptions = queryOptions({
   queryFn: async () => {
     if (chain.testnet || chain.id === anvil.id) return { [chain.id]: [chain.id] };
     ensureConfig();
-    const { bridges } = await getTools();
+    const { bridges } = await getTools(sdk);
     const reach = new Map<number, Set<number>>([[chain.id, new Set([chain.id])]]);
     for (const { supportedChains } of bridges) {
       for (const { fromChainId, toChainId } of supportedChains) {
@@ -126,7 +124,7 @@ export const lifiTokensOptions = queryOptions({
       });
     }
     ensureConfig();
-    const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
+    const { tokens } = await getTokens(sdk, { chainTypes, orderBy: "volumeUSD24H" });
     const allTokens = Object.values(tokens)
       .flat()
       .filter((token) => token.verificationStatus !== "flagged");
@@ -134,7 +132,7 @@ export const lifiTokensOptions = queryOptions({
       throw new Error("missing destination tokens");
     }
     if (!exaAddress) return allTokens;
-    const exa = await getToken(chain.id, exaAddress).catch((error: unknown) => {
+    const exa = await getToken(sdk, chain.id, exaAddress).catch((error: unknown) => {
       reportError(error);
     });
     return exa
@@ -168,14 +166,17 @@ export function balancesOptions(account: Address | undefined) {
       async *streamFn({ signal }) {
         if (!account) return;
         ensureConfig();
-        const [chains, lifiTokens] = await Promise.all([config.getChains(), queryClient.fetchQuery(lifiTokensOptions)]);
+        const [chains, lifiTokens] = await Promise.all([
+          loading.then(() => sdk.getChains()),
+          queryClient.query(lifiTokensOptions),
+        ]);
         const known =
           knownTokens.get(lifiTokens) ??
           new Map(lifiTokens.map((token) => [`${token.chainId}:${token.address.toLowerCase()}`, token]));
         knownTokens.set(lifiTokens, known);
         const exa = exaAddress ? known.get(`${chain.id}:${exaAddress.toLowerCase()}`) : undefined;
         const lookup = exaAddress
-          ? getToken(chain.id, exaAddress).catch((error: unknown) => {
+          ? getToken(sdk, chain.id, exaAddress).catch((error: unknown) => {
               reportError(error);
               return exa;
             })
@@ -221,7 +222,7 @@ export function statusOptions(
       txHash && trackable
         ? () => {
             ensureConfig();
-            return getStatus({ txHash, fromChain, toChain, bridge });
+            return getStatus(sdk, { txHash, fromChain, toChain, bridge });
           }
         : skipToken,
     refetchInterval: ({ state }) =>
@@ -242,18 +243,12 @@ export function chainTypeOf(receiver: string) {
 }
 
 let configured = false;
+let loading = Promise.resolve();
 function ensureConfig() {
   if (configured || chain.testnet || chain.id === anvil.id) return;
-  createLifiConfig({
-    integrator: "exa_app",
-    apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
-    preloadChains: false,
-    providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
-    rpcUrls: Object.fromEntries(Object.entries(alchemyURLs).map(([id, url]) => [id, [url]])),
-  });
-  config.loading = getChains({ chainTypes })
+  loading = getChains(sdk, { chainTypes })
     .then((availableChains) => {
-      config.setChains(availableChains);
+      sdk.setChains(availableChains);
       queryClient.setQueryData(lifiChainsOptions.queryKey, availableChains);
     })
     .catch((error: unknown) => {
@@ -261,7 +256,7 @@ function ensureConfig() {
       reportError(error);
     });
   configured = true;
-  queryClient.prefetchQuery(lifiTokensOptions).catch(reportError);
+  queryClient.query(lifiTokensOptions).catch(() => undefined);
 }
 
 export async function getRoute(
@@ -293,8 +288,8 @@ export async function getRoute(
       ),
     };
   }
-  config.set({ integrator: "exa_app", userId: account });
-  const { estimate, transactionRequest, tool } = await getQuote({
+  sdk.config.userId = account;
+  const { estimate, transactionRequest, tool } = await getQuote(sdk, {
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
@@ -335,7 +330,7 @@ export async function getRoute(
 export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
   ensureConfig();
   if (chain.testnet || chain.id === anvil.id) return [];
-  const { tokens } = await getTokens({ chains: [chain.id] });
+  const { tokens } = await getTokens(sdk, { chains: [chain.id] });
   const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
   const allowed = new Set(
     [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)]
@@ -345,7 +340,7 @@ export async function getAllowTokens(markets: readonly { asset: string; symbol: 
   const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
   if (!exaAddress) return allowTokens;
   try {
-    const exa = await getToken(chain.id, exaAddress);
+    const exa = await getToken(sdk, chain.id, exaAddress);
     return [exa, ...allowTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())];
   } catch {
     return allowTokens;
@@ -429,7 +424,7 @@ export async function getRouteFrom({
       },
     };
   }
-  config.set({ integrator: "exa_app", userId: fromAddress });
+  sdk.config.userId = fromAddress;
   const request = {
     fee: 0.0025,
     slippage: bridgeSlippage,
@@ -448,12 +443,12 @@ export async function getRouteFrom({
         .map(([key]) => key),
   };
   const denied = [...denyBridges];
-  let quote = await getQuote(denied.length > 0 ? { ...request, denyBridges: denied } : request);
+  let quote = await getQuote(sdk, denied.length > 0 ? { ...request, denyBridges: denied } : request);
   for (let attempt = 0; nativeless && BigInt(quote.transactionRequest?.value ?? 0) > 0n; attempt++) {
     const bridge = quote.includedSteps.find(({ type }) => type === "cross")?.tool;
     if (attempt >= 3 || !bridge || denied.includes(bridge)) throw new Error(nativeFeeRoute);
     denied.push(bridge);
-    quote = await getQuote({ ...request, denyBridges: denied });
+    quote = await getQuote(sdk, { ...request, denyBridges: denied });
   }
   const { estimate, transactionRequest, tool } = quote;
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
@@ -630,7 +625,7 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
           }
         }
         const listed = tokensByChain[id] ?? [];
-        const client = await config.getRPCUrls().then((urls) =>
+        const client = await sdk.getRpcUrls().then((urls) =>
           createPublicClient({
             transport: fallback(
               (urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl, { timeout: 5000, fetchOptions: { signal } })),
@@ -700,6 +695,13 @@ const alchemyURLs = Object.fromEntries(
     rpcUrls.alchemy ? [[id, `${rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`] as const] : [],
   ),
 );
+
+const sdk = createClient({
+  integrator: "exa_app",
+  apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
+  preloadChains: false,
+  rpcUrls: Object.fromEntries(Object.entries(alchemyURLs).map(([id, url]) => [id, [url]])),
+});
 
 const Balances = object({
   error: nullish(object({ code: number(), message: string() })),

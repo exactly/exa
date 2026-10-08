@@ -22,7 +22,7 @@ import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, ScrollView, Spinner, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
-import { useForm, useStore } from "@tanstack/react-form";
+import { useForm, useSelector } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
 
@@ -79,7 +79,7 @@ export default function ReceiverSelection() {
     form.setFieldValue("receiver", receiver);
     router.setParams({ receiver: undefined });
   }, [form, receiver, router]);
-  const value = useStore(form.store, ({ values }) => values.receiver);
+  const value = useSelector(form.store, ({ values }) => values.receiver);
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => setSettled(value), 300);
@@ -384,7 +384,7 @@ export default function ReceiverSelection() {
                                 if (type !== ChainType.EVM && !advanced) setAdvanced(true);
                                 if (contact.ens) {
                                   queryClient
-                                    .fetchQuery(ensOptions(contact.ens, chain.id))
+                                    .query(ensOptions(contact.ens, chain.id))
                                     .then((address) => submit(address ?? contact.address, type, contact.ens))
                                     .catch(() => submit(contact.address, type, contact.ens));
                                 } else {
