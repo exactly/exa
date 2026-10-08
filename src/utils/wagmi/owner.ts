@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as infra from "@account-kit/infra";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
+import { setContext } from "@sentry/react-native";
 import { http } from "viem";
 import * as chains from "viem/chains";
 import { createConfig, createStorage, custom, injected } from "wagmi";
@@ -47,5 +48,6 @@ export async function isAvailable() {
   const connector = await getConnector();
   if (connector.id === "injected") await connector.isAuthorized();
   const provider = await connector.getProvider({ chainId: chain.id });
+  setContext("wallet", { connector: connector.id, keys: provider ? Object.keys(provider) : undefined });
   return provider !== undefined;
 }
