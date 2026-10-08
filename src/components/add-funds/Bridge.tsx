@@ -46,7 +46,7 @@ import alchemyChainById from "../../utils/alchemyChains";
 import {
   balancesOptions,
   bridgePolicyId,
-  bridgePolicySymbols,
+  bridgePolicyTokens,
   bridgeSlippage,
   gasReserveBuffer,
   getBridgeSources,
@@ -374,13 +374,13 @@ export default function Bridge() {
 
   const gasToken = useMemo<undefined | { balance: bigint; token: Token }>(() => {
     if (!isExaSender || isNativeSource || !source || !sourceToken) return;
-    if (bridgePolicySymbols.has(sourceToken.symbol)) {
+    if (bridgePolicyTokens[source.chain]?.includes(sourceToken.address.toLowerCase())) {
       return { balance: sourceBalance, token: sourceToken };
     }
     return bridge?.balancesByChain[source.chain]?.find(
       (item) =>
         item.token.address.toLowerCase() !== nativeAddress &&
-        bridgePolicySymbols.has(item.token.symbol) &&
+        bridgePolicyTokens[source.chain]?.includes(item.token.address.toLowerCase()) &&
         item.balance > 0n,
     );
   }, [bridge?.balancesByChain, isExaSender, source, sourceToken, sourceBalance, isNativeSource, nativeAddress]);
