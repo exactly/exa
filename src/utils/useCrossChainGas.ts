@@ -11,7 +11,7 @@ import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain from "@exactly/common/generated/chain";
 
 import alchemyChainById from "./alchemyChains";
-import { balancesOptions, bridgePolicyId, bridgePolicySymbols, gasReserveBuffer, lifiChainsOptions } from "./lifi";
+import { balancesOptions, bridgePolicyId, bridgePolicyTokens, gasReserveBuffer, lifiChainsOptions } from "./lifi";
 import parseAmount from "./parseAmount";
 import reportError from "./reportError";
 import exa from "./wagmi/exa";
@@ -47,11 +47,11 @@ export default function useCrossChainGas({
     networkCost !== undefined && (value ?? (isNative ? amount : 0n)) + nativeGasReserve <= (nativeBalance ?? 0n);
   const gasToken = useMemo(() => {
     if (sponsored || isNative || !token) return;
-    if (bridgePolicySymbols.has(token.symbol)) return token;
+    if (bridgePolicyTokens[chainId]?.includes(token.address.toLowerCase())) return token;
     return balances?.[chainId]?.find(
       (item) =>
         item.address !== nativeToken?.address &&
-        bridgePolicySymbols.has(item.symbol) &&
+        bridgePolicyTokens[chainId]?.includes(item.address.toLowerCase()) &&
         !!item.amount &&
         item.amount > 0n,
     );
