@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ScrollViewInstance } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -66,7 +67,7 @@ export default function Pay() {
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
   const [infoType, setInfoType] = useState<"discount" | "fees" | "total" | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const refresh = () =>
     Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["activity"], exact: true })]);
   useTabPress("pay-mode", () => {
@@ -122,6 +123,7 @@ export default function Pay() {
       <View fullScreen backgroundColor={hasPayments ? "$backgroundMild" : "$backgroundSoft"}>
         <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
+          // @ts-expect-error tamagui declares the component as the ref instance
           ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{ flexGrow: 1, backgroundColor: hasPayments ? "$backgroundMild" : "$backgroundSoft" }}

@@ -3,14 +3,14 @@ on:
   push: { branches: ["main"], tags: ["@exactly/mobile@*"] }
   pull_request: {}
   workflow_dispatch: {}
-defaults: { tools: { node: "24.14.1", pnpm: "10.33.0" } }
+defaults: { tools: { node: "24.14.1", pnpm: "12.10.1" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
   fingerprint:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     type: fingerprint
     environment: development
-    env: { APP_DOMAIN: localhost, CHAIN_ID: "31337" }
+    env: { APP_DOMAIN: localhost, CHAIN_ID: "31337", EXPO_PUBLIC_ENV: e2e }
 
   android_get:
     type: get-build

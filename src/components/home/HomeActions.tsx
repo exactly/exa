@@ -139,14 +139,20 @@ export default function HomeActions() {
             loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
             flex={1}
             aria-label={title}
-            role="button"
-            aria-disabled={disabled}
             onPress={handlePress}
             onLayout={({ nativeEvent }) => {
               setColumn(nativeEvent.layout.width);
             }}
           >
-            <Button width="100%" padding="$s3_5" justifyContent="center" minHeight="auto">
+            <Button
+              render="div"
+              role="none"
+              accessible={false}
+              width="100%"
+              padding="$s3_5"
+              justifyContent="center"
+              minHeight="auto"
+            >
               <Button.Icon>
                 <Icon />
               </Button.Icon>

@@ -1,7 +1,24 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Platform, StyleSheet } from "react-native";
-import { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
+import {
+  AccessibilityInfo,
+  Alert,
+  Platform,
+  StyleSheet,
+  type AccessibilityActionEvent,
+  type GestureResponderEvent,
+  type ViewInstance,
+} from "react-native";
+import {
+  cancelAnimation,
+  Easing,
+  ReduceMotion,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType } from "expo-haptics";
@@ -412,6 +429,7 @@ export default function Confirm() {
       setEnableSimulations(false);
     },
     onSuccess() {
+      if (Platform.OS !== "web") notificationAsync(NotificationFeedbackType.Success).catch(reportError);
       if (external) queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
     },
     async mutationFn() {
@@ -444,7 +462,18 @@ export default function Confirm() {
   });
 
   const web = Platform.OS === "web";
+  const reduced = useReducedMotion();
   const hold = useSharedValue(0);
+  const shake = useSharedValue(0);
+  const size = useSharedValue(0);
+  const buttonRef = useRef<ViewInstance>(null);
+  const pressRef = useRef<{
+    frame?: { height: number; width: number; x: number; y: number };
+    phase?: "armed" | "holding";
+  }>({});
+  const [holding, setHolding] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [hint, setHint] = useState<string>();
 
   function retry() {
     hold.value = 0;
@@ -456,13 +485,33 @@ export default function Confirm() {
     reset();
   }
 
-  function held() {
-    notificationAsync(NotificationFeedbackType.Success).catch(reportError);
-    send();
+  function arm() {
+    if (pressRef.current.phase !== "holding") return;
+    pressRef.current.phase = "armed";
+    setArmed(true);
+    impactAsync(ImpactFeedbackStyle.Heavy).catch(reportError);
+  }
+
+  function cancel(message?: string) {
+    setArmed(false);
+    if (!pressRef.current.phase) return;
+    pressRef.current.phase = undefined;
+    cancelAnimation(hold);
+    hold.value = withTiming(0, { duration: 200 });
+    if (!message) return;
+    setHint(message);
+    AccessibilityInfo.announceForAccessibility(message);
+    notificationAsync(NotificationFeedbackType.Error).catch(reportError);
+    /* istanbul ignore next */
+    shake.value = withSequence(...[8, -8, 6, -6, 0].map((x) => withTiming(x, { duration: 50 })));
   }
 
   /* istanbul ignore next */
-  const fillStyle = useAnimatedStyle(() => ({ width: `${hold.value * 100}%` }));
+  const fillStyle = useAnimatedStyle(() => ({
+    width: (reduced ? Math.floor(hold.value) : hold.value) * size.value,
+  }));
+  /* istanbul ignore next */
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
 
   const sendReady = useMemo(() => {
     if (fromAmount <= 0n || !destination || insufficientGas || quoteExpired) return false;
@@ -644,6 +693,12 @@ export default function Confirm() {
         },
       )
     : undefined;
+  const blocked = !sendReady || !!failure || !!shortfall;
+  const changed = t("Details changed. Review and hold again.");
+  const interrupt = useEffectEvent(() => cancel(changed));
+  useEffect(() => {
+    if (holding && blocked) interrupt();
+  }, [blocked, holding]);
 
   const invalidReceiver = !receiver || receiverHex === zeroAddress || (!routed && !receiverHex);
   if (invalidReceiver || !pay) {
@@ -936,60 +991,131 @@ export default function Confirm() {
                   </Text>
                 </XStack>
               )}
-              <Button
-                primary
-                disabled={!sendReady || !!failure || !!shortfall}
-                loading={
-                  routed
-                    ? route
-                      ? !market && !transferEstimate && isTransferEstimating
-                      : isRouteFetching || (!destination && isTokensFetching)
-                    : market
-                      ? !proposeSimulation && !proposeError && isProposePending
-                      : isErc20TransferSimulating || isTransferEstimating
-                }
-                overflow="hidden"
-                {...(web
-                  ? {
-                      onPress: () => {
-                        send();
-                      },
-                    }
-                  : {
-                      onPressIn: () => {
-                        impactAsync(ImpactFeedbackStyle.Light).catch(reportError);
-                        /* istanbul ignore next */
-                        hold.value = withSequence(
-                          withTiming(1, { duration: 1500, easing: Easing.linear }),
-                          withTiming(1, { duration: 120 }, (finished) => {
-                            if (finished) scheduleOnRN(held);
-                          }),
-                        );
-                      },
-                      onPressOut: () => {
-                        if (hold.value < 1) hold.value = withTiming(0, { duration: 200 });
-                      },
-                    })}
-              >
-                {!web && (
-                  <AnimatedView
-                    style={[StyleSheet.absoluteFill, fillStyle]}
-                    backgroundColor="$interactiveOnBaseBrandDefault"
-                    opacity={0.2}
-                    borderTopRightRadius="$r3"
-                    borderBottomRightRadius="$r3"
-                    pointerEvents="none"
-                  />
+              <AnimatePresence>
+                {hint && (
+                  <YStack
+                    key={hint}
+                    transition="quick"
+                    animateOnly={["opacity", "transform"]}
+                    opacity={1}
+                    y={0}
+                    enterStyle={{ opacity: 0, y: 8 }}
+                    exitStyle={{ opacity: 0, y: 8 }}
+                  >
+                    <Text caption2 secondary centered>
+                      {hint}
+                    </Text>
+                  </YStack>
                 )}
-                <Button.Text>
-                  {web
-                    ? t("Send {{symbol}}", { symbol: destination?.symbol ?? "" })
-                    : t("Hold to send {{symbol}}", { symbol: destination?.symbol ?? "" })}
-                </Button.Text>
-                <Button.Icon>
-                  <ArrowRight size={20} />
-                </Button.Icon>
-              </Button>
+              </AnimatePresence>
+              <AnimatedView style={shakeStyle}>
+                <Button
+                  // @ts-expect-error tamagui declares the component as the ref instance
+                  ref={buttonRef}
+                  primary
+                  disabled={!holding && blocked}
+                  loading={
+                    !holding &&
+                    (routed
+                      ? route
+                        ? !market && !transferEstimate && isTransferEstimating
+                        : isRouteFetching || (!destination && isTokensFetching)
+                      : market
+                        ? !proposeSimulation && !proposeError && isProposePending
+                        : isErc20TransferSimulating || isTransferEstimating)
+                  }
+                  overflow="hidden"
+                  onLayout={({ nativeEvent }) => {
+                    size.value = nativeEvent.layout.width;
+                  }}
+                  {...(web
+                    ? {
+                        onPress: () => {
+                          send();
+                        },
+                      }
+                    : {
+                        accessibilityHint: t("Hold until the bar fills, then release."),
+                        accessibilityActions: [{ name: "activate" }],
+                        onAccessibilityAction: ({ nativeEvent: { actionName } }: AccessibilityActionEvent) => {
+                          if (actionName !== "activate" || blocked) return;
+                          Alert.alert(
+                            t("Send {{symbol}}?", { symbol: destination?.symbol ?? "" }),
+                            t("This transaction can't be reversed."),
+                            [
+                              { text: t("Cancel"), style: "cancel" },
+                              { text: t("Send"), onPress: () => send() },
+                            ],
+                          );
+                        },
+                        onPressIn: () => {
+                          pressRef.current = { phase: "holding" };
+                          setHolding(true);
+                          setHint(undefined);
+                          buttonRef.current?.measureInWindow((x, y, width, height) => {
+                            pressRef.current.frame = { x, y, width, height };
+                          });
+                          impactAsync(ImpactFeedbackStyle.Light).catch(reportError);
+                          /* istanbul ignore next */
+                          hold.value = withTiming(
+                            1,
+                            { duration: 1200, easing: Easing.linear, reduceMotion: ReduceMotion.Never },
+                            (finished) => {
+                              if (finished) scheduleOnRN(arm);
+                            },
+                          );
+                        },
+                        onResponderMove: ({ nativeEvent: { pageX, pageY } }: GestureResponderEvent) => {
+                          const { frame, phase } = pressRef.current;
+                          if (!phase || !frame) return;
+                          if (
+                            pageX < frame.x - slop ||
+                            pageX > frame.x + frame.width + slop ||
+                            pageY < frame.y - slop ||
+                            pageY > frame.y + frame.height + slop
+                          ) {
+                            cancel();
+                          }
+                        },
+                        onResponderRelease: () => {
+                          if (pressRef.current.phase !== "armed") return;
+                          if (blocked) {
+                            cancel(changed);
+                            return;
+                          }
+                          pressRef.current.phase = undefined;
+                          send();
+                        },
+                        onPressOut: () => {
+                          setHolding(false);
+                          cancel(pressRef.current.phase === "holding" ? t("Hold until the bar fills.") : undefined);
+                        },
+                      })}
+                >
+                  {!web && (
+                    <AnimatedView
+                      style={[StyleSheet.absoluteFill, fillStyle]}
+                      backgroundColor="$interactiveOnBaseBrandDefault"
+                      opacity={0.2}
+                      borderTopRightRadius="$r3"
+                      borderBottomRightRadius="$r3"
+                      pointerEvents="none"
+                    />
+                  )}
+                  <Button.Text>
+                    {web
+                      ? t("Send {{symbol}}", { symbol: destination?.symbol ?? "" })
+                      : armed
+                        ? t("Release to send {{symbol}}", { symbol: destination?.symbol ?? "" })
+                        : holding && reduced
+                          ? t("Keep holding...")
+                          : t("Hold to send {{symbol}}", { symbol: destination?.symbol ?? "" })}
+                  </Button.Text>
+                  <Button.Icon>
+                    <ArrowRight size={20} />
+                  </Button.Icon>
+                </Button>
+              </AnimatedView>
             </YStack>
             <AnimatePresence>
               {failure && (
@@ -1265,3 +1391,4 @@ function routeCalls(route: Awaited<ReturnType<typeof getRouteFrom>>, underlying:
 }
 
 const probe = 12;
+const slop = 24;
