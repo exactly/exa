@@ -7,7 +7,7 @@ import Carousel from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
-import { Headphones, Key, User } from "@tamagui/lucide-icons-2";
+import { Headphones, LogIn, UserPlus } from "@tamagui/lucide-icons-2";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -60,6 +60,8 @@ export default function Auth() {
   const [title, setTitle] = useState({ fits: {}, layout, size: 30 });
   if (title.layout !== layout) setTitle({ fits: {}, layout, size: 30 });
   const [subtitles, setSubtitles] = useState<Record<string, number>>({});
+  const [stage, setStage] = useState<number>();
+  const measured = Object.keys(title.fits).length === pages.length && Object.keys(subtitles).length === pages.length;
 
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
@@ -127,29 +129,24 @@ export default function Auth() {
           />
         </View>
       )}
-      <View flexGrow={1} justifyContent="center" flexShrink={1}>
-        <Carousel
-          data={pages}
-          width={itemWidth}
-          height={itemWidth / aspectRatio}
-          autoPlay
-          autoPlayInterval={5000}
-          withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
-          onSnapToItem={handleSnapToItem}
-          onScrollEnd={handleScrollEnd}
-          onProgressChange={handleProgressChange}
-          renderItem={renderItem}
-        />
+      <View flex={1} overflow="hidden" onLayout={({ nativeEvent }) => setStage(nativeEvent.layout.height)}>
+        {stage !== undefined && (
+          <Carousel
+            data={pages}
+            width={itemWidth}
+            height={stage}
+            autoPlay
+            autoPlayInterval={5000}
+            withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
+            onSnapToItem={handleSnapToItem}
+            onScrollEnd={handleScrollEnd}
+            onProgressChange={handleProgressChange}
+            renderItem={renderItem}
+          />
+        )}
       </View>
-      <View
-        padded
-        flexGrow={1}
-        flexDirection="column"
-        alignSelf="stretch"
-        alignItems="center"
-        justifyContent="flex-end"
-      >
-        <View flexDirection="column" alignSelf="stretch" gap="$s5">
+      <View padded flexDirection="column" alignSelf="stretch" alignItems="center" justifyContent="flex-end">
+        <View flexDirection="column" alignSelf="stretch" gap="$s6">
           <View flexDirection="row" justifyContent="center">
             <Pagination
               length={pages.length}
@@ -158,12 +155,7 @@ export default function Auth() {
               isScrolling={isScrolling}
             />
           </View>
-          <View
-            gap="$s3"
-            opacity={
-              Object.keys(title.fits).length === pages.length && Object.keys(subtitles).length === pages.length ? 1 : 0
-            }
-          >
+          <View gap="$s3" paddingHorizontal="$s5" opacity={measured ? 1 : 0}>
             <View>
               {pages.map((page) => (
                 <Text
@@ -194,7 +186,6 @@ export default function Auth() {
               <Text
                 emphasized
                 title
-                brand
                 centered
                 fontSize={title.size}
                 lineHeight={title.size * 1.3}
@@ -207,7 +198,7 @@ export default function Auth() {
               {pages.map((page) => (
                 <Text
                   key={page.subtitle}
-                  subHeadline
+                  callout
                   secondary
                   centered
                   position="absolute"
@@ -223,7 +214,7 @@ export default function Auth() {
                   {t(page.subtitle, { max: MAX_INSTALLMENTS })}
                 </Text>
               ))}
-              <Text subHeadline secondary centered height={Math.max(0, ...Object.values(subtitles))}>
+              <Text callout secondary centered height={Math.max(0, ...Object.values(subtitles))}>
                 {t(currentItem.subtitle, { max: MAX_INSTALLMENTS })}
               </Text>
             </View>
@@ -253,7 +244,7 @@ export default function Auth() {
                   {loading ? t("Please wait...") : embeddingContext ? t("Sign in") : t("Create new account")}
                 </Button.Text>
                 <Button.Icon>
-                  <Key />
+                  <UserPlus />
                 </Button.Icon>
               </Button>
             </View>
@@ -273,7 +264,7 @@ export default function Auth() {
                 >
                   <Button.Text>{t("I already have an account")}</Button.Text>
                   <Button.Icon>
-                    <User />
+                    <LogIn />
                   </Button.Icon>
                 </Button>
               )}
@@ -328,7 +319,7 @@ export default function Auth() {
           />
         </>
       ) : null}
-      <TimeToFullDisplay record />
+      <TimeToFullDisplay record={stage !== undefined && measured} />
     </SafeView>
   );
 }
