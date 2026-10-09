@@ -176,7 +176,7 @@ export default function Status() {
                           : t("Verification failed")}
                   </Text>
                   <Text
-                    color={needsSupport ? "$uiNeutralSecondary" : "$uiNeutralPlaceholder"}
+                    color={needsSupport || needsMoreInfo ? "$uiNeutralSecondary" : "$uiNeutralPlaceholder"}
                     footnote
                     textAlign="center"
                   >
@@ -197,7 +197,7 @@ export default function Status() {
         {ready ? (
           needsMoreInfo ? (
             <Button onPress={() => setOpenKYC(true)} primary>
-              <Button.Text>{t("Complete verification")}</Button.Text>
+              <Button.Text>{t("Continue")}</Button.Text>
               <Button.Icon>
                 <ArrowRight size={24} />
               </Button.Icon>

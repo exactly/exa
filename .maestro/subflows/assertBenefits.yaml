@@ -2,13 +2,13 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - repeat:
     while:
-      notVisible: Stay connected around the world.
+      notVisible: Exclusive discounts on travel insurance
     commands:
       - extendedWaitUntil:
-          visible: 20% OFF on eSims
+          visible: Discounts on travel insurance
           timeout: 15000
-      - tapOn: 20% OFF on eSims
-- assertVisible: Get benefit
+      - tapOn: Discounts on travel insurance
+- assertVisible: Go to Pax Assistance
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
 - repeat:
     while:
