@@ -99,7 +99,7 @@ export default function RampButton({
   const method = currency in bridgeMethods ? bridgeMethods[currency as keyof typeof bridgeMethods] : undefined;
   const title =
     provider === "bridge" && method
-      ? t("{{currency}} via {{method}}", { currency: shortName, method })
+      ? t("{{currency}} via {{method}}", { currency: shortName, method: t(method) })
       : !offramp && provider === "manteca" && currency === "USD"
         ? t("{{currency}} from Argentina", { currency: shortName })
         : shortName;

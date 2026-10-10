@@ -80,7 +80,7 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
                         : method
                           ? t(
                               "Transfer USDC to a bank account via {{method}}. Add the beneficiary's bank details to start.",
-                              { method },
+                              { method: t(method) },
                             )
                           : t("Transfer USDC to a bank account. Add the beneficiary's bank details to start.")
                       : isCrypto
