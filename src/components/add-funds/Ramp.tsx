@@ -426,15 +426,16 @@ function DetailRow({ label, value, isLoading, onCopy }: DetailRowProperties) {
   return (
     <XStack gap="$s3" alignItems="center" justifyContent="space-between">
       <YStack flex={1} minWidth={0}>
-        <Text emphasized secondary footnote>
+        <Text secondary caption>
           {label}
         </Text>
-        <Text emphasized secondary footnote>
+        <Text emphasized footnote>
           {isLoading || !value ? <Skeleton width={100} height={16} /> : value}
         </Text>
       </YStack>
       <IconButton
         icon={Copy}
+        size="$iconSize.md"
         color={isLoading || !value ? "$uiNeutralPlaceholder" : "$interactiveBaseBrandDefault"}
         disabled={isLoading || !value}
         aria-label={t("Copy")}
