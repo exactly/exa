@@ -257,7 +257,7 @@ export default function NewRecipient() {
                 {info && (
                   <IconButton
                     icon={Info}
-                    size={20}
+                    size="$iconSize.md"
                     color="$interactiveBaseBrandDefault"
                     aria-label={t("More info")}
                     onPress={() => {
