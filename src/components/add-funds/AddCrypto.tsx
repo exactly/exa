@@ -115,13 +115,36 @@ export default function AddCrypto() {
       .catch(reportError);
   }, [address]);
 
-  const share = useCallback(async () => {
+  const warning =
+    isBridge || asset
+      ? t(
+          "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
+          { crypto: isBridge ? currency : symbol, network: networkName },
+        )
+      : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+          chain: networkName,
+        });
+
+  async function share() {
     if (!address) return;
     await Share.share({
-      message: memo ? `${address}\n${t("Memo")}: ${memo}` : address,
+      message: [
+        assets.length === 1
+          ? t("Hi! Here are my details so you can send me {{currency}} 👇", { currency: assets[0] })
+          : t("Hi! Here are my details so you can send me crypto 👇"),
+        "",
+        `${t("Address")}: ${address}`,
+        `${t("Network")}: ${networkName}`,
+        ...(assets.length > 0
+          ? [`${assets.length === 1 ? t("Asset") : t("Supported assets")}: ${assets.join(", ")}`]
+          : []),
+        ...(memo ? [`${t("Memo")}: ${memo}`] : []),
+        "",
+        warning,
+      ].join("\n"),
       title: t("Share {{chain}} address", { chain: networkName }),
     });
-  }, [address, memo, networkName, t]);
+  }
 
   return (
     <SafeView fullScreen>
@@ -310,14 +333,7 @@ export default function AddCrypto() {
                 icon={<AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />}
               >
                 <Text caption2 color="$uiWarningSecondary">
-                  {isBridge || asset
-                    ? t(
-                        "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
-                        { crypto: isBridge ? currency : symbol, network: networkName },
-                      )
-                    : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
-                        chain: networkName,
-                      })}
+                  {warning}
                   <Text
                     cursor="pointer"
                     caption2
