@@ -97,7 +97,7 @@ export default function Recipients() {
               <AddFundsOption
                 icon={<Settings size={24} color="$iconBrandDefault" />}
                 title={t("Transfer to a new beneficiary")}
-                subtitle={method ? t("Via {{method}}", { method }) : t("Add new beneficiary")}
+                subtitle={method ? t("Via {{method}}", { method: t(method) }) : t("Add new beneficiary")}
                 onPress={() => {
                   router.push({ pathname: "/send-funds/new-recipient", params: { currency, provider } });
                 }}
@@ -150,7 +150,7 @@ export default function Recipients() {
                     <RecipientRow
                       key={recipient.id}
                       recipient={recipient}
-                      fallbackBank={method ? t("Via {{method}}", { method }) : t("Bank account")}
+                      fallbackBank={method ? t("Via {{method}}", { method: t(method) }) : t("Bank account")}
                       deleting={deleteMutation.isPending && deleteMutation.variables === recipient.id}
                       onSelect={() => {
                         if (recipient.addressValid === false) {
