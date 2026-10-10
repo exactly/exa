@@ -13,7 +13,7 @@ export default function IconButton({
 }: ComponentPropsWithoutRef<typeof Frame> & {
   color?: string;
   icon: ComponentType<ComponentPropsWithoutRef<typeof ArrowRight>>;
-  size?: number;
+  size?: ComponentPropsWithoutRef<typeof ArrowRight>["size"];
 }) {
   return (
     <Frame
