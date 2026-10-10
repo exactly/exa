@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
+import { PixelRatio, Pressable, Share } from "react-native";
 import QRCode from "react-native-qrcode-styled";
 
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Banknote, Clock, Copy, Percent, QrCode, Repeat } from "@tamagui/lucide-icons-2";
+import { ArrowLeft, Banknote, Clock, Copy, Percent, QrCode, Repeat, Share as ShareIcon } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -46,6 +46,7 @@ export default function Ramp() {
   } = useTranslation();
   const router = useRouter();
   const toast = useToastController();
+  const fontScale = PixelRatio.getFontScale();
   const [qrSheetOpen, setQRSheetOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -143,6 +144,10 @@ export default function Ramp() {
   const limitCurrency = limits?.monthly.symbol;
   const minAmount = quote?.buyRate ? Number(quote.buyRate) : undefined;
   const maxAmount = limits?.monthly.available ? Number(limits.monthly.available) : undefined;
+  const methods = t("{{currency}} via {{methods}}", {
+    currency: typedCurrency,
+    methods: deposits.map((d) => d.displayName).join(` ${t("or")} `),
+  });
 
   function formatAmount(amount: number) {
     return amount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -173,12 +178,7 @@ export default function Ramp() {
               }}
             />
             <Text secondary emphasized>
-              {deposits.length > 0
-                ? t("{{currency}} via {{methods}}", {
-                    currency: typedCurrency,
-                    methods: deposits.map((d) => d.displayName).join(` ${t("or")} `),
-                  })
-                : t("Details")}
+              {deposits.length > 0 ? methods : t("Details")}
             </Text>
             <View width={24} />
           </View>
@@ -233,18 +233,47 @@ export default function Ramp() {
           </View>
         </ScrollView>
         <YStack gap="$s4" padding="$s2">
-          <Button
-            primary
-            disabled={isPending || !deposit}
-            onPress={() => {
-              if (deposit) copyToClipboard(fullDetails(deposit, t));
-            }}
-          >
-            <Button.Text>{t("Copy full details")}</Button.Text>
-            <Button.Icon>
-              <ArrowRight />
-            </Button.Icon>
-          </Button>
+          <XStack alignItems="center" gap="$s3">
+            <Button
+              secondary
+              flex={1}
+              disabled={isPending || !deposit}
+              onPress={() => {
+                if (!deposit) return;
+                Share.share({
+                  message: [
+                    ...(typedProvider === "manteca"
+                      ? []
+                      : [
+                          t("Hi! Here are my details so you can send me {{currency}} 👇", { currency: typedCurrency }),
+                          "",
+                        ]),
+                    methods,
+                    fullDetails(deposit, t),
+                  ].join("\n"),
+                  title: t("Share account details"),
+                }).catch(reportError);
+              }}
+            >
+              <Button.Text>{t("Share")}</Button.Text>
+              <Button.Icon>
+                <ShareIcon size={18 * fontScale} />
+              </Button.Icon>
+            </Button>
+            <Button
+              primary
+              flex={1}
+              disabled={isPending || !deposit}
+              onPress={() => {
+                if (deposit) copyToClipboard(fullDetails(deposit, t));
+              }}
+            >
+              <Button.Text>{t("Copy")}</Button.Text>
+              <Button.Icon>
+                <Copy size={18 * fontScale} />
+              </Button.Icon>
+            </Button>
+          </XStack>
           <Pressable role="button" onPress={() => setDetailsOpen(true)}>
             <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
               {t("Fees and transfer times")}
