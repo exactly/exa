@@ -294,7 +294,16 @@ describe("authentication", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toStrictEqual({ code: "bad client platform" });
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad headers",
+      legacy: "bad headers",
+      message: ['client-platform Invalid type: Expected "ios" but received "desktop"'],
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bad headers"), {
+      fingerprint: ["{{ default }}", "bad headers"],
+      contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+    });
+    expect(sardineCustomer).not.toHaveBeenCalled();
   });
 
   it("omits wallet extension token without client platform", async () => {
@@ -586,6 +595,34 @@ describe("authentication", () => {
         ],
       },
     });
+  });
+
+  it.each([
+    ["client-fid", "1".repeat(37), "client-fid Invalid length: Expected <=36 but received 37"],
+    ["x-session-id", "bull:maturity:id", "x-session-id bad base64url"],
+  ])("rejects an invalid %s on siwe signup", async (header, value, message) => {
+    const verify = vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes(`auth:siwe-invalid-${header}`)), 12)));
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", [header]: value } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad headers",
+      legacy: "bad headers",
+      message: [message],
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bad headers"), {
+      fingerprint: ["{{ default }}", "bad headers"],
+      contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+    });
+    expect(verify).not.toHaveBeenCalled();
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
+    await expect(redis.exists("test-session")).resolves.toBe(1);
   });
 
   it("creates a credential using siwe", async () => {
@@ -957,7 +994,7 @@ describe("registration", () => {
       customer: {
         id,
         tags: [
-          { name: "source", value: "EXA", type: "string" },
+          { name: "source", value: "12345", type: "string" },
           { name: "auth_method", value: "webauthn", type: "string" },
         ],
       },
@@ -968,7 +1005,7 @@ describe("registration", () => {
       where: eq(credentials.id, id),
       columns: { source: true },
     });
-    expect(credential?.source).toBeNull();
+    expect(credential?.source).toBe("12345");
     await expect(redis.exists("test-session")).resolves.toBe(0);
   });
 
@@ -993,9 +1030,36 @@ describe("registration", () => {
     });
   });
 
-  it("does not return wallet extension token on ios webauthn registration", async () => {
+  it.each([
+    ["client-fid", "1".repeat(37), "client-fid Invalid length: Expected <=36 but received 37"],
+    ["x-session-id", "bull:maturity:id", "x-session-id bad base64url"],
+  ])("rejects an invalid %s on webauthn registration", async (header, value, message) => {
+    const id = own(Buffer.from(`invalid-${header}`).toString("base64url"));
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", [header]: value } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad headers",
+      legacy: "bad headers",
+      message: [message],
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bad headers"), {
+      fingerprint: ["{{ default }}", "bad headers"],
+      contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+    });
+    expect(verifyRegistrationResponse).not.toHaveBeenCalled();
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
+    await expect(redis.exists("test-session")).resolves.toBe(1);
+  });
+
+  it("returns wallet extension token on ios webauthn registration", async () => {
     const id = own("aW9zLXJlZ2lzdHJhdGlvbg"); // cspell:ignore Glvbg
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
+    const start = Date.now();
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session", "Client-Platform": "ios" } },
@@ -1005,7 +1069,12 @@ describe("registration", () => {
     const json = await response.json();
     const authResponse = parse(Authentication, json);
 
-    assert.ok(!authResponse.walletExtension);
+    assert.ok(authResponse.walletExtension);
+    expectWalletExtensionExpire(authResponse.walletExtension.expire, authResponse.auth, start);
+    await expect(walletExtension.verify(authResponse.walletExtension.token)).resolves.toStrictEqual({
+      credentialId: id,
+      scope: "card:provisioning",
+    });
   });
 
   it("omits wallet extension token without client platform webauthn registration", async () => {
@@ -1030,7 +1099,18 @@ describe("registration", () => {
       { headers: { cookie: "session_id=test-session", "Client-Platform": "desktop" } },
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad headers",
+      legacy: "bad headers",
+      message: ['client-platform Invalid type: Expected "ios" but received "desktop"'],
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bad headers"), {
+      fingerprint: ["{{ default }}", "bad headers"],
+      contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+    });
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
   });
 
   it("creates a credential using webauthn", async () => {

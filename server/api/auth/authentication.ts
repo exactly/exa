@@ -25,7 +25,6 @@ import {
   picklist,
   pipe,
   record,
-  safeParse,
   string,
   title,
   union,
@@ -283,11 +282,13 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         "header",
         optional(
           object({
-            "Client-Fid": optional(pipe(string(), maxLength(36))),
-            "Client-Platform": optional(literal("ios")),
+            "client-fid": optional(pipe(string(), maxLength(36))),
+            "client-platform": optional(literal("ios")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+            "x-session-id": optional(Base64URL),
           }),
         ),
+        validatorHook({ code: "bad headers" }),
       ),
       vValidator(
         "query",
@@ -362,10 +363,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         const assertion = c.req.valid("json");
         const headers = c.req.valid("header");
         const factory = c.req.valid("query")?.factory ?? undefined;
-        const platform = safeParse(optional(literal("ios")), c.req.header("Client-Platform"));
-        if (!platform.success) return c.json({ code: "bad client platform" }, 400);
         setContext("auth", assertion);
-        const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
+        const sessionId = headers?.["x-session-id"] ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
         const [credential, challenge] = await Promise.all([
           database.query.credentials.findFirst({
@@ -399,7 +398,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
             const result = await createCredential(c, assertion.id, {
               factory,
-              source: c.req.header("Client-Fid"),
+              source: headers?.["client-fid"],
               ip: headers?.["do-connecting-ip"],
             });
             const account = deriveAddress(result.factory, { x: result.x, y: result.y });
@@ -409,7 +408,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 ...result,
                 expires: result.auth,
                 intercomToken,
-                ...(platform.output === "ios" ? await walletExtension.create(assertion.id) : {}),
+                ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(assertion.id) : {}),
               } satisfies InferOutput<typeof LegacyAuthentication>,
               200,
             );
@@ -487,7 +486,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             auth: expires.getTime(),
             expires: expires.getTime(),
             intercomToken,
-            ...(platform.output === "ios" ? await walletExtension.create(assertion.id) : {}),
+            ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(assertion.id) : {}),
           } satisfies InferOutput<typeof LegacyAuthentication>,
           200,
         );

@@ -24,7 +24,6 @@ import {
   optional,
   pipe,
   record,
-  safeParse,
   string,
   title,
   unknown,
@@ -277,11 +276,13 @@ export default function route({
         "header",
         optional(
           object({
-            "Client-Fid": optional(pipe(string(), maxLength(36))),
-            "Client-Platform": optional(literal("ios")),
+            "client-fid": optional(pipe(string(), maxLength(36))),
+            "client-platform": optional(literal("ios")),
             "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+            "x-session-id": optional(Base64URL),
           }),
         ),
+        validatorHook({ code: "bad headers" }),
       ),
       vValidator(
         "query",
@@ -351,10 +352,8 @@ export default function route({
         const attestation = c.req.valid("json");
         const factory = c.req.valid("query")?.factory ?? undefined;
         const headers = c.req.valid("header");
-        const platform = safeParse(optional(literal("ios")), headers?.["Client-Platform"]);
-        if (!platform.success) return c.json({ code: "bad client platform" }, 400);
         setContext("auth", attestation);
-        const sessionId = c.req.header("x-session-id") ?? c.req.valid("cookie").session_id;
+        const sessionId = headers?.["x-session-id"] ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
         if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
         const challenge = await redis.getdel(sessionId);
@@ -419,7 +418,7 @@ export default function route({
           const result = await createCredential(c, attestation.id, {
             factory,
             webauthn,
-            source: headers?.["Client-Fid"],
+            source: headers?.["client-fid"],
             ip: headers?.["do-connecting-ip"],
           });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y });
@@ -428,7 +427,7 @@ export default function route({
             {
               ...result,
               intercomToken,
-              ...(platform.output === "ios" ? await walletExtension.create(attestation.id) : {}),
+              ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(attestation.id) : {}),
             } satisfies InferOutput<typeof Authentication>,
             200,
           );
