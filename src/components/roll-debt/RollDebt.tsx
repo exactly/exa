@@ -11,12 +11,19 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
-import { encodeFunctionData } from "viem";
+import { encodeDeployData, encodeFunctionData } from "viem";
 import { useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPreviewerAddress, marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, {
+  auditorAddress,
+  exaPreviewerAbi,
+  exaPreviewerCode,
+  marketUSDCAddress,
+  previewerAddress,
+  proposalManagerAddress,
+} from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadPreviewerPreviewBorrowAtMaturity,
@@ -260,7 +267,11 @@ function RolloverButton({
     refetch: refetchPendingProposals,
     isPending: isPendingProposalsPending,
   } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
+    code: encodeDeployData({
+      abi: exaPreviewerAbi,
+      bytecode: exaPreviewerCode,
+      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+    }),
     chainId: chain.id,
     args: address ? [address] : undefined,
     query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },

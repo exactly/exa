@@ -9,10 +9,18 @@ import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { encodeDeployData } from "viem";
 import { useBytecode } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, exaPreviewerAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, {
+  auditorAddress,
+  exaPluginAddress,
+  exaPreviewerAbi,
+  exaPreviewerCode,
+  marketUSDCAddress,
+  proposalManagerAddress,
+} from "@exactly/common/generated/chain";
 import {
   useReadExaPreviewerPendingProposals,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -129,7 +137,11 @@ export default function Home() {
     },
   });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
+    code: encodeDeployData({
+      abi: exaPreviewerAbi,
+      bytecode: exaPreviewerCode,
+      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+    }),
     chainId: chain.id,
     args: account ? [account] : undefined,
     query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },

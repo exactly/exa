@@ -1,11 +1,10 @@
 import { encodeAbiParameters, encodeFunctionData, multicall3Abi, zeroAddress, type Address, type Hex } from "viem";
 import { useReadContracts, type UseWriteContractReturnType } from "wagmi";
 
-import chain, { exaPreviewerAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
+import chain, { proposalManagerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   exaPluginAbi,
-  exaPreviewerAbi,
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -98,12 +97,11 @@ export default function useSimulateProposal({
         ],
         functionName: "getBlockNumber",
       },
-      { address: exaPreviewerAddress, abi: exaPreviewerAbi, functionName: "assets" },
     ] as const,
     allowFailure: true,
     query: { enabled: enabled && !!account },
   });
-  const [plugins, delay, nonce, executed, timestamp, blockNumber, assets] = reads ?? [];
+  const [plugins, delay, nonce, executed, timestamp, blockNumber] = reads ?? [];
   const installedPlugins = plugins?.status === "success" ? plugins.result : undefined;
   const { data: pluginMetadata } = useReadExaPluginPluginMetadata({
     address: installedPlugins?.[0],
@@ -126,27 +124,20 @@ export default function useSimulateProposal({
             : proposal.proposalType === ProposalType.Swap
               ? encodeSwap(proposal)
               : encodeAddress(proposal.receiver);
-  const legacyAsset =
-    market === undefined || assets?.status !== "success"
-      ? undefined
-      : assets.result.find(({ market: assetMarket }) => assetMarket === market)?.asset;
   const request =
     account === undefined
       ? undefined
       : proposal.proposalType === ProposalType.Withdraw &&
           pluginMetadata?.version !== undefined &&
           pluginMetadata.version < "0.0.4"
-        ? legacyAsset === undefined ||
-          legacyAsset === zeroAddress ||
-          amount === undefined ||
-          proposal.receiver === undefined
+        ? market === undefined || market === zeroAddress || amount === undefined || proposal.receiver === undefined
           ? undefined
           : {
               account,
               address: account,
               abi: legacyProposeAbi,
               functionName: "propose" as const,
-              args: [legacyAsset, amount, proposal.receiver] as const,
+              args: [market, amount, proposal.receiver] as const,
             }
         : market === undefined ||
             market === zeroAddress ||

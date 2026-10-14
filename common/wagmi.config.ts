@@ -7,6 +7,7 @@ import { getAddress, type Abi, type Chain } from "viem";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
+import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
 import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
 import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
@@ -156,6 +157,7 @@ export default defineConfig([
                   ),
                 ),
               )}`,
+              `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain
                 ? []

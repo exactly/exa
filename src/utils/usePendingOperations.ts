@@ -1,9 +1,16 @@
 import { useCallback, useMemo } from "react";
 
 import { useMutationState } from "@tanstack/react-query";
+import { encodeDeployData } from "viem";
 import { useBytecode } from "wagmi";
 
-import chain, { exaPreviewerAddress } from "@exactly/common/generated/chain";
+import chain, {
+  auditorAddress,
+  exaPreviewerAbi,
+  exaPreviewerCode,
+  marketUSDCAddress,
+  proposalManagerAddress,
+} from "@exactly/common/generated/chain";
 import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
@@ -22,7 +29,11 @@ export default function usePendingOperations() {
   const { data: bytecode } = useBytecode({ address: exaAccount, chainId: chain.id, query: { enabled: !!exaAccount } });
 
   const proposals = useReadExaPreviewerPendingProposals({
-    address: exaPreviewerAddress,
+    code: encodeDeployData({
+      abi: exaPreviewerAbi,
+      bytecode: exaPreviewerCode,
+      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+    }),
     chainId: chain.id,
     args: exaAccount ? [exaAccount] : undefined,
     query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },

@@ -35,6 +35,7 @@ import {
 } from "valibot";
 import {
   createPublicClient,
+  encodeDeployData,
   encodeFunctionData,
   erc20Abi,
   fallback,
@@ -52,11 +53,14 @@ import { base } from "viem/chains";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
   allowlists,
+  auditorAddress,
   exaAddress,
   exaPreviewerAbi,
-  exaPreviewerAddress,
+  exaPreviewerCode,
+  marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
+  proposalManagerAddress,
   stocks,
   swapperAddress,
 } from "@exactly/common/generated/chain";
@@ -109,7 +113,11 @@ export const lifiTokensOptions = queryOptions({
       const markets = await publicClient.readContract({
         abi: exaPreviewerAbi,
         functionName: "markets",
-        address: exaPreviewerAddress,
+        code: encodeDeployData({
+          abi: exaPreviewerAbi,
+          bytecode: exaPreviewerCode,
+          args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+        }),
       });
       return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
         const token = {
