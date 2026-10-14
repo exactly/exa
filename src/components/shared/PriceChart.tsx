@@ -8,6 +8,7 @@ import { impactAsync, ImpactFeedbackStyle, selectionAsync } from "expo-haptics";
 import { ChartLine, ChevronRight } from "@tamagui/lucide-icons-2";
 import { useTheme, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
 import { curveStep } from "d3-shape";
 import { formatDistanceToNowStrict } from "date-fns";
 
@@ -15,7 +16,8 @@ import Chip from "./Chip";
 import Skeleton from "./Skeleton";
 import Text from "./Text";
 import { date } from "../../i18n";
-import { defaultRange, ranges, useHistory } from "../../utils/prices";
+import { isStock, marketOpen, statsOptions } from "../../utils/lifi";
+import { defaultRange, ranges, useFeed, useHistory } from "../../utils/prices";
 import reportError from "../../utils/reportError";
 
 import type { Token } from "@lifi/sdk";
@@ -47,6 +49,12 @@ export default function PriceChart({
     [language],
   );
   const { data, isError, isPlaceholderData, refetch } = useHistory(token, range);
+  const closed = !!useFeed(token) && isStock(token) && !marketOpen();
+  const { data: onchain } = useQuery({
+    ...statsOptions(token.chainId, token.address),
+    enabled: closed,
+    select: ({ priceUSD }) => (priceUSD ? Number(priceUSD) : undefined),
+  });
   const points = data?.points;
   const first = points?.[0];
   const last = points?.at(-1);
@@ -95,6 +103,14 @@ export default function PriceChart({
           </Text>
         ) : (
           <Skeleton width={180} height={21} />
+        )}
+        {closed && onchain !== undefined && last && (
+          <XStack gap="$s2" alignItems="center" flexWrap="wrap">
+            <Text caption color="$uiNeutralSecondary">
+              {t("Onchain price: {{price}}", { price: usd(onchain, language) })}
+            </Text>
+            <Change from={last.value} to={onchain} label={t("vs. last close")} />
+          </XStack>
         )}
       </YStack>
       <YStack

@@ -165,7 +165,12 @@ export function statsOptions(chainId: number, address: string) {
     queryFn: async () => {
       ensureConfig();
       return parse(
-        object({ marketCapUSD: nullish(number()), volumeUSD24H: nullish(number()), fdvUSD: nullish(number()) }),
+        object({
+          priceUSD: nullish(string()),
+          marketCapUSD: nullish(number()),
+          volumeUSD24H: nullish(number()),
+          fdvUSD: nullish(number()),
+        }),
         chain.testnet ? {} : await getToken(chainId as ChainId, address),
       );
     },
