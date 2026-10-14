@@ -44,6 +44,7 @@ import {
   http,
   isAddressEqual,
   multicall3Abi,
+  parseAbi,
   sha256,
   zeroAddress,
   type Address,
@@ -65,6 +66,7 @@ import chain, {
   swapperAddress,
 } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
+import { WAD } from "@exactly/lib";
 
 import alchemyChains from "./alchemyChains";
 import publicClient from "./publicClient";
@@ -172,6 +174,14 @@ export function statsOptions(chainId: number, address: string) {
 
 export function isStock({ address, chainId }: { address: string; chainId: number }) {
   return chainId === base.id && stocks.has(address.toLowerCase());
+}
+
+export const stockAbi = parseAbi(["function multiplier() view returns (uint256)"]);
+
+export function toShares(amount: bigint, decimals: number, multiplier?: bigint) {
+  return multiplier === undefined
+    ? undefined
+    : Math.round(Number(formatUnits((amount * multiplier) / WAD, decimals)) * 1e4) / 1e4;
 }
 
 export function marketOpen() {

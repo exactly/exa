@@ -10,6 +10,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { object, optional, pipe, regex, safeParse, string, transform } from "valibot";
 import { formatUnits } from "viem";
+import { useReadContract } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -18,7 +19,15 @@ import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { presentArticle } from "../../utils/intercom";
-import { isStock, lifiTokensOptions, marketOpen, restrictedCountries, statsOptions } from "../../utils/lifi";
+import {
+  isStock,
+  lifiTokensOptions,
+  marketOpen,
+  restrictedCountries,
+  statsOptions,
+  stockAbi,
+  toShares,
+} from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -60,6 +69,13 @@ export default function Asset() {
     ...statsOptions(params.success ? params.output.chainId : 0, params.success ? params.output.address : ""),
     enabled: params.success,
   });
+  const { data: multiplier } = useReadContract({
+    chainId: params.success ? params.output.chainId : undefined,
+    address: params.success ? params.output.address : undefined,
+    abi: stockAbi,
+    functionName: "multiplier",
+    query: { enabled: params.success && isStock(params.output) },
+  });
   const [info, setInfo] = useState<(typeof stats)[number]>();
   if (!params.success) return <Redirect href="/(main)/(home)" />;
   const { chainId, address } = params.output;
@@ -85,6 +101,8 @@ export default function Asset() {
   const entry = token ?? external;
   const amount = (protocol?.floatingDepositAssets ?? 0n) + (external?.amount ?? 0n);
   const stock = !!token && isStock(token);
+  const decimals = protocol?.decimals ?? external?.decimals ?? 18;
+  const shares = toShares(amount, decimals, multiplier);
   const symbol = protocol ? (protocol.symbol.slice(3) === "WETH" ? "ETH" : protocol.symbol.slice(3)) : entry?.symbol;
   function trade(side: "fromToken" | "toToken", selected: Token) {
     queryClient.setQueryData<Swap>(["swap"], (old) =>
@@ -245,7 +263,12 @@ export default function Asset() {
                     }
                   />
                   <Text sensitive caption color="$uiNeutralSecondary">
-                    {`${formatTokenAmount(amount, protocol?.decimals ?? external?.decimals ?? 18, language)} ${symbol}`}
+                    {stock && shares !== undefined
+                      ? t("{{amount}} shares", {
+                          count: shares,
+                          amount: shares.toLocaleString(language, { maximumFractionDigits: 4 }),
+                        })
+                      : `${formatTokenAmount(amount, decimals, language)} ${symbol}`}
                   </Text>
                 </YStack>
               </XStack>
