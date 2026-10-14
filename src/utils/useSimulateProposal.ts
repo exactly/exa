@@ -1,14 +1,22 @@
-import { encodeAbiParameters, encodeFunctionData, multicall3Abi, zeroAddress, type Address, type Hex } from "viem";
+import {
+  encodeAbiParameters,
+  encodeErrorResult,
+  encodeFunctionData,
+  multicall3Abi,
+  parseAbi,
+  slice,
+  zeroAddress,
+  type Address,
+  type Hex,
+} from "viem";
 import { useReadContracts, type UseWriteContractReturnType } from "wagmi";
 
 import chain, { proposalManagerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   exaPluginAbi,
-  marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
-  useReadExaPluginPluginMetadata,
 } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 
@@ -67,7 +75,11 @@ export default function useSimulateProposal({
   | { proposalType: typeof ProposalType.Redeem; receiver: Address | undefined }
   | { proposalType: typeof ProposalType.Withdraw; receiver: Address | undefined }
 )) {
-  const { data: reads, refetch } = useReadContracts({
+  const {
+    data: reads,
+    error: readsError,
+    refetch: refetchReads,
+  } = useReadContracts({
     contracts: [
       { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
       { address: proposalManagerAddress, abi: proposalManagerAbi, functionName: "delay" },
@@ -98,25 +110,15 @@ export default function useSimulateProposal({
         functionName: "getBlockNumber",
       },
     ] as const,
-    allowFailure: true,
+    allowFailure: false,
     query: { enabled: enabled && !!account },
   });
   const [plugins, delay, nonce, executed, timestamp, blockNumber] = reads ?? [];
-  const installedPlugins = plugins?.status === "success" ? plugins.result : undefined;
-  const { data: pluginMetadata } = useReadExaPluginPluginMetadata({
-    address: installedPlugins?.[0],
-    query: { enabled: !!installedPlugins?.[0] },
-  });
   const proposalData =
     proposal.proposalType === ProposalType.BorrowAtMaturity
       ? encodeBorrowAtMaturity(proposal)
       : proposal.proposalType === ProposalType.CrossRepayAtMaturity
-        ? pluginMetadata?.version === undefined
-          ? undefined
-          : encodeCrossRepayAtMaturity({
-              ...proposal,
-              marketOut: pluginMetadata.version >= "1.1.0" ? proposal.marketOut : undefined,
-            })
+        ? encodeCrossRepayAtMaturity(proposal)
         : proposal.proposalType === ProposalType.RepayAtMaturity
           ? encodeRepayAtMaturity(proposal)
           : proposal.proposalType === ProposalType.RollDebt
@@ -124,106 +126,147 @@ export default function useSimulateProposal({
             : proposal.proposalType === ProposalType.Swap
               ? encodeSwap(proposal)
               : encodeAddress(proposal.receiver);
-  const request =
-    account === undefined
+  const request = proposeRequest(account, market, amount, proposal.proposalType, proposalData);
+  const calldata = request && encodeFunctionData(request);
+  const execution =
+    nonce === undefined
       ? undefined
-      : proposal.proposalType === ProposalType.Withdraw &&
-          pluginMetadata?.version !== undefined &&
-          pluginMetadata.version < "0.0.4"
-        ? market === undefined || market === zeroAddress || amount === undefined || proposal.receiver === undefined
-          ? undefined
-          : {
-              account,
-              address: account,
-              abi: legacyProposeAbi,
-              functionName: "propose" as const,
-              args: [market, amount, proposal.receiver] as const,
-            }
-        : market === undefined ||
-            market === zeroAddress ||
-            amount === undefined ||
-            proposalData === undefined ||
-            (proposal.proposalType === ProposalType.Withdraw && pluginMetadata?.version === undefined)
-          ? undefined
-          : {
-              account,
-              address: account,
-              abi: proposeAbi,
-              functionName: "propose" as const,
-              args: [market, amount, proposal.proposalType, proposalData] as const,
-            };
-  const executeRequest =
-    account === undefined || nonce?.status !== "success"
-      ? undefined
-      : {
-          account,
-          address: account,
-          abi: executeProposalAbi,
-          functionName: "executeProposal" as const,
-          args: [nonce.result] as const,
-        };
+      : encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
   const simulation = useSimulateBlocks({
-    blockNumber: blockNumber?.status === "success" ? blockNumber.result : undefined,
-    blocks: [
-      {
-        blockOverrides: timestamp?.status === "success" ? { time: timestamp.result + 1n } : undefined,
-        calls: request
-          ? [
-              {
-                account: request.account,
-                to: request.address,
-                data: encodeFunctionData({ abi: request.abi, functionName: request.functionName, args: request.args }),
-              },
-            ]
-          : [],
-      },
-      {
-        blockOverrides:
-          timestamp?.status === "success" && delay?.status === "success"
-            ? { time: timestamp.result + delay.result + 1n }
-            : undefined,
-        calls: executeRequest
-          ? [
-              {
-                account: executeRequest.account,
-                to: executeRequest.address,
-                data: encodeFunctionData({
-                  abi: executeRequest.abi,
-                  functionName: executeRequest.functionName,
-                  args: executeRequest.args,
-                }),
-              },
-            ]
-          : [],
-      },
-    ],
+    blockNumber,
+    blocks: blocks(account, calldata, execution, timestamp, delay),
     query: {
       enabled:
         enabled &&
-        installedPlugins !== undefined &&
-        request !== undefined &&
-        executeRequest !== undefined &&
-        delay?.status === "success" &&
-        timestamp?.status === "success" &&
-        blockNumber?.status === "success",
+        plugins !== undefined &&
+        calldata !== undefined &&
+        execution !== undefined &&
+        blockNumber !== undefined &&
+        delay !== undefined &&
+        timestamp !== undefined,
     },
   });
-  const propose = simulation.data?.[0]?.calls[0];
-  const execute = simulation.data?.[1]?.calls[0];
-  const queued = nonce?.status === "success" && executed?.status === "success" && nonce.result > executed.result;
+  const [propose, execute] = simulation.data?.map(({ calls: [call] }) => call) ?? [];
+  const outdated =
+    proposal.proposalType === ProposalType.CrossRepayAtMaturity
+      ? proposeRequest(
+          account,
+          market,
+          amount,
+          proposal.proposalType,
+          encodeCrossRepayAtMaturity({ ...proposal, marketOut: undefined }),
+        )
+      : request;
+  const legacy =
+    proposal.proposalType === ProposalType.Withdraw && request !== undefined && proposal.receiver !== undefined
+      ? { ...request, abi: outdatedAbi, args: [request.args[0], request.args[1], proposal.receiver] as const }
+      : undefined;
+  const fallback = missing(propose, calldata)
+    ? legacy && {
+        request: legacy,
+        calls: [encodeFunctionData(legacy), encodeFunctionData({ abi: outdatedAbi, functionName: "withdraw" })],
+      }
+    : missing(execute, execution)
+      ? outdated && {
+          request: outdated,
+          calls: [
+            encodeFunctionData(outdated),
+            encodeFunctionData({ abi: outdatedAbi, functionName: "executeProposal" }),
+          ],
+        }
+      : proposal.proposalType === ProposalType.CrossRepayAtMaturity &&
+          execute?.status === "failure" &&
+          execute.data === "0x"
+        ? outdated && { request: outdated, calls: [encodeFunctionData(outdated), execution] }
+        : undefined;
+  const retry = useSimulateBlocks({
+    blockNumber,
+    blocks: blocks(account, fallback?.calls[0], fallback?.calls[1], timestamp, delay),
+    query: {
+      enabled:
+        enabled &&
+        fallback !== undefined &&
+        blockNumber !== undefined &&
+        delay !== undefined &&
+        timestamp !== undefined,
+    },
+  });
+  const [retryPropose, retryExecute] = retry.data?.map(({ calls: [call] }) => call) ?? [];
+  const settled =
+    fallback === undefined || (propose?.status === "success" && retryPropose?.status === "failure")
+      ? { simulation, request, propose, execute }
+      : { simulation: retry, request: fallback.request, propose: retryPropose, execute: retryExecute };
+  const queued = nonce !== undefined && executed !== undefined && nonce > executed;
+  const error =
+    readsError ??
+    settled.simulation.error ??
+    (settled.propose?.status === "failure" ? settled.propose.error : null) ??
+    (settled.execute?.status === "failure" ? settled.execute.error : null);
   return {
     request:
-      propose?.status === "success" && execute?.status === "success"
-        ? (request as Parameters<UseWriteContractReturnType["mutate"]>[0])
+      settled.propose?.status === "success" && settled.execute?.status === "success"
+        ? (settled.request as Parameters<UseWriteContractReturnType["mutate"]>[0])
         : undefined,
-    isPending: simulation.isPending,
-    error:
-      simulation.error ??
-      (propose?.status === "failure" ? propose.error : null) ??
-      (execute?.status === "failure" ? execute.error : null),
+    isPending: !error && settled.simulation.isPending,
+    error,
     queued,
-    refetch,
+    refetch: () =>
+      Promise.all([refetchReads(), simulation.error && simulation.refetch(), retry.error && retry.refetch()]),
   };
+}
+
+function proposeRequest(
+  account: Address | undefined,
+  market: Address | undefined,
+  amount: bigint | undefined,
+  proposalType: ProposalType,
+  data: Hex | undefined,
+) {
+  return account === undefined ||
+    market === undefined ||
+    market === zeroAddress ||
+    amount === undefined ||
+    data === undefined
+    ? undefined
+    : {
+        account,
+        address: account,
+        abi: proposeAbi,
+        functionName: "propose" as const,
+        args: [market, amount, proposalType, data] as const,
+      };
+}
+
+function blocks(
+  account: Address | undefined,
+  propose: Hex | undefined,
+  execute: Hex | undefined,
+  timestamp: bigint | undefined,
+  delay: bigint | undefined,
+) {
+  return [
+    {
+      blockOverrides: timestamp === undefined ? undefined : { time: timestamp + 1n },
+      calls: account === undefined || propose === undefined ? [] : [{ account, to: account, data: propose }],
+    },
+    {
+      blockOverrides: timestamp === undefined || delay === undefined ? undefined : { time: timestamp + delay + 1n },
+      calls: account === undefined || execute === undefined ? [] : [{ account, to: account, data: execute }],
+    },
+  ];
+}
+
+function missing(call: undefined | { data: Hex; status: "failure" | "success" }, calldata: Hex | undefined) {
+  return (
+    call?.status === "failure" &&
+    calldata !== undefined &&
+    call.data ===
+      encodeErrorResult({
+        abi: upgradeableModularAccountAbi,
+        errorName: "RuntimeValidationFunctionMissing",
+        args: [slice(calldata, 0, 4)],
+      })
+  );
 }
 
 function encodeBorrowAtMaturity({
@@ -384,24 +427,11 @@ function encodeAddress(receiver: Address | undefined) {
 }
 
 const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi];
-const legacyProposeAbi = [
+const outdatedAbi = [
   ...upgradeableModularAccountAbi,
-  {
-    type: "function",
-    name: "propose",
-    inputs: [
-      { internalType: "contract IMarket", name: "market", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "address", name: "receiver", type: "address" },
-    ],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-] as const;
-const executeProposalAbi = [
-  ...upgradeableModularAccountAbi,
-  ...exaPluginAbi,
-  ...proposalManagerAbi,
-  ...auditorAbi,
-  ...marketAbi,
+  ...parseAbi([
+    "function executeProposal()",
+    "function propose(address market, uint256 amount, address receiver)",
+    "function withdraw()",
+  ]),
 ];
