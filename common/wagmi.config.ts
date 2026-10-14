@@ -1,9 +1,9 @@
-import { defineConfig, type Plugin } from "@wagmi/cli";
+import { defineConfig } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
-import { getAddress, type Abi } from "viem";
+import { getAddress, type Abi, type Chain } from "viem";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
@@ -16,49 +16,12 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
-
-const auditor = loadDeployment("Auditor");
-const debtManager = loadDeployment("DebtRoller", false)?.address ?? loadDeployment("DebtManager").address;
-const marketUSDC = loadDeployment("MarketUSDC");
-const marketWETH = loadDeployment("MarketWETH");
-const integrationPreviewer = loadDeployment("IntegrationPreviewer");
-const previewer = loadDeployment("Previewer");
-const ratePreviewer = loadDeployment("RatePreviewer");
-const usdc = loadDeployment("USDC");
-const weth = loadDeployment("WETH");
-const firewall = loadDeployment("Firewall", false);
-const balancerVault = loadDeployment("Balancer2Vault", false);
-const exa = loadDeployment("EXA", false);
-const flashLoanAdapter = loadDeployment("FlashLoanAdapter", false);
-const [exaPlugin] = loadBroadcast("ExaPlugin").transactions;
-const [issuerChecker] = loadBroadcast("IssuerChecker").transactions;
-const [proposalManager] = loadBroadcast("ProposalManager").transactions;
-const [refunder] = loadBroadcast("Refunder").transactions;
-const [exaPreviewer] = loadBroadcast("ExaPreviewer").transactions;
-const swapper = (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default;
-const allowlists = Object.fromEntries(
-  Object.entries(deploy.proposalManager.allowlist as Record<string, Record<string, string>>).map(([id, tokens]) => {
-    const network = { [String(optimism.id)]: "optimism", [String(base.id)]: "base" }[id];
-    const underlying = network
-      ? readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
-          .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
-          .filter((asset) => asset !== "ETHRouter")
-          .map((asset) =>
-            getAddress(
-              (
-                JSON.parse(
-                  readFileSync(`node_modules/@exactly/protocol/deployments/${network}/${asset}.json`, "utf8"),
-                ) as Deployment
-              ).address,
-            ),
-          )
-      : [];
-    return [id, [...underlying, ...Object.keys(tokens).map((address) => getAddress(address))]];
-  }),
-);
-if (!exaPlugin || !issuerChecker || !proposalManager || !exaPreviewer || !refunder || !swapper) {
-  throw new Error("missing contracts");
-}
+const networks = new Map<Chain, string>([
+  [base, "base"],
+  [baseSepolia, "base-sepolia"],
+  [optimism, "optimism"],
+  [optimismSepolia, "op-sepolia"],
+]);
 
 export default defineConfig([
   {
@@ -94,61 +57,6 @@ export default defineConfig([
       { name: "Previewer", abi: Previewer.abi as Abi },
     ],
     plugins: [
-      addresses(
-        {
-          auditor: auditor.address,
-          debtManager,
-          exaPlugin: exaPlugin.contractAddress,
-          exaPreviewer: exaPreviewer.contractAddress,
-          integrationPreviewer: integrationPreviewer.address,
-          issuerChecker: issuerChecker.contractAddress,
-          marketUSDC: marketUSDC.address,
-          marketWETH: marketWETH.address,
-          previewer: previewer.address,
-          proposalManager: proposalManager.contractAddress,
-          ratePreviewer: ratePreviewer.address,
-          refunder: refunder.contractAddress,
-          simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
-          swapper,
-          usdc: usdc.address,
-          weth: weth.address,
-          ...(chainId !== base.id &&
-            chainId !== baseSepolia.id &&
-            chainId !== anvil.id && {
-              exaAccountFactory:
-                {
-                  [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
-                }[chainId] ?? "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
-            }),
-        },
-        {
-          ...((chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id) && {
-            scripts: { exaAccountFactory: "ExaAccountFactory" },
-          }),
-          optional: {
-            balancerVault: balancerVault?.address,
-            exa: exa?.address,
-            flashLoanAdapter: flashLoanAdapter?.address,
-            firewall: firewall?.address,
-          },
-        },
-      ),
-      {
-        name: "Allowlist",
-        run: () => ({
-          content: `export const allowlists: Record<string, readonly string[] | undefined> = ${JSON.stringify(allowlists)}`,
-        }),
-      },
-      {
-        name: "Stocks",
-        run() {
-          const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
-            .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
-            .map((address) => address.toLowerCase());
-          if (stocks.length === 0) throw new Error("missing stocks");
-          return { content: `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})` };
-        },
-      },
       foundry({
         forge: { build: false },
         project: "../contracts",
@@ -163,91 +71,116 @@ export default defineConfig([
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
         ],
       }),
-      chain(),
+      {
+        name: "Exa",
+        run() {
+          const chain = {
+            [base.id]: "base",
+            [baseSepolia.id]: "baseSepolia",
+            [optimism.id]: "optimism",
+            [optimismSepolia.id]: "optimismSepolia",
+          }[chainId];
+          const markets = Object.fromEntries(
+            [...networks]
+              .filter(
+                ([{ testnet }]) =>
+                  Boolean(testnet) ===
+                  (chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet)),
+              )
+              .map(([{ id }, network]) => [
+                id,
+                readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
+                  .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
+                  .filter((asset) => asset !== "ETHRouter")
+                  .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
+              ]),
+          );
+          const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
+            .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
+            .map((address) => address.toLowerCase());
+          if (stocks.length === 0) throw new Error("missing stocks");
+          return {
+            imports: chain
+              ? `import { ${chain} as chain } from "@account-kit/infra"\nimport { type Chain } from "viem/chains"`
+              : `import { anvil, type Chain } from "viem/chains"`,
+            content: [
+              ...Object.entries({
+                auditor: loadDeployment("Auditor").address,
+                debtManager: loadDeployment("DebtRoller", false)?.address ?? loadDeployment("DebtManager").address,
+                exaPlugin: loadBroadcast("ExaPlugin").transactions[0]?.contractAddress,
+                exaPreviewer: loadBroadcast("ExaPreviewer").transactions[0]?.contractAddress,
+                integrationPreviewer: loadDeployment("IntegrationPreviewer").address,
+                issuerChecker: loadBroadcast("IssuerChecker").transactions[0]?.contractAddress,
+                marketUSDC: loadDeployment("MarketUSDC").address,
+                marketWETH: loadDeployment("MarketWETH").address,
+                previewer: loadDeployment("Previewer").address,
+                proposalManager: loadBroadcast("ProposalManager").transactions[0]?.contractAddress,
+                ratePreviewer: loadDeployment("RatePreviewer").address,
+                refunder: loadBroadcast("Refunder").transactions[0]?.contractAddress,
+                usdc: loadDeployment("USDC").address,
+                weth: loadDeployment("WETH").address,
+                simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
+                swapper:
+                  (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
+                exaAccountFactory:
+                  chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
+                    ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
+                        execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
+                          env: { ...env, FOUNDRY_PROFILE: "tooling" },
+                          cwd: "../contracts",
+                          encoding: "utf8",
+                        }),
+                      )?.[1]
+                    : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
+                      "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC"),
+              }).map(([key, address]) => {
+                if (!address) throw new Error(`missing ${key}`);
+                return `export const ${key}Address = "${getAddress(address)}" as const`;
+              }),
+              ...Object.entries({
+                balancerVault: loadDeployment("Balancer2Vault", false)?.address,
+                exa: loadDeployment("EXA", false)?.address,
+                flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
+                firewall: loadDeployment("Firewall", false)?.address,
+              }).map(
+                ([key, address]) =>
+                  `export const ${key}Address = ${address ? `"${getAddress(address)}"` : "undefined"} as \`0x\${string}\` | undefined`,
+              ),
+              `export const allowlists: Record<string, readonly string[] | undefined> = ${JSON.stringify(
+                Object.fromEntries(
+                  Object.entries(deploy.proposalManager.allowlist as Record<string, Record<string, string>>).map(
+                    ([id, tokens]) => [
+                      id,
+                      [...(markets[id] ?? []), ...Object.keys(tokens).map((address) => getAddress(address))],
+                    ],
+                  ),
+                ),
+              )}`,
+              `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
+              ...(chain
+                ? []
+                : [
+                    "const chain = anvil as Chain",
+                    "chain.rpcUrls.alchemy = chain.rpcUrls.default",
+                    `chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }`,
+                    'chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }',
+                  ]),
+              `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
+              `export default chain as Chain & { contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
+            ].join("\n"),
+          };
+        },
+      },
     ],
   },
 ]);
 
-function addresses(
-  contracts: Record<string, string>,
-  { scripts, optional }: { optional?: Record<string, string | undefined>; scripts?: Record<string, string> } = {},
-): Plugin {
-  return {
-    name: "Addresses",
-    run() {
-      if (scripts) {
-        for (const [key, script] of Object.entries(scripts)) {
-          const output = execSync(`forge script -s 'getAddress()' script/${script}.s.sol --chain ${chainId}`, {
-            env: { ...env, FOUNDRY_PROFILE: "tooling" },
-            cwd: "../contracts",
-            encoding: "utf8",
-          });
-          const address = new RegExp(/== return ==\n0: address (0x[\da-f]{40})/i).exec(output)?.[1];
-          if (!address) throw new Error(output);
-          contracts[key] = address;
-        }
-      }
-      return {
-        content: `${[
-          ...Object.entries(contracts).map(
-            ([key, value]) => `export const ${key}Address = "${getAddress(value)}" as const`,
-          ),
-          ...Object.entries(optional ?? {}).map(
-            ([key, value]) =>
-              `export const ${key}Address = ${value ? `"${getAddress(value)}"` : "undefined"} as \`0x\${string}\` | undefined`,
-          ),
-        ].join("\n")}\n`,
-      };
-    },
-  };
-}
-
-function chain(): Plugin {
-  const isBase = chainId === base.id || chainId === baseSepolia.id;
-  if (chainId === anvil.id) {
-    return {
-      name: "Chain",
-      run: () => ({
-        content: `import { anvil, type Chain } from "viem/chains"
-const chain = anvil as Chain
-chain.rpcUrls.alchemy = chain.rpcUrls.default
-chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }
-chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }
-export const isBase: boolean = ${isBase}
-export default chain as Chain & {
-  contracts: { multicall3: { address: \`0x\${string}\` } }
-  rpcUrls: { alchemy: { http: readonly [string] } }
-}`,
-      }),
-    };
-  }
-  const importName = {
-    [base.id]: "base",
-    [baseSepolia.id]: "baseSepolia",
-    [optimism.id]: "optimism",
-    [optimismSepolia.id]: "optimismSepolia",
-    [anvil.id]: "anvil",
-  }[chainId];
-  if (!importName) throw new Error("unknown chain");
-  return {
-    name: "Chain",
-    run: () => ({
-      content: `import { ${importName} } from "@account-kit/infra"
-import { type Chain } from "viem/chains"
-export const isBase: boolean = ${isBase}
-export default ${importName} as Chain & {
-  contracts: { multicall3: { address: \`0x\${string}\` } }
-  rpcUrls: { alchemy: { http: readonly [string] } }
-}`,
-    }),
-  };
-}
-
 function loadDeployment<R extends boolean = true>(
   contract: string,
   required = true as R,
+  id = chainId,
 ): R extends true ? Deployment : Deployment | undefined {
-  if (chainId === anvil.id) {
+  if (id === anvil.id) {
     const address =
       loadBroadcast("Protocol").transactions[
         {
@@ -267,12 +200,7 @@ function loadDeployment<R extends boolean = true>(
     if (!address && required) throw new Error(`unknown contract: ${contract}`);
     return { address } as R extends true ? Deployment : Deployment | undefined;
   }
-  const network = {
-    [base.id]: "base",
-    [baseSepolia.id]: "base-sepolia",
-    [optimism.id]: "optimism",
-    [optimismSepolia.id]: "op-sepolia",
-  }[chainId];
+  const network = [...networks].find(([chain]) => chain.id === id)?.[1];
   if (!network) throw new Error("unknown chain");
   try {
     return JSON.parse(
