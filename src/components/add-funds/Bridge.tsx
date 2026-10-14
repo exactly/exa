@@ -32,7 +32,6 @@ import {
   useSendCalls,
   useSendTransaction,
   useSimulateContract,
-  useWriteContract,
 } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -139,7 +138,6 @@ export default function Bridge() {
   });
   const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
   const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
-  const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
   const { protocolSymbols, protocolAssets, externalAssets, markets } = usePortfolio();
 
   const {
@@ -758,15 +756,21 @@ export default function Bridge() {
       if (!isTransfer) throw new Error("transfer mutation invoked for different chains");
       await switchChain(senderConfig, { chainId: chain.id });
       setBridgeStatus(t("Submitting transfer transaction..."));
-      const recipient = getAddress(account);
-      let hash: Hex;
-      if (isNativeSource) {
-        hash = await sendTx({ chainId: source.chain, to: recipient, value: sourceAmount });
-      } else {
-        if (!transferSimulation) throw new Error("missing transfer simulation");
-        hash = await transfer({ ...transferSimulation.request, chainId: source.chain });
-      }
-      if ((await callsStatus(senderConfig, hash, source.chain)) === "failure") {
+      if (!isNativeSource && !transferSimulation) throw new Error("missing transfer simulation");
+      const { id } = await sendCallsTx({
+        chainId: source.chain,
+        experimental_fallback: true,
+        calls: [
+          transferSimulation && !isNativeSource
+            ? {
+                to: transferSimulation.request.address,
+                data: encodeFunctionData(transferSimulation.request),
+                dataSuffix: transferSimulation.request.dataSuffix,
+              }
+            : { to: getAddress(account), value: sourceAmount },
+        ],
+      });
+      if ((await callsStatus(senderConfig, id)) === "failure") {
         throw new Error("failed to submit transfer transaction");
       }
       setBridgeStatus(t("Transfer transaction submitted"));
