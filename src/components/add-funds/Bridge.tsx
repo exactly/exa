@@ -140,7 +140,7 @@ export default function Bridge() {
   const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
   const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
   const { mutateAsync: transfer } = useWriteContract({ config: senderConfig });
-  const { protocolSymbols, protocolAssets, externalAssets } = usePortfolio();
+  const { protocolSymbols, protocolAssets, externalAssets, markets } = usePortfolio();
 
   const {
     data: balances,
@@ -776,7 +776,16 @@ export default function Bridge() {
         duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
       });
-      await queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: balancesOptions(senderAddress).queryKey }),
+        queryClient.invalidateQueries({
+          queryKey: balancesOptions(account).queryKey,
+          refetchType:
+            isNativeSource || markets?.some(({ asset }) => asset.toLowerCase() === source?.address.toLowerCase())
+              ? "none"
+              : "active",
+        }),
+      ]);
     },
     onError(error) {
       if (reportError(error).authKnown) {
