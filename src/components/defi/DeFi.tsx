@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import type { ScrollViewInstance } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -40,11 +41,16 @@ export default function DeFi() {
   const [lifiSheetOpen, setLifiSheetOpen] = useState(false);
   const [disconnectLifi, setDisconnectLifi] = useState(false);
   const [disconnectFunding, setDisconnectFunding] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   useTabPress("defi", () => scrollRef.current?.scrollTo({ y: 0, animated: true }));
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} flex={1}>
+      <ScrollView
+        // @ts-expect-error tamagui declares the component as the ref instance
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        flex={1}
+      >
         <YStack gap="$s4_5" paddingHorizontal="$s4" paddingTop="$s4" paddingBottom="$s3">
           <XStack justifyContent="space-between" alignItems="center">
             <Text emphasized title3>

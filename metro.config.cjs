@@ -9,7 +9,7 @@ const themeable = /\b(fill|stroke)="#([0-9a-f]{6})"/g;
 module.exports = function config() {
   const { getSentryExpoConfig } = require("@sentry/react-native/metro");
   const base = getSentryExpoConfig(__dirname, { annotateReactComponents: true });
-  /** @type {import('metro-config').InputConfigT} */
+  /** @type {typeof base} */
   const merged = {
     ...base,
     resolver: {
@@ -32,6 +32,19 @@ module.exports = function config() {
       ],
       resolveRequest: (context, moduleName, platform) => {
         if (moduleName === "tslib") return context.resolveRequest(context, "tslib/tslib.es6.js", platform);
+        if (moduleName === "@solana/web3.js") return { type: "empty" };
+        if (
+          context.originModulePath.includes("/@lifi/sdk/") &&
+          /(?:^|\/)core\/(?:Solana|Sui|UTXO)\//.test(moduleName)
+        ) {
+          return { type: "empty" };
+        }
+        if (moduleName === "react-native-reanimated-carousel")
+          return context.resolveRequest(
+            { ...context, mainFields: ["react-native", ...context.mainFields], unstable_enablePackageExports: false },
+            moduleName,
+            platform,
+          );
         if (
           /date-fns\/locale\.(?:js|cjs|mjs)$/.test(context.originModulePath) &&
           moduleName.startsWith("./locale/") &&

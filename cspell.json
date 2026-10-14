@@ -150,6 +150,7 @@
     "pressable",
     "prestate",
     "prng",
+    "proguard",
     "prool",
     "prost",
     "protogen",
@@ -211,6 +212,7 @@
     "underspecified",
     "unshallow",
     "unstub",
+    "utxo",
     "valibot",
     "valierror",
     "valkey",
@@ -337,13 +339,15 @@
         "revisá",
         "seleccioná",
         "simulá",
+        "soltá",
         "tenés",
         "tocá",
         "usalo",
         "usalos",
         "usás",
         "verificate",
-        "verificá"
+        "verificá",
+        "volvé"
       ]
     },
     {

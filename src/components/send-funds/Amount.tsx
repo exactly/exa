@@ -257,7 +257,7 @@ export default function Amount() {
               primary
               numberOfLines={1}
               onPress={() => {
-                inputRef.current?.blur();
+                if (inputRef.current && "blur" in inputRef.current) inputRef.current.blur();
               }}
             >
               {destination
@@ -316,7 +316,7 @@ export default function Amount() {
               maxWidth="100%"
               hitSlop={12}
               onPress={() => {
-                inputRef.current?.focus();
+                if (inputRef.current && "focus" in inputRef.current) inputRef.current.focus();
               }}
             >
               {mode === "usd" && (

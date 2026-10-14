@@ -12,7 +12,12 @@
       "sharedGlobals"
     ],
     "production": ["default", "!{projectRoot}/test/**/*", "!{projectRoot}/eslint.config.mjs"],
-    "sharedGlobals": ["{workspaceRoot}/nx.json", "{workspaceRoot}/package.json", "{workspaceRoot}/pnpm-lock.yaml"]
+    "sharedGlobals": [
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/pnpm-lock.yaml",
+      "{workspaceRoot}/pnpm-workspace.yaml"
+    ]
   },
   "targetDefaults": {
     "generate:*": { "inputs": ["production", "^production"], "cache": true },
