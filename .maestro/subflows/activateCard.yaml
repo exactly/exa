@@ -23,6 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - tapOn: Weekly spending limit
 - tapOn: Close
+- assertNotVisible: Spending limits
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Hide sensitive } }
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
