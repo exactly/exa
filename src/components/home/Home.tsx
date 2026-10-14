@@ -37,7 +37,7 @@ import StocksIntroSheet from "./StocksIntroSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
-import { restrictedCountries } from "../../utils/lifi";
+import { balancesOptions, restrictedCountries } from "../../utils/lifi";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -217,6 +217,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }),
+      queryClient.invalidateQueries({ queryKey: balancesOptions(account).queryKey }),
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
       account ? refetchBytecode() : undefined,
