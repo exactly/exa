@@ -47,7 +47,7 @@ import {
   zeroAddress,
   type Address,
 } from "viem";
-import { anvil, base } from "viem/chains";
+import { base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
@@ -73,9 +73,9 @@ export const lifiChainsOptions = queryOptions({
   queryKey: ["lifi", "chains"],
   staleTime: Infinity,
   gcTime: Infinity,
-  enabled: !chain.testnet && chain.id !== anvil.id,
+  enabled: !chain.testnet,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) return [];
+    if (chain.testnet) return [];
     ensureConfig();
     return getChains({ chainTypes });
   },
@@ -86,7 +86,7 @@ export const reachOptions = queryOptions({
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) return { [chain.id]: [chain.id] };
+    if (chain.testnet) return { [chain.id]: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
     const reach = new Map<number, Set<number>>([[chain.id, new Set([chain.id])]]);
@@ -105,7 +105,7 @@ export const lifiTokensOptions = queryOptions({
   gcTime: Infinity,
   retry: 3,
   queryFn: async () => {
-    if (chain.testnet || chain.id === anvil.id) {
+    if (chain.testnet) {
       const markets = await publicClient.readContract({
         abi: exaPreviewerAbi,
         functionName: "markets",
@@ -159,7 +159,7 @@ export function balancesOptions(account: Address | undefined) {
     queryKey: ["lifi", "balances", account],
     staleTime: 30_000,
     gcTime: isServer ? Infinity : 60_000,
-    enabled: !!account && !chain.testnet && chain.id !== anvil.id,
+    enabled: !!account && !chain.testnet,
     queryFn: streamedQuery({
       refetchMode: "append",
       initialValue: {} as Record<number, TokenAmount[]>,
@@ -204,7 +204,7 @@ export function balancesOptions(account: Address | undefined) {
   });
 }
 
-export const trackable = !chain.testnet && chain.id !== anvil.id;
+export const trackable = !chain.testnet;
 
 export function statusOptions(
   txHash: string | undefined,
@@ -243,7 +243,7 @@ export function chainTypeOf(receiver: string) {
 
 let configured = false;
 function ensureConfig() {
-  if (configured || chain.testnet || chain.id === anvil.id) return;
+  if (configured || chain.testnet) return;
   createLifiConfig({
     integrator: "exa_app",
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
@@ -273,7 +273,7 @@ export async function getRoute(
   denyExchanges?: Record<string, boolean>,
 ) {
   ensureConfig();
-  if (chain.testnet || chain.id === anvil.id) {
+  if (chain.testnet) {
     const fromAmount = await publicClient.readContract({
       abi: mockSwapperAbi,
       functionName: "getAmountIn",
@@ -334,7 +334,7 @@ export async function getRoute(
 
 export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
   ensureConfig();
-  if (chain.testnet || chain.id === anvil.id) return [];
+  if (chain.testnet) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
   const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
   const allowed = new Set(
@@ -455,7 +455,7 @@ export async function getRouteFrom({
   toTokenAddress: string;
 }): Promise<RouteFrom> {
   ensureConfig();
-  if (chain.testnet || chain.id === anvil.id) {
+  if (chain.testnet) {
     const from = getAddress(fromTokenAddress);
     const to = getAddress(toTokenAddress);
     const toAmount = await publicClient.readContract({
