@@ -1,5 +1,38 @@
 # @exactly/mobile
 
+## 1.2.33
+
+### Patch Changes
+
+- [#1386](https://github.com/exactly/exa/pull/1386) [`d108de1`](https://github.com/exactly/exa/commit/d108de1705cb360c0fa23dde20e99796e18304cb) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 📈 add wallet context to sentry
+
+- [#1386](https://github.com/exactly/exa/pull/1386) [`bc7984d`](https://github.com/exactly/exa/commit/bc7984d848ee9c371cccf271f23cbadd8355b295) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 update onboarding carousel copy
+
+- [#1400](https://github.com/exactly/exa/pull/1400) [`7ca64d7`](https://github.com/exactly/exa/commit/7ca64d7013e66bb630c5f40fa98e4389c96455a6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ support alternate gas fees in bridge
+
+- [#1386](https://github.com/exactly/exa/pull/1386) [`437c812`](https://github.com/exactly/exa/commit/437c812075c055441331db3f415ecbd8b371ec59) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update bridge info screen design
+
+- [#1398](https://github.com/exactly/exa/pull/1398) [`b94e65c`](https://github.com/exactly/exa/commit/b94e65c2747b117f58be873882fbf65c111a7056) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 add contextual deposit share
+
+- [#1398](https://github.com/exactly/exa/pull/1398) [`f0d4bd4`](https://github.com/exactly/exa/commit/f0d4bd46914c305d141c81b50c1df3f18154044f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 restyle deposit detail rows
+
+- [#1398](https://github.com/exactly/exa/pull/1398) [`5dc581f`](https://github.com/exactly/exa/commit/5dc581f47db187928d1e487ab6de671cf6fb2efe) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 add missing translations
+
+- [#1349](https://github.com/exactly/exa/pull/1349) [`7d498df`](https://github.com/exactly/exa/commit/7d498df6c6ebecea1525600ae894bd45da8cda06) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ use same-origin api requests
+
+- [#1386](https://github.com/exactly/exa/pull/1386) [`ef578f0`](https://github.com/exactly/exa/commit/ef578f09ce93a8911a2cf4814cdf5cd6f820b6f2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 drop unused provider discovery listener
+
+- [#1386](https://github.com/exactly/exa/pull/1386) [`c79bfd8`](https://github.com/exactly/exa/commit/c79bfd806834486aafdac7b1b0440e033fc7717f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove esim benefit banner
+
+- [#1386](https://github.com/exactly/exa/pull/1386) [`0f595d9`](https://github.com/exactly/exa/commit/0f595d94de5c16701c8911bf5842e37e3f195db6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 update onboarding screen design
+
+- [#1400](https://github.com/exactly/exa/pull/1400) [`17a04a1`](https://github.com/exactly/exa/commit/17a04a1e36dc5d19c020042142c24dd53815a423) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix bridge gas token matching
+
+- [#1383](https://github.com/exactly/exa/pull/1383) [`fcedd3e`](https://github.com/exactly/exa/commit/fcedd3efe0f1931e6cb2f0334c43cf90f67a31f9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 greet user by name on home
+
+- Updated dependencies [[`5455dab`](https://github.com/exactly/exa/commit/5455dab236bb066c4251572ed53eff36c7944613), [`7d498df`](https://github.com/exactly/exa/commit/7d498df6c6ebecea1525600ae894bd45da8cda06), [`5195844`](https://github.com/exactly/exa/commit/519584486c20a31e04dc3c86c30947eae9cf606c), [`4e2ac57`](https://github.com/exactly/exa/commit/4e2ac5772f5e7977550c4ff3b6f27d46573d8c60)]:
+  - @exactly/server@0.2.126
+
 ## 1.2.32
 
 ### Patch Changes

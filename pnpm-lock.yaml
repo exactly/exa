@@ -197,7 +197,7 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@exactly/server':
-        specifier: workspace:^0.2.125
+        specifier: workspace:^0.2.126
         version: link:server
       '@expo/metro-runtime':
         specifier: ~55.0.6
@@ -219,7 +219,7 @@ importers:
         version: 0.0.18
       '@lifi/sdk':
         specifier: 3.7.7
-        version: 3.7.7(patch_hash=ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.5.4))(zod@4.5.4)
+        version: 3.7.7(patch_hash=ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b)(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.5.4))
       '@peculiar/asn1-ecc':
         specifier: ^2.6.1
         version: 2.6.1
@@ -19350,7 +19350,7 @@ snapshots:
 
   '@levischuck/tiny-cbor@0.2.11': {}
 
-  '@lifi/sdk@3.7.7(patch_hash=ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.5.4))(zod@4.5.4)':
+  '@lifi/sdk@3.7.7(patch_hash=ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b)(viem@2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.5.4))':
     dependencies:
       '@bigmi/core': '@favware/skip-dependency@1.2.2'
       '@lifi/types': 17.90.0
@@ -19363,11 +19363,6 @@ snapshots:
       bitcoinjs-lib: '@favware/skip-dependency@1.2.2'
       bs58: '@favware/skip-dependency@1.2.2'
       viem: 2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.5.4)
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-      - zod
 
   '@lifi/types@17.90.0': {}
 

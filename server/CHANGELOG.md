@@ -1,5 +1,17 @@
 # @exactly/server
 
+## 0.2.126
+
+### Patch Changes
+
+- [`5455dab`](https://github.com/exactly/exa/commit/5455dab236bb066c4251572ed53eff36c7944613) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑️ isolate auth challenges in redis
+
+- [#1349](https://github.com/exactly/exa/pull/1349) [`7d498df`](https://github.com/exactly/exa/commit/7d498df6c6ebecea1525600ae894bd45da8cda06) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ support multiple frontend origins
+
+- [`5195844`](https://github.com/exactly/exa/commit/519584486c20a31e04dc3c86c30947eae9cf606c) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 fix auth header casing
+
+- [`4e2ac57`](https://github.com/exactly/exa/commit/4e2ac5772f5e7977550c4ff3b6f27d46573d8c60) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚑️ replace predictable nonce generator
+
 ## 0.2.125
 
 ### Patch Changes
