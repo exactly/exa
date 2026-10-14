@@ -42,7 +42,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: readPortfolio.yaml
 - assertTrue: ${output.portfolio > 0}
 - tapOn: Manage portfolio
-- assertVisible: Your Portfolio
+- assertVisible: Collateral assets
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - assertVisible: Deposit
 - assertVisible: Send

@@ -1,4 +1,6 @@
 {
+  "{{amount}} shares_one": "{{amount}} share",
+  "{{amount}} shares_other": "{{amount}} shares",
   "{{count}} installments of_one": "{{count}} installment of",
   "{{count}} installments of_other": "{{count}} installments of",
   "{{count}} installments_one": "{{count}} installment",

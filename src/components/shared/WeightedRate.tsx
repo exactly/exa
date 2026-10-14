@@ -24,17 +24,9 @@ export default function WeightedRate({
     i18n: { language },
   } = useTranslation();
   return (
-    <XStack
-      backgroundColor="$interactiveBaseSuccessSoftDefault"
-      padding="$s3"
-      borderRadius="$r_0"
-      gap="$s2"
-      alignItems="center"
-      cursor="pointer"
-      onPress={onPress}
-    >
-      <TrendingUp size={16} color="$interactiveOnBaseBrandSoft" />
-      <Text emphasized caption color="$interactiveOnBaseBrandSoft" textAlign="left">
+    <XStack gap="$s2" alignItems="center" cursor="pointer" onPress={onPress}>
+      <TrendingUp size={20} color="$interactiveOnBaseSuccessSoft" />
+      <Text emphasized subHeadline color="$interactiveOnBaseSuccessSoft" textAlign="left">
         {t("{{rate}} APR", {
           rate: (Number(averageRate) / 1e18).toLocaleString(language, {
             style: "percent",

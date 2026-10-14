@@ -245,6 +245,23 @@ export function PriceSummary({ token, onPress }: { onPress: () => void; token: T
   );
 }
 
+export function Trend({ chainId, address, symbol }: { address: string; chainId: number; symbol: string }) {
+  const {
+    i18n: { language },
+  } = useTranslation();
+  const { data, isPending } = useHistory({ address, chainId, symbol }, "1D", 2);
+  if (isPending) return <Skeleton height={12} width={50} />;
+  const first = data?.points[0];
+  const last = data?.points.at(-1);
+  if (!first || !last) return null;
+  const change = delta(first.value, last.value);
+  return (
+    <Text caption textAlign="right" color={tint(change)}>
+      {`${sign(change)}${percent(Math.abs(change), language)}`}
+    </Text>
+  );
+}
+
 const Plot = memo(function Plot({
   points,
   width,
