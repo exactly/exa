@@ -137,6 +137,23 @@ describe("authentication", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it.each(origins)("issues unpredictable session ids from %s", async (origin) => {
+    const ids: string[] = [];
+    for (const client of [appClient, registrationAppClient]) {
+      for (const query of [{}, { credentialId: zeroAddress }]) {
+        const response = await client.index.$get({ query }, { headers: { origin } });
+        expect(response.status).toBe(200);
+        ids.push(parse(string(), response.headers.get("x-session-id")));
+      }
+    }
+    for (const [index, id] of ids.entries()) {
+      expect(id).toMatch(/^[\da-f]{64}$/);
+      expect(id.slice(0, -1)).not.toBe(ids[index - 1]?.slice(1));
+    }
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it.each(origins)("verifies wallet signup, login, and registration from %s", async (origin) => {
     const siwe = await vi.importActual<typeof ViemSiwe>("viem/siwe");
     const verify = vi

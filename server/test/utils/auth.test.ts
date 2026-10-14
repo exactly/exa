@@ -183,3 +183,27 @@ describe("siwe verifyMessage", () => {
     expect(captureException).toHaveBeenCalledWith(new Error("boom"), { level: "error" });
   });
 });
+
+describe("siwe getNonce", () => {
+  it("issues unpredictable siwe nonces", async () => {
+    const getNonce = auth.options.plugins.find((plugin) => plugin.id === "siwe")?.options.getNonce;
+    assert.ok(getNonce);
+    const nonces = [await getNonce(), await getNonce(), await getNonce()];
+
+    for (const [index, value] of nonces.entries()) {
+      expect(value).toMatch(/^[\da-f]{64}$/);
+      expect(value.slice(0, -1)).not.toBe(nonces[index - 1]?.slice(1));
+      expect(
+        createSiweMessage({
+          address: account.address,
+          chainId: chain.id,
+          domain,
+          nonce: value,
+          uri: appOrigin,
+          version: "1",
+        }),
+      ).toContain(`Nonce: ${value}`);
+    }
+    expect(new Set(nonces).size).toBe(nonces.length);
+  });
+});

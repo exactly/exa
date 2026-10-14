@@ -4,8 +4,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization, siwe } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
+import { randomBytes } from "node:crypto";
 import { safeParse } from "valibot";
-import { generateSiweNonce, parseSiweMessage } from "viem/siwe";
+import { parseSiweMessage } from "viem/siwe";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -45,7 +46,7 @@ export default function auth(database: NodePgDatabase<typeof schema>, secret: st
         domain: new URL(appOrigin).host,
         emailDomainName: domain === "localhost" ? "localhost.com" : domain,
         anonymous: true,
-        getNonce: () => Promise.resolve(generateSiweNonce()),
+        getNonce: () => Promise.resolve(randomBytes(32).toString("hex")),
         verifyMessage: async ({ message, signature, address, chainId, cacao }) => {
           if (chainId !== chain.id) return false;
           const parsedAddress = safeParse(Address, address);

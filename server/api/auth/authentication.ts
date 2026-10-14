@@ -9,6 +9,7 @@ import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
+import { randomBytes } from "node:crypto";
 import {
   any,
   array,
@@ -33,7 +34,7 @@ import {
   type InferOutput,
 } from "valibot";
 import { isAddress } from "viem";
-import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from "viem/siwe";
+import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -197,7 +198,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
       ),
       async (c) => {
         const timeout = 5 * 60_000;
-        const sessionId = generateSiweNonce();
+        const sessionId = randomBytes(32).toString("hex");
         const issuedAt = new Date();
         const expires = new Date(issuedAt.getTime() + timeout);
         setCookie(c, "session_id", sessionId, {
