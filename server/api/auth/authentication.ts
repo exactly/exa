@@ -224,7 +224,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
             domain: url.host,
             scheme: url.protocol.slice(0, -1),
           });
-          await redis.set(sessionId, message, "PX", timeout);
+          await redis.set(`session:${sessionId}`, message, "PX", timeout);
           return c.json(
             { method: "siwe" as const, address: credentialId, message } satisfies InferOutput<
               typeof AuthenticationOptions
@@ -237,7 +237,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
           timeout,
         });
-        await redis.set(sessionId, options.challenge, "PX", timeout);
+        await redis.set(`session:${sessionId}`, options.challenge, "PX", timeout);
         return c.json(
           {
             method: "webauthn" as const,
@@ -371,7 +371,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             columns: { publicKey: true, account: true, factory: true, transports: true },
             where: eq(credentials.id, assertion.id),
           }),
-          redis.getdel(sessionId),
+          redis.getdel(`session:${sessionId}`),
         ]);
         if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
         if (!credential) {

@@ -224,7 +224,7 @@ export default function route({
             domain: url.host,
             scheme: url.protocol.slice(0, -1),
           });
-          await redis.set(sessionId, message, "PX", timeout);
+          await redis.set(`session:${sessionId}`, message, "PX", timeout);
           return c.json({ method: "siwe" as const, address: query.credentialId, message }, 200);
         }
         const userName = new Date().toISOString().slice(0, 16);
@@ -238,7 +238,7 @@ export default function route({
           // TODO excludeCredentials?
           timeout,
         });
-        await redis.set(sessionId, options.challenge, "PX", timeout);
+        await redis.set(`session:${sessionId}`, options.challenge, "PX", timeout);
         return c.json(
           {
             method: "webauthn" as const,
@@ -356,7 +356,7 @@ export default function route({
         const sessionId = headers?.["x-session-id"] ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
         if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-        const challenge = await redis.getdel(sessionId);
+        const challenge = await redis.getdel(`session:${sessionId}`);
         if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 
         let webauthn: undefined | WebAuthnCredential;

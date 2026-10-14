@@ -88,12 +88,12 @@ describe("authentication", () => {
   });
 
   beforeEach(async () => {
-    await redis.set("test-session", "test-challenge");
+    await redis.set("session:test-session", "test-challenge");
   });
 
   afterEach(async () => {
     vi.clearAllMocks();
-    await redis.del("test-session");
+    await redis.del("session:test-session");
   });
 
   it.each(origins)("accepts related-origin passkey authentication from %s", async (origin) => {
@@ -155,6 +155,7 @@ describe("authentication", () => {
       const message = parse(object({ message: string() }), await response.json()).message;
       const sessionId = response.headers.get("x-session-id");
       assert.ok(sessionId);
+      await expect(redis.get(`session:${sessionId}`)).resolves.toBe(message);
       vi.mocked(parseSiweMessage).mockImplementationOnce(siwe.parseSiweMessage);
       vi.mocked(validateSiweMessage).mockImplementationOnce(siwe.validateSiweMessage);
       const signed = await client.index.$post(
@@ -169,7 +170,7 @@ describe("authentication", () => {
           where: eq(credentials.id, account.address),
         }),
       ).toStrictEqual({ id: account.address });
-      await expect(redis.exists(sessionId)).resolves.toBe(0);
+      await expect(redis.exists(`session:${sessionId}`)).resolves.toBe(0);
     }
     expect(verify).toHaveBeenCalledTimes(3);
     expect(sardineCustomer).toHaveBeenCalledTimes(2);
@@ -205,7 +206,7 @@ describe("authentication", () => {
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
     expect(sardineCustomer).not.toHaveBeenCalled();
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("returns wallet extension token on ios login", async () => {
@@ -328,7 +329,7 @@ describe("authentication", () => {
   });
 
   it("returns 400 if authentication challenge is missing", async () => {
-    await redis.del("test-session");
+    await redis.del("session:test-session");
 
     const response = await appClient.index.$post(
       {
@@ -348,6 +349,34 @@ describe("authentication", () => {
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no authentication" }));
   });
 
+  it("returns 400 without consuming keys outside the session namespace", async () => {
+    await redis.set("test-key", "test-challenge");
+    onTestFinished(async () => {
+      await redis.del("test-key");
+    });
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { "x-session-id": "test-key" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toStrictEqual({ code: "no authentication", legacy: "no authentication" });
+    await expect(redis.get("test-key")).resolves.toBe("test-challenge");
+    await expect(redis.get("session:test-session")).resolves.toBe("test-challenge");
+    expect(verifyAuthenticationResponse).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for missing credential with non-siwe assertion", async () => {
     const response = await appClient.index.$post(
       {
@@ -365,7 +394,7 @@ describe("authentication", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no credential" }));
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("consumes challenge after failed authentication to prevent replay", async () => {
@@ -572,7 +601,7 @@ describe("authentication", () => {
       columns: { source: true },
     });
     expect(credential?.source).toBe("12345");
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("omits an invalid signup ip from Sardine", async () => {
@@ -622,7 +651,7 @@ describe("authentication", () => {
     expect(verify).not.toHaveBeenCalled();
     expect(sardineCustomer).not.toHaveBeenCalled();
     await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
-    await expect(redis.exists("test-session")).resolves.toBe(1);
+    await expect(redis.exists("session:test-session")).resolves.toBe(1);
   });
 
   it("creates a credential using siwe", async () => {
@@ -654,7 +683,7 @@ describe("authentication", () => {
       columns: { id: true },
     });
     expect(credential?.id).toBe(id);
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("returns 400 if the siwe message is invalid", async () => {
@@ -667,7 +696,7 @@ describe("authentication", () => {
     );
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "bad authentication" }));
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("consumes challenge after failed siwe authentication to prevent replay", async () => {
@@ -706,7 +735,7 @@ describe("authentication", () => {
       columns: { factory: true },
     });
     expect(credential?.factory).toBe(factory);
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("returns 400 for invalid factory using siwe", async () => {
@@ -722,7 +751,7 @@ describe("authentication", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "bad factory" }));
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("authenticates existing credential with matching factory", async () => {
@@ -745,7 +774,7 @@ describe("authentication", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as InferOutput<typeof Authentication>;
     expect(json.factory).toBe(factory);
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("returns 400 if factory mismatches existing credential", async () => {
@@ -767,18 +796,18 @@ describe("authentication", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 });
 
 describe("registration", () => {
   beforeEach(async () => {
-    await redis.set("test-session", "test-challenge");
+    await redis.set("session:test-session", "test-challenge");
   });
 
   afterEach(async () => {
     vi.clearAllMocks();
-    await redis.del("test-session");
+    await redis.del("session:test-session");
   });
 
   it.each(origins)("accepts related-origin passkey registration from %s", async (origin) => {
@@ -802,11 +831,30 @@ describe("registration", () => {
   });
 
   it("returns 400 if registration challenge is missing", async () => {
-    await redis.del("test-session");
+    await redis.del("session:test-session");
     const response = await postRegistrationWebauthn();
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no registration" }));
+  });
+
+  it("returns 400 without consuming keys outside the session namespace", async () => {
+    await redis.set("test-key", "test-challenge");
+    onTestFinished(async () => {
+      await redis.del("test-key");
+    });
+
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion() },
+      { headers: { "x-session-id": "test-key" } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toStrictEqual({ code: "no registration", legacy: "no registration" });
+    await expect(redis.get("test-key")).resolves.toBe("test-challenge");
+    await expect(redis.get("session:test-session")).resolves.toBe("test-challenge");
+    expect(verifyRegistrationResponse).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("consumes challenge before verifier exceptions", async () => {
@@ -921,7 +969,7 @@ describe("registration", () => {
       columns: { id: true },
     });
     expect(credential?.id).toBe(id);
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("rejects siwe registration on optimism", async () => {
@@ -948,7 +996,7 @@ describe("registration", () => {
     await expect(
       database.query.credentials.findFirst({ where: eq(credentials.id, id), columns: { id: true } }),
     ).resolves.toBeUndefined();
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("consumes challenge after failed siwe registration to prevent replay", async () => {
@@ -1006,7 +1054,7 @@ describe("registration", () => {
       columns: { source: true },
     });
     expect(credential?.source).toBe("12345");
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
   it("omits an invalid signup ip from Sardine", async () => {
@@ -1053,7 +1101,7 @@ describe("registration", () => {
     expect(verifyRegistrationResponse).not.toHaveBeenCalled();
     expect(sardineCustomer).not.toHaveBeenCalled();
     await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
-    await expect(redis.exists("test-session")).resolves.toBe(1);
+    await expect(redis.exists("session:test-session")).resolves.toBe(1);
   });
 
   it("returns wallet extension token on ios webauthn registration", async () => {
@@ -1141,7 +1189,7 @@ describe("registration", () => {
     });
     expect(credential).toBeDefined();
     expect(credential?.source).toBeNull();
-    await expect(redis.exists("test-session")).resolves.toBe(0);
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 });
 
