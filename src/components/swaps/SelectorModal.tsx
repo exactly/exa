@@ -3,12 +3,13 @@ import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 
 import { ChartNoAxesCombined, Ellipsis, Search } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { isStock } from "../../utils/lifi";
+import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -43,6 +44,7 @@ function TokenListItem({
         alignItems="center"
         gap="$s3"
         paddingVertical="$s3_5"
+        paddingHorizontal="$s3"
         backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
         borderRadius="$r3"
       >
@@ -84,7 +86,7 @@ function TokenListItem({
 
 function TokenSkeletonItem() {
   return (
-    <XStack alignItems="center" gap="$s3" paddingVertical="$s3_5">
+    <XStack alignItems="center" gap="$s3" paddingVertical="$s3_5" paddingHorizontal="$s3">
       <Skeleton radius="round" height={40} width={40} />
       <YStack flex={1} gap="$s2">
         <Skeleton height={16} width={60} />
@@ -122,6 +124,7 @@ export default function TokenSelectModal({
   const [picking, setPicking] = useState(false);
   const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
+  const insets = useInsets();
   const {
     t,
     i18n: { language },
@@ -183,14 +186,15 @@ export default function TokenSelectModal({
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View padded paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
+      <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+        <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
           <Text fontSize={20} fontWeight="bold" textAlign="center">
             {title ?? t("Select token")}
           </Text>
           <XStack
             alignItems="center"
             gap="$s2"
+            marginHorizontal="$s4"
             paddingLeft="$s3_5"
             borderWidth={1}
             borderColor="$borderNeutralSoft"
@@ -230,7 +234,7 @@ export default function TokenSelectModal({
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <XStack gap="$s3" alignItems="center">
+              <XStack gap="$s3" alignItems="center" paddingHorizontal="$s4">
                 {chips.map((item) =>
                   item === "stocks" ? (
                     <Chip
@@ -267,7 +271,7 @@ export default function TokenSelectModal({
               </XStack>
             </ScrollView>
           )}
-          <View flex={1}>
+          <View flex={1} paddingHorizontal="$s3">
             {isLoading ? (
               <SkeletonItems />
             ) : (
@@ -291,6 +295,7 @@ export default function TokenSelectModal({
                 )}
                 keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s4.val) }}
                 windowSize={5}
                 ListEmptyComponent={() => (
                   <View padding="$s6" alignItems="center">
