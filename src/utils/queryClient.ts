@@ -237,6 +237,13 @@ queryClient.setQueryDefaults<boolean>(["settings", "stocks-intro-shown"], {
   gcTime: Infinity,
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
+queryClient.setQueryDefaults<boolean>(["settings", "stocks-tab-seen"], {
+  initialData: false,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
+});
 queryClient.setQueryDefaults(["settings", "explore-defi-shown"], {
   initialData: true,
   retry: false,

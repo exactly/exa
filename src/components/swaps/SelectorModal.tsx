@@ -107,13 +107,13 @@ export default function TokenSelectModal({
   title,
   withBalanceOnly = false,
   networks = empty,
-  defaultFilter,
+  onStocks,
 }: {
-  defaultFilter?: "stocks" | number;
   isLoading?: boolean;
   networks?: { id: number; name: string }[];
   onClose: () => void;
   onSelect: (token: Token, external?: boolean) => void;
+  onStocks?: () => void;
   open: boolean;
   selected?: { external: boolean; token: Token };
   title?: string;
@@ -121,7 +121,7 @@ export default function TokenSelectModal({
   withBalanceOnly?: boolean;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selection, setSelection] = useState(defaultFilter);
+  const [selection, setSelection] = useState<"stocks" | number>();
   const [picking, setPicking] = useState(false);
   const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
@@ -142,8 +142,13 @@ export default function TokenSelectModal({
 
   const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => `${chain.id}:${asset}`)), [markets]);
 
-  const hasStocks = useMemo(() => tokens.some((token) => isStock(token)), [tokens]);
-  const filter = selection === "stocks" && !hasStocks ? undefined : selection;
+  const hasStocks = useMemo(
+    () => (!!onStocks || tokens.some((token) => isStock(token))) && !tokens.every((token) => isStock(token)),
+    [onStocks, tokens],
+  );
+  const filter = (selection === "stocks" ? hasStocks : networks.some(({ id }) => id === selection))
+    ? selection
+    : undefined;
 
   const pills = useMemo(
     () => [...networks.slice(0, 10), ...networks.slice(10).filter(({ id }) => id === filter)],
@@ -244,7 +249,8 @@ export default function TokenSelectModal({
                       label={t("Stocks")}
                       selected={filter === "stocks"}
                       onPress={() => {
-                        setSelection(filter === "stocks" ? undefined : "stocks");
+                        setSelection(onStocks || filter === "stocks" ? undefined : "stocks");
+                        onStocks?.();
                       }}
                     />
                   ) : (
