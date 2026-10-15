@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { router, useLocalSearchParams } from "expo-router";
 
@@ -124,7 +123,6 @@ const liquidationRisk = (WAD * 105n) / 100n;
 const liquidationCaution = (WAD * 115n) / 100n;
 
 export default function Swaps() {
-  const insets = useSafeAreaInsets();
   const {
     t,
     i18n: { language },
@@ -1042,7 +1040,7 @@ export default function Swaps() {
                 </YStack>
               </View>
             </ScrollView>
-            <YStack padding="$s4" paddingBottom={insets.bottom} $platform-web={{ paddingBottom: "$s4" }} gap="$s3">
+            <YStack padding="$s4" gap="$s3">
               <YStack gap="$s3">
                 <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
                   <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
