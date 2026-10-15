@@ -141,6 +141,8 @@ export default function AddCrypto() {
         ...(memo ? [`${t("Memo")}: ${memo}`] : []),
         "",
         warning,
+        "",
+        t("Powered by Exa (https://www.exactly.app)"),
       ].join("\n"),
       title: t("Share {{chain}} address", { chain: networkName }),
     });
