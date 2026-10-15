@@ -253,7 +253,6 @@ async function getRedirectURI() {
 function handleComplete() {
   queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
   queryClient.invalidateQueries({ queryKey: ["user", "country"] }).catch(reportError);
-  queryClient.setQueryData(["card-upgrade"], 1);
 }
 
 function handleCancel() {

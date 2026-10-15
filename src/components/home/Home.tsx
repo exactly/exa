@@ -12,23 +12,17 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { encodeDeployData } from "viem";
 import { useBytecode } from "wagmi";
 
-import accountInit from "@exactly/common/accountInit";
 import chain, {
   auditorAddress,
-  exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerCode,
   marketUSDCAddress,
   proposalManagerAddress,
 } from "@exactly/common/generated/chain";
-import {
-  useReadExaPreviewerPendingProposals,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 
-import CardUpgradeSheet, { UPGRADE_DEADLINE } from "./card-upgrade/CardUpgradeSheet";
 import CardStatus from "./CardStatus";
 import CreditLimitSheet from "./CreditLimitSheet";
 import GettingStarted from "./GettingStarted";
@@ -75,16 +69,12 @@ import { defaultSwap, type Swap } from "../swaps/Swaps";
 
 import type { ActivityItem } from "../../utils/queryClient";
 import type { CardDetails } from "../../utils/server";
-import type { Credential } from "@exactly/common/validation";
 
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
 
 export default function Home() {
   const router = useRouter();
-  const {
-    t,
-    i18n: { language },
-  } = useTranslation();
+  const { t } = useTranslation();
   const [creditLimitSheetOpen, setCreditLimitSheetOpen] = useState(false);
   const [installmentsSheetOpen, setInstallmentsSheetOpen] = useState(false);
   const [payModeSheetOpen, setPayModeSheetOpen] = useState(false);
@@ -108,18 +98,10 @@ export default function Home() {
   const spotlightRef = useRef<RNView>(null);
 
   const { address: account } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode, refetch: refetchBytecode } = useBytecode({
     address: account,
     chainId: chain.id,
     query: { enabled: !!account },
-  });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: account,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!account && !!credential },
   });
   const {
     portfolio: { balanceUSD },
@@ -128,14 +110,6 @@ export default function Home() {
     totalBalanceUSD,
   } = usePortfolio();
 
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { data: cardUpgradeOpen } = useQuery<boolean>({
-    initialData: false,
-    queryKey: ["card-upgrade-open"],
-    queryFn: () => {
-      return false;
-    },
-  });
   const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
     code: encodeDeployData({
       abi: exaPreviewerAbi,
@@ -149,7 +123,7 @@ export default function Home() {
   const { data: activity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
   const { isProcessing } = usePendingOperations();
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
-  const { approved: isKYCApproved, legacy: needsMigration, status: kycStatus, isFetched: isKYCFetched } = useKYC();
+  const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
   const {
     increase: increaseLimit,
@@ -252,8 +226,6 @@ export default function Home() {
     refresh().catch(reportError);
   });
 
-  const showKYCMigration = isKYCFetched && needsMigration;
-  const showPluginOutdated = !!bytecode && !!installedPlugins && !isLatestPlugin;
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
@@ -289,24 +261,6 @@ export default function Home() {
                   title={t("You've reached 90% of your weekly card spending limit.")}
                   actionText={t("Increase spending limit")}
                   onPress={increaseLimit}
-                />
-              )}
-              {(showKYCMigration || showPluginOutdated) && (
-                <InfoAlert
-                  title={t(
-                    "We’re upgrading all Exa Cards by migrating them to a new and improved card issuer. Existing cards will work until {{deadline}}, and upgrading will be required after this date.",
-                    {
-                      deadline: UPGRADE_DEADLINE.toLocaleDateString(language, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      }),
-                    },
-                  )}
-                  actionText={t("Start Exa Card upgrade")}
-                  onPress={() => {
-                    queryClient.setQueryData(["card-upgrade-open"], true);
-                  }}
                 />
               )}
               <FundingAlert />
@@ -390,13 +344,6 @@ export default function Home() {
           />
           <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
           <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
-          <CardUpgradeSheet
-            open={cardUpgradeOpen}
-            onClose={() => {
-              queryClient.setQueryData(["card-upgrade-open"], false);
-              queryClient.resetQueries({ queryKey: ["card-upgrade"] }).catch(reportError);
-            }}
-          />
           <InstallmentsSheet
             mode={card?.mode ?? 1}
             open={installmentsSheetOpen}

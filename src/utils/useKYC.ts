@@ -15,7 +15,6 @@ export default function useKYC(enabled = true) {
         : code === "bad kyc"
           ? "failed"
           : "pending") as KYCState,
-    legacy: code === "legacy kyc",
     review: code === "processing",
     failed: code === "bad kyc",
     unverified: code === "not started" || code === "no kyc",
