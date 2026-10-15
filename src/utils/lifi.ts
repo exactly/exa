@@ -376,12 +376,9 @@ export async function getRoute(
   };
 }
 
-export function swappable(markets: readonly { asset: string; symbol: string }[] = []) {
-  const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
+export function swappable(markets: readonly { asset: string }[] = []) {
   return new Set(
-    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)]
-      .map((address) => address.toLowerCase())
-      .filter((address) => !excluded.has(address)),
+    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()),
   );
 }
 
