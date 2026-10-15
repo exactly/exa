@@ -1,7 +1,6 @@
 // cspell:ignore SEPA, SPEI, GABCDEFGHIJ
 import "../mocks/auth";
 import "../mocks/bridge";
-import "../mocks/deployments";
 import "../mocks/manteca";
 import "../mocks/persona";
 import "../mocks/sentry";
@@ -12,9 +11,10 @@ import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import route from "../../api/ramp";
@@ -57,7 +57,7 @@ const appClient = testClient(app);
 
 describe("ramp api", () => {
   const owner = privateKeyToAddress(padHex("0xdef"));
-  const factory = inject("ExaAccountFactory");
+  const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   const deposit = parse(Address, padHex("0xde9", { size: 20 }));
 

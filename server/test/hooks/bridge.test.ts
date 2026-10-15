@@ -12,9 +12,10 @@ import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import createBridgeHook from "../../hooks/bridge";
@@ -43,7 +44,7 @@ describe("bridge hook", () => {
   const owner = privateKeyToAddress(padHex("0xb1e"));
   const fallbackOwner = privateKeyToAddress(padHex("0xfa11"));
   const conflictOwner = privateKeyToAddress(padHex("0xc0f1"));
-  const factory = inject("ExaAccountFactory");
+  const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   const fallbackAccount = deriveAddress(factory, { x: padHex(fallbackOwner), y: zeroHash });
 

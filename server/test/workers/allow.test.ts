@@ -5,9 +5,9 @@ import { Queue, QueueEvents, type Job, type JobsOptions } from "bullmq";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { afterAll, afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import chain, { firewallAbi } from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress, firewallAbi } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
@@ -19,9 +19,9 @@ import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
 
-const factory = inject("ExaAccountFactory");
+const factory = parse(Address, exaAccountFactoryAddress);
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
-const firewall = inject("Firewall");
+const firewall = parse(Address, padHex("0xf12e", { size: 20 }));
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
 const allower = privateKeyToAccount(padHex("0xa11"));
 const allow = createAllow(bullmq);

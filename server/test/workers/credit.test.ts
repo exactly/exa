@@ -29,6 +29,8 @@ const credit = createCredit(bullmq);
 const onesignal = createOnesignal("onesignal");
 const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
 const events = new QueueEvents("credit", { connection: bullmq });
+const markets = vi.fn<() => Promise<readonly { floatingDepositAssets: bigint; market: string }[]>>();
+const readContract = publicClient.readContract;
 let worker: ReturnType<typeof creditWorker>;
 
 beforeAll(async () => {
@@ -44,12 +46,14 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.restoreAllMocks();
   sendPushNotificationMock.mockResolvedValue({});
-  vi.spyOn(publicClient, "readContract").mockResolvedValue([] as never);
+  markets.mockReset().mockResolvedValue([]);
+  vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+    parameters.args?.[0] === account || parameters.args?.[0] === unknown
+      ? (markets() as never)
+      : readContract(parameters as never),
+  );
   vi.clearAllMocks();
   await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.id, "credit-card"));
-  await queue.drain(true);
-  await queue.clean(0, 1000, "completed");
-  await queue.clean(0, 1000, "failed");
 });
 
 afterAll(async () => {
@@ -109,8 +113,8 @@ describe("credit worker", () => {
   });
 
   it("automatically activates credit mode", async () => {
-    const setAttribute = await spySpanSetAttribute();
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    const setAttribute = await spySpanSetAttribute(account);
+    markets.mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }]);
 
     await jobFinished(account);
 
@@ -148,7 +152,7 @@ describe("credit worker", () => {
   });
 
   it("ignores empty deposits", async () => {
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 0n, market }] as never);
+    markets.mockResolvedValueOnce([{ floatingDepositAssets: 0n, market }]);
 
     await jobFinished(account);
 
@@ -159,10 +163,10 @@ describe("credit worker", () => {
   });
 
   it("keeps debit mode with usdc deposits", async () => {
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([
+    markets.mockResolvedValueOnce([
       { floatingDepositAssets: 1n, market },
       { floatingDepositAssets: 1n, market: marketUSDCAddress },
-    ] as never);
+    ]);
 
     await jobFinished(account);
 
@@ -174,7 +178,7 @@ describe("credit worker", () => {
 
   it("does not change an existing credit mode", async () => {
     await database.update(cards).set({ mode: 1 }).where(eq(cards.id, "credit-card"));
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    markets.mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }]);
 
     await jobFinished(account);
 
@@ -186,7 +190,7 @@ describe("credit worker", () => {
 
   it("does not change deleted cards", async () => {
     await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, "credit-card"));
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    markets.mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }]);
 
     await jobFinished(account);
 
@@ -197,7 +201,7 @@ describe("credit worker", () => {
   });
 
   it("does not change cards for unknown accounts", async () => {
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    markets.mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }]);
 
     await jobFinished(unknown);
 
@@ -209,39 +213,38 @@ describe("credit worker", () => {
 
   it("captures notification errors without retrying", async () => {
     const error = new Error("push failed");
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    markets.mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }]);
     sendPushNotificationMock.mockRejectedValueOnce(error);
 
     await jobFinished(account);
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
-    expect(publicClient.readContract).toHaveBeenCalledOnce();
+    expect(markets).toHaveBeenCalledOnce();
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 1 });
   });
 
   it("retries automatic credit failures", async () => {
-    vi.mocked(publicClient.readContract)
+    markets
       .mockRejectedValueOnce(new Error("rpc unavailable"))
-      .mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+      .mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }]);
 
     await jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
-    expect(publicClient.readContract).toHaveBeenCalledTimes(2);
+    expect(markets).toHaveBeenCalledTimes(2);
     expect(captureException).not.toHaveBeenCalled();
   });
 
   it("captures persisted terminal failures", async () => {
     const error = new Error("credit failed");
-    vi.mocked(publicClient.readContract).mockRejectedValueOnce(error);
+    markets.mockRejectedValueOnce(error);
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account, { removeOnFail: false })).rejects.toThrow("credit failed");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(account)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(account);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(account);
     expect(job.failedReason).toBe("credit failed");
@@ -258,14 +261,14 @@ describe("credit worker", () => {
 
   it("captures only terminal failed events", async () => {
     const error = new Error("credit failed");
-    vi.mocked(publicClient.readContract).mockRejectedValue(error);
+    markets.mockRejectedValue(error);
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } })).rejects.toThrow(
       "credit failed",
     );
 
-    expect(publicClient.readContract).toHaveBeenCalledTimes(2);
+    expect(markets).toHaveBeenCalledTimes(2);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id: account },
@@ -335,11 +338,12 @@ async function spyScopeSetUser() {
   return setUser;
 }
 
-async function spySpanSetAttribute() {
+async function spySpanSetAttribute(id: string) {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
   vi.mocked(startSpan).mockImplementation(((options, callback) =>
     realStartSpan(options, (span) => {
+      if (options.attributes?.["messaging.message.id"] !== id) return callback(span);
       const originalSetAttribute = span.setAttribute.bind(span);
       span.setAttribute = (...args: Parameters<typeof span.setAttribute>) => {
         setAttribute(...args);

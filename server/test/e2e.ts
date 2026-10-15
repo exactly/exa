@@ -1,6 +1,5 @@
 /// <reference types="vite/client" />
 import "./mocks/alchemy";
-import "./mocks/deployments";
 import "./mocks/onesignal";
 import "./mocks/pax";
 import "./mocks/sardine";

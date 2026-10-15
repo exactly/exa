@@ -1,5 +1,4 @@
 import "../mocks/auth";
-import "../mocks/deployments";
 import "../mocks/panda";
 import "../mocks/persona";
 import "../mocks/sentry";
@@ -14,10 +13,10 @@ import { nonEmpty, parse, pipe, string } from "valibot";
 import { getAddress, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress, exaPluginAddress } from "@exactly/common/generated/chain";
 
 import route from "../../api/kyc";
 import database, { credentials, organizations, sources } from "../../database";
@@ -553,7 +552,7 @@ describe("authenticated", () => {
     it("skips legacy check when factory is current exaAccountFactory", async () => {
       await database
         .update(credentials)
-        .set({ pandaId: null, factory: inject("ExaAccountFactory") })
+        .set({ pandaId: null, factory: exaAccountFactoryAddress })
         .where(eq(credentials.id, "bob"));
       const readContract = vi.spyOn(publicClient, "readContract");
       const getPendingInquiryTemplate = vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -593,7 +592,7 @@ describe("authenticated", () => {
         .update(credentials)
         .set({ pandaId: null, factory: legacyFactory })
         .where(eq(credentials.id, "bob"));
-      const readContract = vi.spyOn(publicClient, "readContract").mockResolvedValueOnce([inject("ExaPlugin")]);
+      const readContract = vi.spyOn(publicClient, "readContract").mockResolvedValueOnce([exaPluginAddress]);
       const getPendingInquiryTemplate = vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
       const response = await appClient.index.$get(
