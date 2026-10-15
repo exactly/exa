@@ -963,7 +963,12 @@ export default function Swaps() {
           </YStack>
         ) : (
           <>
-            <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
+            <ScrollView
+              ref={swapsScrollReference}
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="on-drag"
+              flex={1}
+            >
               <View padded>
                 <YStack paddingBottom="$s3" gap="$s4_5">
                   <MarketClosedBanner

@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
+import { InputAccessoryView, Keyboard, Platform } from "react-native";
 
 import { XStack, YStack } from "tamagui";
 
@@ -49,6 +50,7 @@ export default function TokenInput({
   usdValue?: number;
 }) {
   const { Field, setFieldValue, getFieldValue } = useForm({ defaultValues: { amountInput: "" } });
+  const id = useId();
   const {
     t,
     i18n: { language },
@@ -186,11 +188,36 @@ export default function TokenInput({
                         letterSpacing={-0.2}
                         textAlign="left"
                         inputMode="decimal"
+                        enterKeyHint="done"
+                        inputAccessoryViewID={id}
                         borderColor="transparent"
                         numberOfLines={1}
                         flex={1}
                         width="100%"
                       />
+                      {Platform.OS === "ios" && !disabled && (
+                        <InputAccessoryView nativeID={id}>
+                          <XStack
+                            justifyContent="flex-end"
+                            paddingHorizontal="$s4"
+                            paddingVertical="$s3"
+                            backgroundColor="$backgroundSoft"
+                            borderTopWidth={1}
+                            borderColor="$borderNeutralSoft"
+                          >
+                            <Text
+                              emphasized
+                              callout
+                              color="$interactiveOnBaseBrandSoft"
+                              role="button"
+                              hitSlop={8}
+                              onPress={() => Keyboard.dismiss()}
+                            >
+                              {t("Done")}
+                            </Text>
+                          </XStack>
+                        </InputAccessoryView>
+                      )}
                     </View>
                   )}
                 </Field>
