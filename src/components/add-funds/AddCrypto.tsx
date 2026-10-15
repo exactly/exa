@@ -7,16 +7,7 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Copy,
-  Hash,
-  Info,
-  QrCode,
-  RefreshCw,
-  Share as ShareIcon,
-} from "@tamagui/lucide-icons-2";
+import { ArrowLeft, Copy, Hash, Info, QrCode, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
@@ -27,7 +18,6 @@ import chain from "@exactly/common/generated/chain";
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import EducationSheet from "./EducationSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions } from "../../utils/lifi";
 import networkLogos from "../../utils/networkLogos";
 import reportError from "../../utils/reportError";
@@ -115,16 +105,6 @@ export default function AddCrypto() {
       .catch(reportError);
   }, [address]);
 
-  const warning =
-    isBridge || asset
-      ? t(
-          "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
-          { crypto: isBridge ? currency : symbol, network: networkName },
-        )
-      : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
-          chain: networkName,
-        });
-
   async function share() {
     if (!address) return;
     await Share.share({
@@ -140,7 +120,14 @@ export default function AddCrypto() {
           : []),
         ...(memo ? [`${t("Memo")}: ${memo}`] : []),
         "",
-        warning,
+        isBridge || asset
+          ? t(
+              "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
+              { crypto: isBridge ? currency : symbol, network: networkName },
+            )
+          : t("Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.", {
+              chain: networkName,
+            }),
         "",
         t("Powered by Exa (https://www.exactly.app)"),
       ].join("\n"),
@@ -330,25 +317,6 @@ export default function AddCrypto() {
                   </Text>
                 </Callout>
               )}
-              <Callout
-                background="$interactiveBaseWarningSoftDefault"
-                icon={<AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />}
-              >
-                <Text caption2 color="$uiWarningSecondary">
-                  {warning}
-                  <Text
-                    cursor="pointer"
-                    caption2
-                    primary
-                    onPress={() => {
-                      presentArticle("8950801").catch(reportError);
-                    }}
-                  >
-                    {" "}
-                    {t("Learn more about adding funds.")}
-                  </Text>
-                </Text>
-              </Callout>
             </YStack>
             <CopyAddressSheet
               open={copyAddressShown}
