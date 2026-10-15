@@ -149,10 +149,7 @@ export default function TokenSelectModal({
     [filter, networks],
   );
 
-  const chips = useMemo(
-    () => (hasStocks ? [...pills.slice(0, 2), "stocks" as const, ...pills.slice(2)] : pills),
-    [hasStocks, pills],
-  );
+  const chips = useMemo(() => (hasStocks ? ["stocks" as const, ...pills] : pills), [hasStocks, pills]);
 
   const filteredTokens = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
