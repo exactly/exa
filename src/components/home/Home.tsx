@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { View as RNView } from "react-native";
 
@@ -51,6 +51,7 @@ import usePortfolio from "../../utils/usePortfolio";
 import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
 import CardDetailsSheet from "../card/CardDetails";
+import TabBarContext from "../context/TabBarContext";
 import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
 import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
@@ -235,7 +236,7 @@ export default function Home() {
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
-          contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
+          contentContainerStyle={{ backgroundColor: "$backgroundMild", paddingBottom: use(TabBarContext) }}
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={(event) => {
