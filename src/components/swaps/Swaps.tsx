@@ -202,6 +202,8 @@ export default function Swaps() {
           return name ? [{ id, name }] : [];
         })
         .sort((a, b) => {
+          if (a.id === base.id) return -1;
+          if (b.id === base.id) return 1;
           if (a.id === chain.id) return -1;
           if (b.id === chain.id) return 1;
           return a.name.localeCompare(b.name);
