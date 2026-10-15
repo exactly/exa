@@ -93,6 +93,7 @@ export default function AddCrypto() {
   const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [qrShown, setQRShown] = useState(false);
+  const [fits, setFits] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
 
   const copy = useCallback(() => {
@@ -198,11 +199,11 @@ export default function AddCrypto() {
                 <Text footnote secondary centered>
                   {t("Wallet address")}
                 </Text>
-                {qrShown && address ? (
+                {(fits || qrShown) && address ? (
                   <View alignSelf="center" position="relative">
                     <QRCode
                       data={address}
-                      size={204}
+                      size={qrSize}
                       pieceBorderRadius={2}
                       innerEyesOptions={{ borderRadius: 2 }}
                       isPiecesGlued
@@ -232,7 +233,8 @@ export default function AddCrypto() {
                       </View>
                     </View>
                   </View>
-                ) : (
+                ) : null}
+                {(fits || !qrShown || !address) && (
                   <Pressable hitSlop={15} onPress={copy} disabled={!address}>
                     {address ? (
                       <Text mono title3 centered>
@@ -247,7 +249,7 @@ export default function AddCrypto() {
                     )}
                   </Pressable>
                 )}
-                {!!address && !memo && (
+                {!!address && !memo && !fits && (
                   <Pressable role="button" onPress={() => setQRShown(!qrShown)}>
                     <XStack alignItems="center" justifyContent="center" gap="$s2">
                       <Text emphasized footnote color="$uiBrandSecondary">
@@ -294,7 +296,12 @@ export default function AddCrypto() {
                 </Text>
               </YStack>
             )}
-            <View flexGrow={1} />
+            <View
+              flexGrow={1}
+              onLayout={({ nativeEvent }) => {
+                setFits(!!address && !memo && nativeEvent.layout.height > (fits ? 0 : qrSize));
+              }}
+            />
             <YStack gap="$s3_5">
               {isBridge && <BridgeDisclaimer />}
               {!!asset && (other || !!receiveChainId) && (
@@ -495,3 +502,5 @@ function NetworkChip({ logo, name }: { logo: React.ReactElement; name: string })
     </YStack>
   );
 }
+
+const qrSize = 204;
