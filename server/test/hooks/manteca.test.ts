@@ -8,9 +8,10 @@ import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import createMantecaHook from "../../hooks/manteca";
@@ -38,7 +39,7 @@ function createSignature(payload: object) {
 
 describe("manteca hook", () => {
   const owner = privateKeyToAddress(padHex("0xabc"));
-  const factory = inject("ExaAccountFactory");
+  const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   const userExternalId = account.replace("0x", "");
 

@@ -24,9 +24,14 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
-import { afterAll, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import chain, { refunderAbi, refunderAddress, simple7702AccountAddress } from "@exactly/common/generated/chain";
+import chain, {
+  exaAccountFactoryAddress,
+  refunderAbi,
+  refunderAddress,
+  simple7702AccountAddress,
+} from "@exactly/common/generated/chain";
 import { Address, type Hash } from "@exactly/common/validation";
 
 import database, { cards, credentials, transactions } from "../../database";
@@ -160,7 +165,7 @@ describe("refund queue", () => {
 
 describe("refund worker", () => {
   beforeAll(async () => {
-    const code = await anvilClient.getCode({ address: inject("Refunder") });
+    const code = await anvilClient.getCode({ address: refunderAddress });
     if (!code) throw new Error("refunder not deployed");
     deployedRefunder = code;
     await queue.drain(true);
@@ -173,7 +178,7 @@ describe("refund worker", () => {
       database.transaction(async (tx) => {
         await tx
           .insert(credentials)
-          .values([{ id: "refund-cred", publicKey: new Uint8Array(), account, factory: inject("ExaAccountFactory") }]);
+          .values([{ id: "refund-cred", publicKey: new Uint8Array(), account, factory: exaAccountFactoryAddress }]);
         await tx.insert(cards).values([{ id: "refund-card", credentialId: "refund-cred", lastFour: "1234" }]);
       }),
     ]);
@@ -1132,7 +1137,6 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
     default: Object.assign({ id: 0 }, baseSepolia, {
       rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
     }),
-    issuerCheckerAddress: inject("IssuerChecker"),
   };
 });
 

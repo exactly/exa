@@ -1,4 +1,3 @@
-import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/panda";
 import * as sardine from "../mocks/sardine";
@@ -31,16 +30,20 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   auditorAbi,
   exaAccountFactoryAbi,
+  exaAccountFactoryAddress,
   exaPluginAbi,
   issuerCheckerAbi,
   marketAbi,
+  marketUSDCAddress,
+  refunderAddress,
   upgradeableModularAccountAbi,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address, type Hash } from "@exactly/common/validation";
@@ -103,7 +106,7 @@ vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
 let keeper: ReturnType<typeof wallet>;
 
 const appClient = testClient(app);
-const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.account.address), y: zeroHash });
+const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
 
 beforeAll(async () => {
   keeper = wallet(privateKeyToAccount(padHex("0x69")));
@@ -112,7 +115,7 @@ beforeAll(async () => {
     database.transaction(async (tx) => {
       await tx
         .insert(credentials)
-        .values([{ id: "cred", publicKey: new Uint8Array(), account, factory: inject("ExaAccountFactory") }]);
+        .values([{ id: "cred", publicKey: new Uint8Array(), account, factory: exaAccountFactoryAddress }]);
       await tx.insert(cards).values([{ id: "card", credentialId: "cred", lastFour: "1234" }]);
     }),
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
@@ -144,7 +147,7 @@ describe("card operations", () => {
     await keeper.exaSend(
       { name: "create account", op: "exa.account" },
       {
-        address: inject("ExaAccountFactory"),
+        address: exaAccountFactoryAddress,
         abi: exaAccountFactoryAbi,
         functionName: "createAccount",
         args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
@@ -157,11 +160,11 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.exaSend(
           { name: "mint usdc", op: "tx.mint" },
-          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
+          { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
         );
         await keeper.exaSend(
           { name: "poke", op: "exa.poke" },
-          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
         );
       });
 
@@ -169,7 +172,7 @@ describe("card operations", () => {
 
       it("fails with InsufficientAccountLiquidity", async () => {
         const currentFunds = await publicClient.readContract({
-          address: inject("MarketUSDC"),
+          address: marketUSDCAddress,
           abi: marketAbi,
           functionName: "maxWithdraw",
           args: [account],
@@ -604,7 +607,7 @@ describe("card operations", () => {
               abi: exaPluginAbi,
               functionName: "propose",
               args: [
-                inject("MarketUSDC"),
+                marketUSDCAddress,
                 420_000_000n - 1n,
                 ProposalType.Withdraw,
                 encodeAbiParameters([{ type: "address" }], [owner.account.address]),
@@ -639,11 +642,11 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.exaSend(
           { name: "mint usdc", op: "tx.mint" },
-          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
+          { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [account, 420_000_000n] },
         );
         await keeper.exaSend(
           { name: "poke", op: "exa.poke" },
-          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
         );
       });
 
@@ -1210,7 +1213,7 @@ describe("card operations", () => {
               abi: exaPluginAbi,
               functionName: "propose",
               args: [
-                inject("MarketUSDC"),
+                marketUSDCAddress,
                 420_000_000n - 1n,
                 ProposalType.Withdraw,
                 encodeAbiParameters([{ type: "address" }], [owner.account.address]),
@@ -1638,11 +1641,11 @@ describe("card operations", () => {
       beforeAll(async () => {
         await keeper.exaSend(
           { name: "mint usdc", op: "tx.mint" },
-          { address: inject("USDC"), abi: mockERC20Abi, functionName: "mint", args: [account, 100_000_000n] },
+          { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [account, 100_000_000n] },
         );
         await keeper.exaSend(
           { name: "poke", op: "exa.poke" },
-          { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketUSDC")] },
+          { address: account, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
         );
       });
 
@@ -2320,10 +2323,10 @@ describe("card operations", () => {
         await keeper.exaSend(
           { name: "mint usdc", op: "tx.mint" },
           {
-            address: inject("USDC"),
+            address: usdcAddress,
             abi: mockERC20Abi,
             functionName: "mint",
-            args: [inject("Refunder"), 100_000_000n],
+            args: [refunderAddress, 100_000_000n],
           },
         );
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
@@ -2463,7 +2466,7 @@ describe("card operations", () => {
       it("force-captures fraud", async () => {
         const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
         const currentFunds = await publicClient.readContract({
-          address: inject("MarketUSDC"),
+          address: marketUSDCAddress,
           abi: marketAbi,
           functionName: "maxWithdraw",
           args: [account],
@@ -2683,13 +2686,11 @@ describe("concurrency", () => {
 
   beforeEach(async () => {
     owner2 = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
-    account2 = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner2.account.address), y: zeroHash });
+    account2 = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner2.account.address), y: zeroHash });
     await database.transaction(async (tx) => {
       await tx
         .insert(credentials)
-        .values([
-          { id: account2, publicKey: new Uint8Array(), account: account2, factory: inject("ExaAccountFactory") },
-        ]);
+        .values([{ id: account2, publicKey: new Uint8Array(), account: account2, factory: exaAccountFactoryAddress }]);
       await tx.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]);
     });
   });
@@ -3087,7 +3088,7 @@ describe("concurrency", () => {
       const txId = "insufficient-liquidity-notification-test";
 
       const maxWithdraw = await publicClient.readContract({
-        address: inject("MarketUSDC"),
+        address: marketUSDCAddress,
         abi: marketAbi,
         functionName: "maxWithdraw",
         args: [account],
@@ -3643,7 +3644,7 @@ describe("concurrency", () => {
       keeper.exaSend(
         { name: "mint", op: "tx.mint" },
         {
-          address: inject("USDC"),
+          address: usdcAddress,
           abi: mockERC20Abi,
           functionName: "mint",
           args: [account2, 70_000_000n],
@@ -3652,7 +3653,7 @@ describe("concurrency", () => {
       keeper.exaSend(
         { name: "create account", op: "exa.account" },
         {
-          address: inject("ExaAccountFactory"),
+          address: exaAccountFactoryAddress,
           abi: exaAccountFactoryAbi,
           functionName: "createAccount",
           args: [0n, [{ x: hexToBigInt(owner2.account.address), y: 0n }]],
@@ -3665,7 +3666,7 @@ describe("concurrency", () => {
         address: account2,
         abi: exaPluginAbi,
         functionName: "poke",
-        args: [inject("MarketUSDC")],
+        args: [marketUSDCAddress],
       },
     );
   }
@@ -4152,7 +4153,7 @@ const callFrame = {
 
 function usdcToAddress(purchaseReceipt: TransactionReceipt, address: Address) {
   return purchaseReceipt.logs
-    .filter((l) => l.address.toLowerCase() === inject("USDC").toLowerCase())
+    .filter((l) => l.address.toLowerCase() === usdcAddress.toLowerCase())
     .map((l) => decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics: l.topics, data: l.data }))
     .filter((l) => l.args.to === address)
     .reduce((total, l) => total + l.args.value, 0n);
@@ -4162,12 +4163,14 @@ function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
 }
 
-function execute(calldata: Hex) {
-  return owner.writeContract({
-    address: account,
-    functionName: "execute",
-    args: [account, 0n, calldata],
-    abi: [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+async function execute(calldata: Hex) {
+  return anvilClient.waitForTransactionReceipt({
+    hash: await owner.writeContract({
+      address: account,
+      functionName: "execute",
+      args: [account, 0n, calldata],
+      abi: [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+    }),
   });
 }
 

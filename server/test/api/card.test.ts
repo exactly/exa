@@ -1,5 +1,4 @@
 import "../mocks/auth";
-import "../mocks/deployments";
 import "../mocks/onesignal";
 import "../mocks/panda";
 import * as pax from "../mocks/pax";
@@ -22,11 +21,17 @@ import { checksumAddress, hexToBigInt, padHex, parseEther, zeroHash } from "viem
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain, { exaAccountFactoryAbi, exaPluginAbi } from "@exactly/common/generated/chain";
+import chain, {
+  exaAccountFactoryAbi,
+  exaAccountFactoryAddress,
+  exaPluginAbi,
+  marketWETHAddress,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -97,64 +102,64 @@ afterAll(() => kms.close());
 describe("authenticated", () => {
   beforeAll(async () => {
     const owner = privateKeyToAddress(padHex("0xbeef"));
-    const account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner), y: zeroHash });
+    const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner), y: zeroHash });
     const publicKey = new Uint8Array();
     await database.insert(credentials).values([
-      { id: "eth", publicKey, account, factory: inject("ExaAccountFactory"), pandaId: "eth" },
+      { id: "eth", publicKey, account, factory: exaAccountFactoryAddress, pandaId: "eth" },
       {
         id: "default",
         publicKey,
         account: padHex("0x1", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "default",
       },
       {
         id: "sig",
         publicKey,
         account: padHex("0x2", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "sig",
       },
       {
         id: "404",
         publicKey,
         account: padHex("0x3", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "404",
       },
       {
         id: "debit",
         publicKey,
         account: padHex("0x4", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "debit",
       },
       {
         id: "cancel",
         publicKey,
         account: padHex("0x5", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "cancel",
       },
       {
         id: "migrate-card-upgraded-plugin",
         publicKey,
         account: padHex("0x6", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "migrate",
       },
       {
         id: "migrate-card-non-upgraded-plugin",
         publicKey,
         account: padHex("0x7", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "migrate",
       },
       {
         id: "frozen",
         publicKey,
         account: padHex("0x8", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "frozen",
       },
     ]);
@@ -174,7 +179,7 @@ describe("authenticated", () => {
       keeper.exaSend(
         { name: "create account", op: "exa.account" },
         {
-          address: inject("ExaAccountFactory"),
+          address: exaAccountFactoryAddress,
           abi: exaAccountFactoryAbi,
           functionName: "createAccount",
           args: [0n, [{ x: hexToBigInt(owner), y: 0n }]],
@@ -182,12 +187,12 @@ describe("authenticated", () => {
       ),
       keeper.exaSend(
         { name: "mint weth", op: "exa.weth" },
-        { address: inject("WETH"), abi: mockERC20Abi, functionName: "mint", args: [account, parseEther("1")] },
+        { address: wethAddress, abi: mockERC20Abi, functionName: "mint", args: [account, parseEther("1")] },
       ),
     ]);
     await keeper.exaSend(
       { name: "poke", op: "exa.poke" },
-      { address: account, abi: exaPluginAbi, functionName: "poke", args: [inject("MarketWETH")] },
+      { address: account, abi: exaPluginAbi, functionName: "poke", args: [marketWETHAddress] },
     );
   });
 
@@ -338,7 +343,7 @@ describe("authenticated", () => {
   });
 
   it("returns 403 no panda when no panda customer", async () => {
-    const foo = deriveAddress(inject("ExaAccountFactory"), {
+    const foo = deriveAddress(exaAccountFactoryAddress, {
       x: padHex(privateKeyToAddress(padHex("0xf00"))),
       y: zeroHash,
     });
@@ -348,7 +353,7 @@ describe("authenticated", () => {
         id: foo,
         publicKey: new Uint8Array(),
         account: foo,
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
       },
     ]);
 
@@ -535,7 +540,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4040", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -552,7 +557,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4045", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -574,7 +579,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4041", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -596,7 +601,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4042", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -631,7 +636,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4043", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -656,7 +661,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4051", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -716,7 +721,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -775,7 +780,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4052", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -824,7 +829,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4054", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -847,7 +852,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4046", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -886,7 +891,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4047", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -915,7 +920,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4048", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
 
@@ -936,7 +941,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x4049", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
     await database.insert(cards).values({
@@ -999,7 +1004,7 @@ describe("authenticated", () => {
     });
     expect(created?.mode).toBe(0);
     expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
-      deriveAddress(inject("ExaAccountFactory"), {
+      deriveAddress(exaAccountFactoryAddress, {
         x: padHex(privateKeyToAddress(padHex("0xbeef"))),
         y: zeroHash,
       }),
@@ -1022,7 +1027,7 @@ describe("authenticated", () => {
       id: credentialId,
       publicKey: new Uint8Array(),
       account,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: credentialId,
     });
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "4054" });
@@ -1058,7 +1063,7 @@ describe("authenticated", () => {
           id: "base-default",
           publicKey: new Uint8Array(),
           account: padHex("0xba51", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "base-default-panda",
           source: "some-other-source",
         },
@@ -1066,7 +1071,7 @@ describe("authenticated", () => {
           id: "base-signature",
           publicKey: new Uint8Array(),
           account: padHex("0xba52", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "base-signature-panda",
           source: "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG", // cspell:ignore azbh
         },
@@ -1074,7 +1079,7 @@ describe("authenticated", () => {
           id: "optimism-credential",
           publicKey: new Uint8Array(),
           account: padHex("0x0b71", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "optimism-panda",
           source: null,
         },
@@ -1174,7 +1179,7 @@ describe("authenticated", () => {
       id: testCredentialId,
       publicKey: new Uint8Array(),
       account: testAccount,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: "pax-test-panda",
     });
 
@@ -1277,7 +1282,7 @@ describe("authenticated", () => {
       id: testCredentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x888", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: "new-user-panda",
     });
 
@@ -1305,7 +1310,7 @@ describe("authenticated", () => {
       id: testCredentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x777", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: "pax-error-panda",
     });
 
@@ -1390,7 +1395,7 @@ describe("authenticated", () => {
       id: testCredentialId,
       publicKey: new Uint8Array(),
       account: padHex("0x666", { size: 20 }),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       pandaId: "no-account-panda",
     });
 
@@ -1545,7 +1550,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-ok-panda",
         });
         await database
@@ -1594,7 +1599,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account: padHex("0xbbb2", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
         });
         await database.insert(cards).values({ id: "siwe-no-panda-card", credentialId, lastFour: "8888" });
         const nonceSpy = vi.spyOn(panda, "getNonce").mockResolvedValue({ nonce: "unreachable" });
@@ -1615,7 +1620,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account: padHex("0xbbb3", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-nonce-fail-panda",
         });
         await database.insert(cards).values({ id: "siwe-nonce-fail-card", credentialId, lastFour: "6666" });
@@ -1641,7 +1646,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-verify-panda",
         });
         await database.insert(cards).values({ id: "siwe-verify-card", credentialId, lastFour: "9999" });
@@ -1676,7 +1681,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-any-statement-panda",
         });
         await database.insert(cards).values({ id: "siwe-any-statement-card", credentialId, lastFour: "2020" });
@@ -1711,7 +1716,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-bad-chain-panda",
         });
         await database.insert(cards).values({ id: "siwe-bad-chain-card", credentialId, lastFour: "5050" });
@@ -1746,7 +1751,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-bad-domain-panda",
         });
         await database.insert(cards).values({ id: "siwe-bad-domain-card", credentialId, lastFour: "6060" });
@@ -1782,7 +1787,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-bad-signer-panda",
         });
         await database.insert(cards).values({ id: "siwe-bad-signer-card", credentialId, lastFour: "3030" });
@@ -1817,7 +1822,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
         });
         await database.insert(cards).values({ id: "siwe-verify-no-panda-card", credentialId, lastFour: "1010" });
         const verifySpy = vi.spyOn(panda, "verify").mockResolvedValue({});
@@ -1851,7 +1856,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-panda-401-panda",
         });
         await database.insert(cards).values({ id: "siwe-panda-401-card", credentialId, lastFour: "4040" });
@@ -1888,7 +1893,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array(),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "siwe-panda-503-panda",
         });
         await database.insert(cards).values({ id: "siwe-panda-503-card", credentialId, lastFour: "5050" });
@@ -1938,7 +1943,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array([1, 2, 3]),
           account,
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
           pandaId: "webauthn-challenge-panda",
         });
         await database
@@ -1977,7 +1982,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array([1, 2, 3]),
           account: padHex("0xbbd2", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
         });
         await database.insert(cards).values({ id: "webauthn-challenge-no-panda-card", credentialId, lastFour: "4488" });
 
@@ -1993,7 +1998,7 @@ describe("authenticated", () => {
       it("verifies the webauthn assertion", async () => {
         const credentialId = "webauthn-verify-ok";
         const account = padHex("0xbbe1", { size: 20 });
-        const factory = inject("ExaAccountFactory");
+        const factory = exaAccountFactoryAddress;
         await database.insert(credentials).values({
           id: credentialId,
           publicKey: new Uint8Array([1, 2, 3]),
@@ -2029,7 +2034,7 @@ describe("authenticated", () => {
       it("forwards null transports verbatim", async () => {
         const credentialId = "webauthn-verify-null-transports";
         const account = padHex("0xbbe3", { size: 20 });
-        const factory = inject("ExaAccountFactory");
+        const factory = exaAccountFactoryAddress;
         await database.insert(credentials).values({
           id: credentialId,
           publicKey: new Uint8Array([9, 8, 7]),
@@ -2064,7 +2069,7 @@ describe("authenticated", () => {
           id: credentialId,
           publicKey: new Uint8Array([1]),
           account: padHex("0xbbe2", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
         });
         await database.insert(cards).values({ id: "webauthn-verify-no-panda-card", credentialId, lastFour: "3030" });
         const verifySpy = vi.spyOn(panda, "verify").mockResolvedValue({});
@@ -2083,7 +2088,7 @@ describe("authenticated", () => {
       it("returns 400 bad signature when panda rejects webauthn verify with 401", async () => {
         const credentialId = "webauthn-panda-401";
         const account = padHex("0xbbe4", { size: 20 });
-        const factory = inject("ExaAccountFactory");
+        const factory = exaAccountFactoryAddress;
         await database.insert(credentials).values({
           id: credentialId,
           publicKey: new Uint8Array([1, 2, 3]),
@@ -2117,7 +2122,7 @@ describe("authenticated", () => {
       it("propagates non-401 panda errors from webauthn verify", async () => {
         const credentialId = "webauthn-panda-503";
         const account = padHex("0xbbe5", { size: 20 });
-        const factory = inject("ExaAccountFactory");
+        const factory = exaAccountFactoryAddress;
         await database.insert(credentials).values({
           id: credentialId,
           publicKey: new Uint8Array([4, 5, 6]),
@@ -2154,7 +2159,7 @@ describe("authenticated", () => {
         id: credentialId,
         publicKey: new Uint8Array(),
         account: padHex("0xbbf1", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "combined-scope-panda",
       });
       await database.insert(cards).values({ id: "combined-scope-card", credentialId, lastFour: "5050" });
@@ -2177,7 +2182,7 @@ describe("authenticated", () => {
         id: credentialId,
         publicKey: new Uint8Array(),
         account: padHex("0xaaa1", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "limit-sync-panda",
       });
 
@@ -2206,7 +2211,7 @@ describe("authenticated", () => {
         id: credentialId,
         publicKey: new Uint8Array(),
         account: padHex("0xaaa2", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "limit-null-panda",
       });
 
@@ -2235,7 +2240,7 @@ describe("authenticated", () => {
         id: credentialId,
         publicKey: new Uint8Array(),
         account: padHex("0xaaa3", { size: 20 }),
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
         pandaId: "limit-fail-panda",
       });
 
@@ -2340,34 +2345,34 @@ describe("wallet extension", () => {
         id: "wallet-extension",
         publicKey: new Uint8Array(),
         account: parse(Address, "0x0000000000000000000000000000000000000456"),
-        factory: parse(Address, inject("ExaAccountFactory")),
+        factory: parse(Address, exaAccountFactoryAddress),
         pandaId: "wallet-extension",
       },
       {
         id: "wallet-extension-empty",
         publicKey: new Uint8Array(),
         account: parse(Address, "0x0000000000000000000000000000000000000457"),
-        factory: parse(Address, inject("ExaAccountFactory")),
+        factory: parse(Address, exaAccountFactoryAddress),
         pandaId: "wallet-extension-empty",
       },
       {
         id: "wallet-extension-no-panda",
         publicKey: new Uint8Array(),
         account: parse(Address, "0x0000000000000000000000000000000000000458"),
-        factory: parse(Address, inject("ExaAccountFactory")),
+        factory: parse(Address, exaAccountFactoryAddress),
       },
       {
         id: "wallet-extension-frozen",
         publicKey: new Uint8Array(),
         account: parse(Address, "0x0000000000000000000000000000000000000460"),
-        factory: parse(Address, inject("ExaAccountFactory")),
+        factory: parse(Address, exaAccountFactoryAddress),
         pandaId: "wallet-extension-frozen",
       },
       {
         id: "wallet-extension-deleted",
         publicKey: new Uint8Array(),
         account: parse(Address, "0x0000000000000000000000000000000000000461"),
-        factory: parse(Address, inject("ExaAccountFactory")),
+        factory: parse(Address, exaAccountFactoryAddress),
         pandaId: "wallet-extension-deleted",
       },
     ]);

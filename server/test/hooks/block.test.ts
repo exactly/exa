@@ -1,5 +1,4 @@
 import { createWebhook, findWebhook, headerValidator } from "../mocks/alchemy";
-import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 import "../mocks/traceClient";
@@ -35,17 +34,23 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   auditorAbi,
+  exaAccountFactoryAddress,
   exaPluginAbi,
   exaPreviewerAbi,
+  exaPreviewerAddress,
   issuerCheckerAbi,
   marketAbi,
+  marketUSDCAddress,
+  marketWETHAddress,
   proposalManagerAbi,
+  proposalManagerAddress,
   upgradeableModularAccountAbi,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -71,7 +76,7 @@ const bob = createWalletClient({
   transport: http(),
   account: privateKeyToAccount(padHex("0xb0b"), { nonceManager }),
 });
-const bobAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(bob.account.address), y: zeroHash });
+const bobAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(bob.account.address), y: zeroHash });
 const defaults = {
   alchemy: createAlchemy("webhooks"),
   executor: bob.account,
@@ -139,7 +144,7 @@ describe("proposal", () => {
               abi: exaPluginAbi,
               functionName: "propose",
               args: [
-                inject("MarketUSDC"),
+                marketUSDCAddress,
                 amount,
                 ProposalType.Withdraw,
                 encodeAbiParameters([{ type: "address" }], [padHex("0x69", { size: 20 })]),
@@ -148,8 +153,8 @@ describe("proposal", () => {
           ),
         ),
       );
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs(hashes);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -294,9 +299,9 @@ describe("proposal", () => {
 
   describe("with weth withdraw proposal", () => {
     beforeEach(async () => {
-      const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), inject("MarketWETH"));
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), marketWETHAddress);
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -333,7 +338,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: inject("ProposalManager"),
+          address: proposalManagerAddress,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -345,8 +350,8 @@ describe("proposal", () => {
   describe("with reverting proposals", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(maxUint256, padHex("0x69", { size: 20 }));
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -383,7 +388,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: inject("ProposalManager"),
+          address: proposalManagerAddress,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -883,8 +888,8 @@ describe("proposal", () => {
   describe("with wrapped error", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(3_000_000n, padHex("0x69", { size: 20 }));
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -1075,11 +1080,11 @@ describe("proposal", () => {
         encodeFunctionData({
           abi: exaPluginAbi,
           functionName: "propose",
-          args: [inject("MarketUSDC"), 1n, ProposalType.None, "0x"],
+          args: [marketUSDCAddress, 1n, ProposalType.None, "0x"],
         }),
       );
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -1112,7 +1117,7 @@ describe("proposal", () => {
 
       await expect(
         publicClient.readContract({
-          address: inject("ProposalManager"),
+          address: proposalManagerAddress,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -1134,7 +1139,7 @@ describe("proposal", () => {
               abi: exaPluginAbi,
               functionName: "propose",
               args: [
-                inject("MarketUSDC"),
+                marketUSDCAddress,
                 value,
                 ProposalType.Withdraw,
                 encodeAbiParameters([{ type: "address" }], [padHex("0x69", { size: 20 })]),
@@ -1145,8 +1150,8 @@ describe("proposal", () => {
         abi: upgradeableModularAccountAbi,
         gas: 6_666_666n,
       });
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const maxUnlock = proposals.reduce((max, proposal) => {
         if (proposal.args.unlock > max) return proposal.args.unlock;
         return max;
@@ -1254,7 +1259,7 @@ describe("proposal", () => {
       ]);
       await expect(
         publicClient.readContract({
-          address: inject("ExaPreviewer"),
+          address: exaPreviewerAddress,
           abi: exaPreviewerAbi,
           functionName: "pendingProposals",
           args: [bobAccount],
@@ -2334,7 +2339,7 @@ function hasExpectedTransfers(
   const transferred = receipts
     .flatMap((receipt) =>
       receipt.logs
-        .filter((l) => l.address.toLowerCase() === inject("USDC").toLowerCase())
+        .filter((l) => l.address.toLowerCase() === usdcAddress.toLowerCase())
         .map((l) => decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics: l.topics, data: l.data }))
         .map((l) => ({ receiver: getAddress(l.args.to), amount: l.args.value })),
     )
@@ -2433,7 +2438,7 @@ function execute(calldata: Hex) {
   });
 }
 
-function proposeWithdraw(amount: bigint, receiver: Address, market = inject("MarketUSDC")) {
+function proposeWithdraw(amount: bigint, receiver: Address, market: Address = marketUSDCAddress) {
   return execute(
     encodeFunctionData({
       abi: exaPluginAbi,

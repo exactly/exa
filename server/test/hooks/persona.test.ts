@@ -1,4 +1,3 @@
-import deployments from "../mocks/deployments";
 import "../mocks/panda";
 import * as pax from "../mocks/pax";
 import "../mocks/persona";
@@ -10,10 +9,10 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import createPersonaHook from "../../hooks/persona";
@@ -49,14 +48,13 @@ const appClient = testClient(app);
 vi.mock("@sentry/node", { spy: true });
 
 beforeEach(() => {
-  deployments.setFirewall(inject("Firewall"));
   allow.close.mockReset().mockResolvedValue();
   allow.enqueue.mockReset().mockResolvedValue();
 });
 describe("with reference", () => {
   const referenceId = "hook-persona";
   const owner = privateKeyToAddress(padHex("0x123"));
-  const factory = inject("ExaAccountFactory");
+  const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   beforeAll(async () => {
     await database
@@ -432,7 +430,7 @@ describe("with reference", () => {
 });
 
 describe("persona hook", () => {
-  const account = deriveAddress(inject("ExaAccountFactory"), {
+  const account = deriveAddress(exaAccountFactoryAddress, {
     x: padHex(privateKeyToAddress(padHex("0x420"))),
     y: zeroHash,
   });
@@ -440,7 +438,7 @@ describe("persona hook", () => {
     await database.insert(credentials).values({
       id: "persona-ref",
       publicKey: new Uint8Array(),
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       account,
       pandaId: null,
     });
@@ -484,7 +482,7 @@ describe("persona hook", () => {
     expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       chainId: chain.id,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       publicKey: "0x",
       source: null,
     });
@@ -505,7 +503,7 @@ describe("persona hook", () => {
       email: "john@example.com",
       phone: "+1234567890",
       internalId: pax.deriveAssociateId(
-        deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
+        deriveAddress(exaAccountFactoryAddress, { x: padHex(privateKeyToAddress(padHex("0x420"))), y: zeroHash }),
       ),
       product: "travel insurance",
     });
@@ -545,16 +543,6 @@ describe("persona hook", () => {
 
   it("skips allow for invalid credential accounts", async () => {
     await database.update(credentials).set({ account: "invalid" }).where(eq(credentials.id, "persona-ref"));
-
-    const response = await postInquiry();
-
-    expect(response.status).toBe(200);
-    expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createUser).toHaveBeenCalledOnce();
-  });
-
-  it("skips allow without a firewall deployment", async () => {
-    deployments.setFirewall(undefined);
 
     const response = await postInquiry();
 
@@ -674,7 +662,7 @@ const cardUpdateResponse = {
 describe("card limit case", () => {
   const referenceId = "case-persona-ref";
   const owner = privateKeyToAddress(padHex("0x456"));
-  const factory = inject("ExaAccountFactory");
+  const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
 
   beforeAll(async () => {
