@@ -14,16 +14,18 @@ import reportError from "../../utils/reportError";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
 
-export default function UnsupportedNetworksSheet({
+export default function UnsupportedSheet({
   asset,
   chainName,
   onClose,
   open,
+  reason = "network",
 }: {
   asset?: ExternalAsset;
   chainName?: string;
   onClose: () => void;
   open: boolean;
+  reason?: "network" | "token";
 }) {
   const {
     t,
@@ -41,16 +43,22 @@ export default function UnsupportedNetworksSheet({
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>
-            {t("Non-supported network")}
+            {t(reason === "token" ? "Non-supported token" : "Non-supported network")}
           </Text>
           <YStack gap="$s4">
             <Text subHeadline color="$uiNeutralSecondary">
-              {t(
-                "This network isn't supported yet, so assets on it can't be recovered through the app for now. We're continuously working to add support for more networks, and this one may be supported in the future.",
-              )}
+              {reason === "token"
+                ? t(
+                    "This token isn't supported yet, so it can't be swapped or sent through the app for now. We're continuously working to add support for more tokens, and this one may be supported in the future.",
+                  )
+                : t(
+                    "This network isn't supported yet, so assets on it can't be recovered through the app for now. We're continuously working to add support for more networks, and this one may be supported in the future.",
+                  )}
             </Text>
             <Text subHeadline color="$uiNeutralSecondary">
-              {t("You can contact us to share feedback and help us prioritize which networks to support next.")}
+              {reason === "token"
+                ? t("You can contact us to share feedback and help us prioritize which tokens to support next.")
+                : t("You can contact us to share feedback and help us prioritize which networks to support next.")}
             </Text>
           </YStack>
         </YStack>
@@ -60,7 +68,9 @@ export default function UnsupportedNetworksSheet({
               pendingMessageRef.current =
                 asset && chainName
                   ? t(
-                      "Hi! I'd like help recovering an asset on a network that isn't supported yet.\n\nNetwork: {{chainName}} (chain ID {{chainId}})\nAsset: {{symbol}}\nToken address: {{address}}\nAmount: {{amount}} {{symbol}}\nCurrent value: ${{usdValue}}",
+                      reason === "token"
+                        ? "Hi! I'd like help with a token that isn't supported yet.\n\nNetwork: {{chainName}} (chain ID {{chainId}})\nAsset: {{symbol}}\nToken address: {{address}}\nAmount: {{amount}} {{symbol}}\nCurrent value: ${{usdValue}}"
+                        : "Hi! I'd like help recovering an asset on a network that isn't supported yet.\n\nNetwork: {{chainName}} (chain ID {{chainId}})\nAsset: {{symbol}}\nToken address: {{address}}\nAmount: {{amount}} {{symbol}}\nCurrent value: ${{usdValue}}",
                       {
                         chainName,
                         chainId: asset.chainId,

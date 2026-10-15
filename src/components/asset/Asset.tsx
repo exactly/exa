@@ -20,12 +20,14 @@ import deployedOptions from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { presentArticle } from "../../utils/intercom";
 import {
+  isSendable,
   isStock,
   lifiTokensOptions,
   marketOpen,
   restrictedCountries,
   statsOptions,
   stockAbi,
+  swappable,
   toShares,
 } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
@@ -43,6 +45,7 @@ import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
+import UnsupportedSheet from "../shared/UnsupportedSheet";
 import View from "../shared/View";
 import { defaultSwap, sameToken, type Swap } from "../swaps/Swaps";
 
@@ -60,6 +63,7 @@ export default function Asset() {
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { markets, externalAssets, crossChainAssets, isBalancesPending } = usePortfolio();
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
+  const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const { address: account } = useAccount({ config: exaConfig });
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const remote = params.success && params.output.chainId !== chain.id ? params.output.chainId : undefined;
@@ -77,6 +81,7 @@ export default function Asset() {
     query: { enabled: params.success && isStock(params.output) },
   });
   const [info, setInfo] = useState<(typeof stats)[number]>();
+  const [unsupported, setUnsupported] = useState(false);
   if (!params.success) return <Redirect href="/(main)/(home)" />;
   const { chainId, address } = params.output;
   const token = tokens?.find(
@@ -104,6 +109,7 @@ export default function Asset() {
   const decimals = protocol?.decimals ?? external?.decimals ?? 18;
   const shares = toShares(amount, decimals, multiplier);
   const symbol = protocol ? (protocol.symbol.slice(3) === "WETH" ? "ETH" : protocol.symbol.slice(3)) : entry?.symbol;
+  const tradable = chainId !== chain.id || swappable(markets).has(address.toLowerCase());
   function trade(side: "fromToken" | "toToken", selected: Token) {
     queryClient.setQueryData<Swap>(["swap"], (old) =>
       old && sameToken(selected, old[side]?.token) && old[side]?.external === !protocol
@@ -165,24 +171,26 @@ export default function Asset() {
           {(chainId === chain.id || (alchemyChainById.has(chainId) && factory === true)) && (
             <XStack gap="$s3">
               {[
-                ...(!token || (stock && restrictedCountries.has(country ?? ""))
+                ...(!token || (protocol && !tradable) || (stock && restrictedCountries.has(country ?? ""))
                   ? []
                   : [
                       {
                         key: "buy",
                         title: t("Buy"),
                         Icon: ArrowDownToLine,
+                        supported: tradable,
                         onPress: () => {
                           trade("toToken", token);
                         },
                       },
                     ]),
-                ...(token && (chainId === chain.id || deployed === true)
+                ...(token && (!protocol || tradable) && (chainId === chain.id || deployed === true)
                   ? [
                       {
                         key: "sell",
                         title: t("Sell"),
                         Icon: CircleDollarSign,
+                        supported: tradable,
                         onPress: () => {
                           trade("fromToken", token);
                         },
@@ -195,6 +203,7 @@ export default function Asset() {
                         key: "send",
                         title: t("Send"),
                         Icon: ArrowUpRight,
+                        supported: !!advanced || chainId !== chain.id || !!protocol || isSendable(address),
                         onPress: () => {
                           router.push({
                             pathname: "/send-funds/receiver",
@@ -204,8 +213,8 @@ export default function Asset() {
                       },
                     ]
                   : []),
-              ].map(({ key, title, Icon, onPress }) => {
-                const disabled = key !== "buy" && amount === 0n;
+              ].map(({ key, title, Icon, supported, onPress }) => {
+                const disabled = supported && key !== "buy" && amount === 0n;
                 return (
                   <Button.Column
                     key={key}
@@ -213,6 +222,7 @@ export default function Asset() {
                     secondary={key !== "buy"}
                     disabled={disabled}
                     flex={1}
+                    opacity={supported ? 1 : 0.5}
                     role="button"
                     aria-label={title}
                     aria-disabled={disabled}
@@ -221,7 +231,8 @@ export default function Asset() {
                         ? undefined
                         : () => {
                             selectionAsync().catch(reportError);
-                            onPress();
+                            if (supported) onPress();
+                            else setUnsupported(true);
                           }
                     }
                   >
@@ -330,6 +341,15 @@ export default function Asset() {
           </Text>
         )}
       </InfoSheet>
+      <UnsupportedSheet
+        reason="token"
+        open={unsupported}
+        asset={external}
+        chainName={chain.name}
+        onClose={() => {
+          setUnsupported(false);
+        }}
+      />
     </SafeView>
   );
 }

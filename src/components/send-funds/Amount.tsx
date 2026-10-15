@@ -28,7 +28,7 @@ import SwapSheet from "./SwapSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
-import { lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import { isSendable, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -113,10 +113,11 @@ export default function Amount() {
         return (
           (item.type === "external" || item.usdValue > 0 || item.market === payOverride) &&
           (from === chain.id || deployedChains.includes(from)) &&
+          (!!advanced || item.type !== "external" || from !== chain.id || isSendable(item.address)) &&
           (from === destinationChain || !reach || !!reach[from]?.includes(destinationChain))
         );
       }),
-    [allAssets, deployedChains, destinationChain, payOverride, reach],
+    [advanced, allAssets, deployedChains, destinationChain, payOverride, reach],
   );
 
   const pay = useMemo(

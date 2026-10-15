@@ -18,7 +18,7 @@ import { lifiChainsOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import exaConfig from "../../utils/wagmi/exa";
-import UnsupportedNetworksSheet from "../shared/UnsupportedNetworksSheet";
+import UnsupportedSheet from "../shared/UnsupportedSheet";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
 
@@ -92,7 +92,7 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
         })}
       </AssetSection>
       <ExternalAssetsSheet open={infoSheetOpen} onClose={() => setInfoSheetOpen(false)} />
-      <UnsupportedNetworksSheet
+      <UnsupportedSheet
         open={pendingUnsupported !== null}
         asset={pendingUnsupported?.asset}
         chainName={pendingUnsupported?.chainName}
