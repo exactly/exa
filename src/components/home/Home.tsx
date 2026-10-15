@@ -60,6 +60,7 @@ import FundingAlert from "../shared/FundingAlert";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
+import PluginUpgrade from "../shared/PluginUpgrade";
 import ProfileHeader from "../shared/ProfileHeader";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
@@ -263,6 +264,7 @@ export default function Home() {
                   onPress={increaseLimit}
                 />
               )}
+              <PluginUpgrade />
               <FundingAlert />
               <YStack gap="$s5">
                 <PortfolioSummary

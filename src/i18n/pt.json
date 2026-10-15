@@ -37,6 +37,7 @@
   "We can’t get a quote right now. Try again in a moment.": "Não conseguimos obter uma cotação agora. Tente novamente em instantes.",
   "We couldn’t prepare this transfer": "Não foi possível preparar esta transferência",
   "You have a pending request": "Você tem uma solicitação pendente",
+  "Your account has pending requests. Try upgrading again in a moment.": "Sua conta tem solicitações pendentes. Tente atualizar novamente em instantes.",
   "Your assets grow while you spend": "Seus ativos crescem enquanto você gasta",
   "{{amount}} left": "{{amount}} restante",
   "{{asset}} on {{chain}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to swap it to a supported asset.<learn> Learn more.</learn>": "{{asset}} em {{chain}} não é um ativo de colateral suportado. Para gerar rendimento e aumentar o limite de crédito do seu Exa Card, você precisará fazer swap para um ativo suportado.<learn> Saiba mais.</learn>",

@@ -1,21 +1,39 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { useToastController } from "@tamagui/toast";
+
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
-import { encodeAbiParameters, getAbiItem, keccak256 } from "viem";
+import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
+import {
+  decodeErrorResult,
+  encodeAbiParameters,
+  encodeDeployData,
+  encodeErrorResult,
+  encodeFunctionData,
+  getAbiItem,
+  keccak256,
+  type Address,
+  type Hex,
+} from "viem";
+import { simulateBlocks } from "viem/actions";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
+import chain, {
+  auditorAddress,
+  exaPluginAddress,
+  exaPreviewerCode,
+  marketUSDCAddress,
+} from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
+  exaPreviewerAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
-  useSimulateUpgradeableModularAccountUninstallPlugin,
 } from "@exactly/common/generated/hooks";
 
 import InfoAlert from "./InfoAlert";
@@ -27,6 +45,7 @@ import type { Credential } from "@exactly/common/validation";
 
 export default function PluginUpgrade() {
   const { t } = useTranslation();
+  const toast = useToastController();
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -41,27 +60,43 @@ export default function PluginUpgrade() {
     });
   const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress, chainId: chain.id });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { data: uninstallPluginSimulation } = useSimulateUpgradeableModularAccountUninstallPlugin({
-    address,
-    chainId: chain.id,
-    args: installedPlugins?.[0] ? [installedPlugins[0], "0x", "0x"] : undefined,
-    query: { enabled: !!address && !!installedPlugins?.[0] && !!bytecode && !isLatestPlugin },
-  });
-  const isReady =
-    !!bytecode && !!installedPlugins?.[0] && !!pluginManifest && !!uninstallPluginSimulation && !isLatestPlugin;
-  const { mutateAsync: updatePlugin, isPending: isUpdating } = useMutation({
+  const isReady = !!bytecode && !!installedPlugins?.[0] && !!pluginManifest && !isLatestPlugin;
+  const { mutate: updatePlugin, isPending: isUpdating } = useMutation({
     mutationFn: async () => {
       if (!address) throw new Error("no account address");
       if (!installedPlugins?.[0]) throw new Error("no installed plugin");
-      if (!uninstallPluginSimulation) throw new Error("no uninstall plugin simulation");
       if (!pluginManifest) throw new Error("invalid manifest");
 
-      const { id } = await mutateSendCalls({
-        chainId: chain.id,
-        calls: [
-          { ...uninstallPluginSimulation.request, to: address },
-          {
-            to: address,
+      const upgrade = [
+        {
+          target: address,
+          value: 0n,
+          data: encodeFunctionData({
+            abi: upgradeableModularAccountAbi,
+            functionName: "uninstallPlugin",
+            args: [
+              installedPlugins[0],
+              encodeAbiParameters(
+                [
+                  {
+                    type: "tuple",
+                    components: [
+                      { name: "serializedManifest", type: "bytes" },
+                      { name: "forceUninstall", type: "bool" },
+                      { name: "callbackGasLimit", type: "uint256" },
+                    ],
+                  },
+                ],
+                [{ serializedManifest: "0x", forceUninstall: true, callbackGasLimit: 0n }],
+              ),
+              "0x",
+            ],
+          }),
+        },
+        {
+          target: address,
+          value: 0n,
+          data: encodeFunctionData({
             abi: upgradeableModularAccountAbi,
             functionName: "installPlugin",
             args: [
@@ -74,8 +109,59 @@ export default function PluginUpgrade() {
               "0x",
               [],
             ],
-          },
-        ],
+          }),
+        },
+      ];
+      const batch = encodeFunctionData({
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [upgrade],
+      });
+      let calls = upgrade;
+      const simulation = await simulate(address, [batch]);
+      if (simulation && pending(simulation.calls[0])) {
+        const proposals = await readContract(exa, {
+          abi: exaPreviewerAbi,
+          code: encodeDeployData({
+            abi: exaPreviewerAbi,
+            bytecode: exaPreviewerCode,
+            args: [
+              auditorAddress,
+              marketUSDCAddress,
+              await readContract(exa, {
+                address: installedPlugins[0],
+                abi: exaPluginAbi,
+                functionName: "proposalManager",
+              }),
+            ],
+          }),
+          functionName: "pendingProposals",
+          args: [address],
+        });
+        const last = proposals.at(-1);
+        if (last === undefined || last.unlock + 3600n > simulation.timestamp) return "pending";
+        const resolutions: Hex[] = [];
+        for (const { nonce } of proposals) {
+          const execution = encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
+          const block = await simulate(address, [...resolutions, execution]);
+          resolutions.push(
+            block?.calls.at(-1)?.status === "success"
+              ? execution
+              : encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] }),
+          );
+        }
+        calls = [
+          ...resolutions.map((data) => ({ target: address, value: 0n, data })),
+          { target: address, value: 0n, data: batch },
+        ];
+        const resolved = await simulate(address, [
+          encodeFunctionData({ abi: upgradeableModularAccountAbi, functionName: "executeBatch", args: [calls] }),
+        ]);
+        if (resolved?.calls[0]?.status !== "success") return "pending";
+      }
+      const { id } = await mutateSendCalls({
+        chainId: chain.id,
+        calls: calls.map(({ target, data }) => ({ to: target, data })),
         capabilities: {
           paymasterService: {
             url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
@@ -87,6 +173,24 @@ export default function PluginUpgrade() {
       if (status === "failure") throw new Error("failed to upgrade plugin");
       if (credential) await refetchInstalledPlugins();
     },
+    onSuccess(result) {
+      if (result === "pending") {
+        toast.show(t("Your account has pending requests. Try upgrading again in a moment."), {
+          duration: 3000,
+          burntOptions: { haptic: "warning" },
+        });
+        return;
+      }
+      toast.show(t("Account upgraded!"), { duration: 1000, burntOptions: { haptic: "success" } });
+    },
+    onError(error) {
+      if (!reportError(error).authKnown) {
+        toast.show(t("Error upgrading account"), {
+          duration: 1000,
+          burntOptions: { haptic: "error", preset: "error" },
+        });
+      }
+    },
   });
 
   if (!isReady) return null;
@@ -97,8 +201,28 @@ export default function PluginUpgrade() {
       actionText={t("Upgrade account now")}
       loading={isUpdating}
       onPress={() => {
-        updatePlugin().catch(reportError);
+        updatePlugin();
       }}
     />
   );
+}
+
+async function simulate(account: Address, calls: Hex[]) {
+  const [block] = await simulateBlocks(exa.getClient({ chainId: chain.id }), {
+    blocks: [{ calls: calls.map((data) => ({ account, to: account, data })) }],
+  });
+  return block;
+}
+
+function pending(call: undefined | { data: Hex; status: "failure" | "success" }) {
+  if (call?.status !== "failure") return false;
+  try {
+    const { errorName, args } = decodeErrorResult({ abi: upgradeableModularAccountAbi, data: call.data });
+    return (
+      errorName === "PreExecHookReverted" &&
+      args[2] === encodeErrorResult({ abi: exaPluginAbi, errorName: "PendingProposals" })
+    );
+  } catch {
+    return false;
+  }
 }

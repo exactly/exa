@@ -198,6 +198,7 @@
   "You need ~{{amount}} {{symbol}} on {{network}} for network fees.": "Necesitás ~{{amount}} {{symbol}} en {{network}} para comisiones de red.",
   "You send": "Enviás",
   "You've reached 90% of your weekly card spending limit.": "Alcanzaste el 90% de tu límite de gasto semanal.",
+  "Your account has pending requests. Try upgrading again in a moment.": "Tu cuenta tiene solicitudes pendientes. Intentá actualizar de nuevo en un momento.",
   "Your assets can't back your card yet. Swap them to a supported asset to start spending.": "Tus activos aún no pueden respaldar tu tarjeta. Intercambialos por un activo compatible para empezar a gastar.",
   "Your assets grow while you spend": "Tus activos crecen mientras gastás",
   "Your card is awaiting activation. Follow the steps to enable it.": "Tu tarjeta está a la espera de activación. Seguí los pasos para habilitarla.",
