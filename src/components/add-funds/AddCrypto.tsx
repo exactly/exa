@@ -7,7 +7,7 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Copy, Hash, Info, QrCode, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons-2";
+import { ArrowLeft, Copy, Info, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
@@ -92,7 +92,6 @@ export default function AddCrypto() {
 
   const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
-  const [qrShown, setQRShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
 
   const copy = useCallback(() => {
@@ -198,7 +197,7 @@ export default function AddCrypto() {
                 <Text footnote secondary centered>
                   {t("Wallet address")}
                 </Text>
-                {qrShown && address ? (
+                {address && !memo ? (
                   <View alignSelf="center" position="relative">
                     <QRCode
                       data={address}
@@ -232,35 +231,20 @@ export default function AddCrypto() {
                       </View>
                     </View>
                   </View>
-                ) : (
-                  <Pressable hitSlop={15} onPress={copy} disabled={!address}>
-                    {address ? (
-                      <Text mono title3 centered>
-                        {address}
-                      </Text>
-                    ) : isBridge && isError && !isFetching ? (
-                      <Text color="$uiErrorSecondary" centered>
-                        {t("Failed to load deposit address.")}
-                      </Text>
-                    ) : (
-                      <Skeleton width="100%" height={54} />
-                    )}
-                  </Pressable>
-                )}
-                {!!address && !memo && (
-                  <Pressable role="button" onPress={() => setQRShown(!qrShown)}>
-                    <XStack alignItems="center" justifyContent="center" gap="$s2">
-                      <Text emphasized footnote color="$uiBrandSecondary">
-                        {qrShown ? t("Show wallet address") : t("Show QR")}
-                      </Text>
-                      {qrShown ? (
-                        <Hash size={16} color="$uiBrandSecondary" />
-                      ) : (
-                        <QrCode size={16} color="$uiBrandSecondary" />
-                      )}
-                    </XStack>
-                  </Pressable>
-                )}
+                ) : null}
+                <Pressable hitSlop={15} onPress={copy} disabled={!address}>
+                  {address ? (
+                    <Text mono title3 centered>
+                      {address}
+                    </Text>
+                  ) : isBridge && isError && !isFetching ? (
+                    <Text color="$uiErrorSecondary" centered>
+                      {t("Failed to load deposit address.")}
+                    </Text>
+                  ) : (
+                    <Skeleton width="100%" height={54} />
+                  )}
+                </Pressable>
               </YStack>
             </YStack>
             {!!memo && (
