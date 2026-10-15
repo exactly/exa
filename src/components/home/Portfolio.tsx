@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
 import { ArrowLeft, BriefcaseBusiness, ChartNoAxesCombined, CircleHelp, ShieldCheck } from "@tamagui/lucide-icons-2";
@@ -25,6 +24,7 @@ import IconButton from "../shared/IconButton";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
+import Tabs from "../shared/Tabs";
 import Text from "../shared/Text";
 import View from "../shared/View";
 import WeightedRate from "../shared/WeightedRate";
@@ -105,44 +105,15 @@ export default function Portfolio() {
               ) : null}
             </YStack>
           )}
-          <XStack alignSelf="stretch" alignItems="flex-end" role="tablist">
-            {(
-              [
-                { key: "all", label: t("All"), Icon: BriefcaseBusiness },
-                { key: "collateral", label: t("Collateral"), Icon: ShieldCheck },
-                { key: "stocks", label: t("Stocks"), Icon: ChartNoAxesCombined },
-              ] as const
-            ).map(({ key, label, Icon }) => {
-              const active = tab === key;
-              const color = active ? "$interactiveOnBaseBrandSoft" : "$uiNeutralSecondary";
-              return (
-                <XStack
-                  key={key}
-                  flex={1}
-                  gap="$s2"
-                  alignItems="center"
-                  justifyContent="center"
-                  paddingHorizontal="$s3"
-                  paddingVertical="$s3_5"
-                  borderBottomWidth={active ? 2 : 1}
-                  borderBottomColor={active ? "$interactiveBaseBrandDefault" : "$borderNeutralSoft"}
-                  cursor="pointer"
-                  role="tab"
-                  aria-selected={active}
-                  onPress={() => {
-                    if (active) return;
-                    selectionAsync().catch(reportError);
-                    setTab(key);
-                  }}
-                >
-                  <Icon size={16} color={color} />
-                  <Text footnote numberOfLines={1} color={color}>
-                    {label}
-                  </Text>
-                </XStack>
-              );
-            })}
-          </XStack>
+          <Tabs
+            items={[
+              { key: "all", label: t("All"), Icon: BriefcaseBusiness },
+              { key: "collateral", label: t("Collateral"), Icon: ShieldCheck },
+              { key: "stocks", label: t("Stocks"), Icon: ChartNoAxesCombined },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
         </YStack>
         {isPending ? (
           <YStack key="list-skeleton" padding="$s4" paddingTop="$s5" gap="$s6">
