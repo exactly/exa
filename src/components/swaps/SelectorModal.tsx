@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChartNoAxesCombined, Ellipsis, Search } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
@@ -122,6 +123,7 @@ export default function TokenSelectModal({
   const [picking, setPicking] = useState(false);
   const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
+  const insets = useSafeAreaInsets();
   const {
     t,
     i18n: { language },
@@ -183,8 +185,8 @@ export default function TokenSelectModal({
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View padded paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
+      <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+        <View padded paddingTop="$s6" paddingBottom={0} fullScreen flex={1} gap="$s4_5">
           <Text fontSize={20} fontWeight="bold" textAlign="center">
             {title ?? t("Select token")}
           </Text>
@@ -291,6 +293,7 @@ export default function TokenSelectModal({
                 )}
                 keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: insets.bottom }}
                 windowSize={5}
                 ListEmptyComponent={() => (
                   <View padding="$s6" alignItems="center">
