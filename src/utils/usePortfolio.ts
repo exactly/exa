@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
@@ -109,6 +109,21 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
       });
   }, [balances, markets]);
 
+  const isExternal = useCallback(
+    (chainId: number, address: string) => {
+      if (chainId !== chain.id) return true;
+      if (!markets) return false;
+      return !markets.some(
+        (m) =>
+          m.asset === address &&
+          (m.symbol.slice(3) !== "USDC.e" ||
+            (protocolAssets.some((a) => a.asset === address) &&
+              !externalAssets.some((a) => a.address === address && (a.amount ?? 0n) > 0n))),
+      );
+    },
+    [externalAssets, markets, protocolAssets],
+  );
+
   const crossChainAssets = useMemo<ExternalAsset[]>(() => {
     if (!balances) return [];
     const result: ExternalAsset[] = [];
@@ -148,6 +163,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     protocolAssets,
     externalAssets,
     crossChainAssets,
+    isExternal,
     totalBalanceUSD,
     protocolSymbols: supportedAssets,
     markets,

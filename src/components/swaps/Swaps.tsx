@@ -130,7 +130,7 @@ export default function Swaps() {
     i18n: { language },
   } = useTranslation();
   const { address: account } = useAccount();
-  const { allAssets, externalAssets, crossChainAssets, protocolAssets, isBalancesPending } = usePortfolio();
+  const { allAssets, externalAssets, crossChainAssets, protocolAssets, isExternal, isBalancesPending } = usePortfolio();
   const {
     error: balancesError,
     isFetching: isBalancesFetching,
@@ -208,15 +208,6 @@ export default function Swaps() {
     [allowedChains, deployedFactories, lifiChains],
   );
 
-  const isExternal = useCallback(
-    (chainId: number, address: string) => {
-      if (chainId !== chain.id) return true;
-      if (!markets) return false;
-      return !markets.some((m) => m.asset === address);
-    },
-    [markets],
-  );
-
   const getSwapAddress = useCallback(
     (token: undefined | { external: boolean; token: Token }) => {
       if (!token) return;
@@ -258,7 +249,7 @@ export default function Swaps() {
         allAssets
           .filter((asset) =>
             asset.type === "protocol"
-              ? asset.floatingDepositAssets > 0n
+              ? asset.floatingDepositAssets > 0n && !isExternal(chain.id, asset.asset)
               : (asset.amount ?? 0n) > 0n && isExternal(asset.chainId, asset.address),
           )
           .map((asset) =>
@@ -321,7 +312,7 @@ export default function Swaps() {
     !fromToken &&
     payableTokens.length === 0;
 
-  const handleTokenSelect = (selected: Token) => {
+  const handleTokenSelect = (selected: Token, external = isExternal(selected.chainId, selected.address)) => {
     updateSwap((old) => ({
       ...old,
       fromAmount: tokenSelectionType === "to" && !sameToken(selected, fromToken?.token) ? fromAmount : 0n,
@@ -329,13 +320,13 @@ export default function Swaps() {
       denied: [],
       fromToken:
         tokenSelectionType === "from"
-          ? { token: selected, external: isExternal(selected.chainId, selected.address) }
+          ? { token: selected, external }
           : sameToken(selected, fromToken?.token)
             ? toToken
             : fromToken,
       toToken:
         tokenSelectionType === "to"
-          ? { token: selected, external: isExternal(selected.chainId, selected.address) }
+          ? { token: selected, external }
           : sameToken(selected, toToken?.token)
             ? fromToken && restricted && isStock(fromToken.token)
               ? undefined
@@ -1177,7 +1168,7 @@ export default function Swaps() {
               open={tokenModalOpen}
               tokens={selectableTokens}
               networks={networks}
-              selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
+              selected={tokenSelectionType === "from" ? fromToken : toToken}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
               isLoading={isTokensLoading}

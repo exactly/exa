@@ -170,7 +170,7 @@ export default function Asset() {
           {(chainId === chain.id || (alchemyChainById.has(chainId) && factory === true)) && (
             <XStack gap="$s3">
               {[
-                ...(!token || (protocol && !tradable) || (stock && restrictedCountries.has(country ?? ""))
+                ...(!token || (stock && restrictedCountries.has(country ?? ""))
                   ? []
                   : [
                       {
@@ -183,7 +183,7 @@ export default function Asset() {
                         },
                       },
                     ]),
-                ...(token && (!protocol || tradable) && (chainId === chain.id || deployed === true)
+                ...(token && (chainId === chain.id || deployed === true)
                   ? [
                       {
                         key: "sell",
