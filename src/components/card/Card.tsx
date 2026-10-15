@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { use, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { selectionAsync } from "expo-haptics";
@@ -52,6 +52,7 @@ import useCardLimit from "../../utils/useCardLimit";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
+import TabBarContext from "../context/TabBarContext";
 import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
@@ -298,7 +299,7 @@ export default function Card() {
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
-          contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
+          contentContainerStyle={{ backgroundColor: "$backgroundMild", paddingBottom: use(TabBarContext) }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >

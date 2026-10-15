@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, PixelRatio, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
@@ -16,6 +16,7 @@ import queryClient, { type ActivityItem as ActivityEvent } from "../../utils/que
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useTabPress from "../../utils/useTabPress";
+import TabBarContext from "../context/TabBarContext";
 import ProcessingBalanceBanner from "../shared/ProcessingBalanceBanner";
 import ProposalBanner from "../shared/ProposalBanner";
 import RefreshControl from "../shared/RefreshControl";
@@ -98,6 +99,7 @@ export default function Activity() {
           onScrollToIndexFailed={() => undefined}
           contentContainerStyle={{
             flexGrow: 1,
+            paddingBottom: use(TabBarContext),
             backgroundColor: layout.items.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}

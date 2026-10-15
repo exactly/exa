@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
@@ -31,6 +31,7 @@ import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import useTabPress from "../../utils/useTabPress";
+import TabBarContext from "../context/TabBarContext";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
@@ -124,7 +125,11 @@ export default function Pay() {
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
-          contentContainerStyle={{ flexGrow: 1, backgroundColor: hasPayments ? "$backgroundMild" : "$backgroundSoft" }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: use(TabBarContext),
+            backgroundColor: hasPayments ? "$backgroundMild" : "$backgroundSoft",
+          }}
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={<RefreshControl onRefresh={refresh} />}
