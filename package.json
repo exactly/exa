@@ -488,7 +488,6 @@
           "command": "expo run:android",
           "env": {
             "APP_DOMAIN": "localhost",
-            "CHAIN_ID": "31337",
             "EXPO_PUBLIC_ENV": "e2e"
           }
         }
@@ -516,7 +515,6 @@
           "command": "expo run:ios",
           "env": {
             "APP_DOMAIN": "localhost",
-            "CHAIN_ID": "31337",
             "EXPO_PUBLIC_ENV": "e2e"
           }
         }
@@ -570,7 +568,6 @@
           "command": "expo start",
           "env": {
             "APP_DOMAIN": "localhost",
-            "CHAIN_ID": "31337",
             "EXPO_PUBLIC_ENV": "e2e"
           }
         }
