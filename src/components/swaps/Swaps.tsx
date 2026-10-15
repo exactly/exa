@@ -5,6 +5,7 @@ import { selectionAsync } from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 
 import {
+  ArrowDownUp,
   ArrowLeft,
   ArrowRight,
   ChartNoAxesCombined,
@@ -139,6 +140,7 @@ export default function Swaps() {
     refetch: refetchBalances,
   } = useQuery(balancesOptions(account));
   const [acknowledged, setAcknowledged] = useState(false);
+  const [flips, setFlips] = useState(0);
   const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
   const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
   const toast = useToastController();
@@ -1051,46 +1053,89 @@ export default function Swaps() {
                   <MarketClosedBanner
                     open={[fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen()}
                   />
-                  <YStack gap="$s3_5">
+                  <YStack>
                     {(["from", "to"] as const).map((type) => {
                       const paying = type === "from";
                       const tokenData = paying ? fromToken : toToken;
                       return (
-                        <TokenInput
-                          key={type}
-                          label={t(paying ? "You pay" : "You receive")}
-                          token={tokenData?.token}
-                          amount={paying ? fromAmount : toAmount}
-                          balance={getBalance(tokenData)}
-                          disabled={!paying}
-                          isLoading={isTokensLoading || !tokenData || (isRouteLoading && !fromAmount)}
-                          isActive={paying}
-                          isDanger={paying && showWarning}
-                          onTokenSelect={() => {
-                            updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
-                            setAcknowledged(false);
-                          }}
-                          onFocus={() => {
-                            setAcknowledged(false);
-                          }}
-                          onChange={
-                            paying
-                              ? (value: bigint) => {
-                                  handleAmountChange(value);
+                        <React.Fragment key={type}>
+                          {!paying && (
+                            <XStack paddingTop="$s3_5" justifyContent="center" alignItems="center" zIndex={1}>
+                              <XStack
+                                position="absolute"
+                                width={48}
+                                height={48}
+                                borderRadius="$r_0"
+                                borderWidth={4}
+                                borderColor="$backgroundSoft"
+                                backgroundColor="$interactiveBaseBrandSoftDefault"
+                                justifyContent="center"
+                                alignItems="center"
+                                cursor="pointer"
+                                role="button"
+                                aria-label={t("Switch tokens")}
+                                disabled={!fromToken || !toToken}
+                                rotate={`${flips * 180}deg`}
+                                transition="quick"
+                                pressStyle={{ opacity: 0.85, scale: 0.9 }}
+                                onPress={() => {
+                                  selectionAsync().catch(reportError);
+                                  if (debounceRef.current) clearTimeout(debounceRef.current);
                                   setAcknowledged(false);
-                                }
-                              : undefined
-                          }
-                          onUseMax={
-                            paying
-                              ? (value: bigint) => {
-                                  handleAmountChange(value);
-                                  setAcknowledged(false);
-                                }
-                              : undefined
-                          }
-                          usdValue={quotedUSD(route?.estimate, type)}
-                        />
+                                  setFlips((count) => count + 1);
+                                  updateSwap((old) => ({
+                                    ...old,
+                                    fromAmount: 0n,
+                                    toAmount: 0n,
+                                    denied: [],
+                                    fromToken: old.toToken,
+                                    toToken:
+                                      old.fromToken && restricted && isStock(old.fromToken.token)
+                                        ? undefined
+                                        : old.fromToken,
+                                    mode: undefined,
+                                  }));
+                                }}
+                              >
+                                <ArrowDownUp size={20} color="$interactiveOnBaseBrandSoft" />
+                              </XStack>
+                            </XStack>
+                          )}
+                          <TokenInput
+                            label={t(paying ? "You pay" : "You receive")}
+                            token={tokenData?.token}
+                            amount={paying ? fromAmount : toAmount}
+                            balance={getBalance(tokenData)}
+                            disabled={!paying}
+                            isLoading={isTokensLoading || !tokenData || (isRouteLoading && !fromAmount)}
+                            isActive={paying}
+                            isDanger={paying && showWarning}
+                            onTokenSelect={() => {
+                              updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
+                              setAcknowledged(false);
+                            }}
+                            onFocus={() => {
+                              setAcknowledged(false);
+                            }}
+                            onChange={
+                              paying
+                                ? (value: bigint) => {
+                                    handleAmountChange(value);
+                                    setAcknowledged(false);
+                                  }
+                                : undefined
+                            }
+                            onUseMax={
+                              paying
+                                ? (value: bigint) => {
+                                    handleAmountChange(value);
+                                    setAcknowledged(false);
+                                  }
+                                : undefined
+                            }
+                            usdValue={quotedUSD(route?.estimate, type)}
+                          />
+                        </React.Fragment>
                       );
                     })}
                   </YStack>
