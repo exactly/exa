@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
+import { selectionAsync } from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 
 import {
   ArrowLeft,
   ArrowRight,
+  ChartNoAxesCombined,
   Check,
   CircleHelp,
+  Coins,
   IdCard,
   Info,
   OctagonX,
@@ -98,6 +101,7 @@ export type Swap = {
   enableSimulations: boolean;
   fromAmount: bigint;
   fromToken?: { external: boolean; token: Token };
+  mode?: "crypto" | "stocks";
   toAmount: bigint;
   tokenModalOpen: boolean;
   tokenSelectionType: "from" | "to";
@@ -156,7 +160,7 @@ export default function Swaps() {
     isLoading: isTokensLoading,
     error: tokensError,
   } = useQuery({ queryKey: ["allowTokens", protocolMarkets], queryFn: () => getAllowTokens(protocolMarkets) });
-  const { data: lifiTokens } = useQuery(lifiTokensOptions);
+  const { data: lifiTokens, isLoading: isLifiLoading } = useQuery(lifiTokensOptions);
   const {
     data: lifiChains,
     error: chainsError,
@@ -173,6 +177,7 @@ export default function Swaps() {
       tokenSelectionType,
       enableSimulations,
       tokenModalOpen,
+      mode,
     } = defaultSwap,
   } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
   const { filter } = useLocalSearchParams();
@@ -188,6 +193,8 @@ export default function Swaps() {
     [],
   );
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
+  const { data: stocksTabSeen } = useQuery<boolean>({ queryKey: ["settings", "stocks-tab-seen"] });
+  const { isLoading: isBaseLoading } = useQuery(deployedOptions(credential?.factory, base.id));
   const deployedFactories = useQueries({
     queries: allowedChains.map((chainId) => deployedOptions(credential?.factory, chainId)),
     combine: (results) =>
@@ -265,9 +272,11 @@ export default function Swaps() {
     () => candidates.filter((token) => held.has(`${token.chainId}:${token.address}`)),
     [candidates, held],
   );
+  const stocks = !restricted && (mode ? mode === "stocks" : toToken ? isStock(toToken.token) : filter === "stocks");
+  const tabs = !restricted && candidates.some((token) => isStock(token));
   const selectableTokens = useMemo(
-    () => candidates.filter((token) => !(restricted && tokenSelectionType === "to" && isStock(token))),
-    [candidates, restricted, tokenSelectionType],
+    () => candidates.filter((token) => tokenSelectionType === "from" || isStock(token) === stocks),
+    [candidates, stocks, tokenSelectionType],
   );
 
   useEffect(() => {
@@ -279,10 +288,13 @@ export default function Swaps() {
       const input = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
       const target =
         old.toToken?.token ??
-        (input && isStock(input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
-          .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
-          .find((token) => token !== undefined && !sameToken(token, input)) ??
-        homeTokens.find((token) => !sameToken(token, input));
+        (stocks ? candidates.find((token) => isStock(token) && !sameToken(token, input)) : undefined) ??
+        (stocks && (isLifiLoading || isBaseLoading)
+          ? undefined
+          : ((input && isStock(input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
+              .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
+              .find((token) => token !== undefined && !sameToken(token, input)) ??
+            homeTokens.find((token) => !sameToken(token, input) && !isStock(token))));
       return {
         ...old,
         fromToken:
@@ -291,7 +303,18 @@ export default function Swaps() {
           old.toToken ?? (target ? { token: target, external: isExternal(target.chainId, target.address) } : undefined),
       };
     });
-  }, [fromToken, homeTokens, isExternal, markets, payableTokens, toToken]);
+  }, [
+    candidates,
+    fromToken,
+    homeTokens,
+    isBaseLoading,
+    isExternal,
+    isLifiLoading,
+    markets,
+    payableTokens,
+    stocks,
+    toToken,
+  ]);
 
   const processing = chain.id === base.id && isKYCInReview;
   const failed = chain.id === base.id && isKYCFailed;
@@ -335,9 +358,23 @@ export default function Swaps() {
               ? undefined
               : fromToken
             : toToken,
+      mode: undefined,
       tokenModalOpen: false,
     }));
   };
+
+  function changeMode(next: "crypto" | "stocks") {
+    if (next === "stocks") queryClient.setQueryData(["settings", "stocks-tab-seen"], true);
+    updateSwap((old) => ({
+      ...old,
+      mode: next,
+      toToken: undefined,
+      toAmount: 0n,
+      denied: [],
+      tokenSelectionType: next === "stocks" ? "to" : old.tokenSelectionType,
+      tokenModalOpen: next === "stocks" || old.tokenModalOpen,
+    }));
+  }
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const handleAmountChange = (value: bigint) => {
@@ -955,6 +992,54 @@ export default function Swaps() {
           </YStack>
         ) : (
           <>
+            {tabs && (
+              <XStack alignSelf="stretch" alignItems="flex-end" role="tablist">
+                {(
+                  [
+                    { tab: "crypto", label: t("Crypto"), Icon: Coins, selected: !stocks },
+                    { tab: "stocks", label: t("Stocks"), Icon: ChartNoAxesCombined, selected: stocks },
+                  ] as const
+                ).map(({ tab, label, Icon, selected }) => {
+                  const color = selected ? "$interactiveOnBaseBrandSoft" : "$uiNeutralSecondary";
+                  return (
+                    <XStack
+                      key={tab}
+                      flex={1}
+                      gap="$s2"
+                      alignItems="center"
+                      justifyContent="center"
+                      paddingHorizontal="$s3"
+                      paddingVertical="$s3_5"
+                      borderBottomWidth={selected ? 2 : 1}
+                      borderBottomColor={selected ? "$interactiveBaseBrandDefault" : "$borderNeutralSoft"}
+                      cursor="pointer"
+                      role="tab"
+                      aria-selected={selected}
+                      onPress={() => {
+                        if (selected) return;
+                        selectionAsync().catch(reportError);
+                        changeMode(tab);
+                      }}
+                    >
+                      <Icon size={16} color={color} />
+                      <Text footnote numberOfLines={1} color={color}>
+                        {label}
+                      </Text>
+                      {tab === "stocks" && !stocksTabSeen && (
+                        <Text
+                          pill
+                          caption2
+                          color="$interactiveOnBaseBrandDefault"
+                          backgroundColor="$interactiveBaseBrandDefault"
+                        >
+                          {t("NEW")}
+                        </Text>
+                      )}
+                    </XStack>
+                  );
+                })}
+              </XStack>
+            )}
             <ScrollView
               ref={swapsScrollReference}
               showsVerticalScrollIndicator={false}
@@ -978,7 +1063,7 @@ export default function Swaps() {
                           amount={paying ? fromAmount : toAmount}
                           balance={getBalance(tokenData)}
                           disabled={!paying}
-                          isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
+                          isLoading={isTokensLoading || !tokenData || (isRouteLoading && !fromAmount)}
                           isActive={paying}
                           isDanger={paying && showWarning}
                           onTokenSelect={() => {
@@ -1171,16 +1256,28 @@ export default function Swaps() {
             </YStack>
             <TokenSelectModal
               key={tokenSelectionType}
-              defaultFilter={tokenSelectionType === "to" && filter === "stocks" ? filter : undefined}
               withBalanceOnly={tokenSelectionType === "from"}
               open={tokenModalOpen}
               tokens={selectableTokens}
-              networks={networks}
+              networks={tokenSelectionType === "to" && stocks ? undefined : networks}
+              onStocks={
+                tokenSelectionType === "to" && tabs
+                  ? () => {
+                      changeMode("stocks");
+                    }
+                  : undefined
+              }
               selected={tokenSelectionType === "from" ? fromToken : toToken}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
-              isLoading={isTokensLoading}
-              title={tokenSelectionType === "from" ? t("Select token to pay") : t("Select token to receive")}
+              isLoading={isTokensLoading || !toToken}
+              title={
+                tokenSelectionType === "from"
+                  ? t("Select token to pay")
+                  : stocks
+                    ? t("Select stock to receive")
+                    : t("Select token to receive")
+              }
             />
           </>
         )}
