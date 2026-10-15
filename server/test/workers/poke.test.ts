@@ -1,4 +1,3 @@
-import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 import "../mocks/wallet";
@@ -16,10 +15,16 @@ import {
   zeroHash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterAll, beforeAll, beforeEach, describe, expect, inject, it, vi, type MockInstance } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain, { previewerAbi, wethAddress } from "@exactly/common/generated/chain";
+import chain, {
+  exaAccountFactoryAddress,
+  previewerAbi,
+  previewerAddress,
+  usdcAddress,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import t from "../../i18n";
@@ -39,7 +44,7 @@ import type { JobsOptions } from "bullmq";
 
 const eth = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const token = parse(Address, wethAddress);
-const token2 = parse(Address, inject("USDC"));
+const token2 = parse(Address, usdcAddress);
 const unknownAsset = parse(Address, "0x3333333333333333333333333333333333333333");
 const weth = parse(Address, wethAddress);
 const poker = privateKeyToAccount(padHex("0xb0b"));
@@ -678,13 +683,13 @@ describe("poke worker", () => {
 
 function createRequest() {
   const owner = privateKeyToAccount(generatePrivateKey());
-  const address = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
+  const address = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
   return {
     account: address,
     request: {
       account: address,
       chainId: chain.id,
-      factory: inject("ExaAccountFactory"),
+      factory: parse(Address, exaAccountFactoryAddress),
       origin: "allow",
       publicKey: owner.address,
       source: null,
@@ -694,7 +699,7 @@ function createRequest() {
 
 async function getMarket(address: Address, asset: Address) {
   return publicClient
-    .readContract({ address: inject("Previewer"), functionName: "exactly", abi: previewerAbi, args: [address] })
+    .readContract({ address: previewerAddress, functionName: "exactly", abi: previewerAbi, args: [address] })
     .then((markets) => markets.find((current) => current.asset === asset));
 }
 

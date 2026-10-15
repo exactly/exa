@@ -1,5 +1,4 @@
 import "../mocks/alchemy";
-import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 
@@ -9,9 +8,10 @@ import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
 import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress, marketWETHAddress, wethAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
@@ -55,14 +55,14 @@ describe("address activity", () => {
   beforeEach(async () => {
     poke.enqueue.mockReset().mockResolvedValue();
     owner = privateKeyToAccount(generatePrivateKey());
-    account = deriveAddress(inject("ExaAccountFactory"), { x: padHex(owner.address), y: zeroHash });
+    account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
 
     await database.insert(credentials).values([
       {
         id: account,
         publicKey: new Uint8Array(hexToBytes(owner.address)),
         account,
-        factory: inject("ExaAccountFactory"),
+        factory: exaAccountFactoryAddress,
       },
     ]);
   });
@@ -109,7 +109,7 @@ describe("address activity", () => {
     const sendPushNotification = sendPushNotificationMock;
     const chain = NETWORKS.get("ETH_MAINNET");
     if (!chain) throw new Error("missing mainnet");
-    mockLifiTokens({ 1: [{ address: inject("WETH") }] });
+    mockLifiTokens({ 1: [{ address: wethAddress }] });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -124,7 +124,7 @@ describe("address activity", () => {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
               value: 0,
-              rawContract: { address: inject("WETH") as Address, rawValue: "0x1" },
+              rawContract: { address: wethAddress as Address, rawValue: "0x1" },
             },
           ],
         },
@@ -133,9 +133,9 @@ describe("address activity", () => {
 
     expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
-      assets: [inject("WETH")],
+      assets: [wethAddress],
       chainId: chain.id,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -165,7 +165,7 @@ describe("address activity", () => {
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -191,7 +191,7 @@ describe("address activity", () => {
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -213,7 +213,7 @@ describe("address activity", () => {
       account,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -233,7 +233,7 @@ describe("address activity", () => {
             {
               ...transfer,
               toAddress: account,
-              rawContract: { ...transfer.rawContract, address: inject("WETH") },
+              rawContract: { ...transfer.rawContract, address: wethAddress },
             },
           ],
         },
@@ -242,9 +242,9 @@ describe("address activity", () => {
 
     expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
-      assets: [inject("WETH")],
+      assets: [wethAddress],
       chainId: 31_337,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -260,7 +260,7 @@ describe("address activity", () => {
         ...activityPayload.json,
         event: {
           ...activityPayload.json.event,
-          activity: [{ ...transfer, toAddress: account, rawContract: { address: inject("WETH"), rawValue: "0x0" } }],
+          activity: [{ ...transfer, toAddress: account, rawContract: { address: wethAddress, rawValue: "0x0" } }],
         },
       },
     });
@@ -271,12 +271,12 @@ describe("address activity", () => {
 
   it("queues one job per account with unique assets", async () => {
     const secondOwner = privateKeyToAccount(generatePrivateKey());
-    const secondAccount = deriveAddress(inject("ExaAccountFactory"), { x: padHex(secondOwner.address), y: zeroHash });
+    const secondAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(secondOwner.address), y: zeroHash });
     await database.insert(credentials).values({
       id: secondAccount,
       publicKey: new Uint8Array(hexToBytes(secondOwner.address)),
       account: secondAccount,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
     });
 
     const response = await appClient.index.$post({
@@ -290,12 +290,12 @@ describe("address activity", () => {
             {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: wethAddress },
             },
             {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: wethAddress },
             },
             { ...activityPayload.json.event.activity[0], toAddress: secondAccount },
           ],
@@ -306,9 +306,9 @@ describe("address activity", () => {
     expect(poke.enqueue).toHaveBeenCalledTimes(2);
     expect(poke.enqueue).toHaveBeenNthCalledWith(1, {
       account,
-      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", inject("WETH")],
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", wethAddress],
       chainId: 31_337,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: owner.address.toLowerCase(),
       source: null,
@@ -317,7 +317,7 @@ describe("address activity", () => {
       account: secondAccount,
       assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
       chainId: 31_337,
-      factory: inject("ExaAccountFactory"),
+      factory: exaAccountFactoryAddress,
       origin: "activity",
       publicKey: secondOwner.address.toLowerCase(),
       source: null,
@@ -361,7 +361,7 @@ describe("address activity", () => {
             {
               ...tokenWithoutAsset,
               toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: wethAddress },
             },
           ],
         },
@@ -392,7 +392,7 @@ describe("address activity", () => {
             {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
-              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: inject("WETH") },
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: wethAddress },
             },
           ],
         },
@@ -418,7 +418,7 @@ describe("address activity", () => {
             {
               ...activityPayload.json.event.activity[1],
               toAddress: account,
-              rawContract: { address: inject("MarketWETH"), rawValue: "0x1" },
+              rawContract: { address: marketWETHAddress, rawValue: "0x1" },
             },
           ],
         },

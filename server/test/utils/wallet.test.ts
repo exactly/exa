@@ -1,4 +1,3 @@
-import "../mocks/deployments";
 import "../mocks/sentry";
 import { enableTracing } from "../mocks/traceClient";
 import { nonceSource, walletClient } from "../mocks/wallet";
@@ -19,10 +18,10 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { recoverAuthorizationAddress } from "viem/utils";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { dataSuffix } from "@exactly/common/attribution";
-import chain, { auditorAbi } from "@exactly/common/generated/chain";
+import chain, { auditorAbi, auditorAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
@@ -140,7 +139,7 @@ describe("fault tolerance", () => {
     const onHash = vi.fn<() => void>();
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash },
     );
 
@@ -152,10 +151,10 @@ describe("fault tolerance", () => {
 
   it("applies data suffix", async () => {
     const call = {
-      address: inject("Auditor"),
+      address: auditorAddress,
       abi: auditorAbi,
       functionName: "enterMarket",
-      args: [inject("MarketUSDC")],
+      args: [marketUSDCAddress],
     } as const;
     const receipt = await keeper.exaSend({ name: "test transfer", op: "test.transfer" }, call);
 
@@ -190,7 +189,7 @@ describe("fault tolerance", () => {
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
         { onHash },
       ),
     ).rejects.toThrow("Timed out while waiting for transaction");
@@ -219,7 +218,7 @@ describe("fault tolerance", () => {
     const onHash = vi.fn<() => void>();
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash },
     );
 
@@ -230,13 +229,13 @@ describe("fault tolerance", () => {
     const blockedHashes: Hex[] = [];
     const first = keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash: (hash) => blockedHashes.push(hash) },
     );
     await vi.waitUntil(() => blockedHashes.length === 1);
     const second = keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash: (hash) => blockedHashes.push(hash) },
     );
     const sendBlocked = await Promise.allSettled([first, second]);
@@ -248,7 +247,7 @@ describe("fault tolerance", () => {
     mockWaitForTransactionReceipt.mockRestore();
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash },
     );
 
@@ -276,7 +275,7 @@ describe("fault tolerance", () => {
 
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash: (hash) => hashes.push(hash) },
     );
 
@@ -286,13 +285,13 @@ describe("fault tolerance", () => {
 
     const first = keeper.exaSend(
       { name: "test transfer 0", op: "test.transfer[0]" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash: (hash) => hashes.push(hash) },
     );
     await setImmediate();
     const second = keeper.exaSend(
       { name: "test transfer 1", op: "test.transfer[1]" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash: (hash) => hashes.push(hash) },
     );
     await setImmediate();
@@ -302,7 +301,7 @@ describe("fault tolerance", () => {
       ...Array.from({ length: 98 }, (_, index) =>
         keeper.exaSend(
           { name: `test transfer ${index + 2}`, op: `test.transfer[${index + 2}]` },
-          { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+          { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
           { onHash: (hash) => hashes.push(hash) },
         ),
       ),
@@ -319,7 +318,7 @@ describe("fault tolerance", () => {
 
     await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       { onHash: (hash) => hashes.push(hash) },
     );
 
@@ -337,7 +336,7 @@ describe("fault tolerance", () => {
       Array.from({ length: 20 }, (_, index) =>
         keeper.exaSend(
           { name: `test transfer ${index}`, op: `test.transfer[${index}]` },
-          { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+          { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
           { onHash: (hash) => hashes.push(hash) },
         ),
       ),
@@ -353,10 +352,10 @@ describe("fault tolerance", () => {
 describe("user identity", () => {
   it("sets sentry user when account attribute is valid address", async () => {
     const setUser = await spyScopeSetUser();
-    const account = inject("Auditor");
+    const account = auditorAddress;
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer", attributes: { account } },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
     expect(receipt?.status).toBe("success");
     expect(setUser).toHaveBeenCalledWith({ id: account });
@@ -366,7 +365,7 @@ describe("user identity", () => {
     const setUser = await spyScopeSetUser();
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
     expect(receipt?.status).toBe("success");
     expect(setUser).not.toHaveBeenCalled();
@@ -376,7 +375,7 @@ describe("user identity", () => {
     const setUser = await spyScopeSetUser();
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer", attributes: { account: "0xInvalid" } },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
     expect(receipt?.status).toBe("success");
     expect(setUser).not.toHaveBeenCalled();
@@ -392,7 +391,7 @@ describe("level option", () => {
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       ),
     ).rejects.toThrow("operational failure");
     const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
@@ -410,7 +409,7 @@ describe("level option", () => {
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
         { level: "warning" },
       ),
     ).rejects.toThrow("test warning");
@@ -429,7 +428,7 @@ describe("level option", () => {
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
         { level: false },
       ),
     ).rejects.toThrow("suppressed");
@@ -440,7 +439,7 @@ describe("level option", () => {
   it("calls level function with reason and error", async () => {
     const contractError = getContractError(
       new RawContractError({ data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientShortfall" }) }),
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
     vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
       throw contractError; // eslint-disable-line @typescript-eslint/only-throw-error -- returns error
@@ -452,7 +451,7 @@ describe("level option", () => {
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
         { level: levelFunction },
       ),
     ).rejects.toThrow();
@@ -466,14 +465,14 @@ describe("level option", () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
       throw getContractError(
         new RawContractError({ data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientShortfall" }) }),
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       );
     });
     const initialCalls = vi.mocked(captureException).mock.calls.length;
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
-        { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
         { level: () => false },
       ),
     ).rejects.toThrow();
@@ -503,7 +502,7 @@ describe("trace transaction retry", () => {
       });
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
 
     expect(receipt?.status).toBe("success");
@@ -526,7 +525,7 @@ describe("trace transaction retry", () => {
       });
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
 
     expect(receipt?.status).toBe("success");
@@ -540,7 +539,7 @@ describe("trace transaction retry", () => {
     const initialCalls = vi.mocked(captureException).mock.calls.length;
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
-      { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
 
     expect(receipt?.status).toBe("success");
@@ -578,7 +577,7 @@ afterEach(() => {
 function enterMarket() {
   return keeper.exaSend(
     { name: "test transfer", op: "test.transfer" },
-    { address: inject("Auditor"), abi: auditorAbi, functionName: "enterMarket", args: [inject("MarketUSDC")] },
+    { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
   );
 }
 

@@ -1,4 +1,3 @@
-import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 import "../mocks/wallet";

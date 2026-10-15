@@ -1,7 +1,6 @@
 import "../expect";
 
 import "../mocks/auth";
-import "../mocks/deployments";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
@@ -13,10 +12,16 @@ import path from "node:path";
 import { safeParse, type InferOutput } from "valibot";
 import { padHex, zeroHash, type Hash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { marketAbi } from "@exactly/common/generated/chain";
+import {
+  auditorAbi,
+  auditorAddress,
+  exaAccountFactoryAddress,
+  marketAbi,
+  marketUSDCAddress,
+} from "@exactly/common/generated/chain";
 
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
@@ -42,9 +47,14 @@ function removeUndefined(object: unknown): unknown {
 }
 
 const appClient = testClient(route({ auth: authenticate(""), database }));
-const account = deriveAddress(inject("ExaAccountFactory"), {
+const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
   y: zeroHash,
+});
+const markets = await anvilClient.readContract({
+  address: auditorAddress,
+  abi: auditorAbi,
+  functionName: "allMarkets",
 });
 
 describe.concurrent("validation", () => {
@@ -98,7 +108,7 @@ describe.concurrent("authenticated", () => {
       const borrows = await anvilClient.getContractEvents({
         abi: marketAbi,
         eventName: "BorrowAtMaturity",
-        address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+        address: [...markets],
         args: { borrower: account },
         toBlock: "latest",
         fromBlock: 0n,
@@ -111,7 +121,7 @@ describe.concurrent("authenticated", () => {
         ...(await anvilClient.getContractEvents({
           abi: marketAbi,
           eventName: "Withdraw",
-          address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+          address: [...markets],
           args: { owner: account },
           toBlock: "latest",
           fromBlock: 0n,
@@ -524,7 +534,7 @@ describe.concurrent("authenticated", () => {
       const borrows = await anvilClient.getContractEvents({
         abi: marketAbi,
         eventName: "BorrowAtMaturity",
-        address: inject("MarketUSDC"),
+        address: marketUSDCAddress,
         args: { borrower: account },
         toBlock: "latest",
         fromBlock: 0n,
@@ -551,7 +561,7 @@ describe.concurrent("authenticated", () => {
           id: leak.credentialId,
           publicKey: new Uint8Array(),
           account: padHex("0xac71", { size: 20 }),
-          factory: inject("ExaAccountFactory"),
+          factory: exaAccountFactoryAddress,
         });
         await database.insert(cards).values([{ id: leak.cardId, credentialId: leak.credentialId, lastFour: "0000" }]);
         await database
@@ -591,7 +601,7 @@ describe.concurrent("authenticated", () => {
       const repays = await anvilClient.getContractEvents({
         abi: marketAbi,
         eventName: "RepayAtMaturity",
-        address: [inject("MarketEXA"), inject("MarketUSDC"), inject("MarketWETH")],
+        address: [...markets],
         args: { borrower: account },
         toBlock: "latest",
         fromBlock: 0n,

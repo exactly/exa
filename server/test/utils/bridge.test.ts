@@ -7,9 +7,10 @@ import { parse, safeParse } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { optimism, optimismSepolia } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
@@ -18,7 +19,8 @@ import createBridge, * as Bridge from "../../utils/ramps/bridge";
 
 const chainMock = vi.hoisted(() => ({ id: 10 }));
 
-vi.mock("@exactly/common/generated/chain", () => ({
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
+  ...(await importOriginal()),
   default: chainMock,
 }));
 
@@ -36,7 +38,7 @@ const bridge = {
 describe("bridge utils", () => {
   const owner = privateKeyToAddress(padHex("0xb1d"));
   const conflictOwner = privateKeyToAddress(padHex("0xb1f"));
-  const factory = inject("ExaAccountFactory");
+  const factory = exaAccountFactoryAddress;
 
   beforeAll(async () => {
     await database.insert(credentials).values([

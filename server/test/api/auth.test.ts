@@ -15,7 +15,7 @@ import { nonEmpty, object, parse, pipe, string, type InferOutput } from "valibot
 import { getAddress, keccak256, padHex, slice, toBytes, verifyMessage, zeroAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
-import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
@@ -80,7 +80,7 @@ describe("authentication", () => {
         id: "dGVzdC1jcmVkLWlk",
         publicKey: new Uint8Array(),
         account: zeroAddress,
-        factory: parse(Address, inject("ExaAccountFactory")),
+        factory: parse(Address, exaAccountFactoryAddress),
         transports: [],
       },
     ]);
@@ -771,7 +771,7 @@ describe("authentication", () => {
   });
 
   it("authenticates existing credential with matching factory", async () => {
-    const factory = parse(Address, inject("ExaAccountFactory"));
+    const factory = parse(Address, exaAccountFactoryAddress);
     const response = await appClient.index.$post(
       {
         json: {
@@ -794,7 +794,7 @@ describe("authentication", () => {
   });
 
   it("returns 400 if factory mismatches existing credential", async () => {
-    const factory = [...validFactories].find((f) => f !== parse(Address, inject("ExaAccountFactory")));
+    const factory = [...validFactories].find((f) => f !== parse(Address, exaAccountFactoryAddress));
     assert.ok(factory);
     const response = await appClient.index.$post(
       {

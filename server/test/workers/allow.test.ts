@@ -5,9 +5,9 @@ import { Queue, QueueEvents, type Job, type JobsOptions } from "bullmq";
 import { parse } from "valibot";
 import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { afterAll, afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import chain, { firewallAbi } from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress, firewallAbi, firewallAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { bullmq } from "../../utils/redis";
@@ -19,9 +19,8 @@ import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
 
-const factory = inject("ExaAccountFactory");
+const factory = parse(Address, exaAccountFactoryAddress);
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
-const firewall = inject("Firewall");
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, source: null };
 const allower = privateKeyToAccount(padHex("0xa11"));
 const allow = createAllow(bullmq);
@@ -30,7 +29,7 @@ const mocks = vi.hoisted(() => ({
   createPoke: vi.fn<typeof createPoke>(),
   enqueuePoke: vi.fn<ReturnType<typeof createPoke>["enqueue"]>(),
   exaSend: vi.fn(),
-  firewall: vi.fn<() => Address | undefined>(),
+  firewall: vi.fn<(address: string | undefined) => string | undefined>(),
   wallet: vi.fn(),
 }));
 
@@ -42,7 +41,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   return {
     ...original,
     get firewallAddress() {
-      return mocks.firewall();
+      return mocks.firewall(original.firewallAddress);
     },
   };
 });
@@ -94,7 +93,7 @@ beforeEach(async () => {
   mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
-  mocks.firewall.mockReset().mockReturnValue(firewall);
+  mocks.firewall.mockReset().mockImplementation((address) => address);
   mocks.wallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
   vi.clearAllMocks();
   await queue.drain(true);
@@ -157,7 +156,7 @@ describe("allow worker", () => {
     expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(allower);
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
-      { address: firewall, functionName: "allow", args: [account, true], abi: firewallAbi },
+      { address: firewallAddress, functionName: "allow", args: [account, true], abi: firewallAbi },
       { ignore: [`AlreadyAllowed(${account})`] },
     );
     expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({ ...request, origin: "allow" });

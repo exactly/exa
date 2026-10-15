@@ -13,9 +13,10 @@ import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
 
-import type { TestProject } from "vitest/node";
-
-export default async function setup({ provide }: Pick<TestProject, "provide">) {
+export default async function setup() {
+  if (!env.NX_TASK_TARGET_PROJECT) {
+    await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
+  }
   const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
   await instance.start();
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
@@ -170,49 +171,21 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await anvilClient.stopImpersonatingAccount({ address: keeper.address });
 
-  const [exaBusinessTenant, issuerChecker, proposalManager, refunder, exaPreviewer, exaPlugin, exaAccountFactory] =
-    await Promise.all([
-      readFile("node_modules/@exactly/plugin/broadcast/ExaBusinessTenant.s.sol/31337/run-latest.json", "utf8"),
-      readFile("node_modules/@exactly/plugin/broadcast/IssuerChecker.s.sol/31337/run-latest.json", "utf8"),
-      readFile("node_modules/@exactly/plugin/broadcast/ProposalManager.s.sol/31337/run-latest.json", "utf8"),
-      readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
-      readFile("node_modules/@exactly/plugin/broadcast/ExaPreviewer.s.sol/31337/run-latest.json", "utf8"),
-      readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
-      readFile("node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", "utf8"),
-    ]).then(
-      ([
-        exaBusinessTenant_,
-        issuerChecker_,
-        proposalManager_,
-        refunder_,
-        exaPreviewer_,
-        exaPlugin_,
-        exaAccountFactory_,
-      ]) =>
-        [
-          parse(object({ returns: object({ manager: object({ value: Address }) }) }), JSON.parse(exaBusinessTenant_))
-            .returns.manager.value,
-          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(issuerChecker_))
-            .transactions[0].contractAddress,
-          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(proposalManager_))
-            .transactions[0].contractAddress,
-          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(refunder_))
-            .transactions[0].contractAddress,
-          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPreviewer_))
-            .transactions[0].contractAddress,
-          parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
-            .transactions[0].contractAddress,
-          parse(
-            object({
-              transactions: tuple([
-                object({ transactionType: literal("CALL"), function: literal("deploy(bytes32,bytes)") }),
-                object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
-              ]),
-            }),
-            JSON.parse(exaAccountFactory_),
-          ).transactions[1].contractAddress,
-        ] as const,
-    );
+  const [exaBusinessTenant, refunder, exaPlugin] = await Promise.all([
+    readFile("node_modules/@exactly/plugin/broadcast/ExaBusinessTenant.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
+  ]).then(
+    ([exaBusinessTenant_, refunder_, exaPlugin_]) =>
+      [
+        parse(object({ returns: object({ manager: object({ value: Address }) }) }), JSON.parse(exaBusinessTenant_))
+          .returns.manager.value,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(refunder_))
+          .transactions[0].contractAddress,
+        parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
+          .transactions[0].contractAddress,
+      ] as const,
+  );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
   for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
@@ -301,28 +274,6 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     ]);
   }
 
-  provide("Auditor", auditor);
-  provide("Balancer2Vault", balancer);
-  provide("DebtManager", debtManager);
-  provide("ExaPreviewer", exaPreviewer);
-  provide("EXA", exa);
-  provide("ExaAccountFactory", exaAccountFactory);
-  provide("ExaBusinessTenant", exaBusinessTenant);
-  provide("ExaPlugin", exaPlugin);
-  provide("Firewall", firewall);
-  provide("InstallmentsRouter", installmentsRouter);
-  provide("IntegrationPreviewer", integrationPreviewer);
-  provide("IssuerChecker", issuerChecker);
-  provide("MarketEXA", marketEXA);
-  provide("MarketUSDC", marketUSDC);
-  provide("MarketWETH", marketWETH);
-  provide("Previewer", previewer);
-  provide("ProposalManager", proposalManager);
-  provide("RatePreviewer", ratePreviewer);
-  provide("Refunder", refunder);
-  provide("USDC", usdc);
-  provide("WETH", weth);
-
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
     await instance.stop();
@@ -379,30 +330,3 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
-
-declare module "vitest" {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- module augmentation requires interface merging
-  export interface ProvidedContext {
-    Auditor: Address;
-    Balancer2Vault: Address;
-    DebtManager: Address;
-    EXA: Address;
-    ExaAccountFactory: Address;
-    ExaBusinessTenant: Address;
-    ExaPlugin: Address;
-    ExaPreviewer: Address;
-    Firewall: Address;
-    InstallmentsRouter: Address;
-    IntegrationPreviewer: Address;
-    IssuerChecker: Address;
-    MarketEXA: Address;
-    MarketUSDC: Address;
-    MarketWETH: Address;
-    Previewer: Address;
-    ProposalManager: Address;
-    RatePreviewer: Address;
-    Refunder: Address;
-    USDC: Address;
-    WETH: Address;
-  }
-}

@@ -1,5 +1,4 @@
 import "../mocks/auth";
-import "../mocks/deployments";
 import "../mocks/sentry";
 
 import { testClient } from "hono/testing";
@@ -7,9 +6,10 @@ import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, describe, expect, inject, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import route from "../../api/pax";
 import database from "../../database";
@@ -39,7 +39,7 @@ describe("/pax GET", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
       associateId: pax.deriveAssociateId(
-        deriveAddress(inject("ExaAccountFactory"), { x: padHex(privateKeyToAddress(padHex("0xb0b"))), y: zeroHash }),
+        deriveAddress(exaAccountFactoryAddress, { x: padHex(privateKeyToAddress(padHex("0xb0b"))), y: zeroHash }),
       ),
     });
   });
