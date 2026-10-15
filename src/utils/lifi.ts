@@ -161,12 +161,10 @@ export function isStock({ address, chainId }: { address: string; chainId: number
 }
 
 export function marketOpen() {
-  const parts = formatter.formatToParts(new Date());
-  const value = (type: string) => parts.find((unit) => unit.type === type)?.value ?? "";
-  const weekday = value("weekday");
-  if (weekday === "Sat" || weekday === "Sun") return false;
-  const minutes = Number(value("hour")) * 60 + Number(value("minute"));
-  return minutes >= 9.5 * 60 && minutes < 16 * 60;
+  const now = new Date();
+  const weekday = weekdays.format(now);
+  const evening = Number(hours.format(now)) >= 20;
+  return weekday === "Sun" ? evening : weekday === "Fri" ? !evening : weekday !== "Sat";
 }
 
 export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
@@ -789,13 +787,8 @@ const Balances = object({
 
 const knownTokens = new WeakMap<Token[], Map<string, Token>>();
 
-const formatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  hour: "numeric",
-  minute: "numeric",
-  hourCycle: "h23",
-});
+const weekdays = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" });
+const hours = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" });
 
 type Holding = { address: string; amount: bigint };
 
