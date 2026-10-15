@@ -44,6 +44,7 @@ function TokenListItem({
         alignItems="center"
         gap="$s3"
         paddingVertical="$s3_5"
+        paddingHorizontal="$s3"
         backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
         borderRadius="$r3"
       >
@@ -85,7 +86,7 @@ function TokenListItem({
 
 function TokenSkeletonItem() {
   return (
-    <XStack alignItems="center" gap="$s3" paddingVertical="$s3_5">
+    <XStack alignItems="center" gap="$s3" paddingVertical="$s3_5" paddingHorizontal="$s3">
       <Skeleton radius="round" height={40} width={40} />
       <YStack flex={1} gap="$s2">
         <Skeleton height={16} width={60} />
@@ -186,13 +187,14 @@ export default function TokenSelectModal({
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
       <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View padded paddingTop="$s6" paddingBottom={0} fullScreen flex={1} gap="$s4_5">
+        <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
           <Text fontSize={20} fontWeight="bold" textAlign="center">
             {title ?? t("Select token")}
           </Text>
           <XStack
             alignItems="center"
             gap="$s2"
+            marginHorizontal="$s4"
             paddingLeft="$s3_5"
             borderWidth={1}
             borderColor="$borderNeutralSoft"
@@ -232,7 +234,7 @@ export default function TokenSelectModal({
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <XStack gap="$s3" alignItems="center">
+              <XStack gap="$s3" alignItems="center" paddingHorizontal="$s4">
                 {chips.map((item) =>
                   item === "stocks" ? (
                     <Chip
@@ -269,7 +271,7 @@ export default function TokenSelectModal({
               </XStack>
             </ScrollView>
           )}
-          <View flex={1}>
+          <View flex={1} paddingHorizontal="$s3">
             {isLoading ? (
               <SkeletonItems />
             ) : (
