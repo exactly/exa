@@ -376,16 +376,27 @@ export async function getRoute(
   };
 }
 
-export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
-  ensureConfig();
-  if (chain.testnet) return [];
-  const { tokens } = await getTokens({ chains: [chain.id] });
+export function swappable(markets: readonly { asset: string; symbol: string }[] = []) {
   const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
-  const allowed = new Set(
+  return new Set(
     [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)]
       .map((address) => address.toLowerCase())
       .filter((address) => !excluded.has(address)),
   );
+}
+
+export function isSendable(address: string) {
+  return (
+    address === zeroAddress ||
+    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
+  );
+}
+
+export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
+  ensureConfig();
+  if (chain.testnet) return [];
+  const { tokens } = await getTokens({ chains: [chain.id] });
+  const allowed = swappable(markets);
   const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
   if (!exaAddress) return allowTokens;
   try {
