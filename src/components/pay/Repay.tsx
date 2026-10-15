@@ -11,30 +11,21 @@ import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeFunctionData, erc20Abi } from "viem";
-import { useBytecode, useReadContract, useSendCalls, useSimulateContract } from "wagmi";
+import { useBytecode, useReadContract, useSendCalls } from "wagmi";
 
-import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, {
   balancerVaultAddress,
-  exaPluginAddress,
   integrationPreviewerAddress,
   marketUSDCAddress,
   proposalManagerAddress,
   swapperAddress,
   usdcAddress,
 } from "@exactly/common/generated/chain";
-import {
-  auditorAbi,
-  integrationPreviewerAbi,
-  marketAbi,
-  upgradeableModularAccountAbi,
-  useReadProposalManagerDelay,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import { integrationPreviewerAbi, marketAbi, useReadProposalManagerDelay } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
-import { Address, type Credential } from "@exactly/common/validation";
+import { Address } from "@exactly/common/validation";
 import { divWad, fixedRepayAssets, fixedRepayPosition, min, WAD } from "@exactly/lib";
 
 import AssetSelectionSheet from "./AssetSelectionSheet";
@@ -99,28 +90,15 @@ export default function Repay() {
     usdAmount: 0,
   });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: account,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!account && !!credential },
-  });
   const withUSDC = selectedAsset.address === (marketUSDCAddress as Address);
-  const mode =
-    installedPlugins && selectedAsset.address
-      ? selectedAsset.external
-        ? "external"
-        : installedPlugins[0] === exaPluginAddress
-          ? withUSDC
-            ? "repay"
-            : "crossRepay"
-          : withUSDC
-            ? "legacyRepay"
-            : "legacyCrossRepay"
-      : "none";
+  const mode = selectedAsset.address
+    ? selectedAsset.external
+      ? "external"
+      : withUSDC
+        ? "repay"
+        : "crossRepay"
+    : "none";
 
   const { maturity: maturityQuery } = useLocalSearchParams();
   const maturity = useMemo(() => {
@@ -190,14 +168,13 @@ export default function Repay() {
     queryFn: () => {
       switch (mode) {
         case "crossRepay":
-        case "legacyCrossRepay":
           if (!account || !repayMarket || !repayMarketAvailable) throw new Error("implementation error");
           return getRouteFrom({
             fromTokenAddress: repayMarket.asset,
             toTokenAddress: usdcAddress,
             fromAmount: repayMarketAvailable,
             fromAddress: account,
-            toAddress: mode === "crossRepay" ? account : exaPluginAddress,
+            toAddress: account,
             denyExchanges,
           });
         case "external":
@@ -219,7 +196,7 @@ export default function Repay() {
     enabled:
       enableSimulations &&
       (externalAsset ? !!externalAssetAvailable : !!repayMarketAvailable) &&
-      (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external"),
+      (mode === "crossRepay" || mode === "external"),
     refetchInterval: 20_000,
     placeholderData: keepPreviousData,
   });
@@ -258,16 +235,8 @@ export default function Repay() {
       if (!maxRepay) throw new Error("no max repay");
       switch (mode) {
         case "crossRepay":
-        case "legacyCrossRepay":
           if (!account || !repayMarket) throw new Error("implementation error");
-          return getRoute(
-            repayMarket.asset,
-            usdcAddress,
-            maxRepay,
-            account,
-            mode === "crossRepay" ? account : exaPluginAddress,
-            denyExchanges,
-          );
+          return getRoute(repayMarket.asset, usdcAddress, maxRepay, account, account, denyExchanges);
         case "external":
           if (!account || !selectedAsset.address) throw new Error("implementation error");
           return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account, denyExchanges);
@@ -275,11 +244,7 @@ export default function Repay() {
           throw new Error("implementation error");
       }
     },
-    enabled:
-      enableSimulations &&
-      !!maxRepay &&
-      (mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external") &&
-      positionAssets > 0n,
+    enabled: enableSimulations && !!maxRepay && (mode === "crossRepay" || mode === "external") && positionAssets > 0n,
     refetchInterval: 20_000,
   });
 
@@ -317,57 +282,6 @@ export default function Repay() {
   });
 
   const {
-    data: legacyRepaySimulation,
-    error: legacyRepaySimulationError,
-    isPending: isSimulatingLegacyRepay,
-  } = useSimulateContract({
-    address: account,
-    chainId: chain.id,
-    functionName: "repay",
-    args: [maturity ?? 0n],
-    abi: [
-      ...auditorAbi,
-      ...marketAbi,
-      ...upgradeableModularAccountAbi,
-      {
-        type: "function",
-        inputs: [{ name: "maturity", internalType: "uint256", type: "uint256" }],
-        name: "repay",
-        outputs: [],
-        stateMutability: "nonpayable",
-      },
-    ],
-    query: { enabled: enableSimulations && mode === "legacyRepay" },
-  });
-
-  const {
-    data: legacyCrossRepaySimulation,
-    error: legacyCrossRepaySimulationError,
-    isPending: isSimulatingLegacyCrossRepay,
-  } = useSimulateContract({
-    address: account,
-    chainId: chain.id,
-    functionName: "crossRepay",
-    args: selectedAsset.address && maturity ? [maturity, selectedAsset.address] : undefined,
-    abi: [
-      ...auditorAbi,
-      ...marketAbi,
-      ...upgradeableModularAccountAbi,
-      {
-        type: "function",
-        inputs: [
-          { name: "maturity", internalType: "uint256", type: "uint256" },
-          { name: "collateral", internalType: "contract IMarket", type: "address" },
-        ],
-        name: "crossRepay",
-        outputs: [],
-        stateMutability: "nonpayable",
-      },
-    ],
-    query: { enabled: enableSimulations && mode === "legacyCrossRepay" && !!selectedAsset.address && !!maturity },
-  });
-
-  const {
     mutate: repay,
     isPending: isRepaying,
     isSuccess: isRepaySuccess,
@@ -386,22 +300,12 @@ export default function Repay() {
             return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
           }
 
-          case "legacyRepay": {
-            if (!legacyRepaySimulation) throw new Error("no legacy repay simulation");
-            const { address, abi, functionName, args } = legacyRepaySimulation.request;
-            return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
-          }
           case "crossRepay": {
             if (!crossRepayPropose) throw new Error("no cross repay simulation");
             const { address, abi, functionName, args } = crossRepayPropose;
             return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
           }
 
-          case "legacyCrossRepay": {
-            if (!legacyCrossRepaySimulation) throw new Error("no legacy cross repay simulation");
-            const { address, abi, functionName, args } = legacyCrossRepaySimulation.request;
-            return { to: address, data: encodeFunctionData({ abi, functionName, args }) };
-          }
           default:
             throw new Error("unexpected mode");
         }
@@ -514,8 +418,6 @@ export default function Repay() {
   const simulationError = {
     repay: repayExecuteProposalError,
     crossRepay: crossRepayExecuteProposalError ?? routeError,
-    legacyRepay: legacyRepaySimulationError,
-    legacyCrossRepay: legacyCrossRepaySimulationError ?? routeError,
     external:
       routeError ??
       (route?.fromAmount && route.fromAmount > externalAssetAvailable ? new Error("insufficient funds") : undefined), // TODO simulate with [eth_simulateV1](https://viem.sh/docs/actions/public/simulateCalls)
@@ -523,9 +425,7 @@ export default function Repay() {
   }[mode];
   const isSimulating = {
     repay: isSimulatingRepay,
-    legacyRepay: isSimulatingLegacyRepay,
     crossRepay: isSimulatingCrossRepay,
-    legacyCrossRepay: isSimulatingLegacyCrossRepay,
     external: false,
     none: false,
   }[mode];
@@ -551,7 +451,7 @@ export default function Repay() {
     setManuallySelectedAsset({ address, external });
   }, []);
 
-  const needsRoute = mode === "crossRepay" || mode === "legacyCrossRepay" || mode === "external";
+  const needsRoute = mode === "crossRepay" || mode === "external";
   const disabled =
     mode === "none" ||
     repayAssets === 0n ||
