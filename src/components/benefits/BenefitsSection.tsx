@@ -176,6 +176,7 @@ export default function BenefitsSection({
 
   const [width, setWidth] = useState(0);
   const itemWidth = Math.max(width - 40, 250);
+  const scrollable = benefits.length > 1;
 
   if (!isLoading && benefits.length === 0) return null;
   return (
@@ -197,7 +198,9 @@ export default function BenefitsSection({
               width={itemWidth}
               height={160}
               data={benefits}
-              autoPlay={!reducedMotion}
+              enabled={scrollable}
+              loop={scrollable}
+              autoPlay={scrollable && !reducedMotion}
               autoPlayInterval={5000}
               withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
               onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}
