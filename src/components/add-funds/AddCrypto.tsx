@@ -130,8 +130,8 @@ export default function AddCrypto() {
     await Share.share({
       message: [
         assets.length === 1
-          ? t("Hi! Here are my details so you can send me {{currency}} 👇", { currency: assets[0] })
-          : t("Hi! Here are my details so you can send me crypto 👇"),
+          ? t("Here are my {{currency}} account details 👇", { currency: assets[0] })
+          : t("Here are my crypto account details 👇"),
         "",
         `${t("Address")}: ${address}`,
         `${t("Network")}: ${networkName}`,
@@ -141,6 +141,8 @@ export default function AddCrypto() {
         ...(memo ? [`${t("Memo")}: ${memo}`] : []),
         "",
         warning,
+        "",
+        t("Powered by Exa (https://www.exactly.app)"),
       ].join("\n"),
       title: t("Share {{chain}} address", { chain: networkName }),
     });

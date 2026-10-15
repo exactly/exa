@@ -146,6 +146,19 @@ export default function Ramp() {
     currency: typedCurrency,
     methods: deposits.map((d) => d.displayName).join(` ${t("or")} `),
   });
+  const message =
+    deposit &&
+    [
+      ...(typedProvider === "manteca"
+        ? []
+        : [t("Here are my {{currency}} account details 👇", { currency: typedCurrency }), ""]),
+      methods,
+      depositRows(deposit)
+        .map(({ label, value }) => `${t(label)}: ${value}`)
+        .join("\n"),
+      "",
+      t("Powered by Exa (https://www.exactly.app)"),
+    ].join("\n");
 
   function formatAmount(amount: number) {
     return amount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -237,20 +250,8 @@ export default function Ramp() {
               flex={1}
               disabled={isPending || !deposit}
               onPress={() => {
-                if (!deposit) return;
-                Share.share({
-                  message: [
-                    ...(typedProvider === "manteca"
-                      ? []
-                      : [
-                          t("Hi! Here are my details so you can send me {{currency}} 👇", { currency: typedCurrency }),
-                          "",
-                        ]),
-                    methods,
-                    fullDetails(deposit, t),
-                  ].join("\n"),
-                  title: t("Share account details"),
-                }).catch(reportError);
+                if (!message) return;
+                Share.share({ message, title: t("Share account details") }).catch(reportError);
               }}
             >
               <Button.Text>{t("Share")}</Button.Text>
@@ -263,7 +264,7 @@ export default function Ramp() {
               flex={1}
               disabled={isPending || !deposit}
               onPress={() => {
-                if (deposit) copyToClipboard(fullDetails(deposit, t));
+                if (message) copyToClipboard(message);
               }}
             >
               <Button.Text>{t("Copy")}</Button.Text>
@@ -524,10 +525,4 @@ function depositRows(deposit: DepositCardProperties["deposit"]): { label: string
     default:
       return [];
   }
-}
-
-function fullDetails(deposit: DepositCardProperties["deposit"], t: ReturnType<typeof useTranslation>["t"]): string {
-  return depositRows(deposit)
-    .map(({ label, value }) => `${t(label)}: ${value}`)
-    .join("\n");
 }
