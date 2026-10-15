@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 
-import { ChartNoAxesCombined, Ellipsis, Search } from "@tamagui/lucide-icons-2";
+import { ChartNoAxesCombined, Ellipsis, Search, X } from "@tamagui/lucide-icons-2";
 import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
@@ -15,6 +15,7 @@ import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
+import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
 import NetworkFilter from "../shared/NetworkFilter";
@@ -181,13 +182,21 @@ export default function TokenSelectModal({
     });
   }, [searchQuery, tokens, filter, withBalanceOnly, holdings, marketAssets, isExternal]);
 
+  function close() {
+    setSearchQuery("");
+    onClose();
+  }
+
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
+    <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
       <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
-          <Text fontSize={20} fontWeight="bold" textAlign="center">
-            {title ?? t("Select token")}
-          </Text>
+          <XStack alignItems="center" justifyContent="center" marginHorizontal="$s4">
+            <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="$s6">
+              {title ?? t("Select token")}
+            </Text>
+            <IconButton position="absolute" right={0} icon={X} aria-label={t("Close")} onPress={close} />
+          </XStack>
           <XStack
             alignItems="center"
             gap="$s2"
