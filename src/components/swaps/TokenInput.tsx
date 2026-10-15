@@ -112,8 +112,8 @@ export default function TokenInput({
       borderWidth={1}
       borderColor={isDanger ? "$borderErrorStrong" : isActive ? "$borderBrandStrong" : "$borderNeutralSoft"}
       borderRadius="$r3"
-      padding="$s4_5"
-      gap="$s3"
+      padding="$s3_5"
+      gap="$s2"
       backgroundColor="$backgroundSoft"
     >
       <XStack alignItems="center" justifyContent="space-between">
@@ -129,7 +129,8 @@ export default function TokenInput({
         </YStack>
         {canUseMax ? (
           <View
-            padding="$s3"
+            paddingVertical="$s2"
+            paddingHorizontal="$s3"
             borderRadius="$r2"
             backgroundColor="$interactiveBaseBrandSoftDefault"
             onPress={useMax}
