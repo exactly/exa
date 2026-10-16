@@ -27,6 +27,11 @@ jobs:
           cache-dependency-path: contracts/requirements.txt
       - uses: actions/cache@v6
         with:
+          path: /tmp/metro-cache
+          key: metro-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: metro-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache@v6
+        with:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
@@ -86,6 +91,11 @@ jobs:
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1 }
+      - uses: actions/cache@v6
+        with:
+          path: /tmp/metro-cache
+          key: metro-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: metro-${{ runner.os }}-${{ github.job }}-
       - uses: actions/cache@v6
         with:
           path: ~/.nx
