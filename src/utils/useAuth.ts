@@ -88,6 +88,11 @@ function handleError(
     error.message.startsWith("The operation couldn’t be completed. Application with identifier")
   ) {
     onDomainError();
+  } else {
+    toast.show(t("Something went wrong. Please try again."), {
+      duration: 1000,
+      burntOptions: { haptic: "error", preset: "error" },
+    });
   }
   if (auth && queryClient.getQueryState(["auth"])?.error === error) return;
   reportError(error);
