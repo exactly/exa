@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
+import { persistQueryClientRestore } from "@tanstack/query-persist-client-core";
 import { dehydrate, QueryCache, QueryClient, skipToken, type Query } from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
@@ -81,12 +81,7 @@ const dehydrateOptions = {
     !(queryKey[0] === "readContract" && (queryKey[1] as { functionName?: string }).functionName === "prices"),
 };
 
-export const persistOptions = { persister, dehydrateOptions };
-
-if (typeof window !== "undefined") {
-  const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions, buster: release });
-  hydrated.then(subscribe, subscribe);
-}
+export const persistOptions = { persister, dehydrateOptions, buster: release, maxAge: 30 * 24 * 60 * 60_000 };
 
 export function persist() {
   return Promise.resolve(
