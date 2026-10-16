@@ -48,6 +48,7 @@ import SplineSansMonoMedium from "../assets/fonts/SplineSansMono-Medium.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider, { isBaseTheme } from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
+import Splash from "../components/shared/Splash";
 import WalletSwitchSheet from "../components/shared/WalletSwitchSheet";
 import release from "../generated/release";
 import en from "../i18n/en.json";
@@ -358,6 +359,7 @@ function Navigator() {
         </Stack.Protected>
       </Stack>
       <WalletSwitchSheet />
+      {Platform.OS !== "web" && <Splash isReady={ready} />}
     </>
   );
 }
