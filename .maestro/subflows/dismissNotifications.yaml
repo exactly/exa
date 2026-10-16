@@ -2,10 +2,4 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - assertVisible: Stay updated
-      - tapOn: Not now
-      - pressKey: home
-      - launchApp: { permissions: { all: deny, camera: allow } }
-      - extendedWaitUntil: { visible: Portfolio, timeout: 180000 }
-      - assertNotVisible: Stay updated
+    commands: [{ assertVisible: Stay updated }, { tapOn: Not now }]

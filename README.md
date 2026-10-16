@@ -38,7 +38,7 @@ maestro test .maestro/flows/local.yaml
 
 # web
 pnpm nx e2e:web mobile
-maestro test .maestro/flows/web.yaml
+maestro test .maestro/flows/web/local.yaml
 ```
 
 ## @exactly/server
