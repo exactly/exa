@@ -39,6 +39,7 @@ const account = derive("0xc12ed1");
 const debit = derive("0xc12ed2");
 const empty = derive("0xc12ed3");
 const unknown = derive("0xc12ed4");
+const holder = derive("0xc12ed5");
 const keeper = wallet(privateKeyToAccount(padHex("0x69")));
 const credit = createCredit(bullmq);
 const onesignal = createOnesignal("onesignal");
@@ -52,11 +53,16 @@ beforeAll(async () => {
     { id: "credit-worker", account, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
     { id: "credit-debit", account: debit, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
     { id: "credit-empty", account: empty, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
+    { id: "credit-holder", account: holder, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
   ]);
   await database.insert(cards).values([
     { id: "credit-card", credentialId: "credit-worker", lastFour: "1234" },
     { id: "credit-debit-card", credentialId: "credit-debit", lastFour: "1234" },
     { id: "credit-empty-card", credentialId: "credit-empty", lastFour: "1234" },
+    { id: "credit-active", credentialId: "credit-holder", lastFour: "1111" },
+    { id: "credit-deleted", credentialId: "credit-holder", lastFour: "2222", status: "DELETED" },
+    { id: "credit-frozen", credentialId: "credit-holder", lastFour: "3333", status: "FROZEN" },
+    { id: "credit-installments", credentialId: "credit-holder", lastFour: "4444", mode: 3 },
   ]);
   await Promise.all([
     collateralize("0xc12ed1", [wethAddress, marketWETHAddress, parseEther("1")]),
@@ -66,6 +72,7 @@ beforeAll(async () => {
       [usdcAddress, marketUSDCAddress, 1_000_000n],
     ),
     collateralize("0xc12ed4", [wethAddress, marketWETHAddress, parseEther("1")]),
+    collateralize("0xc12ed5", [wethAddress, marketWETHAddress, parseEther("1")]),
   ]);
 });
 
@@ -77,8 +84,12 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await database.delete(cards).where(inArray(cards.credentialId, ["credit-worker", "credit-debit", "credit-empty"]));
-  await database.delete(credentials).where(inArray(credentials.id, ["credit-worker", "credit-debit", "credit-empty"]));
+  await database
+    .delete(cards)
+    .where(inArray(cards.credentialId, ["credit-worker", "credit-debit", "credit-empty", "credit-holder"]));
+  await database
+    .delete(credentials)
+    .where(inArray(credentials.id, ["credit-worker", "credit-debit", "credit-empty", "credit-holder"]));
   await Promise.all([queue.close(), events.close(), credit.close()]);
 });
 
@@ -146,7 +157,7 @@ describe("credit worker", () => {
     });
     expect(setAttribute.mock.calls.filter(([attribute]) => String(attribute).startsWith("exa."))).toStrictEqual([
       ["exa.autoCredit", true],
-      ["exa.card", "credit-card"],
+      ["exa.cards", ["credit-card"]],
       ["exa.mode", 1],
     ]);
     expect(startSpan).toHaveBeenCalledWith(
@@ -158,6 +169,28 @@ describe("credit worker", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("activates credit mode on every active or frozen debit card", async () => {
+    await jobFinished(holder);
+
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, mode: true },
+        where: eq(cards.credentialId, "credit-holder"),
+        orderBy: cards.id,
+      }),
+    ).resolves.toStrictEqual([
+      { id: "credit-active", mode: 1 },
+      { id: "credit-deleted", mode: 0 },
+      { id: "credit-frozen", mode: 1 },
+      { id: "credit-installments", mode: 3 },
+    ]);
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: holder,
+      headings: t("Credit mode activated"),
+      contents: t("Your card is now in credit mode", { count: 2 }),
+    });
   });
 
   it("keeps debit mode without deposits", async () => {
@@ -216,7 +249,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
     expect(reads(spy)).toHaveLength(1);
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),

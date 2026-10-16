@@ -745,6 +745,27 @@ describe("card limit case", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("captures and skips limit updates when credential has multiple cards", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([
+      { id: "case-card", credentialId: referenceId, lastFour: "1234" },
+      { id: "case-card-frozen", credentialId: referenceId, lastFour: "5678", status: "FROZEN" },
+    ]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "multiple cards" });
+    expect(persona.updateCardLimit).not.toHaveBeenCalled();
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "multiple cards" }), {
+      level: "error",
+      contexts: { credential: { referenceId } },
+    });
+  });
+
   it("updates persona account when credential has no pandaId", async () => {
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
