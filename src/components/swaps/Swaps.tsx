@@ -455,8 +455,11 @@ export default function Swaps() {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!routeUpdatedAt) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    const timer = setTimeout(
+      () => setNow(Math.max(Date.now(), routeUpdatedAt + quoteValidity)),
+      routeUpdatedAt + quoteValidity - Date.now(),
+    );
+    return () => clearTimeout(timer);
   }, [routeUpdatedAt]);
   const quoteExpired = !!route && now >= routeUpdatedAt + quoteValidity;
 
