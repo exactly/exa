@@ -396,6 +396,18 @@ describe("card operations", () => {
           },
         });
         expect(transaction).not.toHaveProperty("payload.bodies[0].reason");
+        expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+          userId: account,
+          event: "AuthorizationRejected",
+          properties: {
+            cardId,
+            cardMode: 0,
+            source: null,
+            usdAmount: 9,
+            declinedReason: "frozen-card",
+            merchant: { name: "99999", category: "food", city: "buenos aires", country: "AR" },
+          },
+        });
       });
 
       it("fails with inactive card", async () => {
@@ -455,6 +467,18 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
+        expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+          userId: account,
+          event: "TransactionAuthorized",
+          properties: {
+            type: "panda",
+            cardId: "debit",
+            cardMode: 0,
+            source: null,
+            usdAmount: 9,
+            merchant: { name: "99999", category: "food", city: "buenos aires", country: "AR" },
+          },
+        });
       });
 
       it("authorizes debit when risk assessment times out", async () => {
@@ -1168,7 +1192,7 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
         expect(sendPushNotification).toHaveBeenCalledWith({
           userId: account,
-          headings: t("Card purchase"),
+          headings: t("Card purchase •••• {{lastFour}}", { lastFour: "9999" }),
           contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
             count: 0,
             amount: f(localAmount / 100, "ARS"),
@@ -1303,7 +1327,7 @@ describe("card operations", () => {
         for (const call of [1, 2]) {
           expect(sendPushNotificationMock).toHaveBeenNthCalledWith(call, {
             userId: account,
-            headings: t("Card purchase"),
+            headings: t("Card purchase •••• {{lastFour}}", { lastFour: "9999" }),
             contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
               count: 0,
               amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
@@ -1417,6 +1441,7 @@ describe("card operations", () => {
           userId: account,
           event: "TransactionRejected",
           properties: {
+            cardId,
             cardMode: 6,
             declinedReason: "collection:created:collectCredit:timeout",
             id: cardId,
@@ -1439,6 +1464,7 @@ describe("card operations", () => {
             action: "created",
             amount: 60,
             authorizedAmount: authorization.json.body.spend.authorizedAmount,
+            cardId,
             cardMode: 6,
             functionName: "collectCredit",
             id: cardId,
@@ -2212,6 +2238,7 @@ describe("card operations", () => {
           userId: account,
           event: "TransactionRejected",
           properties: {
+            cardId,
             cardMode: 0,
             declinedReason: "collection:completed:collectDebit:settlement failed",
             id: cardId,
@@ -2234,6 +2261,7 @@ describe("card operations", () => {
             action: "completed",
             amount: capture,
             authorizedAmount: hold,
+            cardId,
             cardMode: 0,
             functionName: "collectDebit",
             id: cardId,
@@ -3185,6 +3213,7 @@ describe("plugin 1.0.0", () => {
       userId: account100,
       event: "TransactionRejected",
       properties: {
+        cardId: `${account100}-debit`,
         cardMode: 0,
         declinedReason: "collection:created:collectDebit:network failure",
         id: `${account100}-unchecked`,
@@ -3202,6 +3231,7 @@ describe("plugin 1.0.0", () => {
         action: "created",
         amount: 902,
         authorizedAmount: authorization.json.body.spend.authorizedAmount,
+        cardId: `${account100}-debit`,
         cardMode: 0,
         functionName: "collectDebit",
         id: `${account100}-unchecked`,
@@ -4079,7 +4109,7 @@ describe("card updated", () => {
     expect(segment.track).toHaveBeenCalledExactlyOnceWith({
       userId: account,
       event: "CardDeleted",
-      properties: { source: null },
+      properties: { cardId: id, source: null },
     });
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
@@ -4622,7 +4652,7 @@ describe("concurrency", () => {
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
       expect(sendPushNotificationSpy).toHaveBeenCalledExactlyOnceWith({
         userId: account,
-        headings: t("Exa Card purchase rejected"),
+        headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,
@@ -5004,7 +5034,7 @@ describe("concurrency", () => {
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
       expect(sendPushNotificationSpy.mock.calls[0]?.[0]).toMatchObject({
         userId: account2,
-        headings: t("Exa Card purchase rejected"),
+        headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,
