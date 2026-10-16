@@ -5,7 +5,7 @@ import "../mocks/panda";
 import * as pax from "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sardine";
-import "../mocks/segment";
+import * as segment from "../mocks/segment";
 import "../mocks/wallet";
 
 import { KeyManagementServiceClient } from "@google-cloud/kms";
@@ -1434,6 +1434,17 @@ describe("authenticated", () => {
     const card = await database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) });
 
     expect(card?.status).toBe("DELETED");
+    expect(segment.track).toHaveBeenCalledTimes(2);
+    expect(segment.track).toHaveBeenNthCalledWith(1, {
+      event: "CardIssued",
+      userId: padHex("0x5", { size: 20 }),
+      properties: { cardId: id, productId: SIGNATURE_PRODUCT_ID, source: null },
+    });
+    expect(segment.track).toHaveBeenNthCalledWith(2, {
+      userId: padHex("0x5", { size: 20 }),
+      event: "CardDeleted",
+      properties: { cardId: id, source: null },
+    });
   });
 
   it("propagates stale card provisioning errors", async () => {
@@ -1534,6 +1545,129 @@ describe("authenticated", () => {
     expect(response.status).toBe(500);
     expect(panda.getProcessorDetails).toHaveBeenCalledWith("543c1771-beae-4f26-b662-44ea48b40dc6");
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  describe("with card id", () => {
+    beforeAll(async () => {
+      await database.insert(credentials).values({
+        id: "multi-card",
+        publicKey: new Uint8Array(),
+        account: padHex("0xc4d1", { size: 20 }),
+        factory: inject("ExaAccountFactory"),
+        pandaId: "multi-card",
+      });
+      await database.insert(cards).values([
+        { id: "c4d10000-0000-4000-8000-000000000001", credentialId: "multi-card", lastFour: "1111" },
+        { id: "c4d10000-0000-4000-8000-000000000002", credentialId: "multi-card", lastFour: "2222", status: "FROZEN" },
+      ]);
+    });
+
+    it("returns the requested card", async () => {
+      vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+      vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+
+      const response = await appClient.index.$get(
+        { header: {}, query: { cardId: "c4d10000-0000-4000-8000-000000000002" } },
+        { headers: { "test-credential-id": "multi-card" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        cardId: "c4d10000-0000-4000-8000-000000000002",
+        lastFour: "2222",
+        status: "FROZEN",
+      });
+      expect(panda.getCard).toHaveBeenCalledExactlyOnceWith("c4d10000-0000-4000-8000-000000000002");
+    });
+
+    it("returns 404 no card when card belongs to another user", async () => {
+      const response = await appClient.index.$get(
+        { header: {}, query: { cardId: "543c1771-beae-4f26-b662-44ea48b40dc6" } },
+        { headers: { "test-credential-id": "multi-card" } },
+      );
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    });
+
+    it("returns 400 bad request when card id is not a uuid", async () => {
+      const response = await appClient.index.$get(
+        { header: {}, query: { cardId: "not-a-uuid" } },
+        { headers: { "test-credential-id": "multi-card" } },
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("updates the requested card", async () => {
+      const response = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "multi-card" },
+        json: { cardId: "c4d10000-0000-4000-8000-000000000002", mode: 4 },
+      });
+      const updated = await database.query.cards.findMany({
+        columns: { id: true, mode: true },
+        where: eq(cards.credentialId, "multi-card"),
+        orderBy: cards.id,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ mode: 4 });
+      expect(updated).toStrictEqual([
+        { id: "c4d10000-0000-4000-8000-000000000001", mode: 0 },
+        { id: "c4d10000-0000-4000-8000-000000000002", mode: 4 },
+      ]);
+    });
+
+    it("tracks status changes of the requested card", async () => {
+      const frozen = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "multi-card" },
+        json: { cardId: "c4d10000-0000-4000-8000-000000000001", status: "FROZEN" },
+      });
+      const active = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "multi-card" },
+        json: { cardId: "c4d10000-0000-4000-8000-000000000001", status: "ACTIVE" },
+      });
+
+      expect(frozen.status).toBe(200);
+      await expect(frozen.json()).resolves.toStrictEqual({ status: "FROZEN" });
+      expect(active.status).toBe(200);
+      await expect(active.json()).resolves.toStrictEqual({ status: "ACTIVE" });
+      expect(segment.track).toHaveBeenCalledTimes(2);
+      expect(segment.track).toHaveBeenNthCalledWith(1, {
+        userId: checksumAddress(padHex("0xc4d1", { size: 20 })),
+        event: "CardFrozen",
+        properties: { cardId: "c4d10000-0000-4000-8000-000000000001", source: null },
+      });
+      expect(segment.track).toHaveBeenNthCalledWith(2, {
+        userId: checksumAddress(padHex("0xc4d1", { size: 20 })),
+        event: "CardUnfrozen",
+        properties: { cardId: "c4d10000-0000-4000-8000-000000000001", source: null },
+      });
+    });
+
+    it("returns 404 no card on update when card belongs to another user", async () => {
+      const response = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "multi-card" },
+        json: { cardId: "543c1771-beae-4f26-b662-44ea48b40dc6", mode: 4 },
+      });
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    });
+
+    it("returns 400 bad request on update when card id is not a uuid", async () => {
+      const response = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "multi-card" },
+        json: { cardId: "not-a-uuid", mode: 4 },
+      });
+
+      expect(response.status).toBe(400);
+    });
   });
 
   describe("signature", () => {

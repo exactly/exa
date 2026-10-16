@@ -1,6 +1,6 @@
 import { captureException, setContext, setUser, withScope } from "@sentry/node";
 import { Mutex } from "async-mutex";
-import { eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { describeRoute } from "hono-openapi";
@@ -104,21 +104,25 @@ const CreatedCardResponse = object({
 
 const UpdateCard = union([
   pipe(
-    strictObject({ mode: pipe(number(), integer(), minValue(0), maxValue(MAX_INSTALLMENTS)) }),
+    strictObject({
+      cardId: optional(pipe(string(), uuid())),
+      mode: pipe(number(), integer(), minValue(0), maxValue(MAX_INSTALLMENTS)),
+    }),
     transform((patch) => ({ ...patch, type: "mode" as const })),
   ),
   pipe(
-    strictObject({ status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
+    strictObject({ cardId: optional(pipe(string(), uuid())), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
     transform((patch) => ({ ...patch, type: "status" as const })),
   ),
   pipe(
-    strictObject({ data: string(), iv: string(), sessionId: string() }),
+    strictObject({ cardId: optional(pipe(string(), uuid())), data: string(), iv: string(), sessionId: string() }),
     transform((patch) => ({ ...patch, type: "pin" as const })),
   ),
   pipe(
     variant("method", [
-      object({ method: literal("siwe"), message: string(), signature: Hex }),
+      object({ cardId: optional(pipe(string(), uuid())), method: literal("siwe"), message: string(), signature: Hex }),
       object({
+        cardId: optional(pipe(string(), uuid())),
         method: literal("webauthn"),
         assertion: object({
           id: Base64URL,
@@ -188,6 +192,7 @@ export default function route({
         "query",
         optional(
           object({
+            cardId: optional(pipe(string(), uuid())),
             scope: optional(
               union([
                 Scopes,
@@ -213,6 +218,8 @@ The \`sessionid\` header and the \`scope\` query parameter are independent and m
 - Provide \`scope=siwe\` or \`scope=webauthn\` to receive a \`challenge\` to be signed and submitted via \`PATCH /\`. \`siwe\` and \`webauthn\` are mutually exclusive within a single request.
 
 Successful responses include push-provisioning credentials in the \`provisioning\` field only when the \`scope=provisioning\` query parameter is sent.
+
+Provide the \`cardId\` query parameter to retrieve a specific card listed by \`GET /cards\`. Without it, the user's card is returned.
 
 **Retrieving encrypted card details**
 1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
@@ -304,7 +311,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         },
       }),
       async (c) => {
-        const { scope } = c.req.valid("query");
+        const { cardId, scope } = c.req.valid("query");
         function include(type: InferInput<typeof Scopes>) {
           return Array.isArray(scope) ? scope.includes(type) : scope === type;
         }
@@ -315,7 +322,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           with: {
             cards: {
               columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), cardId ? eq(cards.id, cardId) : undefined),
             },
           },
         });
@@ -584,7 +591,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             let cardCount = activeCards.length;
             for (const card of activeCards) {
               try {
-                await panda.getCard(parse(CardUUID, card.id));
+                await panda.getCard(parse(pipe(string(), uuid()), card.id));
               } catch (error) {
                 if (
                   (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
@@ -658,7 +665,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               segment.track({
                 event: "CardIssued",
                 userId: account,
-                properties: { productId, source: credential.source },
+                properties: { cardId: card.id, productId, source: credential.source },
               });
 
               if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
@@ -745,6 +752,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
         security: [{ credentialAuth: [] }],
         description: `
 Update the card status, installments mode, or PIN, or submit a signed challenge to bind the card to the authenticated user.
+
+Include the optional \`cardId\` field in the body to update a specific card listed by \`GET /cards\`. Without it, the user's card is updated.
 
 **Updating the card status**
 
@@ -848,7 +857,7 @@ async function encryptPIN(pin: string) {
               with: {
                 cards: {
                   columns: { id: true, mode: true, status: true, lastFour: true },
-                  where: ne(cards.status, "DELETED"),
+                  where: and(ne(cards.status, "DELETED"), patch.cardId ? eq(cards.id, patch.cardId) : undefined),
                 },
               },
             });
@@ -874,15 +883,23 @@ async function encryptPIN(pin: string) {
                     segment.track({
                       userId: account,
                       event: "CardUnfrozen",
-                      properties: { source: credential.source },
+                      properties: { cardId: card.id, source: credential.source },
                     });
                     break;
                   case "DELETED":
                     await panda.updateCard({ id: card.id, status: "canceled" });
-                    segment.track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
+                    segment.track({
+                      userId: account,
+                      event: "CardDeleted",
+                      properties: { cardId: card.id, source: credential.source },
+                    });
                     break;
                   case "FROZEN":
-                    segment.track({ userId: account, event: "CardFrozen", properties: { source: credential.source } });
+                    segment.track({
+                      userId: account,
+                      event: "CardFrozen",
+                      properties: { cardId: card.id, source: credential.source },
+                    });
                     break;
                 }
                 await database.update(cards).set({ status }).where(eq(cards.id, card.id));
@@ -971,8 +988,6 @@ async function encryptPIN(pin: string) {
       },
     );
 }
-
-const CardUUID = pipe(string(), uuid());
 
 function noUser(error: unknown) {
   if (!(error instanceof ServiceError)) return;
