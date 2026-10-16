@@ -14,7 +14,6 @@ import { env } from "node:process";
 import { nonEmpty, object, parse, pipe, string, type InferOutput } from "valibot";
 import { getAddress, keccak256, padHex, slice, toBytes, verifyMessage, zeroAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { optimism } from "viem/chains";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, inject, it, onTestFinished, vi } from "vitest";
 
@@ -986,33 +985,6 @@ describe("registration", () => {
       columns: { id: true },
     });
     expect(credential?.id).toBe(id);
-    await expect(redis.exists("session:test-session")).resolves.toBe(0);
-  });
-
-  it("rejects siwe registration on optimism", async () => {
-    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const id = "0x1234567890123456789012345678901234567899";
-    const chainId = chain.id;
-    onTestFinished(() => {
-      chain.id = chainId;
-    });
-    chain.id = optimism.id;
-
-    const response = await registrationAppClient.index.$post(
-      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
-      { headers: { cookie: "session_id=test-session" } },
-    );
-
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toStrictEqual({ code: "ouch", legacy: "ouch" });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "siwe registration disabled" }),
-      { level: "error", tags: { unhandled: true } },
-    );
-    expect(sardineCustomer).not.toHaveBeenCalled();
-    await expect(
-      database.query.credentials.findFirst({ where: eq(credentials.id, id), columns: { id: true } }),
-    ).resolves.toBeUndefined();
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 

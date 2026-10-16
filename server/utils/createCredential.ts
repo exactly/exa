@@ -2,12 +2,11 @@ import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress } from "viem";
-import { optimism } from "viem/chains";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import decodePublicKey from "./decodePublicKey";
@@ -40,7 +39,6 @@ export default function createCredential({
     credentialId: C,
     options?: { factory?: Address; ip?: IpAddress; source?: string; webauthn?: WebAuthnCredential },
   ) {
-    if (chain.id === optimism.id && isAddress(credentialId)) throw new Error("siwe registration disabled"); // TODO remove
     const factory = options?.factory ?? exaAccountFactoryAddress;
     const publicKey =
       options?.webauthn?.publicKey ?? (isAddress(credentialId) ? new Uint8Array(hexToBytes(credentialId)) : undefined);
