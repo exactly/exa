@@ -23,7 +23,7 @@ import {
 import { useToastController } from "@tamagui/toast";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
@@ -202,15 +202,18 @@ export default function Swaps() {
   const { data: stocksTabSeen } = useQuery<boolean>({ queryKey: ["settings", "stocks-tab-seen"] });
   const { deployedFactories, isBaseLoading } = useQueries({
     queries: allowedChains.map((chainId) => deployedOptions(credential?.factory, chainId)),
-    combine: (results) => {
-      const result = results[allowedChains.indexOf(base.id)];
-      return {
-        deployedFactories: new Set(
-          allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true),
-        ),
-        isBaseLoading: !!result?.isFetching && result.data !== true,
-      };
-    },
+    combine: useCallback(
+      (results: UseQueryResult<boolean>[]) => {
+        const result = results[allowedChains.indexOf(base.id)];
+        return {
+          deployedFactories: new Set(
+            allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true),
+          ),
+          isBaseLoading: !!result?.isFetching && result.data !== true,
+        };
+      },
+      [allowedChains],
+    ),
   });
   const networks = useMemo(
     () =>
