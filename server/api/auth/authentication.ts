@@ -237,6 +237,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           rpID: domain,
           allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
           timeout,
+          userVerification: "required",
         });
         await redis.set(`session:${sessionId}`, options.challenge, "PX", timeout);
         return c.json(
