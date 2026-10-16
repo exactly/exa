@@ -8,7 +8,7 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, inject, it, vi } from "vitest";
 
@@ -59,9 +59,16 @@ describe("with reference", () => {
   const factory = inject("ExaAccountFactory");
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   beforeAll(async () => {
-    await database
-      .insert(credentials)
-      .values([{ id: referenceId, publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: null }]);
+    await database.insert(credentials).values([
+      {
+        id: referenceId,
+        publicKey: new Uint8Array(hexToBytes(owner)),
+        account,
+        factory,
+        pandaId: null,
+        salt: zeroAddress,
+      },
+    ]);
   });
 
   afterEach(async () => {
@@ -109,6 +116,7 @@ describe("with reference", () => {
       account,
       chainId: chain.id,
       factory,
+      salt: zeroAddress,
       publicKey: owner.toLowerCase(),
       source: null,
     });
@@ -242,6 +250,7 @@ describe("with reference", () => {
       account,
       chainId: chain.id,
       factory,
+      salt: zeroAddress,
       publicKey: owner.toLowerCase(),
       source: null,
     });
@@ -441,6 +450,7 @@ describe("persona hook", () => {
       id: "persona-ref",
       publicKey: new Uint8Array(),
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       account,
       pandaId: null,
     });
@@ -485,6 +495,7 @@ describe("persona hook", () => {
       account,
       chainId: chain.id,
       factory: inject("ExaAccountFactory"),
+      salt: zeroAddress,
       publicKey: "0x",
       source: null,
     });
@@ -678,9 +689,16 @@ describe("card limit case", () => {
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
 
   beforeAll(async () => {
-    await database
-      .insert(credentials)
-      .values([{ id: referenceId, publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: null }]);
+    await database.insert(credentials).values([
+      {
+        id: referenceId,
+        publicKey: new Uint8Array(hexToBytes(owner)),
+        account,
+        factory,
+        pandaId: null,
+        salt: zeroAddress,
+      },
+    ]);
   });
 
   afterEach(async () => {
