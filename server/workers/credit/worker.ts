@@ -61,24 +61,28 @@ export default function worker({
           columns: {},
           with: {
             cards: {
-              columns: { id: true, mode: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
+              columns: { id: true },
+              where: and(
+                inArray(cards.status, ["ACTIVE", "FROZEN"]),
+                eq(cards.mode, 0),
+                eq(cards.tenant, isBase ? "BASE" : "OP"),
+              ),
             },
           },
         });
-        const card = credential?.cards[0];
-        span.setAttribute("exa.card", card?.id);
-        if (card?.mode === 0) {
-          await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
+        const ids = credential?.cards.map(({ id }) => id) ?? [];
+        span.setAttribute("exa.cards", ids);
+        if (ids.length > 0) {
+          await database.update(cards).set({ mode: 1 }).where(inArray(cards.id, ids));
           span.setAttribute("exa.mode", 1);
           await onesignal
             .sendPushNotification({
               userId: job.data.account,
               headings: t("Credit mode activated"),
-              contents: t("Your card is now in credit mode"),
+              contents: t("Your card is now in credit mode", { count: ids.length }),
               idempotencyKey: v5(`https://exact.ly/credit/${job.id}/${job.timestamp}`, v5.URL),
             })
-            .catch((error: unknown) => captureException(error));
+            .catch((error: unknown) => captureException(error, { level: "error" }));
         }
       }
     },
