@@ -508,7 +508,7 @@ export default function hook({
         // falls through
         case "created": {
           const card = await database.query.cards.findFirst({
-            columns: { mode: true },
+            columns: { lastFour: true, mode: true },
             where: eq(cards.id, payload.body.spend.cardId),
             with: { credential: { columns: { account: true, id: true, source: true } } },
           });
@@ -551,6 +551,7 @@ export default function hook({
               }
               sendDeclinedNotification(
                 account,
+                card.lastFour,
                 payload.body.spend,
                 mapped ?? (requested === undefined ? raw : undefined) ?? "transaction declined",
                 onesignal,
@@ -746,7 +747,7 @@ export default function hook({
                 onesignal
                   .sendPushNotification({
                     userId: account,
-                    headings: t("Card purchase"),
+                    headings: t("Card purchase •••• {{lastFour}}", { lastFour: card.lastFour }),
                     contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
                       count: card.mode,
                       amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
@@ -819,6 +820,7 @@ export default function hook({
                 userId: account,
                 event: "TransactionRejected",
                 properties: {
+                  cardId: payload.body.spend.cardId,
                   cardMode: card.mode,
                   declinedReason: `collection:${payload.action}:${call.functionName}:${reason}`,
                   id: payload.body.id,
@@ -836,6 +838,7 @@ export default function hook({
                   action: payload.action,
                   amount: payload.body.spend.amount,
                   authorizedAmount: payload.body.spend.authorizedAmount ?? null,
+                  cardId: payload.body.spend.cardId,
                   cardMode: card.mode,
                   functionName: call.functionName,
                   id: payload.body.id,
@@ -975,6 +978,7 @@ function trackAuthorized(
     event: "TransactionAuthorized",
     properties: {
       type: "panda",
+      cardId: payload.body.spend.cardId,
       cardMode,
       source,
       usdAmount: payload.body.spend.amount / 100,
@@ -1000,6 +1004,7 @@ function trackAuthorizationRejected(
     userId: account,
     event: "AuthorizationRejected",
     properties: {
+      cardId: payload.body.spend.cardId,
       cardMode,
       source,
       usdAmount: payload.body.spend.amount / 100,
@@ -1030,6 +1035,7 @@ function trackRejected(
     event: "TransactionRejected",
     properties: {
       id: payload.body.id,
+      cardId: payload.body.spend.cardId,
       cardMode,
       source,
       usdAmount: payload.body.spend.amount / 100,
@@ -1253,13 +1259,14 @@ function getRequestedDeclineReason(transactionPayload: unknown) {
 
 async function sendDeclinedNotification(
   account: Address,
+  lastFour: string,
   spend: v.InferOutput<typeof Transaction>["body"]["spend"],
   reason: string,
   onesignal: ReturnType<typeof createOnesignal>,
 ) {
   await onesignal.sendPushNotification({
     userId: account,
-    headings: t("Exa Card purchase rejected"),
+    headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour }),
     contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
       amount: f(spend.localAmount / 100, spend.localCurrency),
       merchantName: spend.merchantName.trim(),
