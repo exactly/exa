@@ -3,6 +3,8 @@ import "./traceClient";
 import path from "node:path";
 import {
   createWalletClient,
+  custom,
+  ExecutionRevertedError,
   http,
   keccak256,
   publicActions,
@@ -34,7 +36,14 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
   const create = (network: Chain = chain) => {
     const url = network.rpcUrls.alchemy?.http[0];
     if (!url) throw new Error("missing alchemy rpc url");
-    return createWalletClient({ chain: network, transport: http(`${url}/${alchemyAPIKey}`), account })
+    return createWalletClient({
+      chain: network,
+      transport:
+        url === chain.rpcUrls.alchemy.http[0]
+          ? http(`${url}/${alchemyAPIKey}`)
+          : custom({ request: () => Promise.reject(new ExecutionRevertedError()) }),
+      account,
+    })
       .extend(publicActions)
       .extend((wallet) => {
         walletClient = wallet;

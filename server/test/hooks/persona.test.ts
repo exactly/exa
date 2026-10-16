@@ -12,7 +12,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { auditors, exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import createPersonaHook from "../../hooks/persona";
@@ -22,9 +22,9 @@ import createPersona, * as Persona from "../../utils/persona";
 import createSardine from "../../utils/sardine";
 
 import type createAllow from "../../workers/allow/queue";
-import type * as C from "@exactly/common/generated/chain";
 
 const allow = {
+  backfill: vi.fn<ReturnType<typeof createAllow>["backfill"]>(),
   close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
   enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
 };
@@ -45,21 +45,10 @@ const personaHook = createPersonaHook({
 });
 const app = personaHook.app;
 const appClient = testClient(app);
-const mocks = vi.hoisted(() => ({ firewall: vi.fn<(address: string | undefined) => string | undefined>() }));
 
 vi.mock("@sentry/node", { spy: true });
-vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
-  const original = await importOriginal<typeof C>();
-  return {
-    ...original,
-    get firewallAddress() {
-      return mocks.firewall(original.firewallAddress);
-    },
-  };
-});
 
 beforeEach(() => {
-  mocks.firewall.mockReset().mockImplementation((address) => address);
   allow.close.mockReset().mockResolvedValue();
   allow.enqueue.mockReset().mockResolvedValue();
 });
@@ -115,13 +104,17 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          source: null,
+        },
+      ]),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -248,13 +241,17 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -491,13 +488,17 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory: exaAccountFactoryAddress,
-      publicKey: "0x",
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory: exaAccountFactoryAddress,
+          publicKey: "0x",
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).toHaveBeenCalledWith({
       accountPurpose: "business",
       annualSalary: "100000",
@@ -563,16 +564,6 @@ describe("persona hook", () => {
     expect(panda.createUser).toHaveBeenCalledOnce();
   });
 
-  it("skips allow without a firewall deployment", async () => {
-    mocks.firewall.mockReset();
-
-    const response = await postInquiry();
-
-    expect(response.status).toBe(200);
-    expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createUser).toHaveBeenCalledOnce();
-  });
-
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -599,7 +590,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(auditors.size);
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
