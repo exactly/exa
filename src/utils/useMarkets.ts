@@ -37,7 +37,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
       },
       { address: marketUSDCAddress, abi: marketAbi, functionName: "previewFloatingAssetsAverage", chainId: chain.id },
     ],
-    query: { ...query, enabled: query?.enabled ?? true },
+    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
   });
   const markets = result.data?.[0];
   const supportedAssets = useMemo(() => {
