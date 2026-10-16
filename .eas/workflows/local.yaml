@@ -10,9 +10,10 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     type: fingerprint
     environment: development
-    env: { APP_DOMAIN: localhost, CHAIN_ID: "31337" }
+    env: { APP_DOMAIN: localhost }
 
   android_get:
+    if: ${{ github.ref_type != 'tag' }}
     type: get-build
     needs: [fingerprint]
     params:
@@ -23,49 +24,58 @@ jobs:
 
   android_build:
     type: build
-    needs: [android_get]
-    if: ${{ !needs.android_get.outputs.build_id }}
+    needs: [fingerprint]
+    after: [android_get]
+    if: ${{ !after.android_get.outputs.build_id }}
     params: { platform: android, profile: e2e:local }
 
-  android_repack:
-    type: repack
-    needs: [android_get]
-    if: ${{ needs.android_get.outputs.build_id }}
-    params: { build_id: "${{ needs.android_get.outputs.build_id }}" }
-
   android_e2e:
-    after: [android_build, android_repack]
-    needs: [android_get]
-    if: ${{ after.android_build.status == 'success' || after.android_repack.status == 'success' }}
+    after: [android_get, android_build]
+    if: ${{ after.android_get.outputs.build_id || after.android_build.status == 'success' }}
     environment: development
     runs_on: linux-large-nested-virtualization
     image: latest
     env:
+      APP_DOMAIN: localhost
       CHAIN_ID: "31337"
+      EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
-      - uses: eas/install_node_modules
-      - uses: eas/install_maestro
-      - name: exa setup
-        run: pnpm nx e2e server > server.log 2>&1 &
-      - uses: eas/download_build
-        id: download
-        with: { build_id: "${{ after.android_build.outputs.build_id || after.android_repack.outputs.build_id }}" }
-      - name: start emulator # cspell:ignore avdmanager getprop logcat setsid swiftshader
+      - name: start emulator # cspell:ignore avdmanager setsid swiftshader
         run: |
           avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
           printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
           setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+      - uses: eas/restore_cache
+        if: ${{ github.ref_type != 'tag' }}
+        with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
+      - run: tar -xf nx.tar -C ~ || true
+      - uses: eas/install_node_modules
+      - run: tar -cf nx.tar -C ~ .nx
+      - uses: eas/save_cache
+        if: ${{ github.ref_type != 'tag' }}
+        with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
+      - name: exa setup
+        run: pnpm nx e2e server > server.log 2>&1 &
+      - uses: eas/install_maestro
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
+      - uses: eas/repack
+        id: repack
+        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - name: prepare device # cspell:ignore getprop logcat
+        run: |
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
-          adb install "${{ steps.download.outputs.artifact_path }}"
+          adb install "${{ steps.repack.outputs.output_path }}"
           adb logcat -v time > emulator.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
@@ -97,6 +107,7 @@ jobs:
             .maestro/screenshots
 
   ios_get:
+    if: ${{ github.ref_type != 'tag' }}
     type: get-build
     needs: [fingerprint]
     params:
@@ -107,41 +118,48 @@ jobs:
 
   ios_build:
     type: build
-    needs: [ios_get]
-    if: ${{ !needs.ios_get.outputs.build_id }}
+    needs: [fingerprint]
+    after: [ios_get]
+    if: ${{ !after.ios_get.outputs.build_id }}
     params: { platform: ios, profile: e2e:local }
 
-  ios_repack:
-    type: repack
-    needs: [ios_get]
-    if: ${{ needs.ios_get.outputs.build_id }}
-    params: { build_id: "${{ needs.ios_get.outputs.build_id }}" }
-
   ios_e2e:
-    after: [ios_build, ios_repack]
-    needs: [ios_get]
-    if: ${{ after.ios_build.status == 'success' || after.ios_repack.status == 'success' }}
+    after: [ios_get, ios_build]
+    if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
     runs_on: macos-large
     image: latest
     env:
+      APP_DOMAIN: localhost
       CHAIN_ID: "31337"
+      EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
       REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
     steps:
       - run: brew install redis
       - uses: eas/checkout
+      - uses: eas/restore_cache
+        if: ${{ github.ref_type != 'tag' }}
+        with: { key: "nx-ios-e2e-${{ github.sha }}", restore_keys: nx-ios-e2e-, path: nx.tar }
+      - run: tar -xf nx.tar -C ~ || true
       - uses: eas/install_node_modules
-      - uses: eas/install_maestro
+      - run: tar -cf nx.tar -C ~ .nx
+      - uses: eas/save_cache
+        if: ${{ github.ref_type != 'tag' }}
+        with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
       - name: exa setup
         run: pnpm nx e2e server > server.log 2>&1 &
+      - uses: eas/install_maestro
       - uses: eas/download_build
         id: download
-        with: { build_id: "${{ after.ios_build.outputs.build_id || after.ios_repack.outputs.build_id }}" }
+        with: { build_id: "${{ after.ios_get.outputs.build_id || after.ios_build.outputs.build_id }}" }
+      - uses: eas/repack
+        id: repack
+        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |
-          xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
+          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
