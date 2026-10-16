@@ -15,12 +15,12 @@ import {
 import reportError from "./reportError";
 import useMarkets from "./useMarkets";
 
-export default function useInstallmentRates(amount = 100_000_000n) {
+export default function useInstallmentRates(amount?: bigint) {
   const { markets, timestamp, firstMaturity, floatingAssetsAverage } = useMarkets();
   const market = markets?.find(({ market: address }) => address === marketUSDCAddress);
   const now = Number(timestamp);
   return useMemo(() => {
-    if (!market) return;
+    if (!market || amount === undefined) return;
     if (amount <= 0n) {
       const installments = [];
       for (let count = 1; count <= MAX_INSTALLMENTS; count++) {

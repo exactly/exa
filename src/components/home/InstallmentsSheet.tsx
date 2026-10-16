@@ -43,7 +43,7 @@ export default function InstallmentsSheet({
     if (open) setSelected(mode > 0 ? mode : 1); // eslint-disable-line @eslint-react/set-state-in-effect
   }, [mode, open]);
   const carouselRef = useRef<ICarouselInstance>(null);
-  const rates = useInstallmentRates();
+  const rates = useInstallmentRates(open ? 100_000_000n : undefined);
   const [width, setWidth] = useState(0);
   const handleLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
     setWidth(event.nativeEvent.layout.width);
