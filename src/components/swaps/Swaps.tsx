@@ -22,7 +22,7 @@ import {
 import { useToastController } from "@tamagui/toast";
 import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
@@ -199,8 +199,11 @@ export default function Swaps() {
   const { isLoading: isBaseLoading } = useQuery(deployedOptions(credential?.factory, base.id));
   const deployedFactories = useQueries({
     queries: allowedChains.map((chainId) => deployedOptions(credential?.factory, chainId)),
-    combine: (results) =>
-      new Set(allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true)),
+    combine: useCallback(
+      (results: UseQueryResult<boolean>[]) =>
+        new Set(allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true)),
+      [allowedChains],
+    ),
   });
   const networks = useMemo(
     () =>
