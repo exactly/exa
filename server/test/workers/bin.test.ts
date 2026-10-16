@@ -16,7 +16,7 @@ const segment = { close: vi.fn<() => Promise<void>>() };
 const whatsapp = {};
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
-  allow: vi.fn<(config: { allower: typeof allower; bullmq: object }) => Handle>(),
+  allow: vi.fn<(config: { allower: typeof allower; bullmq: object; database: typeof database }) => Handle>(),
   chat: vi.fn<(config: { anthropicKey: string; bullmq: object; whatsapp: object }) => Handle>(),
   close: vi.fn<() => Promise<void>>(),
   credit: vi.fn<(config: { bullmq: object; database: typeof database; onesignal: object }) => Handle>(),
@@ -112,12 +112,14 @@ describe("bin", () => {
     if (!created) throw new Error("missing worker");
     expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("allow", created);
     await created;
-    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url"]);
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url", "allow-postgres-url"]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["allower"]);
+    expect(mocks.panda).not.toHaveBeenCalled();
     expect(mocks.allow).toHaveBeenCalledExactlyOnceWith({
       allower,
       bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
     });
   });
 
