@@ -168,7 +168,9 @@
           }
         ],
         "outputs": [
-          "{workspaceRoot}/contracts/broadcast/*/31337/run-latest.json"
+          "{workspaceRoot}/contracts/broadcast/*/31337/run-latest.json",
+          "{workspaceRoot}/contracts/cache/tooling",
+          "{workspaceRoot}/contracts/out/tooling"
         ]
       },
       "generate:app": {
