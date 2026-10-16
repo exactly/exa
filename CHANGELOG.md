@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.35
+
+### Patch Changes
+
+- [#1416](https://github.com/exactly/exa/pull/1416) [`ba04013`](https://github.com/exactly/exa/commit/ba04013202b624a458a6e297bceda4af2d4358c8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 patch tamagui sheet reopen position
+
+- Updated dependencies [[`bc8b83b`](https://github.com/exactly/exa/commit/bc8b83b03257b8e306bf25648a09f1e61f8f4ce6)]:
+  - @exactly/server@0.2.128
+
 ## 1.2.34
 
 ### Patch Changes
