@@ -23,16 +23,17 @@ export default function segment(key: string) {
       | {
           event: "AuthorizationRejected";
           properties: SourceProperty & {
+            cardId: string;
             cardMode: number;
             declinedReason: string;
             merchant: MerchantProperties;
             usdAmount: number;
           };
         }
-      | { event: "CardDeleted"; properties: SourceProperty }
-      | { event: "CardFrozen"; properties: SourceProperty }
-      | { event: "CardIssued"; properties: SourceProperty & { productId: string } }
-      | { event: "CardUnfrozen"; properties: SourceProperty }
+      | { event: "CardDeleted"; properties: SourceProperty & { cardId: string } }
+      | { event: "CardFrozen"; properties: SourceProperty & { cardId: string } }
+      | { event: "CardIssued"; properties: SourceProperty & { cardId: string; productId: string } }
+      | { event: "CardUnfrozen"; properties: SourceProperty & { cardId: string } }
       | {
           event: "Offramp";
           properties: {
@@ -59,6 +60,7 @@ export default function segment(key: string) {
             action: "completed" | "created" | "updated";
             amount: number;
             authorizedAmount?: null | number;
+            cardId: string;
             cardMode: number;
             functionName: string;
             id: string;
@@ -76,6 +78,7 @@ export default function segment(key: string) {
       | {
           event: "TransactionAuthorized";
           properties: SourceProperty & {
+            cardId: string;
             cardMode: number;
             merchant: MerchantProperties;
             type: "panda";
@@ -85,6 +88,7 @@ export default function segment(key: string) {
       | {
           event: "TransactionRefund";
           properties: SourceProperty & {
+            cardId: string;
             id: string;
             merchant: MerchantProperties;
             type: "partial" | "refund" | "reversal";
@@ -94,6 +98,7 @@ export default function segment(key: string) {
       | {
           event: "TransactionRejected";
           properties: SourceProperty & {
+            cardId: string;
             cardMode: number;
             declinedReason?: null | string;
             id: string;
