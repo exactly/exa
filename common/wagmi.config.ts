@@ -260,7 +260,6 @@ export default defineConfig([
                 balancerVault: loadDeployment("Balancer2Vault", false)?.address,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
-                firewall: loadDeployment("Firewall", false)?.address,
               }).map(
                 ([key, address]) =>
                   `export const ${key}Address = ${address ? `"${getAddress(address)}"` : "undefined"} as \`0x\${string}\` | undefined`,
@@ -317,7 +316,6 @@ function loadDeployment<R extends boolean = true>(
         Auditor: 1,
         Balancer2Vault: 23,
         DebtManager: 24,
-        Firewall: 33,
         MarketUSDC: 11,
         MarketWETH: 18,
         IntegrationPreviewer: 29,
