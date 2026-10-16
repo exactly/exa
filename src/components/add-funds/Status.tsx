@@ -107,7 +107,7 @@ export default function Status() {
   if (!validCurrency && !isCrypto) return <Redirect href={offramp ? "/send-funds" : "/add-funds"} />;
 
   function handleClose() {
-    router.replace("/(main)/(home)");
+    router.dismissTo("/(main)/(home)");
   }
 
   if (openKYC && kycLink) {
@@ -145,7 +145,7 @@ export default function Status() {
               aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) router.back();
-                else router.replace("/(main)/(home)");
+                else router.dismissTo("/(main)/(home)");
               }}
             />
           </View>

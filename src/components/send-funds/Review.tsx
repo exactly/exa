@@ -208,7 +208,7 @@ export default function Review() {
                   footnote
                   color="$uiBrandSecondary"
                   onPress={() => {
-                    router.replace("/(main)/(home)");
+                    router.dismissTo("/(main)/(home)");
                   }}
                 >
                   {t("Close")}

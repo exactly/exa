@@ -496,7 +496,7 @@ export default function Repay() {
                   if (router.canGoBack()) {
                     router.back();
                   } else {
-                    router.replace("/(main)/(home)");
+                    router.dismissTo("/(main)/(home)");
                   }
                 }}
               />
@@ -781,7 +781,7 @@ export default function Repay() {
           if (router.canGoBack()) {
             router.back();
           } else {
-            router.replace("/(main)/(home)");
+            router.dismissTo("/(main)/(home)");
           }
         }}
       />
@@ -813,7 +813,7 @@ export default function Repay() {
           if (router.canGoBack()) {
             router.back();
           } else {
-            router.replace("/(main)/(home)");
+            router.dismissTo("/(main)/(home)");
           }
         }}
       />

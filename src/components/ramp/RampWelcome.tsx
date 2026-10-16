@@ -39,7 +39,7 @@ export default function RampWelcome({ direction }: { direction: "offramp" | "onr
             aria-label={t("Back")}
             onPress={() => {
               if (router.canGoBack()) router.back();
-              else router.replace("/(main)/(home)");
+              else router.dismissTo("/(main)/(home)");
             }}
           />
         </View>
@@ -96,7 +96,7 @@ export default function RampWelcome({ direction }: { direction: "offramp" | "onr
                     params: { type: "fiat" },
                   });
                 } else {
-                  router.replace("/(main)/(home)");
+                  router.dismissTo("/(main)/(home)");
                 }
               },
               onError(error) {
