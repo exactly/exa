@@ -27,9 +27,9 @@ jobs:
           cache-dependency-path: contracts/requirements.txt
       - uses: actions/cache@v6
         with:
-          path: .nx/cache
-          key: nx-${{ runner.os }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-
+          path: ~/.nx
+          key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - run: pip install -r contracts/requirements.txt
       - run: |
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
@@ -87,9 +87,9 @@ jobs:
         with: { version: v1.7.1 }
       - uses: actions/cache@v6
         with:
-          path: .nx/cache
-          key: nx-${{ runner.os }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-
+          path: ~/.nx
+          key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - uses: actions/setup-java@v5
         with: { distribution: zulu, java-version: "17" }
       - run: |
