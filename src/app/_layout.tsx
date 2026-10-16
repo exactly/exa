@@ -49,6 +49,7 @@ import SplineSansMonoMedium from "../assets/fonts/SplineSansMono-Medium.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
+import Splash from "../components/shared/Splash";
 import release from "../generated/release";
 import en from "../i18n/en.json";
 import esAR from "../i18n/es-AR.json";
@@ -346,13 +347,16 @@ function Navigator() {
     SplashScreen.hideAsync().catch(reportError);
   }, [ready, isMiniApp]);
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!authenticated}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
-      <Stack.Protected guard={authenticated}>
-        <Stack.Screen name="(main)" />
-      </Stack.Protected>
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={!authenticated}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+        <Stack.Protected guard={authenticated}>
+          <Stack.Screen name="(main)" />
+        </Stack.Protected>
+      </Stack>
+      {Platform.OS !== "web" && <Splash isReady={ready} />}
+    </>
   );
 }
