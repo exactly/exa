@@ -5,7 +5,6 @@ import { Auditor, IPriceFeed } from "@exactly/protocol/Auditor.sol";
 import { InterestRateModel, Parameters } from "@exactly/protocol/InterestRateModel.sol";
 import { Market } from "@exactly/protocol/Market.sol";
 import { MockBalancerVault } from "@exactly/protocol/mocks/MockBalancerVault.sol";
-import { MockPriceFeed } from "@exactly/protocol/mocks/MockPriceFeed.sol";
 import { MockWETH } from "@exactly/protocol/mocks/MockWETH.sol";
 import { DebtManager, IBalancerVault, IPermit2 } from "@exactly/protocol/periphery/DebtManager.sol";
 import { InstallmentsRouter } from "@exactly/protocol/periphery/InstallmentsRouter.sol";
@@ -16,12 +15,17 @@ import { Firewall } from "@exactly/protocol/verified/Firewall.sol";
 
 import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
 import { IFlashLoaner } from "../../src/ExaPlugin.sol";
+import { MockPriceFeed } from "./MockPriceFeed.sol";
 
 contract DeployProtocol is BaseScript {
+  using FixedPointMathLib for uint256;
+
   Auditor public auditor;
   Market public exaEXA;
   Market public exaUSDC;
@@ -79,7 +83,8 @@ contract DeployProtocol is BaseScript {
     );
     exaEXA.setInterestRateModel(new InterestRateModel(irmParams, exaEXA));
     vm.label(address(exaEXA), "exaEXA");
-    auditor.enableMarket(exaEXA, new MockPriceFeed(18, 5e18), 0.8e18);
+    MockPriceFeed exaFeed = new MockPriceFeed(18);
+    auditor.enableMarket(exaEXA, IPriceFeed(address(exaFeed)), 0.8e18);
 
     usdc = new MockERC20("USD Coin", "USDC", 6);
     vm.label(address(usdc), "USDC");
@@ -95,7 +100,8 @@ contract DeployProtocol is BaseScript {
     );
     exaUSDC.setInterestRateModel(new InterestRateModel(irmParams, exaUSDC));
     vm.label(address(exaUSDC), "exaUSDC");
-    auditor.enableMarket(exaUSDC, new MockPriceFeed(18, 1e18), 0.9e18);
+    MockPriceFeed usdcFeed = new MockPriceFeed(18);
+    auditor.enableMarket(exaUSDC, IPriceFeed(address(usdcFeed)), 0.9e18);
 
     weth = new MockWETH();
     vm.label(address(weth), "WETH");
@@ -111,7 +117,8 @@ contract DeployProtocol is BaseScript {
     );
     exaWETH.setInterestRateModel(new InterestRateModel(irmParams, exaWETH));
     vm.label(address(exaWETH), "exaWETH");
-    auditor.enableMarket(exaWETH, new MockPriceFeed(18, 2500e18), 0.86e18);
+    MockPriceFeed wethFeed = new MockPriceFeed(18);
+    auditor.enableMarket(exaWETH, IPriceFeed(address(wethFeed)), 0.86e18);
 
     balancer = IFlashLoaner(address(new MockBalancerVault()));
     debtManager = new DebtManager(auditor, IPermit2(address(0)), IBalancerVault(address(balancer)));
@@ -130,6 +137,14 @@ contract DeployProtocol is BaseScript {
     exa.mint(address(balancer), 1_000_000e18);
     usdc.mint(address(balancer), 1_000_000e6);
     vm.label(address(balancer), "Balancer2Vault");
+
+    exaFeed.push(1, block.timestamp, 5e18);
+    usdcFeed.push(1, block.timestamp, 1e18);
+    wethFeed.push(1, block.timestamp.zeroFloorSub(20 days), 2300e18);
+    wethFeed.push(1, block.timestamp.zeroFloorSub(14 days), 2450e18);
+    wethFeed.push(1, block.timestamp.zeroFloorSub(7 days), 2350e18);
+    wethFeed.push(1, block.timestamp.zeroFloorSub(2 days), 2400e18);
+    wethFeed.push(2, block.timestamp.zeroFloorSub(12 hours), 2500e18);
 
     vm.stopBroadcast();
   }
