@@ -93,6 +93,7 @@ export default function worker({
               userId: job.data.account,
               event: "TransactionRejected",
               properties: {
+                cardId: requestBody.body.spend.cardId,
                 cardMode: card.mode,
                 declinedReason: `refund:${reason}`,
                 id: requestBody.body.id,
@@ -292,6 +293,7 @@ export default function worker({
           userId: account,
           event: "TransactionRefund",
           properties: {
+            cardId: spend.cardId,
             id: requestBody.body.id,
             type: spend.status === "reversed" ? "reversal" : spend.amount < 0 ? "refund" : "partial",
             source: card.credential.source,

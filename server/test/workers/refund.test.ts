@@ -366,6 +366,7 @@ describe("refund worker", () => {
         userId: account,
         event: "TransactionRefund",
         properties: {
+          cardId: "refund-card",
           id: "wh-authorized",
           type: "partial",
           source: null,
@@ -706,6 +707,7 @@ describe("refund worker", () => {
         userId: account,
         event: "TransactionRejected",
         properties: {
+          cardId: "refund-card",
           cardMode: 0,
           declinedReason: "refund:user is not active",
           id: "wh-inactive",
@@ -773,6 +775,7 @@ describe("refund worker", () => {
         userId: account,
         event: "TransactionRejected",
         properties: {
+          cardId: "refund-card",
           cardMode: 0,
           declinedReason: "refund:Expired",
           id: "wh-expired",
@@ -873,6 +876,7 @@ describe("refund worker", () => {
         userId: account,
         event: "TransactionRejected",
         properties: {
+          cardId: "refund-card",
           cardMode: 0,
           declinedReason: "refund:tx reverted",
           id: "wh-reverted",
