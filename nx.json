@@ -22,7 +22,11 @@
     "test:eslint": { "dependsOn": ["prepare", "^prepare"], "cache": true, "options": { "max-warnings": 0 } },
     "build": {
       "dependsOn": ["^prepare"],
-      "inputs": ["production", "^production"],
+      "inputs": [
+        "production",
+        { "dependentTasksOutputFiles": "{common,src}/generated/**/*", "transitive": true },
+        "^production"
+      ],
       "outputs": ["{projectRoot}/dist"],
       "cache": true
     }

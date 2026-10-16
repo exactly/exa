@@ -342,6 +342,12 @@
           "env": "EAS_BUILD_RUNNER"
         },
         {
+          "env": "EXPO_PUBLIC_E2E_MNEMONIC"
+        },
+        {
+          "env": "EXPO_PUBLIC_ENV"
+        },
+        {
           "env": "EXPO_PUBLIC_INTERCOM_APP_ID"
         },
         {
@@ -402,6 +408,12 @@
           "{projectRoot}/src/generated/versionCode.js"
         ],
         "cache": false
+      },
+      "build": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ]
       },
       "start": {
         "dependsOn": [

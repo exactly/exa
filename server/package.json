@@ -189,7 +189,7 @@
         ],
         "inputs": [
           {
-            "dependentTasksOutputFiles": "dist"
+            "dependentTasksOutputFiles": "dist/**/*"
           }
         ],
         "outputs": [

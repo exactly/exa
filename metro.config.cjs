@@ -12,6 +12,11 @@ module.exports = function config() {
   /** @type {import('metro-config').InputConfigT} */
   const merged = {
     ...base,
+    cacheVersion: JSON.stringify(
+      Object.entries(process.env)
+        .filter(([key]) => key.startsWith("EXPO_PUBLIC_"))
+        .toSorted(),
+    ),
     resolver: {
       ...base.resolver,
       extraNodeModules: { crypto: require.resolve("react-native-quick-crypto") },

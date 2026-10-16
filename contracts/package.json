@@ -46,6 +46,17 @@
         "{projectRoot}/test/mocks/MockVelodromeFactory.sol",
         "{projectRoot}/foundry.toml",
         "{projectRoot}/remappings.txt",
+        {
+          "runtime": "forge --version"
+        },
+        "sharedGlobals"
+      ],
+      "default": [
+        "{projectRoot}/**/*",
+        "!{projectRoot}/broadcast/*/31337/**/*",
+        {
+          "runtime": "forge --version"
+        },
         "sharedGlobals"
       ],
       "production": [
