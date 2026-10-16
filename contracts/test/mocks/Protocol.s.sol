@@ -138,10 +138,6 @@ contract DeployProtocol is BaseScript {
 
     installmentsRouter = new InstallmentsRouter(auditor, exaWETH);
 
-    Firewall firewall =
-      Firewall(address(new ERC1967Proxy(address(new Firewall()), abi.encodeCall(Firewall.initialize, ()))));
-    vm.label(address(firewall), "Firewall");
-
     exa.mint(address(balancer), 1_000_000e18);
     usdc.mint(address(balancer), 1_000_000e6);
     vm.label(address(balancer), "Balancer2Vault");
