@@ -7,7 +7,6 @@
     "prepare:generated": "mkdir -p generated",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "generate:openapi": "tsx script/openapi.ts",
-    "generate:sql": "POSTGRES_URL=postgres drizzle-kit export > generated/schema.sql",
     "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || NODE_ENV=development tsx -e 'require(\"./test/anvil\").default({ provide: () => undefined }).then((teardown) => teardown())'",
     "db:push": "drizzle-kit push",
     "e2e": "tsx script/e2e.ts",
@@ -87,7 +86,6 @@
     "@eslint/compat": "^2.0.3",
     "@exactly/common": "workspace:^0.0.21",
     "@exactly/plugin": "workspace:^1.1.0",
-    "@exactly/substreams": "workspace:^0.1.0",
     "@mastra/evals": "^1.9.0",
     "@sentry/cli": "^3.6.2",
     "@types/ioredis-mock": "^8.2.7",
@@ -129,8 +127,7 @@
       "prepare": {
         "dependsOn": [
           "^prepare",
-          "generate:release",
-          "generate:sql"
+          "generate:release"
         ],
         "executor": "nx:noop"
       },
@@ -154,18 +151,6 @@
         ],
         "outputs": [
           "{projectRoot}/generated/openapi.json"
-        ]
-      },
-      "generate:sql": {
-        "dependsOn": [
-          "prepare:generated"
-        ],
-        "inputs": [
-          "{projectRoot}/database/schema.ts",
-          "{projectRoot}/drizzle.config.ts"
-        ],
-        "outputs": [
-          "{projectRoot}/generated/schema.sql"
         ]
       },
       "generate:broadcasts": {

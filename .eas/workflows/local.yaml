@@ -50,21 +50,7 @@ jobs:
       - uses: eas/install_node_modules
       - uses: eas/install_maestro
       - name: exa setup
-        run: | # cspell:ignore tlsv1.2
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y > rustup.log 2>&1 &
-          rust=$!
-          mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
-          streamingfast=""
-          arch=$(uname -m | sed "s/aarch64/arm64/")
-          for repo in firehose-ethereum substreams; do
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/streamingfast/$repo/releases/latest/download/${repo}_linux_$arch.tar.gz" | tar zxf - --exclude=LICENSE --exclude=README.md &
-            streamingfast="$streamingfast $!"
-          done
-          for pid in $streamingfast; do wait "$pid" || exit 1; done
-          wait "$rust" || (cat rustup.log && exit 1)
-          . $HOME/.cargo/env
-          cd $HOME/workingdir/build
-          pnpm nx e2e server > server.log 2>&1 &
+        run: pnpm nx e2e server > server.log 2>&1 &
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.android_build.outputs.build_id || after.android_repack.outputs.build_id }}" }
@@ -148,21 +134,7 @@ jobs:
       - uses: eas/install_node_modules
       - uses: eas/install_maestro
       - name: exa setup
-        run: | # cspell:ignore tlsv1.2
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain none -y > rustup.log 2>&1 &
-          rust=$!
-          mkdir -p $HOME/workingdir/bin && cd $HOME/workingdir/bin
-          streamingfast=""
-          arch=$(uname -m | sed "s/aarch64/arm64/")
-          for repo in firehose-ethereum substreams; do
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/streamingfast/$repo/releases/latest/download/${repo}_darwin_$arch.tar.gz" | tar zxf - --exclude=LICENSE --exclude=README.md &
-            streamingfast="$streamingfast $!"
-          done
-          for pid in $streamingfast; do wait "$pid" || exit 1; done
-          wait "$rust" || (cat rustup.log && exit 1)
-          . $HOME/.cargo/env
-          cd $HOME/workingdir/build
-          pnpm nx e2e server > server.log 2>&1 &
+        run: pnpm nx e2e server > server.log 2>&1 &
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.ios_build.outputs.build_id || after.ios_repack.outputs.build_id }}" }

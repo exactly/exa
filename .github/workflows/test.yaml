@@ -36,15 +36,6 @@ jobs:
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - run: pip install -r contracts/requirements.txt
-      - run: |
-          mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
-          streamingfast=""
-          arch=$(uname -m | sed "s/aarch64/arm64/")
-          for repo in firehose-ethereum substreams; do
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/streamingfast/$repo/releases/latest/download/${repo}_linux_$arch.tar.gz" | tar zxf - &
-            streamingfast="$streamingfast $!"
-          done
-          for pid in $streamingfast; do wait "$pid" || exit 1; done
       - run: echo ::add-matcher::.github/matcher.json
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
@@ -103,14 +94,6 @@ jobs:
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - run: |
           set -o pipefail
-          mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
-          streamingfast=""
-          arch=$(uname -m | sed "s/aarch64/arm64/")
-          for repo in firehose-ethereum substreams; do
-            curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/streamingfast/$repo/releases/latest/download/${repo}_linux_$arch.tar.gz" | tar zxf - &
-            streamingfast="$streamingfast $!"
-          done
-          for pid in $streamingfast; do wait "$pid" || exit 1; done
           for attempt in {1..5}; do
             curl -fsSL "https://get.maestro.mobile.dev" | bash || true
             [ -x $HOME/.maestro/bin/maestro ] && $HOME/.maestro/bin/maestro --version && echo $HOME/.maestro/bin >> "$GITHUB_PATH" && break

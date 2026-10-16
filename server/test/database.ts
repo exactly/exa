@@ -1,10 +1,8 @@
 import { pushSchema } from "drizzle-kit/api";
 import { drizzle } from "drizzle-orm/node-postgres";
 import EmbeddedPostgres from "embedded-postgres";
-import { $, type ResultPromise } from "execa";
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, type WriteStream } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { literal, object, parse, tuple } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -13,7 +11,6 @@ import waitOn from "wait-on";
 import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
-import anvilClient from "./anvilClient";
 import * as schema from "../database/schema";
 
 export default async function setup() {
@@ -51,7 +48,6 @@ export default async function setup() {
   ).unref();
 
   const postgresURL = "postgres://postgres:postgres@localhost:8432/postgres?sslmode=disable"; // cspell:ignore sslmode
-  const startupLogs = "node_modules/@exactly/.runtime/startup";
   const database = await (async () => {
     await Promise.race([waitOn({ resources: ["tcp:localhost:8432"], timeout: 120_000 }), postgresExited]);
     const stdoutWrite = process.stdout.write; // eslint-disable-line @typescript-eslint/unbound-method
@@ -61,10 +57,7 @@ export default async function setup() {
       await Promise.all([
         pushSchema(schema, db as never).then(({ apply }) => apply()),
         Promise.race([waitOn({ resources: ["tcp:localhost:8545"], timeout: 120_000 }), postgresExited]),
-        rm("node_modules/@exactly/.firehose", { recursive: true, force: true }),
       ]);
-      await rm(startupLogs, { recursive: true, force: true });
-      await mkdir(startupLogs, { recursive: true });
       return db;
     } catch (error) {
       await db.$client.end().catch(() => undefined);
@@ -77,122 +70,7 @@ export default async function setup() {
     throw error;
   });
 
-  const controller = new AbortController();
-  let firehoseExited: Promise<void> = Promise.resolve();
-  let firehoseOutputFlushed: Promise<void> = Promise.resolve();
-  let substreamsExited: Promise<void> = Promise.resolve();
-  let substreamsOutputFlushed: Promise<void> = Promise.resolve();
   try {
-    const { hash, parentHash } = await anvilClient.getBlock({ blockNumber: 0n });
-    const warmupController = new AbortController();
-    const warmupLog = `${startupLogs}/firehose-warmup.log`;
-    const warmupOutput = createWriteStream(warmupLog);
-    const warmup = $({
-      cancelSignal: warmupController.signal,
-      forceKillAfterDelay: 33_333,
-    })`fireeth start reader-node --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=fireeth --reader-node-arguments=${"tools poll-rpc-blocks http://localhost:8545 0"}`;
-    const warmupLogWatcher = watchProcessOutput(warmup, warmupOutput, warmupController);
-    try {
-      await Promise.race([
-        waitOn({
-          resources: [
-            `node_modules/@exactly/.firehose/storage/one-blocks/0000000000-${hash.slice(-16)}-${parentHash.slice(-16)}-0-default.dbin.zst`, // cspell:ignore dbin
-          ],
-          timeout: 120_000,
-        }),
-        postgresExited.then(() => {
-          throw new Error("postgres exited waiting fireeth warmup");
-        }),
-        warmupLogWatcher.exit.then(() => {
-          throw new Error("warmup exited before block zero");
-        }),
-        warmupLogWatcher.outputError,
-      ]);
-    } catch (error) {
-      warmupController.abort();
-      await warmupLogWatcher.exit.catch(() => undefined);
-      await warmupLogWatcher.outputFlushed;
-      const warmupText = await readFile(warmupLog, "utf8").catch(() => "");
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`wait firehose warmup: ${message}\nfirehose:\n${warmupText}`, { cause: error });
-    } finally {
-      warmupLogWatcher.stopWatchingOutput();
-      warmupController.abort();
-      await warmupLogWatcher.exit.catch(() => undefined);
-      await warmupLogWatcher.outputFlushed;
-    }
-
-    const firehoseLog = `${startupLogs}/firehose.log`;
-    const firehoseOutput = createWriteStream(firehoseLog);
-    const firehose = $({
-      cancelSignal: controller.signal,
-      forceKillAfterDelay: 33_333,
-    })`fireeth start reader-node,merger,relayer,substreams-tier1 --advertise-chain-name=anvil --config-file= --data-dir=node_modules/@exactly/.firehose --reader-node-path=fireeth --reader-node-arguments=${"tools poll-rpc-blocks http://localhost:8545 0"}`;
-    const firehoseLogWatcher = watchProcessOutput(firehose, firehoseOutput, controller);
-    firehoseExited = firehoseLogWatcher.exit;
-    firehoseOutputFlushed = firehoseLogWatcher.outputFlushed;
-    try {
-      await Promise.race([
-        waitOn({ resources: ["tcp:localhost:10016"], timeout: 120_000 }),
-        postgresExited.then(() => {
-          throw new Error("postgres exited waiting fireeth");
-        }),
-        firehoseExited.then(() => {
-          throw new Error("fireeth exited before tcp:10016");
-        }),
-        firehoseLogWatcher.outputError,
-      ]);
-    } catch (error) {
-      controller.abort();
-      await firehoseExited.catch(() => undefined);
-      await firehoseOutputFlushed;
-      const message = error instanceof Error ? error.message : String(error);
-      const firehoseText = await readFile(firehoseLog, "utf8").catch(() => "");
-      throw new Error(`wait tcp:10016: ${message}\nfirehose:\n${firehoseText}`, { cause: error });
-    } finally {
-      firehoseLogWatcher.stopWatchingOutput();
-    }
-
-    const substreamsLog = `${startupLogs}/substreams.log`;
-    const substreamsOutput = createWriteStream(substreamsLog);
-    const substreams = $({
-      cancelSignal: controller.signal,
-      forceKillAfterDelay: 33_333,
-      cwd: "node_modules/@exactly/substreams",
-    })`substreams sink postgres substreams.yaml --dsn ${`${postgresURL}&schemaName=substreams`} --endpoint localhost:10016 --plaintext --batch-block-flush-interval 1 --batch-row-flush-interval 0`;
-    const substreamsLogWatcher = watchProcessOutput(substreams, substreamsOutput, controller);
-    substreamsExited = substreamsLogWatcher.exit;
-    substreamsOutputFlushed = substreamsLogWatcher.outputFlushed;
-
-    const factoryBroadcast = "node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json";
-    try {
-      await Promise.race([
-        waitOn({ resources: [factoryBroadcast], timeout: 120_000 }),
-        postgresExited.then(() => {
-          throw new Error("postgres exited waiting substreams");
-        }),
-        firehoseExited.then(() => {
-          throw new Error("fireeth exited waiting substreams");
-        }),
-        substreamsExited.then(() => {
-          throw new Error(`substreams exited before ${factoryBroadcast}`);
-        }),
-        substreamsLogWatcher.outputError,
-      ]);
-    } catch (error) {
-      controller.abort();
-      await substreamsExited.catch(() => undefined);
-      await substreamsOutputFlushed;
-      const message = error instanceof Error ? error.message : String(error);
-      const firehoseText = await readFile(firehoseLog, "utf8").catch(() => "");
-      const substreamsText = await readFile(substreamsLog, "utf8").catch(() => "");
-      throw new Error(`wait on ${factoryBroadcast}: ${message}\nfh:${firehoseText}\nss:${substreamsText}`, {
-        cause: error,
-      });
-    } finally {
-      substreamsLogWatcher.stopWatchingOutput();
-    }
-
     const factory = parse(
       object({
         transactions: tuple([
@@ -200,7 +78,9 @@ export default async function setup() {
           object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
         ]),
       }),
-      JSON.parse(await readFile(factoryBroadcast, "utf8")),
+      JSON.parse(
+        await readFile("node_modules/@exactly/plugin/broadcast/ExaAccountFactory.s.sol/31337/run-latest.json", "utf8"),
+      ),
     ).transactions[1].contractAddress;
     const owner = privateKeyToAddress(padHex("0xb0b"));
     const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
@@ -210,59 +90,11 @@ export default async function setup() {
     await database.$client.end();
 
     return async function teardown() {
-      controller.abort();
-      await Promise.allSettled([
-        postgres.stop(),
-        firehoseExited,
-        substreamsExited,
-        firehoseOutputFlushed,
-        substreamsOutputFlushed,
-      ]);
+      await postgres.stop();
     };
   } catch (error) {
-    controller.abort();
     await database.$client.end().catch(() => undefined);
-    await Promise.allSettled([
-      postgres.stop(),
-      firehoseExited,
-      substreamsExited,
-      firehoseOutputFlushed,
-      substreamsOutputFlushed,
-    ]);
+    await postgres.stop().catch(() => undefined);
     throw error;
   }
-}
-
-function watchProcessOutput(subprocess: ResultPromise, output: WriteStream, controller: AbortController) {
-  const outputFlushed = new Promise<void>((resolve) => {
-    output.once("close", resolve);
-  });
-  output.on("error", () => undefined);
-  subprocess.stdout?.on("data", (chunk: string | Uint8Array) => output.write(chunk));
-  subprocess.stderr?.on("data", (chunk: string | Uint8Array) => output.write(chunk));
-  const exit = subprocess
-    .finally(() => output.end())
-    .then(
-      () => undefined,
-      (error: unknown) => {
-        if (controller.signal.aborted) return;
-        throw error;
-      },
-    );
-  let onOutputError: ((error: unknown) => void) | undefined;
-  const outputError = new Promise<never>((_, reject) => {
-    onOutputError = (error: unknown) => reject(error instanceof Error ? error : new Error(String(error)));
-  });
-  outputError.catch(() => undefined);
-  if (!onOutputError) throw new Error("missing output error handler");
-  output.on("error", onOutputError);
-  return {
-    exit,
-    outputFlushed,
-    outputError,
-    stopWatchingOutput: () => {
-      if (!onOutputError) return;
-      output.off("error", onOutputError);
-    },
-  };
 }

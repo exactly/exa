@@ -69,7 +69,6 @@ packages:
   - docs
   - infra
   - server
-  - substreams
   - .maestro
 publicHoistPattern:
   - "@babel/runtime"

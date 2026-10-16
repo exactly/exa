@@ -132,7 +132,7 @@ extracting a value into a variable and extracting logic into a function are the 
 
 ### initial setup
 
-- **to install dependencies**: run `pnpm install`. this automatically triggers `prepare` for all packages, which handles code generation (`wagmi`), versioning, and schema exports. no further setup needed.
+- **to install dependencies**: run `pnpm install`. this automatically triggers `prepare` for all packages, which handles code generation (`wagmi`) and versioning. no further setup needed.
 
 ### workspace structure & commands
 
@@ -143,7 +143,6 @@ extracting a value into a variable and extracting logic into a function are the 
   - `common`: shared utilities (`@exactly/common`).
   - `docs`: astro-based documentation (`@exactly/docs`).
   - `infra`: pulumi gcp infrastructure (`@exactly/infra`).
-  - `substreams`: rust blockchain indexer (`@exactly/substreams`).
   - `.maestro`: end-to-end test scripts (`@exactly/e2e`).
 - **running tasks**: always use `pnpm nx` — never bare `nx`, `npx`, or `pnpm --filter`.
   - `pnpm nx <target> <project>` — run a target for one project (e.g., `pnpm nx dev server`)
@@ -170,7 +169,6 @@ extracting a value into a variable and extracting logic into a function are the 
 - **mobile**: `test:build`
 - **server**: `test:vi`, `test:openapi`
 - **contracts**: `test:fmt`, `test:gas`, `test:solhint`, `test:slither`, `test:coverage`, `test:sizes`
-- **substreams**: `test:fmt`, `test:clippy`, `test:protolint`
 
 ### file management
 
