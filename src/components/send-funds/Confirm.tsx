@@ -103,7 +103,7 @@ export default function Confirm() {
   const { data: resolved } = useQuery(ensOptions(name, destinationChain));
   const ens = name && resolved === receiverHex ? name : "";
 
-  const { market: homeMarket, externalAsset: homeExternal, markets } = useAsset(pay);
+  const { market: homeMarket, externalAsset: homeExternal, markets, queryKey: marketsQueryKey } = useAsset(pay);
   const { data: balances } = useQuery(balancesOptions(address));
   const market = payChain === chain.id ? homeMarket : undefined;
   const external =
@@ -517,9 +517,10 @@ export default function Confirm() {
       ? trackable && routeStatus?.status !== "DONE"
       : !!proposal && !executionHash);
   useEffect(() => {
-    if (routeStatus?.status !== "DONE" && routeStatus?.status !== "FAILED") return;
+    if (!executionHash && routeStatus?.status !== "DONE" && routeStatus?.status !== "FAILED") return;
     queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
-  }, [routeStatus?.status]);
+    queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+  }, [executionHash, routeStatus?.status]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
   const exit = market ? "/activity" : "/";
 
   useEffect(() => {
