@@ -1,5 +1,5 @@
 codecov:
-  notify: { after_n_builds: 4, notify_error: true }
+  notify: { after_n_builds: 7, notify_error: true }
 component_management:
   individual_components:
     - { component_id: app, paths: [src/**, "*.ts"] }
