@@ -2,6 +2,8 @@ import "../mocks/auth";
 import "../mocks/deployments";
 import "../mocks/panda";
 import "../mocks/persona";
+import "../mocks/sardine";
+import "../mocks/segment";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";

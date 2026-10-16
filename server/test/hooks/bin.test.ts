@@ -166,10 +166,12 @@ describe("hook bin", () => {
     {
       accounts: ["issuer", "settler"],
       config: {
+        allow,
         database,
         issuer,
         onesignal,
         panda,
+        persona,
         refund,
         sardine,
         segment,
@@ -185,6 +187,8 @@ describe("hook bin", () => {
         "panda-panda-api-key",
         "panda-api-url",
         "panda-webhooks-key",
+        "panda-persona-api-key",
+        "persona-api-url",
         "redis-url",
         "panda-sardine-api-key",
         "sardine-api-url",
