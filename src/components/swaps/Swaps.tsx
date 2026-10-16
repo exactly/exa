@@ -199,7 +199,10 @@ export default function Swaps() {
     () =>
       allowedChains
         .filter((id) => deployedFactories.has(id))
-        .map((id) => ({ id, name: lifiChains?.find((item) => item.id === id)?.name ?? String(id) }))
+        .flatMap((id) => {
+          const name = lifiChains?.find((item) => item.id === id)?.name ?? (id === chain.id ? chain.name : undefined);
+          return name ? [{ id, name }] : [];
+        })
         .sort((a, b) => {
           if (a.id === chain.id) return -1;
           if (b.id === chain.id) return 1;
