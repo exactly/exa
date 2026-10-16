@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "build": "cargo build --release --quiet",
-    "rustup": "rustup show",
     "test": "nx test substreams",
     "test:clippy": "cargo clippy --quiet -- --deny warnings",
     "test:fmt": "cargo fmt --check",
@@ -20,7 +19,6 @@
     "targets": {
       "build": {
         "dependsOn": [
-          "rustup",
           "^build"
         ],
         "inputs": [
@@ -62,8 +60,7 @@
           "build",
           "prepare",
           "^prepare",
-          "^build",
-          "rustup"
+          "^build"
         ]
       },
       "test:fmt": {
