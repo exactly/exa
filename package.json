@@ -570,6 +570,27 @@
           }
         }
       },
+      "e2e:web:release": {
+        "continuous": true,
+        "dependsOn": [
+          {
+            "projects": "@exactly/server",
+            "target": "e2e"
+          },
+          {
+            "projects": "@exactly/server",
+            "target": "generate:app"
+          },
+          {
+            "projects": "@exactly/e2e",
+            "target": "build"
+          }
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm dlx serve server/app -l 8081 -snL"
+        }
+      },
       "test:changeset": {
         "cache": false
       },
