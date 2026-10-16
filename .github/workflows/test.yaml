@@ -101,8 +101,6 @@ jobs:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
-      - uses: actions/setup-java@v5
-        with: { distribution: zulu, java-version: "17" }
       - run: |
           set -o pipefail
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
