@@ -51,6 +51,7 @@ export default function LoanSummary({
     totalAmount: amount ?? 0n,
     installments: installments ?? 1,
     marketAddress: market,
+    maturity,
   });
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
