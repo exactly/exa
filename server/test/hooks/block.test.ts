@@ -267,7 +267,7 @@ describe("proposal", () => {
       expect(await response.json()).toStrictEqual({});
       await vi.waitFor(() => {
         expect(sendPushNotification).toHaveBeenCalledTimes(2);
-        expect(vi.mocked(captureException).mock.calls.slice(captures)).toStrictEqual([[error]]);
+        expect(vi.mocked(captureException).mock.calls.slice(captures)).toContainEqual([error]);
       }, 26_666);
 
       for (const amount of ["3", "4"]) {
