@@ -1,0 +1,7 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: assertOnboarding.yaml
+- runFlow: verifyIdentity.yaml
+- runFlow: assertBenefits.yaml
+- runFlow: activateCard.yaml
+- runFlow: assertHome.yaml

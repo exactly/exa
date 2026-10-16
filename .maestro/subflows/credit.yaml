@@ -1,0 +1,9 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    file: borrow.yaml
+    env: { amount: "69", installments: "4" }
+- runFlow: rollover.yaml
+- runFlow: { file: repay.yaml, env: { amount: "13" } }
+- runFlow: repay.yaml
+- runFlow: assertPayments.yaml

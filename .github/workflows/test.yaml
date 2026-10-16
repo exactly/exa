@@ -27,6 +27,11 @@ jobs:
           cache-dependency-path: contracts/requirements.txt
       - uses: actions/cache@v6
         with:
+          path: /tmp/metro-cache
+          key: metro-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: metro-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache@v6
+        with:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
@@ -73,6 +78,7 @@ jobs:
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy: { fail-fast: false, matrix: { flow: [credit, onboarding, swap, transfer] } }
     env:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
@@ -87,11 +93,14 @@ jobs:
         with: { version: v1.7.1 }
       - uses: actions/cache@v6
         with:
+          path: /tmp/metro-cache
+          key: metro-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: metro-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache@v6
+        with:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
-      - uses: actions/setup-java@v5
-        with: { distribution: zulu, java-version: "17" }
       - run: |
           set -o pipefail
           mkdir -p $HOME/.local/bin && cd $HOME/.local/bin
@@ -114,16 +123,13 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: |
-          GITHUB_STEP_SUMMARY= pnpm nx run-many -t build -p mobile e2e
-          GITHUB_STEP_SUMMARY= pnpm nx generate:app server
-          pnpm nx e2e server > server.log 2>&1 &
-          pnpm dlx serve server/app -l 8081 -snL &
+          GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 &
           for i in {1..420}; do
-            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
-            [ $i -eq 420 ] && cat server.log && exit 1
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && curl -f http://localhost:8081 > /dev/null 2>&1 && break
+            { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web.yaml --format junit --output .maestro/junit.xml
+          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
@@ -149,7 +155,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: e2e-artifacts
+          name: e2e-${{ matrix.flow }}-artifacts
           path: |
             chrome.log
             server.log

@@ -1,0 +1,9 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
+- runFlow: hideDevtools.yaml
+- tapOn: Sign in
+- assertNotVisible: Sign in
+- runFlow: dismissNotifications.yaml
+- runFlow: getAccount.yaml
+- assertVisible: Good (morning|afternoon|evening)!

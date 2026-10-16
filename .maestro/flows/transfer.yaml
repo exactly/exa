@@ -1,0 +1,5 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow: ../subflows/transfer.yaml
+- runFlow: ../subflows/storeCoverage.yaml
