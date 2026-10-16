@@ -12,10 +12,6 @@
 **/server/coverage
 **/server/drizzle
 **/server/openapi.json
-**/substreams/abi
-**/substreams/target
-**/substreams/src/contracts
-**/substreams/src/proto
 **/.DS_Store
 **/.env
 **/*.md

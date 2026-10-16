@@ -67,6 +67,10 @@
     },
     "targets": {
       "build": {
+        "dependsOn": [
+          "prepare",
+          "^prepare"
+        ],
         "inputs": [
           "compile",
           "^production"

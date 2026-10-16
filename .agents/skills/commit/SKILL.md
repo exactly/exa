@@ -25,7 +25,6 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 | server | backend api (`@exactly/server`) |
 | contracts | solidity smart contracts (`@exactly/plugin`) |
 | common | shared utilities (`@exactly/common`) |
-| substreams | substreams package (`@exactly/substreams`) |
 | docs | documentation-only changes |
 | dependencies | dependency changes |
 | github | github actions or ci workflows |
@@ -103,7 +102,7 @@ file: `.changeset/<random-name>.md`
 - **no scope prefix** in changeset description (unlike commit messages)
 - **semver level**: almost always `patch`. use `minor` or `major` only when explicitly requested
 - **description**: a lowercase sentence in the imperative present tense. same as commit message but without `<scope>:` prefix (unless developer explicitly customizes)
-- **publishable packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`), substreams (`@exactly/substreams`)
+- **publishable packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`)
 
 ### when a changeset is needed
 
@@ -113,7 +112,6 @@ a changeset is needed when the change has **user-facing impact** — where "user
 - for `server`: anything consuming the api
 - for `common`: any package importing from common
 - for `contracts`: anything interacting with the contracts
-- for `substreams`: anything consuming the substreams
 
 "consumers" includes monitoring, instrumentation, logging, and analytics consumers too. if the change alters what an external analyst would see in dashboards, logs, or error tracking, the changeset is definitely required.
 
@@ -202,7 +200,6 @@ determine the scope from staged files:
 - files in `src/` or root app files → `app`
 - files in `contracts/` → `contracts`
 - files in `common/` → `common`
-- files in `substreams/` → `substreams`
 - files in `docs/` → `docs`
 - files in `.github/` → `github`
 - files in `.maestro/` → `e2e`
