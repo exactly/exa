@@ -31,7 +31,7 @@ import {
 import { bytesToHex } from "viem";
 
 import domain from "@exactly/common/domain";
-import chain, { firewallAddress, isBase } from "@exactly/common/generated/chain";
+import { chains, isBase } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -417,16 +417,18 @@ export default function hook({
                 .where(eq(credentials.id, referenceId))
                 .then(() => user.id);
             }));
-        if (firewallAddress) {
-          await allow.enqueue({
-            account,
-            chainId: chain.id,
-            factory: parse(Address, credential.factory),
-            publicKey: bytesToHex(credential.publicKey),
-            salt: parse(Address, credential.salt),
-            source: credential.source,
-          });
-        }
+        await Promise.all(
+          [...chains.keys()].map((chainId) =>
+            allow.enqueue({
+              account,
+              chainId,
+              factory: parse(Address, credential.factory),
+              publicKey: bytesToHex(credential.publicKey),
+              salt: parse(Address, credential.salt),
+              source: credential.source,
+            }),
+          ),
+        );
         const { value: mail } = payload.data.attributes.fields.authUserEmail;
         try {
           const card = await panda
@@ -505,15 +507,19 @@ export default function hook({
 
       const account = safeParse(Address, credential.account);
       async function enqueueAllow(current: NonNullable<typeof credential>) {
-        if (account.success && firewallAddress)
-          await allow.enqueue({
-            account: account.output,
-            chainId: chain.id,
-            factory: parse(Address, current.factory),
-            publicKey: bytesToHex(current.publicKey),
-            salt: parse(Address, current.salt),
-            source: current.source,
-          });
+        if (account.success)
+          await Promise.all(
+            [...chains.keys()].map((chainId) =>
+              allow.enqueue({
+                account: account.output,
+                chainId,
+                factory: parse(Address, current.factory),
+                publicKey: bytesToHex(current.publicKey),
+                salt: parse(Address, current.salt),
+                source: current.source,
+              }),
+            ),
+          );
       }
       if (credential.pandaId) {
         await enqueueAllow(credential);
