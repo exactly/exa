@@ -15,11 +15,34 @@ tags: [critical]
     file: ../subflows/send.yaml
     env: { asset: USDC, to: "${output.owner}", amount: "69" }
 - tapOn: Manage portfolio
-- assertVisible: Assets backing your credit
+- assertVisible: Collateral assets
+- tapOn: Collateral
+- assertVisible: USDC
+- assertNotVisible: Collateral assets
+- tapOn: Stocks
+- assertVisible: You don't hold any tokenized stocks yet.
+- assertNotVisible: USDC
+- tapOn: All
+- assertVisible: Collateral assets
 - tapOn: USDC
+- assertVisible: Buy
+- assertVisible: Sell
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Sell } }
+- assertVisible: Swaps
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- assertVisible: USD Coin
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Send } }
 - assertVisible: Send to
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- assertVisible: Assets backing your credit
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Balance } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- assertVisible: Collateral assets
+- tapOn: ETH
+- assertVisible: "\\+\\$100\\.00 \\(\\+4\\.17%\\)"
+- tapOn: 1M
+- assertVisible: "\\+\\$200\\.00 \\(\\+8\\.70%\\)"
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- assertVisible: Collateral assets
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
 - tapOn: Send

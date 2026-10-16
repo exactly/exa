@@ -26,7 +26,7 @@ import NetworkSheet from "./NetworkSheet";
 import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
-import { isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
@@ -39,7 +39,7 @@ import NetworkFilter from "../shared/NetworkFilter";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
-import UnsupportedNetworksSheet from "../shared/UnsupportedNetworksSheet";
+import UnsupportedSheet from "../shared/UnsupportedSheet";
 import View from "../shared/View";
 
 export default function AssetSelection() {
@@ -53,6 +53,7 @@ export default function AssetSelection() {
   const [filter, setFilter] = useState<"stocks" | number>();
   const [networks, setNetworks] = useState(false);
   const [unsupported, setUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(null);
+  const [reason, setReason] = useState<"network" | "token">("network");
   const [blocked, setBlocked] = useState<null | { compatible: boolean; id: number; name: string }>(null);
   const { address } = useAccount();
   const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
@@ -399,6 +400,8 @@ export default function AssetSelection() {
                     chains?.find((item) => item.id === chainId)?.name ??
                     alchemyChainById.get(chainId)?.name ??
                     chain.name;
+                  const sendable =
+                    !!advanced || asset.type !== "external" || chainId !== chain.id || isSendable(asset.address);
                   return (
                     <Row
                       key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
@@ -431,11 +434,17 @@ export default function AssetSelection() {
                           ? t("{{symbol}} on {{network}}", { symbol: asset.symbol, network: chainName })
                           : t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })
                       }
-                      disabled={asset.type === "external" && isUnsupported(chainId, deployedChains)}
+                      disabled={!sendable || (asset.type === "external" && isUnsupported(chainId, deployedChains))}
                       pending={asset.type === "external" && pendingChains.has(chainId)}
                       onPress={() => {
                         if (asset.type === "external" && isUnsupported(chainId, deployedChains)) {
+                          setReason("network");
                           setUnsupported({ asset, chainName });
+                          return;
+                        }
+                        if (asset.type === "external" && !sendable) {
+                          setReason("token");
+                          setUnsupported({ asset, chainName: chain.name });
                           return;
                         }
                         router.push({
@@ -553,10 +562,11 @@ export default function AssetSelection() {
           setBlocked(null);
         }}
       />
-      <UnsupportedNetworksSheet
+      <UnsupportedSheet
         open={unsupported !== null}
         asset={unsupported?.asset}
         chainName={unsupported?.chainName}
+        reason={reason}
         onClose={() => {
           setUnsupported(null);
         }}

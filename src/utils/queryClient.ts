@@ -16,7 +16,7 @@ import release from "../generated/release";
 import type { Activity } from "./server";
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
 
-const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "swap", "pax"]);
+const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "feeds", "swap", "pax"]);
 export const isServer = typeof window === "undefined";
 
 export function triage(error: unknown) {
@@ -74,10 +74,11 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "kyc", "card", "capabilities", "deeplink", "ens", "pax", "lifi"].includes(
+    !["activity", "externalAssets", "kyc", "card", "capabilities", "deeplink", "ens", "pax", "prices", "lifi"].includes(
       queryKey[0] as string,
     ) &&
-    !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens"),
+    !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens") &&
+    !(queryKey[0] === "readContract" && (queryKey[1] as { functionName?: string }).functionName === "prices"),
 };
 
 export const persistOptions = { persister, dehydrateOptions };

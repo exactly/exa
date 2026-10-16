@@ -44,6 +44,7 @@ import {
   http,
   isAddressEqual,
   multicall3Abi,
+  parseAbi,
   sha256,
   zeroAddress,
   type Address,
@@ -65,6 +66,7 @@ import chain, {
   swapperAddress,
 } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
+import { WAD } from "@exactly/lib";
 
 import alchemyChains from "./alchemyChains";
 import publicClient from "./publicClient";
@@ -156,8 +158,42 @@ export const lifiTokensOptions = queryOptions({
   },
 });
 
-export function isStock({ address, chainId }: Token) {
-  return chainId === (base.id as ChainId) && stocks.has(address.toLowerCase());
+export function statsOptions(chainId: number, address: string) {
+  return queryOptions({
+    queryKey: ["lifi", "stats", chainId, address.toLowerCase()],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      ensureConfig();
+      return parse(
+        object({
+          priceUSD: nullish(string()),
+          marketCapUSD: nullish(number()),
+          volumeUSD24H: nullish(number()),
+          fdvUSD: nullish(number()),
+        }),
+        chain.testnet ? {} : await getToken(chainId as ChainId, address),
+      );
+    },
+  });
+}
+
+export function isStock({ address, chainId }: { address: string; chainId: number }) {
+  return chainId === base.id && stocks.has(address.toLowerCase());
+}
+
+export const stockAbi = parseAbi(["function multiplier() view returns (uint256)"]);
+
+export function toShares(amount: bigint, decimals: number, multiplier?: bigint) {
+  return multiplier === undefined
+    ? undefined
+    : Math.round(Number(formatUnits((amount * multiplier) / WAD, decimals)) * 1e4) / 1e4;
+}
+
+export function marketOpen() {
+  const now = new Date();
+  const weekday = weekdays.format(now);
+  const evening = Number(hours.format(now)) >= 20;
+  return weekday === "Sun" ? evening : weekday === "Fri" ? !evening : weekday !== "Sat";
 }
 
 export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
@@ -340,16 +376,24 @@ export async function getRoute(
   };
 }
 
+export function swappable(markets: readonly { asset: string }[] = []) {
+  return new Set(
+    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()),
+  );
+}
+
+export function isSendable(address: string) {
+  return (
+    address === zeroAddress ||
+    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
+  );
+}
+
 export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
   ensureConfig();
   if (chain.testnet) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
-  const excluded = new Set(markets.filter((m) => m.symbol.slice(3) === "USDC.e").map((m) => m.asset.toLowerCase()));
-  const allowed = new Set(
-    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)]
-      .map((address) => address.toLowerCase())
-      .filter((address) => !excluded.has(address)),
-  );
+  const allowed = swappable(markets);
   const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
   if (!exaAddress) return allowTokens;
   try {
@@ -779,6 +823,9 @@ const Balances = object({
 });
 
 const knownTokens = new WeakMap<Token[], Map<string, Token>>();
+
+const weekdays = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" });
+const hours = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" });
 
 type Holding = { address: string; amount: bigint };
 

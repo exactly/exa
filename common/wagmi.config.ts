@@ -8,6 +8,7 @@ import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
+import PricePreviewer from "@exactly/plugin/out/build/PricePreviewer.sol/PricePreviewer.json" with { type: "json" };
 import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
 import Firewall from "@exactly/protocol/deployments/base/Firewall.json" with { type: "json" };
 import FlashLoanAdapter from "@exactly/protocol/deployments/base/FlashLoanAdapter.json" with { type: "json" };
@@ -42,6 +43,7 @@ export default defineConfig([
         include: [
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
+          "PricePreviewer.sol/PricePreviewer.json",
           "ProposalManager.sol/ProposalManager.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
         ],
@@ -67,6 +69,7 @@ export default defineConfig([
           "ExaPreviewer.sol/ExaPreviewer.json",
           "IssuerChecker.sol/IssuerChecker.json",
           "MockSwapper.sol/MockSwapper.json",
+          "PricePreviewer.sol/PricePreviewer.json",
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
@@ -158,6 +161,7 @@ export default defineConfig([
                 ),
               )}`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
+              `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain
                 ? []

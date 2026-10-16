@@ -97,7 +97,7 @@ function TokenSkeletonItem() {
 export default function TokenSelectModal({
   open,
   tokens,
-  selectedToken,
+  selected,
   onSelect,
   onClose,
   isLoading = false,
@@ -110,9 +110,9 @@ export default function TokenSelectModal({
   isLoading?: boolean;
   networks?: { id: number; name: string }[];
   onClose: () => void;
-  onSelect: (token: Token) => void;
+  onSelect: (token: Token, external?: boolean) => void;
   open: boolean;
-  selectedToken?: null | Token;
+  selected?: { external: boolean; token: Token };
   title?: string;
   tokens: Token[];
   withBalanceOnly?: boolean;
@@ -120,19 +120,18 @@ export default function TokenSelectModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selection, setSelection] = useState(defaultFilter);
   const [picking, setPicking] = useState(false);
-  const { allAssets } = usePortfolio();
+  const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
   const {
     t,
     i18n: { language },
   } = useTranslation();
 
-  const assetByToken = useMemo(() => {
-    const map = new Map<string, PortfolioAsset>();
+  const holdings = useMemo(() => {
+    const map = new Map<string, PortfolioAsset[]>();
     for (const asset of allAssets) {
       const key = asset.type === "protocol" ? `${chain.id}:${asset.asset}` : `${asset.chainId}:${asset.address}`;
-      if (map.get(key)?.type === "protocol") continue;
-      map.set(key, asset);
+      map.set(key, asset.type === "protocol" ? [asset, ...(map.get(key) ?? [])] : [...(map.get(key) ?? []), asset]);
     }
     return map;
   }, [allAssets]);
@@ -156,21 +155,31 @@ export default function TokenSelectModal({
     const query = searchQuery.toLowerCase().trim();
     const matchesQuery = (...fields: (string | undefined)[]) =>
       !query || fields.some((field) => field?.toLowerCase().includes(query));
-    return tokens.filter((token) => {
-      if (filter === "stocks" && !isStock(token)) return false;
-      if (typeof filter === "number" && (token.chainId as number) !== filter) return false;
-      if (withBalanceOnly) {
-        const key = `${token.chainId}:${token.address}`;
-        const asset = assetByToken.get(key);
-        if (!asset) return false;
-        if (asset.type === "protocol")
-          return asset.floatingDepositAssets > 0n && matchesQuery(asset.symbol, asset.assetName, asset.asset);
-        if (marketAssets.has(key)) return false;
-        return (asset.amount ?? 0n) > 0n && matchesQuery(asset.symbol, asset.name, asset.address);
-      }
-      return matchesQuery(token.symbol, token.name, token.address);
+    return tokens.flatMap<{ asset?: PortfolioAsset; external?: boolean; token: Token }>((token) => {
+      if (filter === "stocks" && !isStock(token)) return [];
+      if (typeof filter === "number" && (token.chainId as number) !== filter) return [];
+      const key = `${token.chainId}:${token.address}`;
+      const assets = holdings.get(key) ?? [];
+      if (!withBalanceOnly)
+        return matchesQuery(token.symbol, token.name, token.address)
+          ? [
+              {
+                token,
+                asset: assets.find(({ type }) => (type === "external") === isExternal(token.chainId, token.address)),
+              },
+            ]
+          : [];
+      return assets
+        .filter((asset) =>
+          asset.type === "protocol"
+            ? asset.floatingDepositAssets > 0n && matchesQuery(asset.symbol, asset.assetName, asset.asset)
+            : (asset.amount ?? 0n) > 0n &&
+              (!marketAssets.has(key) || isExternal(asset.chainId, asset.address)) &&
+              matchesQuery(asset.symbol, asset.name, asset.address),
+        )
+        .map((asset) => ({ token, asset, external: asset.type === "external" }));
     });
-  }, [searchQuery, tokens, filter, withBalanceOnly, assetByToken, marketAssets]);
+  }, [searchQuery, tokens, filter, withBalanceOnly, holdings, marketAssets, isExternal]);
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag heightPercent={85}>
@@ -266,17 +275,21 @@ export default function TokenSelectModal({
                 data={filteredTokens}
                 renderItem={({ item }) => (
                   <TokenListItem
-                    token={item}
-                    isSelected={selectedToken?.address === item.address && selectedToken.chainId === item.chainId}
+                    token={item.token}
+                    isSelected={
+                      selected?.token.address === item.token.address &&
+                      selected.token.chainId === item.token.chainId &&
+                      (item.external === undefined || item.external === selected.external)
+                    }
                     onPress={() => {
-                      onSelect(item);
+                      onSelect(item.token, item.external);
                       setSearchQuery("");
                     }}
                     language={language}
-                    matchingAsset={assetByToken.get(`${item.chainId}:${item.address}`)}
+                    matchingAsset={item.asset}
                   />
                 )}
-                keyExtractor={(item) => `${item.chainId}:${item.address}`}
+                keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
                 showsVerticalScrollIndicator={false}
                 windowSize={5}
                 ListEmptyComponent={() => (

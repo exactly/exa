@@ -9,7 +9,6 @@ import {
   ArrowRight,
   Check,
   CircleHelp,
-  Clock,
   IdCard,
   Info,
   OctagonX,
@@ -67,11 +66,13 @@ import {
   isStock,
   lifiChainsOptions,
   lifiTokensOptions,
+  marketOpen,
   quoteValidity,
   restrictedCountries,
   statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
+import { useFeed } from "../../utils/prices";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -83,6 +84,8 @@ import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exaConfig from "../../utils/wagmi/exa";
 import IconButton from "../shared/IconButton";
+import MarketClosedBanner from "../shared/MarketClosedBanner";
+import { PriceSummary } from "../shared/PriceChart";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -127,7 +130,7 @@ export default function Swaps() {
     i18n: { language },
   } = useTranslation();
   const { address: account } = useAccount();
-  const { allAssets, externalAssets, crossChainAssets, protocolAssets, isBalancesPending } = usePortfolio();
+  const { allAssets, externalAssets, crossChainAssets, protocolAssets, isExternal, isBalancesPending } = usePortfolio();
   const {
     error: balancesError,
     isFetching: isBalancesFetching,
@@ -205,15 +208,6 @@ export default function Swaps() {
     [allowedChains, deployedFactories, lifiChains],
   );
 
-  const isExternal = useCallback(
-    (chainId: number, address: string) => {
-      if (chainId !== chain.id) return true;
-      if (!markets) return false;
-      return !markets.some((m) => m.asset === address);
-    },
-    [markets],
-  );
-
   const getSwapAddress = useCallback(
     (token: undefined | { external: boolean; token: Token }) => {
       if (!token) return;
@@ -224,19 +218,19 @@ export default function Swaps() {
   );
 
   const getBalance = useCallback(
-    (token?: Token) => {
+    (token: undefined | { external: boolean; token: Token }) => {
       if (!token) return 0n;
-      const address = parse(Address, token.address);
-      const tokenChain = token.chainId as number;
+      const address = parse(Address, token.token.address);
+      const tokenChain = token.token.chainId as number;
       if (tokenChain !== chain.id) {
         return crossChainAssets.find((a) => a.chainId === tokenChain && a.address === address)?.amount ?? 0n;
       }
-      if (isExternal(tokenChain, token.address)) {
+      if (token.external) {
         return externalAssets.find((a) => a.address === address)?.amount ?? 0n;
       }
       return protocolAssets.find((a) => a.asset === address)?.floatingDepositAssets ?? 0n;
     },
-    [crossChainAssets, externalAssets, isExternal, protocolAssets],
+    [crossChainAssets, externalAssets, protocolAssets],
   );
 
   const candidates = useMemo(() => {
@@ -255,7 +249,7 @@ export default function Swaps() {
         allAssets
           .filter((asset) =>
             asset.type === "protocol"
-              ? asset.floatingDepositAssets > 0n
+              ? asset.floatingDepositAssets > 0n && !isExternal(chain.id, asset.asset)
               : (asset.amount ?? 0n) > 0n && isExternal(asset.chainId, asset.address),
           )
           .map((asset) =>
@@ -276,19 +270,22 @@ export default function Swaps() {
   useEffect(() => {
     if (!markets || !homeTokens || (fromToken && toToken)) return;
     updateSwap((old) => {
-      const home = payableTokens.filter((token) => (token.chainId as number) === chain.id);
-      const preferred = home.length > 0 ? home : payableTokens;
-      const payable = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
+      const inputs = payableTokens.filter((token) => !sameToken(token, old.toToken?.token));
+      const home = inputs.filter((token) => (token.chainId as number) === chain.id);
+      const preferred = home.length > 0 ? home : inputs;
+      const input = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
       const target =
         old.toToken?.token ??
-        (payable && isStock(payable) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
+        (input && isStock(input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
           .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
-          .find((token) => token !== undefined && !sameToken(token, payable)) ??
-        homeTokens.find((token) => !sameToken(token, payable));
+          .find((token) => token !== undefined && !sameToken(token, input)) ??
+        homeTokens.find((token) => !sameToken(token, input));
       return {
         ...old,
-        fromToken: payable ? { token: payable, external: isExternal(payable.chainId, payable.address) } : undefined,
-        toToken: target ? { token: target, external: isExternal(target.chainId, target.address) } : undefined,
+        fromToken:
+          old.fromToken ?? (input ? { token: input, external: isExternal(input.chainId, input.address) } : undefined),
+        toToken:
+          old.toToken ?? (target ? { token: target, external: isExternal(target.chainId, target.address) } : undefined),
       };
     });
   }, [fromToken, homeTokens, isExternal, markets, payableTokens, toToken]);
@@ -315,26 +312,25 @@ export default function Swaps() {
     !fromToken &&
     payableTokens.length === 0;
 
-  const handleTokenSelect = (selected: Token) => {
-    if (!fromToken || !toToken) return;
+  const handleTokenSelect = (selected: Token, external = isExternal(selected.chainId, selected.address)) => {
     updateSwap((old) => ({
       ...old,
-      fromAmount: tokenSelectionType === "to" && !sameToken(selected, fromToken.token) ? fromAmount : 0n,
+      fromAmount: tokenSelectionType === "to" && !sameToken(selected, fromToken?.token) ? fromAmount : 0n,
       toAmount: 0n,
       denied: [],
       fromToken:
         tokenSelectionType === "from"
-          ? { token: selected, external: isExternal(selected.chainId, selected.address) }
-          : sameToken(selected, fromToken.token)
-            ? { token: toToken.token, external: toToken.external }
+          ? { token: selected, external }
+          : sameToken(selected, fromToken?.token)
+            ? toToken
             : fromToken,
       toToken:
         tokenSelectionType === "to"
-          ? { token: selected, external: isExternal(selected.chainId, selected.address) }
-          : sameToken(selected, toToken.token)
-            ? restricted && isStock(fromToken.token)
+          ? { token: selected, external }
+          : sameToken(selected, toToken?.token)
+            ? fromToken && restricted && isStock(fromToken.token)
               ? undefined
-              : { token: fromToken.token, external: fromToken.external }
+              : fromToken
             : toToken,
       tokenModalOpen: false,
     }));
@@ -413,11 +409,14 @@ export default function Swaps() {
   const fromUSD = Number(route?.estimate.fromAmountUSD);
   const toUSD = Number(route?.estimate.toAmountUSD);
   const impact = fromUSD > 0 && toUSD > 0 ? 1 - toUSD / fromUSD : 0;
-  const closedStock = [fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen();
+  const feeds = [useFeed(toToken?.token), useFeed(fromToken?.token)];
+  const priced = feeds.includes(undefined)
+    ? undefined
+    : [toToken, fromToken].find((side, index) => !!side && !feeds[index]?.stablecoin);
 
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken) return false;
-    return fromAmount > getBalance(fromToken.token);
+    return fromAmount > getBalance(fromToken);
   }, [fromToken, fromAmount, getBalance]);
 
   const neutralAsset = useMemo(() => {
@@ -603,7 +602,7 @@ export default function Swaps() {
       ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
       : undefined;
   const gasSource = useMemo(
-    () => (fromToken?.external ? { ...fromToken.token, amount: getBalance(fromToken.token) } : null),
+    () => (fromToken?.external ? { ...fromToken.token, amount: getBalance(fromToken) } : null),
     [fromToken, getBalance],
   );
   const {
@@ -956,6 +955,9 @@ export default function Swaps() {
             <ScrollView ref={swapsScrollReference} showsVerticalScrollIndicator={false} flex={1}>
               <View padded>
                 <YStack paddingBottom="$s3" gap="$s4_5">
+                  <MarketClosedBanner
+                    open={[fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen()}
+                  />
                   <YStack gap="$s3_5">
                     {(["from", "to"] as const).map((type) => {
                       const paying = type === "from";
@@ -966,7 +968,7 @@ export default function Swaps() {
                           label={t(paying ? "You pay" : "You receive")}
                           token={tokenData?.token}
                           amount={paying ? fromAmount : toAmount}
-                          balance={getBalance(tokenData?.token)}
+                          balance={getBalance(tokenData)}
                           disabled={!paying}
                           isLoading={isTokensLoading || (isRouteLoading && !fromAmount)}
                           isActive={paying}
@@ -999,6 +1001,24 @@ export default function Swaps() {
                       );
                     })}
                   </YStack>
+                  {priced && (
+                    <PriceSummary
+                      key={`${priced.token.chainId}:${priced.token.address}`}
+                      token={priced.token}
+                      onPress={() => {
+                        router.push({
+                          pathname: "/asset",
+                          params: {
+                            chainId: String(priced.token.chainId),
+                            address: priced.token.address,
+                            market: priced.external
+                              ? undefined
+                              : markets?.find(({ asset }) => asset === priced.token.address)?.market,
+                          },
+                        });
+                      }}
+                    />
+                  )}
                   {fromToken && toToken && route && (
                     <SwapDetails
                       exchange={tool}
@@ -1070,14 +1090,6 @@ export default function Swaps() {
                             : failure
                               ? t("We can’t get a quote right now. Try again in a moment.")
                               : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
-                    </Text>
-                  </XStack>
-                )}
-                {closedStock && (
-                  <XStack gap="$s3" alignItems="center">
-                    <Clock size={16} color="$uiNeutralSecondary" />
-                    <Text caption color="$uiNeutralSecondary" flex={1}>
-                      {t("The US stock market is closed. Onchain prices may differ from the next market open.")}
                     </Text>
                   </XStack>
                 )}
@@ -1156,7 +1168,7 @@ export default function Swaps() {
               open={tokenModalOpen}
               tokens={selectableTokens}
               networks={networks}
-              selectedToken={tokenSelectionType === "from" ? fromToken?.token : toToken?.token}
+              selected={tokenSelectionType === "from" ? fromToken : toToken}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
               isLoading={isTokensLoading}
@@ -1227,7 +1239,7 @@ function onClose() {
   }
 }
 
-function sameToken(token: Token, other?: Token) {
+export function sameToken(token: Token, other?: Token) {
   return !!other && token.chainId === other.chainId && token.address === other.address;
 }
 
@@ -1238,23 +1250,6 @@ function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, t
 function updateSwap(updater: (old: Swap) => Swap) {
   queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
 }
-
-function marketOpen() {
-  const parts = formatter.formatToParts(new Date());
-  const value = (type: string) => parts.find((unit) => unit.type === type)?.value ?? "";
-  const weekday = value("weekday");
-  if (weekday === "Sat" || weekday === "Sun") return false;
-  const minutes = Number(value("hour")) * 60 + Number(value("minute"));
-  return minutes >= 9.5 * 60 && minutes < 16 * 60;
-}
-
-const formatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  hour: "numeric",
-  minute: "numeric",
-  hourCycle: "h23",
-});
 
 export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };
 

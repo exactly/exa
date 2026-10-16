@@ -29,10 +29,10 @@ export default function FundingAlert() {
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { approved: isKYCApproved, isFetched: isKYCFetched } = useKYC();
-  const { portfolio, externalAssets, crossChainAssets, markets, isPending, isBalancesPending } = usePortfolio();
-  const isExternal = (address: string) => !markets?.some((m) => m.asset.toLowerCase() === address.toLowerCase());
+  const { portfolio, externalAssets, crossChainAssets, markets, isExternal, isPending, isBalancesPending } =
+    usePortfolio();
   const swappable = externalAssets.filter(
-    ({ address }) => address.toLowerCase() !== zeroAddress && isExternal(address),
+    ({ address, chainId }) => address.toLowerCase() !== zeroAddress && isExternal(chainId, address),
   );
   const { mutate: swap, isPending: isSwapPending } = useMutation({
     mutationKey: ["swap", "preset"],
@@ -48,8 +48,8 @@ export default function FundingAlert() {
       if (!usdc) throw new Error("no usdc");
       queryClient.setQueryData<Swap>(["swap"], {
         ...defaultSwap,
-        fromToken: { token: largest, external: isExternal(largest.address) },
-        toToken: { token: usdc, external: isExternal(usdc.address) },
+        fromToken: { token: largest, external: isExternal(largest.chainId, largest.address) },
+        toToken: { token: usdc, external: isExternal(usdc.chainId, usdc.address) },
       });
     },
     onError: (error) => {

@@ -53,7 +53,7 @@ export default function ReceiverSelection() {
     i18n: { language },
   } = useTranslation();
   const toast = useToastController();
-  const { receiver, asset } = useLocalSearchParams();
+  const { receiver, asset, fromChain } = useLocalSearchParams();
 
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const { data: introSeen } = useQuery<boolean>({ queryKey: ["settings", "advanced-intro"] });
@@ -98,7 +98,16 @@ export default function ReceiverSelection() {
     const preset = safeParse(Address, asset);
     router.push(
       preset.success && type === ChainType.EVM
-        ? { pathname: "/send-funds/amount", params: { receiver: to, ens, chainType: type, asset: preset.output } }
+        ? {
+            pathname: "/send-funds/amount",
+            params: {
+              receiver: to,
+              ens,
+              chainType: type,
+              asset: preset.output,
+              ...(typeof fromChain === "string" && { fromChain, toChain: fromChain }),
+            },
+          }
         : { pathname: "/send-funds/asset", params: { receiver: to, ens, chainType: type } },
     );
   }

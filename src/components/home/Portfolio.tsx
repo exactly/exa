@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
+import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons-2";
+import { ArrowLeft, BriefcaseBusiness, ChartNoAxesCombined, CircleHelp, ShieldCheck } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -13,12 +14,13 @@ import ExternalAssets from "./ExternalAssets";
 import Stocks from "./Stocks";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
-import { balancesOptions } from "../../utils/lifi";
+import { balancesOptions, isStock } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useMarkets from "../../utils/useMarkets";
-import usePortfolio from "../../utils/usePortfolio";
+import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
+import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
@@ -29,28 +31,19 @@ import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, portfolio, totalBalanceUSD, isPending } = usePortfolio();
+  const { averageRate, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
   const router = useRouter();
-  const {
-    t,
-    i18n: { language },
-  } = useTranslation();
-  const { balanceUSD } = portfolio;
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<"all" | "collateral" | "stocks">("all");
 
   const { refetch: refetchMarkets } = useMarkets();
-  const { refetch: refetchBalances } = useQuery(balancesOptions(address));
+  const { refetch: refetchBalances, isFetching: isBalancesFetching } = useQuery(balancesOptions(address));
+
+  const stocks = allAssets.filter((asset): asset is ExternalAsset => asset.type === "external" && isStock(asset));
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
-      <View
-        padded
-        flexDirection="row"
-        gap="$s3_5"
-        paddingBottom="$s4"
-        justifyContent="space-between"
-        alignItems="center"
-      >
+    <SafeView fullScreen backgroundColor="$backgroundSoft">
+      <View padded flexDirection="row" gap="$s3_5" paddingBottom="$s4" alignItems="center">
         <IconButton
           icon={ArrowLeft}
           aria-label={t("Back")}
@@ -62,6 +55,9 @@ export default function Portfolio() {
             }
           }}
         />
+        <Text flex={1} emphasized subHeadline textAlign="center" color="$uiNeutralPrimary">
+          {t("Portfolio")}
+        </Text>
         <IconButton
           icon={CircleHelp}
           aria-label={t("Help")}
@@ -71,8 +67,7 @@ export default function Portfolio() {
         />
       </View>
       <ScrollView
-        backgroundColor="transparent"
-        contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
+        backgroundColor="$backgroundSoft"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -82,129 +77,127 @@ export default function Portfolio() {
           />
         }
       >
-        {isPending ? (
-          <YStack key="portfolio-skeleton">
-            <View
-              backgroundColor="$backgroundSoft"
-              paddingHorizontal="$s4"
-              paddingVertical="$s5"
-              gap="$s5"
-              alignItems="center"
-            >
-              <Skeleton height={15} width={100} />
+        <YStack paddingTop="$s5" gap="$s6" alignItems="center">
+          {isPending ? (
+            <YStack key="portfolio-skeleton" gap="$s4_5" alignItems="center">
               <Skeleton height={40} width={180} />
-              <Skeleton height={28} width={90} radius="round" />
-            </View>
-            <View padded gap="$s4">
-              <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s3">
-                <Skeleton height={20} width={130} />
-                {Array.from({ length: 3 }, (_, index) => (
-                  <XStack key={index} alignItems="center" paddingVertical="$s3_5" gap="$s3_5">
-                    <Skeleton height={32} width={32} radius="round" />
-                    <YStack gap="$s2" flex={1}>
-                      <Skeleton height={15} width={50} />
-                      <Skeleton height={12} width={70} />
-                    </YStack>
-                    <YStack gap="$s2" alignItems="flex-end" flex={1}>
-                      <Skeleton height={15} width={50} />
-                      <Skeleton height={12} width={30} />
-                    </YStack>
-                    <YStack gap="$s2" alignItems="flex-end" flex={1}>
-                      <Skeleton height={15} width={60} />
-                      <Skeleton height={12} width={50} />
-                    </YStack>
-                  </XStack>
-                ))}
-              </YStack>
-              <YStack backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s3">
-                <Skeleton height={20} width={160} />
-                <XStack alignItems="center" gap="$s3_5">
-                  <Skeleton height={12} width={60} />
-                  <View flex={1} height={1} backgroundColor="$borderNeutralSoft" />
-                </XStack>
-                {Array.from({ length: 2 }, (_, index) => (
-                  <XStack key={index} alignItems="center" paddingVertical="$s3_5" gap="$s3">
-                    <Skeleton height={32} width={32} radius="round" />
-                    <YStack gap="$s2" width={80}>
-                      <Skeleton height={15} width={50} />
-                      <Skeleton height={12} width={60} />
-                    </YStack>
-                    <YStack gap="$s2" flex={1} alignItems="flex-end">
-                      <Skeleton height={15} width={60} />
-                      <Skeleton height={12} width={80} />
-                    </YStack>
-                  </XStack>
-                ))}
-              </YStack>
-            </View>
-          </YStack>
-        ) : (
-          <YStack
-            key="portfolio-content"
-            transition="default"
-            enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
-            transform={[{ translateY: 0 }]}
-          >
-            <View
-              backgroundColor="$backgroundSoft"
-              paddingHorizontal="$s4"
-              paddingVertical="$s5"
-              gap="$s5"
-              alignItems="center"
-            >
-              <Text emphasized subHeadline color="$uiNeutralSecondary">
-                {t("Your Portfolio")}
-              </Text>
-              <Text
-                sensitive
-                textAlign="center"
-                fontSize={40}
-                overflow="hidden"
-                maxFontSizeMultiplier={1}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {`$${(Number(totalBalanceUSD) / 1e18).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              </Text>
-              {balanceUSD > 0n ? (
+              <Skeleton height={20} width={100} />
+            </YStack>
+          ) : (
+            <YStack key={tab} gap="$s4_5" alignItems="center" transition="default" enterStyle={{ opacity: 0 }}>
+              <Amount
+                amount={
+                  {
+                    all: Number(totalBalanceUSD) / 1e18,
+                    collateral: Number(portfolio.balanceUSD) / 1e18,
+                    stocks: stocks.reduce((sum, asset) => sum + asset.usdValue, 0),
+                  }[tab]
+                }
+              />
+              {tab !== "stocks" && portfolio.balanceUSD > 0n ? (
                 <WeightedRate
                   averageRate={averageRate}
                   depositMarkets={portfolio.depositMarkets}
-                  onPress={(event) => {
-                    event.stopPropagation();
+                  onPress={() => {
                     presentArticle("12633694").catch(reportError);
                   }}
                 />
               ) : null}
-            </View>
-            <View padded gap="$s4">
-              <AssetList />
-              <Stocks />
-              <ExternalAssets />
-            </View>
-            <XStack gap="$s4" padding="$s4" flexWrap="wrap">
-              <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
-                <Trans
-                  i18nKey="Performance is variable, not guaranteed, and powered by <protocol>Exactly Protocol</protocol>. Yields depend on protocol performance and network activity. Past performance does not guarantee future results."
-                  components={{
-                    protocol: (
-                      <Text
-                        cursor="pointer"
-                        caption2
-                        color="$interactiveOnDisabled"
-                        textDecorationLine="underline"
-                        aria-label={t("Exactly protocol website")}
-                        role="link"
-                        onPress={() => {
-                          openBrowser(`https://exact.ly/`).catch(reportError);
-                        }}
-                      />
-                    ),
+            </YStack>
+          )}
+          <XStack alignSelf="stretch" alignItems="flex-end" role="tablist">
+            {(
+              [
+                { key: "all", label: t("All"), Icon: BriefcaseBusiness },
+                { key: "collateral", label: t("Collateral"), Icon: ShieldCheck },
+                { key: "stocks", label: t("Stocks"), Icon: ChartNoAxesCombined },
+              ] as const
+            ).map(({ key, label, Icon }) => {
+              const active = tab === key;
+              const color = active ? "$interactiveOnBaseBrandSoft" : "$uiNeutralSecondary";
+              return (
+                <XStack
+                  key={key}
+                  flex={1}
+                  gap="$s2"
+                  alignItems="center"
+                  justifyContent="center"
+                  paddingHorizontal="$s3"
+                  paddingVertical="$s3_5"
+                  borderBottomWidth={active ? 2 : 1}
+                  borderBottomColor={active ? "$interactiveBaseBrandDefault" : "$borderNeutralSoft"}
+                  cursor="pointer"
+                  role="tab"
+                  aria-selected={active}
+                  onPress={() => {
+                    if (active) return;
+                    selectionAsync().catch(reportError);
+                    setTab(key);
                   }}
-                />
-              </Text>
-            </XStack>
+                >
+                  <Icon size={16} color={color} />
+                  <Text footnote numberOfLines={1} color={color}>
+                    {label}
+                  </Text>
+                </XStack>
+              );
+            })}
+          </XStack>
+        </YStack>
+        {isPending ? (
+          <YStack key="list-skeleton" padding="$s4" paddingTop="$s5" gap="$s6">
+            {Array.from({ length: 4 }, (_, index) => (
+              <XStack key={index} alignItems="center" gap="$s3_5">
+                <Skeleton height={40} width={40} radius="round" />
+                <YStack gap="$s2" flex={1}>
+                  <Skeleton height={15} width={110} />
+                  <Skeleton height={12} width={70} />
+                </YStack>
+                <YStack gap="$s2" alignItems="flex-end">
+                  <Skeleton height={15} width={70} />
+                  <Skeleton height={12} width={40} />
+                </YStack>
+              </XStack>
+            ))}
           </YStack>
+        ) : (
+          <>
+            {tab === "stocks" ? null : <AssetList titled={tab === "all"} />}
+            {tab === "collateral" ? null : (
+              <Stocks titled={tab === "all"} assets={stocks} pending={isBalancesFetching} />
+            )}
+            {tab === "all" ? (
+              <ExternalAssets
+                assets={allAssets.filter(
+                  (asset): asset is ExternalAsset => asset.type === "external" && !isStock(asset),
+                )}
+              />
+            ) : null}
+          </>
+        )}
+        {tab === "stocks" ? null : (
+          <View padding="$s4">
+            <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+              <Trans
+                i18nKey="Performance is variable, not guaranteed, and powered by <protocol>Exactly Protocol</protocol>. Yields depend on protocol performance and network activity. Past performance does not guarantee future results."
+                components={{
+                  protocol: (
+                    <Text
+                      cursor="pointer"
+                      caption2
+                      color="$interactiveOnDisabled"
+                      textDecorationLine="underline"
+                      aria-label={t("Exactly protocol website")}
+                      role="link"
+                      onPress={() => {
+                        openBrowser(`https://exact.ly/`).catch(reportError);
+                      }}
+                    />
+                  ),
+                }}
+              />
+            </Text>
+          </View>
         )}
       </ScrollView>
     </SafeView>
