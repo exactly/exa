@@ -316,13 +316,17 @@ export default function hook({
             cards: {
               columns: { id: true },
               where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
-              limit: 1,
+              limit: 2,
             },
           },
         });
         if (!credential) {
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "ok" }, 200);
+        }
+        if (credential.cards.length > 1) {
+          captureException(new Error("multiple cards"), { level: "error", contexts: { credential: { referenceId } } });
+          return c.json({ code: "multiple cards" }, 200);
         }
         await persona.updateCardLimit(referenceId, limitUsd).catch((error: unknown) => {
           captureException(error, {
