@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import {
   createPublicClient,
-  encodeDeployData,
   encodeFunctionData,
   erc20Abi,
   formatUnits,
@@ -19,14 +18,11 @@ import {
 
 import {
   allowlists,
-  auditorAbi,
-  auditorAddress,
   exaPreviewerAbi,
-  exaPreviewerCode,
   marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
-  proposalManagerAddress,
+  networks,
   swapperAddress,
 } from "@exactly/common/generated/chain";
 
@@ -45,17 +41,14 @@ export default function lifi(chains: readonly Chain[]) {
     if (!found) throw new Error(`unknown chain ${id}`);
     return found;
   }
+  function preview(id: number) {
+    const exaPreviewer = networks.get(id)?.exaPreviewer;
+    if (!exaPreviewer) throw new Error(`unknown network ${id}`);
+    return client(id).readContract({ address: exaPreviewer, abi: exaPreviewerAbi, functionName: "markets" });
+  }
   async function tokens(id: number) {
     const source = client(id);
-    const markets = await source.readContract({
-      abi: exaPreviewerAbi,
-      functionName: "markets",
-      code: encodeDeployData({
-        abi: exaPreviewerAbi,
-        bytecode: exaPreviewerCode,
-        args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-      }),
-    });
+    const markets = await preview(id);
     const listed = markets.flatMap(({ asset, decimals, market, symbol, usdPrice }) => {
       const token = {
         address: asset,
@@ -139,21 +132,11 @@ export default function lifi(chains: readonly Chain[]) {
               name: "ETH",
               coinKey: "ETH",
               priceUSD: formatUnits(
-                await client(id)
-                  .readContract({
-                    address: auditorAddress,
-                    abi: auditorAbi,
-                    functionName: "markets",
-                    args: [marketWETHAddress],
-                  })
-                  .then(({ 4: priceFeed }) =>
-                    client(id).readContract({
-                      address: auditorAddress,
-                      abi: auditorAbi,
-                      functionName: "assetPrice",
-                      args: [priceFeed],
-                    }),
-                  ),
+                await preview(id).then((markets) => {
+                  const weth = markets.find(({ market }) => market === marketWETHAddress);
+                  if (!weth) throw new Error(`missing weth on ${id}`);
+                  return weth.usdPrice;
+                }),
                 18,
               ),
               logoURI,
