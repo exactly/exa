@@ -290,9 +290,6 @@ importers:
       '@tanstack/react-query-devtools':
         specifier: ^5.95.2
         version: 5.95.2(@tanstack/react-query@5.95.2(react@19.2.0))(react@19.2.0)
-      '@tanstack/react-query-persist-client':
-        specifier: ^5.95.2
-        version: 5.95.2(@tanstack/react-query@5.95.2(react@19.2.0))(react@19.2.0)
       '@wagmi/core':
         specifier: ^3.6.6
         version: 3.6.6(@tanstack/query-core@5.95.2)(@types/react@19.2.14)(react@19.2.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.0))(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.5.4))
@@ -6553,12 +6550,6 @@ packages:
 
   '@tanstack/react-query-devtools@5.95.2':
     resolution: {integrity: sha512-AFQFmbznVkbtfpx8VJ2DylW17wWagQel/qLstVLkYmNRo2CmJt3SNej5hvl6EnEeljJIdC3BTB+W7HZtpsH+3g==}
-    peerDependencies:
-      '@tanstack/react-query': ^5.95.2
-      react: ^18 || ^19
-
-  '@tanstack/react-query-persist-client@5.95.2':
-    resolution: {integrity: sha512-i3fvzD8gaLgQyFvRc/+iSUr60aL31tMN+5QM11zdPRg0K9CirIQjHD7WgXFBnD29KJDvcjcv7OrIBaPwZ+H9xw==}
     peerDependencies:
       '@tanstack/react-query': ^5.95.2
       react: ^18 || ^19
@@ -22989,12 +22980,6 @@ snapshots:
   '@tanstack/react-query-devtools@5.95.2(@tanstack/react-query@5.95.2(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@tanstack/query-devtools': 5.95.2
-      '@tanstack/react-query': 5.95.2(react@19.2.0)
-      react: 19.2.0
-
-  '@tanstack/react-query-persist-client@5.95.2(@tanstack/react-query@5.95.2(react@19.2.0))(react@19.2.0)':
-    dependencies:
-      '@tanstack/query-persist-client-core': 5.95.2
       '@tanstack/react-query': 5.95.2(react@19.2.0)
       react: 19.2.0
 

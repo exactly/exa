@@ -81,8 +81,6 @@ const dehydrateOptions = {
     !(queryKey[0] === "readContract" && (queryKey[1] as { functionName?: string }).functionName === "prices"),
 };
 
-export const persistOptions = { persister, dehydrateOptions };
-
 if (typeof window !== "undefined") {
   const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions, buster: release });
   hydrated.then(subscribe, subscribe);

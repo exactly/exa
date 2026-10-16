@@ -1,6 +1,6 @@
 import "../utils/onesignal";
 
-import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef } from "react";
+import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef, useState } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -33,9 +33,8 @@ import {
   setContext,
   wrap,
 } from "@sentry/react-native";
-import { useQuery } from "@tanstack/react-query";
+import { IsRestoringProvider, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { getConnection, reconnect } from "@wagmi/core";
 import { proxy } from "comlink";
 import { use as configI18n } from "i18next";
@@ -57,7 +56,7 @@ import es from "../i18n/es.json";
 import pt from "../i18n/pt.json";
 import e2e from "../utils/e2e";
 import { newMessage, present, type Session } from "../utils/intercom";
-import queryClient, { isServer, persistOptions } from "../utils/queryClient";
+import queryClient, { hydrated, isServer } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import { page } from "../utils/segment";
 import { origin } from "../utils/server";
@@ -190,6 +189,7 @@ const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platfor
 
 export default wrap(function RootLayout() {
   const navigationContainer = useNavigationContainerRef();
+  const [restoring, setRestoring] = useState(true);
 
   useServerFonts({
     "SplineSansMono-Medium": SplineSansMonoMedium as FontSource,
@@ -200,6 +200,11 @@ export default wrap(function RootLayout() {
   useEffect(() => {
     routingInstrumentation.registerNavigationContainer(navigationContainer);
   }, [navigationContainer]);
+
+  useEffect(() => {
+    const done = () => setRestoring(false);
+    hydrated.then(done, done);
+  }, []);
 
   useEffect(() => {
     reconnect(exaConfig).catch(reportError);
@@ -243,31 +248,33 @@ export default wrap(function RootLayout() {
 
   return (
     <WagmiProvider config={exaConfig}>
-      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-        <ToastProvider native="mobile">
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <SafeAreaProvider>
-              <ThemeProvider>
-                <ErrorBoundary
-                  onError={() => {
-                    SplashScreen.hideAsync().catch(reportError);
-                  }}
-                  fallback={(data) => (
-                    <Error
-                      resetError={() => {
-                        data.resetError();
-                      }}
-                    />
-                  )}
-                >
-                  <Navigator />
-                </ErrorBoundary>
-              </ThemeProvider>
-            </SafeAreaProvider>
-          </GestureHandlerRootView>
-          {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
-        </ToastProvider>
-      </PersistQueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <IsRestoringProvider value={restoring}>
+          <ToastProvider native="mobile">
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <SafeAreaProvider>
+                <ThemeProvider>
+                  <ErrorBoundary
+                    onError={() => {
+                      SplashScreen.hideAsync().catch(reportError);
+                    }}
+                    fallback={(data) => (
+                      <Error
+                        resetError={() => {
+                          data.resetError();
+                        }}
+                      />
+                    )}
+                  >
+                    <Navigator />
+                  </ErrorBoundary>
+                </ThemeProvider>
+              </SafeAreaProvider>
+            </GestureHandlerRootView>
+            {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
+          </ToastProvider>
+        </IsRestoringProvider>
+      </QueryClientProvider>
     </WagmiProvider>
   );
 });
