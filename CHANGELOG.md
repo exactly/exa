@@ -1,5 +1,25 @@
 # @exactly/mobile
 
+## 1.2.34
+
+### Patch Changes
+
+- [#1409](https://github.com/exactly/exa/pull/1409) [`e24ea40`](https://github.com/exactly/exa/commit/e24ea40ff6d7e25f732b9dd2f4042edf5515f7ca) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 handle proposal simulation failures
+
+- [#1409](https://github.com/exactly/exa/pull/1409) [`fc12293`](https://github.com/exactly/exa/commit/fc1229356c74203fa73164a5b8caba83b6c6527c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔥 drop support for legacy repay
+
+- [#1405](https://github.com/exactly/exa/pull/1405) [`e8c1362`](https://github.com/exactly/exa/commit/e8c1362740ff822ed21b6ef69feca1edf752fa98) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ use deployless previewer
+
+- [#1415](https://github.com/exactly/exa/pull/1415) [`765053a`](https://github.com/exactly/exa/commit/765053ab4063029bb1dc00e489295d71fc1ff7f9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 surface unhandled auth errors
+
+- [#1410](https://github.com/exactly/exa/pull/1410) [`5df2dd5`](https://github.com/exactly/exa/commit/5df2dd5e10d1595ce1b9502a07871298065f45fe) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔥 drop card issuer migration
+
+- [#1410](https://github.com/exactly/exa/pull/1410) [`19e102b`](https://github.com/exactly/exa/commit/19e102bf2da9ca80a2c9d13ce18e940750642c8f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦖 upgrade plugins from any version
+
+- Updated dependencies [[`73b0c5b`](https://github.com/exactly/exa/commit/73b0c5b23ea72e042773b33ebbfaab636adf7582), [`7278470`](https://github.com/exactly/exa/commit/727847001590e2e7002204a729afbf8368e8c869), [`be9dbb4`](https://github.com/exactly/exa/commit/be9dbb4df8faf279ddc04e9aaaefe74b56cf9813), [`e8c1362`](https://github.com/exactly/exa/commit/e8c1362740ff822ed21b6ef69feca1edf752fa98)]:
+  - @exactly/common@0.0.21
+  - @exactly/server@0.2.127
+
 ## 1.2.33
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.127
+
+### Patch Changes
+
+- [#1415](https://github.com/exactly/exa/pull/1415) [`7278470`](https://github.com/exactly/exa/commit/727847001590e2e7002204a729afbf8368e8c869) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚑️ require user verification on authentication
+
+- [`be9dbb4`](https://github.com/exactly/exa/commit/be9dbb4df8faf279ddc04e9aaaefe74b56cf9813) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚀 deploy new app version
+
 ## 0.2.126
 
 ### Patch Changes

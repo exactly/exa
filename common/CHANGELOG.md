@@ -1,5 +1,13 @@
 # @exactly/common
 
+## 0.0.21
+
+### Patch Changes
+
+- [#1404](https://github.com/exactly/exa/pull/1404) [`73b0c5b`](https://github.com/exactly/exa/commit/73b0c5b23ea72e042773b33ebbfaab636adf7582) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧑‍💻 codegen anvil chain as testnet
+
+- [#1405](https://github.com/exactly/exa/pull/1405) [`e8c1362`](https://github.com/exactly/exa/commit/e8c1362740ff822ed21b6ef69feca1edf752fa98) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ support deployless previewer reads
+
 ## 0.0.20
 
 ### Patch Changes
