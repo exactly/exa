@@ -81,6 +81,7 @@ export default function Review() {
     totalAmount: amount ?? 0n,
     installments: count ?? 0,
     marketAddress: market,
+    maturity,
   });
 
   const totalAmount = singleInstallment

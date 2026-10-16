@@ -12,13 +12,16 @@ export default function useInstallments({
   totalAmount,
   installments,
   marketAddress = marketUSDCAddress,
+  maturity,
 }: {
   installments: number;
   marketAddress?: Hex;
+  maturity?: bigint;
   totalAmount: bigint;
 }) {
   const { market, timestamp, firstMaturity } = useAsset(marketAddress);
   const now = Number(timestamp);
+  const start = Number(maturity ?? firstMaturity);
 
   return useMemo(() => {
     const isLoading = !market;
@@ -29,13 +32,10 @@ export default function useInstallments({
         data = splitInstallments(
           totalAmount,
           market.totalFloatingDepositAssets,
-          firstMaturity,
+          start,
           market.fixedPools.length,
           market.fixedPools
-            .filter(
-              ({ maturity }) =>
-                maturity >= firstMaturity && maturity < firstMaturity + installments * MATURITY_INTERVAL,
-            )
+            .filter((pool) => pool.maturity >= start && pool.maturity < start + installments * MATURITY_INTERVAL)
             .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, market.totalFloatingDepositAssets)),
           market.floatingUtilization,
           globalUtilization(
@@ -56,5 +56,5 @@ export default function useInstallments({
       firstMaturity,
       isFetching: isLoading || (installments > 1 && !data && totalAmount > 0n),
     };
-  }, [market, firstMaturity, now, installments, totalAmount]);
+  }, [market, firstMaturity, start, now, installments, totalAmount]);
 }
