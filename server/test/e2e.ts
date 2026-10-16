@@ -46,7 +46,7 @@ describe("e2e", () => {
       const sardine = createSardine("sardine", "https://sardine.test");
       const segment = createSegment("segment");
       const workers = [
-        allowWorker({ allower: privateKeyToAccount(padHex("0xa11")), bullmq }),
+        allowWorker({ allower: privateKeyToAccount(padHex("0xa11")), bullmq, database }),
         creditWorker({ bullmq, database, onesignal }),
         pokeWorker({ bullmq, onesignal, poker: privateKeyToAccount(padHex("0xb0b")), segment }),
         refundWorker({

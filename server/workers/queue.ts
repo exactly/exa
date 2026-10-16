@@ -35,6 +35,27 @@ export default function queue<Job extends Trace>(
         },
       );
     },
+    async bulk(jobs: { data: Omit<Job, keyof Trace>; id: string }[], priority?: number) {
+      if (jobs.length === 0) return;
+      await startSpan(
+        {
+          name,
+          op: "queue.publish",
+          attributes: { "messaging.destination.name": name, "messaging.batch.message_count": jobs.length },
+        },
+        async (span) => {
+          for (let index = 0; index < jobs.length; index += 1000) {
+            await instance.addBulk(
+              jobs.slice(index, index + 1000).map(({ data, id }) => ({
+                name,
+                data: { ...data, sentryBaggage: spanToBaggageHeader(span), sentryTrace: spanToTraceHeader(span) },
+                opts: { jobId: id, priority },
+              })),
+            );
+          }
+        },
+      );
+    },
   };
 }
 

@@ -81,13 +81,11 @@ export default defineConfig([
             [optimism.id]: "optimism",
             [optimismSepolia.id]: "optimismSepolia",
           }[chainId];
+          const testnet =
+            chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet);
           const markets = Object.fromEntries(
             [...networks]
-              .filter(
-                ([{ testnet }]) =>
-                  Boolean(testnet) ===
-                  (chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet)),
-              )
+              .filter(([current]) => Boolean(current.testnet) === testnet)
               .map(([{ id }, network]) => [
                 id,
                 readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
@@ -96,6 +94,12 @@ export default defineConfig([
                   .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
               ]),
           );
+          const auditors = [
+            ...new Set([
+              chainId,
+              ...[...networks.keys()].filter((current) => Boolean(current.testnet) === testnet).map(({ id }) => id),
+            ]),
+          ].map((id) => [id, getAddress(loadDeployment("Auditor", true, id).address)]);
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
@@ -142,7 +146,6 @@ export default defineConfig([
                 balancerVault: loadDeployment("Balancer2Vault", false)?.address,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
-                firewall: loadDeployment("Firewall", false)?.address,
               }).map(
                 ([key, address]) =>
                   `export const ${key}Address = ${address ? `"${getAddress(address)}"` : "undefined"} as \`0x\${string}\` | undefined`,
@@ -157,6 +160,7 @@ export default defineConfig([
                   ),
                 ),
               )}`,
+              `export const auditors: ReadonlyMap<number, \`0x\${string}\`> = new Map(${JSON.stringify(auditors)})`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain
@@ -190,7 +194,6 @@ function loadDeployment<R extends boolean = true>(
           Auditor: 1,
           Balancer2Vault: 23,
           DebtManager: 24,
-          Firewall: 33,
           MarketUSDC: 11,
           MarketWETH: 18,
           IntegrationPreviewer: 29,

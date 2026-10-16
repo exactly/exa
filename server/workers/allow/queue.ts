@@ -15,7 +15,16 @@ export default function queue(redis: Redis) {
       publicKey,
       source,
     }: Omit<Job, "sentryBaggage" | "sentryTrace">) {
-      await instance.enqueue({ account, assets, chainId, factory, publicKey, source }, account);
+      await instance.enqueue({ account, assets, chainId, factory, publicKey, source }, [chainId, account].join("-"));
+    },
+    async backfill(jobs: Omit<Job, "sentryBaggage" | "sentryTrace">[], priority: number) {
+      await instance.bulk(
+        jobs.map(({ account, assets, chainId, factory, publicKey, source }) => ({
+          data: { account, assets, chainId, factory, publicKey, source },
+          id: [chainId, account].join("-"),
+        })),
+        priority,
+      );
     },
   };
 }

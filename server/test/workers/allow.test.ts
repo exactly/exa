@@ -2,21 +2,40 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents, type Job, type JobsOptions } from "bullmq";
+import { eq, inArray } from "drizzle-orm";
 import { parse } from "valibot";
-import { padHex } from "viem";
+import {
+  ContractFunctionRevertedError,
+  encodeErrorResult,
+  ExecutionRevertedError,
+  HttpRequestError,
+  InternalRpcError,
+  keccak256,
+  padHex,
+  toHex,
+  zeroAddress,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { baseSepolia } from "viem/chains";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import chain, { exaAccountFactoryAddress, firewallAbi } from "@exactly/common/generated/chain";
+import chain, {
+  auditorAbi,
+  auditorAddress,
+  auditors,
+  exaAccountFactoryAddress,
+  firewallAbi,
+} from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
+import database, { credentials, organizations } from "../../database";
+import { NETWORKS } from "../../utils/alchemy";
 import { bullmq } from "../../utils/redis";
 import createAllow from "../../workers/allow/queue";
 import allowWorker from "../../workers/allow/worker";
 
 import type { Job as Allow } from "../../workers/allow/job";
 import type createPoke from "../../workers/poke/queue";
-import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
 
 const factory = parse(Address, exaAccountFactoryAddress);
@@ -30,35 +49,30 @@ const mocks = vi.hoisted(() => ({
   createPoke: vi.fn<typeof createPoke>(),
   enqueuePoke: vi.fn<ReturnType<typeof createPoke>["enqueue"]>(),
   exaSend: vi.fn(),
-  firewall: vi.fn<() => Address | undefined>(),
+  getBalance: vi.fn<() => Promise<bigint>>(),
+  multicall:
+    vi.fn<
+      (parameters: {
+        batchSize: number;
+        contracts: readonly { args: readonly [Address] }[];
+        deployless: boolean;
+      }) => Promise<{ result?: boolean; status: "failure" | "success" }[]>
+    >(),
+  readContract: vi.fn<(parameters: { functionName: string }) => Promise<unknown>>(),
   wallet: vi.fn(),
 }));
 
 vi.mock("../../utils/wallet", () => ({ default: mocks.wallet }));
 vi.mock("../../workers/poke/queue", () => ({ default: mocks.createPoke }));
 
-vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
-  const original = await importOriginal<typeof C>();
-  return {
-    ...original,
-    get firewallAddress() {
-      return mocks.firewall();
-    },
-  };
-});
-
 const queue = new Queue<Allow, void, "allow">("allow", { connection: bullmq });
 const events = new QueueEvents("allow", { connection: bullmq });
 let worker: Awaited<ReturnType<typeof allowWorker>>;
 
-async function jobFinished(
-  current: Address,
-  options?: JobsOptions,
-  trace?: Pick<Allow, "sentryBaggage" | "sentryTrace">,
-) {
+async function jobFinished(current: Address, options?: JobsOptions, data?: Partial<Allow>) {
   const job = await queue.add(
     "allow",
-    { ...request, account: current, ...trace },
+    { ...request, account: current, ...data },
     { attempts: 1, jobId: current, removeOnComplete: true, removeOnFail: true, ...options },
   );
   await job.waitUntilFinished(events).catch(async (error: unknown) => {
@@ -94,8 +108,21 @@ beforeEach(async () => {
   mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
-  mocks.firewall.mockReset().mockReturnValue(firewall);
-  mocks.wallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
+  mocks.getBalance.mockReset().mockResolvedValue(1n);
+  mocks.multicall
+    .mockReset()
+    .mockImplementation(({ contracts }) =>
+      Promise.resolve(contracts.map(() => ({ result: true, status: "success" as const }))),
+    );
+  mocks.readContract
+    .mockReset()
+    .mockImplementation(({ functionName }) => Promise.resolve(functionName === "firewall" ? firewall : true));
+  mocks.wallet.mockReset().mockReturnValue({
+    exaSend: mocks.exaSend,
+    getBalance: mocks.getBalance,
+    multicall: mocks.multicall,
+    readContract: mocks.readContract,
+  });
   vi.clearAllMocks();
   await queue.drain(true);
   await queue.clean(0, 1000, "completed");
@@ -106,9 +133,9 @@ describe("allow queue", () => {
   it("publishes firewall allow jobs", async () => {
     await expect(allow.enqueue(request)).resolves.toBeUndefined();
 
-    const job = await queue.getJob(account);
+    const job = await queue.getJob(`${chain.id}-${account}`);
     if (!job) throw new Error("job not found");
-    expect(job.id).toBe(account);
+    expect(job.id).toBe(`${chain.id}-${account}`);
     expect(job.name).toBe("allow");
     expect(job.data).toStrictEqual({
       ...request,
@@ -118,7 +145,7 @@ describe("allow queue", () => {
     expect(job.opts).toStrictEqual({
       attempts: 10,
       backoff: { type: "exponential", delay: 1000 },
-      jobId: account,
+      jobId: `${chain.id}-${account}`,
       removeOnComplete: true,
       removeOnFail: true,
     });
@@ -131,6 +158,41 @@ describe("allow queue", () => {
     await job.remove();
   });
 
+  it("publishes prioritized backfill jobs in bulk", async () => {
+    const other = { ...request, chainId: baseSepolia.id };
+
+    await expect(allow.backfill([request, other], 2)).resolves.toBeUndefined();
+
+    for (const current of [request, other]) {
+      const job = await queue.getJob(`${current.chainId}-${account}`);
+      if (!job) throw new Error("job not found");
+      expect(job.data).toStrictEqual({
+        ...current,
+        sentryBaggage: expect.any(String) as string,
+        sentryTrace: expect.any(String) as string,
+      });
+      expect(job.opts).toStrictEqual({
+        attempts: 10,
+        backoff: { type: "exponential", delay: 1000 },
+        jobId: `${current.chainId}-${account}`,
+        priority: 2,
+        removeOnComplete: true,
+        removeOnFail: true,
+      });
+      await expect(job.getState()).resolves.toBe("prioritized");
+      await job.remove();
+    }
+    expect(startSpan).toHaveBeenCalledWith(
+      {
+        name: "allow",
+        op: "queue.publish",
+        attributes: { "messaging.destination.name": "allow", "messaging.batch.message_count": 2 },
+      },
+      expect.any(Function),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("propagates queue failures", async () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
@@ -141,10 +203,185 @@ describe("allow queue", () => {
   });
 });
 
+describe("allow backfill", () => {
+  const persona = parse(Address, padHex("0xa11ce", { size: 20 }));
+  const sourced = parse(Address, padHex("0x50c", { size: 20 }));
+  const allowed = parse(Address, padHex("0xa110", { size: 20 }));
+  const partner = parse(Address, padHex("0xb12", { size: 20 }));
+  const pending = parse(Address, padHex("0xc0de", { size: 20 }));
+  const accounts = [persona, sourced, allowed, partner, pending, "bad"];
+
+  beforeAll(async () => {
+    await database
+      .insert(organizations)
+      .values({ id: "allow-partner", name: "partner", slug: "allow-partner", createdAt: new Date(), role: "kyc" });
+    await database.insert(credentials).values(
+      accounts.map((current) => ({
+        id: `allow-${current}`,
+        account: current,
+        factory,
+        publicKey: new Uint8Array(),
+        pandaId: current === pending ? null : `panda-${current}`,
+        source: current === partner ? "allow-partner" : current === sourced ? "allow-client" : null,
+      })),
+    );
+  });
+
+  afterAll(async () => {
+    await database.delete(credentials).where(
+      inArray(
+        credentials.id,
+        accounts.map((current) => `allow-${current}`),
+      ),
+    );
+    await database.delete(organizations).where(eq(organizations.id, "allow-partner"));
+  });
+
+  afterEach(async () => {
+    await worker.close();
+  });
+
+  it("allows persona-approved accounts on chains with a ready firewall", async () => {
+    const addBulk = vi.spyOn(Queue.prototype, "addBulk");
+    const unavailable = new HttpRequestError({ url: "https://rpc.test" });
+    mocks.multicall.mockImplementation(({ contracts }) =>
+      Promise.resolve(
+        contracts.map(({ args: [current] }) =>
+          current === sourced
+            ? { status: "failure" as const }
+            : { result: current !== persona, status: "success" as const },
+        ),
+      ),
+    );
+    mocks.wallet.mockImplementation((_, network: { id: number }) => ({
+      exaSend: mocks.exaSend,
+      getBalance: mocks.getBalance,
+      multicall: mocks.multicall,
+      readContract:
+        network.id === chain.id
+          ? mocks.readContract
+          : () => Promise.reject(network.id === baseSepolia.id ? unavailable : new ExecutionRevertedError()),
+    }));
+
+    worker = allowWorker({ allower, bullmq, database });
+    await worker.ready;
+    await vi.waitUntil(() => mocks.enqueuePoke.mock.calls.length === 2);
+
+    expect(mocks.readContract).toHaveBeenCalledWith({
+      address: auditorAddress,
+      functionName: "firewall",
+      abi: auditorAbi,
+    });
+    expect(mocks.readContract).toHaveBeenCalledWith({
+      address: firewall,
+      functionName: "hasRole",
+      args: [keccak256(toHex("ALLOWER_ROLE")), allower.address],
+      abi: firewallAbi,
+    });
+    expect(mocks.getBalance).toHaveBeenCalledExactlyOnceWith({ address: allower.address });
+    expect(mocks.multicall).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ batchSize: 65_536, deployless: true }),
+    );
+    const checked = mocks.multicall.mock.calls[0]?.[0].contracts.map(({ args: [current] }) => current);
+    expect(checked).toStrictEqual(expect.arrayContaining([persona, sourced, allowed]));
+    expect(checked).not.toContain(partner);
+    expect(checked).not.toContain(pending);
+    expect(checked).not.toContain("bad");
+    expect(addBulk).toHaveBeenCalledExactlyOnceWith(
+      [persona, sourced].map((current) => ({
+        name: "allow",
+        data: expect.objectContaining({ account: current, chainId: chain.id }) as object,
+        opts: { jobId: `${chain.id}-${current}`, priority: 1 },
+      })),
+    );
+    expect(mocks.exaSend).toHaveBeenCalledTimes(2);
+    for (const [current, source] of [
+      [persona, null],
+      [sourced, "allow-client"],
+    ] as const) {
+      expect(mocks.exaSend).toHaveBeenCalledWith(
+        { name: "firewall.allow", op: "exa.firewall", attributes: { account: current, chainId: chain.id } },
+        { address: firewall, functionName: "allow", args: [current, true], abi: firewallAbi },
+        { ignore: [`AlreadyAllowed(${current})`] },
+      );
+      expect(mocks.enqueuePoke).toHaveBeenCalledWith({
+        account: current,
+        chainId: chain.id,
+        factory,
+        origin: "allow",
+        publicKey: "0x",
+        source,
+      });
+    }
+    expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(unavailable, {
+      level: "error",
+      tags: { queue: "allow", chainId: baseSepolia.id },
+    });
+  });
+
+  it("skips chains where the allower is not ready", async () => {
+    mocks.wallet.mockImplementation((_, network: { id: number }) => ({
+      exaSend: mocks.exaSend,
+      getBalance: () => Promise.resolve(network.id === chain.id ? 0n : 1n),
+      multicall: mocks.multicall,
+      readContract: ({ functionName }: { functionName: string }) =>
+        Promise.resolve(functionName === "firewall" ? firewall : network.id === chain.id),
+    }));
+
+    worker = allowWorker({ allower, bullmq, database });
+    await worker.ready;
+
+    expect(mocks.multicall).not.toHaveBeenCalled();
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).toHaveBeenCalledTimes(auditors.size);
+    for (const chainId of auditors.keys()) {
+      expect(vi.mocked(captureException)).toHaveBeenCalledWith(new Error("allower not ready"), {
+        level: "warning",
+        tags: { queue: "allow", chainId },
+        extra: chainId === chain.id ? { role: true, balance: 0n } : { role: false, balance: 1n },
+      });
+    }
+  });
+
+  it("publishes nothing when every account is already allowed", async () => {
+    const addBulk = vi.spyOn(Queue.prototype, "addBulk");
+    vi.spyOn(database, "select").mockReturnValueOnce({
+      from: () => ({ where: () => Promise.resolve([]) }),
+    } as unknown as ReturnType<typeof database.select>);
+
+    worker = allowWorker({ allower, bullmq, database });
+    await worker.ready;
+
+    expect(mocks.multicall).toHaveBeenCalledTimes(auditors.size);
+    expect(mocks.multicall).toHaveBeenCalledWith(expect.objectContaining({ contracts: [] }));
+    expect(addBulk).not.toHaveBeenCalled();
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).not.toHaveBeenCalled();
+  });
+
+  it("captures database failures without failing", async () => {
+    const error = new Error("database unavailable");
+    vi.spyOn(database, "select").mockReturnValueOnce({
+      from: () => ({ where: () => Promise.reject(error) }),
+    } as unknown as ReturnType<typeof database.select>);
+
+    worker = allowWorker({ allower, bullmq, database });
+    await worker.ready;
+
+    expect(mocks.wallet).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, {
+      level: "error",
+      tags: { queue: "allow" },
+    });
+  });
+});
+
 describe("allow worker", () => {
   beforeEach(async () => {
-    worker = allowWorker({ allower, bullmq });
+    mocks.getBalance.mockResolvedValue(0n);
+    worker = allowWorker({ allower, bullmq, database });
     await worker.ready;
+    vi.clearAllMocks();
   });
 
   afterEach(async () => {
@@ -154,9 +391,17 @@ describe("allow worker", () => {
   it("allows queued accounts with the isolated wallet", async () => {
     await jobFinished(account);
 
-    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(allower);
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(
+      allower,
+      [...NETWORKS.values()].find(({ id }) => id === chain.id),
+    );
+    expect(mocks.readContract).toHaveBeenCalledExactlyOnceWith({
+      address: auditorAddress,
+      functionName: "firewall",
+      abi: auditorAbi,
+    });
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
-      { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
+      { name: "firewall.allow", op: "exa.firewall", attributes: { account, chainId: chain.id } },
       { address: firewall, functionName: "allow", args: [account, true], abi: firewallAbi },
       { ignore: [`AlreadyAllowed(${account})`] },
     );
@@ -170,6 +415,35 @@ describe("allow worker", () => {
       expect.any(Function),
     );
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
+  });
+
+  it("allows other chains without poking", async () => {
+    await jobFinished(account, undefined, { chainId: baseSepolia.id });
+
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(allower, NETWORKS.get("BASE_SEPOLIA"));
+    expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
+      { name: "firewall.allow", op: "exa.firewall", attributes: { account, chainId: baseSepolia.id } },
+      { address: firewall, functionName: "allow", args: [account, true], abi: firewallAbi },
+      { fees: "auto", ignore: [`AlreadyAllowed(${account})`] },
+    );
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).not.toHaveBeenCalled();
+  });
+
+  it("fails on unsupported chains", async () => {
+    const setUser = await spyScopeSetUser();
+
+    await expect(jobFinished(account, undefined, { chainId: 0 })).rejects.toThrow("unsupported chain 0");
+
+    expect(mocks.wallet).not.toHaveBeenCalled();
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(new Error("unsupported chain 0"), {
+      extra: { account, attempts: 1, id: account },
+      level: "error",
+      tags: { queue: "allow", job: "allow", chainId: 0 },
+    });
   });
 
   it("queues the poke only after allow settles", async () => {
@@ -237,28 +511,78 @@ describe("allow worker", () => {
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id: account },
       level: "error",
-      tags: { queue: "allow", job: "allow" },
+      tags: { queue: "allow", job: "allow", chainId: chain.id },
     });
     await job.remove();
   });
 
-  it("fails when the firewall is unavailable", async () => {
-    const setUser = await spyScopeSetUser();
-    mocks.firewall.mockReset();
+  it.each([
+    ["contract", new ContractFunctionRevertedError({ abi: auditorAbi, functionName: "firewall" })],
+    ["empty", new ContractFunctionRevertedError({ abi: auditorAbi, data: "0x", functionName: "firewall" })],
+    ["node", new ExecutionRevertedError()],
+  ])("skips chains whose auditor reverts on firewall with %s errors", async (_, error) => {
+    mocks.readContract.mockRejectedValue(error);
 
-    await expect(jobFinished(account)).rejects.toThrow();
+    await jobFinished(account);
+
+    expect(mocks.readContract).toHaveBeenCalledExactlyOnceWith({
+      address: auditorAddress,
+      functionName: "firewall",
+      abi: auditorAbi,
+    });
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).not.toHaveBeenCalled();
+  });
+
+  it("skips chains whose auditor has no firewall set", async () => {
+    mocks.readContract.mockResolvedValue(parse(Address, zeroAddress));
+
+    await jobFinished(account);
+
+    expect(mocks.readContract).toHaveBeenCalledOnce();
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException)).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["unknown", new Error("rpc unavailable")],
+    ["viem", new HttpRequestError({ url: "https://rpc.test" })],
+    [
+      "internal",
+      new ContractFunctionRevertedError({
+        abi: auditorAbi,
+        functionName: "firewall",
+        message: "internal error",
+        cause: new InternalRpcError(new Error("internal error")),
+      }),
+    ],
+    [
+      "data",
+      new ContractFunctionRevertedError({
+        abi: auditorAbi,
+        functionName: "firewall",
+        data: encodeErrorResult({ abi: auditorAbi, errorName: "InvalidOperation" }),
+      }),
+    ],
+  ])("fails when the firewall lookup throws %s errors", async (_, error) => {
+    const setUser = await spyScopeSetUser();
+    mocks.readContract.mockRejectedValue(error);
+
+    await expect(jobFinished(account)).rejects.toThrow(error.message);
 
     expect(mocks.exaSend).not.toHaveBeenCalled();
     expect(mocks.enqueuePoke).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    const captured = vi.mocked(captureException).mock.calls[0]?.[0];
-    if (!(captured instanceof Error)) throw new Error("missing captured error");
-    expect(captured.message).toBe("bad address");
-    expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(captured, {
-      extra: { account, attempts: 1, id: account },
-      level: "error",
-      tags: { queue: "allow", job: "allow" },
-    });
+    expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: error.message }),
+      {
+        extra: { account, attempts: 1, id: account },
+        level: "error",
+        tags: { queue: "allow", job: "allow", chainId: chain.id },
+      },
+    );
   });
 
   it("retries poke publication failures", async () => {
@@ -276,7 +600,7 @@ describe("allow worker", () => {
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id: account },
       level: "error",
-      tags: { queue: "allow", job: "allow" },
+      tags: { queue: "allow", job: "allow", chainId: chain.id },
     });
   });
 
@@ -310,7 +634,7 @@ describe("allow worker", () => {
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account: undefined, attempts: undefined, id: undefined },
       level: "error",
-      tags: { queue: "allow", job: undefined },
+      tags: { queue: "allow", job: undefined, chainId: undefined },
     });
   });
 

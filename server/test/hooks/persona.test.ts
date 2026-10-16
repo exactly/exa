@@ -12,7 +12,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { auditors, exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import createPersonaHook from "../../hooks/persona";
@@ -24,6 +24,7 @@ import createSardine from "../../utils/sardine";
 import type createAllow from "../../workers/allow/queue";
 
 const allow = {
+  backfill: vi.fn<ReturnType<typeof createAllow>["backfill"]>(),
   close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
   enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
 };
@@ -103,13 +104,17 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          source: null,
+        },
+      ]),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -236,13 +241,17 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -479,13 +488,17 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory: exaAccountFactoryAddress,
-      publicKey: "0x",
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory: exaAccountFactoryAddress,
+          publicKey: "0x",
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).toHaveBeenCalledWith({
       accountPurpose: "business",
       annualSalary: "100000",
@@ -577,7 +590,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(auditors.size);
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
