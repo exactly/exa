@@ -26,7 +26,7 @@ import {
 } from "valibot";
 import { bytesToHex } from "viem";
 
-import chain, { firewallAddress } from "@exactly/common/generated/chain";
+import { auditors } from "@exactly/common/generated/chain";
 import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -396,16 +396,18 @@ export default function hook({
                 .where(eq(credentials.id, referenceId))
                 .then(() => user.id);
             }));
-        if (firewallAddress) {
-          await allow.enqueue({
-            account,
-            chainId: chain.id,
-            factory: parse(Address, credential.factory),
-            publicKey: bytesToHex(credential.publicKey),
-            salt: parse(Address, credential.salt),
-            source: credential.source,
-          });
-        }
+        await Promise.all(
+          [...auditors.keys()].map((chainId) =>
+            allow.enqueue({
+              account,
+              chainId,
+              factory: parse(Address, credential.factory),
+              publicKey: bytesToHex(credential.publicKey),
+              salt: parse(Address, credential.salt),
+              source: credential.source,
+            }),
+          ),
+        );
         try {
           const card = await panda.createCard(
             pandaId,
@@ -461,15 +463,19 @@ export default function hook({
 
       const account = safeParse(Address, credential.account);
       async function enqueueAllow(current: NonNullable<typeof credential>) {
-        if (account.success && firewallAddress)
-          await allow.enqueue({
-            account: account.output,
-            chainId: chain.id,
-            factory: parse(Address, current.factory),
-            publicKey: bytesToHex(current.publicKey),
-            salt: parse(Address, current.salt),
-            source: current.source,
-          });
+        if (account.success)
+          await Promise.all(
+            [...auditors.keys()].map((chainId) =>
+              allow.enqueue({
+                account: account.output,
+                chainId,
+                factory: parse(Address, current.factory),
+                publicKey: bytesToHex(current.publicKey),
+                salt: parse(Address, current.salt),
+                source: current.source,
+              }),
+            ),
+          );
       }
       if (credential.pandaId) {
         await enqueueAllow(credential);
