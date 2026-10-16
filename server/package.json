@@ -169,6 +169,12 @@
         ]
       },
       "generate:broadcasts": {
+        "dependsOn": [
+          {
+            "projects": "@exactly/plugin",
+            "target": "prepare"
+          }
+        ],
         "inputs": [
           "anvil",
           "^production",
