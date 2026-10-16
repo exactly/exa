@@ -51,7 +51,7 @@ export default function Portfolio() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/(main)/(home)");
+              router.dismissTo("/(main)/(home)");
             }
           }}
         />

@@ -45,7 +45,7 @@ export default function GettingStarted() {
                   if (router.canGoBack()) {
                     router.back();
                   } else {
-                    router.replace("/(main)/(home)");
+                    router.dismissTo("/(main)/(home)");
                   }
                 }}
               />
@@ -153,7 +153,7 @@ function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-iden
             }
             beginKYC.mutate(undefined, {
               onSuccess(result) {
-                if (result.status === "complete") router.replace("/(main)/(home)");
+                if (result.status === "complete") router.dismissTo("/(main)/(home)");
               },
               onError(error) {
                 toast.show(t("Error verifying identity"), {

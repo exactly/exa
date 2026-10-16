@@ -58,7 +58,7 @@ export default function Loans() {
                       if (router.canGoBack()) {
                         router.back();
                       } else {
-                        router.replace("/defi");
+                        router.dismissTo("/defi");
                       }
                     }}
                   />

@@ -50,7 +50,7 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
               aria-label={t("Back")}
               onPress={() => {
                 if (router.canGoBack()) router.back();
-                else router.replace(offramp ? "/send-funds" : "/(main)/(home)");
+                else router.dismissTo(offramp ? "/send-funds" : "/(main)/(home)");
               }}
             />
           </View>

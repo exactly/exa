@@ -817,7 +817,7 @@ export default function Swaps() {
               if (router.canGoBack()) {
                 router.back();
               } else {
-                router.replace("/(main)/(home)/defi");
+                router.dismissTo("/(main)/(home)/defi");
               }
             }}
           />
@@ -906,7 +906,7 @@ export default function Swaps() {
               onPress={() => {
                 beginKYC.mutate(undefined, {
                   onSuccess(result) {
-                    if (result.status === "complete") router.replace("/(main)/(home)");
+                    if (result.status === "complete") router.dismissTo("/(main)/(home)");
                     else if (result.status === "blocked") router.push("/(main)/getting-started");
                   },
                   onError(error) {
@@ -1254,7 +1254,7 @@ function onClose() {
   if (router.canGoBack()) {
     router.back();
   } else {
-    router.replace("/(main)/(home)");
+    router.dismissTo("/(main)/(home)");
   }
 }
 

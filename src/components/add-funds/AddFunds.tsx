@@ -83,7 +83,7 @@ export default function AddFunds() {
                     router.replace("/add-funds");
                   }
                 } else {
-                  router.replace("/(main)/(home)");
+                  router.dismissTo("/(main)/(home)");
                 }
               }}
             />
