@@ -20,13 +20,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "^24.14.1"
+          package-manager-cache: false
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
-      - uses: actions/cache@v6
-        with:
-          path: .nx/cache
-          key: nx-${{ runner.os }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
         env: { REDISMS_DISABLE_POSTINSTALL: "true" }

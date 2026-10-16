@@ -32,8 +32,7 @@ jobs:
           file: substreams/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
       - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.IMAGE }}
