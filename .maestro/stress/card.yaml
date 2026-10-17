@@ -1,6 +1,13 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- runFlow: ../subflows/launch.yaml
+- launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
+- runFlow: ../subflows/hideDevtools.yaml
+- tapOn: Sign in
+- assertNotVisible: Sign in
+- extendedWaitUntil: { visible: Stay updated, timeout: 90000 }
+- tapOn: Not now
+- runFlow: ../subflows/getAccount.yaml
+- assertVisible: Good (morning|afternoon|evening)!
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
