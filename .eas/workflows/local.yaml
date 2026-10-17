@@ -137,7 +137,7 @@ jobs:
     if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
     runs_on: macos-large
-    image: latest
+    image: macos-tahoe-26.5-xcode-26.6
     env:
       APP_DOMAIN: localhost
       CHAIN_ID: "31337"
