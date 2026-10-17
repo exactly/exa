@@ -85,7 +85,7 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - run: maestro test .maestro/stress -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -177,7 +177,7 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - run: maestro test .maestro/stress -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill

@@ -1,0 +1,41 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: USDC, to: "${output.account}", amount: "420" }
+- tapOn: Card
+- tapOn: Card details
+- waitForAnimationToEnd
+- runFlow:
+    when: { visible: Accept and enable card }
+    commands:
+      - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
+      - tapOn: Accept and enable card
+- assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
+- tapOn: Close
+- evalScript: ${output.misses = 0}
+- evalScript: ${output.round = 0}
+- repeat:
+    times: 30
+    commands:
+      - evalScript: ${output.round = output.round + 1}
+      - tapOn: Weekly spending limit
+      - tapOn: Close
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Hide sensitive } }
+      - extendedWaitUntil:
+          notVisible: \$[\s\d,.\xa0]+, AVAILABLE BALANCE
+          timeout: 3000
+          optional: true
+      - runFlow:
+          when: { visible: Hide sensitive }
+          commands:
+            - evalScript: ${output.misses = output.misses + 1}
+            - evalScript: "${console.log('stress card miss at round ' + output.round)}"
+      - runFlow:
+          when: { visible: Show sensitive }
+          commands:
+            - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Show sensitive } }
+      - assertVisible: \$[\s\d,.\xa0]+, AVAILABLE BALANCE
+- evalScript: "${console.log('stress card misses ' + output.misses + ' of ' + output.round)}"
+- assertTrue: ${output.misses === 0}

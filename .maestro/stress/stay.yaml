@@ -1,0 +1,15 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- evalScript: ${output.round = 0}
+- repeat:
+    times: 20
+    commands:
+      - evalScript: ${output.round = output.round + 1}
+      - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
+      - runFlow: ../subflows/hideDevtools.yaml
+      - tapOn: Sign in
+      - assertNotVisible: Sign in
+      - evalScript: ${output.start = Date.now()}
+      - extendedWaitUntil: { visible: Stay updated, timeout: 90000 }
+      - evalScript: "${console.log('stress stay round ' + output.round + ' after ' + (Date.now() - output.start) + 'ms')}"
+      - tapOn: Not now
