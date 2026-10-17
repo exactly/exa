@@ -74,17 +74,17 @@ const { enablePrompt, login, logout } = (
                 const finish = () => {
                   if (done) return;
                   done = true;
-                  OneSignal.User.removeEventListener("change", listener);
+                  OneSignal.User.pushSubscription.removeEventListener("change", listener);
                   OneSignal.login(Math.random().toString(36).slice(2));
                   resolve();
                 };
-                const listener: Parameters<typeof OneSignal.User.addEventListener>[1] = (event) => {
-                  if (!event.current.onesignalId) return;
+                const listener: Parameters<typeof OneSignal.User.pushSubscription.addEventListener>[1] = (event) => {
+                  if (!event.current.id) return;
                   finish();
                 };
-                OneSignal.User.addEventListener("change", listener);
-                OneSignal.User.getOnesignalId().then((onesignalId) => {
-                  if (!onesignalId) return;
+                OneSignal.User.pushSubscription.addEventListener("change", listener);
+                OneSignal.User.pushSubscription.getIdAsync().then((id) => {
+                  if (!id) return;
                   finish();
                 }, reportError);
               })
