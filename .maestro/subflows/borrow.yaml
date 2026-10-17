@@ -25,7 +25,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js
-    env: { account: '${output.account}' }
+    env: { account: "${output.account}", count: "${installments}" }
 - tapOn: Close
 - tapOn: Home
 - runFlow:
