@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.2.129
+
+### Patch Changes
+
+- [`9755313`](https://github.com/exactly/exa/commit/975531388a92d8ccf8592c02c1e0e27a8527432c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚀 deploy new app version
+
 ## 0.2.128
 
 ### Patch Changes

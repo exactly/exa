@@ -1,5 +1,31 @@
 # @exactly/mobile
 
+## 1.2.36
+
+### Patch Changes
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`2fa7c34`](https://github.com/exactly/exa/commit/2fa7c340415e4fe1056aaec1460a7b91ad730887) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 align market hours with stock feeds
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`6079cfc`](https://github.com/exactly/exa/commit/6079cfc6e3af54a3c09e6578a6321bc26db977ab) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ update portfolio design
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`8d45a39`](https://github.com/exactly/exa/commit/8d45a392dbc8b0c2a8c61a64de7912929f149c46) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ add asset detail screen
+
+- [#1424](https://github.com/exactly/exa/pull/1424) [`edd3e5d`](https://github.com/exactly/exa/commit/edd3e5dcf315ee3a094bb3e7721d85ea64f333bb) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ respect reduced motion in spinner
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`30a507b`](https://github.com/exactly/exa/commit/30a507bb5b095f2188ffd5416662c6a8682cb838) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 route unsupported tokens to support
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`18ba6d6`](https://github.com/exactly/exa/commit/18ba6d6d31e3ee091c67bcb5646601d6b32d4847) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ add price summary to swaps
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`2713801`](https://github.com/exactly/exa/commit/271380103fadd698448fec871b0bc747185be668) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ compare onchain price to last close
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`c722110`](https://github.com/exactly/exa/commit/c7221107eb943a5c76f48febebc6ff19f7c6cad7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 treat usdc.e as external asset
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`3b002af`](https://github.com/exactly/exa/commit/3b002af9e916c44d8bfcc7a592b03ceac425a309) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ add price history query
+
+- Updated dependencies [[`3b002af`](https://github.com/exactly/exa/commit/3b002af9e916c44d8bfcc7a592b03ceac425a309), [`9755313`](https://github.com/exactly/exa/commit/975531388a92d8ccf8592c02c1e0e27a8527432c)]:
+  - @exactly/common@0.0.22
+  - @exactly/server@0.2.129
+
 ## 1.2.35
 
 ### Patch Changes

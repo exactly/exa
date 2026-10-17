@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.22
+
+### Patch Changes
+
+- [#1412](https://github.com/exactly/exa/pull/1412) [`3b002af`](https://github.com/exactly/exa/commit/3b002af9e916c44d8bfcc7a592b03ceac425a309) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ support deployless price history query
+
 ## 0.0.21
 
 ### Patch Changes
