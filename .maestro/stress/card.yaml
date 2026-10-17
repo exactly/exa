@@ -11,6 +11,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Card
 - tapOn: Card details
 - waitForAnimationToEnd
