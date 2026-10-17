@@ -137,7 +137,7 @@ jobs:
     if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
     runs_on: macos-large
-    image: macos-tahoe-26.5-xcode-26.6
+    image: latest
     env:
       APP_DOMAIN: localhost
       CHAIN_ID: "31337"
@@ -168,6 +168,7 @@ jobs:
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |
+          xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
           xcrun simctl io booted recordVideo --codec=h264 --force recording.mp4 > recorder.log 2>&1 &
