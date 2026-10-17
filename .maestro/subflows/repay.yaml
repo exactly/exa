@@ -28,7 +28,7 @@ appId: ${APP_ID ?? "app.exactly"}
           env: { aria: Repay amount }
       - eraseText
       - inputText: ${amount}
-      - tapOn: Subtotal # HACK
+      - pressKey: enter
 - waitForAnimationToEnd
 - tapOn: Confirm payment
 - assertVisible: Processing.*
