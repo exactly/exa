@@ -77,6 +77,9 @@ jobs:
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
           adb install "${{ steps.repack.outputs.output_path }}"
           adb logcat -v time > emulator.log 2>&1 &
+          adb shell mkdir -p /sdcard/recordings
+          (i=0; while :; do adb shell screenrecord --bit-rate 2000000 --time-limit 180 /sdcard/recordings/$(printf %03d $i).mp4; i=$((i+1)); done) > recorder.log 2>&1 &
+          echo $! > recorder.pid
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
@@ -92,6 +95,10 @@ jobs:
           ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n android --build-url ${{ workflow.url }} -P "${{ github.event.pull_request.number }}" --git-service github
           ./codecov do-upload --report-type test_results -f .maestro/junit.xml -F e2e -n android --build-url ${{ workflow.url }} --git-service github
           pkill -f "adb logcat" || true
+          kill $(cat recorder.pid) || true
+          adb shell pkill -INT screenrecord || true
+          sleep 3
+          adb pull /sdcard/recordings recordings || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -103,6 +110,8 @@ jobs:
             server/node_modules/@exactly/.*
             emulator.log
             emulator-process.log
+            recordings
+            recorder.log
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
 
@@ -162,6 +171,7 @@ jobs:
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
+          xcrun simctl io booted recordVideo --codec=h264 --force recording.mp4 > recorder.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
@@ -177,6 +187,8 @@ jobs:
           ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F e2e -n ios --build-url ${{ workflow.url }} -P "${{ github.event.pull_request.number }}" --git-service github
           ./codecov do-upload --report-type test_results -f .maestro/junit.xml -F e2e -n ios --build-url ${{ workflow.url }} --git-service github
           pkill -f "log stream" || true
+          pkill -INT -f recordVideo || true
+          sleep 5
           xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
         if: always()
@@ -189,5 +201,7 @@ jobs:
             server/node_modules/@exactly/.*
             simulator.log
             simulator-diagnose
+            recording.mp4
+            recorder.log
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
