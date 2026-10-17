@@ -21,21 +21,18 @@ const nextNonce = readContract({
 const length = Number(count ?? "1");
 const proposals = Array.from({ length }, (_, index) => {
   const nonce = nextNonce - BigInt(length - index);
-  const [amount, market, timestamp, proposalType, data] = readContract({
+  const [amount, market, , proposalType, data] = readContract({
     address: proposalManagerAddress,
     functionName: "proposals",
     args: [account, nonce],
     abi: proposalManagerAbi,
   });
-  return { nonce, amount, market, proposalType, data, unlock: timestamp + proposalDelay };
+  return { nonce, amount, market, proposalType, data, unlock: 0n };
 });
 
 anvil("anvil_mine", [1, Number(proposalDelay)]);
 const fromBlock = anvil("eth_blockNumber", []);
-block(
-  account,
-  proposals.map((proposal) => ({ ...proposal, unlock: proposal.unlock - 10n })),
-);
+block(account, proposals);
 
 const deadline = Date.now() + 30_000;
 while (
