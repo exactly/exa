@@ -59,7 +59,8 @@ const { enablePrompt, login, logout } = (
         };
       }
     : () => {
-        const { OneSignal } = require("react-native-onesignal") as typeof OneSignalNative; // eslint-disable-line unicorn/prefer-module
+        const { OneSignal, LogLevel } = require("react-native-onesignal") as typeof OneSignalNative; // eslint-disable-line unicorn/prefer-module
+        if (process.env.EXPO_PUBLIC_ENV === "e2e") OneSignal.Debug.setLogLevel(LogLevel.Verbose);
         queryClient.setQueryDefaults(["onesignal", "dismiss"], {
           initialData: 0,
           gcTime: Infinity,
