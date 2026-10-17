@@ -9,7 +9,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Select amount
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }
 - inputText: ${amount}
-- tapOn: Select Amount # HACK
+- pressKey: enter
 - tapOn: Continue
 - assertVisible: Select your funding installment plan
 - tapOn: "${installments + ' installment' + (installments > 1 ? 's' : '') + ' of'}"
