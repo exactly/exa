@@ -1,5 +1,5 @@
-import React from "react";
-import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import React, { useEffect } from "react";
+import { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 
 import { Loader } from "@tamagui/lucide-icons-2";
 
@@ -17,12 +17,11 @@ export default function Spinner({
   size?: number;
 }) {
   const rotation = useSharedValue(0);
+  useEffect(() => {
+    rotation.value = withRepeat(withTiming(360, { duration: 6000, easing: Easing.linear }), -1);
+  }, [rotation]);
   /* istanbul ignore next */
-  const rStyle = useAnimatedStyle(() => {
-    rotation.value += 1;
-    const rotationValue = `${String(rotation.value % 360)}deg`;
-    return { transform: [{ rotate: rotationValue }] };
-  });
+  const rStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${String(rotation.value)}deg` }] }));
   return (
     <AnimatedView
       backgroundColor={backgroundColor}
