@@ -168,6 +168,7 @@ jobs:
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |
+          xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
           xcrun simctl io booted recordVideo --codec=h264 --force recording.mp4 > recorder.log 2>&1 &
