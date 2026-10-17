@@ -893,7 +893,7 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
         expect(sendPushNotification).toHaveBeenCalledWith({
           userId: account,
-          headings: t("Card purchase"),
+          headings: t("Card purchase •••• {{lastFour}}", { lastFour: "9999" }),
           contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
             count: 0,
             amount: f(localAmount / 100, "ARS"),
@@ -1008,6 +1008,7 @@ describe("card operations", () => {
           userId: account,
           event: "TransactionRejected",
           properties: {
+            cardId,
             cardMode: 6,
             declinedReason: "collection:created:collectCredit:timeout",
             id: cardId,
@@ -1030,6 +1031,7 @@ describe("card operations", () => {
             action: "created",
             amount: 60,
             authorizedAmount: authorization.json.body.spend.authorizedAmount,
+            cardId,
             cardMode: 6,
             functionName: "collectCredit",
             id: cardId,
@@ -1753,6 +1755,7 @@ describe("card operations", () => {
           userId: account,
           event: "TransactionRejected",
           properties: {
+            cardId,
             cardMode: 0,
             declinedReason: "collection:completed:collectDebit:settlement failed",
             id: cardId,
@@ -1775,6 +1778,7 @@ describe("card operations", () => {
             action: "completed",
             amount: capture,
             authorizedAmount: hold,
+            cardId,
             cardMode: 0,
             functionName: "collectDebit",
             id: cardId,
@@ -3131,7 +3135,7 @@ describe("concurrency", () => {
       const call = sendPushNotificationSpy.mock.calls[0]?.[0];
       expect(call).toMatchObject({
         userId: account,
-        headings: t("Exa Card purchase rejected"),
+        headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,
@@ -3506,7 +3510,7 @@ describe("concurrency", () => {
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
       expect(sendPushNotificationSpy.mock.calls[0]?.[0]).toMatchObject({
         userId: account2,
-        headings: t("Exa Card purchase rejected"),
+        headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,

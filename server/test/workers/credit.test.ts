@@ -3,8 +3,9 @@ import "../mocks/sentry";
 
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { parse } from "valibot";
+import { padHex } from "viem";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -23,6 +24,7 @@ import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
 
 const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
+const holder = parse(Address, padHex("0xc7ed1", { size: 20 }));
 const unknown = parse(Address, "0x1234567890123456789012345678901234567890");
 const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
 const credit = createCredit(bullmq);
@@ -32,13 +34,19 @@ const events = new QueueEvents("credit", { connection: bullmq });
 let worker: ReturnType<typeof creditWorker>;
 
 beforeAll(async () => {
-  await database.insert(credentials).values({
-    id: "credit-worker",
-    account,
-    factory: parse(Address, "0x9876543210987654321098765432109876543210"),
-    publicKey: new Uint8Array(),
-  });
-  await database.insert(cards).values({ id: "credit-card", credentialId: "credit-worker", lastFour: "1234" });
+  const factory = parse(Address, "0x9876543210987654321098765432109876543210");
+  const publicKey = new Uint8Array();
+  await database.insert(credentials).values([
+    { id: "credit-worker", account, factory, publicKey },
+    { id: "credit-worker-cards", account: holder, factory, publicKey },
+  ]);
+  await database.insert(cards).values([
+    { id: "credit-card", credentialId: "credit-worker", lastFour: "1234" },
+    { id: "credit-active", credentialId: "credit-worker-cards", lastFour: "1111" },
+    { id: "credit-deleted", credentialId: "credit-worker-cards", lastFour: "2222", status: "DELETED" },
+    { id: "credit-frozen", credentialId: "credit-worker-cards", lastFour: "3333", status: "FROZEN" },
+    { id: "credit-installments", credentialId: "credit-worker-cards", lastFour: "4444", mode: 3 },
+  ]);
 });
 
 beforeEach(async () => {
@@ -53,8 +61,8 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await database.delete(cards).where(eq(cards.credentialId, "credit-worker"));
-  await database.delete(credentials).where(eq(credentials.id, "credit-worker"));
+  await database.delete(cards).where(inArray(cards.credentialId, ["credit-worker", "credit-worker-cards"]));
+  await database.delete(credentials).where(inArray(credentials.id, ["credit-worker", "credit-worker-cards"]));
   await Promise.all([queue.close(), events.close(), credit.close()]);
 });
 
@@ -124,7 +132,7 @@ describe("credit worker", () => {
     });
     expect(setAttribute.mock.calls.filter(([attribute]) => String(attribute).startsWith("exa."))).toStrictEqual([
       ["exa.autoCredit", true],
-      ["exa.card", "credit-card"],
+      ["exa.cards", ["credit-card"]],
       ["exa.mode", 1],
     ]);
     expect(startSpan).toHaveBeenCalledWith(
@@ -136,6 +144,30 @@ describe("credit worker", () => {
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("activates credit mode on every active or frozen debit card", async () => {
+    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+
+    await jobFinished(holder);
+
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, mode: true },
+        where: eq(cards.credentialId, "credit-worker-cards"),
+        orderBy: cards.id,
+      }),
+    ).resolves.toStrictEqual([
+      { id: "credit-active", mode: 1 },
+      { id: "credit-deleted", mode: 0 },
+      { id: "credit-frozen", mode: 1 },
+      { id: "credit-installments", mode: 3 },
+    ]);
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: holder,
+      headings: t("Credit mode activated"),
+      contents: t("Your card is now in credit mode", { count: 2 }),
+    });
   });
 
   it("keeps debit mode without deposits", async () => {
@@ -214,7 +246,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
     expect(publicClient.readContract).toHaveBeenCalledOnce();
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
