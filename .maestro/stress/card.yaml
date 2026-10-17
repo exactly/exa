@@ -25,9 +25,20 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.misses = 0}
 - evalScript: ${output.round = 0}
 - repeat:
-    times: 30
+    times: 25
     commands:
       - evalScript: ${output.round = output.round + 1}
+      - tapOn: Freeze card
+      - tapOn: { text: Freeze card, below: "Freeze your card?" }
+      - assertNotVisible: "Freeze your card?"
+      - waitForAnimationToEnd
+      - tapOn: Freeze card
+      - waitForAnimationToEnd
+      - tapOn: Freeze card
+      - assertVisible: Freeze your card?
+      - tapOn: Cancel
+      - tapOn: View PIN number
+      - tapOn: Close
       - tapOn: Weekly spending limit
       - tapOn: Close
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Hide sensitive } }
@@ -40,6 +51,7 @@ appId: ${APP_ID ?? "app.exactly"}
           commands:
             - evalScript: ${output.misses = output.misses + 1}
             - evalScript: "${console.log('stress card miss at round ' + output.round)}"
+            - takeScreenshot: miss-${output.round}
       - runFlow:
           when: { visible: Show sensitive }
           commands:
