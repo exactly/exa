@@ -1,27 +1,28 @@
 name: maestro
 on:
   push: { paths: [.github/workflows/maestro.yaml, patches/maestro.patch] }
-  schedule: [{ cron: "0 0 1 * *" }]
   workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
+    permissions: { contents: write }
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - id: patch
         run: |
           echo "base=$(sed -n 's/^base-commit: //p' patches/maestro.patch)" >> "$GITHUB_OUTPUT"
-          echo "hash=$(git hash-object patches/maestro.patch)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
-        with: { repository: mobile-dev-inc/Maestro, ref: "${{ steps.patch.outputs.base }}", path: maestro, persist-credentials: false }
+        with:
+          repository: mobile-dev-inc/Maestro
+          ref: "${{ steps.patch.outputs.base }}"
+          path: maestro
+          persist-credentials: false
       - run: git -C maestro apply ../patches/maestro.patch
       - run: ./gradlew :maestro-cli:distZip -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
         working-directory: maestro
-      - uses: actions/upload-artifact@v7
-        with:
-          name: maestro-${{ steps.patch.outputs.hash }}
-          path: maestro/maestro-cli/build/distributions/maestro.zip
-          compression-level: 0
-          retention-days: 90
+      - run: |
+          mv maestro/maestro-cli/build/distributions/maestro.zip "maestro-$(git hash-object patches/maestro.patch).zip"
+          gh release view maestro || gh release create maestro --prerelease --title maestro --notes "patched maestro for e2e, one asset per patch hash"
+          gh release upload maestro maestro-*.zip --clobber
+        env: { GH_REPO: "${{ github.repository }}", GH_TOKEN: "${{ github.token }}" }
