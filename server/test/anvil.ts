@@ -219,20 +219,22 @@ export default async function setup({ provide }: Pick<TestProject, "provide">) {
     const address = privateKeyToAddress(keccak256(toBytes(testFile)));
     await anvilClient.setBalance({ address, value: 10n ** 24n });
     for (const contract of [exaPlugin, refunder]) {
-      await anvilClient.writeContract({
-        address: contract,
-        functionName: "grantRole",
-        args: [keccak256(toHex("KEEPER_ROLE")), address],
-        abi: [
-          {
-            type: "function",
-            name: "grantRole",
-            stateMutability: "nonpayable",
-            inputs: [{ type: "bytes32" }, { type: "address" }],
-            outputs: [],
-          },
-        ],
-        account: null,
+      await anvilClient.waitForTransactionReceipt({
+        hash: await anvilClient.writeContract({
+          address: contract,
+          functionName: "grantRole",
+          args: [keccak256(toHex("KEEPER_ROLE")), address],
+          abi: [
+            {
+              type: "function",
+              name: "grantRole",
+              stateMutability: "nonpayable",
+              inputs: [{ type: "bytes32" }, { type: "address" }],
+              outputs: [],
+            },
+          ],
+          account: null,
+        }),
       });
     }
   }
