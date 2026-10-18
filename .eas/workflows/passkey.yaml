@@ -3,23 +3,17 @@ on: { workflow_dispatch: {} }
 defaults: { tools: { node: "24.14.1", pnpm: "10.33.0" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
-  ios:
+  pearl:
     environment: development
     runs_on: macos-large
     image: latest
-    steps:
+    env: { NOTIFICATION: com.apple.BiometricKit_Sim.pearl.match }
+    steps: &steps
       - uses: eas/checkout
       - uses: eas/install_maestro
       - uses: eas/download_build
         id: download
         with: { build_id: d44c09d7-2240-4681-88dd-5715fb71d6a5 }
-      - name: entitlements
-        run: |
-          app="$(find "${{ steps.download.outputs.artifact_path }}" -maxdepth 1 -name '*.app' | head -1)"
-          [ -n "$app" ] || app="${{ steps.download.outputs.artifact_path }}"
-          echo "$app"
-          codesign -d --entitlements - "$app" || true
-          strings -a "$app/Exa" | grep -A12 "<key>application-identifier</key>" | head -14 || true
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |
@@ -27,14 +21,14 @@ jobs:
           xcrun simctl spawn booted notifyutil -s com.apple.BiometricKit.enrollmentChanged 1
           xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit.enrollmentChanged
           xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
-          xcrun simctl spawn booted log stream --level info --predicate 'process == "Exa" or process == "swcd" or process CONTAINS "AuthenticationServices" or process == "akd" or process == "SharedWebCredentialViewService" or subsystem CONTAINS "AuthenticationServices" or subsystem CONTAINS "BiometricKit" or subsystem CONTAINS "LocalAuthentication" or subsystem CONTAINS "app.exactly"' > simulator.log 2>&1 &
+          xcrun simctl spawn booted log stream --level info --predicate 'process == "Exa" or process CONTAINS "AuthenticationServices" or subsystem CONTAINS "BiometricKit" or subsystem CONTAINS "LocalAuthentication"' > simulator.log 2>&1 &
+          (until [ -n "$(find .maestro -name faceid.png)" ]; do sleep 1; done; sleep 2; date; xcrun simctl spawn booted notifyutil -p "$NOTIFICATION") > notify.log 2>&1 &
       - run: maestro test .maestro/passkey.yaml
       - name: probe teardown
         if: always()
         run: |
           xcrun simctl io booted screenshot final.png || true
           pkill -f "log stream" || true # cspell:ignore pkill
-          xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -42,7 +36,13 @@ jobs:
           ignore_error: true
           path: |
             final.png
+            notify.log
             simulator.log
-            simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
+  finger:
+    environment: development
+    runs_on: macos-large
+    image: latest
+    env: { NOTIFICATION: com.apple.BiometricKit_Sim.fingerTouch.match }
+    steps: *steps
