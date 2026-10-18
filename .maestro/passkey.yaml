@@ -1,12 +1,13 @@
 appId: app.exactly
 ---
+- enrollBiometrics
 - launchApp: { permissions: { all: deny, camera: allow } }
 - tapOn: Create new account
 - tapOn: Set passkey and create account
 - takeScreenshot: .maestro/screenshots/sheet
 - tapOn: Add Passkey
-- takeScreenshot: .maestro/screenshots/added
 - extendedWaitUntil: { visible: Face ID, timeout: 5000, optional: true }
 - takeScreenshot: .maestro/screenshots/faceid
+- matchBiometrics
 - extendedWaitUntil: { visible: "Stay updated|Good (morning|afternoon|evening)!", timeout: 60000 }
 - takeScreenshot: .maestro/screenshots/home

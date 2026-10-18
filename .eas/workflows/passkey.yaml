@@ -3,14 +3,20 @@ on: { workflow_dispatch: {} }
 defaults: { tools: { node: "24.14.1", pnpm: "10.33.0" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
-  pearl:
+  ios:
     environment: development
     runs_on: macos-large
     image: latest
-    env: { NOTIFICATION: com.apple.BiometricKit_Sim.pearl.match }
-    steps: &steps
+    steps:
       - uses: eas/checkout
-      - uses: eas/install_maestro
+      - name: install patched maestro
+        run: |
+          curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/exactly/exa/actions/artifacts?name=maestro-$(git hash-object patches/maestro.patch)&per_page=1" |
+            node -p "JSON.parse(require('fs').readFileSync(0)).artifacts[0].archive_download_url" |
+            xargs curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -o "$TMPDIR/artifact.zip"
+          unzip -q "$TMPDIR/artifact.zip" -d "$TMPDIR" && unzip -q "$TMPDIR/maestro.zip" -d "$TMPDIR"
+          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && mv "$TMPDIR/maestro/bin" "$TMPDIR/maestro/lib" "$HOME/.maestro/"
+          maestro --version
       - uses: eas/download_build
         id: download
         with: { build_id: d44c09d7-2240-4681-88dd-5715fb71d6a5 }
@@ -18,11 +24,8 @@ jobs:
       - name: prepare device
         run: |
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
-          xcrun simctl spawn booted notifyutil -s com.apple.BiometricKit.enrollmentChanged 1
-          xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit.enrollmentChanged
           xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
           xcrun simctl spawn booted log stream --level info --predicate 'process == "Exa" or process CONTAINS "AuthenticationServices" or subsystem CONTAINS "BiometricKit" or subsystem CONTAINS "LocalAuthentication"' > simulator.log 2>&1 &
-          (until [ -n "$(find "$HOME/.maestro/tests" -name faceid.png)" ]; do sleep 1; done; sleep 2; date; xcrun simctl spawn booted notifyutil -p "$NOTIFICATION") > notify.log 2>&1 &
       - run: maestro test .maestro/passkey.yaml
       - name: probe teardown
         if: always()
@@ -36,13 +39,5 @@ jobs:
           ignore_error: true
           path: |
             final.png
-            notify.log
             simulator.log
             ${{ env.HOME }}/.maestro/tests
-            .maestro/screenshots
-  finger:
-    environment: development
-    runs_on: macos-large
-    image: latest
-    env: { NOTIFICATION: com.apple.BiometricKit_Sim.fingerTouch.match }
-    steps: *steps

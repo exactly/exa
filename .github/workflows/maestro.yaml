@@ -1,0 +1,27 @@
+name: maestro
+on:
+  push: { paths: [.github/workflows/maestro.yaml, patches/maestro.patch] }
+  schedule: [{ cron: "0 0 1 * *" }]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - id: patch
+        run: |
+          echo "base=$(sed -n 's/^base-commit: //p' patches/maestro.patch)" >> "$GITHUB_OUTPUT"
+          echo "hash=$(git hash-object patches/maestro.patch)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with: { repository: mobile-dev-inc/Maestro, ref: "${{ steps.patch.outputs.base }}", path: maestro, persist-credentials: false }
+      - run: git -C maestro apply ../patches/maestro.patch
+      - run: ./gradlew :maestro-cli:distZip -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
+        working-directory: maestro
+      - uses: actions/upload-artifact@v7
+        with:
+          name: maestro-${{ steps.patch.outputs.hash }}
+          path: maestro/maestro-cli/build/distributions/maestro.zip
+          compression-level: 0
+          retention-days: 90
