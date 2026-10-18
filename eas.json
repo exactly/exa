@@ -20,6 +20,14 @@
       "ios": { "simulator": true }
     },
     "e2e:local": { "extends": "e2e:production", "env": { "APP_DOMAIN": "localhost", "CHAIN_ID": "31337" } },
+    "e2e:passkey": {
+      "extends": "base",
+      "environment": "development",
+      "distribution": "internal",
+      "withoutCredentials": true,
+      "env": { "APP_DOMAIN": "sandbox.exactly.app", "CHAIN_ID": "11155420", "SENTRY_ALLOW_FAILURE": "true" },
+      "ios": { "simulator": true, "image": "macos-tahoe-26.5-xcode-26.6" }
+    },
     "preview": { "extends": "base", "environment": "preview", "channel": "preview", "distribution": "internal" },
     "development": {
       "extends": "base",

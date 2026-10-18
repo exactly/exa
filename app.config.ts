@@ -37,6 +37,7 @@ export default {
   ios: {
     icon: "src/assets/icon.png",
     bundleIdentifier: "app.exactly",
+    appleTeamId: "665NDX7LBZ",
     associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
     supportsTablet: false,
     buildNumber: String(versionCode),

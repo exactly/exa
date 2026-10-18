@@ -3,60 +3,42 @@ on: { workflow_dispatch: {} }
 defaults: { tools: { node: "24.14.1", pnpm: "10.33.0" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
+  build:
+    type: build
+    params: { platform: ios, profile: "e2e:passkey" }
+
   ios:
+    needs: [build]
     environment: development
     runs_on: macos-large
     image: latest
-    env: { APP_DOMAIN: sandbox.exactly.app, CHAIN_ID: "11155420" }
     steps:
       - uses: eas/checkout
-      - uses: eas/install_node_modules
       - uses: eas/install_maestro
       - uses: eas/download_build
         id: download
-        with: { build_id: 1c902358-5856-46a4-81ce-f724ca96351f }
-      - uses: eas/repack
-        id: repack
-        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: sign for sandbox
+        with: { build_id: "${{ needs.build.outputs.build_id }}" }
+      - name: entitlements
         run: |
-          codesign -d --entitlements - "${{ steps.repack.outputs.output_path }}" || true
-          cat > entitlements.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>application-identifier</key>
-            <string>665NDX7LBZ.app.exactly</string>
-            <key>aps-environment</key>
-            <string>development</string>
-            <key>com.apple.developer.associated-domains</key>
-            <array><string>webcredentials:sandbox.exactly.app</string></array>
-            <key>com.apple.developer.team-identifier</key>
-            <string>665NDX7LBZ</string>
-            <key>com.apple.security.application-groups</key>
-            <array><string>group.app.exactly.onesignal</string></array>
-          </dict>
-          </plist>
-          EOF
-          codesign --force --sign - --entitlements entitlements.plist "${{ steps.repack.outputs.output_path }}"
-          codesign -d --entitlements - "${{ steps.repack.outputs.output_path }}"
+          app="$(find "${{ steps.download.outputs.artifact_path }}" -maxdepth 1 -name '*.app' | head -1)"
+          [ -n "$app" ] || app="${{ steps.download.outputs.artifact_path }}"
+          echo "$app"
+          codesign -d --entitlements - "$app" || true
+          strings -a "$app/Exa" | grep -A12 "<key>application-identifier</key>" | head -14 || true
       - uses: eas/start_ios_simulator
       - name: prepare device
         run: |
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl spawn booted notifyutil -s com.apple.BiometricKit.enrollmentChanged 1
           xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit.enrollmentChanged
-          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
+          xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
           xcrun simctl spawn booted log stream --level info --predicate 'process == "Exa" or process == "swcd" or process CONTAINS "AuthenticationServices" or process == "akd" or process == "SharedWebCredentialViewService" or subsystem CONTAINS "AuthenticationServices" or subsystem CONTAINS "BiometricKit" or subsystem CONTAINS "LocalAuthentication" or subsystem CONTAINS "app.exactly"' > simulator.log 2>&1 &
           (while sleep 1; do xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit_Sim.pearl.match; done) > /dev/null 2>&1 &
-          xcrun simctl spawn booted swcutil show > swcutil.txt 2>&1 || true
       - run: maestro test .maestro/passkey.yaml
       - name: probe teardown
         if: always()
         run: |
           xcrun simctl io booted screenshot final.png || true
-          xcrun simctl spawn booted swcutil show > swcutil-after.txt 2>&1 || true
           pkill -f "log stream" || true # cspell:ignore pkill
           xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
@@ -66,8 +48,6 @@ jobs:
           ignore_error: true
           path: |
             final.png
-            swcutil.txt
-            swcutil-after.txt
             simulator.log
             simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
