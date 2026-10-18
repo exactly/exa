@@ -701,20 +701,22 @@ async function getMarket(address: Address, asset: Address) {
 const getWETHMarket = (address: Address) => getMarket(address, token);
 
 async function mint(asset: Address, address: Address, amount: bigint) {
-  await anvilClient.writeContract({
-    account: null,
-    address: asset,
-    functionName: "mint",
-    args: [address, amount],
-    abi: [
-      {
-        type: "function",
-        name: "mint",
-        inputs: [{ type: "address" }, { type: "uint256" }],
-        outputs: [],
-        stateMutability: "nonpayable",
-      },
-    ],
+  await anvilClient.waitForTransactionReceipt({
+    hash: await anvilClient.writeContract({
+      account: null,
+      address: asset,
+      functionName: "mint",
+      args: [address, amount],
+      abi: [
+        {
+          type: "function",
+          name: "mint",
+          inputs: [{ type: "address" }, { type: "uint256" }],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+      ],
+    }),
   });
 }
 
