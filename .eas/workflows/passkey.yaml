@@ -22,7 +22,7 @@ jobs:
           xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit.enrollmentChanged
           xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
           xcrun simctl spawn booted log stream --level info --predicate 'process == "Exa" or process CONTAINS "AuthenticationServices" or subsystem CONTAINS "BiometricKit" or subsystem CONTAINS "LocalAuthentication"' > simulator.log 2>&1 &
-          (until [ -n "$(find .maestro -name faceid.png)" ]; do sleep 1; done; sleep 2; date; xcrun simctl spawn booted notifyutil -p "$NOTIFICATION") > notify.log 2>&1 &
+          (until [ -n "$(find "$HOME/.maestro/tests" -name faceid.png)" ]; do sleep 1; done; sleep 2; date; xcrun simctl spawn booted notifyutil -p "$NOTIFICATION") > notify.log 2>&1 &
       - run: maestro test .maestro/passkey.yaml
       - name: probe teardown
         if: always()
