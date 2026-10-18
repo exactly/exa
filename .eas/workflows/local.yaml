@@ -67,25 +67,19 @@ jobs:
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat credit.mnemonic)"
-      - uses: eas/repack
-        id: credit
-        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat onboarding.mnemonic)"
-      - uses: eas/repack
-        id: onboarding
-        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat swap.mnemonic)"
-      - uses: eas/repack
-        id: swap
-        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat transfer.mnemonic)"
-      - uses: eas/repack
-        id: transfer
-        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - name: repack apps
+        run: |
+          npm install --silent --prefix "$HOME/repack" @expo/repack-app@0.10.4
+          for flow in credit onboarding swap transfer; do
+            TMPDIR="$(mktemp -d)" EXPO_PUBLIC_E2E_MNEMONIC="$(cat "$flow.mnemonic")" "$HOME/repack/node_modules/.bin/repack-app" --platform android --source-app "${{ steps.download.outputs.artifact_path }}" --output "$HOME/repack/$flow.apk" > >(awk -v flow="$flow" '{ print "[" flow "] " $0; fflush() }') 2>&1 &
+            pids="$pids $!"
+          done
+          status=0
+          for pid in $pids; do wait "$pid" || status=1; done
+          exit "$status"
       - name: prepare devices # cspell:ignore getprop logcat
         run: |
-          set -- "${{ steps.credit.outputs.output_path }}" "${{ steps.onboarding.outputs.output_path }}" "${{ steps.swap.outputs.output_path }}" "${{ steps.transfer.outputs.output_path }}"
+          set -- "$HOME"/repack/{credit,onboarding,swap,transfer}.apk
           for port in 5554 5556 5558 5560; do
             adb -s "emulator-$port" wait-for-device
             timeout 180 adb -s "emulator-$port" shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
@@ -184,27 +178,26 @@ jobs:
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.ios_get.outputs.build_id || after.ios_build.outputs.build_id }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat credit.mnemonic)"
-      - uses: eas/repack
-        id: credit
-        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat onboarding.mnemonic)"
-      - uses: eas/repack
-        id: onboarding
-        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat swap.mnemonic)"
-      - uses: eas/repack
-        id: swap
-        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat transfer.mnemonic)"
-      - uses: eas/repack
-        id: transfer
-        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - name: repack apps
+        run: |
+          npm install --silent --prefix "$HOME/repack" @expo/repack-app@0.10.4
+          for flow in credit onboarding swap transfer; do
+            (
+              set +e
+              TMPDIR="$(mktemp -d)" EXPO_PUBLIC_E2E_MNEMONIC="$(cat "$flow.mnemonic")" "$HOME/repack/node_modules/.bin/repack-app" --platform ios --source-app "${{ steps.download.outputs.artifact_path }}" --output "$HOME/repack/$flow.app"
+              echo $? > "$HOME/repack/$flow.status"
+            ) > "$HOME/repack/$flow.log" 2>&1 &
+          done
       - uses: eas/start_ios_simulator
         with: { count: 4 }
       - name: prepare devices
         run: |
-          set -- "${{ steps.credit.outputs.output_path }}" "${{ steps.onboarding.outputs.output_path }}" "${{ steps.swap.outputs.output_path }}" "${{ steps.transfer.outputs.output_path }}"
+          for flow in credit onboarding swap transfer; do
+            while [ ! -f "$HOME/repack/$flow.status" ]; do sleep 1; done
+            awk -v flow="$flow" '{ print "[" flow "] " $0 }' "$HOME/repack/$flow.log"
+            [ "$(cat "$HOME/repack/$flow.status")" = 0 ]
+          done
+          set -- "$HOME"/repack/{credit,onboarding,swap,transfer}.app
           for i in 1 2 3 4; do
             udid=$(xcrun simctl list devices booted -j | jq -r ".devices[][] | select(.name == \"eas-simulator-$i\") | .udid")
             xcrun simctl spawn "$udid" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true

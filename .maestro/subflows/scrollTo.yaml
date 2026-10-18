@@ -5,7 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands:
-      - scrollUntilVisible: { element: "${element}", centerElement: true }
+      - scrollUntilVisible: { element: "${element}", centerElement: true, timeout: 60000 }
 - runFlow:
     when: { true: "${maestro.platform === 'web' && Number(swipes || 0) > 0}" }
     commands:
