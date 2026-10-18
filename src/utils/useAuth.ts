@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useToastController } from "@tamagui/toast";
 
 import { useMutation } from "@tanstack/react-query";
-import { getConnection } from "@wagmi/core";
+import { getConnection, switchChain } from "@wagmi/core";
 import { base } from "viem/chains";
 import { useConnect } from "wagmi";
 
@@ -29,7 +29,9 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
       if (method === "siwe") {
         const connection = getConnection(ownerConfig);
         if (connection.isDisconnected || !connection.address) {
-          await connectOwner({ connector: await getOwnerConnector() });
+          await connectOwner({ connector: await getOwnerConnector(), chainId: chain.id });
+        } else if (connection.chainId !== chain.id) {
+          await switchChain(ownerConfig, { chainId: chain.id });
         }
       }
       const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
