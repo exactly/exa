@@ -4162,12 +4162,14 @@ function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
 }
 
-function execute(calldata: Hex) {
-  return owner.writeContract({
-    address: account,
-    functionName: "execute",
-    args: [account, 0n, calldata],
-    abi: [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+async function execute(calldata: Hex) {
+  return anvilClient.waitForTransactionReceipt({
+    hash: await owner.writeContract({
+      address: account,
+      functionName: "execute",
+      args: [account, 0n, calldata],
+      abi: [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
+    }),
   });
 }
 
