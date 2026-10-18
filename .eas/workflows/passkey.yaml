@@ -11,9 +11,10 @@ jobs:
       - uses: eas/checkout
       - name: install patched maestro
         run: |
-          curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/exactly/exa/actions/artifacts?name=maestro-$(git hash-object patches/maestro.patch)&per_page=1" |
+          gh --version || true
+          curl -sSL --fail-with-body -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/exactly/exa/actions/artifacts?name=maestro-$(git hash-object patches/maestro.patch)&per_page=1" | tee /dev/stderr |
             node -p "JSON.parse(require('fs').readFileSync(0)).artifacts[0].archive_download_url" |
-            xargs curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -o "$TMPDIR/artifact.zip"
+            xargs curl -sSL --fail-with-body -H "Authorization: Bearer $GITHUB_TOKEN" -o "$TMPDIR/artifact.zip"
           unzip -q "$TMPDIR/artifact.zip" -d "$TMPDIR" && unzip -q "$TMPDIR/maestro.zip" -d "$TMPDIR"
           rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && mv "$TMPDIR/maestro/bin" "$TMPDIR/maestro/lib" "$HOME/.maestro/"
           maestro --version
