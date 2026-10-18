@@ -29,16 +29,18 @@ const config = createConfig({
     [chain.id]: custom(publicClient),
   },
   storage: createStorage({ key: `wagmi.owner.${chain.id}`, storage: AsyncStorage }),
-  multiInjectedProviderDiscovery: false,
   dataSuffix,
 });
 export default config;
 
 export async function getConnector() {
   const miniApp = await sdk.isInMiniApp();
+  const legacy = config.connectors.find((c) => c.id === "injected");
   const connector = miniApp
     ? config.connectors.find((c) => c.id === "farcaster")
-    : config.connectors.find((c) => c.id === "injected");
+    : (await legacy?.getProvider().catch(() => undefined))
+      ? legacy
+      : (config.connectors.find((c) => c.type === "injected" && c.id !== "injected") ?? legacy);
   if (!connector) throw new Error("no connector available");
   return connector;
 }
