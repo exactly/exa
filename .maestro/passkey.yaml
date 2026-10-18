@@ -6,5 +6,7 @@ appId: app.exactly
 - takeScreenshot: .maestro/screenshots/sheet
 - tapOn: Add Passkey
 - takeScreenshot: .maestro/screenshots/added
+- extendedWaitUntil: { visible: Face ID, timeout: 5000, optional: true }
+- takeScreenshot: .maestro/screenshots/faceid
 - extendedWaitUntil: { visible: "Stay updated|Good (morning|afternoon|evening)!", timeout: 60000 }
 - takeScreenshot: .maestro/screenshots/home

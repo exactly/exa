@@ -28,7 +28,6 @@ jobs:
           xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit.enrollmentChanged
           xcrun simctl install booted "${{ steps.download.outputs.artifact_path }}"
           xcrun simctl spawn booted log stream --level info --predicate 'process == "Exa" or process == "swcd" or process CONTAINS "AuthenticationServices" or process == "akd" or process == "SharedWebCredentialViewService" or subsystem CONTAINS "AuthenticationServices" or subsystem CONTAINS "BiometricKit" or subsystem CONTAINS "LocalAuthentication" or subsystem CONTAINS "app.exactly"' > simulator.log 2>&1 &
-          (while sleep 1; do xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit_Sim.pearl.match; done) > /dev/null 2>&1 &
       - run: maestro test .maestro/passkey.yaml
       - name: probe teardown
         if: always()
