@@ -105,6 +105,7 @@ export default {
       "onesignal-expo-plugin",
       {
         mode: env.NODE_ENV === "production" ? "production" : "development",
+        iPhoneDeploymentTarget: "15.1",
         smallIcons: ["src/assets/notifications_default.png"],
         largeIcons: ["src/assets/notifications_default_large.png"],
       },
