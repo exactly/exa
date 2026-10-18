@@ -148,8 +148,8 @@ describe("proposal", () => {
           ),
         ),
       );
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs(hashes);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -295,8 +295,8 @@ describe("proposal", () => {
   describe("with weth withdraw proposal", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), inject("MarketWETH"));
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -345,8 +345,8 @@ describe("proposal", () => {
   describe("with reverting proposals", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(maxUint256, padHex("0x69", { size: 20 }));
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -883,8 +883,8 @@ describe("proposal", () => {
   describe("with wrapped error", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(3_000_000n, padHex("0x69", { size: 20 }));
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -1078,8 +1078,8 @@ describe("proposal", () => {
           args: [inject("MarketUSDC"), 1n, ProposalType.None, "0x"],
         }),
       );
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const unlock = proposals[0]?.args.unlock ?? 0n;
       vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
     });
@@ -1145,8 +1145,8 @@ describe("proposal", () => {
         abi: upgradeableModularAccountAbi,
         gas: 6_666_666n,
       });
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const maxUnlock = proposals.reduce((max, proposal) => {
         if (proposal.args.unlock > max) return proposal.args.unlock;
         return max;
