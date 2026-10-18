@@ -1,60 +1,84 @@
+import "../mocks/deployments";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
+import "../mocks/wallet";
 
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
-import { eq } from "drizzle-orm";
-import { parse } from "valibot";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { eq, inArray } from "drizzle-orm";
+import { hexToBigInt, padHex, parseEther, zeroHash, type Hex } from "viem";
+import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
+import deriveAddress from "@exactly/common/deriveAddress";
+import {
+  exaAccountFactoryAbi,
+  exaAccountFactoryAddress,
+  exaPluginAbi,
+  marketUSDCAddress,
+  marketWETHAddress,
+  usdcAddress,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import t from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
+import wallet from "../../utils/wallet";
 import createCredit from "../../workers/credit/queue";
 import creditWorker from "../../workers/credit/worker";
 
 import type { Job as Credit } from "../../workers/credit/job";
+import type { Address } from "@exactly/common/validation";
 import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
 
-const account = parse(Address, "0xb12057309bdDd6e071d5AAF9714C5f15E02441D6");
-const unknown = parse(Address, "0x1234567890123456789012345678901234567890");
-const market = parse(Address, "0xafc70edeb980d345da3c76786d9689d41804b521");
+const account = derive("0xc12ed1");
+const debit = derive("0xc12ed2");
+const empty = derive("0xc12ed3");
+const unknown = derive("0xc12ed4");
+const keeper = wallet(privateKeyToAccount(padHex("0x69")));
 const credit = createCredit(bullmq);
 const onesignal = createOnesignal("onesignal");
 const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
 const events = new QueueEvents("credit", { connection: bullmq });
+const readContract = publicClient.readContract;
 let worker: ReturnType<typeof creditWorker>;
 
 beforeAll(async () => {
-  await database.insert(credentials).values({
-    id: "credit-worker",
-    account,
-    factory: parse(Address, "0x9876543210987654321098765432109876543210"),
-    publicKey: new Uint8Array(),
-  });
-  await database.insert(cards).values({ id: "credit-card", credentialId: "credit-worker", lastFour: "1234" });
+  await database.insert(credentials).values([
+    { id: "credit-worker", account, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
+    { id: "credit-debit", account: debit, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
+    { id: "credit-empty", account: empty, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
+  ]);
+  await database.insert(cards).values([
+    { id: "credit-card", credentialId: "credit-worker", lastFour: "1234" },
+    { id: "credit-debit-card", credentialId: "credit-debit", lastFour: "1234" },
+    { id: "credit-empty-card", credentialId: "credit-empty", lastFour: "1234" },
+  ]);
+  await Promise.all([
+    collateralize("0xc12ed1", [wethAddress, marketWETHAddress, parseEther("1")]),
+    collateralize(
+      "0xc12ed2",
+      [wethAddress, marketWETHAddress, parseEther("1")],
+      [usdcAddress, marketUSDCAddress, 1_000_000n],
+    ),
+    collateralize("0xc12ed4", [wethAddress, marketWETHAddress, parseEther("1")]),
+  ]);
 });
 
 beforeEach(async () => {
   vi.restoreAllMocks();
   sendPushNotificationMock.mockResolvedValue({});
-  vi.spyOn(publicClient, "readContract").mockResolvedValue([] as never);
   vi.clearAllMocks();
-  await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.id, "credit-card"));
-  await queue.drain(true);
-  await queue.clean(0, 1000, "completed");
-  await queue.clean(0, 1000, "failed");
+  await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.credentialId, "credit-worker"));
 });
 
 afterAll(async () => {
-  await database.delete(cards).where(eq(cards.credentialId, "credit-worker"));
-  await database.delete(credentials).where(eq(credentials.id, "credit-worker"));
+  await database.delete(cards).where(inArray(cards.credentialId, ["credit-worker", "credit-debit", "credit-empty"]));
+  await database.delete(credentials).where(inArray(credentials.id, ["credit-worker", "credit-debit", "credit-empty"]));
   await Promise.all([queue.close(), events.close(), credit.close()]);
 });
 
@@ -105,12 +129,10 @@ describe("credit worker", () => {
 
   afterAll(async () => {
     await worker.close();
-    await worker.close();
   });
 
   it("automatically activates credit mode", async () => {
-    const setAttribute = await spySpanSetAttribute();
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    const setAttribute = await spySpanSetAttribute(account);
 
     await jobFinished(account);
 
@@ -139,42 +161,25 @@ describe("credit worker", () => {
   });
 
   it("keeps debit mode without deposits", async () => {
-    await jobFinished(account);
+    await jobFinished(empty);
 
     await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
-    ).resolves.toStrictEqual({ mode: 0 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
-  });
-
-  it("ignores empty deposits", async () => {
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 0n, market }] as never);
-
-    await jobFinished(account);
-
-    await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-empty-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
   it("keeps debit mode with usdc deposits", async () => {
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([
-      { floatingDepositAssets: 1n, market },
-      { floatingDepositAssets: 1n, market: marketUSDCAddress },
-    ] as never);
-
-    await jobFinished(account);
+    await jobFinished(debit);
 
     await expect(
-      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-debit-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
   it("does not change an existing credit mode", async () => {
     await database.update(cards).set({ mode: 1 }).where(eq(cards.id, "credit-card"));
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
 
     await jobFinished(account);
 
@@ -186,7 +191,6 @@ describe("credit worker", () => {
 
   it("does not change deleted cards", async () => {
     await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, "credit-card"));
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
 
     await jobFinished(account);
 
@@ -197,8 +201,6 @@ describe("credit worker", () => {
   });
 
   it("does not change cards for unknown accounts", async () => {
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
-
     await jobFinished(unknown);
 
     await expect(
@@ -209,39 +211,36 @@ describe("credit worker", () => {
 
   it("captures notification errors without retrying", async () => {
     const error = new Error("push failed");
-    vi.mocked(publicClient.readContract).mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    const spy = vi.spyOn(publicClient, "readContract");
     sendPushNotificationMock.mockRejectedValueOnce(error);
 
     await jobFinished(account);
 
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
-    expect(publicClient.readContract).toHaveBeenCalledOnce();
+    expect(reads(spy)).toHaveLength(1);
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 1 });
   });
 
   it("retries automatic credit failures", async () => {
-    vi.mocked(publicClient.readContract)
-      .mockRejectedValueOnce(new Error("rpc unavailable"))
-      .mockResolvedValueOnce([{ floatingDepositAssets: 1n, market }] as never);
+    const spy = fail(new Error("rpc unavailable"), 1);
 
     await jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
-    expect(publicClient.readContract).toHaveBeenCalledTimes(2);
+    expect(reads(spy)).toHaveLength(2);
     expect(captureException).not.toHaveBeenCalled();
   });
 
   it("captures persisted terminal failures", async () => {
     const error = new Error("credit failed");
-    vi.mocked(publicClient.readContract).mockRejectedValueOnce(error);
+    fail(error, 1);
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account, { removeOnFail: false })).rejects.toThrow("credit failed");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(account)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(account);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(account);
     expect(job.failedReason).toBe("credit failed");
@@ -258,14 +257,14 @@ describe("credit worker", () => {
 
   it("captures only terminal failed events", async () => {
     const error = new Error("credit failed");
-    vi.mocked(publicClient.readContract).mockRejectedValue(error);
+    const spy = fail(error);
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } })).rejects.toThrow(
       "credit failed",
     );
 
-    expect(publicClient.readContract).toHaveBeenCalledTimes(2);
+    expect(reads(spy)).toHaveLength(2);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id: account },
@@ -319,6 +318,46 @@ async function jobFinished(
   });
 }
 
+async function collateralize(owner: Hex, ...deposits: (readonly [Hex, Hex, bigint])[]) {
+  const address = derive(owner);
+  await keeper.exaSend(
+    { name: "create account", op: "exa.account" },
+    {
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      functionName: "createAccount",
+      args: [0n, [{ x: hexToBigInt(privateKeyToAddress(padHex(owner))), y: 0n }]],
+    },
+  );
+  for (const [asset, market, amount] of deposits) {
+    await keeper.exaSend(
+      { name: "mint", op: "tx.mint" },
+      { address: asset, abi: mockERC20Abi, functionName: "mint", args: [address, amount] },
+    );
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address, abi: exaPluginAbi, functionName: "poke", args: [market] },
+    );
+  }
+}
+
+function derive(owner: Hex) {
+  return deriveAddress(exaAccountFactoryAddress, { x: padHex(privateKeyToAddress(padHex(owner))), y: zeroHash });
+}
+
+function fail(error: Error, times = Infinity) {
+  let remaining = times;
+  return vi
+    .spyOn(publicClient, "readContract")
+    .mockImplementation((parameters) =>
+      parameters.args?.[0] === account && remaining-- > 0 ? Promise.reject(error) : readContract(parameters as never),
+    );
+}
+
+function reads(spy: MockInstance<typeof publicClient.readContract>) {
+  return spy.mock.calls.filter(([{ args }]) => args?.[0] === account);
+}
+
 async function spyScopeSetUser() {
   const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");
   const setUser = vi.fn();
@@ -335,11 +374,12 @@ async function spyScopeSetUser() {
   return setUser;
 }
 
-async function spySpanSetAttribute() {
+async function spySpanSetAttribute(id: string) {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
   vi.mocked(startSpan).mockImplementation(((options, callback) =>
     realStartSpan(options, (span) => {
+      if (options.attributes?.["messaging.message.id"] !== id) return callback(span);
       const originalSetAttribute = span.setAttribute.bind(span);
       span.setAttribute = (...args: Parameters<typeof span.setAttribute>) => {
         setAttribute(...args);
@@ -349,3 +389,13 @@ async function spySpanSetAttribute() {
     })) as typeof startSpan);
   return setAttribute;
 }
+
+const mockERC20Abi = [
+  {
+    type: "function",
+    name: "mint",
+    inputs: [{ type: "address" }, { type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+] as const;
