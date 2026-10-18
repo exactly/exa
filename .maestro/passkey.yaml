@@ -4,7 +4,7 @@ appId: app.exactly
 - tapOn: Create new account
 - tapOn: Set passkey and create account
 - takeScreenshot: .maestro/screenshots/sheet
-- tapOn: { text: Continue, optional: true }
-- takeScreenshot: .maestro/screenshots/continue
+- tapOn: Add Passkey
+- takeScreenshot: .maestro/screenshots/added
 - extendedWaitUntil: { visible: "Stay updated|Good (morning|afternoon|evening)!", timeout: 60000 }
 - takeScreenshot: .maestro/screenshots/home

@@ -3,12 +3,7 @@ on: { workflow_dispatch: {} }
 defaults: { tools: { node: "24.14.1", pnpm: "10.33.0" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
-  build:
-    type: build
-    params: { platform: ios, profile: "e2e:passkey" }
-
   ios:
-    needs: [build]
     environment: development
     runs_on: macos-large
     image: latest
@@ -17,7 +12,7 @@ jobs:
       - uses: eas/install_maestro
       - uses: eas/download_build
         id: download
-        with: { build_id: "${{ needs.build.outputs.build_id }}" }
+        with: { build_id: d44c09d7-2240-4681-88dd-5715fb71d6a5 }
       - name: entitlements
         run: |
           app="$(find "${{ steps.download.outputs.artifact_path }}" -maxdepth 1 -name '*.app' | head -1)"
