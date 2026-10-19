@@ -127,7 +127,7 @@ commits carry only human authors. an agent commits as the person it works for, a
 signing may fail due to key agent timeouts (e.g., gpg-agent passphrase cache expired, ssh-agent locked, hardware key like yubikey not touched in time). when this happens:
 
 1. **warn the developer**: explain that signing failed (include the error output) and that the commit was not created
-2. **ask for acknowledgment**: use `AskUserQuestion` with options like "ready to retry" and "abort commit". do not retry silently
+2. **ask for acknowledgment**: ask whether to retry or abort. do not retry silently. in an unattended session nobody can unlock the key: stop and report the error instead of looping
 3. **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
 4. **repeat if needed**: if signing fails again, go back to step 1. never give up on signing. never strip `-S` to work around the failure
 
@@ -198,11 +198,11 @@ execute these steps in order. in an attended session the developer makes every d
 
 in an unattended session (nobody can answer, or the developer delegated the picks) you make the decisions: split incoherent changes into separate commits, pick the gitmoji and the message following the examples, commit, and report each commit's picks with it.
 
-the workflow is split into a **prep phase** (runs in a `Task` subagent to avoid polluting the main context) and an **interactive phase** (runs in the main agent for user-facing choices).
+the workflow is split into a **prep phase** (runs in a subagent, when the tool has them, to keep the diff out of the main context) and an **interactive phase** (runs in the main agent for user-facing choices).
 
-### prep phase (Task subagent)
+### prep phase (subagent)
 
-launch a `Task` subagent (subagent_type: `general-purpose`). instruct it to perform steps 1–4 below and return **only** the compact summary described in step 4. the subagent must NOT return the full gitmoji list or the full diff — only the summary.
+launch a general-purpose subagent, or do these steps yourself if the tool has none. instruct it to perform steps 1–4 below and return **only** the compact summary described in step 4. the subagent must NOT return the full gitmoji list or the full diff — only the summary.
 
 #### step 1: smart staging
 
@@ -365,7 +365,7 @@ if a changeset is needed:
 3. **if signing fails** (exit code non-zero and stderr mentions signing, gpg, ssh, key, timeout, agent, or passphrase):
    1. show the full error output
    2. warn the developer that the commit was **not created** because signing failed — suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
-   3. use `AskUserQuestion` with two options: "retry" and "abort"
+   3. ask the developer to retry or abort (unattended: stop here and report)
    4. on "retry": run the exact same `git commit -S` command again and go back to step 2
    5. on "abort": stop the workflow entirely — do **not** fall back to an unsigned commit
    6. there is no retry limit — keep looping through warn → ack → retry as long as the developer chooses to retry
