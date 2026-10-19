@@ -139,22 +139,12 @@ export const lifiTokensOptions = queryOptions({
     const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
     const allTokens = Object.values(tokens)
       .flat()
-      .filter((token) => token.verificationStatus !== "flagged");
+      .filter((token) => token.verificationStatus !== "flagged")
+      .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress));
     if (!allTokens.some((token) => token.chainId === (chain.id as typeof token.chainId))) {
       throw new Error("missing destination tokens");
     }
-    if (!exaAddress) return allTokens;
-    const exa = await getToken(chain.id, exaAddress).catch((error: unknown) => {
-      reportError(error);
-    });
-    return exa
-      ? [
-          exa,
-          ...allTokens.filter(
-            (t) => t.chainId !== exa.chainId || t.address.toLowerCase() !== exa.address.toLowerCase(),
-          ),
-        ]
-      : allTokens;
+    return allTokens;
   },
 });
 
@@ -217,29 +207,12 @@ export function balancesOptions(account: Address | undefined) {
           knownTokens.get(lifiTokens) ??
           new Map(lifiTokens.map((token) => [`${token.chainId}:${token.address.toLowerCase()}`, token]));
         knownTokens.set(lifiTokens, known);
-        const exa = exaAddress ? known.get(`${chain.id}:${exaAddress.toLowerCase()}`) : undefined;
-        const lookup = exaAddress
-          ? getToken(chain.id, exaAddress).catch((error: unknown) => {
-              reportError(error);
-              return exa;
-            })
-          : undefined;
         const balances: Record<number, TokenAmount[]> = {};
         for await (const [id, holdings] of getWalletBalances(account, lifiTokens, chains, signal)) {
-          const tokens = holdings.flatMap(({ address, amount }) => {
+          balances[id] = holdings.flatMap(({ address, amount }) => {
             const token = known.get(`${id}:${address.toLowerCase()}`);
             return token ? [{ ...token, amount }] : [];
           });
-          const latest = id === chain.id ? await lookup : undefined;
-          balances[id] = latest
-            ? [
-                {
-                  ...latest,
-                  amount: holdings.find((t) => t.address.toLowerCase() === latest.address.toLowerCase())?.amount ?? 0n,
-                },
-                ...tokens.filter((t) => t.address.toLowerCase() !== latest.address.toLowerCase()),
-              ]
-            : tokens;
           if (chain.id in balances) yield balances;
         }
         if (!(chain.id in balances)) yield balances;
@@ -394,14 +367,11 @@ export async function getAllowTokens(markets: readonly { asset: string; symbol: 
   if (chain.testnet) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
   const allowed = swappable(markets);
-  const allowTokens = tokens[chain.id]?.filter((token) => allowed.has(token.address.toLowerCase())) ?? [];
-  if (!exaAddress) return allowTokens;
-  try {
-    const exa = await getToken(chain.id, exaAddress);
-    return [exa, ...allowTokens.filter((t) => t.address.toLowerCase() !== exa.address.toLowerCase())];
-  } catch {
-    return allowTokens;
-  }
+  return (
+    tokens[chain.id]
+      ?.filter((token) => allowed.has(token.address.toLowerCase()))
+      .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress)) ?? []
+  );
 }
 
 export type RouteFrom = {
