@@ -11,8 +11,8 @@
 - **colocate logic by flow**: when a screen represents a single user journey or state machine, keep all its logic in one place - even if the screen is complex. this applies to onchain operations (send, borrow, repay), settings screens, or any cohesive flow. benefits: easier to reason about the whole picture, avoids prop drilling, simpler debugging, fewer re-renders. split only when combining distinct flows that could exist independently.
 - **dumb components are still encouraged**: colocating logic doesn't mean abandoning composition. extract reusable ui (buttons, inputs, cards) as dumb components. the rule is about *logic*, not *markup*.
 - **smart vs. dumb components**:
-  - **smart components (screens)**: handle data fetching, state management, and business logic. connected to hooks (`useQuery`). location: `src/app/**`.
-  - **dumb components (ui)**: receive data and callbacks via props. no knowledge of application state. location: `src/components/**`.
+  - **smart components (screens)**: handle data fetching, state management, and business logic. connected to hooks (`useQuery`). location: `src/components/<feature>/`, re-exported by the route files in `src/app/`.
+  - **dumb components (ui)**: receive data and callbacks via props. no knowledge of application state. location: `src/components/shared/`, or next to the screens that use them.
 - **props**:
   - keep prop interfaces minimal.
   - do not pass entire objects if only a few fields are needed. pass only the fields the component uses.
