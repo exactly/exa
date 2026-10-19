@@ -97,9 +97,9 @@ extracting a variable and extracting a function are the same impulse: both add i
 
 package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
 
-## ai assistant directives
+## agents
 
-- **adopt, do not replace**: your primary role is to adopt and enforce the project's established conventions. never replace a core convention (e.g., the `gitmoji` commit format) with a different one (e.g., `conventional commits`), even if you believe it is superior.
-- **respect the style guide**: you must follow all rules within the rule files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
-- **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
+- **adopt, don't replace**: enforce the conventions here even where you'd prefer another. gitmoji stays; conventional commits don't come in.
+- **rules apply to rules**: everything you write follows these files, edits to these files included.
+- **follow the spirit**: rules state intent, not wording to game. "concise" means front-loaded and free of filler, not a character count.
 - **stop on mcp issues**: any mcp error, misbehavior, or unreachable server is a full stop — ask the user how to proceed. do not retry silently, fall back to another tool, or improvise a workaround.
