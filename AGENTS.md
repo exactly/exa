@@ -23,19 +23,10 @@ code is read far more often than it is written, and ugly code invites more ugly 
 
 ## capitalization
 
-a core principle is specific capitalization for different contexts. this must be followed with obsessive precision.
-
-- **internal documentation prose (`AGENTS.md` files, skills, `README.md`)**: all narrative text (headings, paragraphs, list items, proper nouns, brand names) must be **lowercase**. there are no exceptions.
-  - ✅ `...built with astro and the starlight theme.`
-  - ❌ `...built with Astro and the Starlight theme.`
-- **referring to code in prose**: when discussing a code concept (like a variable or function name) in a sentence, use regular lowercase words. the correctly-cased identifier itself must only appear inside backticks.
-  - ✅ `for boolean props, the name should indicate a positive condition (e.g., \`isActive\`).`
-  - ❌ `for boolean props, the name should be isActive.`
-- **code examples**: any identifier inside backticks (`` ` ``) or a code fence (` ``` `) is considered code, not prose. it must strictly follow the casing rules for that language.
-- **code comments**: all code comments must be lowercase.
-- **user-facing documentation (`docs/`)**: use proper sentence case.
-- **changeset summaries**: use a lowercase sentence in the imperative present tense (e.g., `implement x feature for y`).
-- **git commit messages**: must be lowercase.
+- **lowercase**: all prose in internal docs (`AGENTS.md` files, skills, `README.md`), code comments, commit messages and changeset summaries, proper nouns and brand names included: `built with astro and starlight`.
+- **identifiers**: code names appear only inside backticks, cased as in code. in prose, use plain words: "for boolean props, name the positive condition (`open`)".
+- **user-facing docs** (`docs/`): sentence case.
+- **changesets**: an imperative present-tense sentence, like `implement x feature for y`.
 
 ## file naming
 
