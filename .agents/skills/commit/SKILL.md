@@ -194,7 +194,9 @@ the gray area is refactors. most don't need a changeset, but some do. ask: "if t
 
 ## workflow
 
-execute these steps in order. the developer makes every decision — never auto-commit.
+execute these steps in order. in an attended session the developer makes every decision — never auto-commit.
+
+in an unattended session (nobody can answer, or the developer delegated the picks) you make the decisions: split incoherent changes into separate commits, pick the gitmoji and the message following the examples, commit, and report each commit's picks with it.
 
 the workflow is split into a **prep phase** (runs in a `Task` subagent to avoid polluting the main context) and an **interactive phase** (runs in the main agent for user-facing choices).
 
@@ -371,8 +373,8 @@ if a changeset is needed:
 
 ## invariants
 
-- **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping this step or choosing on behalf of the developer is a workflow violation
-- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use `AskUserQuestion` or any selection widget** — output all 9 as a plain numbered list in a regular text message
+- **gitmoji selection is always interactive in attended sessions** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping this step or choosing on behalf of the developer is a workflow violation
+- **message selection is always interactive in attended sessions** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use `AskUserQuestion` or any selection widget** — output all 9 as a plain numbered list in a regular text message
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
