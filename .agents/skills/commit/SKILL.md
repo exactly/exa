@@ -112,48 +112,7 @@ when signing fails (an expired gpg-agent cache, a locked ssh-agent, a hardware k
 
 ## changeset format
 
-file: `.changeset/<random-name>.md`
-
-```markdown
----
-"@exactly/<package>": patch
----
-
-<emoji> <message>
-```
-
-- **no scope prefix** in changeset description (unlike commit messages)
-- **semver level**: almost always `patch`. use `minor` or `major` only when explicitly requested
-- **description**: a lowercase sentence in the imperative present tense. same as commit message but without `<scope>:` prefix (unless developer explicitly customizes)
-- **versioned packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`), docs (`@exactly/docs`), infra (`@exactly/infra`)
-
-### when a changeset is needed
-
-a changeset is needed when the change has **user-facing impact** — where "user" means **package consumer**:
-
-- for `app`: the end user of the mobile app
-- for `server`: anything consuming the api
-- for `common`: any package importing from common
-- for `contracts`: anything interacting with the contracts
-- for `docs`: the reader of the published docs
-- for `infra`: the services running on it
-
-"consumers" includes monitoring, instrumentation, logging, and analytics consumers too. if the change alters what an external analyst would see in dashboards, logs, or error tracking, the changeset is definitely required.
-
-### when a changeset is NOT needed
-
-the guiding principle: if no package consumer could ever notice the difference, there's no changeset. changesets exist so users can trace when behavior changed — if behavior didn't change, there's nothing to trace.
-
-concrete cases that never need a changeset:
-
-- **tests, mocks, snapshots** (✅, 🧪, 🤡, 📸) — internal quality tooling, invisible to consumers
-- **type-only changes** (🏷️) — no runtime impact, only affects compile time
-- **pure refactors** (♻️) — same inputs, same outputs, different internals
-- **unversioned scopes** — `github`, `eas`, `global`, `e2e`, `agents`, `dependencies` don't produce versioned packages
-
-the gray area is refactors. most don't need a changeset, but some do. ask: "if this introduces a bug, would a user benefit from knowing this version is where it started?" if yes, add a changeset — it becomes a breadcrumb for future debugging.
-
-### changeset examples
+`.changeset/<adjective>-<animal>-<verb>.md`, at `patch` unless asked otherwise, described by the commit message without its scope (unless the developer words it differently):
 
 ```markdown
 ---
@@ -163,13 +122,11 @@ the gray area is refactors. most don't need a changeset, but some do. ask: "if t
 🥅 fallback session delivery via response header
 ```
 
-```markdown
----
-"@exactly/mobile": patch
----
+### when a changeset is needed
 
-🩹 mirror session cookie as header in auth flow
-```
+when a consumer of a versioned package could notice the change: app users (`@exactly/mobile`), api clients (`@exactly/server`), packages importing `@exactly/common`, anything calling the contracts (`@exactly/plugin`), docs readers (`@exactly/docs`), services on the infra (`@exactly/infra`). monitoring counts: a change to what an analyst sees in dashboards, logs or error tracking needs one.
+
+none for tests, mocks and snapshots (✅, 🤡, 📸), type-only changes (🏷️), pure refactors (♻️) or unversioned scopes (`github`, `eas`, `global`, `e2e`, `agents`, `dependencies`). for a refactor, ask: if it introduced a bug, would a user want to know which version started it? if so, add one.
 
 ## workflow
 
