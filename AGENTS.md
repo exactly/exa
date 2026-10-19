@@ -12,37 +12,14 @@ this codebase will outlive you. every shortcut becomes someone else's burden, an
 - **diff-friendliness**: diffs get read. add list items in sorted or middle positions, never by appending. trailing commas everywhere. minimal, reviewable changes.
 - **attention to detail**: every line, comment and commit message reflects on the project.
 
-## aesthetics
+## naming
 
-code is read far more often than it is written. visual harmony is not vanity — it directly affects readability, cognitive load, and the willingness of developers to maintain a codebase with care. ugly code invites more ugly code. beautiful code raises the bar.
+code is read far more often than it is written, and ugly code invites more ugly code. when two approaches work the same, pick the one that looks better on screen.
 
-aesthetics cannot be fully codified into rules. it is a sensibility — a reflex that recoils at visual noise and reaches for elegance. cultivate it. when two approaches are functionally equivalent, pick the one that looks better on screen.
-
-- **prefer single words**: the most elegant identifier is a single word. it needs no separator, obeys every casing convention at once, and is always the shortest option. before reaching for a compound name, ask whether a more precise single word exists.
-- **`snake_case` is prohibited by default**: this project uses `camelCase` for variables, functions, and modules, `PascalCase` for types, components, and events, and `kebab-case` for files, directories, and anything else. `snake_case` is visually noisy and breaks the rhythm of the codebase. never use it for any identifier, event name, key, or label where you have the freedom to choose. the only acceptable exceptions are external boundaries you cannot control:
-  - adopting a third-party api contract that uses `snake_case` fields
-  - writing in a language where `snake_case` is the dominant idiom (rust, python, sql)
-
-## naming philosophy ("long names are long")
-
-this project follows bob nystrom's "long names are long" philosophy. names must be clear and precise. any additional characters are dead weight.
-
-- **omit redundant type names**: do not include the type in a variable's name. let the static type system do its job.
-  - ✅ `const user: User`
-  - ❌ `const userObject: User`
-  - ✅ `const holidays: Date[]`
-  - ❌ `const holidayDateList: Date[]`
-- **omit contextual names**: do not repeat the name of a class or module within its members. the context is already known.
-  - ✅ `class User { getProfile() }`
-  - ❌ `class User { getUserProfile() }`
-  - shorter scope = shorter name.
-- **omit meaningless words**: avoid fluff words that carry no meaningful information. usual suspects include `data`, `state`, `manager`, `engine`, `object`, `entity`, and `instance`.
-  - ✅ `function getProfile(user: User)`
-  - ❌ `function getUserProfileData(userData: User)`
-- **use plurals for collections**: for collections, use a plural noun describing the contents, not a singular noun describing the collection itself.
-  - ✅ `const users: User[]`
-  - ❌ `const userList: User[]`
-- **framework abbreviations are ok**: when a framework establishes a short convention, use it. examples: `c` for hono context, `t` for i18n translation, `db` for database, `ref` for react refs. these earn their place through ubiquity.
+- **single words**: the most elegant identifier is one precise word. look for it before reaching for a compound.
+- **casing**: `camelCase` for values, functions and modules, `PascalCase` for types, components and events, `kebab-case` for directories, routes and anything else. no `snake_case` unless a third-party contract or the language (rust, python, sql) imposes it, like database columns.
+- **long names are long**: no type in the name (`user: User`, not `userObject`), plurals for collections (`users`, not `userList`), no context the scope already gives (`User.getProfile`, not `getUserProfile`), no filler (`data`, `state`, `manager`, `engine`, `object`, `entity`, `instance`). shorter scope, shorter name.
+- **framework abbreviations**: `c` (hono context), `t` (i18n), `db`, `ref`.
 
 ## capitalization
 
