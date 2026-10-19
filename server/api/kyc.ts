@@ -146,7 +146,16 @@ export default function route({
 
         if (scope === "panda-business") {
           const application = await panda.getCompanyApplication(credentialId);
-          if (!application) return c.json({ code: BadRequestCodes.NOT_STARTED }, 400);
+          if (!application) {
+            const profile = await persona.businessProfile(credentialId).catch((error: unknown) => {
+              if (error instanceof BusinessApplicationError) return;
+              throw error;
+            });
+            return c.json(
+              { code: BadRequestCodes.NOT_STARTED, ...(profile?.pending && { pending: profile.pending }) },
+              400,
+            );
+          }
           const state = kybState(application);
           return c.json(state, state.code === "bad kyb" ? 400 : 200);
         }
@@ -308,17 +317,23 @@ export default function route({
           if (!clientIp.success)
             return c.json({ code: BadRequestCodes.BAD_REQUEST, message: ["missing valid client IP address"] }, 400);
           return withMutex(account, async () => {
-            const application =
-              (await panda.getCompanyApplication(credentialId)) ??
-              (await panda.createCompanyApplication(
-                panda.businessApplication(
-                  credentialId,
-                  account,
-                  clientIp.output,
-                  await persona.businessProfile(credentialId),
-                ),
+            let application = await panda.getCompanyApplication(credentialId);
+            if (!application) {
+              const profile = await persona.businessProfile(credentialId);
+              if (profile.pending) {
+                const { data } = profile.inquiryId
+                  ? { data: { id: profile.inquiryId } }
+                  : await persona.createInquiry(credentialId, profile.templateId, {
+                      accountTypeId: BUSINESS_ACCOUNT_TYPE_ID,
+                      redirectURI,
+                    });
+                return c.json(await generateInquiryTokens(data.id, persona), 200);
+              }
+              application = await panda.createCompanyApplication(
+                panda.businessApplication(credentialId, account, clientIp.output, profile),
                 { idempotencyKey: `business-application:${credentialId}` },
-              ));
+              );
+            }
             const state = kybState(application);
             return c.json(
               {
@@ -854,5 +869,5 @@ async function isLegacy(
 
 async function generateInquiryTokens(inquiryId: string, persona: ReturnType<typeof createPersona>) {
   const { meta: sessionTokenMeta } = await persona.resumeInquiry(inquiryId);
-  return { inquiryId, sessionToken: sessionTokenMeta["session-token"], type: "persona" };
+  return { inquiryId, sessionToken: sessionTokenMeta["session-token"], type: "persona" as const };
 }

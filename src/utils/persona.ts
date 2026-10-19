@@ -22,7 +22,7 @@ let current:
   | {
       controller: AbortController;
       promise: Promise<InquiryResult>;
-      scope: "bridge" | "cardLimit" | "manteca";
+      scope: "bridge" | "cardLimit" | "manteca" | "panda-business";
       tokens?: { inquiryId: string; sessionToken: string };
     }
   | { controller: AbortController; promise: Promise<KYCResult>; scope: "basic" };
@@ -173,8 +173,12 @@ export function startCardLimitKYC() {
   return startScopedInquiry("cardLimit");
 }
 
+export function startBusinessKYC(tokens: { inquiryId: string; sessionToken: string }) {
+  return startScopedInquiry("panda-business", tokens);
+}
+
 function startScopedInquiry(
-  scope: "bridge" | "cardLimit" | "manteca",
+  scope: "bridge" | "cardLimit" | "manteca" | "panda-business",
   tokens?: { inquiryId: string; sessionToken: string },
 ) {
   if (current && !current.controller.signal.aborted && current.scope === scope && current.tokens === tokens)

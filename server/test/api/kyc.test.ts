@@ -1720,7 +1720,7 @@ describe("authenticated", () => {
       birth_date: "1990-01-01",
       id_number: "123456789",
       id_country: "US",
-      collected_email_address: "jane@example.com",
+      auth_user_email: "jane@example.com",
       authorized_user_phone_country_code: "1",
       authorized_user_phone_number: "5555555555",
       terms_and_conditions: true,
@@ -1803,13 +1803,54 @@ describe("authenticated", () => {
 
     describe("getting kyc", () => {
       it("returns not started when the company application is missing", async () => {
+        mockProfile();
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
         const response = await getStatus("panda-business");
 
         expect(response.status).toBe(400);
         expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
+        expect(persona.businessProfile).toHaveBeenCalledWith(businessId);
         await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+      });
+
+      it.each([
+        { pending: "terms", templateId: persona.TERMS_TEMPLATE },
+        { pending: "representative", templateId: persona.REPRESENTATIVE_TEMPLATE },
+      ] as const)("returns not started with the pending $pending step", async ({ pending, templateId }) => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const businessProfile = vi
+          .spyOn(persona, "businessProfile")
+          .mockResolvedValue({ pending, templateId, inquiryId: undefined });
+        const createInquiry = vi.spyOn(persona, "createInquiry");
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(400);
+        expect(businessProfile).toHaveBeenCalledWith(businessId);
+        expect(createInquiry).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", pending });
+      });
+
+      it("returns not started when the business profile is not ready", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "businessProfile").mockRejectedValueOnce(
+          new BusinessApplicationError("business inquiry is not started", "not started"),
+        );
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
+      });
+
+      it("fails when the business profile throws unexpectedly", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "businessProfile").mockRejectedValueOnce(new Error("persona down"));
+
+        const response = await getStatus("panda-business");
+
+        expect(response.status).toBe(500);
       });
 
       it("returns processing with the external verification link", async () => {
@@ -1956,6 +1997,57 @@ describe("authenticated", () => {
         await expect(response.json()).resolves.toStrictEqual({
           code: "processing",
           type: "panda",
+        });
+      });
+
+      it("creates the pending step inquiry and returns persona tokens", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "businessProfile").mockResolvedValue({
+          pending: "representative",
+          templateId: persona.REPRESENTATIVE_TEMPLATE,
+          inquiryId: undefined,
+        });
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValue(inquiry);
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry").mockResolvedValue(resumeTemplate);
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(200);
+        expect(createInquiry).toHaveBeenCalledWith(businessId, persona.REPRESENTATIVE_TEMPLATE, {
+          accountTypeId: persona.BUSINESS_ACCOUNT_TYPE_ID,
+          redirectURI: undefined,
+        });
+        expect(resumeInquiry).toHaveBeenCalledWith(inquiry.data.id);
+        expect(createCompanyApplication).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          inquiryId: inquiry.data.id,
+          sessionToken: resumeTemplate.meta["session-token"],
+          type: "persona",
+        });
+      });
+
+      it("resumes the pending step inquiry", async () => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "businessProfile").mockResolvedValue({
+          pending: "terms",
+          templateId: persona.TERMS_TEMPLATE,
+          inquiryId: "terms-id",
+        });
+        const createInquiry = vi.spyOn(persona, "createInquiry");
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry").mockResolvedValue(resumeTemplate);
+        const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication");
+
+        const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+        expect(response.status).toBe(200);
+        expect(createInquiry).not.toHaveBeenCalled();
+        expect(resumeInquiry).toHaveBeenCalledWith("terms-id");
+        expect(createCompanyApplication).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          inquiryId: "terms-id",
+          sessionToken: resumeTemplate.meta["session-token"],
+          type: "persona",
         });
       });
 
@@ -2136,11 +2228,51 @@ describe("authenticated", () => {
         await expect(businessApproved.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
 
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const businessProfile = vi.spyOn(persona, "businessProfile").mockResolvedValue({
+          pending: "terms",
+          templateId: persona.TERMS_TEMPLATE,
+          inquiryId: undefined,
+        });
+        const termsNotStarted = await getStatus("panda-business");
+        expect(termsNotStarted.status).toBe(400);
+        await expect(termsNotStarted.json()).resolves.toStrictEqual({ code: "not started", pending: "terms" });
+
+        const termsTokens = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+        expect(termsTokens.status).toBe(200);
+        expect(createInquiry).toHaveBeenLastCalledWith(businessId, persona.TERMS_TEMPLATE, {
+          accountTypeId: persona.BUSINESS_ACCOUNT_TYPE_ID,
+          redirectURI: undefined,
+        });
+        await expect(termsTokens.json()).resolves.toStrictEqual({
+          inquiryId: inquiry.data.id,
+          sessionToken: resumeTemplate.meta["session-token"],
+          type: "persona",
+        });
+
+        businessProfile.mockResolvedValue({
+          pending: "representative",
+          templateId: persona.REPRESENTATIVE_TEMPLATE,
+          inquiryId: undefined,
+        });
+        const representativeNotStarted = await getStatus("panda-business");
+        expect(representativeNotStarted.status).toBe(400);
+        await expect(representativeNotStarted.json()).resolves.toStrictEqual({
+          code: "not started",
+          pending: "representative",
+        });
+
+        const representativeTokens = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+        expect(representativeTokens.status).toBe(200);
+        expect(createInquiry).toHaveBeenLastCalledWith(businessId, persona.REPRESENTATIVE_TEMPLATE, {
+          accountTypeId: persona.BUSINESS_ACCOUNT_TYPE_ID,
+          redirectURI: undefined,
+        });
+
+        mockProfile();
         const pandaNotStarted = await getStatus("panda-business");
         expect(pandaNotStarted.status).toBe(400);
         await expect(pandaNotStarted.json()).resolves.toStrictEqual({ code: "not started" });
 
-        mockProfile();
         const createCompanyApplication = vi.spyOn(panda, "createCompanyApplication").mockResolvedValue({
           ...pendingApplication,
           applicationStatus: "needsVerification",

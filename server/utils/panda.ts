@@ -53,7 +53,6 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import { blank, BusinessApplicationError, requiredValue, requireFields } from "./persona";
 import ServiceError from "./ServiceError";
 
-import type createPersona from "./persona";
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
     businessApplication,
@@ -723,8 +722,8 @@ const UserResponse = object({
   lastName: string(),
   email: string(),
   isActive: boolean(),
-  phoneCountryCode: string(),
-  phoneNumber: string(),
+  phoneCountryCode: optional(nullable(string())),
+  phoneNumber: optional(nullable(string())),
   applicationStatus: picklist([
     "approved",
     "pending",
@@ -876,7 +875,7 @@ function businessApplication(
   credentialId: string,
   accountAddress: Address,
   ipAddress: string,
-  profile: Awaited<ReturnType<ReturnType<typeof createPersona>["businessProfile"]>>,
+  profile: { email: string; fields: Record<string, unknown>; name: string },
 ) {
   const fields = requireFields(BusinessFields, profile.fields);
   const person = {
@@ -989,7 +988,6 @@ const BusinessFields = object({
   business_name: requiredValue,
   city_1: requiredValue,
   city_2: requiredValue,
-  collected_email_address: requiredValue,
   company_description: requiredValue,
   company_industry_naics: requiredValue,
   company_registration_number: requiredValue,

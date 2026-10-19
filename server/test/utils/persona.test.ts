@@ -940,60 +940,75 @@ describe("getAccount", () => {
 describe("businessProfile", () => {
   const businessFields = {
     business_name: { value: "Account Acme" },
-    collected_email_address: { value: "jane@example.com" },
     company_description: { value: "Account software" },
   };
+  let inquiries: Record<
+    string,
+    undefined | { attributes: { fields?: unknown; "reference-id": string; status: string } }
+  >;
+  let accounts: unknown[];
   let fetchSpy: MockInstance<typeof fetch>;
   beforeEach(() => {
-    fetchSpy = vi.spyOn(globalThis, "fetch");
+    inquiries = {
+      [Persona.BUSINESS_TEMPLATE]: inquiry(),
+      [Persona.TERMS_TEMPLATE]: inquiry({ id: "terms-id", status: "completed" }),
+      [Persona.REPRESENTATIVE_TEMPLATE]: inquiry({
+        id: "representative-id",
+        fields: { "auth-user-email": { value: "jane@example.com" } },
+      }),
+    };
+    accounts = [account()];
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = new URL(input instanceof Request ? input.url : input);
+      const templateId = url.searchParams.get("filter[inquiry-template-id]");
+      if (!templateId) return Promise.resolve(Response.json({ data: accounts }));
+      const found = inquiries[templateId];
+      return Promise.resolve(
+        Response.json({
+          data:
+            found && (url.searchParams.get("filter[status]") !== "approved" || found.attributes.status === "approved")
+              ? [found]
+              : [],
+        }),
+      );
+    });
   });
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  function mockInquiry({
+  function inquiry({
     fields = {},
+    id = "inquiry-id",
     referenceId = "reference-id",
     status = "approved",
   }: {
     fields?: Record<string, { value: unknown }>;
+    id?: string;
     referenceId?: string;
     status?: "approved" | "completed" | "created" | "declined" | "expired" | "failed" | "needs_review" | "pending";
   } = {}) {
-    fetchSpy.mockResolvedValueOnce(
-      Response.json({
-        data: [{ id: "inquiry-id", type: "inquiry", attributes: { fields, status, "reference-id": referenceId } }],
-      }),
-    );
+    return { id, type: "inquiry", attributes: { fields, status, "reference-id": referenceId } };
   }
 
-  function mockAccount({
+  function account({
     fields = businessFields,
     referenceId = "reference-id",
   }: { fields?: Record<string, { value: unknown }>; referenceId?: string } = {}) {
-    fetchSpy.mockResolvedValueOnce(
-      Response.json({
-        data: [
-          {
-            id: "account-id",
-            type: "account",
-            attributes: { fields, "reference-id": referenceId },
-            relationships: { "account-type": { data: { id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
-          },
-        ],
-      }),
-    );
+    return {
+      id: "account-id",
+      type: "account",
+      attributes: { fields, "reference-id": referenceId },
+      relationships: { "account-type": { data: { id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
+    };
   }
 
   it("returns the required business fields", async () => {
-    mockInquiry();
-    mockAccount();
-
     await expect(persona.businessProfile("reference-id")).resolves.toStrictEqual({
       email: "jane@example.com",
       fields: {
+        auth_user_email: "jane@example.com",
         business_name: "Account Acme",
-        collected_email_address: "jane@example.com",
         company_description: "Account software",
       },
       name: "Account Acme",
@@ -1001,33 +1016,46 @@ describe("businessProfile", () => {
   });
 
   it("prefers an account field over an inquiry field", async () => {
-    mockInquiry({ fields: { "company-description": { value: "Inquiry software" } } });
-    mockAccount();
+    inquiries[Persona.BUSINESS_TEMPLATE] = inquiry({
+      fields: { "company-description": { value: "Inquiry software" } },
+    });
 
-    const { fields } = await persona.businessProfile("reference-id");
-
-    expect(fields.company_description).toBe("Account software");
+    await expect(persona.businessProfile("reference-id")).resolves.toMatchObject({
+      fields: { company_description: "Account software" },
+    });
   });
 
   it("falls back to a normalized inquiry field when the account field is blank", async () => {
-    mockInquiry({ fields: { "company-description": { value: "Inquiry software" } } });
-    mockAccount({ fields: { ...businessFields, company_description: { value: "" } } });
+    inquiries[Persona.BUSINESS_TEMPLATE] = inquiry({
+      fields: { "company-description": { value: "Inquiry software" } },
+    });
+    accounts = [account({ fields: { ...businessFields, company_description: { value: "" } } })];
 
-    const { fields } = await persona.businessProfile("reference-id");
+    await expect(persona.businessProfile("reference-id")).resolves.toMatchObject({
+      fields: { company_description: "Inquiry software" },
+    });
+  });
 
-    expect(fields.company_description).toBe("Inquiry software");
+  it("prefers a representative field over a business inquiry field", async () => {
+    inquiries[Persona.BUSINESS_TEMPLATE] = inquiry({ fields: { "birth-date": { value: "1980-01-01" } } });
+    inquiries[Persona.REPRESENTATIVE_TEMPLATE] = inquiry({
+      id: "representative-id",
+      fields: { "auth-user-email": { value: "jane@example.com" }, "birth-date": { value: "1990-01-01" } },
+    });
+
+    await expect(persona.businessProfile("reference-id")).resolves.toMatchObject({
+      fields: { birth_date: "1990-01-01" },
+    });
   });
 
   it("trims a padded required field", async () => {
-    mockInquiry();
-    mockAccount({ fields: { ...businessFields, business_name: { value: " Account Acme " } } });
+    accounts = [account({ fields: { ...businessFields, business_name: { value: " Account Acme " } } })];
 
     await expect(persona.businessProfile("reference-id")).resolves.toMatchObject({ name: "Account Acme" });
   });
 
   it("rejects a missing inquiry", async () => {
-    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
-    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+    inquiries[Persona.BUSINESS_TEMPLATE] = undefined;
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "business inquiry not started",
@@ -1036,7 +1064,7 @@ describe("businessProfile", () => {
   });
 
   it("rejects a mismatched inquiry reference id", async () => {
-    mockInquiry({ referenceId: "other-reference-id" });
+    inquiries[Persona.BUSINESS_TEMPLATE] = inquiry({ referenceId: "other-reference-id" });
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "business inquiry does not match credential",
@@ -1052,14 +1080,72 @@ describe("businessProfile", () => {
     ["declined", "business inquiry failed", "bad kyb"],
     ["needs_review", "business inquiry is not complete", "processing"],
   ] as const)("rejects a %s inquiry", async (status, message, code) => {
-    mockInquiry({ status });
+    inquiries[Persona.BUSINESS_TEMPLATE] = inquiry({ status });
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({ message, code });
   });
 
+  describe.each([
+    ["terms", Persona.TERMS_TEMPLATE],
+    ["representative", Persona.REPRESENTATIVE_TEMPLATE],
+  ] as const)("%s inquiry", (pending, templateId) => {
+    it("returns the pending step without an inquiry", async () => {
+      inquiries[templateId] = undefined;
+
+      await expect(persona.businessProfile("reference-id")).resolves.toStrictEqual({
+        pending,
+        templateId,
+        inquiryId: undefined,
+      });
+      expect(fetchSpy.mock.calls.map(([input]) => input)).not.toContainEqual(expect.stringContaining("/accounts?"));
+    });
+
+    it.each(["created", "expired", "pending"] as const)(
+      "returns the pending step with a %s inquiry",
+      async (status) => {
+        inquiries[templateId] = inquiry({ id: `${pending}-id`, status });
+
+        await expect(persona.businessProfile("reference-id")).resolves.toStrictEqual({
+          pending,
+          templateId,
+          inquiryId: `${pending}-id`,
+        });
+      },
+    );
+
+    it.each([
+      ["failed", `${pending} inquiry failed`, "bad kyb"],
+      ["declined", `${pending} inquiry failed`, "bad kyb"],
+      ["needs_review", `${pending} inquiry is not complete`, "processing"],
+    ] as const)("rejects a %s inquiry", async (status, message, code) => {
+      inquiries[templateId] = inquiry({ status });
+
+      await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({ message, code });
+    });
+
+    it("rejects a mismatched inquiry reference id", async () => {
+      inquiries[templateId] = inquiry({ referenceId: "other-reference-id" });
+
+      await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+        message: `${pending} inquiry does not match credential`,
+        code: "bad request",
+      });
+    });
+  });
+
+  it("returns the terms step before the representative step", async () => {
+    inquiries[Persona.TERMS_TEMPLATE] = undefined;
+    inquiries[Persona.REPRESENTATIVE_TEMPLATE] = undefined;
+
+    await expect(persona.businessProfile("reference-id")).resolves.toStrictEqual({
+      pending: "terms",
+      templateId: Persona.TERMS_TEMPLATE,
+      inquiryId: undefined,
+    });
+  });
+
   it("rejects a missing business account", async () => {
-    mockInquiry();
-    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+    accounts = [];
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "business account not started",
@@ -1068,19 +1154,11 @@ describe("businessProfile", () => {
   });
 
   it("rejects a business account without fields", async () => {
-    mockInquiry();
-    fetchSpy.mockResolvedValueOnce(
-      Response.json({
-        data: [
-          {
-            id: "account-id",
-            type: "account",
-            attributes: { "reference-id": "reference-id" },
-            relationships: { "account-type": { data: { id: Persona.BUSINESS_ACCOUNT_TYPE_ID } } },
-          },
-        ],
-      }),
-    );
+    accounts = [{ ...account(), attributes: { "reference-id": "reference-id" } }];
+    inquiries[Persona.REPRESENTATIVE_TEMPLATE] = {
+      ...inquiry({ id: "representative-id" }),
+      attributes: { status: "approved", "reference-id": "reference-id" },
+    };
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "business account is not complete",
@@ -1089,8 +1167,7 @@ describe("businessProfile", () => {
   });
 
   it("rejects a mismatched business account", async () => {
-    mockInquiry();
-    mockAccount({ referenceId: "other-reference-id" });
+    accounts = [account({ referenceId: "other-reference-id" })];
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "business account is not complete",
@@ -1098,9 +1175,17 @@ describe("businessProfile", () => {
     });
   });
 
-  it.each([["business_name"], ["collected_email_address"]] as const)("rejects a missing %s", async (name) => {
-    mockInquiry();
-    mockAccount({ fields: { ...businessFields, [name]: { value: "" } } });
+  it("rejects a missing business_name", async () => {
+    accounts = [account({ fields: { ...businessFields, business_name: { value: "" } } })];
+
+    await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
+      message: "business account is not complete",
+      code: "processing",
+    });
+  });
+
+  it("rejects a missing representative email", async () => {
+    inquiries[Persona.REPRESENTATIVE_TEMPLATE] = inquiry({ id: "representative-id" });
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "business account is not complete",
@@ -1109,8 +1194,7 @@ describe("businessProfile", () => {
   });
 
   it("rejects a business field with the wrong type", async () => {
-    mockInquiry();
-    mockAccount({ fields: { ...businessFields, business_name: { value: 123 } } });
+    accounts = [account({ fields: { ...businessFields, business_name: { value: 123 } } })];
 
     await expect(persona.businessProfile("reference-id")).rejects.toMatchObject({
       message: "invalid business Persona fields",

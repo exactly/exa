@@ -45,6 +45,8 @@ export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspe
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
 export const BUSINESS_TEMPLATE = "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE";
+export const REPRESENTATIVE_TEMPLATE = "itmpl_AWN3X1Rf5Qg7tHSAsT6toxZbCGenVo";
+export const TERMS_TEMPLATE = "itmpl_AWN3X1RFC36VkwnvPJzMF26DUMwmjV";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
 export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
@@ -114,7 +116,11 @@ export default function persona(key: string, url: string) {
     );
   }
   async function businessProfile(referenceId: string) {
-    const inquiry = await getInquiry(referenceId, BUSINESS_TEMPLATE);
+    const [inquiry, terms, representative] = await Promise.all(
+      [BUSINESS_TEMPLATE, TERMS_TEMPLATE, REPRESENTATIVE_TEMPLATE].map((templateId) =>
+        getInquiry(referenceId, templateId),
+      ),
+    );
     if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started");
     if (inquiry.attributes["reference-id"] !== referenceId)
       throw new BusinessApplicationError("business inquiry does not match credential", "bad request");
@@ -132,18 +138,39 @@ export default function persona(key: string, url: string) {
       case "approved":
         break;
     }
+    for (const [pending, templateId, step] of [
+      ["terms", TERMS_TEMPLATE, terms],
+      ["representative", REPRESENTATIVE_TEMPLATE, representative],
+    ] as const) {
+      if (step && step.attributes["reference-id"] !== referenceId)
+        throw new BusinessApplicationError(`${pending} inquiry does not match credential`, "bad request");
+      switch (step?.attributes.status) {
+        case "failed":
+        case "declined":
+          throw new BusinessApplicationError(`${pending} inquiry failed`, "bad kyb");
+        case "needs_review":
+          throw new BusinessApplicationError(`${pending} inquiry is not complete`, "processing");
+        case "completed":
+        case "approved":
+          continue;
+        default:
+          return { pending, templateId, inquiryId: step?.id };
+      }
+    }
     const account = await getAccount(referenceId, "business");
     if (!account) throw new BusinessApplicationError("business account not started", "not started");
     if (account.attributes["reference-id"] !== referenceId)
       throw new BusinessApplicationError("business account is not complete", "processing");
     const merged = { ...account.attributes.fields };
-    for (const [inquiryName, inquiryField] of Object.entries(inquiry.attributes.fields ?? {})) {
-      const name = inquiryName.replaceAll("-", "_");
-      if (is(blank, merged[name]) && !is(blank, inquiryField)) merged[name] = inquiryField;
+    for (const fields of [representative?.attributes.fields, inquiry.attributes.fields]) {
+      for (const [inquiryName, inquiryField] of Object.entries(fields ?? {})) {
+        const name = inquiryName.replaceAll("-", "_");
+        if (is(blank, merged[name]) && !is(blank, inquiryField)) merged[name] = inquiryField;
+      }
     }
-    const { business_name, collected_email_address } = requireFields(BusinessProfileFields, merged);
+    const { auth_user_email, business_name } = requireFields(BusinessProfileFields, merged);
     return {
-      email: collected_email_address,
+      email: auth_user_email,
       name: business_name,
       fields: merged,
     };
@@ -588,8 +615,8 @@ const flat = pipe(
 );
 
 const BusinessProfileFields = object({
+  auth_user_email: requiredValue,
   business_name: requiredValue,
-  collected_email_address: requiredValue,
 });
 
 export function requireFields<TSchema extends GenericSchema>(schema: TSchema, input: unknown) {

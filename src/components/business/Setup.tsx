@@ -17,7 +17,7 @@ import Tag from "./Tag";
 import Task from "./Task";
 import { present } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
-import { startBridgeKYB } from "../../utils/persona";
+import { startBridgeKYB, startBusinessKYC } from "../../utils/persona";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { startApplication, startRampOnboarding } from "../../utils/server";
@@ -62,7 +62,17 @@ export default function Setup() {
   }
   const application = useMutation({
     mutationKey: ["kyc", "panda-business"],
-    mutationFn: startApplication,
+    async mutationFn() {
+      let previous: string | undefined;
+      for (;;) {
+        const result = await startApplication();
+        if (result.type !== "persona") return result;
+        if (result.inquiryId === previous) return;
+        previous = result.inquiryId;
+        const { status } = await startBusinessKYC(result);
+        if (status !== "complete") return;
+      }
+    },
     onSuccess: (data) => {
       const uri = kybLink(data);
       if (uri) setHandoff(uri);
