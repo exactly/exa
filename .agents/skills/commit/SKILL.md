@@ -13,7 +13,7 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 
 `<emoji> <scope>: <message>`
 
-- **emoji**: a single, appropriate gitmoji unicode character from the [official list](node_modules/gitmojis/dist/index.mjs) (never `:code:` shortcodes). **only canonical gitmojis from the official list are allowed** — never invent or use emojis not in the list
+- **emoji**: a single, appropriate gitmoji unicode character from the [official list](node_modules/gitmojis/dist/index.mjs) (never `:code:` shortcodes). **only canonical gitmojis from the official list are allowed** — never invent or use emojis not in the list. copy each one exactly, variation selector included (`🚑️`, not `🚑`)
 - **scope**: mandatory, lowercase, from allowed list
 - **message**: lowercase, imperative verb first, concise, no filler words, no trailing punctuation
 
