@@ -2,17 +2,15 @@
 
 ## core philosophy
 
-this codebase will outlive you. every shortcut becomes someone else's burden. every hack compounds into technical debt that slows the whole team down. you are not just writing code. you are shaping the future of this project. the patterns you establish will be copied. the corners you cut will be cut again. fight entropy. leave the codebase better than you found it.
+this codebase will outlive you. every shortcut becomes someone else's burden, and the patterns you leave get copied. fight entropy: leave the code better than you found it.
 
-- **simplicity and clarity**: write code that is easy to read, understand, and maintain. avoid cleverness for its own sake. prefer explicit over implicit.
-- **consistency**: consistency is more important than personal preference. adhere to the established patterns in the codebase.
-- **strictness**: high. follow linter/formatter (eslint, prettier, solhint) strictly. no `any` type.
-- **type safety first**: leverage typescript, valibot, and solidity types to catch errors at compile time, not run time.
-- **automation and tooling**: rely on tools (eslint, prettier, forge fmt, markdownlint) to enforce style. do not argue with the linter.
-- **environment**: zero config local dev. no `.env` files. mock all external services. keys that will be exposed anyway (in builds) are hardcoded as defaults in the code. production secrets are environment variables at runtime only - never in files.
-- **prose style**: **all internal documentation and commit messages must be lowercase**.
-- **diff-friendliness**: diffs matter. avoid adding items at the end of json/array lists (add in the middle or sorted position). trailing commas everywhere. structure code so changes are minimal and reviewable.
-- **obsessive attention to detail**: every line of code, every comment, and every commit message reflects the quality of the project.
+- **simplicity**: code that is easy to read, understand and maintain. no cleverness for its own sake. explicit over implicit.
+- **consistency**: the established patterns win over personal preference.
+- **strictness**: follow eslint, prettier, forge fmt, solhint and markdownlint exactly, and never argue with them. no `any`.
+- **type safety**: catch errors at compile time with typescript, valibot and solidity types.
+- **environment**: zero-config local dev: no `.env` files, every external service mocked. keys that ship in builds anyway are hardcoded defaults. production secrets are runtime environment variables, never files.
+- **diff-friendliness**: diffs get read. add list items in sorted or middle positions, never by appending. trailing commas everywhere. minimal, reviewable changes.
+- **attention to detail**: every line, comment and commit message reflects on the project.
 
 ## aesthetics
 
