@@ -17,6 +17,7 @@ declare const account: string | undefined;
 declare const count: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
+if (count !== undefined && !(Number.isSafeInteger(Number(count)) && Number(count) > 0)) throw new Error("bad count");
 
 const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
 let proposals = pending(account);
