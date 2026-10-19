@@ -1,0 +1,25 @@
+diff --git a/esm/rpc/server.js b/esm/rpc/server.js
+index 9ee2998ec07657268c14adb28bc8ac5b71ab64a6..3f3b55860c71de6bd7be72006b00ff0205ce3e52 100644
+--- a/esm/rpc/server.js
++++ b/esm/rpc/server.js
+@@ -2,7 +2,7 @@ import { ERC7769Errors, RpcError, altoVersions, bundlerRequestSchema, jsonRpcSch
+ import cors from "@fastify/cors";
+ import websocket from "@fastify/websocket";
+ import * as sentry from "@sentry/node";
+-import Fastify from "fastify";
++import Fastify, { LogController } from "fastify";
+ import { toHex } from "viem";
+ import { fromZodError } from "zod-validation-error";
+ import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators.js";
+@@ -46,9 +46,9 @@ export class Server {
+             level: config.rpcLogLevel || config.logLevel
+         });
+         this.fastify = Fastify({
+-            logger: logger, // workaround for https://github.com/fastify/fastify/issues/4960
++            loggerInstance: logger,
+             requestTimeout: config.timeout,
+-            disableRequestLogging: true
++            logController: new LogController({ disableRequestLogging: true })
+         });
+         if (config.enableCors) {
+             this.fastify.register(cors, { origin: true });
