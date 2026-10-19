@@ -35,10 +35,10 @@ code is read far more often than it is written, and ugly code invites more ugly 
 - **barrels**: an `index.ts` re-exports its directory.
 - **by feature**: group by feature, not by type: `src/components/send-funds/Amount.tsx`, not `src/components/inputs/SendAmount.tsx`.
 
-## code formatting
+## formatting
 
-- **maximum compactness**: the project enforces a maximally compact code style. do not introduce line breaks inside objects, arrays, or function arguments voluntarily. let prettier break lines automatically only when a line exceeds `printWidth`.
-- **file ordering**: the top of a file is prime real estate. the default export — the thing the file exists for — goes first. standalone function declarations only exist because they were extracted for reuse or genuine complexity — they are supporting details and belong at the bottom alongside internal constants and types. when multiple declarations exist at the same level, order them by relevance, most important first.
+- **compact**: no voluntary line breaks inside objects, arrays or arguments. prettier breaks lines only past `printWidth`.
+- **file order**: the default export, the reason the file exists, goes first. extracted functions, internal constants and types go at the bottom. declarations at the same level go most important first.
 
 ## comments
 
