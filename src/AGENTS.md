@@ -1,12 +1,3 @@
----
-always_on: false
-alwaysApply: false
-applyTo: "src/**/*"
-globs: "src/**/*"
-paths: ["src/**/*"]
-trigger: glob
----
-
 # mobile app (`app`)
 
 - **stack**: react native, expo, tamagui, tanstack query.
