@@ -93,6 +93,10 @@ extracting a variable and extracting a function are the same impulse: both add i
 - **tasks**: `pnpm nx <target> <project>` (`pnpm nx dev server`), `pnpm nx run-many -t <target>`, `pnpm nx affected -t <target>`. targets come from each `package.json`, plus `test:eslint` from `@nx/eslint/plugin`.
 - **tests**: `pnpm nx run-many -t test` is the whole suite (root `pnpm test` only runs the app's). every ts project has `test:ts` and `test:eslint`; there is no `tsc` or `typecheck` script. the app adds `test:build`, `test:spell`, `test:markdown`, `test:deps` and `test:changeset`; the server `test:vi` and `test:openapi`; contracts `test:fmt`, `test:gas`, `test:solhint`, `test:slither`, `test:coverage` and `test:sizes`. no test needs `.env` files or external services.
 
+## dependencies
+
+- **lockfile**: only dependency changes touch `pnpm-lock.yaml`. check with `pnpm install --frozen-lockfile`: an install that can't fetch github tarballs (sandboxes) rewrites github dependencies to ssh urls that break ci.
+
 ## package rules
 
 package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
