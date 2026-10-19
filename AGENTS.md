@@ -97,6 +97,7 @@ extracting a variable and extracting a function are the same impulse: both add i
 
 - **lockfile**: only dependency changes touch `pnpm-lock.yaml`. check with `pnpm install --frozen-lockfile`: an install that can't fetch github tarballs (sandboxes) rewrites github dependencies to ssh urls that break ci.
 - **patches**: patch a dependency only with the verbatim upstream fix, when nothing cleaner exists, and say why in the commit body.
+- **audit fixes**: surgical `pnpm.overrides`, with the advisory's vulnerable range as the selector and the latest safe version with `^` as the value: `"axios@>=1 <1.20.0": "^1.20.0"`.
 
 ## package rules
 
