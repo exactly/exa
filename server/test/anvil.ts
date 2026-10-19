@@ -7,7 +7,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
-import { concat, encodeAbiParameters, keccak256, padHex, parseAbi, toBytes, toHex, zeroAddress, type Hex } from "viem";
+import { concat, encodeAbiParameters, keccak256, padHex, parseAbi, toBytes, toHex, zeroAddress } from "viem";
 import {
   entryPoint06Address,
   formatUserOperation,
@@ -17,7 +17,7 @@ import {
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
-import { Address } from "@exactly/common/validation";
+import { Address, Hex } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
@@ -144,14 +144,23 @@ export default async function setup() {
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
   ).transactions[1].contractAddress;
 
-  await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = parse(
-    object({
-      transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
+  const { contractAddress: ownerPlugin } = await anvilClient.waitForTransactionReceipt({
+    hash: await anvilClient.sendTransaction({
+      account: deployer,
+      data: parse(
+        object({
+          transactions: tuple([
+            object({ contractName: literal("WebauthnOwnerPlugin"), transaction: object({ input: Hex }) }),
+          ]),
+        }),
+        JSON.parse(
+          await readFile("node_modules/webauthn-owner-plugin/broadcast/Plugin.s.sol/10/run-latest.json", "utf8"),
+        ),
+      ).transactions[0].transaction.input,
     }),
-    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", "utf8")),
-  ).transactions[0].contractAddress;
+  });
+  if (!ownerPlugin) throw new Error("missing owner plugin");
+  shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = ownerPlugin;
 
   await $(shell)`forge script test/mocks/Account.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
