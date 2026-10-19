@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { ComponentProps } from "react";
 import { StyleSheet } from "react-native";
-import { Easing } from "react-native-reanimated";
+import { Easing, useReducedMotion } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -146,6 +146,7 @@ export default function BenefitsSection({
   onStocksPress?: () => void;
 }) {
   const router = useRouter();
+  const reducedMotion = useReducedMotion();
   const { approved: isKYCApproved } = useKYC();
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const redirectURL = `${origin}/add-funds`;
@@ -196,7 +197,7 @@ export default function BenefitsSection({
               width={itemWidth}
               height={160}
               data={benefits}
-              autoPlay
+              autoPlay={!reducedMotion}
               autoPlayInterval={5000}
               withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
               onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}

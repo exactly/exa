@@ -10,6 +10,9 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Discounts on travel insurance
 - assertVisible: Go to Pax Assistance
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [waitForAnimationToEnd, { swipe: { from: Discounts on travel insurance, direction: LEFT } }]
 - repeat:
     while:
       notVisible: Visa Signature Exa Card benefits
