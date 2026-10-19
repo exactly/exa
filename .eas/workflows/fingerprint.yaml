@@ -1,0 +1,46 @@
+name: fingerprint probe
+on: { workflow_dispatch: {} }
+concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
+jobs:
+  android:
+    runs_on: linux-large-nested-virtualization
+    image: latest
+    steps:
+      - uses: eas/checkout
+      - name: start emulator # cspell:ignore avdmanager setsid swiftshader
+        run: |
+          avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
+          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+      - uses: eas/install_maestro
+      - name: build patched maestro
+        run: |
+          src=$(mktemp -d) # cspell:ignore mktemp
+          git -C "$src" init -q && git -C "$src" fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro "$(sed -n 's/^base-commit: //p' patches/maestro.patch)"
+          git -C "$src" checkout -q FETCH_HEAD && git -C "$src" apply "$PWD/patches/maestro.patch"
+          "$src/gradlew" -p "$src" :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
+          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && cp -R "$src/maestro-cli/build/install/maestro/." "$HOME/.maestro/"
+          maestro --version
+      - name: prepare device # cspell:ignore getprop locksettings logcat
+        run: |
+          adb wait-for-device
+          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          adb shell locksettings set-pin 1111
+          adb shell am start -a android.settings.FINGERPRINT_ENROLL
+          adb logcat -v time > emulator.log 2>&1 &
+      - run: maestro test .maestro/fingerprint.yaml
+      - name: probe teardown
+        if: always()
+        run: |
+          adb exec-out screencap -p > final.png || true
+          pkill -f "adb logcat" || true # cspell:ignore pkill screencap
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            final.png
+            emulator.log
+            emulator-process.log
+            ${{ env.HOME }}/.maestro/tests
