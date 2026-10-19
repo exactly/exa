@@ -101,6 +101,7 @@ jobs:
             rm -rf $HOME/.maestro $HOME/.maestro.tmp
             sleep 2
           done
+      - run: curl -fsS https://dl.brave.com/install.sh | sh && echo SE_BROWSER_PATH=/opt/brave.com/brave/brave >> "$GITHUB_ENV"
       - run: echo ::add-matcher::.github/matcher.json
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
