@@ -12,15 +12,14 @@ jobs:
           avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
           printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
           setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -wipe-data > emulator-process.log 2>&1 &
-      - uses: eas/install_maestro
       - name: build patched maestro
         run: |
           src=$(mktemp -d) # cspell:ignore mktemp
           git -C "$src" init -q && git -C "$src" fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro "$(sed -n 's/^base-commit: //p' patches/maestro.patch)"
           git -C "$src" checkout -q FETCH_HEAD && git -C "$src" apply "$PWD/patches/maestro.patch"
           "$src/gradlew" -p "$src" -g "$src/.gradle" :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
-          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && cp -R "$src/maestro-cli/build/install/maestro/." "$HOME/.maestro/"
-          maestro --version
+          mkdir -p "$HOME/.maestro" && cp -R "$src/maestro-cli/build/install/maestro/." "$HOME/.maestro/"
+          "$HOME/.maestro/bin/maestro" --version
       - name: prepare device # cspell:ignore getprop locksettings logcat stayon
         run: |
           adb wait-for-device
@@ -28,7 +27,7 @@ jobs:
           adb shell svc power stayon true
           adb shell locksettings set-pin 1111
           adb logcat -v time > emulator.log 2>&1 &
-      - run: maestro test .maestro/fingerprint.yaml
+      - run: ~/.maestro/bin/maestro test .maestro/fingerprint.yaml
       - name: probe teardown
         if: always()
         run: |
