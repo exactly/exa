@@ -42,20 +42,11 @@ code is read far more often than it is written, and ugly code invites more ugly 
 
 ## comments
 
-this codebase does not use comments. the only exception is static analysis annotations (`@ts-expect-error`, `eslint-disable`, `slither-disable`, `solhint-disable`, `cspell:ignore`) and `TODO`/`HACK`/`FIXME` markers. everything else—jsdoc, explanatory prose, region markers, inline labels—is noise that masks unclear code. if code needs explanation, rewrite it until it doesn't.
+no comments: code that needs one gets rewritten. the only exceptions:
 
-- **static analysis annotations only**: suppress lint/type errors with the tool's disable comment (`eslint-disable-line`, `@ts-expect-error`, `solhint-disable`, etc.) and `cspell:ignore`. always use same-line form; use next-line or block only when the tool has no same-line variant. use `@ts-expect-error` (never `@ts-ignore`). explanations must be brutally concise, lowercase, and use `--` only when required by the tool.
-  - ✅ `console.log("debug"); // eslint-disable-line no-console -- debug output for ci`
-  - ✅ `// @ts-expect-error third-party lib expects wrong type`
-  - ❌ `// @ts-expect-error: incorrect type`
-  - ❌ `// @ts-expect-error - incorrect type`
-- **`cspell:ignore`**: place the annotation on the same line as the unknown word. only add words to `cspell.json` when the term is a real project-relevant word that appears broadly (e.g., a protocol name, a library, a domain term) or when the file format has no comment syntax (json). one-off occurrences (variable names, company names, urls, hashes, identifiers) stay as inline `cspell:ignore` — never pollute the global dictionary with them.
-  - ✅ `const rpc = "https://satanco.io"; // cspell:ignore satanco`
-  - ❌ adding `satanco` to `cspell.json`
-- **TODO/HACK/FIXME**: use sparingly. uppercase tag, single space, no colon, lowercase explanation.
-  - ✅ `// TODO implement retry logic`
-  - ❌ `// TODO: implement retry logic`
-  - ❌ `// todo: implement retry logic`
+- **static analysis annotations**: same-line form when the tool has one, a lowercase reason, `--` only where the tool requires it: `// eslint-disable-line no-console -- debug output for ci`, `// @ts-expect-error third-party lib expects wrong type` (never `@ts-ignore`).
+- **`cspell:ignore`**: on the line of the word: `const rpc = "https://satanco.io"; // cspell:ignore satanco`. `cspell.json` only takes real project terms used broadly (protocols, libraries, domain words) or words in files without comments (json).
+- **`TODO`, `HACK`, `FIXME`**: sparingly. uppercase tag, one space, no colon, lowercase text: `// TODO implement retry logic`.
 
 ## extraction and abstraction
 
