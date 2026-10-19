@@ -1,72 +1,39 @@
 # server (`server`)
 
-- **stack**: hono, node.js, drizzle orm, postgres.
-- **api**: schema-first (openapi via `hono-openapi`). validation via valibot middleware. always use `satisfies InferOutput<typeof Schema>` on responses for compile-time validation.
-- **validators**: use `hono-openapi/valibot` for api routes with openapi docs. use `@hono/valibot-validator` for internal webhooks/hooks without openapi.
-- **db**: drizzle schema is truth, pushed with `db:push`. database is imported as singleton.
-- **auth**: passkeys/webauthn primary. logic in middleware.
-- **http codes**: use http to the fullest. non-200 codes for expected cases. 500 is fine for situations that shouldn't happen (type guards, etc.).
-- **legacy field**: the `{ code, legacy }` error response pattern is deprecated. new code should omit `legacy`.
+hono on node, drizzle on postgres, valibot validation, openapi generated from the routes.
 
-## api design (hono)
+## api
 
-- **routes as functions**: treat each route as a self-contained unit. handlers may delegate to utility/service functions but should remain the single entry point for their endpoint.
-- **`c.req.valid()` for context**: access validated data (headers, body, params, cookies) via `c.req.valid()`. middleware adds validated data that route handlers consume.
-- **validation with middleware**: all request validation (headers, body, params) must be handled by `@hono/valibot-validator` middleware. no manual validation inside route handlers.
-- **openapi generation**: all routes must use `describeRoute()` with `hono-openapi` to define their openapi specification. essential for automated documentation and client generation.
-- **error handling**: for expected errors, return `c.json({ code: "..." }, status)` with appropriate http status codes. unhandled errors are caught and logged automatically.
+- **schema-first**: every route has `describeRoute()` (`hono-openapi`) and validates its input in middleware: `hono-openapi/valibot` for documented routes, `@hono/valibot-validator` for internal hooks and webhooks. no manual validation in handlers.
+- **validated input**: handlers read headers, body, params and cookies through `c.req.valid()`.
+- **typed responses**: `return c.json({ id, name } satisfies InferOutput<typeof UserResponse>)`.
+- **status codes**: use http fully. expected failures return `c.json({ code: "..." }, status)`, and 500 is for what shouldn't happen (type guards). new code omits the deprecated `legacy` field.
+- **one handler per flow**: a handler owns its endpoint's whole flow, however long (200 lines for one flow is fine). extract only code shared by several routes, or wrappers for remote apis (sardine, panda, persona) with their own auth, retries and error mapping.
+- **layout**: routes in `server/api/`, grouped by `index.ts` and mounted in `server/index.ts`. blockchain events and third-party webhooks in `server/hooks/`. small pure helpers in `server/utils/`.
 
-## database (drizzle orm)
+## database
 
-- **schema-first**: the database schema is defined in `server/database/schema.ts`. this is the single source of truth.
-- **schema changes**: change `server/database/schema.ts` and apply it with `pnpm nx db:push server`. there are no migration files. never edit the database schema manually.
-- **query syntax**: use the drizzle orm query builder. do not write raw sql queries unless absolutely unavoidable.
-- **relations**: define relations explicitly in the schema file. this enables typed query results with related entities.
-- **database client**: import the singleton client directly (`import database from "../database"`).
+- `server/database/schema.ts` is the truth, relations included. change it and apply it with `pnpm nx db:push server`. there are no migration files, and the schema is never edited by hand.
+- the drizzle query builder, raw sql only when unavoidable.
+- import the singleton (`import database from "../database"`), never open connections in handlers.
 
-## authentication & authorization
+## auth
 
-- **middleware-driven**: all auth logic must be implemented in hono middleware.
-- **session data**: access the authenticated session via `c.req.valid("cookie").credentialId`. routes fetch additional user data from the database as needed.
-- **passkeys first**: the primary authentication mechanism is webauthn/passkeys.
+- passkeys first. auth lives in middleware, and handlers read the session from `c.req.valid("cookie").credentialId`, loading the rest from the database.
 
-## code structure
+## runtime
 
-- **api routes**: all api route definitions are in `server/api/`. use `index.ts` to group related routes into a single hono app instance, mounted in `server/index.ts`.
-- **hooks**: `server/hooks/` contains logic for responding to external events (blockchain events, third-party webhooks).
-- **utils**: `server/utils/` contains shared utility functions. keep these small, pure, and well-defined.
+- environment variables come from `node:env` and are validated at import time, so a missing one fails at startup, not on first use.
+- no long synchronous work on the event loop.
 
-## linting
+## tests
 
-the server's eslint configuration enforces:
+- `pnpm nx test:vi server` runs vitest with coverage. tests live in `server/test/`, one file per route or module, related assertions in one `describe`.
+- **full branch coverage** of every new or changed line: each `if`/`else`, ternary, `??`, `||`, `&&`, early return and `catch` gets a test. check the coverage report before committing.
+- **assert everything observable**: status, body, database state, headers and error codes, with `toStrictEqual` over `toMatchObject`.
+- **assert monitoring**: `captureException` calls with their exact fingerprints, levels and context, external service spies (notifications, risk, analytics), span names, ops and attributes. untested tracking is broken tracking.
+- **assert the negative**: `not.toHaveBeenCalled()` on everything that must stay silent.
 
-- **`plugin:n/recommended`**: best practices for node.js development.
-- **`plugin:drizzle/all`**: drizzle orm best practices, such as requiring `where` clauses for `update` and `delete` operations.
+## commands
 
-## handler size & extraction
-
-- **colocation is preferred**: handlers can be as long as needed for a single flow. all logic for a flow lives together - easier to reason about, debug, and maintain.
-- **when to extract**: extract to utility functions only when (1) code is shared by multiple routes, or (2) wrapping remote APIs (sardine, panda, persona, etc.) which have their own auth, retry logic, and error mapping.
-- **avoid premature abstraction**: do not extract code just because a handler is "big." a 200-line handler for a single cohesive flow is fine.
-
-## prohibited patterns
-
-- **database instantiation**: do not create new database connections in route handlers. use the singleton client.
-- **environment variables at runtime**: import from `node:env` and validate at import time. if a required variable is missing, throw immediately. this ensures the app fails fast on startup, not at runtime when the variable is first accessed.
-- **blocking the event loop**: avoid long-running synchronous operations. use `async/await` correctly and be mindful of cpu-intensive tasks.
-
-## testing
-
-- **branch coverage requirement**: every new or changed line of server code must have 100% branch coverage in the vitest suite. every `if/else`, ternary, `??`, `||`, `&&`, early return, and `catch` path must be exercised by a test. no exceptions.
-- **run tests**: `pnpm nx test:vi server`. coverage is collected automatically via `@vitest/coverage-v8`.
-- **verify before committing**: after writing or modifying tests, confirm that the coverage report shows no uncovered branches in the affected files. use `pnpm nx test:vi server` and inspect the output.
-- **test structure**: tests live in `server/test/`. each test file targets a specific route or module. colocate related assertions in a single `describe` block.
-- **what to test**: test every conditional outcome — success paths, expected error codes, validation rejections, edge cases, and fallback branches. if a handler returns different responses based on a condition, each branch gets its own test case.
-- **assert aggressively**: every test must assert as much observable behavior as possible — response status, response body, database state, headers, and error codes. a test that only checks one field when five are available is incomplete. prefer `toStrictEqual` over `toMatchObject` to catch unexpected extra fields or missing properties.
-- **assert on monitoring and tracking**: always verify observability side effects. assert `captureException` calls with their exact fingerprints, severity levels, and context objects. assert calls to external service spies (notifications, risk scoring, analytics). assert span/trace metadata (`name`, `op`, `attributes`). monitoring behavior is production behavior — untested tracking is broken tracking.
-- **assert the negative**: explicitly verify that things that should not happen did not happen. assert `not.toHaveBeenCalled()` on spies that must stay silent in a given scenario — no unexpected exceptions captured, no notifications sent, no side effects triggered. a test that only asserts what happened is half a test.
-
-## development workflow
-
-- **start dev server**: `pnpm nx dev server` (uses `tsx` for hot-reload).
-- **api generation**: `pnpm nx generate:openapi server` to update the openapi spec.
+- `pnpm nx dev server` (hot reload with `tsx`), `pnpm nx generate:openapi server` to update the openapi spec.
