@@ -1,12 +1,3 @@
----
-always_on: false
-alwaysApply: false
-applyTo: "docs/**/*"
-globs: "docs/**/*"
-paths: ["docs/**/*"]
-trigger: glob
----
-
 # documentation (`docs`)
 
 - **stack**: astro, starlight theme.
