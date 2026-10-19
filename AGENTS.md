@@ -99,6 +99,11 @@ extracting a variable and extracting a function are the same impulse: both add i
 - **patches**: patch a dependency only with the verbatim upstream fix, when nothing cleaner exists, and say why in the commit body.
 - **audit fixes**: surgical `pnpm.overrides`, with the advisory's vulnerable range as the selector and the latest safe version with `^` as the value: `"axios@>=1 <1.20.0": "^1.20.0"`.
 
+## git
+
+- **commits** go through the commit skill (`.agents/skills/commit/`): gitmoji, signed, one logical change each.
+- **linear history**: rebase, never merge, on your own branches. main only takes rebased, signed, linear history.
+
 ## package rules
 
 package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
