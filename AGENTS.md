@@ -34,6 +34,8 @@ code is read far more often than it is written, and ugly code invites more ugly 
 - **colocation**: a component's tests, hooks and types live next to it.
 - **barrels**: an `index.ts` re-exports its directory.
 - **by feature**: group by feature, not by type: `src/components/send-funds/Amount.tsx`, not `src/components/inputs/SendAmount.tsx`.
+- **no binaries**: never commit `png`, `jpeg`, `gif` or large `svg` files. diagrams are code (mermaid).
+- **hands off**: never edit generated directories (`src/generated/`, `server/generated/`, `contracts/broadcast/`, `contracts/cache/`) or ignored files (`node_modules`, `.expo`, `dist`, `.env*`).
 
 ## formatting
 
@@ -83,64 +85,13 @@ extracting a variable and extracting a function are the same impulse: both add i
 - `|` for multi-line scripts, `>` rarely. omit null values.
 - anchors only when duplication becomes a burden, with descriptive names (`&aaSDK`).
 
-## development environment
+## development
 
-### philosophy
-
-- **developer experience is paramount**: the project is designed to work out-of-the-box with no environment variables for local development. use mock services and sensible defaults.
-- **strict automation**: rely on `pnpm nx` for task orchestration. all setup, testing, and generation is automated through nx targets.
-- **monorepo integrity**: all commands must run from the repository root. never operate from within a sub-directory. never use `npm` or `yarn`.
-
-### initial setup
-
-- **to install dependencies**: run `pnpm install`. this automatically triggers `prepare` for all packages, which handles code generation (`wagmi`) and versioning. no further setup needed.
-
-### workspace structure & commands
-
-- **monorepo packages**: the project is a `pnpm` workspace with the following packages:
-  - `.` (root): the react native mobile app (`@exactly/mobile`).
-  - `server`: the node.js backend api (`@exactly/server`).
-  - `contracts`: the solidity smart contracts (`@exactly/plugin`).
-  - `common`: shared utilities (`@exactly/common`).
-  - `docs`: astro-based documentation (`@exactly/docs`).
-  - `infra`: pulumi gcp infrastructure (`@exactly/infra`).
-  - `.maestro`: end-to-end test scripts (`@exactly/e2e`).
-- **running tasks**: always use `pnpm nx` — never bare `nx`, `npx`, or `pnpm --filter`.
-  - `pnpm nx <target> <project>` — run a target for one project (e.g., `pnpm nx dev server`)
-  - `pnpm nx run-many -t <target>` — run across all projects
-  - `pnpm nx affected -t <target>` — run for affected projects only
-- **nx integration**: the workspace extends `nx/presets/npm.json`, which infers targets from package.json scripts. the `@nx/eslint/plugin` auto-injects `test:eslint` for all projects. nx provides caching, dependency management, and parallel execution.
-- **never use**:
-  - ❌ `nx test server` — bare `nx` may not resolve; always prefix with `pnpm`
-  - ❌ `npx eslint .` — use `pnpm eslint .` for direct binaries
-  - ❌ `pnpm --filter server test` — bypasses nx caching and task orchestration
-  - ❌ `pnpm tsc`, `npx tsc`, `pnpm typecheck` — nonexistent targets; use `pnpm nx test:ts <project>`
-
-### testing
-
-- **run all workspace tests**: `pnpm nx run-many -t test`. this is the authoritative command.
-- **run tests for one project**: `pnpm nx test <project>` (e.g., `pnpm nx test server`).
-- **run a specific test target**: `pnpm nx <target> <project>` (e.g., `pnpm nx test:ts server`, `pnpm nx test:vi server`).
-- **note**: `pnpm test` at the root only runs `mobile:test`, not all workspace tests. always use `pnpm nx run-many -t test` for the full suite.
-- **environment**: all tests run without `.env` files or external services.
-
-**test targets** (`test:ts` and `test:eslint` exist in all ts projects):
-
-- **workspace-wide** (defined in root/mobile): `test:spell`, `test:markdown`, `test:deps`, `test:changeset`
-- **mobile**: `test:build`
-- **server**: `test:vi`, `test:openapi`
-- **contracts**: `test:fmt`, `test:gas`, `test:solhint`, `test:slither`, `test:coverage`, `test:sizes`
-
-### file management
-
-- **no binary files**: never commit `png`, `jpeg`, `gif`, or large `svg` files.
-- **prefer generated diagrams**: use mermaid, plantuml, or other code-based diagramming tools.
-- **generated directories**: do not manually edit files in these directories:
-  - `src/generated/`
-  - `server/generated/`
-  - `contracts/broadcast/`
-  - `contracts/cache/`
-- **ignored files**: do not interact with standard ignored files like `node_modules`, `.expo`, `dist`, or `.env*`.
+- **pnpm and nx only**: run everything from the repository root through `pnpm nx`. never bare `nx`, `npx`, `npm`, `yarn` or `pnpm --filter` (it bypasses nx caching). binaries without a target run through pnpm: `pnpm eslint .`.
+- **setup**: `pnpm install` runs every package's `prepare`, which generates code (wagmi) and versions. no environment variables, nothing else to set up.
+- **packages**: `.` the react native app (`@exactly/mobile`), `server` the api (`@exactly/server`), `contracts` (`@exactly/plugin`), `common` shared code (`@exactly/common`), `docs` the astro site (`@exactly/docs`), `infra` pulumi on gcp (`@exactly/infra`), `.maestro` e2e flows (`@exactly/e2e`).
+- **tasks**: `pnpm nx <target> <project>` (`pnpm nx dev server`), `pnpm nx run-many -t <target>`, `pnpm nx affected -t <target>`. targets come from each `package.json`, plus `test:eslint` from `@nx/eslint/plugin`.
+- **tests**: `pnpm nx run-many -t test` is the whole suite (root `pnpm test` only runs the app's). every ts project has `test:ts` and `test:eslint`; there is no `tsc` or `typecheck` script. the app adds `test:build`, `test:spell`, `test:markdown`, `test:deps` and `test:changeset`; the server `test:vi` and `test:openapi`; contracts `test:fmt`, `test:gas`, `test:solhint`, `test:slither`, `test:coverage` and `test:sizes`. no test needs `.env` files or external services.
 
 ## package rules
 
