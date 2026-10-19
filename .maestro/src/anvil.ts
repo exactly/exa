@@ -1,6 +1,9 @@
 import {
   decodeFunctionResult,
+  deploylessCallViaBytecodeBytecode,
+  encodeDeployData,
   encodeFunctionData,
+  parseAbi,
   type Abi,
   type Address,
   type BlockIdentifier,
@@ -26,12 +29,23 @@ export function readContract<
   functionName extends ContractFunctionName<abi, "pure" | "view">,
   const args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
 >(parameters: ReadContractParameters<abi, functionName, args>): ReadContractReturnType<abi, functionName, args> {
-  const { address, functionName, abi, args } = parameters as ReadContractParameters;
+  const { address, code, functionName, abi, args } = parameters as ReadContractParameters & { code?: Hex };
+  const data = encodeFunctionData({ functionName, args, abi });
   return decodeFunctionResult({
     functionName,
     args,
     abi,
-    data: anvil("eth_call", [{ to: address, data: encodeFunctionData({ functionName, args, abi }) }]),
+    data: anvil("eth_call", [
+      code
+        ? {
+            data: encodeDeployData({
+              abi: parseAbi(["constructor(bytes, bytes)"]),
+              bytecode: deploylessCallViaBytecodeBytecode,
+              args: [code, data],
+            }),
+          }
+        : { to: address, data },
+    ]),
   }) as ReadContractReturnType<abi, functionName>;
 }
 

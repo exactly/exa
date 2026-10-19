@@ -1,7 +1,13 @@
-import { ethAddress } from "viem";
+import { encodeDeployData, ethAddress } from "viem";
 import { isHex, parseUnits } from "viem/utils";
 
-import { exaPreviewerAbi, exaPreviewerAddress } from "@exactly/common/generated/chain";
+import {
+  auditorAddress,
+  exaPreviewerAbi,
+  exaPreviewerCode,
+  marketUSDCAddress,
+  proposalManagerAddress,
+} from "@exactly/common/generated/chain";
 
 import anvil, { readContract, writeContract } from "../anvil";
 import { activity } from "../server";
@@ -15,7 +21,15 @@ if (!asset) throw new Error("missing asset");
 if (!to || !isHex(to)) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
-const markets = readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi });
+const markets = readContract({
+  code: encodeDeployData({
+    abi: exaPreviewerAbi,
+    bytecode: exaPreviewerCode,
+    args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+  }),
+  functionName: "markets",
+  abi: exaPreviewerAbi,
+});
 const market = markets.find(({ symbol }) => symbol === (asset === "ETH" ? "WETH" : asset));
 if (!market) throw new Error("bad asset");
 
