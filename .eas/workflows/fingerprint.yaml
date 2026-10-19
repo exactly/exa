@@ -18,7 +18,7 @@ jobs:
           src=$(mktemp -d) # cspell:ignore mktemp
           git -C "$src" init -q && git -C "$src" fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro "$(sed -n 's/^base-commit: //p' patches/maestro.patch)"
           git -C "$src" checkout -q FETCH_HEAD && git -C "$src" apply "$PWD/patches/maestro.patch"
-          "$src/gradlew" -p "$src" :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
+          "$src/gradlew" -p "$src" -g "$src/.gradle" :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
           rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && cp -R "$src/maestro-cli/build/install/maestro/." "$HOME/.maestro/"
           maestro --version
       - name: prepare device # cspell:ignore getprop locksettings logcat
