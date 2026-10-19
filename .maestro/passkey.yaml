@@ -7,8 +7,11 @@ appId: app.exactly
 - takeScreenshot: .maestro/screenshots/sheet
 - tapOn: Add Passkey
 - extendedWaitUntil: { visible: Face ID, timeout: 10000 }
-- waitForAnimationToEnd
 - takeScreenshot: .maestro/screenshots/faceid
-- matchBiometrics
+- retry:
+    maxRetries: 3
+    commands:
+      - matchBiometrics
+      - extendedWaitUntil: { notVisible: Face ID, timeout: 5000 }
 - extendedWaitUntil: { visible: "Stay updated|Good (morning|afternoon|evening)!", timeout: 60000 }
 - takeScreenshot: .maestro/screenshots/home
