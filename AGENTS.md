@@ -102,4 +102,4 @@ package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, 
 - **adopt, don't replace**: enforce the conventions here even where you'd prefer another. gitmoji stays; conventional commits don't come in.
 - **rules apply to rules**: everything you write follows these files, edits to these files included.
 - **follow the spirit**: rules state intent, not wording to game. "concise" means front-loaded and free of filler, not a character count.
-- **stop on mcp issues**: any mcp error, misbehavior, or unreachable server is a full stop — ask the user how to proceed. do not retry silently, fall back to another tool, or improvise a workaround.
+- **mcp servers**: repair what you can on your own (retry, restart the server, use the matching cli such as `pnpm nx` or `maestro`) and keep going. report real problems to the developer right away, with the exact error: a server the task can't do without, expired credentials, a broken config in this repo.
