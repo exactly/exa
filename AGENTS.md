@@ -110,7 +110,7 @@ extracting a variable and extracting a function are the same impulse: both add i
 
 ## package rules
 
-package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
+package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`, `.maestro/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
 
 ## agents
 
