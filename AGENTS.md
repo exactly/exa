@@ -83,8 +83,8 @@ a core principle is specific capitalization for different contexts. this must be
 - **colocation**: place related files together. for a component, this means `component.tsx`, `component.test.tsx`, and any related hooks or types are in the same directory.
 - **`index.ts` barrels**: use `index.ts` files to re-export modules from a directory, simplifying import paths.
 - **feature-based directories**: group files by feature, not by type.
-  - ✅ `src/features/authentication/components/login-button.tsx`
-  - ❌ `src/components/authentication/login-button.tsx`
+  - ✅ `src/components/send-funds/Amount.tsx`
+  - ❌ `src/components/inputs/SendAmount.tsx`
 
 ## code formatting
 
