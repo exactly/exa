@@ -15,7 +15,7 @@
   - **dumb components (ui)**: receive data and callbacks via props. no knowledge of application state. location: `src/components/**`.
 - **props**:
   - keep prop interfaces minimal.
-  - do not pass entire objects if only a few fields are needed. destructure and pass only what's required.
+  - do not pass entire objects if only a few fields are needed. pass only the fields the component uses.
   - for boolean props, the name should indicate the positive condition (e.g., `isActive`, `isLoading`). do not use negative names like `isNotActive`.
 
 ## state management (tanstack query)
