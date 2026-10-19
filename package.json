@@ -326,8 +326,7 @@
       "**/*.{md,mdx}"
     ],
     "ignores": [
-      ".claude/**",
-      ".cursor/**"
+      ".claude/**"
     ]
   },
   "nx": {
