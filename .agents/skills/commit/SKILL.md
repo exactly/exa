@@ -110,6 +110,10 @@ not `🐛 app: fix a crash that happens when a user tries to activate their card
 - ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
 - 🧪 `test_tube` — add a failing test. this is for tdd workflows only. this project does not use it — use ✅ `white_check_mark` instead.
 
+## authorship
+
+commits carry only human authors. an agent commits as the person it works for, as both author and committer, and adds no co-author, generated-by or session trailers. when the machine's git identity is someone else, pass `--author` and set `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL`.
+
 ## commit signing
 
 **all commits must be cryptographically signed.** this is non-negotiable.
