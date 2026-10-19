@@ -369,7 +369,6 @@ if a changeset is needed:
    4. on "retry": run the exact same `git commit -S` command again and go back to step 2
    5. on "abort": stop the workflow entirely — do **not** fall back to an unsigned commit
    6. there is no retry limit — keep looping through warn → ack → retry as long as the developer chooses to retry
-4. do NOT push unless explicitly asked
 
 ## invariants
 
@@ -378,6 +377,5 @@ if a changeset is needed:
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
-- never push without being asked
 - if a pre-commit hook fails, fix the issue and create a NEW commit (still signed with `-S`)
 - the developer always has final say on every choice
