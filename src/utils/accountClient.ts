@@ -55,6 +55,7 @@ import {
   bytesToHex,
   concat,
   concatHex,
+  createClient,
   custom,
   encodeAbiParameters,
   encodeFunctionData,
@@ -69,6 +70,7 @@ import {
   RpcRequestError,
   sliceHex,
   trim,
+  zeroAddress,
   type Address,
   type Call,
   type Chain,
@@ -77,7 +79,7 @@ import {
   type TransactionRequest,
   type Transport,
 } from "viem";
-import { getCallsStatus as viemGetCallsStatus } from "viem/actions";
+import { getCallsStatus as viemGetCallsStatus, sendCalls as viemSendCalls } from "viem/actions";
 import { anvil } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
@@ -318,55 +320,80 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
               ...(alchemyGasPolicyId ? [alchemyGasPolicyId] : []),
             ];
-            if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
-              const uoClient =
-                context && policyId.length > 0
-                  ? createSmartAccountClient({
-                      chain,
-                      transport,
-                      account,
-                      ...alchemyGasManagerMiddleware(policyId, policyToken),
-                      gasEstimator,
-                    })
-                  : client;
-              const { hash } = await uoClient.sendUserOperation({
-                uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
-              });
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
-            }
-            try {
-              return await sendCalls(ownerConfig, {
-                id,
-                chainId: chain.id,
-                calls: [execute],
-                capabilities: {
-                  ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
-                  paymasterService: {
-                    optional: true,
-                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    ...(policyId.length > 0
-                      ? {
-                          context: {
-                            policyId,
-                            ...(policyToken
-                              ? {
-                                  erc20Context: {
-                                    tokenAddress: policyToken.address,
-                                    maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
-                                  },
-                                }
-                              : {}),
-                          },
-                        }
-                      : {}),
+            if (isSiwe() && (await account.isAccountDeployed())) {
+              try {
+                if (getConnection(ownerConfig).chainId !== chain.id)
+                  await switchChain(ownerConfig, { chainId: chain.id });
+                return await sendCalls(ownerConfig, {
+                  id,
+                  chainId: chain.id,
+                  calls: [execute],
+                  capabilities: {
+                    ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
+                    paymasterService: {
+                      optional: true,
+                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                      ...(policyId.length > 0
+                        ? {
+                            context: {
+                              policyId,
+                              ...(policyToken
+                                ? {
+                                    erc20Context: {
+                                      tokenAddress: policyToken.address,
+                                      maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
+                                    },
+                                  }
+                                : {}),
+                            },
+                          }
+                        : {}),
+                    },
                   },
-                },
-              });
-            } catch (error) {
-              if (classifyError(error).authKnown) throw error;
-              // TODO filter errors
-              return fallback(error);
+                });
+              } catch (error) {
+                if (
+                  !(error instanceof BaseError) ||
+                  !(await viemSendCalls(
+                    createClient({
+                      chain,
+                      transport: custom({
+                        request: (args: { method: string }) =>
+                          args.method === "wallet_sendCalls"
+                            ? Promise.reject(error.walk())
+                            : Promise.resolve(numberToHex(chain.id)),
+                      }),
+                    }),
+                    {
+                      account: zeroAddress,
+                      calls: [{ to: zeroAddress }],
+                      experimental_fallback: true,
+                      experimental_fallbackDelay: 0,
+                    },
+                  ).then(
+                    () => true,
+                    () => false,
+                  ))
+                ) {
+                  throw error;
+                }
+                reportError(error, { level: "warning", extra: { cause: error.cause } });
+              }
             }
+            const uoClient =
+              context && policyId.length > 0
+                ? createSmartAccountClient({
+                    chain,
+                    transport,
+                    account,
+                    ...alchemyGasManagerMiddleware(policyId, policyToken),
+                    gasEstimator,
+                  })
+                : client;
+            const { hash } = await uoClient.sendUserOperation({
+              uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
+            });
+            return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
           }
           case "wallet_prepareCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
@@ -540,7 +567,7 @@ function sponsorPolicy(targetChain: Chain) {
 }
 
 function isSiwe() {
-  return queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && !!getConnection(ownerConfig).address;
+  return queryClient.getQueryData<AuthMethod>(["method"]) === "siwe";
 }
 
 const UO_MAGIC_ID = "0x4337433743374337433743374337433743374337433743374337433743374337";
