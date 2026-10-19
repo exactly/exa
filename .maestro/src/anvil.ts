@@ -101,6 +101,7 @@ export default function anvil(method: string, params: readonly unknown[]) {
     body: JSON.stringify({ method, params, jsonrpc: "2.0", id: output.id++ }),
   });
   if (!response.ok) throw new Error(`${response.status} ${response.body}`);
-  const { result } = JSON.parse(response.body) as { result: unknown };
+  const { result, error } = JSON.parse(response.body) as { error?: { message: string }; result: unknown };
+  if (error) throw new Error(error.message);
   return result;
 }
