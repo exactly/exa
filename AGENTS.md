@@ -110,7 +110,7 @@ extracting a variable and extracting a function are the same impulse: both add i
 
 ## nested rules
 
-directory-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`, `.maestro/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
+directory-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`, `.maestro/`, `.github/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
 
 ## agents
 
