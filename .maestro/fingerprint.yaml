@@ -1,20 +1,26 @@
 appId: com.android.settings
 ---
 - enrollBiometrics
-- extendedWaitUntil: { visible: "Re-enter your PIN|Confirm your PIN|Enter your PIN", timeout: 30000 }
+- launchApp
+- scrollUntilVisible: { element: Security }
+- tapOn: Security
+- tapOn: Pixel Imprint
+- tapOn: { id: com.android.settings:id/password_entry }
 - inputText: "1111"
 - pressKey: Enter
 - repeat:
     times: 5
-    while: { notVisible: "I agree|AGREE|Agree" }
+    while: { notVisible: I AGREE }
     commands:
-      - tapOn: { text: "More|MORE", optional: true }
-- tapOn: "I agree|AGREE|Agree"
+      - tapOn: MORE
+- tapOn: I AGREE
+- extendedWaitUntil: { visible: Touch the sensor, timeout: 10000 }
 - takeScreenshot: .maestro/screenshots/sensor
 - repeat:
-    times: 20
-    while: { notVisible: "Fingerprint added" }
+    times: 10
+    while: { notVisible: Fingerprint added }
     commands:
       - matchBiometrics
+      - waitForAnimationToEnd
+- extendedWaitUntil: { visible: Fingerprint added, timeout: 10000 }
 - takeScreenshot: .maestro/screenshots/added
-- assertVisible: Fingerprint added

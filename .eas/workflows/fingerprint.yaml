@@ -21,12 +21,12 @@ jobs:
           "$src/gradlew" -p "$src" -g "$src/.gradle" :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
           rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && cp -R "$src/maestro-cli/build/install/maestro/." "$HOME/.maestro/"
           maestro --version
-      - name: prepare device # cspell:ignore getprop locksettings logcat
+      - name: prepare device # cspell:ignore getprop locksettings logcat stayon
         run: |
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          adb shell svc power stayon true
           adb shell locksettings set-pin 1111
-          adb shell am start -a android.settings.FINGERPRINT_ENROLL
           adb logcat -v time > emulator.log 2>&1 &
       - run: maestro test .maestro/fingerprint.yaml
       - name: probe teardown
