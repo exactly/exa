@@ -112,8 +112,8 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml
-        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
+          CHROME_LOG_FILE=$PWD/chrome.log MAESTRO_OPTS=-Dwebdriver.chrome.logfile=/dev/stderr xvfb-run maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml
+        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e, SE_CHROMEDRIVER: .maestro/chromedriver.ts } # cspell:ignore chromedriver dwebdriver logfile
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
