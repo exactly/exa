@@ -104,6 +104,7 @@ extracting a variable and extracting a function are the same impulse: both add i
 - **commits** go through the commit skill (`.agents/skills/commit/`): gitmoji, signed, one logical change each.
 - **linear history**: rebase, never merge, on your own branches. main only takes rebased, signed, linear history.
 - **review fixes** fold into the commit they fix, keeping its message, and every branch stacked above gets rebased onto the result.
+- **other people's branches** are never rewritten: no rebase, amend or force-push. bring their base in with a merge commit instead.
 
 ## package rules
 
