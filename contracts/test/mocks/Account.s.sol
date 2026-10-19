@@ -8,6 +8,7 @@ import { UpgradeableModularAccount } from "modular-account/src/account/Upgradeab
 import { LibString } from "solady/utils/LibString.sol";
 
 import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factory.s.sol";
+import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
 import { MockPaymaster } from "./MockPaymaster.sol";
@@ -23,6 +24,7 @@ contract DeployAccount is BaseScript {
     vm.setNonce(address(ENTRYPOINT), 1);
     deployCodeTo("EntryPoint.sol:EntryPoint", address(ENTRYPOINT));
     vm.startBroadcast(deployer);
+    new WebauthnOwnerPlugin();
     vm.etch(ACCOUNT_IMPL, address(new UpgradeableModularAccount(ENTRYPOINT)).code);
     vm.label(address(ENTRYPOINT), "EntryPoint");
     vm.label(ACCOUNT_IMPL, "UpgradeableModularAccount");

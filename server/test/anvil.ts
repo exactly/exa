@@ -130,17 +130,15 @@ export default async function setup() {
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
   ).transactions[1].contractAddress;
 
-  await $(shell)`forge script node_modules/webauthn-owner-plugin/script/Plugin.s.sol --sender ${deployer}
+  await $(shell)`forge script test/mocks/Account.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = parse(
     object({
       transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
     }),
-    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Plugin.s.sol/31337/run-latest.json", "utf8")),
+    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
   ).transactions[0].contractAddress;
 
-  await $(shell)`forge script test/mocks/Account.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script test/mocks/ExaBusinessTenant.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
   await $(shell)`forge script script/IssuerChecker.s.sol
