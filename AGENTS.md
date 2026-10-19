@@ -108,9 +108,9 @@ extracting a variable and extracting a function are the same impulse: both add i
 - **validate before pushing**: everything github runs on a push must pass for you first, so nothing ever fails on github before it fails for you. today that is `pnpm install --frozen-lockfile`, `pnpm nx run-many -t test` and the four web e2e flows (see `.github/workflows/test.yaml`).
 - **pushing**: unattended sessions push their own branch once it validates, because their machine is thrown away. attended sessions push when asked. never push to `main` or to someone else's branch.
 
-## package rules
+## nested rules
 
-package-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`, `.maestro/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
+directory-specific guidance lives in nested `AGENTS.md` files (`src/`, `server/`, `contracts/`, `docs/`, `.maestro/`). before changing a file, follow every `AGENTS.md` between it and the repository root.
 
 ## agents
 
