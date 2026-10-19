@@ -220,7 +220,7 @@ launch a general-purpose subagent, or do these steps yourself if the tool has no
 - **formatting mixed with logic** — style/whitespace changes alongside behavioral changes
 - **cross-package changes** — server + client changes are separate commits, separate versions, separate deploys
 - **dependency changes** — additions/updates in `package.json`/`pnpm-lock.yaml` are always their own commit
-- **db schema changes** — migrations or schema modifications are always their own commit, separate from code using the new schema
+- **db schema changes** — `server/database/schema.ts` changes are always their own commit, separate from code using the new schema
 
 coherence signals (fine together):
 
