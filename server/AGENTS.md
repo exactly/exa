@@ -1,12 +1,3 @@
----
-always_on: false
-alwaysApply: false
-applyTo: "server/**/*"
-globs: "server/**/*"
-paths: ["server/**/*"]
-trigger: glob
----
-
 # server (`server`)
 
 - **stack**: hono, node.js, drizzle orm, postgres.
