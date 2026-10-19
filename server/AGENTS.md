@@ -31,6 +31,7 @@ hono on node, drizzle on postgres, valibot validation, openapi generated from th
 - `pnpm nx test:vi server` runs vitest with coverage. tests live in `server/test/`, one file per route or module, related assertions in one `describe`.
 - **shared infra**: every test file shares one postgres, redis and anvil and runs concurrently with the others, as the deployed services share theirs. mock only external apis (persona, panda, sardine, onesignal). the database, queues and chain stay real: no per-test databases, no fake queues, no faked chain state.
 - **own scope**: assertions and cleanup touch only the test's own accounts and jobs. never drain or obliterate a shared queue. stub a chain read only to inject a failure, and only for the test's own account.
+- **receipts**: a chain write in a test waits for its receipt, `await client.waitForTransactionReceipt({ hash: await client.writeContract(...) })`, never viem's `*Sync` actions.
 - **full branch coverage** of every new or changed line: each `if`/`else`, ternary, `??`, `||`, `&&`, early return and `catch` gets a test. check the coverage report before committing.
 - **assert everything observable**: status, body, database state, headers and error codes, with `toStrictEqual` over `toMatchObject`.
 - **assert monitoring**: `captureException` calls with their exact fingerprints, levels and context, external service spies (notifications, risk, analytics), span names, ops and attributes. untested tracking is broken tracking.
