@@ -174,7 +174,7 @@ patchedDependencies:
     hash: ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
     path: patches/@lifi__sdk.patch
   '@pimlico/alto':
-    hash: a8885d7ec2755f7a7302436649579ddef6302e9a536b7799a46ed4db46d342fc
+    hash: 1115c2d17be1bf51f2f93922ce0322e3e975b5dd4b306ae5ee52d4ef9cf9a9e8
     path: patches/@pimlico__alto.patch
   '@tamagui/sheet':
     hash: ca92034306a3cd44d5e953ccf3e4de88a8d930bb1eb1e1c75fde8760254d2f55
@@ -1013,7 +1013,7 @@ importers:
         version: 1.9.0(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.5.4))
       '@pimlico/alto':
         specifier: ^0.0.21
-        version: 0.0.21(patch_hash=a8885d7ec2755f7a7302436649579ddef6302e9a536b7799a46ed4db46d342fc)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        version: 0.0.21(patch_hash=1115c2d17be1bf51f2f93922ce0322e3e975b5dd4b306ae5ee52d4ef9cf9a9e8)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@sentry/cli':
         specifier: ^3.6.2
         version: 3.6.2
@@ -1073,7 +1073,7 @@ importers:
         version: 2.27.0(typescript@5.9.3)(vite@8.3.4(@types/node@25.5.0)(esbuild@0.28.1)(terser@5.46.1)(tsx@4.22.4)(yaml@2.9.0))
       prool:
         specifier: ^0.2.4
-        version: 0.2.4(@pimlico/alto@0.0.21(patch_hash=a8885d7ec2755f7a7302436649579ddef6302e9a536b7799a46ed4db46d342fc)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3)
+        version: 0.2.4(@pimlico/alto@0.0.21(patch_hash=1115c2d17be1bf51f2f93922ce0322e3e975b5dd4b306ae5ee52d4ef9cf9a9e8)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3)
       redis-memory-server:
         specifier: ^0.17.1
         version: 0.17.1
@@ -21342,7 +21342,7 @@ snapshots:
       esquery: 1.7.0
       typescript: 5.9.3
 
-  '@pimlico/alto@0.0.21(patch_hash=a8885d7ec2755f7a7302436649579ddef6302e9a536b7799a46ed4db46d342fc)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@pimlico/alto@0.0.21(patch_hash=1115c2d17be1bf51f2f93922ce0322e3e975b5dd4b306ae5ee52d4ef9cf9a9e8)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@fastify/cors': 11.3.1
       '@fastify/websocket': 11.3.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -32448,7 +32448,7 @@ snapshots:
       kleur: 3.0.3
       sisteransi: 1.0.5
 
-  prool@0.2.4(@pimlico/alto@0.0.21(patch_hash=a8885d7ec2755f7a7302436649579ddef6302e9a536b7799a46ed4db46d342fc)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3):
+  prool@0.2.4(@pimlico/alto@0.0.21(patch_hash=1115c2d17be1bf51f2f93922ce0322e3e975b5dd4b306ae5ee52d4ef9cf9a9e8)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3):
     dependencies:
       change-case: 5.4.4
       eventemitter3: 5.0.4
@@ -32457,7 +32457,7 @@ snapshots:
       http-proxy: 1.18.1(debug@4.4.3)
       tar: 7.5.22
     optionalDependencies:
-      '@pimlico/alto': 0.0.21(patch_hash=a8885d7ec2755f7a7302436649579ddef6302e9a536b7799a46ed4db46d342fc)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@pimlico/alto': 0.0.21(patch_hash=1115c2d17be1bf51f2f93922ce0322e3e975b5dd4b306ae5ee52d4ef9cf9a9e8)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - debug
 
