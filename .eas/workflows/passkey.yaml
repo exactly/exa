@@ -9,12 +9,13 @@ jobs:
     image: latest
     steps:
       - uses: eas/checkout
-      - name: install patched maestro
+      - name: build patched maestro
         run: |
-          token=$(curl -fsSL "https://ghcr.io/token?scope=repository:exactly/exa-maestro:pull" | jq -r .token)
-          layer=$(curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json" "https://ghcr.io/v2/exactly/exa-maestro/manifests/$(git hash-object patches/maestro.patch)" | jq -r ".layers[0].digest")
-          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib"
-          curl -fsSL -H "Authorization: Bearer $token" "https://ghcr.io/v2/exactly/exa-maestro/blobs/$layer" | tar -xz -C "$HOME/.maestro"
+          src="$TMPDIR/maestro"
+          git init -q "$src" && git -C "$src" fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro "$(sed -n 's/^base-commit: //p' patches/maestro.patch)"
+          git -C "$src" checkout -q FETCH_HEAD && git -C "$src" apply "$PWD/patches/maestro.patch"
+          "$src/gradlew" -p "$src" :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
+          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && cp -R "$src/maestro-cli/build/install/maestro/" "$HOME/.maestro/"
           maestro --version
       - uses: eas/download_build
         id: download
