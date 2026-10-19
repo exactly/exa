@@ -32,7 +32,7 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 | eas | expo application services (eas builds, updates, submit) |
 | global | repository-wide changes that don't fit other scopes |
 | e2e | end-to-end tests (`.maestro/`) |
-| agents | agent-related changes (`.agents/`) |
+| agents | agent config (`AGENTS.md` files, `.agents/`) |
 
 config changes use the subproject scope when specific to a subproject (e.g., `server` for server tsconfig). for global config, use the tool/platform name as scope (e.g., `eslint`, `prettier`, `nx`).
 
@@ -207,7 +207,7 @@ determine the scope from staged files:
 - files in `infra/` → `infra`
 - files in `.github/` → `github`
 - files in `.maestro/` → `e2e`
-- files in `.agents/` → `agents`
+- `AGENTS.md` files and `.agents/` → `agents`
 - eas config files (`eas.json`, etc.) → `eas`
 - dependency-only changes → `dependencies`
 - config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
