@@ -7,15 +7,15 @@ description: "MANDATORY for ALL git commits. this skill MUST be invoked before r
 
 # commit
 
-this project uses [gitmoji](https://gitmoji.dev). the conventional commits specification is **not** used.
+this project uses [gitmoji](https://gitmoji.dev), never conventional commits.
 
 ## commit message format
 
 `<emoji> <scope>: <message>`
 
-- **emoji**: a single, appropriate gitmoji unicode character from the [official list](node_modules/gitmojis/dist/index.mjs) (never `:code:` shortcodes). **only canonical gitmojis from the official list are allowed** — never invent or use emojis not in the list. copy each one exactly, variation selector included (`🚑️`, not `🚑`)
-- **scope**: mandatory, lowercase, from allowed list
-- **message**: lowercase, imperative verb first, concise, no filler words, no trailing punctuation
+- **emoji**: one gitmoji from the [official list](node_modules/gitmojis/dist/index.mjs), as its unicode character copied exactly, variation selector included (`🚑️`, not `🚑`). never `:code:` shortcodes, never an emoji outside the list.
+- **scope**: mandatory, from the table below.
+- **message**: lowercase, an imperative verb first and the most important keyword next, since git uis truncate long subjects. no filler words (a, the, for, with), no trailing punctuation. details go in the body.
 
 ### allowed scopes
 
@@ -36,16 +36,6 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 
 - dependency additions and removals take the package that gets or loses them (`➕ app: install @scure/base`).
 - config takes its package's scope (`server` for the server's tsconfig), or the tool's name when it's global (`eslint`, `prettier`, `nx`).
-
-### message style
-
-the start of the commit message is prime real estate. git UIs (github, gitlab, `git log --oneline`) truncate long subjects. front-load the most important information.
-
-- front-load keywords (most important word first)
-- remove filler words (a, the, for, with, etc.)
-- start with an imperative verb (add, fix, implement, update, remove, refactor, etc.)
-- be keyword-driven: details belong in the commit body, not the subject
-- no periods, no capitalization
 
 ### examples
 
@@ -105,11 +95,10 @@ not `🐛 app: fix a crash that happens when a user tries to activate their card
 
 ### gitmoji usage notes
 
-- 🧑‍💻 `technologist` — improve developer experience. always use for ai/agent related changes (skills, rules, prompts, agent config).
-- 🎉 `tada` — begin a project. use only for starting new subprojects.
-- 🚧 `construction` — work in progress. use for features not yet ready. these commits are reworded later via rebase. should never be merged to main.
-- ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
-- 🧪 `test_tube` — add a failing test. this is for tdd workflows only. this project does not use it — use ✅ `white_check_mark` instead.
+- 🧑‍💻 developer experience, and every agent change (rules, skills, prompts).
+- 🎉 only to start a new package.
+- 🚧 work in progress and ⚗️ experiments (debugging, temporary instrumentation) never reach `main`. 🚧 commits get reworded by rebase first.
+- ✅ for tests, never 🧪, which means a failing tdd test.
 
 ## authorship
 
