@@ -3,7 +3,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Payments
 - waitForAnimationToEnd
 - assertVisible: Total outstanding
-- assertVisible: Statements
 - assertVisible:
     text: \$[\s\d,.\xa0]+
     below: Total outstanding

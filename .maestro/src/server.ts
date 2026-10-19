@@ -169,4 +169,47 @@ export function persona(referenceId: string, event = "approved") {
   if (!ok) throw new Error(`${status} ${body}`);
 }
 
+export function purchase(cardId: string, amount: number, merchantName: string) {
+  const id = String(Date.now());
+  const cents = Math.round(amount * 100);
+  const authorizedAt = new Date().toISOString();
+  for (const action of ["created", "completed"] as const) {
+    const payload = JSON.stringify({
+      id: `${id}-${action}`,
+      resource: "transaction",
+      action,
+      body: {
+        id,
+        type: "spend",
+        spend: {
+          amount: cents,
+          authorizedAmount: cents,
+          authorizedAt,
+          cardId,
+          cardType: "virtual",
+          currency: "usd",
+          localAmount: cents,
+          localCurrency: "usd",
+          merchantCategory: "Restaurants",
+          merchantCategoryCode: "5814",
+          merchantCity: "London",
+          merchantCountry: "GB",
+          merchantName,
+          userId: "e2e",
+          status: action === "created" ? "pending" : "completed",
+          ...(action === "completed" && { postedAt: new Date().toISOString() }),
+        },
+      },
+    });
+    const { ok, status, body } = http.post("http://localhost:3000/hooks/panda", {
+      headers: {
+        "content-type": "application/json",
+        signature: bytesToHex(hmac(sha256, utf8ToBytes("panda"), utf8ToBytes(payload))),
+      },
+      body: payload,
+    });
+    if (!ok) throw new Error(`${status} ${body}`);
+  }
+}
+
 export const keeper = publicKeyToAddress(toHex(secp256k1.getPublicKey(keccak256(toBytes("e2e.ts"), "bytes"), false)));
