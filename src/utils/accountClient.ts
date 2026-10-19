@@ -44,7 +44,6 @@ import {
   getConnection,
   getConnectorClient,
   sendCalls,
-  sendTransaction,
   signMessage,
   switchChain,
   waitForCallsStatus,
@@ -58,7 +57,6 @@ import {
   concatHex,
   custom,
   encodeAbiParameters,
-  encodeFunctionData,
   encodePacked,
   ethAddress,
   hashMessage,
@@ -66,10 +64,15 @@ import {
   hexToNumber,
   isHex,
   maxUint256,
+  MethodNotFoundRpcError,
+  MethodNotSupportedRpcError,
   numberToHex,
   RpcRequestError,
   sliceHex,
   trim,
+  UnsupportedChainIdError,
+  UnsupportedNonOptionalCapabilityError,
+  UnsupportedProviderMethodError,
   type Address,
   type Call,
   type Chain,
@@ -250,72 +253,78 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
               ...(alchemyGasPolicyId ? [alchemyGasPolicyId] : []),
             ];
-            if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
-              const uoClient =
-                context && policyId.length > 0
-                  ? createSmartAccountClient({
-                      chain,
-                      transport,
-                      account,
-                      ...alchemyGasManagerMiddleware(policyId, policyToken),
-                      gasEstimator,
-                    })
-                  : client;
-              const { hash } = await sendUserOperation(uoClient, {
-                uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
-              });
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
-            }
-            const execute = {
-              to: accountAddress,
-              functionName: "executeBatch",
-              args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
-              abi: upgradeableModularAccountAbi,
-            } as const;
-            try {
-              return await sendCalls(ownerConfig, {
-                id,
-                chainId: chain.id,
-                calls: [execute],
-                capabilities: {
-                  ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
-                  paymasterService: {
-                    optional: true,
-                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    ...(policyId.length > 0
-                      ? {
-                          context: {
-                            policyId,
-                            ...(policyToken
-                              ? {
-                                  erc20Context: {
-                                    tokenAddress: policyToken.address,
-                                    maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
-                                  },
-                                }
-                              : {}),
-                          },
-                        }
-                      : {}),
+            if (isSiwe() && (await account.isAccountDeployed())) {
+              try {
+                if (getConnection(ownerConfig).chainId !== chain.id)
+                  await switchChain(ownerConfig, { chainId: chain.id });
+                return await sendCalls(ownerConfig, {
+                  id,
+                  chainId: chain.id,
+                  calls: [
+                    {
+                      to: accountAddress,
+                      functionName: "executeBatch",
+                      args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
+                      abi: upgradeableModularAccountAbi,
+                    },
+                  ],
+                  capabilities: {
+                    ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
+                    paymasterService: {
+                      optional: true,
+                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                      ...(policyId.length > 0
+                        ? {
+                            context: {
+                              policyId,
+                              ...(policyToken
+                                ? {
+                                    erc20Context: {
+                                      tokenAddress: policyToken.address,
+                                      maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
+                                    },
+                                  }
+                                : {}),
+                            },
+                          }
+                        : {}),
+                    },
                   },
-                },
-              });
-            } catch (error) {
-              if (classifyError(error).authKnown) throw error;
-              reportError(error, {
-                level: "warning",
-                extra: error instanceof Error ? { cause: error.cause } : undefined,
-              });
-              // TODO filter errors
-              await switchChain(ownerConfig, { chainId: chain.id });
-              const hash = await sendTransaction(ownerConfig, {
-                to: accountAddress,
-                data: encodeFunctionData(execute),
-                chainId: chain.id,
-                ...(suffix ? { dataSuffix: suffix } : {}),
-              });
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
+                });
+              } catch (error) {
+                if (
+                  !(error instanceof BaseError) ||
+                  !error.walk(
+                    (cause) =>
+                      typeof cause === "object" &&
+                      cause !== null &&
+                      "code" in cause &&
+                      (cause.code === MethodNotFoundRpcError.code ||
+                        cause.code === MethodNotSupportedRpcError.code ||
+                        cause.code === UnsupportedProviderMethodError.code ||
+                        cause.code === UnsupportedNonOptionalCapabilityError.code ||
+                        cause.code === UnsupportedChainIdError.code),
+                  )
+                ) {
+                  throw error;
+                }
+                reportError(error, { level: "warning", extra: { cause: error.cause } });
+              }
             }
+            const uoClient =
+              context && policyId.length > 0
+                ? createSmartAccountClient({
+                    chain,
+                    transport,
+                    account,
+                    ...alchemyGasManagerMiddleware(policyId, policyToken),
+                    gasEstimator,
+                  })
+                : client;
+            const { hash } = await sendUserOperation(uoClient, {
+              uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
+            });
+            return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
           }
           case "wallet_prepareCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
@@ -511,7 +520,7 @@ function sponsorPolicy(targetChain: Chain) {
 }
 
 function isSiwe() {
-  return queryClient.getQueryData<AuthMethod>(["method"]) === "siwe" && !!getConnection(ownerConfig).address;
+  return queryClient.getQueryData<AuthMethod>(["method"]) === "siwe";
 }
 
 const UO_MAGIC_ID = "0x4337433743374337433743374337433743374337433743374337433743374337";
