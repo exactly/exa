@@ -28,27 +28,12 @@ code is read far more often than it is written, and ugly code invites more ugly 
 - **user-facing docs** (`docs/`): sentence case.
 - **changesets**: an imperative present-tense sentence, like `implement x feature for y`.
 
-## file naming
+## files
 
-- **directories**: always `kebab-case`.
-- **route files**: public expo router routes use `kebab-case`.
-- **all other files**: named identically to their `default` export.
-- **multiple exports**: use `camelCase`, with a strong preference for a single word.
-  - ✅ `src/components/user-profile/` (directory)
-  - ✅ `app/(app)/add-funds.tsx` (route)
-  - ✅ `UserProfile.tsx` (for `export default function UserProfile`)
-  - ✅ `useUserProfile.ts` (for `export default function useUserProfile`)
-  - ✅ `colors.ts` (for `export const red = ...; export const blue = ...;`)
-  - ❌ `src/components/UserProfile/` (directory)
-  - ❌ `Colors.ts` (for a file with multiple exports)
-
-## file structure
-
-- **colocation**: place related files together. for a component, this means `component.tsx`, `component.test.tsx`, and any related hooks or types are in the same directory.
-- **`index.ts` barrels**: use `index.ts` files to re-export modules from a directory, simplifying import paths.
-- **feature-based directories**: group files by feature, not by type.
-  - ✅ `src/components/send-funds/Amount.tsx`
-  - ❌ `src/components/inputs/SendAmount.tsx`
+- **names**: directories and public expo router routes are `kebab-case` (`src/components/send-funds/`, `src/app/(main)/add-funds/add-crypto.tsx`). other files take their default export's name (`SendFunds.tsx`, `useAuth.ts`). files with several exports get a `camelCase` name, preferably one word (`currencies.ts`).
+- **colocation**: a component's tests, hooks and types live next to it.
+- **barrels**: an `index.ts` re-exports its directory.
+- **by feature**: group by feature, not by type: `src/components/send-funds/Amount.tsx`, not `src/components/inputs/SendAmount.tsx`.
 
 ## code formatting
 
