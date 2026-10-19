@@ -375,7 +375,7 @@ if a changeset is needed:
 - **gitmoji selection is always interactive in attended sessions** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping this step or choosing on behalf of the developer is a workflow violation
 - **message selection is always interactive in attended sessions** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use `AskUserQuestion` or any selection widget** — output all 9 as a plain numbered list in a regular text message
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
-- never amend a previous commit unless the developer explicitly requests it
+- never amend a previous commit unless the developer explicitly requests it, or to fold a review fix into the commit it fixes (root `AGENTS.md`)
 - never skip git hooks (no `--no-verify`)
 - if a pre-commit hook fails, fix the issue and create a NEW commit (still signed with `-S`)
 - the developer always has final say on every choice
