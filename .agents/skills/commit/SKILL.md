@@ -26,6 +26,7 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 | contracts | solidity smart contracts (`@exactly/plugin`) |
 | common | shared utilities (`@exactly/common`) |
 | docs | documentation-only changes |
+| infra | pulumi infrastructure (`@exactly/infra`) |
 | dependencies | dependency changes |
 | github | github actions or ci workflows |
 | eas | expo application services (eas builds, updates, submit) |
@@ -201,6 +202,7 @@ determine the scope from staged files:
 - files in `contracts/` → `contracts`
 - files in `common/` → `common`
 - files in `docs/` → `docs`
+- files in `infra/` → `infra`
 - files in `.github/` → `github`
 - files in `.maestro/` → `e2e`
 - files in `.agents/` → `agents`
