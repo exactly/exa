@@ -27,7 +27,7 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 | common | shared utilities (`@exactly/common`) |
 | docs | documentation-only changes |
 | infra | pulumi infrastructure (`@exactly/infra`) |
-| dependencies | dependency changes |
+| dependencies | dependency upgrades, pins and audit fixes |
 | github | github actions or ci workflows |
 | eas | expo application services (eas builds, updates, submit) |
 | global | repository-wide changes that don't fit other scopes |
@@ -209,7 +209,8 @@ determine the scope from staged files:
 - files in `.maestro/` → `e2e`
 - `AGENTS.md` files and `.agents/` → `agents`
 - eas config files (`eas.json`, etc.) → `eas`
-- dependency-only changes → `dependencies`
+- dependency additions and removals → the package that gets or loses them (`➕ app: install @scure/base`)
+- dependency upgrades, pins and audit fixes → `dependencies` (`⬆️ dependencies: upgrade vulnerable shell-quote and sharp`)
 - config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
 - everything else → `global`
 
