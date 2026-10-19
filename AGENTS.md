@@ -1,5 +1,3 @@
-<!-- markdownlint-disable MD025 -->
-
 # context: project rules & conventions
 
 ## core philosophy
