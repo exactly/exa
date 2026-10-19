@@ -4,7 +4,7 @@
 - **custom errors**: use `error MyError();` instead of require strings. prefer parameterless errors for gas savings, but add context parameters (`error Unauthorized(address caller)`) when genuinely useful for debugging.
 - **security**: checks-effects-interactions pattern mandatory. use `nonReentrant` selectively for high-risk functions (external calls in loops, complex control flow).
 - **formatting**: named mappings required `mapping(address user => uint256 balance)`.
-- **testing**: fuzzing required for inputs. gas snapshots mandatory. test function naming: `test_[function]_[scenario]()`.
+- **testing**: fuzzing required for inputs. gas snapshots mandatory. test function naming: `test_function_outcome[_whenCondition]()`, `testFork_` for fork tests.
 - **natspec**: minimal - `@title`, `@author`, `@inheritdoc`. code should be self-documenting.
 
 ## key files
@@ -45,7 +45,7 @@ contracts are automatically formatted by `forge fmt` and linted by `solhint`. th
 ## foundry & testing
 
 - **test file naming**: test files must end with `.t.sol` and mirror the contract name (e.g., `ExaPlugin.sol` -> `ExaPlugin.t.sol`).
-- **test function naming**: test functions must start with `test`. use descriptive names (e.g., `test_revert_when_caller_is_not_owner()`).
+- **test function naming**: test functions must start with `test`. use descriptive names (e.g., `test_collect_reverts_whenProposalsLeaveNoLiquidity()`).
 - **fuzz testing**: use fuzz testing extensively for functions with numerical or address inputs. same `test_` prefix as regular tests.
 - **gas snapshots**: always run `pnpm nx snapshot contracts` after changes and commit the resulting `.gas-snapshot` file. failing to do so breaks `test:gas`.
 - **`vm.prank`**: use `vm.prank` to simulate calls from different addresses. avoid changing `msg.sender` through other means.
