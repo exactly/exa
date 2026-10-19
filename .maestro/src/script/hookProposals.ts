@@ -28,7 +28,11 @@ anvil("anvil_mine", [1, Number(proposalDelay)]);
 const fromBlock = anvil("eth_blockNumber", []);
 block(account, proposals);
 
-for (const deadline = Date.now() + 30_000; pending(account).length > 0; ) {
+for (
+  const deadline = Date.now() + 30_000;
+  readContract({ address: proposalManagerAddress, functionName: "nonces", args: [account], abi: proposalManagerAbi }) <
+  (proposals[0]?.nonce ?? 0n) + BigInt(proposals.length);
+) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
 }
 const toBlock = anvil("eth_blockNumber", []);
