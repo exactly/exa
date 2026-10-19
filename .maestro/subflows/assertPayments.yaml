@@ -3,7 +3,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Payments
 - waitForAnimationToEnd
 - assertVisible: Total outstanding
-- assertVisible: Statements
 - assertVisible:
     text: \$[\s\d,.\xa0]+
     below: Total outstanding
@@ -25,5 +24,20 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: tapAria.yaml, env: { aria: Payment info } }
 - assertVisible: You can repay early and save on interest. The final amount updates automatically before you confirm.
 - tapOn: Close
+- tapOn: View statement
+- tapOn: Export
+- tapOn: { text: Copy as plain text, waitToSettleTimeoutMs: 0 }
+- runFlow: { when: { platform: web }, commands: [{ assertVisible: Copied! }] }
+- tapOn: Export
+- tapOn: { text: Copy as a table, waitToSettleTimeoutMs: 0 }
+- runFlow: { when: { platform: web }, commands: [{ assertVisible: Copied! }] }
+- runFlow:
+    when: { platform: web }
+    commands:
+      - tapOn: Export
+      - evalScript: ${output.downloadStart = Date.now()}
+      - tapOn: Download PDF
+      - assertTrue: '${http.get("http://localhost:3000/e2e/download?since=" + output.downloadStart).ok}'
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
 - waitForAnimationToEnd

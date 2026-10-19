@@ -7,5 +7,24 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runFlow: ../subflows/verifyIdentity.yaml
+- tapOn: Card
+- tapOn: Card details
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
+- tapOn: Accept and enable card
+- assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
+- tapOn: Close
+- tapOn: Home
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Later in 1, center: true } }
+- tapOn: Later in 1
+- tapOn: { text: Close, below: How installment repayment works }
+- tapOn: Tap here to change the number of installments
+- tapOn: { text: "3", below: Set installments }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Coffee Shop, amount: "90", installments: "3", credentialId: "${output.credential}" }
+- runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
 - runFlow: ../subflows/credit.yaml
+- runFlow: ../subflows/assertHistory.yaml
 - runFlow: ../subflows/storeCoverage.yaml

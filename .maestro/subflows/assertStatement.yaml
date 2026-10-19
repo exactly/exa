@@ -1,0 +1,21 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- assertTrue: ${merchant}
+- tapOn: Payments
+- assertVisible: Total outstanding
+- tapOn: View statement
+- assertVisible: Statement
+- assertVisible: ${merchant}.*
+- assertVisible: Installment 1 of 3
+- copyTextFrom: { text: '\$[\s\d,.\xa0]+', rightOf: Installment 1 of 3 }
+- assertVisible: { text: "${maestro.copiedText}", rightOf: Total due }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- tapOn: { text: '[A-Z][a-z]{2} \d{1,2}, \d{2}', below: Upcoming payments, index: 0 }
+- runFlow: { file: tapAria.yaml, env: { aria: Breakdown } }
+- assertVisible: Summary
+- assertVisible: { text: Total due, below: Summary }
+- tapOn: { text: View statement, index: 1 }
+- assertVisible: ${merchant}.*
+- assertVisible: Installment 2 of 3
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
