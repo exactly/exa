@@ -23,6 +23,32 @@ index 9ee2998ec07657268c14adb28bc8ac5b71ab64a6..3f3b55860c71de6bd7be72006b00ff02
          });
          if (config.enableCors) {
              this.fastify.register(cors, { origin: true });
+diff --git a/esm/rpc/validation/BundlerCollectorTracerV06.js b/esm/rpc/validation/BundlerCollectorTracerV06.js
+index e4cac0bd40c10fab7f306e9f87f7e08dab1f134f..01d27b330508129d484e45e3b2800479ef87a58d 100644
+--- a/esm/rpc/validation/BundlerCollectorTracerV06.js
++++ b/esm/rpc/validation/BundlerCollectorTracerV06.js
+@@ -170,7 +170,7 @@ export function bundlerCollectorTracer() {
+                 const addrHex = toHex(address);
+                 const addressInt = Number.parseInt(addrHex);
+                 // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)
+-                return addressInt > 0 && addressInt < 10;
++                return (addressInt > 0 && addressInt < 10) || addressInt === 256;
+             };
+             // [OP-041]
+             if (opcode.match(/^(EXT.*|CALL|CALLCODE|DELEGATECALL|STATICCALL)$/) != null) {
+diff --git a/esm/rpc/validation/BundlerCollectorTracerV07.js b/esm/rpc/validation/BundlerCollectorTracerV07.js
+index 611e2e27d040c9e59aecd8c943540ba2e0b12a06..c8b5f1d463c3b632401730375d4caa97dc88e14f 100644
+--- a/esm/rpc/validation/BundlerCollectorTracerV07.js
++++ b/esm/rpc/validation/BundlerCollectorTracerV07.js
+@@ -169,7 +169,7 @@ export function bundlerCollectorTracer() {
+                 const addrHex = toHex(address);
+                 const addressInt = Number.parseInt(addrHex);
+                 // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)
+-                return addressInt > 0 && addressInt < 10;
++                return (addressInt > 0 && addressInt < 10) || addressInt === 256;
+             };
+             // [OP-041]
+             if (opcode.match(/^(EXT.*|CALL|CALLCODE|DELEGATECALL|STATICCALL)$/) != null) {
 diff --git a/esm/rpc/validation/SafeValidator.js b/esm/rpc/validation/SafeValidator.js
 index cbf1bf88c897409f156083f26e75d28909d97dd1..0a08f7472f40c335daa922bd771b1b329faa0d10 100644
 --- a/esm/rpc/validation/SafeValidator.js
