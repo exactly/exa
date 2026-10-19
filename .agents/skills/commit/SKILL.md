@@ -106,20 +106,9 @@ commits carry only human authors. an agent commits as the person it works for, a
 
 ## commit signing
 
-**all commits must be cryptographically signed.** this is non-negotiable.
+every commit is signed: always `git commit -S`, never `--no-gpg-sign`, never an unsigned fallback.
 
-- always pass `-S` to `git commit`
-- never use `--no-gpg-sign`
-- never fall back to an unsigned commit under any circumstance
-
-### handling signing failures
-
-signing may fail due to key agent timeouts (e.g., gpg-agent passphrase cache expired, ssh-agent locked, hardware key like yubikey not touched in time). when this happens:
-
-1. **warn the developer**: explain that signing failed (include the error output) and that the commit was not created
-2. **ask for acknowledgment**: ask whether to retry or abort. do not retry silently. in an unattended session nobody can unlock the key: stop and report the error instead of looping
-3. **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
-4. **repeat if needed**: if signing fails again, go back to step 1. never give up on signing. never strip `-S` to work around the failure
+when signing fails (an expired gpg-agent cache, a locked ssh-agent, a hardware key not touched in time), the commit doesn't exist. show the error, suggest unlocking the key, ask whether to retry or abort, and retry the exact same command for as long as the developer wants. never retry silently or drop `-S`. unattended, nobody can unlock the key: stop and report the error.
 
 ## changeset format
 
@@ -321,27 +310,16 @@ if a changeset is needed:
 
 #### step 8: signed commit
 
-**every commit must be signed.** the commit message format is `<emoji> <scope>: <message>` — do NOT reuse the changeset description (which omits scope). the commit message chosen in step 6 already has the correct format.
+stage the changeset, if any, and commit in one command, with the message from step 6 (not the changeset description, which has no scope):
 
-1. stage the changeset (if created in step 7) and commit in a single command:
+```bash
+git add .changeset/<name>.md && git commit -S -m "$(cat <<'EOF'
+<emoji> <scope>: <message>
+EOF
+)"
+```
 
-   ```bash
-   git add .changeset/<name>.md && git commit -S -m "$(cat <<'EOF'
-   <emoji> <scope>: <message>
-   EOF
-   )"
-   ```
-
-   if no changeset was created, omit the `git add` portion and run only the `git commit -S` command.
-
-2. **if signing succeeds**: show the result to the developer. done.
-3. **if signing fails** (exit code non-zero and stderr mentions signing, gpg, ssh, key, timeout, agent, or passphrase):
-   1. show the full error output
-   2. warn the developer that the commit was **not created** because signing failed — suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
-   3. ask the developer to retry or abort (unattended: stop here and report)
-   4. on "retry": run the exact same `git commit -S` command again and go back to step 2
-   5. on "abort": stop the workflow entirely — do **not** fall back to an unsigned commit
-   6. there is no retry limit — keep looping through warn → ack → retry as long as the developer chooses to retry
+show the result to the developer. if signing fails, follow "commit signing" above.
 
 ## invariants
 
