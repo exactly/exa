@@ -36,6 +36,7 @@ serve({
         const options = capabilities?.["goog:chromeOptions"];
         if (!options) continue;
         if (browserPath) options.binary ??= browserPath;
+        options.args = [...(options.args ?? []), "--ignore-certificate-errors"];
       }
       const response = await post("/session", request);
       if (!response.ok) return response;

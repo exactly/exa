@@ -1,4 +1,4 @@
-url: http://localhost:8081
+url: "${APP_ID ?? 'http://localhost:8081'}"
 ---
 - runFlow:
     file: ../credit.yaml
