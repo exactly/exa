@@ -12,13 +12,19 @@
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.22",
+    "@hono/node-server": "catalog:",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
+    "@types/selenium-webdriver": "^4.35.7",
+    "@types/ws": "^8.18.2",
     "esbuild": "^0.28.1",
     "eslint": "catalog:",
     "fast-text-encoding": "^1.0.6",
+    "hono": "catalog:",
+    "selenium-webdriver": "~4.51.0",
     "typescript": "catalog:",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "ws": "^8.22.0"
   },
   "nx": {
     "projectType": "library",
