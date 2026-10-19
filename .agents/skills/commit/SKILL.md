@@ -128,6 +128,8 @@ when a consumer of a versioned package could notice the change: app users (`@exa
 
 none for tests, mocks and snapshots (✅, 🤡, 📸), type-only changes (🏷️), pure refactors (♻️) or unversioned scopes (`github`, `eas`, `global`, `e2e`, `agents`, `dependencies`). for a refactor, ask: if it introduced a bug, would a user want to know which version started it? if so, add one.
 
+a branch that touches any package (the app is the repository root) needs at least one changeset, or `test:changeset` fails. when nothing needs a release, add an empty one with `pnpm changeset add --empty`.
+
 ## workflow
 
 execute these steps in order. in an attended session the developer makes every decision — never auto-commit.
