@@ -136,57 +136,28 @@ execute these steps in order. in an attended session the developer makes every d
 
 in an unattended session (nobody can answer, or the developer delegated the picks) you make the decisions: split incoherent changes into separate commits, pick the gitmoji and the message following the examples, commit, and report each commit's picks with it.
 
-the workflow is split into a **prep phase** (runs in a subagent, when the tool has them, to keep the diff out of the main context) and an **interactive phase** (runs in the main agent for user-facing choices).
+steps 1 to 4 run in a general-purpose subagent when the tool has one, so the diff stays out of the main context, and it returns only the summary from step 4. steps 5 to 8 run in the main agent, with the developer.
 
-### prep phase (subagent)
+### step 1: staging
 
-launch a general-purpose subagent, or do these steps yourself if the tool has none. instruct it to perform steps 1–4 below and return **only** the compact summary described in step 4. the subagent must NOT return the full gitmoji list or the full diff — only the summary.
+run `git status` (never `-uall`) and `git diff --staged --stat`. if something is staged, use it. otherwise read `git diff` and judge coherence hunk by hunk, since one file can hold several intents:
 
-#### step 1: smart staging
+- **coherent**, staged without asking: every change serves one intent, like a feature with its tests in one package, a change with its changeset, one mechanical refactor across files (a rename, an import path, a signature) or config the change strictly needs.
+- **incoherent**, ask the developer how to split, naming the groups you found: changes that would take different gitmojis, drive-by formatting or typo fixes, unrelated fixes even in one file, formatting mixed with logic, several packages (separate versions and deploys), dependency changes (`package.json`, `pnpm-lock.yaml`), and schema changes (`server/database/schema.ts`) apart from the code using them. stage only what they confirm.
 
-1. run `git status` (never use `-uall`) and `git diff --staged --stat`
-2. if files are already staged, show the staged summary and proceed to step 2
-3. if nothing is staged, run `git diff` to read the full unstaged diff and evaluate **coherence** before staging:
+stage precisely, never `git add -A` or `git add .`: `git add <file>` when every hunk in it belongs to the commit, otherwise only its hunks (a patch through `git apply --cached`).
 
-**auto-stage** (no question needed) when all changes form one coherent unit of work — every change is necessary for or directly caused by the same single intent.
+### step 2: analysis
 
-**ask the developer** when the diff contains incoherent changes. incoherence signals:
+read `git diff --staged`: which packages changed, what changed semantically, and whether consumers could notice.
 
-- **different gitmojis** — part of the diff is a fix and another part is a feature
-- **drive-by changes** — formatting, typo fixes, import cleanup in files unrelated to the main change
-- **independent functional changes** — two unrelated fixes, or a fix + an unrelated improvement, even in the same file
-- **formatting mixed with logic** — style/whitespace changes alongside behavioral changes
-- **cross-package changes** — server + client changes are separate commits, separate versions, separate deploys
-- **dependency changes** — additions/updates in `package.json`/`pnpm-lock.yaml` are always their own commit
-- **db schema changes** — `server/database/schema.ts` changes are always their own commit, separate from code using the new schema
+### step 3: scope
 
-coherence signals (fine together):
+resolve it from the staged files with the scope table. files in several scopes mean several commits; if the developer still wants one, they pick the scope.
 
-- feature code + its tests within the same package
-- implementation + its changeset
-- a mechanical refactor applying the same transformation across files (e.g., renaming a symbol, updating an import path, changing a function signature)
-- config changes within the same package strictly required by the feature
+### step 4: summary
 
-coherence must be evaluated at the **hunk level**, not the file level — a single file can contain hunks belonging to different intents. working on multiple changes simultaneously and authoring commits separately is normal workflow.
-
-when asking, explain which groups of changes were detected and suggest how to split them. stage only what the developer confirms.
-
-staging must always be granular (never `git add -A` or `git add .`). when all hunks in a file belong to the same intent, `git add <file>` is acceptable. when a file contains hunks for different intents, stage individual hunks programmatically (e.g., generate a patch for the relevant hunks and apply with `git apply --cached`).
-
-#### step 2: analyze the diff
-
-1. run `git diff --staged` to read the full staged diff
-2. identify: which packages are affected, what changed semantically, whether the change is user-facing
-
-#### step 3: scope resolution
-
-resolve the scope from the staged files with the scope table. if files span several scopes, suggest splitting into separate commits. if the developer prefers a single commit, let them pick the primary scope.
-
-#### step 4: suggest gitmojis and return summary
-
-1. read the full gitmoji list from `node_modules/gitmojis/dist/index.mjs`
-2. select all possibly relevant gitmojis for the change — be extensive, no count limit
-3. return **only** this compact summary (nothing else):
+read the gitmoji list (`node_modules/gitmojis/dist/index.mjs`), pick every possibly relevant gitmoji, and return only this, never the diff or the whole list:
 
 ```text
 scope: <resolved scope>
@@ -197,37 +168,13 @@ gitmojis:
 - ...
 ```
 
-do NOT return the full diff, the full gitmoji list, or any other verbose output.
+### step 5: gitmoji
 
-### interactive phase (main agent)
+mandatory and interactive: the developer chooses, even when only one gitmoji fits. present the suggestions with the best selection tool available (a picker, a multi-select prompt) or as a numbered list, one option per line, `<emoji> <name>` with a short reason, scannable in five seconds. the developer may pick 1 or 2. append `*` to the label of any emoji with a zero-width joiner or a variation selector (🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*), since terminals often draw them as two glyphs, and only then add `(* may display as two emojis — it's one)` to the question. wait for the answer.
 
-the main agent receives the compact summary and continues with the developer.
+### step 6: message
 
-#### step 5: gitmoji selection
-
-**this step is mandatory and interactive.** the developer must explicitly choose the gitmoji — never auto-select, never skip, never pick "the obvious one" on the developer's behalf. even if only one gitmoji seems to fit, present the options and wait for a response.
-
-present the suggested gitmojis using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
-
-- **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., `AskUserQuestion`, a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
-- **allow multi-select** (1 or 2 gitmojis) — enable multi-select in the tool if supported, or instruct the developer to reply with multiple numbers
-- **each option must include**:
-  - **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
-  - **description**: a short argument for why this gitmoji fits the change
-- **question text**: only if at least one option label ends with `*`, append `(* may display as two emojis — it's one)` to the question. if no option has `*`, do NOT include this footnote
-- **scannable formatting** — one option per line, consistent alignment, no walls of text. the developer should be able to scan all options in under 5 seconds
-
-the developer picks 1 or 2 gitmojis. **do not proceed until they respond.**
-
-#### step 6: message options
-
-**this step is mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
-
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use `AskUserQuestion` or any other interactive tool for this step** — `AskUserQuestion` caps at 4 options and most other selection widgets also cap below 9. plain text is the only reliable format.
-
-format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
-
-example (given scope `server` and emoji `🐛`):
+mandatory and interactive: exactly 9 options, numbered, as a plain list in a regular message (selection widgets cap below 9), each `<emoji> <scope>: <message>` with the chosen gitmojis and always the scope:
 
 ```text
 1. 🐛 server: fix statement data edge cases
@@ -235,39 +182,20 @@ example (given scope `server` and emoji `🐛`):
 3. ...
 ```
 
-rules for messages:
+on top of the message rules above:
 
-- **natural prose, not code** — never carry over identifier casing (`camelCase`, `PascalCase`, `snake_case`) from source code. rewrite identifiers as lowercase prose that reads naturally in a sentence. hyphenate compound terms that function as a single modifier:
-  - ✅ `auth endpoint` ❌ `authEndpoint`
-  - ✅ `validator hook` ❌ `validatorHook`
-  - ✅ `session cookie` ❌ `sessionCookie`
-  - ✅ `user profile` ❌ `UserProfile` ❌ `user_profile`
-  - ✅ `rate-limit middleware` ❌ `rateLimitMiddleware`
-- all lowercase, no trailing punctuation
-- start with an imperative verb (add, fix, implement, update, remove, refactor, replace, extract, etc.)
-- front-load keywords — most important word first after the verb
-- prefer single words; use kebab-case only when a compound term is unavoidable
-- remove filler words (a, the, for, with, of, etc.)
-- be keyword-driven — details belong in the commit body, not the subject
-- **concise** — the message (after `<emoji> <scope>:`) should be short. most options 3–5 words, a couple tighter, at most 1–2 slightly longer when extra context genuinely earns its place. if it feels long, cut harder
-- **varied perspectives** — the 9 options must not be synonyms of each other. vary the angle: what was done, what it affects, what problem it solves, what it enables. each option should frame the change differently so the developer has a real choice, not the same sentence said 9 ways
+- identifiers become prose: `auth endpoint`, not `authEndpoint`; `user profile`, not `UserProfile` or `user_profile`. hyphenate compound modifiers (`rate-limit middleware`).
+- prefer single words. most options take 3 to 5 words, a couple fewer, one or two more when the context earns it.
+- every option takes its own angle (what was done, what it affects, what it fixes, what it enables), never 9 synonyms.
+- one scope for all 9 when it's obvious, 2 or 3 across the options in the rare ambiguous case.
 
-if the scope is obvious (one clear scope from the diff), use it for all 9 options. if ambiguous, use 2-3 different scopes across the options, but this is rare.
+the developer picks one or writes their own. wait for the answer.
 
-the developer picks one option (or writes their own). **do not proceed until they respond.**
+### step 7: changeset
 
-#### step 7: changeset decision
+when one is needed (see changeset format), write `.changeset/<adjective>-<animal>-<verb>.md` with the chosen message minus its scope, at `patch`.
 
-determine if a changeset is needed using the rules above.
-
-if a changeset is needed:
-
-1. generate a random changeset filename (`<adj>-<animal>-<verb>.md`)
-2. the changeset description = the commit message without the `<scope>:` prefix (unless developer explicitly requests a different description)
-3. semver level = `patch` (unless explicitly requested otherwise)
-4. write the `.changeset/<name>.md` file
-
-#### step 8: signed commit
+### step 8: signed commit
 
 stage the changeset, if any, and commit in one command, with the message from step 6 (not the changeset description, which has no scope):
 
