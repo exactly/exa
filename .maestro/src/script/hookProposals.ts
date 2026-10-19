@@ -1,7 +1,14 @@
-import { erc20Abi, pad } from "viem";
+import { encodeDeployData, erc20Abi, pad, type Address } from "viem";
 import { getAbiItem, isHex, toEventSelector } from "viem/utils";
 
-import { proposalManagerAbi, proposalManagerAddress } from "@exactly/common/generated/chain";
+import {
+  auditorAddress,
+  exaPreviewerAbi,
+  exaPreviewerCode,
+  marketUSDCAddress,
+  proposalManagerAbi,
+  proposalManagerAddress,
+} from "@exactly/common/generated/chain";
 
 import anvil, { readContract } from "../anvil";
 import { activity, block } from "../server";
@@ -12,35 +19,18 @@ declare const count: string | undefined;
 if (!account || !isHex(account)) throw new Error("bad account");
 
 const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
-const nextNonce = readContract({
-  address: proposalManagerAddress,
-  functionName: "queueNonces",
-  args: [account],
-  abi: proposalManagerAbi,
-});
-const length = Number(count ?? "1");
-const proposals = Array.from({ length }, (_, index) => {
-  const nonce = nextNonce - BigInt(length - index);
-  const [amount, market, , proposalType, data] = readContract({
-    address: proposalManagerAddress,
-    functionName: "proposals",
-    args: [account, nonce],
-    abi: proposalManagerAbi,
-  });
-  return { nonce, amount, market, proposalType, data, unlock: 0n };
-});
+let proposals = pending(account);
+for (const deadline = Date.now() + 30_000; proposals.length < Number(count ?? "1"); proposals = pending(account)) {
+  if (Date.now() >= deadline) throw new Error("timeout waiting for queued proposals");
+}
 
 anvil("anvil_mine", [1, Number(proposalDelay)]);
 const fromBlock = anvil("eth_blockNumber", []);
 block(account, proposals);
 
-const deadline = Date.now() + 30_000;
-while (
-  Date.now() < deadline &&
-  readContract({ address: proposalManagerAddress, functionName: "nonces", args: [account], abi: proposalManagerAbi }) <
-    nextNonce
-);
-if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
+for (const deadline = Date.now() + 30_000; pending(account).length > 0; ) {
+  if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
+}
 const toBlock = anvil("eth_blockNumber", []);
 const logs = anvil("eth_getLogs", [
   {
@@ -52,4 +42,17 @@ const logs = anvil("eth_getLogs", [
 for (const log of logs) {
   const decimals = readContract({ address: log.address, functionName: "decimals", abi: erc20Abi });
   activity(log.address, account, Number(BigInt(log.data)) / 10 ** decimals);
+}
+
+function pending(address: Address) {
+  return readContract({
+    code: encodeDeployData({
+      abi: exaPreviewerAbi,
+      bytecode: exaPreviewerCode,
+      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+    }),
+    functionName: "pendingProposals",
+    args: [address],
+    abi: exaPreviewerAbi,
+  }).map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
 }
