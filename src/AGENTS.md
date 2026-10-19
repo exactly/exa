@@ -27,6 +27,10 @@ react native and expo for ios, android and web, styled with tamagui, with every 
 - routes are the files in `src/app` (expo router), and `_layout.tsx` holds a segment's shared ui and logic.
 - typed routes are on: `router.push("/send-funds")` is checked at compile time, so routes are literals, never concatenated or template strings.
 
+## e2e
+
+- **no e2e-only paths**: e2e tests the app users run. add no `EXPO_PUBLIC_ENV === "e2e"` branches or in-app fakes: test doubles live outside the app, and the existing branches only shrink.
+
 ## native
 
 - **fingerprint**: `runtimeVersion` is the expo fingerprint, and over-the-air updates only reach builds that share it. a moved fingerprint needs a store release, so it moves only on purpose. native code, patched native packages, config plugins and their options and `app.config.ts` all feed it: compare `pnpm fingerprint fingerprint:generate --platform <ios|android> | jq -r .hash` before and after.
