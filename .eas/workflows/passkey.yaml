@@ -11,9 +11,10 @@ jobs:
       - uses: eas/checkout
       - name: install patched maestro
         run: |
-          curl -fsSL "https://github.com/exactly/exa/releases/download/maestro/maestro-$(git hash-object patches/maestro.patch).zip" -o "$TMPDIR/maestro.zip"
-          unzip -q "$TMPDIR/maestro.zip" -d "$TMPDIR"
-          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib" && mv "$TMPDIR/maestro/bin" "$TMPDIR/maestro/lib" "$HOME/.maestro/"
+          token=$(curl -fsSL "https://ghcr.io/token?scope=repository:exactly/exa-maestro:pull" | jq -r .token)
+          layer=$(curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json" "https://ghcr.io/v2/exactly/exa-maestro/manifests/$(git hash-object patches/maestro.patch)" | jq -r ".layers[0].digest")
+          rm -rf "$HOME/.maestro/bin" "$HOME/.maestro/lib"
+          curl -fsSL -H "Authorization: Bearer $token" "https://ghcr.io/v2/exactly/exa-maestro/blobs/$layer" | tar -xz -C "$HOME/.maestro"
           maestro --version
       - uses: eas/download_build
         id: download

@@ -5,24 +5,32 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions: { contents: write }
+    permissions: { contents: read, packages: write }
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
+      - uses: docker/login-action@v4
+        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
       - id: patch
         run: |
+          image="ghcr.io/$GITHUB_REPOSITORY-maestro:$(git hash-object patches/maestro.patch)"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
           echo "base=$(sed -n 's/^base-commit: //p' patches/maestro.patch)" >> "$GITHUB_OUTPUT"
+          docker manifest inspect "$image" > /dev/null || echo "build=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
+        if: steps.patch.outputs.build
         with:
           repository: mobile-dev-inc/Maestro
           ref: "${{ steps.patch.outputs.base }}"
           path: maestro
           persist-credentials: false
-      - run: git -C maestro apply ../patches/maestro.patch
-      - run: ./gradlew :maestro-cli:distZip -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
+      - if: steps.patch.outputs.build
+        run: git -C maestro apply ../patches/maestro.patch
+      - if: steps.patch.outputs.build
+        run: ./gradlew :maestro-cli:distZip -x :maestro-ios-driver:buildIosDriver # cspell:ignore gradlew
         working-directory: maestro
-      - run: |
-          mv maestro/maestro-cli/build/distributions/maestro.zip "maestro-$(git hash-object patches/maestro.patch).zip"
-          gh release view maestro || gh release create maestro --draft --prerelease --title maestro --notes "patched maestro for e2e, one asset per patch hash"
-          gh release upload maestro maestro-*.zip --clobber
-        env: { GH_REPO: "${{ github.repository }}", GH_TOKEN: "${{ github.token }}" }
+      - if: steps.patch.outputs.build
+        run: |
+          unzip -q maestro/maestro-cli/build/distributions/maestro.zip -d dist
+          printf 'FROM scratch\nCOPY . /\n' | docker build --provenance=false -t "$IMAGE" -f - dist/maestro
+          docker push "$IMAGE"
