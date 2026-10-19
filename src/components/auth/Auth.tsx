@@ -57,7 +57,7 @@ export default function Auth() {
 
   const currentItem = pages[activeIndex] ?? pages[0];
   const layout = `${width}:${fontScale}:${i18n.language}`;
-  const [title, setTitle] = useState({ heights: {}, layout, size: 30 });
+  const [title, setTitle] = useState({ heights: {} as Record<string, number>, layout, size: 30 });
   if (title.layout !== layout) setTitle({ heights: {}, layout, size: 30 });
   const [subtitles, setSubtitles] = useState<Record<string, number>>({});
   const [stage, setStage] = useState<number>();
@@ -177,6 +177,8 @@ export default function Auth() {
                       if (nativeEvent.layout.height > title.size * 2.6 * fontScale + 1 && previous.size > 20) {
                         return { ...previous, heights: {}, size: previous.size - 1 };
                       }
+                      if (Math.abs((previous.heights[page.title] ?? 0) - nativeEvent.layout.height) < 1)
+                        return previous;
                       return { ...previous, heights: { ...previous.heights, [page.title]: nativeEvent.layout.height } };
                     });
                   }}
@@ -190,7 +192,7 @@ export default function Auth() {
                 centered
                 fontSize={title.size}
                 lineHeight={title.size * 1.3}
-                height={Math.max(title.size * 2.6 * fontScale, ...Object.values<number>(title.heights))}
+                height={Math.max(title.size * 2.6 * fontScale, ...Object.values(title.heights))}
               >
                 {t(currentItem.title)}
               </Text>
@@ -209,7 +211,11 @@ export default function Auth() {
                   pointerEvents="none"
                   aria-hidden
                   onLayout={({ nativeEvent }) =>
-                    setSubtitles((previous) => ({ ...previous, [page.subtitle]: nativeEvent.layout.height }))
+                    setSubtitles((previous) =>
+                      Math.abs((previous[page.subtitle] ?? 0) - nativeEvent.layout.height) < 1
+                        ? previous
+                        : { ...previous, [page.subtitle]: nativeEvent.layout.height },
+                    )
                   }
                 >
                   {t(page.subtitle, { max: MAX_INSTALLMENTS })}
