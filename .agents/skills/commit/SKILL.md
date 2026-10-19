@@ -3,7 +3,7 @@ name: commit
 description: "MANDATORY for ALL git commits. this skill MUST be invoked before running `git commit` — never commit without it. triggers: /commit, 'commit this', 'commit', 'let's commit', 'save this', or any intent to create a git commit. also triggers when you are about to commit on behalf of the user after completing a task. covers commit messages (gitmoji format), staging, signing, and changeset creation."
 ---
 
-<!-- cspell:ignore uall -->
+<!-- cspell:ignore substreams uall -->
 
 # commit
 
@@ -48,20 +48,59 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 
 ### examples
 
-```bash
-# good — direct and keyword-focused
-🐛 app: fix card activation crash
-✨ server: add user auth endpoint
-🩹 app: mirror session cookie as header in auth flow
-🥅 server: fallback session delivery via response header
-📈 server: fingerprint validator errors by code
-♻️ server: flatten ramp providers response
-🌐 app: add missing translation keys for onboarding
-🍱 app: update card background assets
+every example below is a real commit from this repository. find the row that matches the change and follow its shape.
 
-# bad — verbose and buries context
-🐛 app: fix a crash that happens when a user tries to activate their card
-```
+| change | example |
+| --- | --- |
+| bug users hit | `🐛 app: sign in on the app chain` |
+| small non-critical fix | `🩹 app: fix premature copy toast` |
+| critical hotfix | `🚑️ server: require user verification on authentication` |
+| feature | `✨ server: support multiple frontend origins` |
+| ui | `💄 app: restyle deposit detail rows` |
+| ux | `🚸 app: add market hours notice to swaps` |
+| copy | `💬 app: update onboarding carousel copy` |
+| translations | `🌐 app: add missing translations` |
+| assets | `🍱 app: add ramp assets` |
+| animations | `💫 app: improve carousel transitions` |
+| accessibility | `♿️ app: respect reduced motion in spinner` |
+| performance | `⚡️ app: stream balances per chain` |
+| race condition | `🧵 app: fix onesignal init race condition` |
+| error handling | `🥅 server: retry trace on resource not found` |
+| safety checks | `🦺 server: require keeper role on refund startup` |
+| security | `🔒️ server: restrict bridge access by country` |
+| business rule | `👔 app: extend installments benefit` |
+| feature flag | `🚩 server: restrict miniapp discovery to base` |
+| monitoring | `📈 server: identify hook traces by cloud run service` |
+| refactor | `♻️ app: centralize stock trading hours` |
+| structure, formatting | `🎨 app: sort i18n keys alphabetically` |
+| lint fix | `🚨 app: fix lint warning in swaps` |
+| move, rename | `🚚 server: move openapi spec to generated` |
+| feature removal | `🔥 app: drop support for legacy repay` |
+| package removal | `🔥 substreams: remove package` |
+| dead code | `⚰️ server: remove unused panda detection` |
+| db schema | `🗃️ server: drop passkey counter column` |
+| server tests, race fixes | `✅ server: fix poke mint race` |
+| e2e (always ✅, speedups too) | `✅ e2e: unlock hooked proposals immediately` |
+| mocks | `🤡 server: mock all persona methods for e2e` |
+| github workflows | `👷 github: cache metro transforms` |
+| eas workflows | `👷 eas: speed up e2e workflow` |
+| ci fix | `💚 eas: relax e2e health check timeout` |
+| nx config | `🔧 nx: key builds on generated chain and e2e env` |
+| build scripts, targets | `🔨 nx: set anvil chain id for test targets` |
+| contract scripts | `🔨 contracts: deploy business tenant via createx` |
+| contract config | `🔧 contracts: allowlist btcb on bnb` |
+| add dependency | `➕ app: install @scure/base` |
+| upgrade dependency | `⬆️ app: upgrade tanstack query` |
+| audit fix | `⬆️ dependencies: upgrade vulnerable shell-quote and sharp` |
+| accepted vulnerability | `🔧 dependencies: ignore braces vulnerability` |
+| dependency patch | `🐛 dependencies: patch wagmi-charts cursor gesture` |
+| shared code | `✨ common: export app stack identifier` |
+| infra | `🧱 infra: route crema through production vpc` |
+| docs | `📝 docs: add configuration resources` |
+| ignored files | `🙈 global: ignore nvm config` |
+| agent config | `🧑‍💻 agents: drop tool-specific rule sections` |
+
+not `🐛 app: fix a crash that happens when a user tries to activate their card`: the subject names the change, the body explains it.
 
 ### gitmoji usage notes
 
