@@ -1,3 +1,5 @@
+import "viem/window";
+
 import { Platform } from "react-native";
 
 import { useMutation } from "@tanstack/react-query";
@@ -10,7 +12,6 @@ import {
   numberToHex,
   sliceHex,
   trim,
-  type EIP1193Provider,
   type EIP1193RequestFn,
   type WalletSendCallsParameters,
 } from "viem";
@@ -33,7 +34,7 @@ export default client;
 
 const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
 
-if (client) {
+if (client && !window.ethereum) {
   window.ethereum = {
     request: (async ({ method, params }) => {
       switch (method) {
@@ -102,9 +103,3 @@ export function useSubmitCoverage() {
 }
 
 declare const __coverage__: unknown;
-declare global {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-  interface Window {
-    ethereum: EIP1193Provider;
-  }
-}
