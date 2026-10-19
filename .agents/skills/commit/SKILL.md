@@ -19,22 +19,23 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 
 ### allowed scopes
 
-| scope | meaning |
+| scope | covers |
 | --- | --- |
-| app | react native application (`@exactly/mobile`) |
-| server | backend api (`@exactly/server`) |
-| contracts | solidity smart contracts (`@exactly/plugin`) |
-| common | shared utilities (`@exactly/common`) |
-| docs | documentation-only changes |
-| infra | pulumi infrastructure (`@exactly/infra`) |
-| dependencies | dependency upgrades, pins and audit fixes |
-| github | github actions or ci workflows |
-| eas | expo application services (eas builds, updates, submit) |
-| global | repository-wide changes that don't fit other scopes |
-| e2e | end-to-end tests (`.maestro/`) |
-| agents | agent config (`AGENTS.md` files, `.agents/`) |
+| app | `src/` and root app files (`@exactly/mobile`) |
+| server | `server/` (`@exactly/server`) |
+| contracts | `contracts/` (`@exactly/plugin`) |
+| common | `common/` (`@exactly/common`) |
+| docs | `docs/` (`@exactly/docs`) |
+| infra | `infra/` (`@exactly/infra`) |
+| e2e | `.maestro/` |
+| github | `.github/` |
+| eas | `.eas/`, `eas.json` |
+| agents | `AGENTS.md` files, `.agents/` |
+| dependencies | dependency upgrades, pins and audit fixes (`⬆️ dependencies: upgrade vulnerable shell-quote and sharp`) |
+| global | repository-wide changes that fit no other scope |
 
-config changes use the subproject scope when specific to a subproject (e.g., `server` for server tsconfig). for global config, use the tool/platform name as scope (e.g., `eslint`, `prettier`, `nx`).
+- dependency additions and removals take the package that gets or loses them (`➕ app: install @scure/base`).
+- config takes its package's scope (`server` for the server's tsconfig), or the tool's name when it's global (`eslint`, `prettier`, `nx`).
 
 ### message style
 
@@ -242,24 +243,7 @@ staging must always be granular (never `git add -A` or `git add .`). when all hu
 
 #### step 3: scope resolution
 
-determine the scope from staged files:
-
-- files in `server/` → `server`
-- files in `src/` or root app files → `app`
-- files in `contracts/` → `contracts`
-- files in `common/` → `common`
-- files in `docs/` → `docs`
-- files in `infra/` → `infra`
-- files in `.github/` → `github`
-- files in `.maestro/` → `e2e`
-- `AGENTS.md` files and `.agents/` → `agents`
-- eas config files (`eas.json`, etc.) → `eas`
-- dependency additions and removals → the package that gets or loses them (`➕ app: install @scure/base`)
-- dependency upgrades, pins and audit fixes → `dependencies` (`⬆️ dependencies: upgrade vulnerable shell-quote and sharp`)
-- config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
-- everything else → `global`
-
-if files span multiple scopes, suggest splitting into separate commits. if the developer prefers a single commit, let them pick the primary scope.
+resolve the scope from the staged files with the scope table. if files span several scopes, suggest splitting into separate commits. if the developer prefers a single commit, let them pick the primary scope.
 
 #### step 4: suggest gitmojis and return summary
 
