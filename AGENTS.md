@@ -48,19 +48,15 @@ no comments: code that needs one gets rewritten. the only exceptions:
 - **`cspell:ignore`**: on the line of the word: `const rpc = "https://satanco.io"; // cspell:ignore satanco`. `cspell.json` only takes real project terms used broadly (protocols, libraries, domain words) or words in files without comments (json).
 - **`TODO`, `HACK`, `FIXME`**: sparingly. uppercase tag, one space, no colon, lowercase text: `// TODO implement retry logic`.
 
-## extraction and abstraction
+## extraction
 
-extracting a value into a variable and extracting logic into a function are the same impulse at different scales. both add a layer of indirection. both widen the diff. both are justified only by reuse — never by tidiness, readability theatre, or a desire to name things.
+extracting a variable and extracting a function are the same impulse: both add indirection and widen the diff. only reuse justifies them, never tidiness or naming for its own sake.
 
-- **single-use = inline**: a value consumed once stays at the point of consumption. a function called once stays at the call site. no exceptions for "clarity" — the call site is already clear.
-- **destructuring is extraction**: unpacking fields into named bindings only to pass them individually is a net negative. it duplicates every name and inflates the diff.
-  - ✅ `await db.insert(accounts).values({ id: crypto.randomUUID(), email: c.req.valid("json").email })`
-  - ❌ `const { email } = c.req.valid("json"); await db.insert(accounts).values({ id: crypto.randomUUID(), email })`
-- **two or more uses earn a name**: the threshold for extraction is a second call site. not "it makes the code more readable". not "it documents intent". a second use.
-- **foot-gun encapsulation is the only other exception**: wrap a call only when it has an invariant (a required argument that's easy to forget) that must be enforced project-wide.
-- **prefer raw library apis**: use libraries directly. do not wrap them in project-specific helpers for a single use case.
-  - ✅ calling `queryClient.setQueryData()` directly
-  - ❌ wrapping it in `useSetUserData()` for a single use case
+- **single use stays inline**: a value used once stays where it's used, and a function called once stays at the call site.
+- **destructuring is extraction**: unpacking fields only to pass them on duplicates every name: `db.insert(accounts).values({ id: crypto.randomUUID(), email: c.req.valid("json").email })`, without a `const { email } = c.req.valid("json")` first.
+- **a second use earns a name**: not readability, not documenting intent.
+- **foot-guns**: the only other reason to wrap a call is an easy-to-forget invariant the whole project must keep.
+- **raw library apis**: call `queryClient.setQueryData()` directly instead of wrapping it in a single-use `useSetUserData()`.
 
 ## typescript style guide
 
