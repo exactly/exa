@@ -103,7 +103,7 @@ file: `.changeset/<random-name>.md`
 - **no scope prefix** in changeset description (unlike commit messages)
 - **semver level**: almost always `patch`. use `minor` or `major` only when explicitly requested
 - **description**: a lowercase sentence in the imperative present tense. same as commit message but without `<scope>:` prefix (unless developer explicitly customizes)
-- **publishable packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`)
+- **versioned packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`), docs (`@exactly/docs`), infra (`@exactly/infra`)
 
 ### when a changeset is needed
 
@@ -113,6 +113,8 @@ a changeset is needed when the change has **user-facing impact** — where "user
 - for `server`: anything consuming the api
 - for `common`: any package importing from common
 - for `contracts`: anything interacting with the contracts
+- for `docs`: the reader of the published docs
+- for `infra`: the services running on it
 
 "consumers" includes monitoring, instrumentation, logging, and analytics consumers too. if the change alters what an external analyst would see in dashboards, logs, or error tracking, the changeset is definitely required.
 
@@ -125,7 +127,7 @@ concrete cases that never need a changeset:
 - **tests, mocks, snapshots** (✅, 🧪, 🤡, 📸) — internal quality tooling, invisible to consumers
 - **type-only changes** (🏷️) — no runtime impact, only affects compile time
 - **pure refactors** (♻️) — same inputs, same outputs, different internals
-- **non-publishable scopes** — `docs`, `github`, `eas`, `global`, `e2e`, `agents`, `dependencies` don't produce versioned packages
+- **unversioned scopes** — `github`, `eas`, `global`, `e2e`, `agents`, `dependencies` don't produce versioned packages
 
 the gray area is refactors. most don't need a changeset, but some do. ask: "if this introduces a bug, would a user benefit from knowing this version is where it started?" if yes, add a changeset — it becomes a breadcrumb for future debugging.
 
