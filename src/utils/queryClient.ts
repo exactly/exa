@@ -307,7 +307,6 @@ queryClient.setQueryDefaults<AuthMethod>(["method"], {
   },
 });
 queryClient.setQueryDefaults(["is-owner-available"], {
-  staleTime: Infinity,
   gcTime: Infinity,
   queryFn: isOwnerAvailable,
 });
