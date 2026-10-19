@@ -106,6 +106,7 @@ extracting a variable and extracting a function are the same impulse: both add i
 - **review fixes** fold into the commit they fix, keeping its message, and every branch stacked above gets rebased onto the result.
 - **other people's branches** are never rewritten: no rebase, amend or force-push. bring their base in with a merge commit instead.
 - **validate before pushing**: everything github runs on a push must pass for you first, so nothing ever fails on github before it fails for you. today that is `pnpm install --frozen-lockfile`, `pnpm nx run-many -t test` and the four web e2e flows (see `.github/workflows/test.yaml`).
+- **pushing**: unattended sessions push their own branch once it validates, because their machine is thrown away. attended sessions push when asked. never push to `main` or to someone else's branch.
 
 ## package rules
 
