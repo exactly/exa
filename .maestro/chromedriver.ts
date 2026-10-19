@@ -36,6 +36,7 @@ serve({
         const options = capabilities?.["goog:chromeOptions"];
         if (!options) continue;
         if (browserPath) options.binary ??= browserPath;
+        options.args = [...(options.args ?? []), "--force-prefers-reduced-motion"];
       }
       const response = await post("/session", request);
       if (!response.ok) return response;
@@ -53,6 +54,48 @@ serve({
       const options = session.value.capabilities["goog:chromeOptions"];
       if (options?.debuggerAddress) options.debuggerAddress = `127.0.0.1:${await devtools(options.debuggerAddress)}`;
       return c.json(session);
+    })
+    .post("/session/:id/actions", async (c) => {
+      const request = await c.req.json<{ actions: { actions: Action[]; parameters?: { pointerType?: string } }[] }>();
+      const [touch, ...others] = request.actions;
+      if (
+        others.length > 0 ||
+        touch?.parameters?.pointerType !== "touch" ||
+        touch.actions.some(({ type, origin }) => type === "pointerMove" && origin !== "viewport")
+      ) {
+        return post(c.req.path, request);
+      }
+      let time = Date.now();
+      let point = { x: 0, y: 0 };
+      let down = false;
+      for (const action of touch.actions) {
+        if (action.type === "pause") time += action.duration ?? 0;
+        if (action.type === "pointerDown" || action.type === "pointerUp") {
+          down = action.type === "pointerDown";
+          await dispatch(down ? "touchStart" : "touchEnd", down ? [point] : []);
+        }
+        if (action.type !== "pointerMove") continue;
+        const start = point;
+        const steps = Math.max(1, Math.round((action.duration ?? 0) / 16));
+        for (let step = 1; step <= steps; step++) {
+          time += (action.duration ?? 0) / steps;
+          point = {
+            x: start.x + ((action.x - start.x) * step) / steps,
+            y: start.y + ((action.y - start.y) * step) / steps,
+          };
+          if (down) await dispatch("touchMove", [point]);
+        }
+      }
+      return c.json({ value: null });
+
+      async function dispatch(type: string, touchPoints: { x: number; y: number }[]) {
+        await sleep(time - Date.now());
+        const response = await post(`/session/${c.req.param("id")}/goog/cdp/execute`, {
+          cmd: "Input.dispatchTouchEvent",
+          params: { type, touchPoints, timestamp: time / 1000 },
+        });
+        if (!response.ok) throw new Error(await response.text());
+      }
     })
     .all("*", (c) => proxy(`http://localhost:${port}${c.req.path}`, c.req.raw)).fetch,
 });
@@ -123,5 +166,9 @@ function post(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+type Action = { duration?: number; origin?: unknown; type: string; x: number; y: number };
 
 type Capabilities = Record<string, undefined | { args?: string[]; binary?: string; debuggerAddress?: string }>;
