@@ -98,6 +98,23 @@ describe("validation error hook", () => {
       });
     });
 
+    it("should omit the legacy code when disabled", () => {
+      const hook = validatorHook({ legacy: false });
+
+      const result = safeParse(TestSchema, { invalid: "data" });
+      if (!result.issues) throw new Error("validation should fail");
+
+      hook(result, mockContext);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        {
+          code: "bad request",
+          message: result.issues.map((issue) => `${issue.path?.map((p) => p.key).join("/")} ${issue.message}`),
+        },
+        400,
+      );
+    });
+
     it("should return issues in the response", () => {
       const hook = validatorHook();
 
