@@ -6,10 +6,9 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
-import alchemyChainById from "../../utils/alchemyChains";
 import { lifiChainsOptions } from "../../utils/lifi";
 import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -49,7 +48,7 @@ export default function PaySheet({
     return ids
       .map((id) => ({
         id,
-        name: chains?.find((item) => item.id === id)?.name ?? alchemyChainById.get(id)?.name ?? chain.name,
+        name: chains?.find((item) => item.id === id)?.name ?? alchemyChains.get(id)?.name ?? chain.name,
       }))
       .sort((a, b) => {
         if (a.id === chain.id) return -1;
@@ -147,7 +146,7 @@ export default function PaySheet({
                 {groups.length > 1 && (
                   <Text subHeadline color="$uiNeutralPlaceholder">
                     {chains?.find((item) => item.id === group.id)?.name ??
-                      alchemyChainById.get(group.id)?.name ??
+                      alchemyChains.get(group.id)?.name ??
                       chain.name}
                   </Text>
                 )}

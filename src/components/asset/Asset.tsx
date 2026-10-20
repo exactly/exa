@@ -12,10 +12,9 @@ import { object, optional, pipe, regex, safeParse, string, transform } from "val
 import { formatUnits } from "viem";
 import { useReadContract } from "wagmi";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { presentArticle } from "../../utils/intercom";
@@ -168,7 +167,7 @@ export default function Asset() {
           ) : (
             <Skeleton width="100%" height={320} />
           )}
-          {(chainId === chain.id || (alchemyChainById.has(chainId) && factory === true)) && (
+          {(chainId === chain.id || (alchemyChains.has(chainId) && factory === true)) && (
             <XStack gap="$s3">
               {[
                 ...(!token || (stock && restrictedCountries.has(country ?? ""))

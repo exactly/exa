@@ -12,13 +12,13 @@ import { useReadContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
+  alchemyChains,
   allowlists,
   auditorAddress,
   pricePreviewerAbi,
   pricePreviewerCode,
 } from "@exactly/common/generated/chain";
 
-import alchemyChains from "./alchemyChains";
 import { isStock, marketOpen } from "./lifi";
 
 export const ranges = { "1D": 24 * 60 * 60, "1W": 7 * 24 * 60 * 60, "1M": 30 * 24 * 60 * 60 } as const;

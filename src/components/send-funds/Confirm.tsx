@@ -25,7 +25,7 @@ import {
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { proposalManagerAbi, useReadProposalManagerDelay } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -33,7 +33,6 @@ import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import { estimateCalls } from "../../utils/accountClient";
-import alchemyChainById from "../../utils/alchemyChains";
 import ensOptions, { ensName } from "../../utils/ensOptions";
 import executionOptions from "../../utils/executionOptions";
 import { presentArticle } from "../../utils/intercom";
@@ -121,7 +120,7 @@ export default function Confirm() {
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const networkName =
     chains?.find((item) => item.id === destinationChain)?.name ??
-    alchemyChainById.get(destinationChain)?.name ??
+    alchemyChains.get(destinationChain)?.name ??
     chain.name;
   const destination = useMemo(() => {
     if (typeof toToken !== "string") return;

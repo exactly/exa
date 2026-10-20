@@ -13,11 +13,10 @@ import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import EducationSheet from "./EducationSheet";
-import alchemyChainById from "../../utils/alchemyChains";
 import { lifiChainsOptions } from "../../utils/lifi";
 import networkLogos from "../../utils/networkLogos";
 import reportError from "../../utils/reportError";
@@ -84,7 +83,7 @@ export default function AddCrypto() {
   const networkName = isBridge
     ? network
     : receiveChainId
-      ? (receiveChain?.name ?? alchemyChainById.get(receiveChainId)?.name ?? `#${receiveChainId}`)
+      ? (receiveChain?.name ?? alchemyChains.get(receiveChainId)?.name ?? `#${receiveChainId}`)
       : chain.name;
   const assets = isBridge ? [currency] : asset ? [symbol] : supportedAssets;
   const other = !!asset && !isPending && !supportedAssets.includes(asset);

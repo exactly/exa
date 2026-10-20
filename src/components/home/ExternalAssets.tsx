@@ -6,12 +6,11 @@ import { useRouter } from "expo-router";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
-import alchemyChainById from "../../utils/alchemyChains";
 import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { lifiChainsOptions } from "../../utils/lifi";
@@ -38,7 +37,7 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
 
   const crossChainIds = [
     ...new Set(
-      assets.map(({ chainId }) => chainId).filter((chainId) => chainId !== chain.id && alchemyChainById.has(chainId)),
+      assets.map(({ chainId }) => chainId).filter((chainId) => chainId !== chain.id && alchemyChains.has(chainId)),
     ),
   ];
 

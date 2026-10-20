@@ -53,6 +53,7 @@ import { base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
+  alchemyChains,
   allowlists,
   auditorAddress,
   exaAddress,
@@ -68,7 +69,6 @@ import chain, {
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
-import alchemyChains from "./alchemyChains";
 import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";

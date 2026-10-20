@@ -39,7 +39,7 @@ import {
 import { base } from "viem/chains";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { allowlists } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   marketAbi,
@@ -58,7 +58,6 @@ import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
 import { DeploymentError, estimateCalls } from "../../utils/accountClient";
-import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions, { requestDeployment } from "../../utils/deployedOptions";
 import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
@@ -195,7 +194,7 @@ export default function Swaps() {
     () =>
       Object.keys(allowlists)
         .map(Number)
-        .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChainById.has(id))),
+        .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChains.has(id))),
     [],
   );
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });

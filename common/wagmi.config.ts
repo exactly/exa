@@ -1,9 +1,12 @@
+import * as infra from "@account-kit/infra";
 import { defineConfig } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
 import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
+import { isDeepStrictEqual } from "node:util";
 import { getAddress, type Abi, type Chain } from "viem";
+import * as chains from "viem/chains";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
@@ -103,10 +106,31 @@ export default defineConfig([
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
+          const alchemyChains = Object.values(infra).flatMap((c) => {
+            if (typeof c !== "object" || !("rpcUrls" in c)) return [];
+            const { alchemy, ...rpcUrls } = c.rpcUrls;
+            const url = alchemy && (chain ? alchemy : anvil.rpcUrls.default).http[0];
+            const name = Object.entries(chains).find(([, v]) => isDeepStrictEqual(v, { ...c, rpcUrls }))?.[0];
+            if (!name && (c.formatters ?? c.serializers ?? c.fees)) throw new Error(`lossy chain ${c.id}`);
+            return [
+              {
+                id: c.id,
+                name,
+                source: name
+                  ? url
+                    ? `{ ...${name}, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } } }`
+                    : name
+                  : `defineChain(${JSON.stringify({ ...c, rpcUrls: { ...rpcUrls, ...(url && { alchemy: { http: [url] } }) } })})`,
+              },
+            ];
+          });
+          const source = alchemyChains.find(({ id }) => id === chainId)?.source;
+          if (chain && !source) throw new Error("missing alchemy chain");
           return {
-            imports: chain
-              ? `import { ${chain} as chain } from "@account-kit/infra"\nimport { type Chain } from "viem/chains"`
-              : `import { anvil, type Chain } from "viem/chains"`,
+            imports: [
+              'import { defineChain } from "viem"',
+              `import { ${[...new Set([chain ?? "anvil", ...alchemyChains.flatMap(({ name }) => name ?? [])])].join(", ")}, type Chain } from "viem/chains"`,
+            ].join("\n"),
             content: [
               ...Object.entries({
                 auditor: loadDeployment("Auditor").address,
@@ -164,7 +188,7 @@ export default defineConfig([
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain
-                ? []
+                ? [`const chain: Chain = ${source}`]
                 : [
                     "const chain = anvil as Chain",
                     "chain.testnet = true",
@@ -173,6 +197,9 @@ export default defineConfig([
                     `chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }`,
                     'chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }',
                   ]),
+              `export const alchemyChains: ReadonlyMap<number, Chain> = new Map<number, Chain>([${alchemyChains
+                .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
+                .join(", ")}])`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export default chain as Chain & { contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),

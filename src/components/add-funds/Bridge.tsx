@@ -36,14 +36,13 @@ import {
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 
 import AssetMatchSheet from "./AssetMatchSheet";
 import AssetSelectSheet from "./AssetSelectSheet";
 import { callsStatus } from "../../utils/accountClient";
-import alchemyChainById from "../../utils/alchemyChains";
 import {
   balancesOptions,
   bridgePolicyId,
@@ -417,7 +416,7 @@ export default function Bridge() {
   ]);
 
   const feeIsSource = !!gasToken && !!source && gasToken.token.address.toLowerCase() === source.address.toLowerCase();
-  const paymasterChain = source ? alchemyChainById.get(source.chain) : undefined;
+  const paymasterChain = source ? alchemyChains.get(source.chain) : undefined;
   const paymasterAddress = paymasterChain ? getAlchemyPaymasterAddress(paymasterChain, "0.6.0") : undefined;
 
   const erc20GasReserve = useMemo(() => {

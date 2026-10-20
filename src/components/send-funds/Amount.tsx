@@ -19,13 +19,12 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 
-import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { WAD, withdrawLimit } from "@exactly/lib";
 
 import PaySheet from "./PaySheet";
 import SwapSheet from "./SwapSheet";
-import alchemyChainById from "../../utils/alchemyChains";
 import deployedOptions from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
@@ -94,7 +93,7 @@ export default function Amount() {
       [
         ...new Set(
           allAssets.flatMap((item) =>
-            item.type === "external" && item.chainId !== chain.id && alchemyChainById.has(item.chainId)
+            item.type === "external" && item.chainId !== chain.id && alchemyChains.has(item.chainId)
               ? [item.chainId]
               : [],
           ),
@@ -206,7 +205,7 @@ export default function Amount() {
 
   const networkName =
     chains?.find((item) => item.id === destinationChain)?.name ??
-    alchemyChainById.get(destinationChain)?.name ??
+    alchemyChains.get(destinationChain)?.name ??
     chain.name;
   const color = exceeds ? "$uiErrorSecondary" : amount > 0n ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
   const size = room && digits ? Math.min(56, Math.max(20, Math.floor((probe * room * 0.9) / (digits + unit)))) : 56;

@@ -88,9 +88,8 @@ import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import { dataSuffix } from "@exactly/common/attribution";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 
-import alchemyChainById from "./alchemyChains";
 import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
@@ -205,7 +204,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   }
   async function getReadClient(chainId: number) {
     if (chainId === chain.id) return client;
-    const targetChain = alchemyChainById.get(chainId);
+    const targetChain = alchemyChains.get(chainId);
     if (!targetChain) throw new Error(`unsupported chain ${chainId}`);
     const { readClient } = await getCrossChainAccount(targetChain);
     return readClient;
@@ -282,7 +281,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 ? { address: context.erc20Context.tokenAddress, maxTokenAmount: context.erc20Context.maxTokenAmount }
                 : undefined;
             if (targetChainId !== chain.id) {
-              const targetChain = alchemyChainById.get(targetChainId);
+              const targetChain = alchemyChains.get(targetChainId);
               if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
               const policyId = [
                 ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
@@ -399,7 +398,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
             const { calls, chainId } = params[0] as { calls: readonly Call[]; chainId?: Hex };
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
-            const targetChain = alchemyChainById.get(targetChainId);
+            const targetChain = alchemyChains.get(targetChainId);
             if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
             const remote = await getCrossChainAccount(targetChain);
             const uo = calls.map(({ to, data = "0x", value }) => ({ target: to, data, value }));

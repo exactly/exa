@@ -11,12 +11,11 @@ import { queryOptions, skipToken, useQueries, useQuery } from "@tanstack/react-q
 import { getBytecode } from "@wagmi/core/actions";
 import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 
-import chain, { allowlists } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
 import EducationSheet from "./EducationSheet";
 import ReceiveGuideSheet from "./ReceiveGuideSheet";
-import alchemyChainById from "../../utils/alchemyChains";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
@@ -68,8 +67,8 @@ export default function Network() {
         c.id !== chain.id &&
         c.mainnet &&
         symbols.has(c.id) &&
-        alchemyChainById.has(c.id) &&
-        !alchemyChainById.get(c.id)?.testnet,
+        alchemyChains.has(c.id) &&
+        !alchemyChains.get(c.id)?.testnet,
     );
     const pinned: number[] = [mainnet.id, base.id, arbitrum.id, polygon.id, bsc.id].filter((id) => id !== chain.id);
     return [

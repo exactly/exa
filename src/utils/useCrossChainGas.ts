@@ -8,9 +8,8 @@ import { useReadContract, useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
-import alchemyChainById from "./alchemyChains";
 import { balancesOptions, bridgePolicyId, bridgePolicyTokens, gasReserveBuffer, lifiChainsOptions } from "./lifi";
 import parseAmount from "./parseAmount";
 import reportError from "./reportError";
@@ -56,7 +55,7 @@ export default function useCrossChainGas({
         item.amount > 0n,
     );
   }, [balances, chainId, isNative, nativeToken?.address, sponsored, token]);
-  const paymasterChain = alchemyChainById.get(chainId);
+  const paymasterChain = alchemyChains.get(chainId);
   const paymasterAddress = paymasterChain ? getAlchemyPaymasterAddress(paymasterChain, "0.6.0") : undefined;
   const erc20GasReserve = useMemo(() => {
     if (nativeGasReserve === 0n || !nativeToken || !gasToken) return 0n;

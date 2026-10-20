@@ -19,11 +19,10 @@ import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { base } from "viem/chains";
 
-import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
 import NetworkSheet from "./NetworkSheet";
-import alchemyChainById from "../../utils/alchemyChains";
 import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
@@ -72,7 +71,7 @@ export default function AssetSelection() {
     () => [
       ...new Set(
         allAssets.flatMap((asset) =>
-          asset.type === "external" && asset.chainId !== chain.id && alchemyChainById.has(asset.chainId)
+          asset.type === "external" && asset.chainId !== chain.id && alchemyChains.has(asset.chainId)
             ? [asset.chainId]
             : [],
         ),
@@ -382,9 +381,7 @@ export default function AssetSelection() {
                     ),
                   });
                   const chainName =
-                    chains?.find((item) => item.id === chainId)?.name ??
-                    alchemyChainById.get(chainId)?.name ??
-                    chain.name;
+                    chains?.find((item) => item.id === chainId)?.name ?? alchemyChains.get(chainId)?.name ?? chain.name;
                   const sendable =
                     !!advanced || asset.type !== "external" || chainId !== chain.id || isSendable(asset.address);
                   return (
@@ -504,7 +501,7 @@ export default function AssetSelection() {
                 {trending.map((token) => {
                   const chainName =
                     chains?.find((item) => item.id === (token.chainId as number))?.name ??
-                    alchemyChainById.get(token.chainId)?.name ??
+                    alchemyChains.get(token.chainId)?.name ??
                     chain.name;
                   return (
                     <Row

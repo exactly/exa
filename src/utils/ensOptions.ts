@@ -4,9 +4,7 @@ import { anvil, mainnet } from "viem/chains";
 import { normalize, toCoinType } from "viem/ens";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
-
-import alchemyChains from "./alchemyChains";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 export default function ensOptions(name: string | undefined, chainId: number) {
   return queryOptions({
