@@ -92,19 +92,15 @@ jobs:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
-      - run: |
-          set -o pipefail
-          for attempt in {1..5}; do
-            curl -fsSL "https://get.maestro.mobile.dev" | bash || true
-            [ -x $HOME/.maestro/bin/maestro ] && $HOME/.maestro/bin/maestro --version && echo $HOME/.maestro/bin >> "$GITHUB_PATH" && break
-            [ "$attempt" -eq 5 ] && echo "maestro install failed after 5 attempts" && exit 1
-            rm -rf $HOME/.maestro $HOME/.maestro.tmp
-            sleep 2
-          done
+      - uses: actions/cache@v6
+        with:
+          path: .maestro/build
+          key: maestro-${{ runner.os }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}
       - run: echo ::add-matcher::.github/matcher.json
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - run: pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
       - run: |
           GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 &
           for i in {1..420}; do
