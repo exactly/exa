@@ -1,10 +1,14 @@
+import { serve } from "@hono/node-server";
 import { $ } from "execa";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { env, stderr, stdout } from "node:process";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
-import { encodeAbiParameters, keccak256, padHex, toBytes, toHex, zeroAddress, type Hex } from "viem";
+import { concat, encodeAbiParameters, keccak256, padHex, parseAbi, toBytes, toHex, zeroAddress, type Hex } from "viem";
+import { formatUserOperation, type RpcUserOperation, type UserOperation } from "viem/account-abstraction";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -17,8 +21,13 @@ export default async function setup() {
   if (!env.NX_TASK_TARGET_PROJECT) {
     await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
   }
-  const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
+  const instance = Instance.anvil({
+    codeSizeLimit: 69_000,
+    blockBaseFeePerGas: 1n,
+    ...(env.NODE_ENV === "e2e" && { port: 8546 }),
+  });
   await instance.start();
+  const rpc = env.NODE_ENV === "e2e" && router(instance.port);
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
   if (docker) {
     await $({ cwd: "test" })`docker compose down`;
@@ -212,6 +221,8 @@ export default async function setup() {
     }
   }
 
+  if (rpc) await rpc.start(deployer);
+
   if (docker) {
     const entries = await readdir("node_modules/@exactly/plugin/broadcast", { withFileTypes: true });
     const broadcasts = await Promise.all(
@@ -265,7 +276,6 @@ export default async function setup() {
         )
         .map(({ contractAddress, contractName }) => verify(contractAddress, contractName)),
       verify("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789", "EntryPoint"),
-      verify("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "MockPaymaster"),
       verify(exaBusinessTenant, "AccessManager", encodeAbiParameters([{ type: "address" }], [deployer])),
       verify(
         "0x0046000000000151008789797b54fdb500E2a61e",
@@ -277,6 +287,7 @@ export default async function setup() {
 
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
+    if (rpc) rpc.stop();
     await instance.stop();
   };
 }
@@ -331,3 +342,72 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
+
+function router(port: number) {
+  let paymaster: Hex;
+  let signer: Hex;
+  const server = serve({
+    port: 8545,
+    fetch: new Hono().use(cors()).post("*", async (c) => {
+      const body = await c.req.text();
+      if (/"pm_getPaymaster(?:Stub)?Data"/.test(body)) {
+        const {
+          id,
+          params: [operation],
+        } = JSON.parse(body) as { id: number; params: [RpcUserOperation<"0.6">] };
+        const validity = encodeAbiParameters([{ type: "uint48" }, { type: "uint48" }], [0, 0]);
+        const hash = await anvilClient.readContract({
+          address: paymaster,
+          functionName: "getHash",
+          args: [
+            {
+              ...(formatUserOperation(operation) as Required<UserOperation<"0.6">>),
+              paymasterAndData: concat([paymaster, validity, toHex(0, { size: 65 })]),
+            },
+            0,
+            0,
+          ],
+          abi: parseAbi([
+            "struct UserOperation { address sender; uint256 nonce; bytes initCode; bytes callData; uint256 callGasLimit; uint256 verificationGasLimit; uint256 preVerificationGas; uint256 maxFeePerGas; uint256 maxPriorityFeePerGas; bytes paymasterAndData; bytes signature; }",
+            "function getHash(UserOperation userOp, uint48 validUntil, uint48 validAfter) view returns (bytes32)",
+          ]),
+        });
+        return c.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            paymasterAndData: concat([
+              paymaster,
+              validity,
+              await anvilClient.signMessage({ account: signer, message: { raw: hash } }),
+            ]),
+          },
+        });
+      }
+      return fetch(`http://localhost:${port}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+    }).fetch,
+  });
+  return {
+    async start(deployer: Hex) {
+      paymaster = parse(
+        object({
+          transactions: tuple([
+            object({ contractName: literal("UpgradeableModularAccount") }),
+            object({ contractName: literal("VerifyingPaymaster"), contractAddress: Address }),
+          ]),
+        }),
+        JSON.parse(
+          await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8"),
+        ),
+      ).transactions[1].contractAddress;
+      signer = deployer;
+    },
+    stop() {
+      server.close();
+    },
+  };
+}
