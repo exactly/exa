@@ -70,7 +70,7 @@ export default async function setup() {
     cwd: "node_modules/@exactly/plugin",
     env: {
       FOUNDRY_PROFILE: "tooling",
-      OPTIMISM_ETHERSCAN_KEY: "",
+      ETHERSCAN_KEY: "",
       ISSUER_ADDRESS: privateKeyToAddress(padHex("0x420")),
       KEEPER_ADDRESS: keeper.address,
       DEPLOYER_ADDRESS: deployer,
@@ -257,6 +257,7 @@ export default async function setup() {
               contractAddress,
               contractName:
                 {
+                  ERC1967Proxy: "node_modules/@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy",
                   MockERC20: "node_modules/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20",
                   MockWETH: "node_modules/@exactly/protocol/contracts/mocks/MockWETH.sol:MockWETH",
                 }[contractName] ?? contractName,

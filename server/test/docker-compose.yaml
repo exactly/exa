@@ -19,7 +19,7 @@ services:
           }
         }
   sourcify:
-    image: ghcr.io/ethereum/sourcify/server:latest
+    image: ghcr.io/argotorg/sourcify/server:latest # cspell:ignore argotorg
     ports: ["5555:5555"]
     environment:
       NODE_ENV: development
@@ -64,7 +64,7 @@ services:
         RUN apt-get update && apt-get install -y curl git && \
             curl -fsSL "https://github.com/amacneil/dbmate/releases/download/v2.24.2/dbmate-linux-$$(dpkg --print-architecture)" -o /usr/local/bin/dbmate && \
             chmod +x /usr/local/bin/dbmate && \
-            git clone --depth 1 https://github.com/ethereum/sourcify.git /sourcify && \
+            git clone --depth 1 https://github.com/argotorg/sourcify.git /sourcify && \
             cd /sourcify/services/database && git submodule update --init
         WORKDIR /sourcify/services/database
     environment: { DATABASE_URL: "postgres://sourcify:sourcify@postgres:5432/sourcify?sslmode=disable" }
