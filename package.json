@@ -177,6 +177,7 @@
     "overrides": {
       "@hono/node-server": "catalog:",
       "@humanfs/node@0.16.7": "^0.16.8",
+      "@modelcontextprotocol/server@2.0.0": "^2.3.1",
       "@opentelemetry/core@2": "^2.8.0",
       "@sentry/core@10": "catalog:",
       "@sentry/node@10": "catalog:",
