@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
@@ -46,6 +46,8 @@ export default function Auth() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
+  const playing = !signUpModalOpen && !signInModalOpen;
+  const playingRef = useRef(playing);
 
   const progress = useSharedValue(0);
   const scrollOffset = useSharedValue(0);
@@ -70,8 +72,9 @@ export default function Auth() {
   });
 
   const startProgressAnimation = useCallback(() => {
+    cancelAnimation(progress);
     progress.value = 0;
-    progress.value = withTiming(1, { duration: 5000, easing: Easing.linear });
+    if (playingRef.current) progress.value = withTiming(1, { duration: 5000, easing: Easing.linear });
   }, [progress]);
 
   const handleSnapToItem = useCallback((index: number) => setActiveIndex(index), []);
@@ -101,8 +104,9 @@ export default function Auth() {
   );
 
   useEffect(() => {
+    playingRef.current = playing;
     startProgressAnimation();
-  }, [startProgressAnimation]);
+  }, [playing, startProgressAnimation]);
 
   const { signIn, isPending: loadingAuth } = useAuth(
     () => {
@@ -135,7 +139,7 @@ export default function Auth() {
             data={pages}
             width={itemWidth}
             height={stage}
-            autoPlay
+            autoPlay={playing}
             autoPlayInterval={5000}
             withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
             onSnapToItem={handleSnapToItem}
