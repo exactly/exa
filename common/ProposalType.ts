@@ -1,4 +1,4 @@
-import { decodeAbiParameters } from "viem";
+import { decodeAbiParameters, encodeAbiParameters } from "viem";
 
 enum ProposalType {
   None,
@@ -13,20 +13,41 @@ enum ProposalType {
 export default ProposalType;
 
 export function decodeCrossRepayAtMaturity(data: `0x${string}`) {
-  return decodeAbiParameters(
-    [
-      {
-        type: "tuple",
-        components: [
-          { name: "maturity", type: "uint256" },
-          { name: "positionAssets", type: "uint256" },
-          { name: "maxRepay", type: "uint256" },
-          { name: "route", type: "bytes" },
+  const parameters = [
+    {
+      type: "tuple",
+      components: [
+        { name: "maturity", type: "uint256" },
+        { name: "positionAssets", type: "uint256" },
+        { name: "marketOut", type: "address" },
+        { name: "maxRepay", type: "uint256" },
+        { name: "route", type: "bytes" },
+      ],
+    },
+  ] as const;
+  try {
+    const decoded = decodeAbiParameters(parameters, data);
+    if (encodeAbiParameters(parameters, decoded) !== data.toLowerCase()) throw new Error("legacy layout");
+    return decoded[0];
+  } catch {
+    return {
+      ...decodeAbiParameters(
+        [
+          {
+            type: "tuple",
+            components: [
+              { name: "maturity", type: "uint256" },
+              { name: "positionAssets", type: "uint256" },
+              { name: "maxRepay", type: "uint256" },
+              { name: "route", type: "bytes" },
+            ],
+          },
         ],
-      },
-    ],
-    data,
-  )[0];
+        data,
+      )[0],
+      marketOut: undefined,
+    };
+  }
 }
 
 export function decodeRepayAtMaturity(data: `0x${string}`) {
