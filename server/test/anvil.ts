@@ -8,7 +8,12 @@ import { env, stderr, stdout } from "node:process";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import { concat, encodeAbiParameters, keccak256, padHex, parseAbi, toBytes, toHex, zeroAddress, type Hex } from "viem";
-import { formatUserOperation, type RpcUserOperation, type UserOperation } from "viem/account-abstraction";
+import {
+  entryPoint06Address,
+  formatUserOperation,
+  type RpcUserOperation,
+  type UserOperation,
+} from "viem/account-abstraction";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -287,7 +292,7 @@ export default async function setup() {
 
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
-    if (rpc) rpc.stop();
+    if (rpc) await rpc.stop();
     await instance.stop();
   };
 }
@@ -344,6 +349,14 @@ const Protocol = object({
 });
 
 function router(port: number) {
+  const bundler = Instance.alto({
+    entrypoints: [entryPoint06Address],
+    executorPrivateKeys: [padHex("0x4337")],
+    utilityPrivateKey: padHex("0x4337"),
+    rpcUrl: `http://localhost:${port}`,
+    safeMode: true,
+    port: 4337,
+  });
   let paymaster: Hex;
   let signer: Hex;
   const server = serve({
@@ -384,7 +397,7 @@ function router(port: number) {
           },
         });
       }
-      return fetch(`http://localhost:${port}`, {
+      return fetch(`http://localhost:${/UserOperation|EntryPoints/.test(body) ? bundler.port : port}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body,
@@ -405,9 +418,12 @@ function router(port: number) {
         ),
       ).transactions[1].contractAddress;
       signer = deployer;
+      await anvilClient.setBalance({ address: privateKeyToAddress(padHex("0x4337")), value: 10n ** 24n });
+      await bundler.start();
     },
-    stop() {
+    async stop() {
       server.close();
+      await bundler.stop();
     },
   };
 }
