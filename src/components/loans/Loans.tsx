@@ -81,7 +81,7 @@ export default function Loans() {
                 </XStack>
                 <Text subHeadline secondary>
                   {t(
-                    "Get fixed-interest funding using your assets as collateral, no credit check needed. Choose an amount and repayment plan to receive USDC.",
+                    "Get fixed-interest funding using your assets as collateral, no credit check needed. Choose an asset, amount and repayment plan to receive funds.",
                   )}
                 </Text>
               </YStack>

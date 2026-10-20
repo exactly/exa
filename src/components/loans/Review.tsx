@@ -33,6 +33,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import useInstallments from "../../utils/useInstallments";
+import useLoanMarkets from "../../utils/useLoanMarkets";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
@@ -65,6 +66,7 @@ export default function Review() {
     maxInstallments,
     isFetching: isAssetPending,
   } = useAsset(market);
+  const loanMarkets = useLoanMarkets();
 
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
   const singleInstallment = count === 1;
@@ -197,7 +199,15 @@ export default function Review() {
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
 
-  if (!market || !amount || !count || !maturity || !receiver || (markets && !assetMarket))
+  if (
+    !market ||
+    !amount ||
+    !count ||
+    !maturity ||
+    !receiver ||
+    (markets && !assetMarket) ||
+    (loanMarkets && !loanMarkets.includes(market))
+  )
     return <Redirect href="/loan" />;
   if (!processing && !error && !success) {
     const maturityIndex = (Number(maturity) - firstMaturity) / MATURITY_INTERVAL;
