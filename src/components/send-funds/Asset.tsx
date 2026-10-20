@@ -24,7 +24,7 @@ import { withdrawLimit } from "@exactly/lib";
 
 import NetworkSheet from "./NetworkSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
+import deployedOptions, { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
@@ -42,6 +42,8 @@ import Text from "../shared/Text";
 import UnsupportedSheet from "../shared/UnsupportedSheet";
 import View from "../shared/View";
 
+import type { Credential } from "@exactly/common/validation";
+
 export default function AssetSelection() {
   const router = useRouter();
   const {
@@ -56,6 +58,7 @@ export default function AssetSelection() {
   const [reason, setReason] = useState<"network" | "token">("network");
   const [blocked, setBlocked] = useState<null | { compatible: boolean; id: number; name: string }>(null);
   const { address } = useAccount();
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const { data: chains } = useQuery(lifiChainsOptions);
@@ -93,6 +96,16 @@ export default function AssetSelection() {
         }
         return { deployedChains: deployed, pendingChains: pending };
       },
+      [crossChainIds],
+    ),
+  });
+  const factories = useQueries({
+    queries: crossChainIds.map((chainId) =>
+      deployedOptions(deployedChains.get(chainId) === false ? credential?.factory : undefined, chainId),
+    ),
+    combine: useCallback(
+      (results: UseQueryResult<boolean>[]) =>
+        new Set(crossChainIds.filter((_, index) => results[index]?.data === true)),
       [crossChainIds],
     ),
   });
@@ -437,6 +450,10 @@ export default function AssetSelection() {
                       disabled={!sendable || (asset.type === "external" && isUnsupported(chainId, deployedChains))}
                       pending={asset.type === "external" && pendingChains.has(chainId)}
                       onPress={() => {
+                        if (asset.type === "external" && address && factories.has(chainId)) {
+                          requestDeployment(t, address, chainId).catch(reportError);
+                          return;
+                        }
                         if (asset.type === "external" && isUnsupported(chainId, deployedChains)) {
                           setReason("network");
                           setUnsupported({ asset, chainName });

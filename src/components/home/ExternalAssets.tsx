@@ -12,7 +12,7 @@ import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
+import deployedOptions, { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { lifiChainsOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
@@ -21,6 +21,7 @@ import exaConfig from "../../utils/wagmi/exa";
 import UnsupportedSheet from "../shared/UnsupportedSheet";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
+import type { Credential } from "@exactly/common/validation";
 
 export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) {
   const {
@@ -29,6 +30,7 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
   } = useTranslation();
   const router = useRouter();
   const { address: exaAccount } = useAccount({ config: exaConfig });
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: lifiChains } = useQuery(lifiChainsOptions);
   const [infoSheetOpen, setInfoSheetOpen] = useState(false);
   const [pendingUnsupported, setPendingUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(
@@ -55,6 +57,12 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
       return { deployedChains: deployed, pendingChains: pending };
     },
   });
+  const factories = useQueries({
+    queries: crossChainIds.map((chainId) =>
+      deployedOptions(deployedChains.get(chainId) === false ? credential?.factory : undefined, chainId),
+    ),
+    combine: (results) => new Set(crossChainIds.filter((_, index) => results[index]?.data === true)),
+  });
 
   if (assets.length === 0) return null;
 
@@ -77,6 +85,10 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
               pending={pendingChains.has(asset.chainId)}
               onPress={() => {
                 if (!exaAccount) return;
+                if (factories.has(asset.chainId)) {
+                  requestDeployment(t, exaAccount, asset.chainId).catch(reportError);
+                  return;
+                }
                 if (unsupported) {
                   setPendingUnsupported({
                     asset,
