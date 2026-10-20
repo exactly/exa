@@ -9,13 +9,14 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain, { allowlists } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
 import EducationSheet from "./EducationSheet";
 import { presentArticle } from "../../utils/intercom";
 import { lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
+import useAllowlists from "../../utils/useAllowlists";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
@@ -29,6 +30,7 @@ export default function Assets() {
   const router = useRouter();
   const { t } = useTranslation();
   const { markets, supportedAssets, isPending } = useMarkets();
+  const allowlists = useAllowlists();
   const { data: tokens } = useQuery(lifiTokensOptions);
   const [collateralShown, setCollateralShown] = useState(false);
   const [otherShown, setOtherShown] = useState(false);
@@ -66,7 +68,7 @@ export default function Assets() {
       if (!current || (home && current.chainId !== token.chainId)) bySymbol.set(token.symbol, token);
     }
     return [...bySymbol.values()];
-  }, [tokens, markets, supportedAssets]);
+  }, [tokens, markets, supportedAssets, allowlists]);
   const visibleOthers = others.slice(0, 4);
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild">
