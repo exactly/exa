@@ -10,7 +10,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
-import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
+import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
 import { encodeDeployData, encodeFunctionData } from "viem";
 import { useReadContract, useSendCalls } from "wagmi";
 
@@ -26,6 +26,7 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
+import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
 import IconButton from "../../components/shared/IconButton";
@@ -37,6 +38,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
+import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import ExaSpinner from "../shared/Spinner";
 import Button from "../shared/StyledButton";
@@ -49,10 +51,13 @@ export default function Pay() {
   const { address } = useAccount();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { market: exaUSDC, timestamp, isFetching } = useAsset(marketUSDCAddress);
+  const { market: marketQuery, maturity: maturityQuery } = useLocalSearchParams();
+  const parsedMarket = safeParse(Address, Array.isArray(marketQuery) ? marketQuery[0] : marketQuery);
+  const debtMarket = parsedMarket.success ? parsedMarket.output : parse(Address, marketUSDCAddress);
+  const { market: debt, timestamp, isFetching } = useAsset(debtMarket);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
-    useLocalSearchParams().maturity,
+    maturityQuery,
   );
 
   const nextMaturity = timestamp - (timestamp % interval) + interval;
@@ -75,18 +80,18 @@ export default function Pay() {
       }),
     [borrowMaturity, language],
   );
-  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === repayMaturity);
-  const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === borrowMaturity);
+  const borrow = debt?.fixedBorrowPositions.find((b) => b.maturity === repayMaturity);
+  const rolloverMaturityBorrow = debt?.fixedBorrowPositions.find((b) => b.maturity === borrowMaturity);
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
     chainId: chain.id,
-    args: [marketUSDCAddress, borrowMaturity, borrow?.previewValue ?? 0n],
-    query: { enabled: !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
+    args: [debtMarket, borrowMaturity, borrow?.previewValue ?? 0n],
+    query: { enabled: !!debt && !!borrow && !!address && !!borrowMaturity },
   });
 
   if (!success) return <Redirect href="/(main)/(home)" />;
-  if (!address || !exaUSDC || (!borrow && isFetching)) {
+  if (!address || !debt || (!borrow && isFetching)) {
     return (
       <SafeView fullScreen justifyContent="center" alignItems="center">
         <ExaSpinner backgroundColor="transparent" />
@@ -95,12 +100,13 @@ export default function Pay() {
   }
   if (!borrow) return <Redirect href="/(main)/(home)" />;
 
-  const previewValue = (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals);
+  const previewValue = (borrow.previewValue * debt.usdPrice) / 10n ** BigInt(debt.decimals);
   const existingDebtPreviewValue =
-    ((rolloverMaturityBorrow?.previewValue ?? 0n) * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals);
+    ((rolloverMaturityBorrow?.previewValue ?? 0n) * debt.usdPrice) / 10n ** BigInt(debt.decimals);
   const rolloverPreviewValue = borrowPreview
-    ? (borrowPreview.assets * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
+    ? (borrowPreview.assets * debt.usdPrice) / 10n ** BigInt(debt.decimals)
     : 0n;
+  const symbol = debt.symbol.slice(3) === "WETH" ? "ETH" : debt.symbol.slice(3);
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
       <View fullScreen gap="$s5" paddingTop="$s4_5">
@@ -127,6 +133,14 @@ export default function Pay() {
             <Text emphasized title3 textAlign="left">
               {t("Review rollover")}
             </Text>
+            {debt.market !== marketUSDCAddress && (
+              <XStack gap="$s2" alignItems="center" paddingTop="$s2">
+                <AssetLogo symbol={symbol} width={16} height={16} />
+                <Text secondary footnote>
+                  {symbol}
+                </Text>
+              </XStack>
+            )}
             <YStack gap="$s4" paddingTop="$s5">
               <XStack justifyContent="space-between" gap="$s3" alignItems="center">
                 <YStack>
@@ -218,7 +232,13 @@ export default function Pay() {
           </View>
         </ScrollView>
         <View padded paddingBottom={insets.bottom} marginBottom="$s4">
-          <RolloverButton repayMaturity={repayMaturity} borrowMaturity={borrowMaturity} borrow={borrow} />
+          <RolloverButton
+            available={debt.fixedPools.some(({ maturity }) => maturity === borrowMaturity)}
+            market={debtMarket}
+            repayMaturity={repayMaturity}
+            borrowMaturity={borrowMaturity}
+            borrow={borrow}
+          />
         </View>
       </View>
     </SafeView>
@@ -226,16 +246,20 @@ export default function Pay() {
 }
 
 function RolloverButton({
+  available,
+  market,
   repayMaturity,
   borrowMaturity,
   borrow,
 }: {
+  available: boolean;
   borrow: {
     maturity: bigint;
     position: { fee: bigint; principal: bigint };
     previewValue: bigint;
   };
   borrowMaturity: bigint;
+  market: Address;
   repayMaturity: bigint;
 }) {
   const { t } = useTranslation();
@@ -250,13 +274,13 @@ function RolloverButton({
   const { request: proposeSimulation, error: executeProposalError } = useSimulateProposal({
     account: address,
     amount: maxRepayAssets,
-    market: marketUSDCAddress,
+    market,
     proposalType: ProposalType.RollDebt,
     borrowMaturity,
     maxRepayAssets,
     percentage,
     repayMaturity,
-    enabled: !!address,
+    enabled: !!address && available,
   });
 
   const {
@@ -320,12 +344,13 @@ function RolloverButton({
 
   const hasProposed = pendingProposals?.some(
     ({ proposal }) =>
-      proposal.market === marketUSDCAddress &&
+      proposal.market === market &&
       proposal.proposalType === (ProposalType.RollDebt as number) &&
       proposal.amount === maxRepayAssets,
   );
 
   const disabled =
+    !available ||
     isError ||
     !!executeProposalError ||
     isProposeRollDebtPending ||
