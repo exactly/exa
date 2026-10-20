@@ -96,7 +96,7 @@ configI18n(initReactI18next)
   .catch(reportError);
 
 export { ErrorBoundary } from "expo-router";
-const routingInstrumentation = reactNavigationIntegration({ enableTimeToInitialDisplay: !isRunningInExpoGo() });
+const routingInstrumentation = reactNavigationIntegration(); // TODO enable time to initial display after sentry upgrade
 const userFeedback = feedbackIntegration({
   showName: false,
   showEmail: false,
