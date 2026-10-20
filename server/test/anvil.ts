@@ -8,7 +8,12 @@ import { env, stderr, stdout } from "node:process";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import { concat, encodeAbiParameters, keccak256, padHex, parseAbi, toBytes, toHex, zeroAddress, type Hex } from "viem";
-import { formatUserOperation, type RpcUserOperation, type UserOperation } from "viem/account-abstraction";
+import {
+  entryPoint06Address,
+  formatUserOperation,
+  type RpcUserOperation,
+  type UserOperation,
+} from "viem/account-abstraction";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -25,6 +30,14 @@ export default async function setup() {
     codeSizeLimit: 69_000,
     blockBaseFeePerGas: 1n,
     ...(env.NODE_ENV === "e2e" && { port: 8546 }),
+  });
+  const bundler = Instance.alto({
+    entrypoints: [entryPoint06Address],
+    executorPrivateKeys: [padHex("0x4337")],
+    utilityPrivateKey: padHex("0x4337"),
+    rpcUrl: `http://localhost:${instance.port}`,
+    safeMode: true,
+    port: 4337,
   });
   await instance.start();
   const rpc =
@@ -67,7 +80,7 @@ export default async function setup() {
             },
           });
         }
-        return fetch(`http://localhost:${instance.port}`, {
+        return fetch(`http://localhost:${/UserOperation|EntryPoints/.test(body) ? bundler.port : instance.port}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body,
@@ -276,6 +289,11 @@ export default async function setup() {
     }
   }
 
+  if (env.NODE_ENV === "e2e") {
+    await anvilClient.setBalance({ address: privateKeyToAddress(padHex("0x4337")), value: 10n ** 24n });
+    await bundler.start();
+  }
+
   if (docker) {
     const entries = await readdir("node_modules/@exactly/plugin/broadcast", { withFileTypes: true });
     const broadcasts = await Promise.all(
@@ -339,7 +357,10 @@ export default async function setup() {
 
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
-    if (rpc) rpc.close();
+    if (rpc) {
+      rpc.close();
+      await bundler.stop();
+    }
     await instance.stop();
   };
 }
