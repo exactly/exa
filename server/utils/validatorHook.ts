@@ -14,11 +14,13 @@ export default function validatorHook<
   code = "bad request",
   debug,
   filter,
+  legacy = true,
   status = 400,
 }: {
   code?: string;
   debug?: ReturnType<typeof createDebug>;
   filter?: (result: TOutput) => boolean | undefined;
+  legacy?: boolean;
   status?: ContentfulStatusCode;
 } = {}) {
   return (result: SafeParseResult<BaseSchema<TInput, TOutput, TIssue>>, c: Context) => {
@@ -37,7 +39,7 @@ export default function validatorHook<
       return c.json(
         {
           code,
-          legacy: code,
+          ...(legacy && { legacy: code }),
           message: result.issues.length > 0 ? buildIssueMessages(result.issues) : undefined,
         },
         status,

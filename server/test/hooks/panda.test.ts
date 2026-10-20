@@ -453,6 +453,38 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("authorizes physical cards", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "card", cardType: "physical" },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(sardine.risk).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({ customerId: "cred", card: { id: "card" } }),
+        );
+        expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+          userId: account,
+          event: "TransactionAuthorized",
+          properties: {
+            type: "panda",
+            cardId: "card",
+            cardMode: 0,
+            source: null,
+            usdAmount: 9,
+            merchant: { name: "99999", category: "food", city: "buenos aires", country: "AR" },
+          },
+        });
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
       it("authorizes debit", async () => {
         await database
           .insert(cards)
@@ -5275,6 +5307,21 @@ describe("webhooks", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "user not found" });
     expect(setUser).not.toHaveBeenCalled();
     expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("enqueues physical card updated webhooks", async () => {
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: { ...cardUpdated.json.body, type: "physical", tokenWallets: ["Apple"], userId: "cred" },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 

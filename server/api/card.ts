@@ -50,7 +50,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
-import { partner } from "../utils/panda";
+import { partner, Shipping } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -91,8 +91,22 @@ const CardResponse = object({
     ]),
   }),
   productId: pipe(
-    picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([
+      BASE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
+      PHYSICAL_SIGNATURE_PRODUCT_ID,
+      PLATINUM_PRODUCT_ID,
+      SIGNATURE_PRODUCT_ID,
+    ]),
+    metadata({
+      examples: [
+        BASE_PRODUCT_ID,
+        CLASSIC_PRODUCT_ID,
+        PHYSICAL_SIGNATURE_PRODUCT_ID,
+        PLATINUM_PRODUCT_ID,
+        SIGNATURE_PRODUCT_ID,
+      ],
+    }),
   ),
   challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
   provisioning: optional(
@@ -108,10 +122,26 @@ const CreatedCardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   productId: pipe(
-    picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([
+      BASE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
+      PHYSICAL_SIGNATURE_PRODUCT_ID,
+      PLATINUM_PRODUCT_ID,
+      SIGNATURE_PRODUCT_ID,
+    ]),
+    metadata({
+      examples: [
+        BASE_PRODUCT_ID,
+        CLASSIC_PRODUCT_ID,
+        PHYSICAL_SIGNATURE_PRODUCT_ID,
+        PLATINUM_PRODUCT_ID,
+        SIGNATURE_PRODUCT_ID,
+      ],
+    }),
   ),
 });
+
+const CreateCard = optional(strictObject({ shipping: optional(Shipping) }), {});
 
 const UpdateCard = union([
   pipe(
@@ -546,6 +576,13 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       auth,
       describeRoute({
         summary: "Create card",
+        description: `
+Issue a card for the authenticated user.
+
+Without a body, a virtual card is issued and can be used right away.
+
+Send a \`shipping\` object with the address, and optionally the \`displayName\` to emboss, to order a physical card instead. Physical cards ship to that address and are created \`FROZEN\`: once delivered, activate one by unfreezing it with \`PATCH /card\` and its \`lastFour\`. Addresses and names only accept latin characters, and postal codes are limited to 9 characters.
+        `,
         tags: ["Card"],
         validateResponse: true,
         security: [{ credentialAuth: [] }],
@@ -587,7 +624,13 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           },
         },
       }),
+      async (c, next) => {
+        if (!(await c.req.raw.clone().text())) c.req.raw = new Request(c.req.raw, { method: "POST", body: "{}" });
+        await next();
+      },
+      vValidator("json", CreateCard, validatorHook({ legacy: false })),
       async (c) => {
+        const json = c.req.valid("json");
         const { credentialId } = c.req.valid("cookie");
         const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
         return mutex
@@ -632,7 +675,11 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             );
 
             const productId =
-              chain.id === base.id && credential.source !== partner ? BASE_PRODUCT_ID : SIGNATURE_PRODUCT_ID;
+              "shipping" in json
+                ? PHYSICAL_SIGNATURE_PRODUCT_ID
+                : chain.id === base.id && credential.source !== partner
+                  ? BASE_PRODUCT_ID
+                  : SIGNATURE_PRODUCT_ID;
 
             if (
               credential.cards.filter((known) => known.status !== "DELETED" && known.productId === productId).length >=
@@ -648,7 +695,10 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               }
               await Promise.all(
                 credential.cards
-                  .filter((known) => known.status !== "DELETED" && known.productId === PLATINUM_PRODUCT_ID)
+                  .filter(
+                    (known) =>
+                      !("shipping" in json) && known.status !== "DELETED" && known.productId === PLATINUM_PRODUCT_ID,
+                  )
                   .map(async ({ id }) => {
                     await panda.updateCard({ id, status: "canceled" });
                     const [deleted] = await database
@@ -668,7 +718,10 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 .getCards(pandaId)
                 .then((pandaCards) =>
                   pandaCards.find(
-                    ({ id, status }) => status === "active" && credential.cards.every((known) => known.id !== id),
+                    ({ id, status, type }) =>
+                      status === "active" &&
+                      type === ("shipping" in json ? "physical" : "virtual") &&
+                      credential.cards.every((known) => known.id !== id),
                   ),
                 )
                 .then(async (orphan) => {
@@ -702,15 +755,21 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                         }),
                       undefined,
                       credential.source,
+                      json.shipping,
                     );
                   }
                 });
 
-              await database
-                .insert(cards)
-                .values([
-                  { id: card.id, credentialId, tenant: isBase ? "BASE" : "OP", lastFour: card.last4, productId },
-                ]);
+              await database.insert(cards).values([
+                {
+                  id: card.id,
+                  credentialId,
+                  tenant: isBase ? "BASE" : "OP",
+                  lastFour: card.last4,
+                  status: "shipping" in json ? "FROZEN" : "ACTIVE",
+                  productId,
+                },
+              ]);
               await credit.enqueue(account).catch((error: unknown) =>
                 captureException(error, {
                   level: "error",
@@ -722,7 +781,10 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               if (
                 pax &&
                 credential.cards.some((known) => known.productId === PLATINUM_PRODUCT_ID) &&
-                credential.cards.every((known) => known.productId !== SIGNATURE_PRODUCT_ID)
+                credential.cards.every(
+                  (known) =>
+                    known.productId !== SIGNATURE_PRODUCT_ID && known.productId !== PHYSICAL_SIGNATURE_PRODUCT_ID,
+                )
               ) {
                 handlePlatinumUpgrade(credentialId, account, pax, persona);
               }
@@ -755,7 +817,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               return c.json(
                 {
                   lastFour: card.last4,
-                  status: "ACTIVE",
+                  status: "shipping" in json ? "FROZEN" : "ACTIVE",
                   cardId: card.id,
                   productId,
                 } satisfies InferOutput<typeof CreatedCardResponse>,
