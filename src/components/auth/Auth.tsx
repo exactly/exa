@@ -66,7 +66,7 @@ export default function Auth() {
   const measured = Object.keys(title.heights).length === pages.length && Object.keys(subtitles).length === pages.length;
 
   const { data: isMiniApp } = useQuery({ queryKey: ["is-miniapp"] });
-  const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
+  const { data: isOwnerAvailable, isPending: loadingOwner } = useQuery({ queryKey: ["is-owner-available"] });
   const { data: embeddingContext, isPending: loadingContext } = useQuery<EmbeddingContext>({
     queryKey: ["embedding-context"],
   });
@@ -117,7 +117,7 @@ export default function Auth() {
     },
   );
 
-  const loading = loadingAuth || loadingContext;
+  const loading = loadingAuth || loadingContext || loadingOwner;
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
