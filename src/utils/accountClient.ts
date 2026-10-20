@@ -16,6 +16,7 @@ import {
   type Deferrable,
   type GetEntryPointFromAccount,
   type MiddlewareClient,
+  type SendUserOperationParameters,
   type SmartAccountClient,
   type SmartContractAccount,
   type UserOperationContext,
@@ -50,6 +51,7 @@ import {
   waitForTransactionReceipt,
 } from "@wagmi/core/actions";
 import {
+  BaseError,
   bytesToBigInt,
   bytesToHex,
   concat,
@@ -65,6 +67,7 @@ import {
   isHex,
   maxUint256,
   numberToHex,
+  RpcRequestError,
   sliceHex,
   trim,
   type Address,
@@ -238,7 +241,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
                 gasEstimator,
               });
-              const { hash } = await crossClient.sendUserOperation({
+              const { hash } = await sendUserOperation(crossClient, {
                 uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
               });
               return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
@@ -258,7 +261,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                       gasEstimator,
                     })
                   : client;
-              const { hash } = await uoClient.sendUserOperation({
+              const { hash } = await sendUserOperation(uoClient, {
                 uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
@@ -445,6 +448,25 @@ export default async function createAccountClient({ credentialId, factory, x, y 
 
 function noRetry(provider: Parameters<typeof custom>[0]) {
   return custom(provider, { retryCount: 0 });
+}
+
+async function sendUserOperation(
+  client: SmartAccountClient<Transport, Chain, SmartContractAccount>,
+  parameters: SendUserOperationParameters<SmartContractAccount>,
+) {
+  const deployed = await client.account.isAccountDeployed();
+  try {
+    return await client.sendUserOperation(parameters);
+  } catch (error) {
+    if (deployed || !(error instanceof BaseError) || !error.walk((cause) => cause instanceof RpcRequestError)) {
+      throw error;
+    }
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await client.account.isAccountDeployed()) return client.sendUserOperation(parameters);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    throw error;
+  }
 }
 
 function wrapSignature(ownerIndex: number, signature: Hex) {
