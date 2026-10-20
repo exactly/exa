@@ -22,6 +22,7 @@ import exa from "./wagmi/exa";
 
 import type { RouteFrom } from "./lifi";
 import type { MutationState } from "@tanstack/react-query";
+import type { Address } from "viem";
 
 export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
@@ -53,21 +54,20 @@ export default function usePendingOperations() {
   }, [bridgeMutation]);
 
   const isProcessing = useCallback(
-    (maturity: bigint) => {
+    (market: Address, maturity: bigint) => {
       if (!proposals.data) return false;
       return proposals.data.some(({ proposal }) => {
         const { proposalType: type, data } = proposal;
-        if (
-          type === (ProposalType.RepayAtMaturity as number) ||
-          type === (ProposalType.CrossRepayAtMaturity as number)
-        ) {
-          const decoded =
-            type === (ProposalType.RepayAtMaturity as number)
-              ? decodeRepayAtMaturity(data)
-              : decodeCrossRepayAtMaturity(data);
-          return decoded.maturity === maturity;
+        if (type === (ProposalType.RepayAtMaturity as number)) {
+          return proposal.market === market && decodeRepayAtMaturity(data).maturity === maturity;
         }
-        if (type === (ProposalType.RollDebt as number)) return decodeRollDebt(data).repayMaturity === maturity;
+        if (type === (ProposalType.CrossRepayAtMaturity as number)) {
+          const decoded = decodeCrossRepayAtMaturity(data);
+          return (decoded.marketOut ?? marketUSDCAddress) === market && decoded.maturity === maturity;
+        }
+        if (type === (ProposalType.RollDebt as number)) {
+          return proposal.market === market && decodeRollDebt(data).repayMaturity === maturity;
+        }
         return false;
       });
     },
