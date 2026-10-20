@@ -8,7 +8,6 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { parse } from "valibot";
 
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import LoanSummary from "./LoanSummary";
@@ -29,9 +28,12 @@ export default function Maturity() {
     i18n: { language },
   } = useTranslation();
   const { market, amount, installments, maturity } = parse(Loan, useLocalSearchParams());
-  const { market: asset, markets, firstMaturity } = useAsset(market);
+  const { market: asset, markets, firstMaturity, maxInstallments } = useAsset(market);
 
   if (!market || !amount || !installments || (markets && !asset)) return <Redirect href="/loan" />;
+  if (markets && installments > maxInstallments) {
+    return <Redirect href={{ pathname: "/loan/installments", params: { market, amount: String(amount) } }} />;
+  }
   return (
     <SafeView fullScreen>
       <View
@@ -77,10 +79,10 @@ export default function Maturity() {
                   {t("Select first due date")}
                 </Text>
                 <YStack gap="$s3">
-                  {Array.from({ length: MAX_INSTALLMENTS }).map((_, index) => {
+                  {Array.from({ length: maxInstallments }).map((_, index) => {
                     const option = firstMaturity + index * MATURITY_INTERVAL;
                     const selected = option === Number(maturity);
-                    const invalid = index + installments > MAX_INSTALLMENTS;
+                    const invalid = index + installments > maxInstallments;
                     return (
                       <XStack
                         key={option}
@@ -124,7 +126,7 @@ export default function Maturity() {
                           </Text>
                           {invalid ? (
                             <Text footnote color="$uiNeutralPlaceholder">
-                              {t("Available for {{count}} installments or less", { count: MAX_INSTALLMENTS - index })}
+                              {t("Available for {{count}} installments or less", { count: maxInstallments - index })}
                             </Text>
                           ) : null}
                         </YStack>

@@ -6,7 +6,6 @@ import { XStack, YStack } from "tamagui";
 
 import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import AssetLogo from "./AssetLogo";
 import Skeleton from "./Skeleton";
@@ -27,10 +26,10 @@ export default function InstallmentSelector({
   totalAmount: bigint;
   value: number;
 }) {
-  const { market: assetMarket, account } = useAsset(market);
+  const { market: assetMarket, account, maxInstallments } = useAsset(market);
   return (
     <YStack gap="$s3">
-      {Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1).map((installment) => (
+      {Array.from({ length: maxInstallments }, (_, index) => index + 1).map((installment) => (
         <Installment
           key={installment}
           installment={installment}

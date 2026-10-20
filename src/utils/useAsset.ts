@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
 import { balancesOptions } from "./lifi";
@@ -28,6 +29,16 @@ export default function useAsset(address?: Address) {
     if (markets && market && !externalAsset) return borrowLimit(markets, market.market);
     return 0n;
   }, [markets, market, externalAsset]);
+  const maxInstallments = useMemo(
+    () =>
+      market
+        ? Math.min(
+            MAX_INSTALLMENTS,
+            market.fixedPools.filter(({ maturity }) => Number(maturity) >= firstMaturity).length,
+          )
+        : MAX_INSTALLMENTS,
+    [market, firstMaturity],
+  );
 
   return {
     address,
@@ -38,6 +49,7 @@ export default function useAsset(address?: Address) {
     firstMaturity,
     available,
     borrowAvailable,
+    maxInstallments,
     externalAsset,
     queryKey,
     isFetching: isMarketsFetching || isBalancesFetching,
