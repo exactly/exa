@@ -12,7 +12,7 @@ import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import { isUnsupported } from "../../utils/deployedOptions";
+import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { lifiChainsOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
@@ -42,7 +42,7 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
     ),
   ];
 
-  const { deployedChains, pendingChains } = useDeployments(exaAccount, crossChainIds);
+  const { deployedChains, pendingChains, deployableChains } = useDeployments(exaAccount, crossChainIds);
 
   if (assets.length === 0) return null;
 
@@ -65,6 +65,10 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
               pending={pendingChains.has(asset.chainId)}
               onPress={() => {
                 if (!exaAccount) return;
+                if (deployableChains.has(asset.chainId)) {
+                  requestDeployment(t, exaAccount, asset.chainId).catch(reportError);
+                  return;
+                }
                 if (unsupported) {
                   setPendingUnsupported({
                     asset,

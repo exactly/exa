@@ -24,7 +24,7 @@ import { withdrawLimit } from "@exactly/lib";
 
 import NetworkSheet from "./NetworkSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import { isUnsupported } from "../../utils/deployedOptions";
+import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
@@ -80,7 +80,7 @@ export default function AssetSelection() {
     ],
     [allAssets],
   );
-  const { deployedChains, pendingChains } = useDeployments(address, crossChainIds);
+  const { deployedChains, pendingChains, deployableChains } = useDeployments(address, crossChainIds);
   const held = useMemo(
     () => new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))),
     [allAssets],
@@ -422,6 +422,10 @@ export default function AssetSelection() {
                       disabled={!sendable || (asset.type === "external" && isUnsupported(chainId, deployedChains))}
                       pending={asset.type === "external" && pendingChains.has(chainId)}
                       onPress={() => {
+                        if (asset.type === "external" && address && deployableChains.has(chainId)) {
+                          requestDeployment(t, address, chainId).catch(reportError);
+                          return;
+                        }
                         if (asset.type === "external" && isUnsupported(chainId, deployedChains)) {
                           setReason("network");
                           setUnsupported({ asset, chainName });

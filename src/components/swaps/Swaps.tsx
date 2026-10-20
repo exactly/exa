@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Check,
   CircleHelp,
+  Headphones,
   IdCard,
   Info,
   OctagonX,
@@ -23,6 +24,7 @@ import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
+  BaseError,
   encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
@@ -52,9 +54,9 @@ import TokenSelectModal from "./SelectorModal";
 import Success from "./Success";
 import SwapDetails from "./SwapDetails";
 import TokenInput from "./TokenInput";
-import { estimateCalls } from "../../utils/accountClient";
+import { DeploymentError, estimateCalls } from "../../utils/accountClient";
 import alchemyChainById from "../../utils/alchemyChains";
-import deployedOptions from "../../utils/deployedOptions";
+import deployedOptions, { requestDeployment } from "../../utils/deployedOptions";
 import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
 import {
@@ -550,6 +552,9 @@ export default function Swaps() {
   });
 
   const prepareError = fromToken?.external ? (routed ? routedError : externalSwapError) : swapExecuteProposalError;
+  const undeployed =
+    prepareError instanceof BaseError &&
+    !!prepareError.walk((cause) => cause instanceof DeploymentError && cause.missing === "account");
   const wrapped = !!route && "wrapped" in route && route.wrapped === true;
   const { data: dust } = useReadContract({
     address: wrapped && fromToken ? parse(Address, fromToken.token.address) : undefined,
@@ -572,12 +577,12 @@ export default function Swaps() {
   useEffect(() => {
     if (!prepareError) return;
     reportError(prepareError, { level: "warning" });
-    if (!tool || stalled || insufficientCollateral) return;
+    if (!tool || stalled || insufficientCollateral || undeployed) return;
     updateSwap((old) => ({
       ...old,
       denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
     }));
-  }, [insufficientCollateral, prepareError, stalled, tool]);
+  }, [insufficientCollateral, prepareError, stalled, tool, undeployed]);
   const rerouting = denied.length > 0 && !route && isRouteFetching;
   const transient =
     !!routeError &&
@@ -587,11 +592,13 @@ export default function Swaps() {
     routeError && !transient
       ? classify(routeError)
       : prepareError
-        ? insufficientCollateral
-          ? "collateral"
-          : stalled || (tool && denied.length < 3 && !denied.includes(tool))
-            ? undefined
-            : "route"
+        ? undeployed
+          ? "account"
+          : insufficientCollateral
+            ? "collateral"
+            : stalled || (tool && denied.length < 3 && !denied.includes(tool))
+              ? undefined
+              : "route"
         : undefined;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
@@ -770,6 +777,7 @@ export default function Swaps() {
     isInsufficientBalance ||
     insufficientGas;
   const buttonLabel = useMemo(() => {
+    if (failure === "account") return t("Contact support");
     if (isInsufficientBalance) return t("Insufficient balance");
     if (insufficientGas) return t("Not enough for network fees");
     if (rerouting || quoteExpired || (isSimulating && route)) return t("Please wait...");
@@ -1090,9 +1098,11 @@ export default function Swaps() {
                           ? t("No route available for this swap. Try a different asset or network.")
                           : failure === "liquidity"
                             ? t("Not enough liquidity for this amount currently. Try a different amount.")
-                            : failure
-                              ? t("We can’t get a quote right now. Try again in a moment.")
-                              : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                            : failure === "account"
+                              ? t("Your account isn't set up on this network yet. Contact support to fix it.")
+                              : failure
+                                ? t("We can’t get a quote right now. Try again in a moment.")
+                                : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
                     </Text>
                   </XStack>
                 )}
@@ -1153,15 +1163,21 @@ export default function Swaps() {
               <Button
                 primary={!(caution && acknowledged)}
                 dangerSecondary={caution && acknowledged}
-                disabled={disabled || (caution && !acknowledged)}
+                disabled={failure !== "account" && (disabled || (caution && !acknowledged))}
                 loading={isSimulating && !!route && !isInsufficientBalance}
                 width="100%"
                 onPress={() => {
+                  if (failure === "account") {
+                    if (account) requestDeployment(t, account, fromChain).catch(reportError);
+                    return;
+                  }
                   swap();
                 }}
               >
                 <Button.Text>{buttonLabel}</Button.Text>
-                <Button.Icon>{danger ? <TriangleAlert /> : <Repeat />}</Button.Icon>
+                <Button.Icon>
+                  {failure === "account" ? <Headphones /> : danger ? <TriangleAlert /> : <Repeat />}
+                </Button.Icon>
               </Button>
             </YStack>
             <TokenSelectModal
