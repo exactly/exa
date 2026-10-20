@@ -1,30 +1,30 @@
-From 30278ed4eb0b152f4a6250dc2883bde8b798a146 Mon Sep 17 00:00:00 2001
+From f9f48eda762037a63b8254622e16fb6e4fe8f281 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Sun, 18 Oct 2026 22:51:13 +0000
 Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
 
 ---
- .../src/main/java/maestro/Driver.kt           |  4 ++++
- .../src/main/java/maestro/Maestro.kt          | 12 ++++++++++
- .../java/maestro/drivers/AndroidDriver.kt     | 19 +++++++++++++++
- .../main/java/maestro/drivers/CdpWebDriver.kt |  8 +++++++
- .../main/java/maestro/drivers/IOSDriver.kt    | 12 ++++++++++
- .../main/java/maestro/drivers/WebDriver.kt    |  8 +++++++
- .../src/main/kotlin/device/IOSDevice.kt       |  4 ++++
- .../src/main/kotlin/device/SimctlIOSDevice.kt |  8 +++++++
+ .../src/main/java/maestro/Driver.kt           |  4 +++
+ .../src/main/java/maestro/Maestro.kt          | 12 +++++++++
+ .../java/maestro/drivers/AndroidDriver.kt     | 19 ++++++++++++++
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 25 +++++++++++++++++++
+ .../main/java/maestro/drivers/IOSDriver.kt    | 12 +++++++++
+ .../main/java/maestro/drivers/WebDriver.kt    |  8 ++++++
+ .../src/main/kotlin/device/IOSDevice.kt       |  4 +++
+ .../src/main/kotlin/device/SimctlIOSDevice.kt |  8 ++++++
  .../main/kotlin/util/LocalSimulatorUtils.kt   | 13 ++++++++++
- .../src/main/java/ios/LocalIOSDevice.kt       |  8 +++++++
- .../ios/devicectl/DeviceControlIOSDevice.kt   |  8 +++++++
- .../main/java/ios/xctest/XCTestIOSDevice.kt   |  8 +++++++
- .../main/java/maestro/orchestra/Commands.kt   | 24 +++++++++++++++++++
+ .../src/main/java/ios/LocalIOSDevice.kt       |  8 ++++++
+ .../ios/devicectl/DeviceControlIOSDevice.kt   |  8 ++++++
+ .../main/java/ios/xctest/XCTestIOSDevice.kt   |  8 ++++++
+ .../main/java/maestro/orchestra/Commands.kt   | 24 ++++++++++++++++++
  .../java/maestro/orchestra/MaestroCommand.kt  |  6 +++++
  .../main/java/maestro/orchestra/Orchestra.kt  | 14 +++++++++++
  .../orchestra/yaml/MaestroFlowParser.kt       |  2 ++
  .../orchestra/yaml/YamlEnrollBiometrics.kt    |  6 +++++
- .../orchestra/yaml/YamlFluentCommand.kt       | 22 +++++++++++++++++
+ .../orchestra/yaml/YamlFluentCommand.kt       | 22 ++++++++++++++++
  .../orchestra/yaml/YamlMatchBiometrics.kt     |  6 +++++
- .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 +++++++++++++
- 20 files changed, 208 insertions(+)
+ .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 ++++++++++++
+ 20 files changed, 225 insertions(+)
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
 
@@ -104,15 +104,39 @@ index 8211337..9598497 100644
          val command = "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $enabled"
          try {
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..ef8f4d0 100644
+index ad651bb..8c8fed9 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -711,6 +711,14 @@ class CdpWebDriver(
+@@ -33,6 +33,7 @@ import org.openqa.selenium.chrome.ChromeDriver
+ import org.openqa.selenium.chrome.ChromeDriverService
+ import org.openqa.selenium.chrome.ChromeOptions
+ import org.openqa.selenium.chromium.ChromiumDriverLogLevel
++import org.openqa.selenium.chromium.HasCdp
+ import org.openqa.selenium.devtools.HasDevTools
+ import org.openqa.selenium.devtools.v147.emulation.Emulation
+ import org.openqa.selenium.devtools.v147.emulation.model.MediaFeature
+@@ -711,6 +712,30 @@ class CdpWebDriver(
          )
      }
  
 +    override fun enrollBiometrics() {
-+        // Do nothing
++        val driver = ensureOpen() as HasCdp
++
++        driver.executeCdpCommand("WebAuthn.enable", emptyMap())
++        driver.executeCdpCommand(
++            "WebAuthn.addVirtualAuthenticator",
++            mapOf(
++                "options" to mapOf(
++                    "protocol" to "ctap2",
++                    "transport" to "internal",
++                    "hasResidentKey" to true,
++                    "hasUserVerification" to true,
++                    "isUserVerified" to true,
++                    "defaultBackupEligibility" to true,
++                    "defaultBackupState" to true
++                )
++            )
++        )
 +    }
 +
 +    override fun matchBiometrics() {
