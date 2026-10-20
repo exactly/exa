@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+import "reflect-metadata";
+
 import "./mocks/alchemy";
 import "./mocks/onesignal";
 import "./mocks/pax";
@@ -6,6 +8,13 @@ import "./mocks/sardine";
 import "./mocks/sentry";
 import "./mocks/wallet";
 
+import { serve } from "@hono/node-server";
+import {
+  ExtendedKeyUsage,
+  ExtendedKeyUsageExtension,
+  SubjectAlternativeNameExtension,
+  X509CertificateGenerator,
+} from "@peculiar/x509";
 import { eq } from "drizzle-orm";
 import { cors } from "hono/cors";
 import { html } from "hono/html";
@@ -13,6 +22,7 @@ import { createCoverageMap } from "istanbul-lib-coverage";
 import { createInstrumenter } from "istanbul-lib-instrument";
 import crypto from "node:crypto";
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:https";
 import path from "node:path";
 import process, { env } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -20,6 +30,8 @@ import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "vie
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
+
+import domain from "@exactly/common/domain";
 
 import lifi from "./lifi";
 import database, { credentials } from "../database";
@@ -41,6 +53,7 @@ import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
 import type * as bridge from "../utils/ramps/bridge";
 import type * as manteca from "../utils/ramps/manteca";
+import type { ServerType } from "@hono/node-server";
 import type * as sentry from "@sentry/node";
 import type { CoverageMapData } from "istanbul-lib-coverage";
 import type { InferInput, InferOutput } from "valibot";
@@ -74,6 +87,29 @@ describe("e2e", () => {
         hookWorker({ bullmq, database, panda }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
+      let https: ServerType | undefined;
+      if (domain !== "localhost") {
+        const algorithm = { name: "ECDSA", namedCurve: "P-256", hash: "SHA-256" };
+        const keys = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
+        const certificate = await X509CertificateGenerator.createSelfSigned({
+          name: `CN=${domain}`,
+          keys,
+          signingAlgorithm: algorithm,
+          extensions: [
+            new ExtendedKeyUsageExtension([ExtendedKeyUsage.serverAuth]),
+            new SubjectAlternativeNameExtension([{ type: "dns", value: domain }]),
+          ],
+        });
+        https = serve({
+          fetch: app.fetch,
+          port: 443,
+          createServer,
+          serverOptions: {
+            cert: certificate.toString("pem"),
+            key: crypto.KeyObject.from(keys.privateKey).export({ format: "pem", type: "pkcs8" }),
+          },
+        });
+      }
 
       await expect(
         new Promise((resolve, reject) => {
@@ -84,6 +120,7 @@ describe("e2e", () => {
               segment.close(),
               stop(),
               ...workers.map((worker) => worker.close()),
+              ...(https ? [new Promise((closed) => https.close(closed))] : []),
             ]).then(resolve, reject);
           };
 
