@@ -121,7 +121,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
   const accountOptions = {
     accountAddress,
     source: "WebauthnAccount" as const,
-    getAccountInitCode: () => Promise.resolve(concatHex([factory, accountInit({ x, y })])),
     getDummySignature: () => DUMMY_SIGNATURE,
     signUserOperationHash,
     signMessage: () => Promise.reject(new Error("not implemented")),
@@ -132,6 +131,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     chain,
     transport,
     entryPoint: getEntryPoint(chain),
+    getAccountInitCode: () => getAccountInitCode(publicClient),
     ...accountOptions,
   });
   const client = createSmartAccountClient({
@@ -154,11 +154,13 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     const cached = crossChainAccounts.get(targetChain.id);
     if (cached) return cached;
     const alchemyTransport = alchemy({ apiKey: alchemyAPIKey });
-    const targetTransport = custom(createAlchemyPublicRpcClient({ chain: targetChain, transport: alchemyTransport }));
+    const targetClient = createAlchemyPublicRpcClient({ chain: targetChain, transport: alchemyTransport });
+    const targetTransport = custom(targetClient);
     const promise = toSmartContractAccount({
       chain: targetChain,
       transport: targetTransport,
       entryPoint: getEntryPoint(targetChain),
+      getAccountInitCode: () => getAccountInitCode(targetClient),
       ...accountOptions,
     })
       .then((targetAccount) => ({
@@ -176,6 +178,29 @@ export default async function createAccountClient({ credentialId, factory, x, y 
         throw error;
       });
     crossChainAccounts.set(targetChain.id, promise);
+    return promise;
+  }
+  const initCodes = new Map<number, Promise<Hex>>();
+  function getAccountInitCode(rpc: typeof publicClient) {
+    const cached = initCodes.get(rpc.chain.id);
+    if (cached) return cached;
+    const { address, abi } = getEntryPoint(rpc.chain);
+    const promise = rpc
+      .readContract({ address, abi, functionName: "getDepositInfo", args: [factory] })
+      .then(async ({ staked }) => {
+        if (staked) return concatHex([factory, accountInit({ x, y })]);
+        if (!(await rpc.getCode({ address: factory }))) throw new DeploymentError("factory");
+        for (let attempt = 0; attempt < 30; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          if (await rpc.getCode({ address: accountAddress })) return "0x";
+        }
+        throw new DeploymentError("account");
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DeploymentError)) initCodes.delete(rpc.chain.id);
+        throw error;
+      });
+    initCodes.set(rpc.chain.id, promise);
     return promise;
   }
   return createBundlerClient({
@@ -519,5 +544,14 @@ export async function callsStatus(config: Config, id: string, chainId?: number) 
   } catch (error) {
     reportError(error, { level: "warning" });
     return "unknown";
+  }
+}
+
+export class DeploymentError extends Error {
+  missing: "account" | "factory";
+  constructor(missing: "account" | "factory") {
+    super(`${missing} not deployed`);
+    this.missing = missing;
+    this.name = "DeploymentError";
   }
 }
