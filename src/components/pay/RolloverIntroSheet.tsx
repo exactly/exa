@@ -24,8 +24,15 @@ import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
+import type { Address } from "viem";
 
-export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: string; onClose: () => void }) {
+export default function RolloverIntroSheet({
+  debt,
+  onClose,
+}: {
+  debt?: { market: Address; maturity: string };
+  onClose: () => void;
+}) {
   const router = useRouter();
   const { address } = useAccount();
   const { t } = useTranslation();
@@ -39,10 +46,10 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const [open, setOpen] = useState(false);
-  const [displayMaturity, setDisplayMaturity] = useState(maturity);
+  const [displayDebt, setDisplayDebt] = useState(debt);
 
-  if (maturity) {
-    if (maturity !== displayMaturity) setDisplayMaturity(maturity);
+  if (debt) {
+    if (debt.market !== displayDebt?.market || debt.maturity !== displayDebt.maturity) setDisplayDebt(debt);
     if (!open) setOpen(true);
   }
 
@@ -61,8 +68,8 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
     }
     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
     close();
-    router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [isLatestPlugin, close, router, displayMaturity, toast, t]);
+    router.navigate({ pathname: "/roll-debt", params: displayDebt });
+  }, [isLatestPlugin, close, router, displayDebt, toast, t]);
 
   return (
     <ModalSheet open={open} onClose={close}>

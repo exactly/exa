@@ -9,12 +9,13 @@ import { XStack, YStack, type YStackProps } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict, isAfter } from "date-fns";
-import { digits, pipe, safeParse, string } from "valibot";
+import { digits, parse, pipe, safeParse, string } from "valibot";
 import { optimismSepolia } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import { date } from "../../i18n";
@@ -24,6 +25,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import Amount from "../shared/Amount";
+import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
 import ModalSheet from "../shared/ModalSheet";
@@ -32,10 +34,15 @@ import Text from "../shared/Text";
 
 import type { Credential } from "@exactly/common/validation";
 
-export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (maturity: string) => void }) {
+export default function PaymentSheet({
+  onRolloverIntro,
+}: {
+  onRolloverIntro?: (debt: { market: Address; maturity: string }) => void;
+}) {
   const parameters = useLocalSearchParams();
   const router = useRouter();
   const maturity = Array.isArray(parameters.maturity) ? parameters.maturity[0] : parameters.maturity;
+  const marketParameter = Array.isArray(parameters.market) ? parameters.market[0] : parameters.market;
   const { address } = useAccount();
   const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -47,10 +54,13 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     query: { refetchOnMount: true, enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
   const [infoOpen, setInfoOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
+  const [displayMarket, setDisplayMarket] = useState(marketParameter);
+  const parsedMarket = safeParse(Address, displayMarket);
+  const debtMarket = parsedMarket.success ? parsedMarket.output : parse(Address, marketUSDCAddress);
+  const { market, timestamp } = useAsset(debtMarket);
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
   const {
     t,
@@ -58,6 +68,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
   } = useTranslation();
   if (maturity) {
     if (maturity !== displayMaturity) setDisplayMaturity(maturity);
+    if (marketParameter !== displayMarket) setDisplayMarket(marketParameter);
     if (!open) setOpen(true);
   }
 
@@ -70,12 +81,13 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
         isUpcoming: boolean;
         positionValue: bigint;
         previewValue: bigint;
+        symbol?: string;
       }
   >(() => {
-    if (!USDCMarket) return;
+    if (!market) return;
     const { success, output: maturityValue } = safeParse(pipe(string(), digits()), displayMaturity);
     if (!success) return;
-    const { fixedBorrowPositions, usdPrice, decimals } = USDCMarket;
+    const { fixedBorrowPositions, usdPrice, decimals, symbol } = market;
     const position = fixedBorrowPositions.find((b) => b.maturity === BigInt(maturityValue));
     if (!position || position.previewValue === 0n || position.position.principal + position.position.fee === 0n) return;
     const previewValue = (position.previewValue * usdPrice) / 10n ** BigInt(decimals);
@@ -90,13 +102,21 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     const dueStatus = isUpcoming
       ? t("Due in {{time}}", { time: timeDistance })
       : t("{{time}} past due", { time: timeDistance });
-    return { discount, dueDate, dueStatus, isUpcoming, positionValue, previewValue };
-  }, [displayMaturity, USDCMarket, timestamp, t]);
+    return {
+      discount,
+      dueDate,
+      dueStatus,
+      isUpcoming,
+      positionValue,
+      previewValue,
+      symbol: market.market === marketUSDCAddress ? undefined : symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3),
+    };
+  }, [displayMaturity, market, timestamp, t]);
 
   const close = useCallback(() => {
     setInfoOpen(false);
     setOpen(false);
-    router.setParams({ ...parameters, maturity: undefined });
+    router.setParams({ ...parameters, market: undefined, maturity: undefined });
   }, [parameters, router]);
 
   const viewStatement = useCallback(() => {
@@ -111,13 +131,13 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
 
   const navigateToRepay = useCallback(() => {
     close();
-    router.navigate({ pathname: "/pay", params: { maturity: displayMaturity } });
-  }, [close, router, displayMaturity]);
+    router.navigate({ pathname: "/pay", params: { market: debtMarket, maturity: displayMaturity } });
+  }, [close, router, debtMarket, displayMaturity]);
 
   const navigateToRollover = useCallback(() => {
     if (!rolloverIntroShown && onRolloverIntro && displayMaturity) {
       close();
-      onRolloverIntro(displayMaturity);
+      onRolloverIntro({ market: debtMarket, maturity: displayMaturity });
       return;
     }
     if (!isLatestPlugin) {
@@ -128,11 +148,11 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
       return;
     }
     close();
-    router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, close, router, isLatestPlugin, toast, t]);
+    router.navigate({ pathname: "/roll-debt", params: { market: debtMarket, maturity: displayMaturity } });
+  }, [rolloverIntroShown, onRolloverIntro, debtMarket, displayMaturity, close, router, isLatestPlugin, toast, t]);
 
   const renderContent = () => {
-    if (!displayMaturity || !USDCMarket || !borrow) return <NotAvailableView onClose={close} />;
+    if (!displayMaturity || !market || !borrow) return <NotAvailableView onClose={close} />;
     return (
       <DetailsView
         borrow={borrow}
@@ -255,6 +275,7 @@ function DetailsView({
     isUpcoming: boolean;
     positionValue: bigint;
     previewValue: bigint;
+    symbol?: string;
   };
   language: string;
   onInfoPress: () => void;
@@ -263,7 +284,7 @@ function DetailsView({
   onViewStatement: () => void;
 }) {
   const { t } = useTranslation();
-  const { previewValue, positionValue, discount, dueDate, isUpcoming, dueStatus } = borrow;
+  const { previewValue, positionValue, discount, dueDate, isUpcoming, dueStatus, symbol } = borrow;
 
   const penaltyPercent = Math.abs(discount);
   const originalAmount = Number(positionValue) / 1e18;
@@ -285,10 +306,14 @@ function DetailsView({
               <FileText size={16} color="$interactiveBaseBrandDefault" />
             </XStack>
           </XStack>
-          <Text caption color="$uiNeutralSecondary">
-            {dueDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
-            {` - ${dueDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
-          </Text>
+          <XStack gap="$s2" alignItems="center">
+            {symbol && <AssetLogo symbol={symbol} width={14} height={14} />}
+            <Text caption color="$uiNeutralSecondary">
+              {symbol && `${symbol} · `}
+              {dueDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
+              {` - ${dueDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+            </Text>
+          </XStack>
         </YStack>
         <XStack gap="$s3_5" alignItems="center">
           <Amount amount={Number(previewValue) / 1e18} status={isUpcoming ? "success" : "danger"} flex={1} />

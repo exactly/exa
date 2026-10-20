@@ -23,11 +23,13 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { Address } from "viem";
+
 export default function Loans() {
   const { t } = useTranslation();
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
-  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
+  const [rolloverIntro, setRolloverIntro] = useState<{ market: Address; maturity: string }>();
   const { refetch } = useMarkets();
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
@@ -83,7 +85,9 @@ export default function Loans() {
             </View>
             <View gap="$s6" padded>
               <CreditLine />
-              <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <UpcomingPayments
+                onSelect={(market, maturity) => router.setParams({ market, maturity: String(maturity) })}
+              />
             </View>
             <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
               <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
@@ -92,8 +96,8 @@ export default function Loans() {
                 )}
               </Text>
             </XStack>
-            <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
-            <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
+            <PaymentSheet onRolloverIntro={setRolloverIntro} />
+            <RolloverIntroSheet debt={rolloverIntro} onClose={() => setRolloverIntro(undefined)} />
           </>
         </ScrollView>
       </View>
