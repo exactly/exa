@@ -87,6 +87,22 @@
           "main": "{projectRoot}/src/script/*.ts"
         }
       },
+      "maestro": {
+        "cache": true,
+        "inputs": [
+          "{workspaceRoot}/patches/maestro.patch",
+          {
+            "externalDependencies": []
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/build"
+        ],
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "src=$(mktemp -d) && trap 'rm -rf $src' EXIT && git init -q $src && git -C $src fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro $(sed -n 's/^base-commit: //p' patches/maestro.patch) && git -C $src checkout -q FETCH_HEAD && git -C $src apply < patches/maestro.patch && $src/gradlew -p $src :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver && rm -rf .maestro/build && mv $src/maestro-cli/build/install/maestro .maestro/build"
+        }
+      },
       "test": {
         "dependsOn": [
           "test:eslint",

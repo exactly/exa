@@ -1,0 +1,657 @@
+From 4e53c798c94784e423cbe747a576f34fc08fe4ea Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Sun, 18 Oct 2026 22:51:13 +0000
+Subject: [PATCH 1/2] feat: add enrollBiometrics and matchBiometrics commands
+
+---
+ .../src/main/java/maestro/Driver.kt           |  4 ++++
+ .../src/main/java/maestro/Maestro.kt          | 12 ++++++++++
+ .../java/maestro/drivers/AndroidDriver.kt     | 19 +++++++++++++++
+ .../main/java/maestro/drivers/CdpWebDriver.kt |  8 +++++++
+ .../main/java/maestro/drivers/IOSDriver.kt    | 12 ++++++++++
+ .../main/java/maestro/drivers/WebDriver.kt    |  8 +++++++
+ .../src/main/kotlin/device/IOSDevice.kt       |  4 ++++
+ .../src/main/kotlin/device/SimctlIOSDevice.kt |  8 +++++++
+ .../main/kotlin/util/LocalSimulatorUtils.kt   | 13 ++++++++++
+ .../src/main/java/ios/LocalIOSDevice.kt       |  8 +++++++
+ .../ios/devicectl/DeviceControlIOSDevice.kt   |  8 +++++++
+ .../main/java/ios/xctest/XCTestIOSDevice.kt   |  8 +++++++
+ .../main/java/maestro/orchestra/Commands.kt   | 24 +++++++++++++++++++
+ .../java/maestro/orchestra/MaestroCommand.kt  |  6 +++++
+ .../main/java/maestro/orchestra/Orchestra.kt  | 14 +++++++++++
+ .../orchestra/yaml/MaestroFlowParser.kt       |  2 ++
+ .../orchestra/yaml/YamlEnrollBiometrics.kt    |  6 +++++
+ .../orchestra/yaml/YamlFluentCommand.kt       | 22 +++++++++++++++++
+ .../orchestra/yaml/YamlMatchBiometrics.kt     |  6 +++++
+ .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 +++++++++++++
+ 20 files changed, 208 insertions(+)
+ create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
+ create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
+
+diff --git a/maestro-client/src/main/java/maestro/Driver.kt b/maestro-client/src/main/java/maestro/Driver.kt
+index b245edd..7710b18 100644
+--- a/maestro-client/src/main/java/maestro/Driver.kt
++++ b/maestro-client/src/main/java/maestro/Driver.kt
+@@ -116,6 +116,10 @@ interface Driver {
+ 
+     fun setDarkMode(enabled: Boolean)
+ 
++    fun enrollBiometrics()
++
++    fun matchBiometrics()
++
+     fun setAndroidChromeDevToolsEnabled(enabled: Boolean) = Unit
+ 
+     fun queryOnDeviceElements(query: OnDeviceElementQuery): List<TreeNode> {
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index 1f850dc..61cb889 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -781,6 +781,18 @@ class Maestro(
+         driver.setDarkMode(enabled)
+     }
+ 
++    suspend fun enrollBiometrics() = runInterruptible(Dispatchers.IO) {
++        LOGGER.info("Enrolling biometrics")
++
++        driver.enrollBiometrics()
++    }
++
++    suspend fun matchBiometrics() = runInterruptible(Dispatchers.IO) {
++        LOGGER.info("Matching biometrics")
++
++        driver.matchBiometrics()
++    }
++
+     suspend fun setAndroidChromeDevToolsEnabled(enabled: Boolean) = runInterruptible(Dispatchers.IO) {
+         driver.setAndroidChromeDevToolsEnabled(enabled)
+     }
+diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+index 8211337..9598497 100644
+--- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+@@ -60,6 +60,7 @@ import java.util.concurrent.CompletableFuture
+ import java.util.concurrent.ExecutionException
+ import java.util.concurrent.Executors
+ import java.util.concurrent.TimeUnit
++import java.util.concurrent.TimeoutException
+ import javax.xml.parsers.DocumentBuilderFactory
+ import kotlin.io.use
+ 
+@@ -835,6 +836,24 @@ class AndroidDriver(
+         }
+     }
+ 
++    override fun enrollBiometrics() {
++        LOGGER.warn("Enrolling biometrics is not available on Android, enroll a fingerprint in the emulator's settings instead")
++    }
++
++    override fun matchBiometrics() {
++        metrics.measured("operation", mapOf("command" to "matchBiometrics")) {
++            val process = ProcessBuilder("adb", "-s", connection.serial, "emu", "finger", "touch", "1")
++                .redirectErrorStream(true)
++                .start()
++            if (!process.waitFor(1, TimeUnit.MINUTES)) {
++                throw TimeoutException("Matching biometrics on ${connection.serial} timed out")
++            }
++            if (process.exitValue() != 0) {
++                throw IllegalStateException("Failed to match biometrics on ${connection.serial}: ${process.inputStream.bufferedReader().readText()}")
++            }
++        }
++    }
++
+     private fun broadcastAirplaneMode(enabled: Boolean) {
+         val command = "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $enabled"
+         try {
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad651bb..ef8f4d0 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -711,6 +711,14 @@ class CdpWebDriver(
+         )
+     }
+ 
++    override fun enrollBiometrics() {
++        // Do nothing
++    }
++
++    override fun matchBiometrics() {
++        // Do nothing
++    }
++
+     override fun queryOnDeviceElements(query: OnDeviceElementQuery): List<TreeNode> {
+         return when (query) {
+             is OnDeviceElementQuery.Css -> queryCss(query)
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 8af50e6..52448a2 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -549,6 +549,18 @@ class IOSDriver(
+         }
+     }
+ 
++    override fun enrollBiometrics() {
++        metrics.measured("operation", mapOf("command" to "enrollBiometrics")) {
++            iosDevice.enrollBiometrics()
++        }
++    }
++
++    override fun matchBiometrics() {
++        metrics.measured("operation", mapOf("command" to "matchBiometrics")) {
++            iosDevice.matchBiometrics()
++        }
++    }
++
+     private fun addMediaToDevice(mediaFile: File) {
+         metrics.measured("operation", mapOf("command" to "addMediaToDevice")) {
+             val namedSource = NamedSource(
+diff --git a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
+index 5bd3ec7..2eb68a2 100644
+--- a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
+@@ -641,6 +641,14 @@ class WebDriver(
+         // Do nothing
+     }
+ 
++    override fun enrollBiometrics() {
++        // Do nothing
++    }
++
++    override fun matchBiometrics() {
++        // Do nothing
++    }
++
+     override fun queryOnDeviceElements(query: OnDeviceElementQuery): List<TreeNode> {
+         return when (query) {
+             is OnDeviceElementQuery.Css -> queryCss(query)
+diff --git a/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt b/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt
+index 14eca7f..a56f70d 100644
+--- a/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt
++++ b/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt
+@@ -167,6 +167,10 @@ interface IOSDevice : AutoCloseable {
+     fun eraseText(charactersToErase: Int)
+ 
+     fun addMedia(path: String)
++
++    fun enrollBiometrics()
++
++    fun matchBiometrics()
+ }
+ 
+ interface IOSScreenRecording : AutoCloseable {
+diff --git a/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt b/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt
+index 2894584..f5b3f06 100644
+--- a/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt
++++ b/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt
+@@ -148,6 +148,14 @@ class SimctlIOSDevice(
+         localSimulatorUtils.addMedia(deviceId, path)
+     }
+ 
++    override fun enrollBiometrics() {
++        localSimulatorUtils.enrollBiometrics(deviceId)
++    }
++
++    override fun matchBiometrics() {
++        localSimulatorUtils.matchBiometrics(deviceId)
++    }
++
+     override fun setLocation(latitude: Double, longitude: Double): Result<Unit, Throwable> {
+         return runCatching {
+             localSimulatorUtils.setLocation(deviceId, latitude, longitude)
+diff --git a/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt b/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
+index 2f8c6b2..9e3e5a3 100644
+--- a/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
++++ b/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
+@@ -412,6 +412,19 @@ class LocalSimulatorUtils(private val tempFileHandler: TempFileHandler) {
+         )
+     }
+ 
++    fun enrollBiometrics(deviceId: String) {
++        notifyutil(deviceId, "-s", "com.apple.BiometricKit.enrollmentChanged", "1")
++        notifyutil(deviceId, "-p", "com.apple.BiometricKit.enrollmentChanged")
++    }
++
++    fun matchBiometrics(deviceId: String) {
++        notifyutil(deviceId, "-p", "com.apple.BiometricKit_Sim.fingerTouch.match")
++    }
++
++    private fun notifyutil(deviceId: String, vararg arguments: String) {
++        runCommand(listOf("xcrun", "simctl", "spawn", deviceId, "notifyutil", *arguments))
++    }
++
+     fun clearKeychain(deviceId: String) {
+         runCommand(
+             listOf("xcrun", "simctl", "keychain", deviceId, "reset")
+diff --git a/maestro-ios/src/main/java/ios/LocalIOSDevice.kt b/maestro-ios/src/main/java/ios/LocalIOSDevice.kt
+index afe8c68..dc5b4e5 100644
+--- a/maestro-ios/src/main/java/ios/LocalIOSDevice.kt
++++ b/maestro-ios/src/main/java/ios/LocalIOSDevice.kt
+@@ -167,4 +167,12 @@ class LocalIOSDevice(
+     override fun addMedia(path: String) {
+         deviceController.addMedia(path)
+     }
++
++    override fun enrollBiometrics() {
++        deviceController.enrollBiometrics()
++    }
++
++    override fun matchBiometrics() {
++        deviceController.matchBiometrics()
++    }
+ }
+diff --git a/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt b/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt
+index 588942e..0bfbf24 100644
+--- a/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt
++++ b/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt
+@@ -131,6 +131,14 @@ class DeviceControlIOSDevice(override val deviceId: String) : IOSDevice {
+         TODO("Not yet implemented")
+     }
+ 
++    override fun enrollBiometrics() {
++        TODO("Not yet implemented")
++    }
++
++    override fun matchBiometrics() {
++        TODO("Not yet implemented")
++    }
++
+     override fun close() {
+         logger.info("[Start] Uninstall the runner app")
+         uninstall(id = LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID)
+diff --git a/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt b/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
+index bf57595..b0907ba 100644
+--- a/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
++++ b/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
+@@ -73,6 +73,14 @@ class XCTestIOSDevice(
+         error("Not supported")
+     }
+ 
++    override fun enrollBiometrics() {
++        error("Not supported")
++    }
++
++    override fun matchBiometrics() {
++        error("Not supported")
++    }
++
+     override fun scroll(
+         xStart: Double,
+         yStart: Double,
+diff --git a/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt b/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
+index fed2ced..3b8e394 100644
+--- a/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
++++ b/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
+@@ -1216,6 +1216,30 @@ data class ToggleAirplaneModeCommand(
+     }
+ }
+ 
++data class EnrollBiometricsCommand(
++    override val label: String? = null,
++    override val optional: Boolean = false,
++) : Command {
++    override val originalDescription: String
++        get() = "Enroll biometrics"
++
++    override fun evaluateScripts(jsEngine: JsEngine): Command {
++        return this
++    }
++}
++
++data class MatchBiometricsCommand(
++    override val label: String? = null,
++    override val optional: Boolean = false,
++) : Command {
++    override val originalDescription: String
++        get() = "Match biometrics"
++
++    override fun evaluateScripts(jsEngine: JsEngine): Command {
++        return this
++    }
++}
++
+ /**
+  * [yamlValue] is the word written in YAML. It is deliberately NOT a `@JsonProperty` on each constant:
+  * Jackson serializes this enum as `SetDarkModeCommand.value` on the MaestroCommand wire, where the
+diff --git a/maestro-orchestra-models/src/main/java/maestro/orchestra/MaestroCommand.kt b/maestro-orchestra-models/src/main/java/maestro/orchestra/MaestroCommand.kt
+index 5357d4a..835e70d 100644
+--- a/maestro-orchestra-models/src/main/java/maestro/orchestra/MaestroCommand.kt
++++ b/maestro-orchestra-models/src/main/java/maestro/orchestra/MaestroCommand.kt
+@@ -77,6 +77,8 @@ data class MaestroCommand(
+     val toggleDarkModeCommand: ToggleDarkModeCommand? = null,
+     val assertDarkModeCommand: AssertDarkModeCommand? = null,
+     val assertLightModeCommand: AssertLightModeCommand? = null,
++    val enrollBiometricsCommand: EnrollBiometricsCommand? = null,
++    val matchBiometricsCommand: MatchBiometricsCommand? = null,
+     val retryCommand: RetryCommand? = null,
+     // @JsonIgnore: serializing would duplicate the full origin YAML on every command in the DB.
+     @JsonIgnore val sourceInfo: SourceInfo? = null,
+@@ -131,6 +133,8 @@ data class MaestroCommand(
+         toggleDarkModeCommand = command as? ToggleDarkModeCommand,
+         assertDarkModeCommand = command as? AssertDarkModeCommand,
+         assertLightModeCommand = command as? AssertLightModeCommand,
++        enrollBiometricsCommand = command as? EnrollBiometricsCommand,
++        matchBiometricsCommand = command as? MatchBiometricsCommand,
+         retryCommand = command as? RetryCommand
+     )
+ 
+@@ -183,6 +187,8 @@ data class MaestroCommand(
+         toggleDarkModeCommand != null -> toggleDarkModeCommand
+         assertDarkModeCommand != null -> assertDarkModeCommand
+         assertLightModeCommand != null -> assertLightModeCommand
++        enrollBiometricsCommand != null -> enrollBiometricsCommand
++        matchBiometricsCommand != null -> matchBiometricsCommand
+         retryCommand != null -> retryCommand
+         else -> null
+     }
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+index 4127338..2cd5902 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+@@ -446,6 +446,8 @@ class Orchestra(
+             is ToggleDarkModeCommand -> toggleDarkMode()
+             is AssertDarkModeCommand -> assertDarkMode(expected = true)
+             is AssertLightModeCommand -> assertDarkMode(expected = false)
++            is EnrollBiometricsCommand -> enrollBiometricsCommand()
++            is MatchBiometricsCommand -> matchBiometricsCommand()
+             is RetryCommand -> retryCommand(command, config)
+             else -> true
+         }.also { mutating ->
+@@ -469,6 +471,18 @@ class Orchestra(
+         return true
+     }
+ 
++    private suspend fun enrollBiometricsCommand(): Boolean {
++        maestro.enrollBiometrics()
++
++        // No UI effect
++        return false
++    }
++
++    private suspend fun matchBiometricsCommand(): Boolean {
++        maestro.matchBiometrics()
++        return true
++    }
++
+     private suspend fun setDarkMode(command: SetDarkModeCommand): Boolean {
+         when (command.value) {
+             DarkModeValue.Enable -> maestro.setDarkModeState(true)
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/MaestroFlowParser.kt b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/MaestroFlowParser.kt
+index d09d541..22ab04a 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/MaestroFlowParser.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/MaestroFlowParser.kt
+@@ -175,6 +175,8 @@ internal val stringCommands = mapOf<String, (YamlFluentCommand) -> YamlFluentCom
+     "toggleDarkMode" to { it.copy(toggleDarkMode = YamlToggleDarkMode()) },
+     "assertDarkMode" to { it.copy(assertDarkMode = YamlAssertDarkMode()) },
+     "assertLightMode" to { it.copy(assertLightMode = YamlAssertLightMode()) },
++    "enrollBiometrics" to { it.copy(enrollBiometrics = YamlEnrollBiometrics()) },
++    "matchBiometrics" to { it.copy(matchBiometrics = YamlMatchBiometrics()) },
+     "assertNoDefectsWithAI" to { it.copy(assertNoDefectsWithAI = YamlAssertNoDefectsWithAI()) },
+ )
+ 
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
+new file mode 100644
+index 0000000..3f19d37
+--- /dev/null
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
+@@ -0,0 +1,6 @@
++package maestro.orchestra.yaml
++
++data class YamlEnrollBiometrics(
++    val label: String? = null,
++    val optional: Boolean = false,
++)
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt
+index 2e48108..09df394 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt
+@@ -39,6 +39,7 @@ import maestro.orchestra.CopyTextFromCommand
+ import maestro.orchestra.SetClipboardCommand
+ import maestro.orchestra.ElementSelector
+ import maestro.orchestra.ElementTrait
++import maestro.orchestra.EnrollBiometricsCommand
+ import maestro.orchestra.EraseTextCommand
+ import maestro.orchestra.EvalScriptCommand
+ import maestro.orchestra.ExtractTextWithAICommand
+@@ -50,6 +51,7 @@ import maestro.orchestra.KillAppCommand
+ import maestro.orchestra.LaunchAppCommand
+ import maestro.orchestra.MaestroCommand
+ import maestro.orchestra.MaestroConfig
++import maestro.orchestra.MatchBiometricsCommand
+ import maestro.orchestra.OpenLinkCommand
+ import maestro.orchestra.PasteTextCommand
+ import maestro.orchestra.PressKeyCommand
+@@ -150,6 +152,8 @@ data class YamlFluentCommand(
+     val toggleDarkMode: YamlToggleDarkMode? = null,
+     val assertDarkMode: YamlAssertDarkMode? = null,
+     val assertLightMode: YamlAssertLightMode? = null,
++    val enrollBiometrics: YamlEnrollBiometrics? = null,
++    val matchBiometrics: YamlMatchBiometrics? = null,
+     val retry: YamlRetryCommand? = null,
+     @JsonIgnore val _sourceInfo: SourceInfo,
+ ) {
+@@ -531,6 +535,24 @@ data class YamlFluentCommand(
+                 )
+             )
+ 
++            enrollBiometrics != null -> listOf(
++                MaestroCommand(
++                    EnrollBiometricsCommand(
++                        enrollBiometrics.label,
++                        enrollBiometrics.optional
++                    )
++                )
++            )
++
++            matchBiometrics != null -> listOf(
++                MaestroCommand(
++                    MatchBiometricsCommand(
++                        matchBiometrics.label,
++                        matchBiometrics.optional
++                    )
++                )
++            )
++
+             else -> throw SyntaxError("Invalid command: No mapping provided for $this")
+         }
+     }
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
+new file mode 100644
+index 0000000..4f556dd
+--- /dev/null
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
+@@ -0,0 +1,6 @@
++package maestro.orchestra.yaml
++
++data class YamlMatchBiometrics(
++    val label: String? = null,
++    val optional: Boolean = false,
++)
+diff --git a/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt b/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt
+index 758d1eb..4a54c93 100644
+--- a/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt
++++ b/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt
+@@ -432,6 +432,18 @@ open class FakeDriver : Driver {
+         this.darkMode = enabled
+     }
+ 
++    override fun enrollBiometrics() {
++        ensureOpen()
++
++        events.add(Event.EnrollBiometrics)
++    }
++
++    override fun matchBiometrics() {
++        ensureOpen()
++
++        events.add(Event.MatchBiometrics)
++    }
++
+     override fun queryOnDeviceElements(query: OnDeviceElementQuery): List<TreeNode> {
+         if (query is OnDeviceElementQuery.Css) {
+             return searchCssRecursive(layout, query.css)
+@@ -551,6 +563,10 @@ open class FakeDriver : Driver {
+ 
+         object AddMedia : Event()
+ 
++        object EnrollBiometrics : Event()
++
++        object MatchBiometrics : Event()
++
+         object StartRecording : Event()
+ 
+         object StopRecording : Event()
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
+
+From 4ac83c69af106ee07c27892ca1296e5970fd7841 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Tue, 20 Oct 2026 00:51:30 +0000
+Subject: [PATCH 2/2] fix: reuse one CDP websocket per target
+
+CdpClient opened and closed a websocket for every evaluate, screenshot, navigation and storage call. Every detach makes Chrome disable the page's WebAuthn domain, which erases its virtual authenticators, and every extra handshake is another chance for the call to drop. Keep one session per target and reconnect only when it is no longer active.
+---
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 64 +++++++++----------
+ 1 file changed, 32 insertions(+), 32 deletions(-)
+
+diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+index 2e8c50d..e8696d9 100644
+--- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
++++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+@@ -6,6 +6,7 @@ import io.ktor.client.request.*
+ import io.ktor.client.statement.*
+ import io.ktor.serialization.kotlinx.json.*
+ import io.ktor.websocket.*
++import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withTimeoutOrNull
+@@ -55,6 +56,8 @@ class CdpClient(
+     private val json = Json { ignoreUnknownKeys = true }
+     private val idCounter = AtomicInteger(1)
+     private val evalMutex = Mutex()
++    private val sessionMutex = Mutex()
++    private val sessions = mutableMapOf<String, DefaultClientWebSocketSession>()
+ 
+     /**
+      * Fetches the list of open CDP targets (tabs/pages).
+@@ -97,9 +100,7 @@ class CdpClient(
+         """.trimIndent()
+ 
+         return evalMutex.withLock {
+-            httpClient.webSocketSession {
+-                url(wsUrl)
+-            }.use { session ->
++            withSession(wsUrl) { session ->
+                 session.send(Frame.Text(payload))
+ 
+                 val text = session.waitForMessage(messageId)
+@@ -114,7 +115,7 @@ class CdpClient(
+                     ?: ""
+ 
+                 if (raw.isEmpty()) {
+-                    return@use ""
++                    return@withSession ""
+                 }
+ 
+                 // Check for JS error
+@@ -123,7 +124,7 @@ class CdpClient(
+                     val err = parsed.jsonObject["__cdpError"]?.jsonPrimitive?.content
+                     error("JS error: $err")
+                 }
+-                return@use raw
++                return@withSession raw
+             }
+         }
+     }
+@@ -146,17 +147,16 @@ class CdpClient(
+         // Open WS, send & await
+         val wsUrl = target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")
+ 
+-        return httpClient.webSocketSession { url(wsUrl) }
+-            .use { session ->
+-                session.send(Frame.Text(payload))
++        return withSession(wsUrl) { session ->
++            session.send(Frame.Text(payload))
+ 
+-                val text = session.waitForMessage(messageId)
++            val text = session.waitForMessage(messageId)
+ 
+-                val data = Json.parseToJsonElement(text)
+-                    .jsonObject["result"]!!.jsonObject["data"]!!.jsonPrimitive.content
++            val data = Json.parseToJsonElement(text)
++                .jsonObject["result"]!!.jsonObject["data"]!!.jsonPrimitive.content
+ 
+-                return@use Base64.getDecoder().decode(data)
+-            }
++            return@withSession Base64.getDecoder().decode(data)
++        }
+     }
+ 
+     suspend fun openUrl(url: String, target: CdpTarget) {
+@@ -172,12 +172,11 @@ class CdpClient(
+             }
+         """.trimIndent()
+ 
+-        httpClient.webSocketSession { url(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) }
+-            .use { session ->
+-                session.send(Frame.Text(payload))
++        withSession(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) { session ->
++            session.send(Frame.Text(payload))
+ 
+-                session.waitForMessage(messageId)
+-            }
++            session.waitForMessage(messageId)
++        }
+     }
+ 
+     suspend fun clearDataForOrigin(origin: String, storageTypes: String, target: CdpTarget) {
+@@ -196,16 +195,15 @@ class CdpClient(
+         """.trimIndent()
+ 
+         evalMutex.withLock {
+-            httpClient.webSocketSession { url(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) }
+-                .use { session ->
+-                    session.send(Frame.Text(payload))
+-
+-                    val text = session.waitForMessage(messageId)
+-                    val root = json.parseToJsonElement(text).jsonObject
+-                    if (root["error"] != null) {
+-                        error("CDP error: ${root["error"]}")
+-                    }
++            withSession(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) { session ->
++                session.send(Frame.Text(payload))
++
++                val text = session.waitForMessage(messageId)
++                val root = json.parseToJsonElement(text).jsonObject
++                if (root["error"] != null) {
++                    error("CDP error: ${root["error"]}")
+                 }
++            }
+         }
+     }
+ 
+@@ -225,11 +223,13 @@ class CdpClient(
+         return text ?: error("No message with id $messageId received within ${CDP_RESPONSE_TIMEOUT_MS}ms")
+     }
+ 
+-    private suspend fun <R> DefaultClientWebSocketSession.use(block: suspend (DefaultClientWebSocketSession) -> R): R {
+-        return try {
+-            block(this)
+-        } finally {
+-            close()
++    // Chrome wipes a page's WebAuthn virtual authenticators whenever any DevTools session on it detaches,
++    // and every handshake is a chance to drop the call, so keep one session per target instead of one per call.
++    private suspend fun <R> withSession(wsUrl: String, block: suspend (DefaultClientWebSocketSession) -> R): R {
++        return sessionMutex.withLock {
++            val session = sessions[wsUrl]?.takeIf { it.isActive }
++                ?: httpClient.webSocketSession { url(wsUrl) }.also { sessions[wsUrl] = it }
++            block(session)
+         }
+     }
+ 
+-- 
+2.43.0
+
