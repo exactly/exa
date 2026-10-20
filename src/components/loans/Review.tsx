@@ -22,7 +22,6 @@ import {
   useReadPreviewerPreviewBorrowAtMaturity,
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
@@ -63,6 +62,7 @@ export default function Review() {
     timestamp,
     firstMaturity,
     borrowAvailable,
+    maxInstallments,
     isFetching: isAssetPending,
   } = useAsset(market);
 
@@ -201,7 +201,7 @@ export default function Review() {
     return <Redirect href="/loan" />;
   if (!processing && !error && !success) {
     const maturityIndex = (Number(maturity) - firstMaturity) / MATURITY_INTERVAL;
-    if (markets && (maturityIndex < 0 || maturityIndex + count > MAX_INSTALLMENTS))
+    if (markets && (maturityIndex < 0 || maturityIndex + count > maxInstallments))
       return (
         <Redirect
           href={{ pathname: "/loan/maturity", params: { market, amount: String(amount), installments: String(count) } }}
