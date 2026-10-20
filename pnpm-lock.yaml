@@ -752,6 +752,9 @@ importers:
       solady:
         specifier: ^0.1.26
         version: 0.1.26
+      solady-webauthn:
+        specifier: npm:solady@0.0.227
+        version: solady@0.0.227
       webauthn-owner-plugin:
         specifier: exactly/webauthn-owner-plugin#9c0c38b
         version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda
@@ -13906,6 +13909,9 @@ packages:
   socks@2.8.9:
     resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
+
+  solady@0.0.227:
+    resolution: {integrity: sha512-g7jN8W/mEXXQ6AhVWdW3mBcFqFMX8Zjy25aCZzpM40nG6f9m4ROCW1DF8lxcJOyPFt8iH+rWEzJMAU1PoM5xbA==}
 
   solady@0.1.26:
     resolution: {integrity: sha512-dhGr/ptJFdea/1KE6xgqgwEdbMhUiSfRc6A+jLeltPe16zyt9qtED3PElIBVRnzEmUO5aZTjKVAr6SlqXBBcIw==}
@@ -32381,6 +32387,8 @@ snapshots:
     dependencies:
       ip-address: 10.7.2
       smart-buffer: 4.2.0
+
+  solady@0.0.227: {}
 
   solady@0.1.26: {}
 
