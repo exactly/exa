@@ -34,7 +34,7 @@ export default function Receiver() {
   const { address, isConnecting, isReconnecting } = useAccount();
   const { market, amount, installments, maturity, receiver: preset } = parse(Loan, useLocalSearchParams());
   const { market: asset, markets } = useAsset(market);
-  const symbol = asset?.symbol.slice(3) === "WETH" ? "ETH" : asset?.symbol.slice(3);
+  const symbol = asset?.symbol.slice(3);
 
   const [selected, setSelected] = useState<boolean>();
   const external = selected ?? (preset !== undefined && preset !== address);
