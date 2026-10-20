@@ -28,6 +28,7 @@ import { bullmq } from "../../utils/redis";
 import wallet from "../../utils/wallet";
 import createCredit from "../../workers/credit/queue";
 import creditWorker from "../../workers/credit/worker";
+import { finished, tip } from "../redis";
 
 import type { Job as Credit } from "../../workers/credit/job";
 import type { Address } from "@exactly/common/validation";
@@ -42,7 +43,7 @@ const keeper = wallet(privateKeyToAccount(padHex("0x69")));
 const credit = createCredit(bullmq);
 const onesignal = createOnesignal("onesignal");
 const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq });
-const events = new QueueEvents("credit", { connection: bullmq });
+const events = new QueueEvents("credit", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const readContract = publicClient.readContract;
 let worker: ReturnType<typeof creditWorker>;
 
@@ -306,12 +307,13 @@ async function jobFinished(
   options?: JobsOptions,
   trace?: Pick<Credit, "sentryBaggage" | "sentryTrace">,
 ) {
-  const job = await queue.add(
+  const result = finished(events, current);
+  await queue.add(
     "credit",
     { account: current, ...trace },
     { attempts: 1, jobId: current, removeOnComplete: true, removeOnFail: true, ...options },
   );
-  await job.waitUntilFinished(events).catch(async (error: unknown) => {
+  await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });

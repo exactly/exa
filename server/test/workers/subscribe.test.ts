@@ -14,6 +14,7 @@ import redis, { bullmq } from "../../utils/redis";
 import { name } from "../../workers/subscribe/job";
 import createSubscribe from "../../workers/subscribe/queue";
 import subscribeWorker from "../../workers/subscribe/worker";
+import { finished, tip } from "../redis";
 
 import type * as schema from "../../database/schema";
 import type createAlchemy from "../../utils/alchemy";
@@ -38,7 +39,7 @@ vi.mock("node:timers/promises", async (importOriginal) => {
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const queue = new Queue<Subscribe, void, typeof name>(name, { connection: bullmq });
 const subscribe = createSubscribe(redis);
-const events = new QueueEvents(name, { connection: bullmq });
+const events = new QueueEvents(name, { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 let worker: ReturnType<typeof subscribeWorker> | undefined;
 
 beforeAll(async () => {
@@ -442,12 +443,13 @@ async function jobFinished(
   options?: JobsOptions,
   trace?: Pick<Subscribe, "sentryBaggage" | "sentryTrace">,
 ) {
-  const job = await queue.add(
+  const result = finished(events, current);
+  await queue.add(
     name,
     { account: current, ...trace },
     { attempts: 1, jobId: current, removeOnComplete: true, removeOnFail: true, ...options },
   );
-  await job.waitUntilFinished(events).catch(async (error: unknown) => {
+  await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });

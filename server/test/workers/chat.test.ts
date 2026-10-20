@@ -14,6 +14,7 @@ import { attempts } from "../../workers/chat/job";
 import createChat from "../../workers/chat/queue";
 import createChatWorker, { chat } from "../../workers/chat/worker";
 import { connect } from "../../workers/worker";
+import { finished, tip } from "../redis";
 
 import type { Job } from "../../workers/chat/job";
 import type { context } from "../../workers/chat/worker";
@@ -23,7 +24,7 @@ import type { JobsOptions } from "bullmq";
 const redisUrl = parse(string(), process.env.REDIS_URL);
 const bullmq = connect(redisUrl);
 const queue = new Queue<Job, void>("chat", { connection: bullmq });
-const events = new QueueEvents("chat", { connection: bullmq });
+const events = new QueueEvents("chat", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const publisher = createChat(bullmq);
 const { agent, reply } = chat("anthropic");
 const whatsapp = createWhatsapp({ from: "321", token: "token" });
@@ -280,10 +281,11 @@ async function execute(seen: boolean, locale: string) {
 }
 
 async function jobFinished(id: string, jobOptions?: JobsOptions) {
-  const job = await queue.add(
+  const result = finished(events, id);
+  await queue.add(
     "chat",
     { from: "US.12345678", text: "Hi!" },
     { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...jobOptions },
   );
-  return job.waitUntilFinished(events);
+  return result;
 }

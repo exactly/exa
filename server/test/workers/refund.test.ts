@@ -46,6 +46,7 @@ import createRefund from "../../workers/refund/queue";
 import refundWorker from "../../workers/refund/worker";
 import { connect } from "../../workers/worker";
 import anvilClient from "../anvilClient";
+import { finished, tip } from "../redis";
 
 import type * as P from "../../utils/panda";
 import type * as W from "../../utils/wallet";
@@ -68,7 +69,7 @@ const sardine = createSardine(sardineConfig.key, sardineConfig.url);
 const segment = createSegment("segment");
 const refund = createRefund(redis);
 const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
-const events = new QueueEvents("refund", { connection: bullmq });
+const events = new QueueEvents("refund", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const webhooks = new Map<string, unknown>();
 const hook = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createHook>["close"]>().mockResolvedValue(),
@@ -1171,12 +1172,13 @@ function webhook(id: string, spend: Record<string, unknown>, action = "completed
 }
 
 async function jobFinished(id: string, options?: JobsOptions, data?: Partial<Refund>) {
-  const job = await queue.add(
+  const result = finished(events, id);
+  await queue.add(
     "refund",
     { account, amount: 10_000_000, signature: "0x1234", timestamp: 1_700_000_000, ...data },
     { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...options },
   );
-  await job.waitUntilFinished(events).catch(async (error: unknown) => {
+  await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });

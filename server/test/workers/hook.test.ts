@@ -16,6 +16,7 @@ import redis, { bullmq } from "../../utils/redis";
 import createHook from "../../workers/hook/queue";
 import hookWorker from "../../workers/hook/worker";
 import { connect } from "../../workers/worker";
+import { finished, tip } from "../redis";
 
 import type * as P from "../../utils/panda";
 import type { Job as Hook } from "../../workers/hook/job";
@@ -27,7 +28,7 @@ const routedSecret = randomBytes(16).toString("hex");
 const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
 const hook = createHook(redis);
 const queue = new Queue<Hook, void, "hook">("hook", { connection: bullmq });
-const events = new QueueEvents("hook", { connection: bullmq });
+const events = new QueueEvents("hook", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const webhooks = new Map<string, unknown>();
 
 let worker: ReturnType<typeof hookWorker>;
@@ -767,14 +768,15 @@ function user(id: string, pandaId: string) {
 }
 
 async function jobFinished(id: string, options?: JobsOptions, data: Hook = {}) {
-  const job = await queue.add("hook", data, {
+  const result = finished(events, id);
+  await queue.add("hook", data, {
     attempts: 1,
     jobId: id,
     removeOnComplete: true,
     removeOnFail: true,
     ...options,
   });
-  await job.waitUntilFinished(events).catch(async (error: unknown) => {
+  await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });

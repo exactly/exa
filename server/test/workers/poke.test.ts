@@ -37,6 +37,7 @@ import wallet from "../../utils/wallet";
 import createPoke from "../../workers/poke/queue";
 import pokeWorker from "../../workers/poke/worker";
 import anvilClient from "../anvilClient";
+import { finished, tip } from "../redis";
 
 import type { Job as Poke } from "../../workers/poke/job";
 import type * as sentry from "@sentry/node";
@@ -69,7 +70,7 @@ let account: Address;
 let request: Parameters<ReturnType<typeof createPoke>["enqueue"]>[0];
 
 const queue = new Queue<Poke, void, "poke">("poke", { connection: bullmq });
-const events = new QueueEvents("poke", { connection: bullmq });
+const events = new QueueEvents("poke", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 let worker: Awaited<ReturnType<typeof pokeWorker>>;
 let segmentError: ((error: Error) => void) | undefined;
 let segmentEvent: string | undefined;
@@ -80,12 +81,13 @@ async function jobFinished(
   trace?: Pick<Poke, "sentryBaggage" | "sentryTrace">,
 ) {
   const id = [current.chainId, current.account, ...(current.assets ?? [])].join("-");
+  const result = finished(events, id);
   const job = await queue.add(
     "poke",
     { ...current, ...trace },
     { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...options },
   );
-  await job.waitUntilFinished(events).catch(async (error: unknown) => {
+  await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });

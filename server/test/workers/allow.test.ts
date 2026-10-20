@@ -13,6 +13,7 @@ import { Address } from "@exactly/common/validation";
 import { bullmq } from "../../utils/redis";
 import createAllow from "../../workers/allow/queue";
 import allowWorker from "../../workers/allow/worker";
+import { finished, tip } from "../redis";
 
 import type { Job as Allow } from "../../workers/allow/job";
 import type createPoke from "../../workers/poke/queue";
@@ -47,7 +48,7 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
 });
 
 const queue = new Queue<Allow, void, "allow">("allow", { connection: bullmq });
-const events = new QueueEvents("allow", { connection: bullmq });
+const events = new QueueEvents("allow", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 let worker: Awaited<ReturnType<typeof allowWorker>>;
 
 async function jobFinished(
@@ -55,12 +56,13 @@ async function jobFinished(
   options?: JobsOptions,
   trace?: Pick<Allow, "sentryBaggage" | "sentryTrace">,
 ) {
+  const result = finished(events, current);
   const job = await queue.add(
     "allow",
     { ...request, account: current, ...trace },
     { attempts: 1, jobId: current, removeOnComplete: true, removeOnFail: true, ...options },
   );
-  await job.waitUntilFinished(events).catch(async (error: unknown) => {
+  await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });
