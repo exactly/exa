@@ -202,9 +202,8 @@ export default wrap(function RootLayout() {
   }, [navigationContainer]);
 
   useEffect(() => {
-    reconnect(exaConfig)
-      .then(() => reconnect(ownerConfig))
-      .catch(reportError);
+    reconnect(exaConfig).catch(reportError);
+    reconnect(ownerConfig).catch(reportError);
     getOwnerConnector()
       .then(async (connector) => {
         const provider = await connector.getProvider({ chainId: chain.id });
