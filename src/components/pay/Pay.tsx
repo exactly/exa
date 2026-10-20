@@ -28,13 +28,13 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import useStatements from "../../utils/useStatements";
 import useTabPress from "../../utils/useTabPress";
 import TabBarContext from "../context/TabBarContext";
 import Amount from "../shared/Amount";
+import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
 import RefreshControl from "../shared/RefreshControl";
@@ -44,6 +44,7 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { Credential } from "@exactly/common/validation";
+import type { Address } from "viem";
 
 export default function Pay() {
   const {
@@ -62,12 +63,11 @@ export default function Pay() {
     query: { refetchOnMount: true, enabled: !!address && !!credential },
   });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { markets, timestamp, refetch } = useMarkets({ refetchInterval: 30_000 });
 
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: rolloverIntroShown } = useQuery<boolean>({ queryKey: ["settings", "rollover-intro-shown"] });
-  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
+  const [rolloverIntro, setRolloverIntro] = useState<{ market: Address; maturity: string }>();
   const [historyMaturity, setHistoryMaturity] = useState<number>();
   const [infoType, setInfoType] = useState<"discount" | "fees" | "total" | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -82,45 +82,50 @@ export default function Pay() {
     refresh().catch(reportError);
   });
 
-  const allMaturities = useMemo(() => {
-    if (!markets) return [];
-    const map = new Map<bigint, { isOverdue: boolean; positionAmount: bigint; previewValue: bigint }>();
-    for (const { market, fixedBorrowPositions } of markets) {
-      if (market !== marketUSDCAddress) continue;
-      for (const { maturity, previewValue, position } of fixedBorrowPositions) {
-        if (!previewValue) continue;
-        const positionAmount = position.principal + position.fee;
-        const existing = map.get(maturity);
-        map.set(maturity, {
-          previewValue: (existing?.previewValue ?? 0n) + previewValue,
-          positionAmount: (existing?.positionAmount ?? 0n) + positionAmount,
-          isOverdue: maturity < timestamp,
-        });
-      }
-    }
-    return [...map].sort(([a], [b]) => Number(a - b));
-  }, [markets, timestamp]);
+  const debts = useMemo(
+    () =>
+      (markets ?? [])
+        .flatMap(({ market, symbol, decimals, usdPrice, fixedBorrowPositions }) =>
+          fixedBorrowPositions.flatMap(({ maturity, previewValue, position }) =>
+            previewValue
+              ? [
+                  {
+                    market,
+                    maturity,
+                    symbol:
+                      market === marketUSDCAddress ? undefined : symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3),
+                    isOverdue: maturity < timestamp,
+                    previewValue: (previewValue * usdPrice) / 10n ** BigInt(decimals),
+                    positionValue: ((position.principal + position.fee) * usdPrice) / 10n ** BigInt(decimals),
+                  },
+                ]
+              : [],
+          ),
+        )
+        .filter(({ positionValue }) => positionValue > 0n)
+        .sort((a, b) => Number(a.maturity - b.maturity)),
+    [markets, timestamp],
+  );
 
-  const hasPayments = allMaturities.length > 0;
+  const hasPayments = debts.length > 0;
   const statements = useStatements();
   const empty = !hasPayments && statements?.length === 0;
-  const firstMaturity = allMaturities[0];
+  const first = debts[0];
 
   const { isProcessing } = usePendingOperations();
 
-  const totalOutstandingUSD = useMemo(() => {
-    if (!exaUSDC) return 0;
-    const total = allMaturities.reduce((sum, [, { previewValue }]) => sum + previewValue, 0n);
-    return Number(total) / 10 ** exaUSDC.decimals;
-  }, [allMaturities, exaUSDC]);
+  const totalOutstandingUSD = useMemo(
+    () => Number(debts.reduce((sum, { previewValue }) => sum + previewValue, 0n)) / 1e18,
+    [debts],
+  );
 
   const viewStatement = useCallback(() => {
-    if (firstMaturity) router.navigate({ pathname: "/statement", params: { maturity: String(firstMaturity[0]) } });
-  }, [router, firstMaturity]);
+    if (first) router.navigate({ pathname: "/statement", params: { maturity: String(first.maturity) } });
+  }, [router, first]);
 
   const onSelect = useCallback(
-    (maturity: bigint) => {
-      router.setParams({ maturity: String(maturity) });
+    (market: Address, maturity: bigint) => {
+      router.setParams({ market, maturity: String(maturity) });
     },
     [router],
   );
@@ -168,21 +173,24 @@ export default function Pay() {
             <>
               <TotalOutstandingCard
                 amount={totalOutstandingUSD}
-                count={allMaturities.length}
+                count={debts.length}
                 t={t}
                 onInfoPress={() => setInfoType("total")}
               />
               <View padded paddingTop="$s5" gap="$s5">
-                {firstMaturity && exaUSDC && (
+                {first && (
                   <FirstMaturityCard
-                    maturity={firstMaturity[0]}
-                    summary={firstMaturity[1]}
-                    decimals={exaUSDC.decimals}
+                    debt={first}
                     language={language}
-                    processing={isProcessing(firstMaturity[0])}
+                    processing={isProcessing(first.market, first.maturity)}
                     t={t}
-                    onInfoPress={() => setInfoType(firstMaturity[1].isOverdue ? "fees" : "discount")}
-                    onPay={() => router.navigate({ pathname: "/pay", params: { maturity: String(firstMaturity[0]) } })}
+                    onInfoPress={() => setInfoType(first.isOverdue ? "fees" : "discount")}
+                    onPay={() =>
+                      router.navigate({
+                        pathname: "/pay",
+                        params: { market: first.market, maturity: String(first.maturity) },
+                      })
+                    }
                     onViewStatement={viewStatement}
                     onRollover={() => {
                       if (rolloverIntroShown) {
@@ -193,21 +201,21 @@ export default function Pay() {
                           });
                           return;
                         }
-                        router.navigate({ pathname: "/roll-debt", params: { maturity: String(firstMaturity[0]) } });
+                        router.navigate({
+                          pathname: "/roll-debt",
+                          params: { market: first.market, maturity: String(first.maturity) },
+                        });
                         return;
                       }
-                      setRolloverIntroMaturity(String(firstMaturity[0]));
+                      setRolloverIntro({ market: first.market, maturity: String(first.maturity) });
                     }}
                   />
                 )}
-                <OverduePayments excludeMaturity={firstMaturity?.[0]} onSelect={onSelect} />
-                <UpcomingPayments excludeMaturity={firstMaturity?.[0]} onSelect={onSelect} />
+                <OverduePayments exclude={first} onSelect={onSelect} />
+                <UpcomingPayments exclude={first} onSelect={onSelect} />
               </View>
-              <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
-              <RolloverIntroSheet
-                maturity={rolloverIntroMaturity}
-                onClose={() => setRolloverIntroMaturity(undefined)}
-              />
+              <PaymentSheet onRolloverIntro={setRolloverIntro} />
+              <RolloverIntroSheet debt={rolloverIntro} onClose={() => setRolloverIntro(undefined)} />
               <InfoSheet open={infoType === "total"} onClose={() => setInfoType(null)} title={t("Total outstanding")}>
                 <Text body color="$uiNeutralSecondary">
                   {t("This total includes all your purchases, loans, interest, and any applicable late fees.")}
@@ -355,10 +363,8 @@ function TotalOutstandingCard({
 }
 
 function FirstMaturityCard({
-  summary,
-  decimals: assetDecimals,
+  debt: { maturity, symbol, isOverdue, previewValue, positionValue },
   language,
-  maturity,
   processing,
   onInfoPress,
   onPay,
@@ -366,18 +372,15 @@ function FirstMaturityCard({
   onViewStatement,
   t,
 }: {
-  decimals: number;
+  debt: { isOverdue: boolean; maturity: bigint; positionValue: bigint; previewValue: bigint; symbol?: string };
   language: string;
-  maturity: bigint;
   onInfoPress: () => void;
   onPay: () => void;
   onRollover: () => void;
   onViewStatement: () => void;
   processing: boolean;
-  summary: { isOverdue: boolean; positionAmount: bigint; previewValue: bigint };
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
-  const { previewValue, positionAmount, isOverdue } = summary;
   const { timestamp } = useMarkets();
   const maturityDate = useMemo(() => new Date(Number(maturity) * 1000), [maturity]);
   const now = useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
@@ -385,9 +388,9 @@ function FirstMaturityCard({
     locale: date(),
   });
 
-  const discount = Number(WAD - (previewValue * WAD) / positionAmount) / 1e18;
+  const discount = Number(WAD - (previewValue * WAD) / positionValue) / 1e18;
   const penaltyPercent = isOverdue ? Math.abs(discount) : discount;
-  const originalAmount = Number(positionAmount) / 10 ** assetDecimals;
+  const originalAmount = Number(positionValue) / 1e18;
 
   return (
     <View
@@ -415,17 +418,17 @@ function FirstMaturityCard({
             <FileText size={16} color="$interactiveBaseBrandDefault" />
           </XStack>
         </XStack>
-        <Text caption color="$uiNeutralSecondary">
-          {maturityDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
-          {` - ${maturityDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
-        </Text>
+        <XStack gap="$s2" alignItems="center">
+          {symbol && <AssetLogo symbol={symbol} width={14} height={14} />}
+          <Text caption color="$uiNeutralSecondary">
+            {symbol && `${symbol} · `}
+            {maturityDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
+            {` - ${maturityDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+          </Text>
+        </XStack>
       </YStack>
       <XStack padding="$s4" gap="$s3_5" alignItems="center">
-        <Amount
-          amount={Number(previewValue) / 10 ** assetDecimals}
-          status={isOverdue ? "danger" : "success"}
-          flex={1}
-        />
+        <Amount amount={Number(previewValue) / 1e18} status={isOverdue ? "danger" : "success"} flex={1} />
         <YStack alignItems="flex-end" gap="$s3">
           {processing ? (
             <Text emphasized subHeadline color="$interactiveTextDisabled">
