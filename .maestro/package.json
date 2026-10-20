@@ -5,6 +5,7 @@
   "scripts": {
     "test": "nx test e2e",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}",
+    "maestro": "hash=$(cat package.json patches/*.patch | git hash-object --stdin) && echo $hash | cmp -s - build/hash || { src=$(mktemp -d) && trap 'rm -rf $src' EXIT && git init -q $src && git -C $src fetch -q --depth 1 https://github.com/mobile-dev-inc/Maestro cli-2.11.0 && git -C $src checkout -q FETCH_HEAD && git -C $src apply $PWD/patches/*.patch && $src/gradlew -p $src :maestro-cli:installDist -x :maestro-ios-driver:buildIosDriver && rm -rf build && mv $src/maestro-cli/build/install/maestro build && echo $hash > build/hash; }",
     "dev": "nx dev e2e"
   },
   "engines": {
