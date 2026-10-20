@@ -273,8 +273,12 @@ describe("worker", () => {
 
   beforeEach(async () => {
     await Promise.all([queue.pause(), notificationQueue.pause()]);
+    await vi.waitUntil(
+      async () => (await queue.getActiveCount()) + (await notificationQueue.getActiveCount()) === 0,
+      10_000,
+    );
     await Promise.all(["check-debts-24h", "check-debts-1h"].map((id) => queue.removeJobScheduler(id)));
-    await Promise.all([queue.obliterate({ force: true }), notificationQueue.obliterate({ force: true })]);
+    await Promise.all([queue.obliterate(), notificationQueue.obliterate()]);
     await database.delete(credentials).where(like(credentials.id, "maturity-test-%"));
     await Promise.all([queue.resume(), notificationQueue.resume()]);
     vi.clearAllMocks();
