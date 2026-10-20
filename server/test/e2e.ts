@@ -1,4 +1,6 @@
 /// <reference types="vite/client" />
+import "reflect-metadata";
+
 import "./mocks/alchemy";
 import "./mocks/onesignal";
 import "./mocks/pax";
@@ -6,13 +8,23 @@ import "./mocks/sardine";
 import "./mocks/sentry";
 import "./mocks/wallet";
 
+import { serve } from "@hono/node-server";
+import {
+  ExtendedKeyUsage,
+  ExtendedKeyUsageExtension,
+  SubjectAlternativeNameExtension,
+  X509CertificateGenerator,
+} from "@peculiar/x509";
 import { cors } from "hono/cors";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createServer } from "node:https";
 import process, { env } from "node:process";
 import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
+
+import domain from "@exactly/common/domain";
 
 import database from "../database";
 import createAlchemy from "../utils/alchemy";
@@ -61,6 +73,29 @@ describe("e2e", () => {
         hookWorker({ bullmq, database, panda }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
+      const algorithm = { name: "ECDSA", namedCurve: "P-256", hash: "SHA-256" };
+      const keys = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
+      const certificate = await X509CertificateGenerator.createSelfSigned({
+        name: `CN=${domain}`,
+        keys,
+        signingAlgorithm: algorithm,
+        extensions: [
+          new ExtendedKeyUsageExtension([ExtendedKeyUsage.serverAuth]),
+          new SubjectAlternativeNameExtension([{ type: "dns", value: domain }]),
+        ],
+      });
+      const https =
+        domain === "localhost"
+          ? undefined
+          : serve({
+              fetch: app.fetch,
+              port: 443,
+              createServer,
+              serverOptions: {
+                cert: certificate.toString("pem"),
+                key: crypto.KeyObject.from(keys.privateKey).export({ format: "pem", type: "pkcs8" }),
+              },
+            });
 
       await expect(
         new Promise((resolve, reject) => {
@@ -71,6 +106,7 @@ describe("e2e", () => {
               segment.close(),
               stop(),
               ...workers.map((worker) => worker.close()),
+              ...(https ? [new Promise((closed) => https.close(closed))] : []),
             ]).then(resolve, reject);
           };
 
