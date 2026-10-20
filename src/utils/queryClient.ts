@@ -322,7 +322,6 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
-    if (process.env.EXPO_PUBLIC_ENV === "e2e") return "e2e";
     if (await sdk.isInMiniApp()) {
       const { client } = await sdk.context;
       switch (client.clientFid) {
@@ -345,15 +344,7 @@ queryClient.setQueryDefaults<EmbeddingContext>(["embedding-context"], {
   },
 });
 export type AuthMethod = "siwe" | "webauthn";
-export type EmbeddingContext =
-  | "base"
-  | "e2e"
-  | "farcaster"
-  | "farcaster-web"
-  | "metamask"
-  | "phantom"
-  | "unknown"
-  | null;
+export type EmbeddingContext = "base" | "farcaster" | "farcaster-web" | "metamask" | "phantom" | "unknown" | null;
 export type ActivityItem = Activity[number];
 
 export default queryClient;
