@@ -8,10 +8,15 @@ import {
   zeroAddress,
 } from "viem";
 import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
+import { useReadContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, { allowlists, auditorAddress, pricePreviewerCode } from "@exactly/common/generated/chain";
-import { useReadPricePreviewerFeeds, useReadPricePreviewerPrices } from "@exactly/common/generated/hooks";
+import chain, {
+  allowlists,
+  auditorAddress,
+  pricePreviewerAbi,
+  pricePreviewerCode,
+} from "@exactly/common/generated/chain";
 
 import alchemyChains from "./alchemyChains";
 import { isStock, marketOpen } from "./lifi";
@@ -28,7 +33,9 @@ export function useHistory(
   count = 289,
 ) {
   const feed = useFeed(token);
-  const onchain = useReadPricePreviewerPrices({
+  const onchain = useReadContract({
+    abi: pricePreviewerAbi,
+    functionName: "prices",
     code: pricePreviewerCode,
     chainId: token.chainId,
     args: feed ? [feed.address, BigInt(ranges[range] / (count - 1)), BigInt(count)] : undefined,
@@ -90,7 +97,9 @@ export function useHistory(
 
 export function useFeed(token?: { address: string; chainId: number; symbol: string }) {
   const chainId = token?.chainId ?? chain.id;
-  const markets = useReadPricePreviewerFeeds({
+  const markets = useReadContract({
+    abi: pricePreviewerAbi,
+    functionName: "feeds",
     code: pricePreviewerCode,
     chainId: chain.id,
     args: [auditorAddress],

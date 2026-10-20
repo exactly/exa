@@ -12,7 +12,7 @@ import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
 import { encodeDeployData, encodeFunctionData } from "viem";
-import { useSendCalls } from "wagmi";
+import { useReadContract, useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
@@ -24,10 +24,7 @@ import chain, {
   previewerAddress,
   proposalManagerAddress,
 } from "@exactly/common/generated/chain";
-import {
-  useReadExaPreviewerPendingProposals,
-  useReadPreviewerPreviewBorrowAtMaturity,
-} from "@exactly/common/generated/hooks";
+import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
@@ -266,7 +263,9 @@ function RolloverButton({
     data: pendingProposals,
     refetch: refetchPendingProposals,
     isPending: isPendingProposalsPending,
-  } = useReadExaPreviewerPendingProposals({
+  } = useReadContract({
+    abi: exaPreviewerAbi,
+    functionName: "pendingProposals",
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,

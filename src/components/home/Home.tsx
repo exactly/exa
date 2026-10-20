@@ -10,7 +10,7 @@ import { AnimatePresence, ScrollView, YStack } from "tamagui";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { encodeDeployData } from "viem";
-import { useBytecode } from "wagmi";
+import { useBytecode, useReadContract } from "wagmi";
 
 import chain, {
   auditorAddress,
@@ -19,7 +19,6 @@ import chain, {
   marketUSDCAddress,
   proposalManagerAddress,
 } from "@exactly/common/generated/chain";
-import { useReadExaPreviewerPendingProposals } from "@exactly/common/generated/hooks";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 
@@ -111,7 +110,9 @@ export default function Home() {
     totalBalanceUSD,
   } = usePortfolio();
 
-  const { refetch: refetchPendingProposals } = useReadExaPreviewerPendingProposals({
+  const { refetch: refetchPendingProposals } = useReadContract({
+    abi: exaPreviewerAbi,
+    functionName: "pendingProposals",
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,

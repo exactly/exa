@@ -48,20 +48,21 @@ catalog:
   "@tamagui/sizable-context": *tamagui
   "@tamagui/toast": *tamagui
   "@tamagui/web": *tamagui
-  "@wagmi/core": ^3.4.1
+  "@wagmi/core": ^3.6.6
   hono: ^4.13.13
   i18next: ^26.0.5
   ioredis: ^5.10.1
-  ox: ^0.14.7
+  ox: ^0.14.56
   react: &react "19.2.0"
   react-dom: *react
   typescript: ^5.9.3
   valibot: ^1.4.2
-  viem: ^2.47.6
-  wagmi: ^3.6.0
+  viem: ^2.57.7
+  wagmi: ^3.7.8
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
+minimumReleaseAgeExclude: ["@wagmi/core@3.6.6", wagmi@3.7.8]
 packages:
   - "."
   - common
