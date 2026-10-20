@@ -166,7 +166,8 @@ export default defineConfig([
                 return `export const ${key}Address = "${getAddress(address)}" as const`;
               }),
               ...Object.entries({
-                balancerVault: loadDeployment("Balancer2Vault", false)?.address,
+                balancerVault: (loadDeployment("Balancer2Vault", false) ?? loadDeployment("Balancer3Vault", false))
+                  ?.address,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
                 firewall: loadDeployment("Firewall", false)?.address,
