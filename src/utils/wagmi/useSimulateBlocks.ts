@@ -8,7 +8,6 @@ import {
 import { useChainId, useConfig, type Config } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
-// TODO remove after https://github.com/wevm/wagmi/pull/4993
 export default function useSimulateBlocks<const calls extends readonly unknown[]>({
   config: configParameter,
   chainId: chainIdParameter,
