@@ -55,8 +55,8 @@ contract Redeployer is BaseScript {
     dummy = Dummy(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("Dummy"))));
     proxyAdmin = ProxyAdmin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyAdmin"))));
     ownerPlugin =
-      IPlugin(_broadcastOrCreate3("node_modules/webauthn-owner-plugin/broadcast/Plugin", "WebauthnOwnerPlugin"));
-    exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", "ExaPlugin"));
+      IPlugin(_broadcastOrCreate3("node_modules/webauthn-owner-plugin/broadcast/Plugin", _ownerPluginSalt()));
+    exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", keccak256(abi.encode("ExaPlugin"))));
     factory = _factory();
     auditor = IAuditor(_protocolOrStub("Auditor", "StubAuditor"));
     marketUSDC = IMarket(_protocolOrStub("MarketUSDC", "StubMarketUSDC"));
@@ -104,11 +104,10 @@ contract Redeployer is BaseScript {
       }
     }
     if (address(ownerPlugin).code.length == 0) {
-      ownerPlugin = IPlugin(
-        CREATE3_FACTORY.deploy(keccak256(abi.encode("WebauthnOwnerPlugin")), type(WebauthnOwnerPlugin).creationCode)
-      );
+      ownerPlugin = IPlugin(CREATE3_FACTORY.deploy(_ownerPluginSalt(), type(WebauthnOwnerPlugin).creationCode));
     }
-    address proposalManagerAddr = _broadcastOrCreate3("broadcast/ProposalManager", "ProposalManager");
+    address proposalManagerAddr =
+      _broadcastOrCreate3("broadcast/ProposalManager", keccak256(abi.encode("ProposalManager")));
     if (proposalManagerAddr.code.length == 0) {
       proposalManagerAddr = CREATE3_FACTORY.deploy(
         keccak256(abi.encode("ProposalManager")),
@@ -271,7 +270,7 @@ contract Redeployer is BaseScript {
     revert NonceNotFound();
   }
 
-  function _broadcastOrCreate3(string memory path, string memory salt) internal returns (address addr) {
+  function _broadcastOrCreate3(string memory path, bytes32 salt) internal returns (address addr) {
     // forge-lint: disable-next-line(unsafe-cheatcode)
     try vm.readFile(string.concat(path, ".s.sol/", vm.toString(block.chainid), "/run-latest.json")) returns (
       string memory json
@@ -280,7 +279,7 @@ contract Redeployer is BaseScript {
         addr = a;
       } catch { } // solhint-disable-line no-empty-blocks
     } catch { } // solhint-disable-line no-empty-blocks
-    if (addr == address(0)) addr = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(salt)));
+    if (addr == address(0)) addr = CREATE3_FACTORY.getDeployed(acct("admin"), salt);
   }
 
   function _factory() internal returns (ExaAccountFactory) {
@@ -291,6 +290,16 @@ contract Redeployer is BaseScript {
     }
     return
       ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ExaAccountFactory")))));
+  }
+
+  function _ownerPluginSalt() internal view returns (bytes32) {
+    return keccak256(
+      abi.encode(
+        "WebauthnOwnerPlugin",
+        // forge-lint: disable-next-line(unsafe-cheatcode)
+        vm.split(vm.parseJsonString(vm.readFile("package.json"), ".dependencies.webauthn-owner-plugin"), "#")[1]
+      )
+    );
   }
 
   function _protocolOrStub(string memory name, string memory stub) internal returns (address addr) {

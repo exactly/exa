@@ -319,6 +319,18 @@ contract RedeployerTest is ForkTest {
     assertEq(account, accountBase, "account != expected");
   }
 
+  function test_deployExaFactory_replacesOutdatedOwnerPlugin_onPolygon() external {
+    vm.createSelectFork("polygon", 95_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.setUp();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.2.0");
+
+    assertEq(factory.WEBAUTHN_OWNER_PLUGIN(), address(redeployer.ownerPlugin()), "ownerPlugin != expected");
+    assertNotEq(address(redeployer.ownerPlugin()), 0x9d654197Aa393D198B628E9F4Cc03903574CD7D5, "outdated plugin reused");
+  }
+
   function test_recoversNativeETHOnPolygon() external {
     address accountBase = 0xeC6EE8939C1230742eCe9571319037767F574754;
 
