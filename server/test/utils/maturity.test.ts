@@ -10,7 +10,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { MATURITY_INTERVAL } from "@exactly/lib";
+import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
 import database, { credentials } from "../../database";
 import { closeQueue, reminders, setup } from "../../utils/maturity";
@@ -31,6 +31,7 @@ type ScanChunk = { accounts: Address[]; chunkIndex: number; maturity: number; wi
 type SendReminder = { maturity: number; userId: Address; window: Window };
 type Position = readonly [bigint, bigint];
 type AggregateCall = { allowFailure: boolean; callData: `0x${string}`; target: Address };
+type Read = { args: readonly [readonly AggregateCall[]]; functionName: string };
 
 const queue = new Queue<CheckDebts | ScanChunk>("maturity", { connection: bullmq });
 const notificationQueue = new Queue<{
@@ -41,6 +42,7 @@ const notificationQueue = new Queue<{
   window: Window;
 }>("maturity-notifications", { connection: bullmq });
 const USDC = 1_000_000n;
+const markets = [{ market: marketUSDCAddress, decimals: 6, usdPrice: WAD, fixedPools: [{ borrowed: 1n }] }];
 
 function insertAccounts(accounts: Address[]) {
   return database.insert(credentials).values(accounts.map((account, index) => credential(account, index)));
@@ -70,20 +72,22 @@ function mockFixedBorrowPositions(account: Address, position: Position) {
 }
 
 function mockFixedBorrowPositionsMany(entries: [Address, Position][]) {
-  mocks.readContract.mockImplementation(({ args }: { args: readonly [readonly AggregateCall[]] }) =>
+  mocks.readContract.mockImplementation(({ args, functionName }: Read) =>
     Promise.resolve(
-      args[0].map(({ callData }) => {
-        const callArguments = decodeFunctionData({ abi: marketAbi, data: callData }).args;
-        const position = new Map(entries).get(parse(Address, callArguments[1]));
-        return {
-          success: true,
-          returnData: encodeFunctionResult({
-            abi: marketAbi,
-            functionName: "fixedBorrowPositions",
-            result: position ?? [0n, 0n],
+      functionName === "exactly"
+        ? markets
+        : args[0].map(({ callData }) => {
+            const callArguments = decodeFunctionData({ abi: marketAbi, data: callData }).args;
+            const position = new Map(entries).get(parse(Address, callArguments[1]));
+            return {
+              success: true,
+              returnData: encodeFunctionResult({
+                abi: marketAbi,
+                functionName: "fixedBorrowPositions",
+                result: position ?? [0n, 0n],
+              }),
+            };
           }),
-        };
-      }),
     ),
   );
 }
@@ -384,6 +388,40 @@ describe("worker", () => {
     expect(jobs[0]?.data.sentryBaggage).toMatch(/(?:^|,)sentry-sampled=(?:true|false)(?:,|$)/);
   });
 
+  it("enqueues reminder job with debt in non-usdc market", async () => {
+    const account = parse(Address, "0x1234567890123456789012345678901234567890");
+    const market = parse(Address, "0x1234567890123456789012345678901234567892");
+    const window = "24h";
+    const maturity = nextMaturity();
+
+    await notificationQueue.pause();
+    await insertAccounts([account]);
+    mocks.readContract.mockImplementation(({ args, functionName }: Read) =>
+      Promise.resolve(
+        functionName === "exactly"
+          ? [...markets, { market, decimals: 18, usdPrice: 2000n * WAD, fixedPools: [{ borrowed: 1n }] }]
+          : args[0].map(({ target, callData }) => ({
+              success: true,
+              returnData: encodeFunctionResult({
+                abi: marketAbi,
+                functionName: "fixedBorrowPositions",
+                result:
+                  target === market &&
+                  parse(Address, decodeFunctionData({ abi: marketAbi, data: callData }).args[1]) === account
+                    ? [WAD / 100n, 0n]
+                    : [0n, 0n],
+              }),
+            })),
+      ),
+    );
+
+    await checkDoneAt("check-debts", maturity, window);
+
+    const jobs = await notificationJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.data).toMatchObject({ accounts: [account], maturity, window });
+  });
+
   it("retains completed reminder jobs so the planner does not enqueue duplicates", async () => {
     const account = parse(Address, "0x1234567890123456789012345678901234567890");
     const window = "24h";
@@ -503,23 +541,25 @@ describe("worker", () => {
 
     await notificationQueue.pause();
     let failed = false;
-    mocks.readContract.mockImplementation(({ args }: { args: readonly [readonly AggregateCall[]] }) =>
+    mocks.readContract.mockImplementation(({ args, functionName }: Read) =>
       Promise.resolve(
-        args[0].map(({ callData }) => {
-          const callArguments = decodeFunctionData({ abi: marketAbi, data: callData }).args;
-          if (parse(Address, callArguments[1]) === first && !failed) {
-            failed = true;
-            return { success: false, returnData: "0x" as const };
-          }
-          return {
-            success: true,
-            returnData: encodeFunctionResult({
-              abi: marketAbi,
-              functionName: "fixedBorrowPositions",
-              result: [100n * USDC, 0n],
+        functionName === "exactly"
+          ? markets
+          : args[0].map(({ callData }) => {
+              const callArguments = decodeFunctionData({ abi: marketAbi, data: callData }).args;
+              if (parse(Address, callArguments[1]) === first && !failed) {
+                failed = true;
+                return { success: false, returnData: "0x" as const };
+              }
+              return {
+                success: true,
+                returnData: encodeFunctionResult({
+                  abi: marketAbi,
+                  functionName: "fixedBorrowPositions",
+                  result: [100n * USDC, 0n],
+                }),
+              };
             }),
-          };
-        }),
       ),
     );
 
@@ -636,17 +676,19 @@ describe("worker", () => {
     try {
       await insertAccounts([account]);
       await notificationQueue.pause();
-      mocks.readContract.mockReturnValue(
-        read.then((result) => [
-          {
-            success: true,
-            returnData: encodeFunctionResult({
-              abi: marketAbi,
-              functionName: "fixedBorrowPositions",
-              result,
-            }),
-          },
-        ]),
+      mocks.readContract.mockImplementation(({ functionName }: Read) =>
+        functionName === "exactly"
+          ? read.then(() => markets)
+          : read.then((result) => [
+              {
+                success: true,
+                returnData: encodeFunctionResult({
+                  abi: marketAbi,
+                  functionName: "fixedBorrowPositions",
+                  result,
+                }),
+              },
+            ]),
       );
       const coordinator = await queue.add("check-debts", { window }, { attempts: 1 });
       if (!coordinator.id) throw new Error("job id missing");
@@ -670,25 +712,26 @@ describe("worker", () => {
     let maximum = 0;
 
     await notificationQueue.pause();
-    mocks.readContract.mockImplementation(
-      ({ args }: { args: readonly [readonly AggregateCall[]] }) =>
-        new Promise((resolve) => {
-          active += 1;
-          maximum = Math.max(maximum, active);
-          setTimeout(() => {
-            active -= 1;
-            resolve(
-              args[0].map(() => ({
-                success: true,
-                returnData: encodeFunctionResult({
-                  abi: marketAbi,
-                  functionName: "fixedBorrowPositions",
-                  result: [0n, 0n],
-                }),
-              })),
-            );
-          }, 25);
-        }),
+    mocks.readContract.mockImplementation(({ args, functionName }: Read) =>
+      functionName === "exactly"
+        ? Promise.resolve(markets)
+        : new Promise((resolve) => {
+            active += 1;
+            maximum = Math.max(maximum, active);
+            setTimeout(() => {
+              active -= 1;
+              resolve(
+                args[0].map(() => ({
+                  success: true,
+                  returnData: encodeFunctionResult({
+                    abi: marketAbi,
+                    functionName: "fixedBorrowPositions",
+                    result: [0n, 0n],
+                  }),
+                })),
+              );
+            }, 25);
+          }),
     );
     const jobs = await queue.addBulk(
       accounts.map((account, index) => ({
@@ -740,7 +783,7 @@ describe("worker", () => {
       if (!job.id) throw new Error("job id missing");
       await waitForCompletedJob(queue, job.id);
 
-      expect(mocks.readContract).toHaveBeenCalledOnce();
+      expect(mocks.readContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "aggregate3" }));
       expect(await notificationJobs()).toHaveLength(0);
     } finally {
       vi.mocked(Date.now).mockRestore();
