@@ -1011,6 +1011,9 @@ importers:
       '@mastra/evals':
         specifier: ^1.9.0
         version: 1.9.0(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.5.4))
+      '@peculiar/x509':
+        specifier: ^1.14.3
+        version: 1.14.3
       '@pimlico/alto':
         specifier: ^0.0.21
         version: 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)

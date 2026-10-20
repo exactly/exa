@@ -87,6 +87,7 @@
     "@exactly/common": "workspace:^0.0.23",
     "@exactly/plugin": "workspace:^1.1.0",
     "@mastra/evals": "^1.9.0",
+    "@peculiar/x509": "^1.14.3",
     "@pimlico/alto": "^0.0.21",
     "@sentry/cli": "^3.6.2",
     "@types/ioredis-mock": "^8.2.7",
