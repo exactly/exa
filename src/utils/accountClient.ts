@@ -50,6 +50,7 @@ import {
   waitForTransactionReceipt,
 } from "@wagmi/core/actions";
 import {
+  BaseError,
   bytesToBigInt,
   bytesToHex,
   concat,
@@ -65,6 +66,7 @@ import {
   isHex,
   maxUint256,
   numberToHex,
+  RpcRequestError,
   sliceHex,
   trim,
   type Address,
@@ -192,6 +194,13 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     crossChainAccounts.set(targetChain.id, promise);
     return promise;
   }
+  async function getReadClient(chainId: number) {
+    if (chainId === chain.id) return client;
+    const targetChain = alchemyChainById.get(chainId);
+    if (!targetChain) throw new Error(`unsupported chain ${chainId}`);
+    const { readClient } = await getCrossChainAccount(targetChain);
+    return readClient;
+  }
   return createBundlerClient({
     chain,
     // @ts-expect-error bad alchemy types
@@ -213,6 +222,26 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
             const suffix = isHex(capabilities?.dataSuffix?.value) ? capabilities.dataSuffix.value : dataSuffix;
             const uo = calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value }));
+            const execute = {
+              to: accountAddress,
+              functionName: "executeBatch",
+              args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
+              abi: upgradeableModularAccountAbi,
+            } as const;
+            const fallback = async (error: unknown) => {
+              reportError(error, {
+                level: "warning",
+                extra: error instanceof Error ? { cause: error.cause } : undefined,
+              });
+              await switchChain(ownerConfig, { chainId: targetChainId });
+              const hash = await sendTransaction(ownerConfig, {
+                to: accountAddress,
+                data: encodeFunctionData(execute),
+                chainId: targetChainId,
+                ...(suffix ? { dataSuffix: suffix } : {}),
+              });
+              return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), TX_MAGIC_ID]) };
+            };
             const context = capabilities?.paymasterService?.context as
               | undefined
               | { erc20Context?: { maxTokenAmount?: bigint; tokenAddress?: Address }; policyId?: string | string[] };
@@ -238,10 +267,22 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
                 gasEstimator,
               });
-              const { hash } = await crossClient.sendUserOperation({
-                uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
-              });
-              return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
+              try {
+                const { hash } = await crossClient.sendUserOperation({
+                  uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
+                });
+                return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
+              } catch (error) {
+                if (
+                  !isSiwe() ||
+                  !(error instanceof BaseError) ||
+                  !error.walk((cause) => cause instanceof RpcRequestError && [-32_502, -32_507].includes(cause.code)) ||
+                  !(await remote.account.isAccountDeployed())
+                ) {
+                  throw error;
+                }
+                return fallback(error);
+              }
             }
             const policyId = [
               ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
@@ -263,12 +304,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               });
               return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
             }
-            const execute = {
-              to: accountAddress,
-              functionName: "executeBatch",
-              args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
-              abi: upgradeableModularAccountAbi,
-            } as const;
             try {
               return await sendCalls(ownerConfig, {
                 id,
@@ -299,19 +334,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               });
             } catch (error) {
               if (classifyError(error).authKnown) throw error;
-              reportError(error, {
-                level: "warning",
-                extra: error instanceof Error ? { cause: error.cause } : undefined,
-              });
               // TODO filter errors
-              await switchChain(ownerConfig, { chainId: chain.id });
-              const hash = await sendTransaction(ownerConfig, {
-                to: accountAddress,
-                data: encodeFunctionData(execute),
-                chainId: chain.id,
-                ...(suffix ? { dataSuffix: suffix } : {}),
-              });
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
+              return fallback(error);
             }
           }
           case "wallet_prepareCalls": {
@@ -342,13 +366,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
             if (params[0].endsWith(UO_MAGIC_ID.slice(2)) && isHex(params[0]) && params[0].length === 194) {
               const uoChainId = hexToNumber(trim(sliceHex(params[0], -64, -32)));
-              let uoClient: SmartAccountClient<Transport, Chain, SmartContractAccount> = client;
-              if (uoChainId !== chain.id) {
-                const uoChain = alchemyChainById.get(uoChainId);
-                if (!uoChain) throw new Error(`unsupported chain ${uoChainId}`);
-                const { readClient } = await getCrossChainAccount(uoChain);
-                uoClient = readClient;
-              }
+              const uoClient = await getReadClient(uoChainId);
               const receipt = await uoClient.getUserOperationReceipt(sliceHex(params[0], 0, 32));
               return {
                 version: "2.0.0",
@@ -360,7 +378,10 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               };
             }
             if (params[0].endsWith(TX_MAGIC_ID.slice(2)) && isHex(params[0])) {
-              const result = await viemGetCallsStatus(publicClient, { id: params[0] });
+              const result = await viemGetCallsStatus(
+                await getReadClient(hexToNumber(trim(sliceHex(params[0], -64, -32)))),
+                { id: params[0] },
+              );
               return { ...result, status: result.statusCode };
             }
             const result = await getCallsStatus(ownerConfig, { id: params[0] });
