@@ -9,7 +9,7 @@ import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { encodeDeployData } from "viem";
+import { encodeDeployData, type Address } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
 import chain, {
@@ -83,7 +83,7 @@ export default function Home() {
   const [cardDetailsOpen, setCardDetailsOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
-  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
+  const [rolloverIntro, setRolloverIntro] = useState<{ market: Address; maturity: string }>();
   const pendingModeRef = useRef(0);
   const pendingSheetOpenRef = useRef(false);
 
@@ -197,14 +197,13 @@ export default function Home() {
     [markets],
   );
 
-  const overdueMaturity = useMemo(() => {
-    let earliest: bigint | undefined;
+  const overdue = useMemo(() => {
+    let earliest: undefined | { market: Address; maturity: bigint };
     for (const { market, fixedBorrowPositions } of markets ?? []) {
-      if (market !== marketUSDCAddress) continue;
       for (const { maturity, position } of fixedBorrowPositions) {
         if (maturity >= timestamp || position.principal + position.fee === 0n) continue;
-        if (isProcessing(maturity)) continue;
-        if (earliest === undefined || maturity < earliest) earliest = maturity;
+        if (isProcessing(market, maturity)) continue;
+        if (earliest === undefined || maturity < earliest.maturity) earliest = { market, maturity };
       }
     }
     return earliest;
@@ -248,13 +247,13 @@ export default function Home() {
           <ProfileHeader />
           <View flex={1} gap="$s5" paddingBottom="$s5">
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
-              {overdueMaturity !== undefined && (
+              {overdue !== undefined && (
                 <InfoAlert
                   variant="error"
                   title={t("You have an overdue payment. Pay now to avoid additional interest.")}
                   actionText={t("Pay now")}
                   onPress={() => {
-                    router.setParams({ maturity: String(overdueMaturity) });
+                    router.setParams({ market: overdue.market, maturity: String(overdue.maturity) });
                   }}
                 />
               )}
@@ -335,8 +334,13 @@ export default function Home() {
               />
             )}
             <View paddingHorizontal="$s4" gap="$s5">
-              <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
-              <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <OverduePayments
+                onSelect={(market, maturity) => router.setParams({ market, maturity: String(maturity) })}
+              />
+              <UpcomingPayments
+                showEmpty
+                onSelect={(market, maturity) => router.setParams({ market, maturity: String(maturity) })}
+              />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
             </View>
@@ -347,8 +351,8 @@ export default function Home() {
               setCardDetailsOpen(false);
             }}
           />
-          <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
-          <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
+          <PaymentSheet onRolloverIntro={setRolloverIntro} />
+          <RolloverIntroSheet debt={rolloverIntro} onClose={() => setRolloverIntro(undefined)} />
           <InstallmentsSheet
             mode={card?.mode ?? 1}
             open={installmentsSheetOpen}
