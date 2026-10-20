@@ -523,6 +523,7 @@
   "LI.FI fee": "Taxa de LI.FI",
   "Limited-time offer": "Oferta por tempo limitado",
   "Limit {{amount}} per repay. Please split larger amounts into smaller payments.": "Limite de {{amount}} por pagamento. Divida valores maiores em pagamentos menores.",
+  "Repaying {{symbol}} from your portfolio is not available yet.": "Ainda não é possível pagar {{symbol}} a partir do seu portfólio.",
   "Link copied!": "Link copiado!",
   "Loading...": "Carregando...",
   "Loan activity": "Atividade de empréstimos",
