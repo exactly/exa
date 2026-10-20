@@ -290,14 +290,16 @@ export default function Swaps() {
     [candidates, held],
   );
   const tabs =
-    !restricted && (isLifiLoading || isChainsLoading || isBaseLoading || candidates.some((token) => isStock(token)));
-  const stocks = tabs && (mode ? mode === "stocks" : toToken ? isStock(toToken.token) : filter === "stocks");
+    !restricted &&
+    (isLifiLoading || isChainsLoading || isBaseLoading || candidates.some((token) => isStock(allowlists, token)));
+  const stocks =
+    tabs && (mode ? mode === "stocks" : toToken ? isStock(allowlists, toToken.token) : filter === "stocks");
   useEffect(() => {
     if (stocks) queryClient.setQueryData(["settings", "stocks-tab-seen"], true);
   }, [stocks]);
   const selectableTokens = useMemo(
-    () => candidates.filter((token) => tokenSelectionType === "from" || isStock(token) === stocks),
-    [candidates, stocks, tokenSelectionType],
+    () => candidates.filter((token) => tokenSelectionType === "from" || isStock(allowlists, token) === stocks),
+    [allowlists, candidates, stocks, tokenSelectionType],
   );
 
   useEffect(() => {
@@ -309,13 +311,13 @@ export default function Swaps() {
       const input = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
       const target =
         old.toToken?.token ??
-        (stocks ? candidates.find((token) => isStock(token) && !sameToken(token, input)) : undefined) ??
+        (stocks ? candidates.find((token) => isStock(allowlists, token) && !sameToken(token, input)) : undefined) ??
         (stocks && (isLifiLoading || isBaseLoading || isChainsLoading)
           ? undefined
-          : ((input && isStock(input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
+          : ((input && isStock(allowlists, input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
               .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
               .find((token) => token !== undefined && !sameToken(token, input)) ??
-            homeTokens.find((token) => !sameToken(token, input) && !isStock(token))));
+            homeTokens.find((token) => !sameToken(token, input) && !isStock(allowlists, token))));
       return {
         ...old,
         fromToken:
@@ -325,6 +327,7 @@ export default function Swaps() {
       };
     });
   }, [
+    allowlists,
     candidates,
     fromToken,
     homeTokens,
@@ -338,7 +341,7 @@ export default function Swaps() {
     toToken,
   ]);
 
-  const locked = !fromToken || !toToken || (restricted && isStock(fromToken.token));
+  const locked = !fromToken || !toToken || (restricted && isStock(allowlists, fromToken.token));
   const processing = chain.id === base.id && isKYCInReview;
   const failed = chain.id === base.id && isKYCFailed;
 
@@ -377,7 +380,7 @@ export default function Swaps() {
         tokenSelectionType === "to"
           ? { token: selected, external }
           : sameToken(selected, toToken?.token)
-            ? fromToken && restricted && isStock(fromToken.token)
+            ? fromToken && restricted && isStock(allowlists, fromToken.token)
               ? undefined
               : fromToken
             : toToken,
@@ -1054,7 +1057,9 @@ export default function Swaps() {
               <View padded>
                 <YStack paddingBottom="$s3" gap="$s4_5">
                   <MarketClosedBanner
-                    open={[fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen()}
+                    open={
+                      [fromToken, toToken].some((side) => !!side && isStock(allowlists, side.token)) && !marketOpen()
+                    }
                   />
                   <YStack>
                     {(["from", "to"] as const).map((type) => {

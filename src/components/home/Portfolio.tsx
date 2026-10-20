@@ -17,6 +17,7 @@ import { balancesOptions, isStock } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import Amount from "../shared/Amount";
@@ -32,6 +33,7 @@ import WeightedRate from "../shared/WeightedRate";
 export default function Portfolio() {
   const { address } = useAccount();
   const { averageRate, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
+  const allowlists = useAllowlists();
   const router = useRouter();
   const { t } = useTranslation();
   const [tab, setTab] = useState<"all" | "collateral" | "stocks">("all");
@@ -39,7 +41,9 @@ export default function Portfolio() {
   const { refetch: refetchMarkets } = useMarkets();
   const { refetch: refetchBalances, isFetching: isBalancesFetching } = useQuery(balancesOptions(address));
 
-  const stocks = allAssets.filter((asset): asset is ExternalAsset => asset.type === "external" && isStock(asset));
+  const stocks = allAssets.filter(
+    (asset): asset is ExternalAsset => asset.type === "external" && isStock(allowlists, asset),
+  );
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft">
@@ -140,7 +144,7 @@ export default function Portfolio() {
             {tab === "all" ? (
               <ExternalAssets
                 assets={allAssets.filter(
-                  (asset): asset is ExternalAsset => asset.type === "external" && !isStock(asset),
+                  (asset): asset is ExternalAsset => asset.type === "external" && !isStock(allowlists, asset),
                 )}
               />
             ) : null}

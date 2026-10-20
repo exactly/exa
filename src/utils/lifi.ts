@@ -68,7 +68,6 @@ import chain, {
   proposalManagerAbi,
   proposalManagerAddress,
   allowlists as snapshot,
-  stocks,
   swapperAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
@@ -176,8 +175,12 @@ export function statsOptions(chainId: number, address: string) {
   });
 }
 
-export function isStock({ address, chainId }: { address: string; chainId: number }) {
-  return chainId === base.id && stocks.has(address.toLowerCase());
+export function isStock(allowlists: Allowlists, { address, chainId }: { address: string; chainId: number }) {
+  if (chainId !== base.id || address.slice(0, 5).toLowerCase() !== "0xb20") return false;
+  const targets = allowlists[base.id] ?? [];
+  const stocks = lowercased.get(targets) ?? new Set(targets.map((target) => target.toLowerCase()));
+  lowercased.set(targets, stocks);
+  return stocks.has(address.toLowerCase());
 }
 
 export const stockAbi = parseAbi(["function multiplier() view returns (uint256)"]);
@@ -441,6 +444,8 @@ export async function getAllowTokens(
 export function reverted(error: unknown) {
   return error instanceof ContractFunctionExecutionError && error.cause instanceof ContractFunctionRevertedError;
 }
+
+export type Allowlists = typeof snapshot;
 
 export type RouteFrom = {
   chainId: number;
@@ -861,6 +866,7 @@ const Balances = object({
 });
 
 const knownTokens = new WeakMap<Token[], Map<string, Token>>();
+const lowercased = new WeakMap<readonly string[], ReadonlySet<string>>();
 
 const weekdays = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" });
 const hours = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" });
