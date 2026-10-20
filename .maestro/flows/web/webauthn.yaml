@@ -1,0 +1,19 @@
+url: "${APP_ID ?? 'http://localhost:8081'}"
+---
+- launchApp: { clearState: true }
+- openLink: "${APP_ID ?? 'http://localhost:8081'}/passkeys"
+- tapOn: Set passkey and create account
+- assertVisible: Good (morning|afternoon|evening)!
+- runFlow: ../../subflows/getAccount.yaml
+- runFlow: { file: ../../subflows/tapAria.yaml, env: { aria: "Good (morning|afternoon|evening)!" } }
+- assertVisible: Address copied
+- copyTextFrom: 0x[\da-fA-F]{40}
+- evalScript: ${output.account = maestro.copiedText}
+- tapOn: Close
+- runFlow:
+    file: ../../subflows/mint.yaml
+    env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runFlow:
+    file: ../../subflows/send.yaml
+    env: { asset: USDC, to: "${output.owner}", amount: "69" }
+- runFlow: ../../subflows/storeCoverage.yaml

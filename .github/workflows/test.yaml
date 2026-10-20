@@ -69,7 +69,7 @@ jobs:
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy: { fail-fast: false, matrix: { flow: [credit, onboarding, swap, transfer] } }
+    strategy: { fail-fast: false, matrix: { flow: [credit, onboarding, swap, transfer, webauthn] } }
     env:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
@@ -103,6 +103,7 @@ jobs:
           done
       - run: echo ::add-matcher::.github/matcher.json
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
+      - run: sudo sysctl net.ipv4.ip_unprivileged_port_start=443
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: |
@@ -112,8 +113,8 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log MAESTRO_OPTS=-Dwebdriver.chrome.logfile=/dev/stderr xvfb-run maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml
-        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e, SE_CHROMEDRIVER: .maestro/chromedriver.ts } # cspell:ignore chromedriver dwebdriver logfile
+          CHROME_LOG_FILE=$PWD/chrome.log MAESTRO_OPTS=-Dwebdriver.chrome.logfile=/dev/stderr xvfb-run maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e APP_ID=https://$APP_DOMAIN --format junit --output .maestro/junit.xml
+        env: { APP_DOMAIN: exa.localhost, EXPO_PUBLIC_ENV: e2e, SE_CHROMEDRIVER: .maestro/chromedriver.ts } # cspell:ignore chromedriver dwebdriver logfile
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true

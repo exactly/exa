@@ -3,13 +3,10 @@ import { get } from "react-native-passkeys";
 
 import {
   buildUserOperation,
-  buildUserOperationFromTx,
   createBundlerClient,
   createSmartAccountClient,
   defaultGasEstimator,
-  defaultUserOpSigner,
   getEntryPoint,
-  resolveProperties,
   smartAccountClientActions,
   toSmartContractAccount,
   type ClientMiddlewareArgs,
@@ -58,7 +55,6 @@ import {
   custom,
   encodeAbiParameters,
   encodePacked,
-  ethAddress,
   hashMessage,
   hexToBytes,
   hexToNumber,
@@ -82,7 +78,6 @@ import {
   type Transport,
 } from "viem";
 import { getCallsStatus as viemGetCallsStatus } from "viem/actions";
-import { anvil } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -93,7 +88,6 @@ import domain from "@exactly/common/domain";
 import chain, { upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 
 import alchemyChainById from "./alchemyChains";
-import e2e from "./e2e";
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
@@ -103,8 +97,6 @@ import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
 import type { Config } from "@wagmi/core";
-
-if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const accountAddress = deriveAddress(factory, { x, y });
@@ -142,24 +134,18 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     signTypedData: () => Promise.reject(new Error("not implemented")),
     ...(standardExecutor as Pick<SmartContractAccount, "encodeBatchExecute" | "encodeExecute">),
   };
-  const entryPoint = getEntryPoint(chain);
-  const account = await toSmartContractAccount({ chain, transport, entryPoint, ...accountOptions });
+  const account = await toSmartContractAccount({
+    chain,
+    transport,
+    entryPoint: getEntryPoint(chain),
+    ...accountOptions,
+  });
   const client = createSmartAccountClient({
     chain,
     transport,
     account,
-    ...(alchemyGasPolicyId
-      ? { ...alchemyGasManagerMiddleware(alchemyGasPolicyId), gasEstimator }
-      : {
-          gasEstimator(struct) {
-            struct.preVerificationGas = 1_000_000n;
-            struct.verificationGasLimit = 5_000_000n;
-            struct.callGasLimit = 10_000_000n;
-            return Promise.resolve(struct);
-          },
-          dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
-          paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
-        }),
+    ...alchemyGasManagerMiddleware(alchemyGasPolicyId),
+    gasEstimator,
   });
   const crossChainAccounts = new Map<
     number,
@@ -251,7 +237,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             }
             const policyId = [
               ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
-              ...(alchemyGasPolicyId ? [alchemyGasPolicyId] : []),
+              alchemyGasPolicyId,
             ];
             if (isSiwe() && (await account.isAccountDeployed())) {
               try {
@@ -273,21 +259,17 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                     paymasterService: {
                       optional: true,
                       url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      ...(policyId.length > 0
-                        ? {
-                            context: {
-                              policyId,
-                              ...(policyToken
-                                ? {
-                                    erc20Context: {
-                                      tokenAddress: policyToken.address,
-                                      maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
-                                    },
-                                  }
-                                : {}),
-                            },
-                          }
-                        : {}),
+                      context: {
+                        policyId,
+                        ...(policyToken
+                          ? {
+                              erc20Context: {
+                                tokenAddress: policyToken.address,
+                                maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
+                              },
+                            }
+                          : {}),
+                      },
                     },
                   },
                 });
@@ -311,16 +293,15 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 reportError(error, { level: "warning", extra: { cause: error.cause } });
               }
             }
-            const uoClient =
-              context && policyId.length > 0
-                ? createSmartAccountClient({
-                    chain,
-                    transport,
-                    account,
-                    ...alchemyGasManagerMiddleware(policyId, policyToken),
-                    gasEstimator,
-                  })
-                : client;
+            const uoClient = context
+              ? createSmartAccountClient({
+                  chain,
+                  transport,
+                  account,
+                  ...alchemyGasManagerMiddleware(policyId, policyToken),
+                  gasEstimator,
+                })
+              : client;
             const { hash } = await sendUserOperation(uoClient, {
               uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
             });
@@ -384,69 +365,35 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 .filter((id): id is Hex => isHex(id))
                 .map((id) => [id, { dataSuffix: { supported: true } }]),
             );
-          case "eth_sendTransaction": {
+          case "eth_sendTransaction":
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-            if (!e2e) {
-              try {
-                const { to, data = "0x", value = 0n } = params[0] as TransactionRequest;
-                const { id } = await sendCalls(ownerConfig, {
-                  chainId: chain.id,
-                  calls: [
-                    {
-                      to: accountAddress,
-                      functionName: "executeBatch",
-                      args: [[{ target: to ?? "0x", data, value }]],
-                      abi: upgradeableModularAccountAbi,
-                    },
-                  ],
-                  capabilities: {
-                    ...(dataSuffix ? { dataSuffix: { optional: true, value: dataSuffix } } : {}),
-                    paymasterService: {
-                      optional: true,
-                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      ...(alchemyGasPolicyId ? { context: { policyId: alchemyGasPolicyId } } : {}),
-                    },
-                  },
-                });
-                return id;
-              } catch (error) {
-                if (classifyError(error).authKnown) throw error;
-                reportError(error, { level: "warning" });
-                return client.request({ method: method as never, params: params as never });
-              }
-            }
-            const uo = (await resolveProperties(
-              await defaultUserOpSigner(await buildUserOperationFromTx(client, params[0] as TransactionRequest), {
-                client,
-                account: client.account,
-              }),
-            )) as Required<UserOperationStruct_v6>;
-            const hash = await e2e.writeContract({
-              address: entryPoint.address,
-              functionName: "handleOps",
-              abi: entryPoint.abi,
-              args: [
-                [
+            try {
+              const { to, data = "0x", value = 0n } = params[0] as TransactionRequest;
+              const { id } = await sendCalls(ownerConfig, {
+                chainId: chain.id,
+                calls: [
                   {
-                    sender: uo.sender as Hex,
-                    nonce: BigInt(uo.nonce),
-                    initCode: uo.initCode as Hex,
-                    callData: uo.callData as Hex,
-                    callGasLimit: BigInt(uo.callGasLimit),
-                    preVerificationGas: BigInt(uo.preVerificationGas),
-                    verificationGasLimit: BigInt(uo.verificationGasLimit),
-                    maxFeePerGas: BigInt(uo.maxFeePerGas),
-                    maxPriorityFeePerGas: BigInt(uo.maxPriorityFeePerGas),
-                    paymasterAndData: uo.paymasterAndData as Hex,
-                    signature: uo.signature as Hex,
+                    to: accountAddress,
+                    functionName: "executeBatch",
+                    args: [[{ target: to ?? "0x", data, value }]],
+                    abi: upgradeableModularAccountAbi,
                   },
                 ],
-                e2e.account.address,
-              ],
-            });
-            await publicClient.waitForTransactionReceipt({ hash });
-            return hash;
-          }
+                capabilities: {
+                  ...(dataSuffix ? { dataSuffix: { optional: true, value: dataSuffix } } : {}),
+                  paymasterService: {
+                    optional: true,
+                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                    context: { policyId: alchemyGasPolicyId },
+                  },
+                },
+              });
+              return id;
+            } catch (error) {
+              if (classifyError(error).authKnown) throw error;
+              reportError(error, { level: "warning" });
+              return client.request({ method: method as never, params: params as never });
+            }
           default:
             return client.request({ method: method as never, params: params as never });
         }

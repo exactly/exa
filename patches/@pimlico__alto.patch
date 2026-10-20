@@ -1,0 +1,72 @@
+diff --git a/esm/rpc/server.js b/esm/rpc/server.js
+index 9ee2998ec07657268c14adb28bc8ac5b71ab64a6..3f3b55860c71de6bd7be72006b00ff0205ce3e52 100644
+--- a/esm/rpc/server.js
++++ b/esm/rpc/server.js
+@@ -2,7 +2,7 @@ import { ERC7769Errors, RpcError, altoVersions, bundlerRequestSchema, jsonRpcSch
+ import cors from "@fastify/cors";
+ import websocket from "@fastify/websocket";
+ import * as sentry from "@sentry/node";
+-import Fastify from "fastify";
++import Fastify, { LogController } from "fastify";
+ import { toHex } from "viem";
+ import { fromZodError } from "zod-validation-error";
+ import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators.js";
+@@ -46,9 +46,9 @@ export class Server {
+             level: config.rpcLogLevel || config.logLevel
+         });
+         this.fastify = Fastify({
+-            logger: logger, // workaround for https://github.com/fastify/fastify/issues/4960
++            loggerInstance: logger,
+             requestTimeout: config.timeout,
+-            disableRequestLogging: true
++            logController: new LogController({ disableRequestLogging: true })
+         });
+         if (config.enableCors) {
+             this.fastify.register(cors, { origin: true });
+diff --git a/esm/rpc/validation/BundlerCollectorTracerV06.js b/esm/rpc/validation/BundlerCollectorTracerV06.js
+index e4cac0bd40c10fab7f306e9f87f7e08dab1f134f..01d27b330508129d484e45e3b2800479ef87a58d 100644
+--- a/esm/rpc/validation/BundlerCollectorTracerV06.js
++++ b/esm/rpc/validation/BundlerCollectorTracerV06.js
+@@ -170,7 +170,7 @@ export function bundlerCollectorTracer() {
+                 const addrHex = toHex(address);
+                 const addressInt = Number.parseInt(addrHex);
+                 // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)
+-                return addressInt > 0 && addressInt < 10;
++                return (addressInt > 0 && addressInt < 10) || addressInt === 256;
+             };
+             // [OP-041]
+             if (opcode.match(/^(EXT.*|CALL|CALLCODE|DELEGATECALL|STATICCALL)$/) != null) {
+diff --git a/esm/rpc/validation/BundlerCollectorTracerV07.js b/esm/rpc/validation/BundlerCollectorTracerV07.js
+index 611e2e27d040c9e59aecd8c943540ba2e0b12a06..c8b5f1d463c3b632401730375d4caa97dc88e14f 100644
+--- a/esm/rpc/validation/BundlerCollectorTracerV07.js
++++ b/esm/rpc/validation/BundlerCollectorTracerV07.js
+@@ -169,7 +169,7 @@ export function bundlerCollectorTracer() {
+                 const addrHex = toHex(address);
+                 const addressInt = Number.parseInt(addrHex);
+                 // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)
+-                return addressInt > 0 && addressInt < 10;
++                return (addressInt > 0 && addressInt < 10) || addressInt === 256;
+             };
+             // [OP-041]
+             if (opcode.match(/^(EXT.*|CALL|CALLCODE|DELEGATECALL|STATICCALL)$/) != null) {
+diff --git a/esm/rpc/validation/SafeValidator.js b/esm/rpc/validation/SafeValidator.js
+index cbf1bf88c897409f156083f26e75d28909d97dd1..0a08f7472f40c335daa922bd771b1b329faa0d10 100644
+--- a/esm/rpc/validation/SafeValidator.js
++++ b/esm/rpc/validation/SafeValidator.js
+@@ -1,6 +1,7 @@
+ import { CodeHashGetterAbi, CodeHashGetterBytecode, ERC7769Errors, EntryPointV06Abi, RpcError, pimlicoSimulationsAbi } from "../../types/index.js";
+ import { getAddressFromInitCodeOrPaymasterAndData, getAuthorizationStateOverrides, getEntryPointSimulationsAddress, getViemEntryPointVersion, jsonStringifyWithBigint, toPackedUserOp } from "../../utils/index.js";
+ import { decodeErrorResult, encodeDeployData, encodeFunctionData, zeroAddress } from "viem";
++import { bundlerCollectorTracer as bundlerCollectorTracerV06 } from "./BundlerCollectorTracerV06.js";
+ import { bundlerCollectorTracer } from "./BundlerCollectorTracerV07.js";
+ import { tracerResultParserV06 } from "./TracerResultParserV06.js";
+ import { tracerResultParserV07 } from "./TracerResultParserV07.js";
+@@ -135,7 +136,7 @@ export class SafeValidator extends UnsafeValidator {
+                 args: [userOp]
+             })
+         }, {
+-            tracer: bundlerCollectorTracer,
++            tracer: bundlerCollectorTracerV06,
+             stateOverrides
+         });
+         const lastResult = tracerResult.calls.slice(-1)[0];

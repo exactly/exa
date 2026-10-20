@@ -175,10 +175,14 @@
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "overrides": {
+      "@fastify/cors@8": "^11.3.1",
+      "@fastify/websocket@10": "^11.3.4",
       "@hono/node-server": "catalog:",
       "@humanfs/node@0.16.7": "^0.16.8",
-      "@opentelemetry/core@2": "^2.8.0",
+      "@opentelemetry/core@<2.8.0": "^2.12.0",
+      "@opentelemetry/sdk-node@<0.217.0": "^0.223.0",
       "@sentry/core@10": "catalog:",
+      "@sentry/node@9": "catalog:",
       "@sentry/node@10": "catalog:",
       "@sentry/profiling-node@10": "catalog:",
       "@tamagui/core": "catalog:",
@@ -197,6 +201,7 @@
       "esbuild@0.18.20": "^0.25.0",
       "esbuild@0.27.7": "^0.28.1",
       "fast-uri@3.1.5": "^3.1.7",
+      "fastify@<5.12.5": "^5.12.7",
       "fflate@0.8.2": "^0.8.3",
       "form-data@4": "^4.0.6",
       "glob@11.0.3": "^11.1.0",
@@ -246,6 +251,7 @@
     },
     "patchedDependencies": {
       "@lifi/sdk": "patches/@lifi__sdk.patch",
+      "@pimlico/alto": "patches/@pimlico__alto.patch",
       "@tamagui/sheet": "patches/@tamagui__sheet.patch",
       "@tamagui/slider": "patches/@tamagui__slider.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
