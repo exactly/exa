@@ -13,7 +13,7 @@ import { getAddress, padHex } from "viem";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { PHYSICAL_SIGNATURE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 
 import route from "../../api/cards";
 import database, { cards, credentials } from "../../database";
@@ -50,6 +50,7 @@ describe("authenticated", () => {
       { id: "cards-tenants", publicKey, factory, account: padHex("0xca7db", { size: 20 }), pandaId: "cards-tenants" },
       { id: "cards-legacy", publicKey, factory, account: padHex("0xca7dc", { size: 20 }), pandaId: "cards-legacy" },
       { id: "cards-raced", publicKey, factory, account: padHex("0xca7dd", { size: 20 }), pandaId: "cards-raced" },
+      { id: "cards-physical", publicKey, factory, account: padHex("0xca7d5", { size: 20 }), pandaId: "cards-physical" },
     ]);
     await database.insert(cards).values([
       { id: second, credentialId: "cards", tenant: "OP", lastFour: "2222", status: "FROZEN", mode: 3 },
@@ -70,6 +71,21 @@ describe("authenticated", () => {
       { id: "legacy", credentialId: "cards-legacy", tenant: "OP", lastFour: "1616" },
       { id: current, credentialId: "cards-legacy", tenant: "OP", lastFour: "1717" },
       { id: raced, credentialId: "cards-raced", tenant: "OP", lastFour: "1818" },
+      {
+        id: "ca7d0000-0000-4000-8000-000000000007",
+        credentialId: "cards-physical",
+        tenant: "OP",
+        lastFour: "7777",
+        productId: SIGNATURE_PRODUCT_ID,
+      },
+      {
+        id: "ca7d0000-0000-4000-8000-000000000008",
+        credentialId: "cards-physical",
+        tenant: "OP",
+        lastFour: "8888",
+        status: "FROZEN",
+        productId: PHYSICAL_SIGNATURE_PRODUCT_ID,
+      },
     ]);
   });
 
@@ -102,6 +118,34 @@ describe("authenticated", () => {
     expect(getPIN).not.toHaveBeenCalled();
     expect(getProcessorDetails).not.toHaveBeenCalled();
     expect(getNonce).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns physical cards next to virtual ones", async () => {
+    vi.spyOn(panda, "getCard").mockImplementation((id) =>
+      Promise.resolve({
+        ...cardTemplate,
+        id,
+        type: id.endsWith("8") ? "physical" : "virtual",
+        userId: "cards-physical",
+      }),
+    );
+
+    const response = await appClient.index.$get({}, { headers: { "test-credential-id": "cards-physical" } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      { ...profile, lastFour: "7777", mode: 0, status: "ACTIVE", productId: SIGNATURE_PRODUCT_ID },
+      {
+        ...profile,
+        lastFour: "8888",
+        mode: 0,
+        status: "FROZEN",
+        type: "physical",
+        productId: PHYSICAL_SIGNATURE_PRODUCT_ID,
+      },
+    ]);
+    expect(panda.getUser).toHaveBeenCalledExactlyOnceWith("cards-physical");
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -395,6 +439,7 @@ const profile = {
   displayName: "First Last",
   expirationMonth: "9",
   expirationYear: "2029",
+  type: "virtual",
   limit: { amount: 5000, frequency: "per24HourPeriod" },
 };
 
