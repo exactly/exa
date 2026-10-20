@@ -1,10 +1,13 @@
 import { $ } from "execa";
 import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
+import { Agent, createServer, request } from "node:http";
 import { env, stderr, stdout } from "node:process";
+import { text } from "node:stream/consumers";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import { encodeAbiParameters, keccak256, padHex, toBytes, toHex, zeroAddress, type Hex } from "viem";
+import { entryPoint06Address } from "viem/account-abstraction";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -17,8 +20,13 @@ export default async function setup() {
   if (!env.NX_TASK_TARGET_PROJECT) {
     await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
   }
-  const instance = Instance.anvil({ codeSizeLimit: 69_000, blockBaseFeePerGas: 1n });
+  const instance = Instance.anvil({
+    codeSizeLimit: 69_000,
+    blockBaseFeePerGas: 1n,
+    ...(env.NODE_ENV === "e2e" && { port: 8546 }),
+  });
   await instance.start();
+  const rpc = env.NODE_ENV === "e2e" && alchemy(instance.port);
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
   if (docker) {
     await $({ cwd: "test" })`docker compose down`;
@@ -138,6 +146,7 @@ export default async function setup() {
     }),
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
   ).transactions[0].contractAddress;
+  const started = rpc && rpc.start();
 
   await $(shell)`forge script test/mocks/ExaBusinessTenant.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
@@ -210,6 +219,8 @@ export default async function setup() {
     }
   }
 
+  await started;
+
   if (docker) {
     const entries = await readdir("node_modules/@exactly/plugin/broadcast", { withFileTypes: true });
     const broadcasts = await Promise.all(
@@ -275,6 +286,7 @@ export default async function setup() {
 
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
+    if (rpc) await rpc.stop();
     await instance.stop();
   };
 }
@@ -329,3 +341,64 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
+
+function alchemy(port: number) {
+  const bundler = Instance.alto({
+    entrypoints: [entryPoint06Address],
+    executorPrivateKeys: [padHex("0x4337")],
+    utilityPrivateKey: padHex("0x4337"),
+    rpcUrl: `http://localhost:${port}`,
+    safeMode: true,
+    port: 4337,
+  });
+  const agent = new Agent({ keepAlive: true });
+  const server = createServer((incoming, outgoing) => {
+    outgoing.setHeader("access-control-allow-origin", "*");
+    if (incoming.method === "OPTIONS") {
+      outgoing
+        .writeHead(204, {
+          "access-control-allow-headers": incoming.headers["access-control-request-headers"] ?? "*",
+          "access-control-max-age": "7200",
+        })
+        .end();
+      return;
+    }
+    text(incoming)
+      .then((body) => {
+        const { id, method } = JSON.parse(body) as { id?: number; method?: string };
+        if (method?.startsWith("pm_")) {
+          outgoing.writeHead(200, { "content-type": "application/json" }).end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              result: { paymasterAndData: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" },
+            }),
+          );
+          return;
+        }
+        request(
+          {
+            port: /UserOperation|EntryPoints/.test(method ?? "") ? bundler.port : port,
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            agent,
+          },
+          (upstream) =>
+            upstream.pipe(outgoing.writeHead(upstream.statusCode ?? 502, { "content-type": "application/json" })),
+        )
+          .on("error", (error) => outgoing.writeHead(502).end(error.message))
+          .end(body);
+      })
+      .catch((error: unknown) => outgoing.writeHead(500).end(String(error)));
+  }).listen(8545);
+  return {
+    async start() {
+      await anvilClient.setBalance({ address: privateKeyToAddress(padHex("0x4337")), value: 10n ** 24n });
+      await bundler.start();
+    },
+    async stop() {
+      server.close();
+      await bundler.stop();
+    },
+  };
+}
