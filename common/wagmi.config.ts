@@ -99,10 +99,6 @@ export default defineConfig([
                   .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
               ]),
           );
-          const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
-            .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
-            .map((address) => address.toLowerCase());
-          if (stocks.length === 0) throw new Error("missing stocks");
           return {
             imports: chain
               ? `import { ${chain} as chain } from "@account-kit/infra"\nimport { type Chain } from "viem/chains"`
@@ -162,7 +158,6 @@ export default defineConfig([
               )}`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
-              `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain
                 ? []
                 : [
