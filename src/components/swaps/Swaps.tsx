@@ -39,7 +39,7 @@ import {
 import { base } from "viem/chains";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { allowlists } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   marketAbi,
@@ -81,6 +81,7 @@ import { useFeed } from "../../utils/prices";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useCrossChainGas from "../../utils/useCrossChainGas";
 import useKYC from "../../utils/useKYC";
@@ -160,11 +161,15 @@ export default function Swaps() {
   } = useKYC(chain.id === base.id);
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const restricted = restrictedCountries.has(country ?? "");
+  const allowlists = useAllowlists();
   const {
     data: homeTokens,
     isLoading: isTokensLoading,
     error: tokensError,
-  } = useQuery({ queryKey: ["allowTokens", protocolMarkets], queryFn: () => getAllowTokens(protocolMarkets) });
+  } = useQuery({
+    queryKey: ["allowTokens", allowlists[chain.id], protocolMarkets],
+    queryFn: () => getAllowTokens(allowlists[chain.id], protocolMarkets),
+  });
   const { data: lifiTokens, isLoading: isLifiLoading } = useQuery(lifiTokensOptions);
   const {
     data: lifiChains,
@@ -196,7 +201,7 @@ export default function Swaps() {
       Object.keys(allowlists)
         .map(Number)
         .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChainById.has(id))),
-    [],
+    [allowlists],
   );
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: stocksTabSeen } = useQuery<boolean>({ queryKey: ["settings", "stocks-tab-seen"] });

@@ -17,6 +17,7 @@ import {
 } from "@lifi/sdk";
 import { base58, bech32, bech32m, createBase58check } from "@scure/base";
 import { queryOptions, skipToken, experimental_streamedQuery as streamedQuery } from "@tanstack/react-query";
+import { getBlockNumber, getContractEvents, readContract } from "@wagmi/core/actions";
 import {
   array,
   check,
@@ -34,6 +35,8 @@ import {
   type GenericSchema,
 } from "valibot";
 import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
   createPublicClient,
   encodeDeployData,
   encodeFunctionData,
@@ -53,25 +56,31 @@ import { base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
-  allowlists,
   auditorAddress,
+  exaAccountFactoryAbi,
   exaAddress,
+  exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerCode,
   marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
+  proposalManagerAbi,
   proposalManagerAddress,
+  allowlists as snapshot,
   stocks,
   swapperAddress,
+  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import alchemyChains from "./alchemyChains";
+import deployedOptions from "./deployedOptions";
 import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";
+import exaConfig from "./wagmi/exa";
 
 export const chainTypes = [ChainType.EVM, ChainType.MVM, ChainType.SVM, ChainType.TVM, ChainType.UTXO]; // cspell:ignore UTXO
 
@@ -349,29 +358,88 @@ export async function getRoute(
   };
 }
 
-export function swappable(markets: readonly { asset: string }[] = []) {
-  return new Set(
-    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()),
-  );
+export function allowlistOptions(account: Address | undefined, factory: Address | undefined, chainId: number) {
+  return queryOptions({
+    queryKey: ["allowlist", account, factory, chainId],
+    staleTime: 5 * 60_000,
+    gcTime: Infinity,
+    initialData: { block: -1n, targets: snapshot[chainId] ?? [] } as Allowlist,
+    initialDataUpdatedAt: 0,
+    enabled: !!account && !!factory && !chain.testnet,
+    retry: (failures, error) => failures < 3 && !reverted(error),
+    meta: { dropError: reverted },
+    queryFn: async ({ queryKey }): Promise<Allowlist> => {
+      const previous = queryClient.getQueryData<Allowlist>(queryKey) ?? { block: -1n, targets: [] };
+      if (!account || !factory) return previous;
+      const [plugin] = (await queryClient.fetchQuery(deployedOptions(account, chainId)))
+        ? await readContract(exaConfig, {
+            chainId,
+            address: account,
+            abi: upgradeableModularAccountAbi,
+            functionName: "getInstalledPlugins",
+          })
+        : (await queryClient.fetchQuery(deployedOptions(factory, chainId)))
+          ? [
+              await readContract(exaConfig, {
+                chainId,
+                address: factory,
+                abi: exaAccountFactoryAbi,
+                functionName: "EXA_PLUGIN",
+              }),
+            ]
+          : [];
+      if (!plugin) return previous;
+      const proposalManager = await readContract(exaConfig, {
+        chainId,
+        address: plugin,
+        abi: exaPluginAbi,
+        functionName: "proposalManager",
+      });
+      const resume = previous.proposalManager === proposalManager;
+      const block = await getBlockNumber(exaConfig, { chainId });
+      const targets = new Set(resume ? previous.targets : []);
+      for (const { args } of await getContractEvents(exaConfig, {
+        chainId,
+        address: proposalManager,
+        abi: proposalManagerAbi,
+        eventName: "TargetAllowed",
+        fromBlock: resume ? previous.block + 1n : 0n,
+        toBlock: block,
+        strict: true,
+      })) {
+        if (args.allowed) targets.add(args.target);
+        else targets.delete(args.target);
+      }
+      return { block, proposalManager, targets: [...targets] };
+    },
+  });
 }
 
-export function isSendable(address: string) {
-  return (
-    address === zeroAddress ||
-    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
-  );
+export function swappable(allowlist: readonly string[] = [], markets: readonly { asset: string }[] = []) {
+  return new Set([...allowlist, ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()));
 }
 
-export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
+export function isSendable(allowlist: readonly string[] | undefined, address: string) {
+  return address === zeroAddress || !!allowlist?.some((allowed) => allowed.toLowerCase() === address.toLowerCase());
+}
+
+export async function getAllowTokens(
+  allowlist: readonly string[] | undefined,
+  markets: readonly { asset: string; symbol: string }[] = [],
+) {
   ensureConfig();
   if (chain.testnet) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
-  const allowed = swappable(markets);
+  const allowed = swappable(allowlist, markets);
   return (
     tokens[chain.id]
       ?.filter((token) => allowed.has(token.address.toLowerCase()))
       .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress)) ?? []
   );
+}
+
+export function reverted(error: unknown) {
+  return error instanceof ContractFunctionExecutionError && error.cause instanceof ContractFunctionRevertedError;
 }
 
 export type RouteFrom = {
@@ -899,3 +967,5 @@ function decoded(coder: typeof base58, input: string) {
     return new Uint8Array();
   }
 }
+
+type Allowlist = { block: bigint; proposalManager?: Address; targets: readonly string[] };
