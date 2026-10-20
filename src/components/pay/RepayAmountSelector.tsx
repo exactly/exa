@@ -20,11 +20,15 @@ export default function RepayAmountSelector({
   totalPositionRepay,
   balancerBalance,
   positionValue,
+  decimals,
+  symbol,
 }: {
   balancerBalance: bigint | undefined;
+  decimals: number;
   maxRepayInput: bigint;
   onChange: (value: bigint) => void;
   positionValue: bigint;
+  symbol?: string;
   totalPositionRepay: bigint;
   value: bigint;
 }) {
@@ -35,45 +39,45 @@ export default function RepayAmountSelector({
   const [focused, setFocused] = useState(false);
   const [editingValue, setEditingValue] = useState<string | undefined>();
 
-  const displayValue = editingValue ?? formatUnits(value, 6);
+  const displayValue = editingValue ?? formatUnits(value, decimals);
   const canPayFullDebt = maxRepayInput >= totalPositionRepay && totalPositionRepay > 0n;
   const effectiveMax = canPayFullDebt ? totalPositionRepay : maxRepayInput;
   const clampedValue = min(value, effectiveMax);
   const maxReached = clampedValue >= effectiveMax && effectiveMax > 0n;
 
   const sliderStep = useMemo(() => {
-    const maxValue = Number(totalPositionRepay) / 1e6;
+    const maxValue = Number(totalPositionRepay) / 10 ** decimals;
     const step = maxValue / 100;
-    return Math.max(0.01, Math.round(step * 100) / 100);
-  }, [totalPositionRepay]);
+    return Math.max(10 ** -decimals, Number(step.toPrecision(2)));
+  }, [totalPositionRepay, decimals]);
 
   const handleAmountChange = useCallback(
     (input: string) => {
       setEditingValue(input);
-      const inputAmount = parseAmount(input, 6);
+      const inputAmount = parseAmount(input, decimals);
       if (inputAmount > effectiveMax) {
         onChange(effectiveMax);
-        setEditingValue(formatUnits(effectiveMax, 6));
+        setEditingValue(formatUnits(effectiveMax, decimals));
       } else {
         onChange(inputAmount);
       }
     },
-    [onChange, effectiveMax],
+    [onChange, effectiveMax, decimals],
   );
 
   const handleSliderChange = useCallback(
     (values: number[]) => {
       if (values[0] === undefined) return;
-      const sliderValue = Math.round(values[0] * 1e6) / 1e6;
+      const sliderValue = values[0];
       setEditingValue(undefined);
-      if (sliderValue >= Number(effectiveMax) / 1e6) {
+      if (sliderValue >= Number(effectiveMax) / 10 ** decimals) {
         onChange(effectiveMax);
       } else {
-        const sliderAmount = parseAmount(sliderValue.toFixed(6), 6);
+        const sliderAmount = parseAmount(sliderValue.toFixed(decimals), decimals);
         onChange(sliderAmount);
       }
     },
-    [onChange, effectiveMax],
+    [onChange, effectiveMax, decimals],
   );
 
   const handleMaxPress = useCallback(() => {
@@ -116,7 +120,7 @@ export default function RepayAmountSelector({
             maxWidth="80%"
             height={60}
           >
-            <AssetLogo symbol="USDC" width={32} height={32} />
+            <AssetLogo symbol={symbol} width={32} height={32} />
             <AmountInput
               aria-label={t("Repay amount")}
               alignSelf="center"
@@ -128,10 +132,10 @@ export default function RepayAmountSelector({
               cursor="pointer"
               flex={1}
               height="auto"
-              decimals={6}
+              decimals={decimals}
               onBlur={() => {
                 setFocused(false);
-                setEditingValue(value > 0n ? formatUnits(value, 6) : undefined);
+                setEditingValue(value > 0n ? formatUnits(value, decimals) : undefined);
               }}
               onChangeText={handleAmountChange}
               onFocus={(event) => {
@@ -152,10 +156,10 @@ export default function RepayAmountSelector({
         <YStack justifyContent="space-between" flexWrap="wrap" alignItems="flex-start" gap="$s3">
           <Slider
             onValueChange={handleSliderChange}
-            value={[Number(clampedValue) / 1e6]}
+            value={[Number(clampedValue) / 10 ** decimals]}
             width="100%"
             min={0}
-            max={Number(totalPositionRepay) / 1e6}
+            max={Number(totalPositionRepay) / 10 ** decimals}
             step={sliderStep}
           >
             <Slider.Track backgroundColor="$backgroundBrandMild">
@@ -171,10 +175,10 @@ export default function RepayAmountSelector({
               hoverStyle={{ backgroundColor: "$uiBrandSecondary" }}
               pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
               aria-label={t("Repay amount slider")}
-              aria-valuetext={`${(Number(clampedValue) / 1e6).toLocaleString(language, {
+              aria-valuetext={`${(Number(clampedValue) / 10 ** decimals).toLocaleString(language, {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USDC`}
+                maximumFractionDigits: symbol === "USDC" ? 2 : 8,
+              })} ${symbol}`}
             />
           </Slider>
           {maxReached && (
@@ -183,12 +187,19 @@ export default function RepayAmountSelector({
             </Text>
           )}
         </YStack>
-        {balancerBalance !== undefined && positionValue > balancerBalance && (
+        {balancerBalance === 0n ? (
           <Text caption color="$uiNeutralPlaceholder" aria-live="polite">
-            {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
-              amount: `$${(Number(balancerBalance) / 1e6).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-            })}
+            {t("Repaying {{symbol}} from your portfolio is not available yet.", { symbol })}
           </Text>
+        ) : (
+          balancerBalance !== undefined &&
+          positionValue > balancerBalance && (
+            <Text caption color="$uiNeutralPlaceholder" aria-live="polite">
+              {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
+                amount: `${(Number(balancerBalance) / 10 ** decimals).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: symbol === "USDC" ? 2 : 8 })} ${symbol}`,
+              })}
+            </Text>
+          )
         )}
       </YStack>
     </YStack>

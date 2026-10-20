@@ -476,6 +476,7 @@
   "LI.FI fee": "Comisión de LI.FI",
   "Limited-time offer": "Oferta por tiempo limitado",
   "Limit {{amount}} per repay. Please split larger amounts into smaller payments.": "Límite de {{amount}} por pago. Divide montos mayores en pagos más pequeños.",
+  "Repaying {{symbol}} from your portfolio is not available yet.": "Aún no es posible pagar {{symbol}} desde tu portafolio.",
   "Link copied!": "¡Enlace copiado!",
   "Log in with browser wallet": "Inicia sesión con tu billetera del navegador",
   "Log in with Passkey": "Inicia sesión con llave de acceso",
