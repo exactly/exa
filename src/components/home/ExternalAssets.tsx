@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
 
@@ -12,11 +12,12 @@ import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
+import { isUnsupported } from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { lifiChainsOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useDeployments from "../../utils/useDeployments";
 import exaConfig from "../../utils/wagmi/exa";
 import UnsupportedSheet from "../shared/UnsupportedSheet";
 
@@ -41,20 +42,7 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
     ),
   ];
 
-  const { deployedChains, pendingChains } = useQueries({
-    queries: crossChainIds.map((chainId) => deployedOptions(exaAccount, chainId)),
-    combine: (results) => {
-      const pending = new Set<number>();
-      const deployed = new Map<number, boolean>();
-      for (const [index, chainId] of crossChainIds.entries()) {
-        const result = results[index];
-        if (!result) continue;
-        if (result.isSuccess && typeof result.data === "boolean") deployed.set(chainId, result.data);
-        else if (result.isLoading || result.isFetching) pending.add(chainId);
-      }
-      return { deployedChains: deployed, pendingChains: pending };
-    },
-  });
+  const { deployedChains, pendingChains } = useDeployments(exaAccount, crossChainIds);
 
   if (assets.length === 0) return null;
 

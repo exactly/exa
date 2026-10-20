@@ -15,7 +15,7 @@ import {
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
-import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { base } from "viem/chains";
 
@@ -24,11 +24,12 @@ import { withdrawLimit } from "@exactly/lib";
 
 import NetworkSheet from "./NetworkSheet";
 import alchemyChainById from "../../utils/alchemyChains";
-import deployedOptions, { isUnsupported } from "../../utils/deployedOptions";
+import { isUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useDeployments from "../../utils/useDeployments";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
@@ -79,23 +80,7 @@ export default function AssetSelection() {
     ],
     [allAssets],
   );
-  const { deployedChains, pendingChains } = useQueries({
-    queries: crossChainIds.map((chainId) => deployedOptions(address, chainId)),
-    combine: useCallback(
-      (results: UseQueryResult<boolean>[]) => {
-        const pending = new Set<number>();
-        const deployed = new Map<number, boolean>();
-        for (const [index, chainId] of crossChainIds.entries()) {
-          const result = results[index];
-          if (!result) continue;
-          if (result.isSuccess && typeof result.data === "boolean") deployed.set(chainId, result.data);
-          else if (result.isLoading || result.isFetching) pending.add(chainId);
-        }
-        return { deployedChains: deployed, pendingChains: pending };
-      },
-      [crossChainIds],
-    ),
-  });
+  const { deployedChains, pendingChains } = useDeployments(address, crossChainIds);
   const held = useMemo(
     () => new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))),
     [allAssets],
