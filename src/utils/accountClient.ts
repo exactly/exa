@@ -58,7 +58,6 @@ import {
   encodeAbiParameters,
   encodeFunctionData,
   encodePacked,
-  ethAddress,
   hashMessage,
   hexToBytes,
   hexToNumber,
@@ -76,7 +75,6 @@ import {
   type Transport,
 } from "viem";
 import { getCallsStatus as viemGetCallsStatus } from "viem/actions";
-import { anvil } from "viem/chains";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -97,8 +95,6 @@ import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
 import type { Config } from "@wagmi/core";
-
-if (chain.id !== anvil.id && !alchemyGasPolicyId) throw new Error("missing alchemy gas policy");
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const accountAddress = deriveAddress(factory, { x, y });
@@ -142,18 +138,8 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     chain,
     transport,
     account,
-    ...(alchemyGasPolicyId
-      ? { ...alchemyGasManagerMiddleware(alchemyGasPolicyId), gasEstimator }
-      : {
-          gasEstimator(struct) {
-            struct.preVerificationGas = 1_000_000n;
-            struct.verificationGasLimit = 5_000_000n;
-            struct.callGasLimit = 10_000_000n;
-            return Promise.resolve(struct);
-          },
-          dummyPaymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
-          paymasterAndData: (struct) => Promise.resolve({ ...struct, paymasterAndData: ethAddress }),
-        }),
+    ...alchemyGasManagerMiddleware(alchemyGasPolicyId),
+    gasEstimator,
   });
   const crossChainAccounts = new Map<
     number,
@@ -245,19 +231,18 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             }
             const policyId = [
               ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
-              ...(alchemyGasPolicyId ? [alchemyGasPolicyId] : []),
+              alchemyGasPolicyId,
             ];
             if (queryClient.getQueryData<AuthMethod>(["method"]) === "webauthn") {
-              const uoClient =
-                context && policyId.length > 0
-                  ? createSmartAccountClient({
-                      chain,
-                      transport,
-                      account,
-                      ...alchemyGasManagerMiddleware(policyId, policyToken),
-                      gasEstimator,
-                    })
-                  : client;
+              const uoClient = context
+                ? createSmartAccountClient({
+                    chain,
+                    transport,
+                    account,
+                    ...alchemyGasManagerMiddleware(policyId, policyToken),
+                    gasEstimator,
+                  })
+                : client;
               const { hash } = await uoClient.sendUserOperation({
                 uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
               });
@@ -279,21 +264,17 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                   paymasterService: {
                     optional: true,
                     url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    ...(policyId.length > 0
-                      ? {
-                          context: {
-                            policyId,
-                            ...(policyToken
-                              ? {
-                                  erc20Context: {
-                                    tokenAddress: policyToken.address,
-                                    maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
-                                  },
-                                }
-                              : {}),
-                          },
-                        }
-                      : {}),
+                    context: {
+                      policyId,
+                      ...(policyToken
+                        ? {
+                            erc20Context: {
+                              tokenAddress: policyToken.address,
+                              maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
+                            },
+                          }
+                        : {}),
+                    },
                   },
                 },
               });
@@ -392,7 +373,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                     paymasterService: {
                       optional: true,
                       url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      ...(alchemyGasPolicyId ? { context: { policyId: alchemyGasPolicyId } } : {}),
+                      context: { policyId: alchemyGasPolicyId },
                     },
                   },
                 });

@@ -636,7 +636,7 @@ export default function Bridge() {
           id = result.id;
         } catch (error) {
           if (classifyError(error).authKnown) throw error;
-          if (relayed || (isExaSender && (!paymasterFee || !alchemyGasPolicyId))) throw error;
+          if (relayed || (isExaSender && !paymasterFee)) throw error;
           reportError(error, {
             level: "warning",
             extra: error instanceof Error ? { cause: error.cause } : undefined,
@@ -677,7 +677,7 @@ export default function Bridge() {
         }
         if (!id) throw new Error("missing sendCalls id");
         let status = await callsStatus(senderConfig, id);
-        if (status === "failure" && paymasterFee && alchemyGasPolicyId) {
+        if (status === "failure" && paymasterFee) {
           setBridgeStatus(t("Retrying bridge transaction..."));
           const retry = await sendCallsTx({
             chainId: source.chain,
