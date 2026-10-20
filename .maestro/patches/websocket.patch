@@ -1,0 +1,149 @@
+From 18bec159140b1d70994e2f14d03803945ad36d63 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Tue, 20 Oct 2026 00:51:30 +0000
+Subject: [PATCH] fix: reuse one CDP websocket per target
+
+CdpClient opened and closed a websocket for every evaluate, screenshot, navigation and storage call. Every detach makes Chrome disable the page's WebAuthn domain, which erases its virtual authenticators, and every extra handshake is another chance for the call to drop. Keep one session per target and reconnect only when it is no longer active.
+---
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 62 +++++++++----------
+ 1 file changed, 30 insertions(+), 32 deletions(-)
+
+diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+index 2e8c50d..c8c5ed1 100644
+--- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
++++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+@@ -6,6 +6,7 @@ import io.ktor.client.request.*
+ import io.ktor.client.statement.*
+ import io.ktor.serialization.kotlinx.json.*
+ import io.ktor.websocket.*
++import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.withTimeoutOrNull
+@@ -55,6 +56,8 @@ class CdpClient(
+     private val json = Json { ignoreUnknownKeys = true }
+     private val idCounter = AtomicInteger(1)
+     private val evalMutex = Mutex()
++    private val sessionMutex = Mutex()
++    private val sessions = mutableMapOf<String, DefaultClientWebSocketSession>()
+ 
+     /**
+      * Fetches the list of open CDP targets (tabs/pages).
+@@ -97,9 +100,7 @@ class CdpClient(
+         """.trimIndent()
+ 
+         return evalMutex.withLock {
+-            httpClient.webSocketSession {
+-                url(wsUrl)
+-            }.use { session ->
++            withSession(wsUrl) { session ->
+                 session.send(Frame.Text(payload))
+ 
+                 val text = session.waitForMessage(messageId)
+@@ -114,7 +115,7 @@ class CdpClient(
+                     ?: ""
+ 
+                 if (raw.isEmpty()) {
+-                    return@use ""
++                    return@withSession ""
+                 }
+ 
+                 // Check for JS error
+@@ -123,7 +124,7 @@ class CdpClient(
+                     val err = parsed.jsonObject["__cdpError"]?.jsonPrimitive?.content
+                     error("JS error: $err")
+                 }
+-                return@use raw
++                return@withSession raw
+             }
+         }
+     }
+@@ -146,17 +147,16 @@ class CdpClient(
+         // Open WS, send & await
+         val wsUrl = target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")
+ 
+-        return httpClient.webSocketSession { url(wsUrl) }
+-            .use { session ->
+-                session.send(Frame.Text(payload))
++        return withSession(wsUrl) { session ->
++            session.send(Frame.Text(payload))
+ 
+-                val text = session.waitForMessage(messageId)
++            val text = session.waitForMessage(messageId)
+ 
+-                val data = Json.parseToJsonElement(text)
+-                    .jsonObject["result"]!!.jsonObject["data"]!!.jsonPrimitive.content
++            val data = Json.parseToJsonElement(text)
++                .jsonObject["result"]!!.jsonObject["data"]!!.jsonPrimitive.content
+ 
+-                return@use Base64.getDecoder().decode(data)
+-            }
++            return@withSession Base64.getDecoder().decode(data)
++        }
+     }
+ 
+     suspend fun openUrl(url: String, target: CdpTarget) {
+@@ -172,12 +172,11 @@ class CdpClient(
+             }
+         """.trimIndent()
+ 
+-        httpClient.webSocketSession { url(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) }
+-            .use { session ->
+-                session.send(Frame.Text(payload))
++        withSession(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) { session ->
++            session.send(Frame.Text(payload))
+ 
+-                session.waitForMessage(messageId)
+-            }
++            session.waitForMessage(messageId)
++        }
+     }
+ 
+     suspend fun clearDataForOrigin(origin: String, storageTypes: String, target: CdpTarget) {
+@@ -196,16 +195,15 @@ class CdpClient(
+         """.trimIndent()
+ 
+         evalMutex.withLock {
+-            httpClient.webSocketSession { url(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) }
+-                .use { session ->
+-                    session.send(Frame.Text(payload))
+-
+-                    val text = session.waitForMessage(messageId)
+-                    val root = json.parseToJsonElement(text).jsonObject
+-                    if (root["error"] != null) {
+-                        error("CDP error: ${root["error"]}")
+-                    }
++            withSession(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) { session ->
++                session.send(Frame.Text(payload))
++
++                val text = session.waitForMessage(messageId)
++                val root = json.parseToJsonElement(text).jsonObject
++                if (root["error"] != null) {
++                    error("CDP error: ${root["error"]}")
+                 }
++            }
+         }
+     }
+ 
+@@ -225,11 +223,11 @@ class CdpClient(
+         return text ?: error("No message with id $messageId received within ${CDP_RESPONSE_TIMEOUT_MS}ms")
+     }
+ 
+-    private suspend fun <R> DefaultClientWebSocketSession.use(block: suspend (DefaultClientWebSocketSession) -> R): R {
+-        return try {
+-            block(this)
+-        } finally {
+-            close()
++    private suspend fun <R> withSession(wsUrl: String, block: suspend (DefaultClientWebSocketSession) -> R): R {
++        return sessionMutex.withLock {
++            val session = sessions[wsUrl]?.takeIf { it.isActive }
++                ?: httpClient.webSocketSession { url(wsUrl) }.also { sessions[wsUrl] = it }
++            block(session)
+         }
+     }
+ 
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
