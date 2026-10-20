@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
-import { ForkTest } from "./Fork.t.sol";
+import { ForkTest, Vm } from "./Fork.t.sol";
 
 import { TimelockController } from "@openzeppelin/contracts-v4/governance/TimelockController.sol";
 import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
@@ -13,6 +13,11 @@ import {
 } from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import { UpgradeableModularAccount } from "modular-account/src/account/UpgradeableModularAccount.sol";
+import { IMultiOwnerPlugin } from "modular-account/src/plugins/owner/IMultiOwnerPlugin.sol";
+
+import { UserOperation } from "modular-account-libs/interfaces/UserOperation.sol";
+
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 import { PublicKey } from "webauthn-owner-plugin/IWebauthnOwnerPlugin.sol";
 
@@ -24,6 +29,8 @@ import { ExaPlugin } from "../src/ExaPlugin.sol";
 import { ProposalManager } from "../src/ProposalManager.sol";
 
 contract RedeployerTest is ForkTest {
+  using ECDSA for bytes32;
+
   Redeployer public redeployer;
 
   // solhint-disable func-name-mixedcase
@@ -89,6 +96,35 @@ contract RedeployerTest is ForkTest {
     assertTrue(address(redeployer.ownerPlugin()).code.length > 0, "ownerPlugin not deployed");
     assertTrue(address(redeployer.exaPlugin()).code.length > 0, "exaPlugin not deployed");
     assertTrue(address(redeployer.factory()).code.length > 0, "factory not deployed");
+  }
+
+  function test_prepare_deploysOwnerPluginWithoutOwnerCodeAccess_onPolygon() external {
+    vm.createSelectFork("polygon", 82_000_000);
+
+    redeployer = new Redeployer();
+    redeployer.prepare();
+
+    (address owner, uint256 ownerKey) = makeAddrAndKey("eoa");
+    PublicKey[] memory owners = new PublicKey[](1);
+    owners[0] = PublicKey({ x: uint256(uint160(owner)), y: 0 });
+    address account = redeployer.deployExaFactory("1.1.0").createAccount(0, owners);
+
+    UserOperation memory op;
+    bytes32 hash = keccak256("op");
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, hash.toEthSignedMessageHash());
+    op.signature = abi.encodePacked(uint8(0), r, s, v);
+
+    vm.startStateDiffRecording();
+    vm.startPrank(account);
+    uint256 validation = redeployer.ownerPlugin()
+      .userOpValidationFunction(uint8(IMultiOwnerPlugin.FunctionId.USER_OP_VALIDATION_OWNER), op, hash);
+    vm.stopPrank();
+    Vm.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+
+    assertEq(validation, 0, "signature not valid");
+    for (uint256 i = 0; i < accesses.length; ++i) {
+      assertNotEq(accesses[i].account, owner, "owner code accessed");
+    }
   }
 
   function test_prepare_reusesExistingDeps_onBase() external {
