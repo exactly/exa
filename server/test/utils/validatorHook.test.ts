@@ -1,6 +1,6 @@
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, setContext } from "@sentry/node";
 import { flatten, number, object, optional, safeParse, string, type InferOutput } from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
@@ -96,6 +96,28 @@ describe("validation error hook", () => {
         fingerprint: ["{{ default }}", customErrorMessage],
         contexts: { validation: { ...result, flatten: flatten(result.issues) } },
       });
+    });
+
+    it("should omit the legacy code when disabled", () => {
+      const hook = validatorHook({ legacy: false });
+
+      const result = safeParse(TestSchema, { invalid: "data" });
+      if (!result.issues) throw new Error("validation should fail");
+
+      hook(result, mockContext);
+
+      expect(mockContext.json).toHaveBeenCalledWith(
+        {
+          code: "bad request",
+          message: result.issues.map((issue) => `${issue.path?.map((p) => p.key).join("/")} ${issue.message}`),
+        },
+        400,
+      );
+      expect(captureException).toHaveBeenLastCalledWith(new Error("bad request"), {
+        fingerprint: ["{{ default }}", "bad request"],
+        contexts: { validation: { ...result, flatten: flatten(result.issues) } },
+      });
+      expect(setContext).toHaveBeenLastCalledWith("validation", result);
     });
 
     it("should return issues in the response", () => {
