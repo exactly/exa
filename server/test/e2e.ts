@@ -6,6 +6,13 @@ import "./mocks/sardine";
 import "./mocks/sentry";
 import "./mocks/wallet";
 
+import { serve } from "@hono/node-server";
+import {
+  ExtendedKeyUsage,
+  ExtendedKeyUsageExtension,
+  SubjectAlternativeNameExtension,
+  X509CertificateGenerator,
+} from "@peculiar/x509";
 import { eq } from "drizzle-orm";
 import { cors } from "hono/cors";
 import { html } from "hono/html";
@@ -13,6 +20,7 @@ import { createCoverageMap } from "istanbul-lib-coverage";
 import { createInstrumenter } from "istanbul-lib-instrument";
 import crypto from "node:crypto";
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:https";
 import path from "node:path";
 import process, { env } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -20,6 +28,8 @@ import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "vie
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
+
+import domain from "@exactly/common/domain";
 
 import lifi from "./lifi";
 import database, { credentials } from "../database";
@@ -49,6 +59,7 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
+      const tls = domain === "localhost" ? undefined : await certificate();
       await database.delete(credentials); // eslint-disable-line drizzle/enforce-delete-with-where -- e2e starts with no users
       const { default: app, close: stop } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");
@@ -74,6 +85,7 @@ describe("e2e", () => {
         hookWorker({ bullmq, database, panda }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
+      const https = tls && serve({ fetch: app.fetch, port: 443, createServer, serverOptions: tls });
 
       await expect(
         new Promise((resolve, reject) => {
@@ -84,6 +96,7 @@ describe("e2e", () => {
               segment.close(),
               stop(),
               ...workers.map((worker) => worker.close()),
+              ...(https ? [new Promise((closed) => https.close(closed))] : []),
             ]).then(resolve, reject);
           };
 
@@ -132,6 +145,7 @@ describe("e2e", () => {
           });
           process.once("SIGTERM", teardown);
 
+          https?.once("error", reject);
           Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
       ).resolves.toBeDefined();
@@ -150,6 +164,24 @@ describe("e2e", () => {
     Infinity,
   );
 });
+
+async function certificate() {
+  const algorithm = { name: "ECDSA", namedCurve: "P-256", hash: "SHA-256" };
+  const keys = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
+  const leaf = await X509CertificateGenerator.createSelfSigned({
+    name: `CN=${domain}`,
+    keys,
+    signingAlgorithm: algorithm,
+    extensions: [
+      new ExtendedKeyUsageExtension([ExtendedKeyUsage.serverAuth]),
+      new SubjectAlternativeNameExtension([{ type: "dns", value: domain }]),
+    ],
+  });
+  return {
+    cert: leaf.toString("pem"),
+    key: crypto.KeyObject.from(keys.privateKey).export({ format: "pem", type: "pkcs8" }),
+  };
+}
 
 vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
   const original = await importOriginal();
