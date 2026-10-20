@@ -10,11 +10,11 @@ import {
 import { Queue, Worker, type Job } from "bullmq";
 import { v5 } from "uuid";
 import { array, number, object, optional, parse, picklist, string, type InferOutput } from "valibot";
-import { decodeFunctionResult, encodeFunctionData, multicall3Abi } from "viem";
+import { decodeFunctionResult, encodeFunctionData, multicall3Abi, zeroAddress } from "viem";
 
-import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketAbi, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { MATURITY_INTERVAL } from "@exactly/lib";
+import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
 
 import publicClient from "./publicClient";
 import { bullmq as connection } from "./redis";
@@ -174,26 +174,38 @@ const worker = observe(
           case "scan-chunk": {
             const scan = parse(scanChunkSchema, job.data);
             let rpcFailures = 0;
-            const accounts = await publicClient
+            const markets = await publicClient
               .readContract({
-                address: chain.contracts.multicall3.address,
-                abi: multicall3Abi,
-                functionName: "aggregate3",
-                args: [
-                  scan.accounts.map((account) => ({
-                    target: marketUSDCAddress,
-                    allowFailure: true,
-                    callData: encodeFunctionData({
-                      abi: marketAbi,
-                      functionName: "fixedBorrowPositions",
-                      args: [BigInt(scan.maturity), account],
-                    }),
-                  })),
-                ],
+                address: previewerAddress,
+                abi: previewerAbi,
+                functionName: "exactly",
+                args: [zeroAddress],
               })
-              .then((results) =>
-                scan.accounts.flatMap((userId, index) => {
-                  const result = results[index];
+              .then((all) => all.filter(({ fixedPools }) => fixedPools.some(({ borrowed }) => borrowed > 0n)));
+            const accounts = await Promise.all(
+              markets.map(({ market }) =>
+                publicClient.readContract({
+                  address: chain.contracts.multicall3.address,
+                  abi: multicall3Abi,
+                  functionName: "aggregate3",
+                  args: [
+                    scan.accounts.map((account) => ({
+                      target: market,
+                      allowFailure: true,
+                      callData: encodeFunctionData({
+                        abi: marketAbi,
+                        functionName: "fixedBorrowPositions",
+                        args: [BigInt(scan.maturity), account],
+                      }),
+                    })),
+                  ],
+                }),
+              ),
+            ).then((results) =>
+              scan.accounts.flatMap((userId, index) => {
+                let debt = 0n;
+                for (const [offset, { usdPrice, decimals }] of markets.entries()) {
+                  const result = results[offset]?.[index];
                   if (!result?.success) {
                     rpcFailures += 1;
                     return [];
@@ -203,9 +215,11 @@ const worker = observe(
                     functionName: "fixedBorrowPositions",
                     data: result.returnData,
                   });
-                  return principal + fee >= 2_000_000n ? [userId] : [];
-                }),
-              );
+                  debt += ((principal + fee) * usdPrice) / 10n ** BigInt(decimals);
+                }
+                return debt >= 2n * WAD ? [userId] : [];
+              }),
+            );
             if (rpcFailures > 0) {
               captureException(new Error("fixed borrow position call failed"), {
                 level: "error",
