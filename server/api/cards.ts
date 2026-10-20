@@ -5,7 +5,12 @@ import { describeRoute } from "hono-openapi";
 import { resolver } from "hono-openapi/valibot";
 import { array, literal, metadata, number, object, parse, picklist, pipe, string, type InferOutput } from "valibot";
 
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import {
+  BASE_PRODUCT_ID,
+  PHYSICAL_SIGNATURE_PRODUCT_ID,
+  PLATINUM_PRODUCT_ID,
+  SIGNATURE_PRODUCT_ID,
+} from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
@@ -33,7 +38,7 @@ export default function route({
       description: `
 Retrieve every active, frozen, or deleted card of the authenticated user.
 
-Each item includes the cardholder's display name, expiration date, last four digits, installments mode, status, spending limit, and product id. Cards that fail to load from the provider are omitted.
+Each item includes the cardholder's display name, expiration date, last four digits, installments mode, status, type (\`physical\` or \`virtual\`), spending limit, and product id. Cards that fail to load from the provider are omitted.
 
 Pass an active or frozen item's \`lastFour\` to \`GET /card\` or \`PATCH /card\` to select that card.
       `,
@@ -109,13 +114,14 @@ Pass an active or frozen item's \`lastFour\` to \`GET /card\` or \`PATCH /card\`
           credential.cards.map(({ id, lastFour, status, mode, productId }) =>
             panda
               .getCard(id)
-              .then(({ expirationMonth, expirationYear, limit }) => ({
+              .then(({ expirationMonth, expirationYear, limit, type }) => ({
                 displayName: `${user.firstName} ${user.lastName}`,
                 expirationMonth,
                 expirationYear,
                 lastFour,
                 mode,
                 status,
+                type,
                 limit,
                 productId: parse(CardsResponse.item.entries.productId, productId),
               }))
@@ -140,6 +146,7 @@ const CardsResponse = array(
     lastFour: pipe(string(), metadata({ examples: ["1234"] })),
     mode: pipe(number(), metadata({ examples: [0] })),
     status: pipe(picklist(["ACTIVE", "DELETED", "FROZEN"]), metadata({ examples: ["ACTIVE", "DELETED", "FROZEN"] })),
+    type: pipe(picklist(["physical", "virtual"]), metadata({ examples: ["physical", "virtual"] })),
     limit: object({
       amount: number(),
       frequency: picklist([
@@ -152,8 +159,10 @@ const CardsResponse = array(
       ]),
     }),
     productId: pipe(
-      picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-      metadata({ examples: [BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+      picklist([BASE_PRODUCT_ID, PHYSICAL_SIGNATURE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+      metadata({
+        examples: [BASE_PRODUCT_ID, PHYSICAL_SIGNATURE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID],
+      }),
     ),
   }),
 );

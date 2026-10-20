@@ -25,6 +25,7 @@ import {
   picklist,
   pipe,
   regex,
+  strictObject,
   string,
   transform,
   tuple,
@@ -38,7 +39,12 @@ import { recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import {
+  BASE_PRODUCT_ID,
+  PHYSICAL_SIGNATURE_PRODUCT_ID,
+  PLATINUM_PRODUCT_ID,
+  SIGNATURE_PRODUCT_ID,
+} from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
@@ -70,28 +76,39 @@ export default function panda({ key, url }: { key: string; url: string }) {
 
   async function createCard(
     userId: string,
-    productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
+    productId:
+      | typeof BASE_PRODUCT_ID
+      | typeof PHYSICAL_SIGNATURE_PRODUCT_ID
+      | typeof PLATINUM_PRODUCT_ID
+      | typeof SIGNATURE_PRODUCT_ID,
     amount = 1_000_000,
+    shipping?: InferInput<typeof Shipping>,
   ) {
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
       {},
       parse(CreateCardRequest, {
-        type: "virtual",
+        type: productId === PHYSICAL_SIGNATURE_PRODUCT_ID ? "physical" : "virtual",
         status: "active",
         limit: { amount, frequency: "per7DayPeriod" },
-        configuration: {
-          productId,
-          virtualCardArt:
-            chain.id === baseSepolia.id || chain.id === optimismSepolia.id
-              ? "0c515d7eb0a140fa8f938f8242b0780a"
-              : {
-                  [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-                  [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-                  [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-                }[productId],
-        },
+        configuration:
+          productId === PHYSICAL_SIGNATURE_PRODUCT_ID
+            ? { productId, displayName: shipping?.displayName }
+            : {
+                productId,
+                virtualCardArt:
+                  chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+                    ? "0c515d7eb0a140fa8f938f8242b0780a"
+                    : {
+                        [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                        [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                        [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                      }[productId],
+              },
+        ...(shipping && {
+          shipping: { ...shipping, method: shipping.countryCode === "US" ? "standard" : "international" },
+        }),
       }),
       "POST",
       10_000,
@@ -386,7 +403,7 @@ const BaseTransaction = object({
     amount: number(),
     currency: literal("usd"),
     cardId: string(),
-    cardType: literal("virtual"),
+    cardType: picklist(["physical", "virtual"]),
     localAmount: number(),
     localCurrency: pipe(string(), length(3)),
     merchantCity: nullish(string()),
@@ -494,7 +511,7 @@ const Card = variant("action", [
       }),
       status: picklist(["notActivated", "active", "locked", "canceled"]),
       tokenWallets: optional(union([array(literal("Apple")), array(literal("Google Pay"))])),
-      type: literal("virtual"),
+      type: picklist(["physical", "virtual"]),
       userId: string(),
     }),
   }),
@@ -562,8 +579,20 @@ export const PINResponse = pipe(
   transform(({ encryptedPin }) => ({ pin: encryptedPin })),
 );
 
-const CreateCardRequest = object({
-  type: picklist(["physical", "virtual"]),
+const latin = regex(/^[\d a-z.,#'/&()°-]+$/i, "only latin letters, numbers and basic punctuation");
+
+export const Shipping = strictObject({
+  displayName: optional(pipe(string(), minLength(1), maxLength(26), regex(/^[\d a-z.-]+$/i))),
+  line1: pipe(string(), minLength(1), maxLength(100), latin),
+  line2: optional(pipe(string(), minLength(1), maxLength(100), latin)),
+  city: pipe(string(), minLength(1), maxLength(50), latin),
+  region: pipe(string(), minLength(1), maxLength(50), latin),
+  postalCode: pipe(string(), minLength(1), maxLength(9), regex(/^[\d a-z-]+$/i)),
+  countryCode: pipe(string(), regex(/^[A-Z]{2}$/)),
+  phoneNumber: pipe(string(), regex(/^\+[1-9]\d{1,14}$/)),
+});
+
+const BaseCardRequest = object({
   status: picklist(["active", "canceled", "locked", "notActivated"]),
   limit: object({
     amount: number(),
@@ -576,16 +605,35 @@ const CreateCardRequest = object({
       "allTime",
     ]),
   }),
-  configuration: object({
-    productId: picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    virtualCardArt: string(),
-  }),
 });
+
+const CreateCardRequest = variant("type", [
+  object({
+    type: literal("virtual"),
+    ...BaseCardRequest.entries,
+    configuration: object({
+      productId: picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+      virtualCardArt: string(),
+    }),
+  }),
+  object({
+    type: literal("physical"),
+    ...BaseCardRequest.entries,
+    configuration: object({
+      productId: literal(PHYSICAL_SIGNATURE_PRODUCT_ID),
+      displayName: Shipping.entries.displayName,
+    }),
+    shipping: object({
+      ...omit(Shipping, ["displayName"]).entries,
+      method: picklist(["standard", "express", "international", "apc", "apcTracked", "uspsInternational"]),
+    }),
+  }),
+]);
 
 const CardResponse = object({
   id: string(),
   userId: string(),
-  type: literal("virtual"),
+  type: picklist(["physical", "virtual"]),
   status: picklist(["active", "canceled", "locked", "notActivated"]),
   limit: object({
     amount: number(),
@@ -606,6 +654,7 @@ const CardResponse = object({
 const CardsResponse = array(
   object({
     id: string(),
+    type: picklist(["physical", "virtual"]),
     status: picklist(["notActivated", "active", "locked", "canceled"]),
     last4: pipe(string(), length(4)),
     expirationMonth: pipe(string(), minLength(1), maxLength(2)),

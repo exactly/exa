@@ -315,6 +315,22 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("authorizes physical cards", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "card", cardType: "physical" },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(captureException).not.toHaveBeenCalledWith(new Error("bad panda"), expect.anything());
+      });
+
       it("authorizes debit", async () => {
         await database.insert(cards).values([{ id: "debit", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
@@ -3724,6 +3740,17 @@ describe("webhooks", () => {
     const response = await appClient.index.$post({
       ...cardUpdated,
       json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+    });
+
+    expect(response.status).toBe(200);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("enqueues physical card updated webhooks", async () => {
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, type: "physical", tokenWallets: ["Apple"] } },
     });
 
     expect(response.status).toBe(200);
