@@ -168,6 +168,7 @@ export default defineConfig([
                 : [
                     "const chain = anvil as Chain",
                     "chain.testnet = true",
+                    `chain.blockTime = ${optimism.blockTime}`,
                     "chain.rpcUrls.alchemy = chain.rpcUrls.default",
                     `chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }`,
                     'chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }',

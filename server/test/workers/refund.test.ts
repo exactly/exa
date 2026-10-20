@@ -1111,12 +1111,13 @@ vi.mock("../../workers/hook/queue", () => ({
 
 vi.mock("../../utils/wallet", async (importOriginal) => {
   const original = await importOriginal<typeof W>();
-  const { foundry } = await import("viem/chains");
+  const { foundry, optimism } = await import("viem/chains");
   return {
     ...original,
     default(signer: LocalAccount) {
       const wallet = original.default(signer, {
         ...foundry,
+        blockTime: optimism.blockTime,
         rpcUrls: { ...foundry.rpcUrls, alchemy: foundry.rpcUrls.default },
       });
       const exaSend = wallet.exaSend;
