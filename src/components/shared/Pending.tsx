@@ -18,6 +18,8 @@ import type { Hex } from "@exactly/common/validation";
 export default function Pending({
   amount,
   repayAssets,
+  decimals,
+  debtSymbol,
   currency,
   maturity,
   timestamp,
@@ -26,6 +28,8 @@ export default function Pending({
 }: {
   amount: number;
   currency?: string;
+  debtSymbol?: string;
+  decimals: number;
   maturity: bigint;
   onClose: () => void;
   repayAssets: bigint;
@@ -65,18 +69,18 @@ export default function Pending({
             </Text>
             <XStack gap="$s2" alignItems="center">
               <Text title primary color="$uiNeutralPrimary">
-                {(Number(repayAssets) / 1e6).toLocaleString(language, {
+                {(Number(repayAssets) / 10 ** decimals).toLocaleString(language, {
                   minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
+                  maximumFractionDigits: debtSymbol === "USDC" ? 2 : 8,
                   useGrouping: false,
                 })}
               </Text>
               <Text title primary color="$uiNeutralPrimary">
-                &nbsp;USDC&nbsp;
+                &nbsp;{debtSymbol}&nbsp;
               </Text>
-              <AssetLogo symbol="USDC" width={28} height={28} />
+              <AssetLogo symbol={debtSymbol} width={28} height={28} />
             </XStack>
-            {currency !== "USDC" && (
+            {currency !== debtSymbol && (
               <XStack gap="$s2" alignItems="center">
                 <Text headline primary color="$uiNeutralPrimary">
                   {t("with")}&nbsp;

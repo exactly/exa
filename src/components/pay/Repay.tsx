@@ -20,7 +20,6 @@ import chain, {
   marketUSDCAddress,
   proposalManagerAddress,
   swapperAddress,
-  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { integrationPreviewerAbi, marketAbi, useReadProposalManagerDelay } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
@@ -58,7 +57,15 @@ export default function Repay() {
   const { address: account } = useAccount();
   const router = useRouter();
   const { assets } = usePortfolio({ sortBy: "usdcFirst" });
-  const { market: exaUSDC, timestamp } = useAsset(marketUSDCAddress);
+  const { market: marketQuery, maturity: maturityQuery } = useLocalSearchParams();
+  const debtMarket = useMemo(() => {
+    const { success, output } = safeParse(Address, Array.isArray(marketQuery) ? marketQuery[0] : marketQuery);
+    return success ? output : parse(Address, marketUSDCAddress);
+  }, [marketQuery]);
+  const { market: debt, timestamp } = useAsset(debtMarket);
+  const debtSymbol = debt?.symbol.slice(3) === "WETH" ? "ETH" : debt?.symbol.slice(3);
+  const debtDecimals = debt?.decimals ?? 6;
+  const debtAsset = debt?.asset;
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
   const [denyExchanges, addDeniedExchange] = useReducer(
@@ -70,13 +77,13 @@ export default function Repay() {
   });
   const selectedAsset = useMemo(() => {
     if (manuallySelectedAsset.address) return manuallySelectedAsset;
-    if (!assets[0]) return manuallySelectedAsset;
-    const { type } = assets[0];
+    const asset = assets.find((a) => a.type !== "external" && a.market === debtMarket) ?? assets[0];
+    if (!asset) return manuallySelectedAsset;
     return {
-      address: type === "external" ? parse(Address, assets[0].address) : parse(Address, assets[0].market),
-      external: type === "external",
+      address: asset.type === "external" ? parse(Address, asset.address) : parse(Address, asset.market),
+      external: asset.type === "external",
     };
-  }, [manuallySelectedAsset, assets]);
+  }, [manuallySelectedAsset, assets, debtMarket]);
   const [selectedRepayAssets, setSelectedRepayAssets] = useState<bigint | undefined>();
   const {
     markets,
@@ -94,16 +101,15 @@ export default function Repay() {
   }>({ amount: 0, repayAssets: 0n, usdAmount: 0 });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
-  const withUSDC = selectedAsset.address === (marketUSDCAddress as Address);
+  const withDebtAsset = selectedAsset.address === debtMarket;
   const mode = selectedAsset.address
     ? selectedAsset.external
       ? "external"
-      : withUSDC
+      : withDebtAsset
         ? "repay"
         : "crossRepay"
     : "none";
 
-  const { maturity: maturityQuery } = useLocalSearchParams();
   const maturity = useMemo(() => {
     const { success, output } = safeParse(
       pipe(string(), nonEmpty("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
@@ -117,7 +123,7 @@ export default function Repay() {
     chainId: chain.id,
     abi: integrationPreviewerAbi,
     functionName: "fixedRepaySnapshot",
-    args: account ? [account, marketUSDCAddress, maturity ?? 0n] : undefined,
+    args: account ? [account, debtMarket, maturity ?? 0n] : undefined,
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
@@ -127,9 +133,8 @@ export default function Repay() {
   });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
 
-  const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
-  const previewValueUSD =
-    borrow && exaUSDC ? (borrow.previewValue * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals) : 0n;
+  const borrow = debt?.fixedBorrowPositions.find((b) => b.maturity === maturity);
+  const previewValueUSD = borrow && debt ? (borrow.previewValue * debt.usdPrice) / 10n ** BigInt(debt.decimals) : 0n;
 
   const positionValue = borrow ? borrow.position.principal + borrow.position.fee : 0n;
 
@@ -146,14 +151,14 @@ export default function Repay() {
   const repayMarketAvailable =
     repayMarket && selectedAsset.address && !selectedAsset.external ? repayMarket.floatingDepositAssets : 0n;
 
-  const { data: balancerUSDCBalance } = useReadContract({
-    address: usdcAddress,
+  const { data: balancerBalance } = useReadContract({
+    address: debtAsset,
     chainId: chain.id,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: balancerVaultAddress ? [balancerVaultAddress] : undefined,
     query: {
-      enabled: !!account && !!bytecode && !!balancerVaultAddress,
+      enabled: !!account && !!bytecode && !!balancerVaultAddress && !!debtAsset,
       select: (data) => (data * (WAD * 990n)) / 1000n / WAD,
       refetchInterval: 20_000,
     },
@@ -165,6 +170,7 @@ export default function Repay() {
       "routeFrom",
       mode,
       account,
+      debtAsset,
       selectedAsset.address,
       repayMarket,
       denyExchanges,
@@ -173,10 +179,10 @@ export default function Repay() {
     queryFn: () => {
       switch (mode) {
         case "crossRepay":
-          if (!account || !repayMarket || !repayMarketAvailable) throw new Error("implementation error");
+          if (!account || !repayMarket || !repayMarketAvailable || !debtAsset) throw new Error("implementation error");
           return getRouteFrom({
             fromTokenAddress: repayMarket.asset,
-            toTokenAddress: usdcAddress,
+            toTokenAddress: debtAsset,
             fromAmount: repayMarketAvailable,
             fromAddress: account,
             toAddress: account,
@@ -184,11 +190,11 @@ export default function Repay() {
           });
         case "external":
           if (!externalAssetAvailable) throw new Error("no external asset available");
-          if (!account || !selectedAsset.address) throw new Error("implementation error");
+          if (!account || !selectedAsset.address || !debtAsset) throw new Error("implementation error");
           if (!externalAsset) throw new Error("not external asset");
           return getRouteFrom({
             fromTokenAddress: selectedAsset.address,
-            toTokenAddress: usdcAddress,
+            toTokenAddress: debtAsset,
             fromAmount: externalAssetAvailable,
             fromAddress: account,
             toAddress: account,
@@ -208,8 +214,11 @@ export default function Repay() {
 
   const availableForRepayment = useMemo(() => ((routeFrom?.toAmount ?? 0n) * 97n) / 100n, [routeFrom?.toAmount]);
 
-  const availableUSDC = repayMarket?.market === exaUSDC?.market ? repayMarketAvailable : availableForRepayment;
-  const effectiveAvailable = balancerUSDCBalance ? min(balancerUSDCBalance, availableUSDC) : availableUSDC;
+  const availableDebtAsset = repayMarket?.market === debt?.market ? repayMarketAvailable : availableForRepayment;
+  const effectiveAvailable =
+    mode === "external" || balancerBalance === undefined
+      ? availableDebtAsset
+      : min(balancerBalance, availableDebtAsset);
 
   const repayAssetsForFullDebt =
     fixedRepaySnapshot && simulationTimestamp && positionValue > 0n
@@ -235,16 +244,16 @@ export default function Repay() {
     isPending: isRoutePending,
     isFetching: isRouteFetching,
   } = useQuery({
-    queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket, denyExchanges, maxRepay],
+    queryKey: ["lifi", "route", mode, account, debtAsset, selectedAsset.address, repayMarket, denyExchanges, maxRepay],
     queryFn: () => {
       if (!maxRepay) throw new Error("no max repay");
       switch (mode) {
         case "crossRepay":
-          if (!account || !repayMarket) throw new Error("implementation error");
-          return getRoute(repayMarket.asset, usdcAddress, maxRepay, account, account, denyExchanges);
+          if (!account || !repayMarket || !debtAsset) throw new Error("implementation error");
+          return getRoute(repayMarket.asset, debtAsset, maxRepay, account, account, denyExchanges);
         case "external":
-          if (!account || !selectedAsset.address) throw new Error("implementation error");
-          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account, denyExchanges);
+          if (!account || !selectedAsset.address || !debtAsset) throw new Error("implementation error");
+          return getRoute(selectedAsset.address, debtAsset, maxRepay, account, account, denyExchanges);
         default:
           throw new Error("implementation error");
       }
@@ -278,7 +287,7 @@ export default function Repay() {
     amount: maxAmountIn,
     market: selectedAsset.address,
     proposalType: ProposalType.CrossRepayAtMaturity,
-    marketOut: marketUSDCAddress,
+    marketOut: debtMarket,
     maturity,
     positionAssets,
     maxRepay,
@@ -295,7 +304,7 @@ export default function Repay() {
   } = useMutation({
     async mutationFn() {
       if (!repayMarket) throw new Error("no repay market");
-      const amount = withUSDC ? repayAssets : route?.fromAmount;
+      const amount = withDebtAsset ? repayAssets : route?.fromAmount;
       if (!amount) throw new Error("no route");
       const call = (() => {
         switch (mode) {
@@ -331,7 +340,7 @@ export default function Repay() {
     onMutate() {
       setEnableSimulations(false);
       if (!repayMarket) return;
-      const amount = withUSDC ? repayAssets : route?.fromAmount;
+      const amount = withDebtAsset ? repayAssets : route?.fromAmount;
       if (!amount) return;
       setDisplayValues({
         amount: Number(amount) / 10 ** repayMarket.decimals,
@@ -370,6 +379,7 @@ export default function Repay() {
       if (!route.fromAmount) throw new Error("no route from amount");
       if (!positionAssets) throw new Error("no position assets");
       if (!maxRepay) throw new Error("no max repay");
+      if (!debtAsset) throw new Error("no debt asset");
       const { id } = await mutateSendCalls({
         chainId: chain.id,
         calls: [
@@ -381,13 +391,13 @@ export default function Repay() {
           },
           { to: swapperAddress, data: route.data },
           {
-            to: usdcAddress,
+            to: debtAsset,
             abi: erc20Abi,
             functionName: "approve",
-            args: [marketUSDCAddress, maxRepay],
+            args: [debtMarket, maxRepay],
           },
           {
-            to: marketUSDCAddress,
+            to: debtMarket,
             functionName: "repayAtMaturity",
             abi: marketAbi,
             args: [maturity, positionAssets, maxRepay, account],
@@ -526,9 +536,9 @@ export default function Repay() {
                     {t("Debt")}
                   </Text>
                   <XStack alignItems="center" gap="$s2">
-                    <AssetLogo symbol="USDC" width={24} height={24} />
+                    <AssetLogo symbol={debtSymbol} width={24} height={24} />
                     <Text primary title3 textAlign="right">
-                      {(Number(positionValue) / 1e6).toLocaleString(language, {
+                      {(Number(positionValue) / 10 ** debtDecimals).toLocaleString(language, {
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 6,
                       })}
@@ -549,8 +559,10 @@ export default function Repay() {
                     onChange={setSelectedRepayAssets}
                     maxRepayInput={maxRepayInput}
                     totalPositionRepay={repayAssetsForFullDebt ?? 0n}
-                    balancerBalance={balancerUSDCBalance}
+                    balancerBalance={mode === "external" ? undefined : balancerBalance}
                     positionValue={positionValue}
+                    decimals={debtDecimals}
+                    symbol={debtSymbol}
                   />
                 )}
                 {positionAssets ? (
@@ -559,14 +571,14 @@ export default function Repay() {
                       {t("Subtotal")}
                     </Text>
                     <XStack alignItems="center" gap="$s3">
-                      <AssetLogo symbol="USDC" width={20} height={20} />
+                      <AssetLogo symbol={debtSymbol} width={20} height={20} />
                       {isRouteFetching ? (
                         <Skeleton height={25} width={40} />
                       ) : (
                         <Text title3 maxFontSizeMultiplier={1} numberOfLines={1} textAlign="right">
-                          {(Number(positionAssets) / 1e6).toLocaleString(language, {
+                          {(Number(positionAssets) / 10 ** debtDecimals).toLocaleString(language, {
                             minimumFractionDigits: 0,
-                            maximumFractionDigits: 2,
+                            maximumFractionDigits: debtSymbol === "USDC" ? 2 : 8,
                             useGrouping: false,
                           })}
                         </Text>
@@ -608,7 +620,7 @@ export default function Repay() {
                       </Text>
                     )}
                     <XStack alignItems="center" gap="$s2">
-                      <AssetLogo symbol="USDC" width={20} height={20} />
+                      <AssetLogo symbol={debtSymbol} width={20} height={20} />
                       <Text
                         primary
                         title3
@@ -619,9 +631,9 @@ export default function Repay() {
                             : "$interactiveOnBaseErrorSoft"
                         }
                       >
-                        {Math.abs(Number(positionAssets - repayAssets) / 1e6).toLocaleString(language, {
+                        {Math.abs(Number(positionAssets - repayAssets) / 10 ** debtDecimals).toLocaleString(language, {
                           minimumFractionDigits: 0,
-                          maximumFractionDigits: 2,
+                          maximumFractionDigits: debtSymbol === "USDC" ? 2 : 8,
                         })}
                       </Text>
                     </XStack>
@@ -636,7 +648,7 @@ export default function Repay() {
                       </Text>
                       <YStack alignItems="flex-end">
                         <XStack alignItems="center" gap="$s3">
-                          <AssetLogo symbol="USDC" width={20} height={20} />
+                          <AssetLogo symbol={debtSymbol} width={20} height={20} />
                           {isRouteFetching ? (
                             <Skeleton height={25} width={40} />
                           ) : (
@@ -647,9 +659,9 @@ export default function Repay() {
                               textAlign="right"
                               color={discountOrPenaltyPercentage >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
                             >
-                              {(Number(repayAssets) / 1e6).toLocaleString(language, {
+                              {(Number(repayAssets) / 10 ** debtDecimals).toLocaleString(language, {
                                 minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
+                                maximumFractionDigits: debtSymbol === "USDC" ? 2 : 8,
                                 useGrouping: false,
                               })}
                             </Text>
@@ -731,22 +743,22 @@ export default function Repay() {
               <XStack
                 justifyContent="space-between"
                 gap="$s3"
-                opacity={selectedAsset.address === exaUSDC?.market ? 0 : 1}
-                pointerEvents={selectedAsset.address === exaUSDC?.market ? "none" : "auto"}
+                opacity={withDebtAsset ? 0 : 1}
+                pointerEvents={withDebtAsset ? "none" : "auto"}
               >
                 <Text secondary callout textAlign="left">
                   {t("Available for repayment")}
                 </Text>
                 <YStack gap="$s2">
                   <XStack alignItems="center" gap="$s2">
-                    <AssetLogo symbol="USDC" width={16} height={16} />
+                    <AssetLogo symbol={debtSymbol} width={16} height={16} />
                     {isRouteFromFetching ? (
                       <Skeleton height={23} width={50} />
                     ) : (
                       <Text emphasized headline primary textAlign="right">
-                        {(Number(availableForRepayment) / 1e6).toLocaleString(language, {
+                        {(Number(availableForRepayment) / 10 ** debtDecimals).toLocaleString(language, {
                           minimumFractionDigits: 0,
-                          maximumFractionDigits: 2,
+                          maximumFractionDigits: debtSymbol === "USDC" ? 2 : 8,
                         })}
                       </Text>
                     )}
@@ -784,6 +796,8 @@ export default function Repay() {
         timestamp={timestamp}
         amount={displayValues.amount}
         repayAssets={displayValues.repayAssets}
+        decimals={debtDecimals}
+        debtSymbol={debtSymbol}
         currency={displayValues.currency}
         selectedAsset={displayValues.asset}
         onClose={() => {
@@ -802,6 +816,8 @@ export default function Repay() {
         timestamp={timestamp}
         amount={displayValues.amount}
         repayAssets={displayValues.repayAssets}
+        decimals={debtDecimals}
+        debtSymbol={debtSymbol}
         currency={displayValues.currency}
         selectedAsset={displayValues.asset}
         onClose={() => {
@@ -816,6 +832,8 @@ export default function Repay() {
         timestamp={timestamp}
         amount={displayValues.amount}
         repayAssets={displayValues.repayAssets}
+        decimals={debtDecimals}
+        debtSymbol={debtSymbol}
         currency={displayValues.currency}
         selectedAsset={displayValues.asset}
         onClose={() => {
