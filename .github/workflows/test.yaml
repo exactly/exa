@@ -88,7 +88,7 @@ jobs:
           - { flow: credit, screen: 1920x1080 }
           - { flow: onboarding, screen: 500x1200 }
           - { flow: swap, screen: 740x880 }
-          - { flow: transfer, screen: 760x600 }
+          - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
@@ -127,7 +127,7 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion
+          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
