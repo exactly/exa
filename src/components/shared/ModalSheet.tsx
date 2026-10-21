@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform } from "react-native";
 
 import { Sheet } from "tamagui";
+
+import { hold } from "../../utils/useAnnouncement";
 
 export default function ModalSheet({
   open,
@@ -18,6 +20,7 @@ export default function ModalSheet({
   onClose: () => void;
   open: boolean;
 }) {
+  useEffect(() => (open ? hold() : undefined), [open]);
   return (
     <Sheet
       open={open}

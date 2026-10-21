@@ -36,6 +36,7 @@ import ContactSheet from "./ContactSheet";
 import ensOptions, { ensName } from "../../utils/ensOptions";
 import { chainTypeOf, lifiChainsOptions, receiverSchema } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
+import useAnnouncement from "../../utils/useAnnouncement";
 import Blocky from "../shared/Blocky";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
@@ -56,8 +57,8 @@ export default function ReceiverSelection() {
   const { receiver, asset, fromChain } = useLocalSearchParams();
 
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
-  const { data: introSeen } = useQuery<boolean>({ queryKey: ["settings", "advanced-intro"] });
-  const { data: spotlightSeen } = useQuery<boolean>({ queryKey: ["settings", "advanced-spotlight"] });
+  const [introOpen, dismissIntro] = useAnnouncement("advanced-intro", !advanced);
+  const [spotlightVisible, dismissSpotlight] = useAnnouncement("advanced-spotlight", !advanced);
   const { data: chains } = useQuery(lifiChainsOptions);
   const [settings, setSettings] = useState(false);
   const cogRef = useRef<RNView>(null);
@@ -498,14 +499,12 @@ export default function ReceiverSelection() {
         </ScrollView>
       </View>
       <AdvancedIntroSheet
-        open={!introSeen}
+        open={introOpen}
         onEnable={() => {
           setAdvanced(true);
-          queryClient.setQueryData(["settings", "advanced-intro"], true);
+          dismissIntro();
         }}
-        onDismiss={() => {
-          queryClient.setQueryData(["settings", "advanced-intro"], true);
-        }}
+        onDismiss={dismissIntro}
       />
       <AdvancedSheet
         advanced={!!advanced}
@@ -515,14 +514,12 @@ export default function ReceiverSelection() {
           setSettings(false);
         }}
       />
-      {introSeen && !spotlightSeen && (
+      {spotlightVisible && (
         <Spotlight
           dismissible
           label={t("Turn on Advanced mode at any time")}
           targetRef={cogRef}
-          onDismiss={() => {
-            queryClient.setQueryData(["settings", "advanced-spotlight"], true);
-          }}
+          onDismiss={dismissSpotlight}
           onPress={() => {
             setSettings(true);
           }}
