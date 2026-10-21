@@ -58,7 +58,6 @@ import chain, {
   alchemyChains,
   allowlists,
   auditorAddress,
-  balancePreviewerAbi,
   balancePreviewerCode,
   exaAddress,
   exaPreviewerAbi,
@@ -687,9 +686,14 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
   const tokensByChain: Partial<Record<number, Token[]>> = {};
   for (const token of lifiTokens) (tokensByChain[token.chainId] ??= []).push(token);
   const failures = new Map<string, { error: unknown; ids: number[] }>();
+  let turn: Promise<unknown> = Promise.resolve();
   const pending = new Set(
     chains.map(async ({ chainType, diamondAddress, id, mainnet, multicallAddress }) => {
       if (!mainnet || chainType !== ChainType.EVM || !diamondAddress || !multicallAddress) return;
+      if (id !== chain.id) {
+        turn = turn.then(() => new Promise((resolve) => setTimeout(resolve)));
+        await turn;
+      }
       const url = alchemyURLs[id];
       try {
         if (url) {
@@ -728,14 +732,24 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
           ).map(async (calls) => {
             if (!unsupported.has(id)) {
               try {
-                const amounts = await client.readContract({
-                  abi: balancePreviewerAbi,
-                  functionName: "balances",
-                  code: balancePreviewerCode,
-                  args: [account, calls.map(({ address }) => address.toLowerCase() as Address)],
+                const words = [
+                  account,
+                  "0x40",
+                  `0x${calls.length.toString(16)}`,
+                  ...calls.map(({ address }) => address),
+                ];
+                const amounts = await client.request({
+                  method: "eth_call",
+                  params: [
+                    {
+                      data: `${balancePreviewerCode}${words.map((word) => word.slice(2).toLowerCase().padStart(64, "0")).join("")}`,
+                    },
+                    "latest",
+                  ],
                 });
+                if (amounts.length !== 66 + calls.length * 64) throw new Error("unexpected balances length");
                 return calls.flatMap(({ address }, index) => {
-                  const amount = amounts[index] ?? 0n;
+                  const amount = BigInt(`0x${amounts.slice(66 + index * 64, 130 + index * 64)}`);
                   return amount > 0n ? [{ address, amount }] : [];
                 });
               } catch (error) {

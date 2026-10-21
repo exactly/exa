@@ -1,3 +1,7 @@
+BalancePreviewerTest:test_balances_keepsOrder_whenTokenMisbehaves() (gas: 1040493865)
+BalancePreviewerTest:test_balances_returnsBalance_whenTokenIsExpensive() (gas: 460663)
+BalancePreviewerTest:test_balances_returnsTokenAndNativeBalances() (gas: 131868)
+BalancePreviewerTest:test_balances_returnsZero_whenTokenMisbehaves() (gas: 1040498166)
 ExaAccountFactoryTest:testFuzz_createAccount_EOAOwners(uint256,address[63]) (runs: 256, μ: 5441250, ~: 4340071)
 ExaAccountFactoryTest:test_deploy_deploysToSameAddress() (gas: 20779272)
 ExaPluginTest:testFork_claimAndVestEscrowedEXA_claimsAndVests() (gas: 39207968)
