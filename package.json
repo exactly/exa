@@ -295,6 +295,7 @@
         "react-native-screens",
         "react-native-svg",
         "react-native-worklets",
+        "selenium-webdriver",
         "typescript"
       ]
     },
