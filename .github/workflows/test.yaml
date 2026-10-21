@@ -139,7 +139,7 @@ jobs:
           disable_search: true
           files: server/coverage/lcov.info,server/coverage/app.json
           token: ${{ secrets.CODECOV_TOKEN }}
-          flags: e2e,web,siwe
+          flags: web
           name: web
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
