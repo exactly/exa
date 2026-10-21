@@ -249,20 +249,17 @@
         "reintentamos",
         "reintentando",
         "repágala",
-        "tokenizadas",
-        "verifícate"
+        "tokenizadas"
       ]
     },
     {
       "filename": "**/i18n/**/es-AR.json",
       "language": "en,es",
       "words": [
-        "accedé",
         "aceptás",
         "activá",
         "actualizá",
         "agregá",
-        "ahorrá",
         "ajustá",
         "aprendé",
         "asegurate",
@@ -328,13 +325,11 @@
         "reservá",
         "revisá",
         "seleccioná",
-        "simulá",
         "tenés",
         "tocá",
         "usalo",
         "usalos",
         "usás",
-        "verificate",
         "verificá"
       ]
     },

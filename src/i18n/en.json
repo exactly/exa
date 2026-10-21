@@ -3,8 +3,6 @@
   "{{amount}} shares_other": "{{amount}} shares",
   "{{count}} installments of_one": "{{count}} installment of",
   "{{count}} installments of_other": "{{count}} installments of",
-  "{{count}} installments_one": "{{count}} installment",
-  "{{count}} installments_other": "{{count}} installments",
   "Available for {{count}} installments or less_one": "Available for {{count}} installment",
   "Available for {{count}} installments or less_other": "Available for {{count}} installments or less",
   "in {{count}} payments_one": "in {{count}} payment",
