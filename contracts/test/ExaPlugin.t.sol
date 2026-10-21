@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-import { ForkTest, stdError } from "./Fork.t.sol";
+import { ForkTest, Vm, stdError } from "./Fork.t.sol";
 
 import { Auditor } from "@exactly/protocol/Auditor.sol";
 import { FixedLib, Market } from "@exactly/protocol/Market.sol";
 
 import { MockBalancerVault } from "@exactly/protocol/mocks/MockBalancerVault.sol";
-import { FlashLoanAdapter, IBalancerVaultV3 } from "@exactly/protocol/periphery/FlashLoanAdapter.sol";
+import { DebtRoller } from "@exactly/protocol/periphery/DebtRoller.sol";
+import { FlashLoanAdapter, IMorpho } from "@exactly/protocol/periphery/FlashLoanAdapter.sol";
 
-import { IERC20 as IERC20v4 } from "@openzeppelin/contracts-v4/interfaces/IERC20.sol";
-import { IERC4626 as IERC4626v4 } from "@openzeppelin/contracts-v4/interfaces/IERC4626.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts-v4/proxy/transparent/ProxyAdmin.sol";
+import {
+  ITransparentUpgradeableProxy
+} from "@openzeppelin/contracts-v4/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import { PluginManagerInternals } from "modular-account/src/account/PluginManagerInternals.sol";
 import { Call, UpgradeableModularAccount } from "modular-account/src/account/UpgradeableModularAccount.sol";
@@ -29,6 +32,7 @@ import { BasePlugin, PluginMetadata } from "modular-account-libs/plugins/BasePlu
 import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import { IERC4626 } from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Address } from "openzeppelin-contracts/contracts/utils/Address.sol";
 
 import { ECDSA } from "solady/utils/ECDSA.sol";
@@ -1829,7 +1833,7 @@ contract ExaPluginTest is ForkTest {
 
     uint256 exaUSDCBalance = exaUSDC.balanceOf(address(account));
     uint256 propose = exaUSDCBalance.mulWad(0.8e18);
-    (uint256 adjustFactor,,,,) = auditor.markets(Market(address(exaUSDC)));
+    (uint256 adjustFactor,,,,,) = auditor.markets(Market(address(exaUSDC)));
 
     uint256 credit = (exaUSDCBalance - propose).mulWad(adjustFactor) / 2;
     address receiver = address(0x420);
@@ -2616,7 +2620,7 @@ contract ExaPluginTest is ForkTest {
     vm.startPrank(keeper);
     account.poke(exaUSDC);
 
-    (uint256 adjustFactor,,,,) = auditor.markets(Market(address(exaUSDC)));
+    (uint256 adjustFactor,,,,,) = auditor.markets(Market(address(exaUSDC)));
 
     uint256 adjustedCollateral = exaUSDC.maxWithdraw(address(account)).mulWad(adjustFactor);
     uint256 maxDebt = adjustedCollateral.mulWad(adjustFactor);
@@ -3557,93 +3561,314 @@ contract ExaPluginTest is ForkTest {
     account.propose(exaEXA, 1, ProposalType.NONE, abi.encode(address(account)));
   }
 
-  function testFork_repay_whenFlashLoanerHasFees() external {
-    vm.createSelectFork("optimism", 141_227_400);
-    account = ExaAccount(payable(0x6120Fb2A9d47f7955298b80363F00C620dB9f6E6));
-    issuerChecker = new IssuerChecker(address(this), issuer, 1 minutes, 1 minutes);
-    issuerChecker.setIssuer(issuer);
-    domainSeparator = issuerChecker.DOMAIN_SEPARATOR();
+  function test_repay_repays_whenFlashLoanerHasFees() external {
+    MockBalancerVault flashLoaner = new MockBalancerVault();
+    flashLoaner.setFee(1e6);
+    usdc.mint(address(flashLoaner), 1_000_000e6);
 
-    address[] memory targets = new address[](3);
-    targets[0] = IMarket(protocol("MarketUSDC")).asset();
-    targets[1] = IMarket(protocol("MarketWETH")).asset();
-    targets[2] = IMarket(protocol("MarketWBTC")).asset();
-    proposalManager = new ProposalManager(
-      address(this),
-      IAuditor(protocol("Auditor")),
-      IDebtManager(protocol("DebtManager")),
-      IInstallmentsRouter(protocol("InstallmentsRouter")),
-      acct("collector"),
-      targets,
-      1 minutes
-    );
-    FlashLoanAdapter adapter =
-      new FlashLoanAdapter(IBalancerVaultV3(0xbA1333333333a1BA1108E8412f11850A5C319bA9), address(this));
+    exaPlugin.setFlashLoaner(IFlashLoaner(address(flashLoaner)));
 
-    usdc = MockERC20(protocol("USDC"));
-    exaUSDC = IMarket(protocol("MarketUSDC"));
-    adapter.setWToken(IERC20v4(address(usdc)), IERC4626v4(address(0x41B334E9F2C0ED1f30fD7c351874a6071C53a78E)));
-
-    exaPlugin = ExaPlugin(payable(0x3d73D0fb9e63c49ba8e9cd738964D5E08C047f3e));
-
-    ExaPlugin newExaPlugin = new ExaPlugin(
-      Parameters({
-        owner: address(this),
-        auditor: IAuditor(protocol("Auditor")),
-        exaUSDC: exaUSDC,
-        exaWETH: IMarket(protocol("MarketWETH")),
-        flashLoaner: IFlashLoaner(address(adapter)),
-        debtManager: IDebtManager(protocol("DebtManager")),
-        installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
-        issuerChecker: issuerChecker,
-        proposalManager: proposalManager,
-        collector: acct("collector"),
-        swapper: 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE,
-        firstKeeper: keeper
-      })
-    );
-    proposalManager.grantRole(proposalManager.PROPOSER_ROLE(), address(newExaPlugin));
-
-    vm.prank(acct("admin"));
-    exaPlugin.allowPlugin(address(newExaPlugin), true);
-
-    Call[] memory calls = new Call[](2);
-    calls[0] = Call(
-      address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(exaPlugin), "", ""))
-    );
-    calls[1] = Call(
-      address(account),
-      0,
-      abi.encodeCall(
-        UpgradeableModularAccount.installPlugin,
-        (address(newExaPlugin), keccak256(abi.encode(newExaPlugin.pluginManifest())), "", new FunctionReference[](0))
-      )
-    );
+    vm.startPrank(keeper);
+    account.poke(exaUSDC);
+    uint256 maturity = FixedLib.INTERVAL;
+    account.collectCredit(maturity, 100e6, block.timestamp, _issuerOp(100e6, block.timestamp));
+    FixedPosition memory position = exaUSDC.fixedBorrowPositions(maturity, address(account));
+    uint256 positionAssets = position.principal + position.fee;
 
     vm.startPrank(address(account));
-    account.executeBatch(calls);
-
-    uint256 nextMaturity = block.timestamp + FixedLib.INTERVAL - block.timestamp % FixedLib.INTERVAL;
-
-    FixedPosition memory position = exaUSDC.fixedBorrowPositions(nextMaturity, address(account));
-    uint256 positionAssets = position.principal + position.fee;
-    assertGt(positionAssets, 0);
-
     account.propose(
       exaUSDC,
-      positionAssets + 1,
+      positionAssets + 1e6,
       ProposalType.REPAY_AT_MATURITY,
-      abi.encode(RepayData({ maturity: nextMaturity, positionAssets: positionAssets }))
+      abi.encode(RepayData({ maturity: maturity, positionAssets: positionAssets }))
     );
 
     skip(proposalManager.delay());
     account.executeProposal(proposalManager.nonces(address(account)));
 
-    position = exaUSDC.fixedBorrowPositions(nextMaturity, address(account));
-    assertEq(position.principal + position.fee, 0);
+    position = exaUSDC.fixedBorrowPositions(maturity, address(account));
+    assertEq(position.principal + position.fee, 0, "debt not repaid");
+    assertEq(usdc.balanceOf(address(flashLoaner)), 1_000_001e6, "fee not paid");
+    assertEq(usdc.balanceOf(address(exaPlugin)), 0, "usdc dust");
   }
 
-  function test_crossRepay_whenFlashLoanerHasFees() external {
+  function testFork_repay_repaysWithMorpho_onBase() external {
+    address morpho = _setUpMorphoBase();
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+
+    _repay(address(account), exaUSDC, maturity);
+
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), 0, "debt not repaid");
+    _assertNoDust();
+  }
+
+  function testFork_repay_repaysWETHWithMorpho_onBase() external {
+    address morpho = _setUpMorphoBase();
+    _poke(exaWETH, 0.06e18);
+    uint256 maturity = _borrow(exaWETH, 0.05e18);
+
+    _repay(address(account), exaWETH, maturity);
+
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "morpho flash loans");
+    assertEq(_debt(exaWETH, maturity), 0, "debt not repaid");
+    _assertNoDust();
+  }
+
+  function testFork_repay_reverts_whenMorphoLacksLiquidity() external {
+    address morpho = _setUpMorphoBase();
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+    uint256 debt = _debt(exaUSDC, maturity);
+    deal(address(usdc), morpho, 500e6);
+
+    vm.startPrank(address(account));
+    account.propose(
+      exaUSDC,
+      debt + 1,
+      ProposalType.REPAY_AT_MATURITY,
+      abi.encode(RepayData({ maturity: maturity, positionAssets: debt }))
+    );
+    skip(proposalManager.delay());
+    uint256 nonce = proposalManager.nonces(address(account));
+    vm.expectRevert(bytes("transfer reverted"));
+    account.executeProposal(nonce);
+  }
+
+  function testFork_crossRepay_repaysWithMorpho_onBase() external {
+    address morpho = _setUpMorphoBase();
+    _poke(exaWETH, 0.06e18);
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+    uint256 debt = _debt(exaUSDC, maturity);
+    uint256 collateral = exaWETH.maxWithdraw(address(account));
+
+    _execute(
+      address(account),
+      exaWETH,
+      0.05e18,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({
+          maturity: maturity, positionAssets: 100e6, marketOut: exaUSDC, maxRepay: 110e6, route: BASE_WETH_TO_USDC
+        })
+      )
+    );
+
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), debt - 100e6, "debt not reduced");
+    assertLt(exaWETH.maxWithdraw(address(account)), collateral, "collateral not spent");
+    _assertNoDust();
+  }
+
+  function testFork_crossRepay_repaysWETHWithMorpho_onBase() external {
+    address morpho = _setUpMorphoBase();
+    uint256 maturity = _borrow(exaWETH, 0.05e18);
+    uint256 debt = _debt(exaWETH, maturity);
+    uint256 collateral = exaUSDC.maxWithdraw(address(account));
+
+    _execute(
+      address(account),
+      exaUSDC,
+      150e6,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({
+          maturity: maturity,
+          positionAssets: 0.04e18,
+          marketOut: exaWETH,
+          maxRepay: 0.045e18,
+          route: hex"5fd9ae2eacdb4e3d0c2f00231875578aa4e70ae2d5e4549708d55128807a7cff7f610a7b00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001000000000000000000000000006120fb2a9d47f7955298b80363f00c620db9f6e600000000000000000000000000000000000000000000000000d71543d3093dee000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000000086c6966692d617069000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000200000000000000000000000000ce40449b773a3e6e5e769adb4e567179d4828cbd000000000000000000000000ce40449b773a3e6e5e769adb4e567179d4828cbd000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda029130000000000000000000000000000000000000000000000000000000008f0d18000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000a4332d746b000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000c06ebbefd94032b85424d51906e2a335efae264b000000000000000000000000000000000000000000000000000000000005b8d800000000000000000000000000000000000000000000000000000000000000000000000000000000ac4c6e212a361c968f1725b4d055b47e63f80b75000000000000000000000000ac4c6e212a361c968f1725b4d055b47e63f80b75000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000042000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000008eb18a800000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a45f3bd1c8000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda029130000000000000000000000000000000000000000000000000000000008eb18a80000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000d7154a0ec20e00000000000000000000000000c10ee9031f2a0b84766a86b55a8d90f357910fb400000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000001846be92b89000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda029130000000000000000000000000000000000000000000000000000000008eb18a8000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000d82a25625f42100000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000005101a15e44bd81000101833589fcd6edb6e08f4c7c32d4f71b54bda0291301ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d3800c10ee9031f2a0b84766a86b55a8d90f357910fb4008eb20cd82a280000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        })
+      )
+    );
+
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "morpho flash loans");
+    assertEq(_debt(exaWETH, maturity), debt - 0.04e18, "debt not reduced");
+    assertLt(exaUSDC.maxWithdraw(address(account)), collateral, "collateral not spent");
+    _assertNoDust();
+  }
+
+  function testFork_rollDebt_rollsWithMorpho_onBase() external {
+    address morpho = _setUpMorphoBase();
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+    uint256 debt = _debt(exaUSDC, maturity + FixedLib.INTERVAL);
+
+    _roll(address(account), exaUSDC, maturity, 1100e6, 1200e6);
+
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), 0, "debt not rolled");
+    assertGt(_debt(exaUSDC, maturity + FixedLib.INTERVAL), debt + 1000e6, "debt not moved");
+    _assertNoDust();
+  }
+
+  function testFork_proposeRepay_executesWithMorpho_onBase() external {
+    address morpho = _setUpMorphoBase();
+    _poke(exaWETH, 0.06e18);
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+
+    _execute(
+      keeper,
+      exaWETH,
+      0.05e18,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({
+          maturity: maturity, positionAssets: 100e6, marketOut: exaUSDC, maxRepay: 110e6, route: BASE_WETH_TO_USDC
+        })
+      )
+    );
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "cross repay morpho flash loans");
+
+    _roll(keeper, exaUSDC, maturity, 1100e6, 1200e6);
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "roll morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), 0, "debt not rolled");
+
+    _repay(keeper, exaUSDC, maturity + FixedLib.INTERVAL);
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "repay morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity + FixedLib.INTERVAL), 0, "debt not repaid");
+    _assertNoDust();
+  }
+
+  function testFork_setFlashLoaner_switchesRepaysToMorpho_onBase() external {
+    FlashLoanAdapter adapter = _forkBase();
+    _setUpLive(ExaPlugin(payable(0x0AA3529ae5FdBCeB69Cf8ab2b9e2d3Af85860469)));
+    DebtRoller debtRoller = DebtRoller(protocol("DebtRoller"));
+    address morpho = address(adapter.morpho());
+    assertNotEq(address(exaPlugin.flashLoaner()), address(adapter), "previous plugin flash loaner");
+    assertEq(address(exaPlugin.DEBT_MANAGER()), address(debtRoller), "debt manager");
+    assertEq(address(debtRoller.flashLoaner()), address(adapter), "debt roller flash loaner");
+
+    vm.prank(acct("admin"));
+    exaPlugin.setFlashLoaner(IFlashLoaner(address(adapter)));
+
+    _poke(exaWETH, 0.06e18);
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+    uint256 debt = _debt(exaUSDC, maturity);
+
+    _execute(
+      address(account),
+      exaWETH,
+      0.05e18,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({
+          maturity: maturity, positionAssets: 100e6, marketOut: exaUSDC, maxRepay: 110e6, route: BASE_WETH_TO_USDC
+        })
+      )
+    );
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "cross repay morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), debt - 100e6, "debt not cross repaid");
+
+    _roll(address(account), exaUSDC, maturity, 1100e6, 1200e6);
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "roll morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), 0, "debt not rolled");
+
+    _repay(address(account), exaUSDC, maturity + FixedLib.INTERVAL);
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "repay morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity + FixedLib.INTERVAL), 0, "debt not repaid");
+    _assertNoDust();
+  }
+
+  function testFork_setFlashLoaner_switchesRepaysToMorpho_onOptimism() external {
+    vm.createSelectFork("optimism", 157_500_226);
+    _setUpLive(ExaPlugin(payable(0x3d73D0fb9e63c49ba8e9cd738964D5E08C047f3e)));
+    address balancer = protocol("Balancer2Vault");
+    FlashLoanAdapter adapter = new FlashLoanAdapter(IMorpho(protocol("Morpho")));
+    address morpho = address(adapter.morpho());
+    assertEq(address(exaPlugin.flashLoaner()), balancer, "previous flash loaner");
+    assertEq(address(exaPlugin.DEBT_MANAGER()), protocol("DebtManager"), "previous debt manager");
+
+    _poke(exaWETH, 0.12e18);
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+
+    _execute(
+      address(account),
+      exaWETH,
+      0.05e18,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        LegacyCrossRepayData({
+          maturity: maturity, positionAssets: 100e6, maxRepay: 110e6, route: OPTIMISM_WETH_TO_USDC
+        })
+      )
+    );
+    assertEq(_flashLoans(vm.getRecordedLogs(), balancer), 1, "previous cross repay balancer flash loans");
+
+    vm.prank(acct("admin"));
+    exaPlugin.setFlashLoaner(IFlashLoaner(address(adapter)));
+
+    _roll(address(account), exaUSDC, maturity, 1100e6, 1200e6);
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    assertEq(_flashLoans(logs, balancer), 1, "roll balancer flash loans");
+    assertEq(_flashLoans(logs, morpho), 0, "roll morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), 0, "debt not rolled");
+
+    _execute(
+      address(account),
+      exaWETH,
+      0.05e18,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        LegacyCrossRepayData({
+          maturity: maturity + FixedLib.INTERVAL, positionAssets: 100e6, maxRepay: 110e6, route: OPTIMISM_WETH_TO_USDC
+        })
+      )
+    );
+    logs = vm.getRecordedLogs();
+    assertEq(_flashLoans(logs, balancer), 0, "cross repay balancer flash loans");
+    assertEq(_flashLoans(logs, morpho), 1, "cross repay morpho flash loans");
+
+    _repay(address(account), exaUSDC, maturity + FixedLib.INTERVAL);
+    logs = vm.getRecordedLogs();
+    assertEq(_flashLoans(logs, balancer), 0, "repay balancer flash loans");
+    assertEq(_flashLoans(logs, morpho), 1, "repay morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity + FixedLib.INTERVAL), 0, "debt not repaid");
+    _assertNoDust();
+  }
+
+  function testFork_executeProposal_executesWithMorphoAndDebtRoller_onOptimism() external {
+    vm.createSelectFork("optimism", 157_500_226);
+    FlashLoanAdapter adapter = new FlashLoanAdapter(IMorpho(protocol("Morpho")));
+    auditor = Auditor(protocol("Auditor"));
+    vm.startPrank(protocol("TimelockController"));
+    ProxyAdmin(protocol("ProxyAdmin"))
+      .upgrade(ITransparentUpgradeableProxy(payable(address(auditor))), address(new Auditor(auditor.priceDecimals())));
+    vm.stopPrank();
+    _setUpMorpho(
+      adapter,
+      ExaPlugin(payable(0x3d73D0fb9e63c49ba8e9cd738964D5E08C047f3e)),
+      IDebtManager(
+        address(new ERC1967Proxy(address(new DebtRoller(auditor, adapter)), abi.encodeCall(DebtRoller.initialize, ())))
+      )
+    );
+
+    _poke(exaWETH, 0.06e18);
+    uint256 maturity = _borrow(exaUSDC, 1000e6);
+    address morpho = address(adapter.morpho());
+
+    _execute(
+      address(account),
+      exaWETH,
+      0.05e18,
+      ProposalType.CROSS_REPAY_AT_MATURITY,
+      abi.encode(
+        CrossRepayData({
+          maturity: maturity, positionAssets: 100e6, marketOut: exaUSDC, maxRepay: 110e6, route: OPTIMISM_WETH_TO_USDC
+        })
+      )
+    );
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "cross repay morpho flash loans");
+
+    _roll(address(account), exaUSDC, maturity, 1100e6, 1200e6);
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "roll morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity), 0, "debt not rolled");
+
+    _repay(address(account), exaUSDC, maturity + FixedLib.INTERVAL);
+    assertEq(_flashLoans(vm.getRecordedLogs(), morpho), 1, "repay morpho flash loans");
+    assertEq(_debt(exaUSDC, maturity + FixedLib.INTERVAL), 0, "debt not repaid");
+    _assertNoDust();
+  }
+
+  function test_crossRepay_consumesProposal_whenFlashLoanerHasFees() external {
     MockBalancerVault flashLoaner = new MockBalancerVault();
     flashLoaner.setFee(1e6);
     usdc.mint(address(flashLoaner), 1_000_000e6);
@@ -3683,6 +3908,60 @@ contract ExaPluginTest is ForkTest {
   }
 
   // solhint-enable func-name-mixedcase
+
+  function _assertNoDust() internal view {
+    assertEq(usdc.balanceOf(address(exaPlugin)), 0, "usdc dust");
+    assertEq(IERC20(exaWETH.asset()).balanceOf(address(exaPlugin)), 0, "weth dust");
+  }
+
+  function _borrow(IMarket market, uint256 assets) internal returns (uint256 maturity) {
+    maturity = block.timestamp + FixedLib.INTERVAL - (block.timestamp % FixedLib.INTERVAL);
+    _execute(
+      address(account),
+      market,
+      assets,
+      ProposalType.BORROW_AT_MATURITY,
+      abi.encode(
+        BorrowAtMaturityData({ maturity: maturity, maxAssets: assets * 110 / 100, receiver: address(account) })
+      )
+    );
+  }
+
+  function _debt(IMarket market, uint256 maturity) internal view returns (uint256) {
+    FixedPosition memory position = market.fixedBorrowPositions(maturity, address(account));
+    return position.principal + position.fee;
+  }
+
+  function _execute(address proposer, IMarket market, uint256 amount, ProposalType proposalType, bytes memory data)
+    internal
+  {
+    vm.startPrank(proposer);
+    if (proposer == address(account)) account.propose(market, amount, proposalType, data);
+    else account.proposeRepay(market, amount, proposalType, data);
+    skip(proposalManager.delay());
+    vm.recordLogs();
+    account.executeProposal(proposalManager.nonces(address(account)));
+    vm.stopPrank();
+  }
+
+  function _flashLoans(Vm.Log[] memory logs, address lender) internal pure returns (uint256 count) {
+    for (uint256 i = 0; i < logs.length; ++i) {
+      if (
+        logs[i].emitter == lender
+          && (logs[i].topics[0] == keccak256("FlashLoan(address,address,uint256)")
+            || logs[i].topics[0] == keccak256("FlashLoan(address,address,uint256,uint256)"))
+      ) ++count;
+    }
+  }
+
+  function _forkBase() internal returns (FlashLoanAdapter adapter) {
+    vm.createSelectFork("base", 52_896_788);
+    adapter = FlashLoanAdapter(protocol("FlashLoanAdapter"));
+    IFirewall firewall = IFirewall(protocol("Firewall"));
+    vm.prank(protocol("TimelockController"));
+    firewall.grantRole(keccak256("ALLOWER_ROLE"), address(this));
+    firewall.allow(0x6120Fb2A9d47f7955298b80363F00C620dB9f6E6, true);
+  }
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
     return _issuerOp(amount, timestamp, false);
@@ -3727,6 +4006,42 @@ contract ExaPluginTest is ForkTest {
     op.signature = abi.encodePacked(
       ownerPlugin.ownerIndexOf(address(account), PublicKey(uint256(uint160(vm.addr(privateKey))), 0)),
       _sign(privateKey, ENTRYPOINT.getUserOpHash(op).toEthSignedMessageHash())
+    );
+  }
+
+  function _poke(IMarket market, uint256 amount) internal {
+    deal(market.asset(), address(account), amount);
+    vm.prank(keeper);
+    account.poke(market);
+  }
+
+  function _repay(address proposer, IMarket market, uint256 maturity) internal {
+    uint256 debt = _debt(market, maturity);
+    _execute(
+      proposer,
+      market,
+      debt + 1,
+      ProposalType.REPAY_AT_MATURITY,
+      abi.encode(RepayData({ maturity: maturity, positionAssets: debt }))
+    );
+  }
+
+  function _roll(address proposer, IMarket market, uint256 maturity, uint256 maxRepayAssets, uint256 maxBorrowAssets)
+    internal
+  {
+    _execute(
+      proposer,
+      market,
+      maxBorrowAssets,
+      ProposalType.ROLL_DEBT,
+      abi.encode(
+        RollDebtData({
+          repayMaturity: maturity,
+          borrowMaturity: maturity + FixedLib.INTERVAL,
+          maxRepayAssets: maxRepayAssets,
+          percentage: 1e18
+        })
+      )
     );
   }
 
@@ -3792,6 +4107,85 @@ contract ExaPluginTest is ForkTest {
     vm.stopPrank();
   }
 
+  function _setUpLive(ExaPlugin plugin) internal {
+    account = ExaAccount(payable(0x6120Fb2A9d47f7955298b80363F00C620dB9f6E6));
+    exaPlugin = plugin;
+    proposalManager = ProposalManager(address(exaPlugin.proposalManager()));
+    exaUSDC = IMarket(protocol("MarketUSDC"));
+    exaWETH = IMarket(protocol("MarketWETH"));
+    usdc = MockERC20(exaUSDC.asset());
+
+    vm.prank(acct("admin"));
+    exaPlugin.grantRole(keccak256("KEEPER_ROLE"), keeper);
+    _poke(exaUSDC, 10_000e6);
+  }
+
+  function _setUpMorpho(FlashLoanAdapter adapter, ExaPlugin plugin, IDebtManager debtManager_) internal {
+    account = ExaAccount(payable(0x6120Fb2A9d47f7955298b80363F00C620dB9f6E6));
+    exaUSDC = IMarket(protocol("MarketUSDC"));
+    exaWETH = IMarket(protocol("MarketWETH"));
+    usdc = MockERC20(exaUSDC.asset());
+
+    address[] memory targets = new address[](3);
+    targets[0] = address(usdc);
+    targets[1] = exaWETH.asset();
+    targets[2] = 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE; // swapper
+    proposalManager = new ProposalManager(
+      address(this),
+      IAuditor(protocol("Auditor")),
+      debtManager_,
+      IInstallmentsRouter(protocol("InstallmentsRouter")),
+      acct("collector"),
+      targets,
+      1 minutes
+    );
+    exaPlugin = new ExaPlugin(
+      Parameters({
+        owner: address(this),
+        auditor: IAuditor(protocol("Auditor")),
+        exaUSDC: exaUSDC,
+        exaWETH: exaWETH,
+        flashLoaner: IFlashLoaner(address(adapter)),
+        debtManager: debtManager_,
+        installmentsRouter: IInstallmentsRouter(protocol("InstallmentsRouter")),
+        issuerChecker: new IssuerChecker(address(this), issuer, 1 minutes, 1 minutes),
+        proposalManager: proposalManager,
+        collector: acct("collector"),
+        swapper: 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE,
+        firstKeeper: keeper
+      })
+    );
+    proposalManager.grantRole(proposalManager.PROPOSER_ROLE(), address(exaPlugin));
+
+    vm.prank(acct("admin"));
+    plugin.allowPlugin(address(exaPlugin), true);
+
+    Call[] memory calls = new Call[](2);
+    calls[0] =
+      Call(address(account), 0, abi.encodeCall(UpgradeableModularAccount.uninstallPlugin, (address(plugin), "", "")));
+    calls[1] = Call(
+      address(account),
+      0,
+      abi.encodeCall(
+        UpgradeableModularAccount.installPlugin,
+        (address(exaPlugin), keccak256(abi.encode(exaPlugin.pluginManifest())), "", new FunctionReference[](0))
+      )
+    );
+    vm.prank(address(account));
+    account.executeBatch(calls);
+
+    _poke(exaUSDC, 10_000e6);
+  }
+
+  function _setUpMorphoBase() internal returns (address morpho) {
+    FlashLoanAdapter adapter = _forkBase();
+    _setUpMorpho(
+      adapter, ExaPlugin(payable(0x0AA3529ae5FdBCeB69Cf8ab2b9e2d3Af85860469)), IDebtManager(protocol("DebtRoller"))
+    );
+    IFirewall(protocol("Firewall")).allow(address(exaPlugin), true);
+    morpho = address(adapter.morpho());
+  }
+
   function _sign(uint256 privateKey, bytes32 digest) internal pure returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
     return abi.encodePacked(r, s, v);
@@ -3839,9 +4233,27 @@ contract BadPlugin is BasePlugin {
   }
 }
 
+bytes constant BASE_WETH_TO_USDC =
+  hex"5fd9ae2e394533960f2e032fdc08d0017237b4e309114e2df7c79651c6c9fc57ca97763c00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001000000000000000000000000006120fb2a9d47f7955298b80363f00c620db9f6e6000000000000000000000000000000000000000000000000000000000745b7fb000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000000086c6966692d617069000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000200000000000000000000000000ce40449b773a3e6e5e769adb4e567179d4828cbd000000000000000000000000ce40449b773a3e6e5e769adb4e567179d4828cbd0000000000000000000000004200000000000000000000000000000000000006000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000b1a2bc2ec5000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000a4332d746b000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000c06ebbefd94032b85424d51906e2a335efae264b000000000000000000000000000000000000000000000000000071afd498d00000000000000000000000000000000000000000000000000000000000000000000000000000000000ac4c6e212a361c968f1725b4d055b47e63f80b75000000000000000000000000ac4c6e212a361c968f1725b4d055b47e63f80b750000000000000000000000004200000000000000000000000000000000000006000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000b1310c5a2c300000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a45f3bd1c8000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000b1310c5a2c30000000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913000000000000000000000000000000000000000000000000000000000745b831000000000000000000000000c10ee9031f2a0b84766a86b55a8d90f357910fb400000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000001846be92b89000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000b1310c5a2c3000000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000074f149d0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000005101a15e44bb74000101420000000000000000000000000000000000000601ffff0172ab388e2e2f6facef59e3c3fa2c4e29011c2d3801c10ee9031f2a0b84766a86b55a8d90f357910fb400b13128e9e30b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+bytes constant OPTIMISM_WETH_TO_USDC =
+  hex"5fd9ae2eb0fc5ffd19d2f8cced0fd5f6c5cc901ddfe7da2c12a29b4ebc88ab0fd3a8794900000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001000000000000000000000000006120fb2a9d47f7955298b80363f00c620db9f6e60000000000000000000000000000000000000000000000000000000007cbb45b000000000000000000000000000000000000000000000000000000000000016000000000000000000000000000000000000000000000000000000000000000086c6966692d617069000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a30783030303030303030303030303030303030303030303030303030303030303030303030303030303000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000200000000000000000000000000ce40449b773a3e6e5e769adb4e567179d4828cbd000000000000000000000000ce40449b773a3e6e5e769adb4e567179d4828cbd0000000000000000000000004200000000000000000000000000000000000006000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000b1a2bc2ec5000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000a4332d746b000000000000000000000000420000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000c06ebbefd94032b85424d51906e2a335efae264b000000000000000000000000000000000000000000000000000071afd498d000000000000000000000000000000000000000000000000000000000000000000000000000000000001f5b43127414e36c31ecb5ff5567262997cd24d000000000000000000000000068d6b739d2020067d1e2f713b999da97e4d5481200000000000000000000000042000000000000000000000000000000000000060000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff8500000000000000000000000000000000000000000000000000b1310c5a2c300000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006240c307f76000000000000000000000000000000000000000000000000000000003baaf6b40000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae00000000000000000000000042000000000000000000000000000000000000060000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff8500000000000000000000000000000000000000000000000000b1310c5a2c30000000000000000000000000000000000000000000000000000000000007cbb45b000000000000000000000000000000000000000000000000000000006aba6e4c00000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000000016000000000000000000000000042000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000001000000000000000000000000411d2c093e4c2e69bf0d8e94be1bf13dadd879c60000000000000000000000000000000000000000000000000000000000000001000000000000000000000000411d2c093e4c2e69bf0d8e94be1bf13dadd879c60000000000000000000000000000000000000000000000000000000000000001000000000000000000012710319c0dd36284ac24a6b2bee73929f699b9f48c380000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000040000000000000000000000000420000000000000000000000000000000000000600000000000000000000000068f180fcce6836688e9084f035309e29bf0a209500000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000000016000000000000000000000000068f180fcce6836688e9084f035309e29bf0a20950000000000000000000000000000000000000000000000000000000000000001000000000000000000000000411d2c093e4c2e69bf0d8e94be1bf13dadd879c60000000000000000000000000000000000000000000000000000000000000001000000000000000000000000411d2c093e4c2e69bf0d8e94be1bf13dadd879c60000000000000000000000000000000000000000000000000000000000000001800000000000000001022710cf50dea65ee80ebddaa61005a960ef5a5c995a990000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000004000000000000000000000000068f180fcce6836688e9084f035309e29bf0a20950000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff8500000000000000000000000000000000000000000000000000000000";
+
 event UserOperationRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason);
 
 error Disagreement();
+
+struct LegacyCrossRepayData {
+  uint256 maturity;
+  uint256 positionAssets;
+  uint256 maxRepay;
+  bytes route;
+}
+
+interface IFirewall {
+  function allow(address account, bool allowed) external;
+  function grantRole(bytes32 role, address account) external;
+}
 
 interface IRewardsController {
   function allClaimable(address account, IERC20 reward) external view returns (uint256 unclaimedRewards);
