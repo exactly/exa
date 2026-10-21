@@ -26,7 +26,6 @@ import {
   marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
-  proposalManagerAddress,
   swapperAddress,
 } from "@exactly/common/generated/chain";
 
@@ -53,7 +52,7 @@ export default function lifi(chains: readonly Chain[]) {
       code: encodeDeployData({
         abi: exaPreviewerAbi,
         bytecode: exaPreviewerCode,
-        args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+        args: [auditorAddress, marketUSDCAddress],
       }),
     });
     const listed = markets.flatMap(({ asset, decimals, market, symbol, usdPrice }) => {
