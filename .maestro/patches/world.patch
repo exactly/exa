@@ -1,0 +1,47 @@
+From bf35681ed186e2f7bb5c13da1f53aec4b6ba6b50 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 18:53:52 +0000
+Subject: [PATCH] fix: evaluate web scripts in an isolated world
+
+Pages that lock down their globals, such as extension pages under LavaMoat, reject Maestro's script ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on them can be read. Evaluate in an isolated world instead: it shares the page's DOM but not its globals, and the same world name returns the same context for each document.
+---
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+index c8c5ed1..796726b 100644
+--- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
++++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+@@ -90,17 +90,22 @@ class CdpClient(
+         """.trimIndent()
+ 
+         val exprJson = Json.encodeToString(JsonPrimitive(wrapped))
++        val worldId = idCounter.getAndIncrement()
+         val messageId = idCounter.getAndIncrement()
+-        val payload = """
+-            {
+-                "id":$messageId,
+-                "method":"Runtime.evaluate",
+-                "params":{"expression":$exprJson,"awaitPromise":true}
+-            }
+-        """.trimIndent()
+ 
+         return evalMutex.withLock {
+             withSession(wsUrl) { session ->
++                session.send(Frame.Text("""{"id":$worldId,"method":"Page.createIsolatedWorld","params":{"frameId":"${target.id}","worldName":"maestro"}}"""))
++                val contextId = json.parseToJsonElement(session.waitForMessage(worldId)).jsonObject["result"]
++                    ?.jsonObject?.get("executionContextId")?.jsonPrimitive?.content
++                    ?: error("Could not create an isolated world on ${target.id}")
++                val payload = """
++                    {
++                        "id":$messageId,
++                        "method":"Runtime.evaluate",
++                        "params":{"expression":$exprJson,"awaitPromise":true,"contextId":$contextId}
++                    }
++                """.trimIndent()
+                 session.send(Frame.Text(payload))
+ 
+                 val text = session.waitForMessage(messageId)
+-- 
+2.43.0
+
