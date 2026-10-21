@@ -21,10 +21,12 @@ import { createInstrumenter } from "istanbul-lib-instrument";
 import { createContext } from "istanbul-lib-report";
 import { create } from "istanbul-reports";
 import crypto from "node:crypto";
-import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
+import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:https";
+import { homedir } from "node:os";
 import path from "node:path";
 import process, { env } from "node:process";
+import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -126,6 +128,30 @@ describe("e2e", () => {
             });
             return credential ? c.json(credential) : c.json({ code: "no credential" }, 404);
           });
+          app.get("/e2e/card", async (c) => {
+            const [card, ...rest] = await database
+              .select({ id: cardsTable.id, mode: cardsTable.mode })
+              .from(cardsTable)
+              .where(
+                and(eq(cardsTable.credentialId, c.req.query("credential") ?? ""), eq(cardsTable.status, "ACTIVE")),
+              );
+            return card && rest.length === 0 ? c.json(card) : c.json({ code: "no single card" }, 404);
+          });
+          app.get("/e2e/download", async (c) => {
+            const since = Number(c.req.query("since"));
+            const downloads = path.join(homedir(), "Downloads");
+            for (let attempt = 0; attempt < 40; attempt++) {
+              for await (const name of glob("account-statement-*.pdf", { cwd: downloads })) {
+                const file = path.join(downloads, name);
+                const { mtimeMs } = await stat(file); // eslint-disable-line security/detect-non-literal-fs-filename -- browser download
+                if (mtimeMs < since) continue;
+                const bytes = await readFile(file); // eslint-disable-line security/detect-non-literal-fs-filename -- browser download
+                if (String(bytes.subarray(0, 5)) === "%PDF-") return c.json({ code: "ok" });
+              }
+              await setTimeout(200);
+            }
+            return c.json({ code: "no download" }, 404);
+          });
           app.post("/e2e/platinum", async (c) => {
             const [card, ...rest] = await database
               .update(cardsTable)
@@ -205,7 +231,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const cards = new Map<string, Card>();
   return {
     ...original,
-    signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
     default: (...parameters: Parameters<typeof original.default>) => ({
       ...original.default(...parameters),
       createCard: vi.fn().mockImplementation((userId: string) => {
