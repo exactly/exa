@@ -87,7 +87,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { platform: web }
     commands: [{ tapOn: "Send ${asset}" }]
-- assertVisible: Transaction details
+- assertVisible: (Processing send|Sent) to .*
 - runFlow: getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js
