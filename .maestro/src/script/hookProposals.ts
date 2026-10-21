@@ -116,7 +116,7 @@ function pending(address: Address) {
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManager],
+      args: [auditorAddress, marketUSDCAddress],
     }),
     functionName: "pendingProposals",
     args: [address],
