@@ -10,6 +10,7 @@ import * as chains from "viem/chains";
 import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
+import BalancePreviewer from "@exactly/plugin/out/build/BalancePreviewer.sol/BalancePreviewer.json" with { type: "json" };
 import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
 import PricePreviewer from "@exactly/plugin/out/build/PricePreviewer.sol/PricePreviewer.json" with { type: "json" };
 import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
@@ -67,6 +68,7 @@ export default defineConfig([
         forge: { build: false },
         project: "../contracts",
         include: [
+          "BalancePreviewer.sol/BalancePreviewer.json",
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -184,6 +186,7 @@ export default defineConfig([
                   ),
                 ),
               )}`,
+              `export const balancePreviewerCode: \`0x\${string}\` = "${BalancePreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,

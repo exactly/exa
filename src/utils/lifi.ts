@@ -34,6 +34,7 @@ import {
   type GenericSchema,
 } from "valibot";
 import {
+  BaseError,
   createPublicClient,
   encodeDeployData,
   encodeFunctionData,
@@ -45,6 +46,7 @@ import {
   isAddressEqual,
   multicall3Abi,
   parseAbi,
+  RpcRequestError,
   sha256,
   zeroAddress,
   type Address,
@@ -56,6 +58,8 @@ import chain, {
   alchemyChains,
   allowlists,
   auditorAddress,
+  balancePreviewerAbi,
+  balancePreviewerCode,
   exaAddress,
   exaPreviewerAbi,
   exaPreviewerCode,
@@ -722,6 +726,28 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
           Array.from({ length: Math.ceil(listed.length / 200) }, (_, chunk) =>
             listed.slice(chunk * 200, chunk * 200 + 200),
           ).map(async (calls) => {
+            if (!unsupported.has(id)) {
+              try {
+                const amounts = await client.readContract({
+                  abi: balancePreviewerAbi,
+                  functionName: "balances",
+                  code: balancePreviewerCode,
+                  args: [account, calls.map(({ address }) => address.toLowerCase() as Address)],
+                });
+                return calls.flatMap(({ address }, index) => {
+                  const amount = amounts[index] ?? 0n;
+                  return amount > 0n ? [{ address, amount }] : [];
+                });
+              } catch (error) {
+                if (
+                  signal.aborted ||
+                  (error instanceof BaseError && !error.walk((cause) => cause instanceof RpcRequestError))
+                ) {
+                  throw error;
+                }
+                unsupported.add(id);
+              }
+            }
             const results = await client.readContract({
               address: multicallAddress as Address,
               abi: multicall3Abi,
@@ -901,3 +927,5 @@ function decoded(coder: typeof base58, input: string) {
     return new Uint8Array();
   }
 }
+
+const unsupported = new Set([324, 2741]);
