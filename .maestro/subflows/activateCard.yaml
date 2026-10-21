@@ -53,7 +53,7 @@ appId: ${APP_ID ?? "app.exactly"}
     rightOf: Exa Card pay mode
 - assertVisible: Change the pay mode before each purchase and pay how you want.
 - tapOn: Close
-- runFlow: { file: scrollTo.yaml, env: { element: Later in 1 } }
+- runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Later in 1
 - runFlow:
     when: { visible: How installment repayment works }
