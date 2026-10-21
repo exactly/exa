@@ -112,7 +112,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
+      - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
       - run: |
           GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 &
           for i in {1..420}; do
