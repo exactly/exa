@@ -7,7 +7,7 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Copy, Info, RefreshCw, Share as ShareIcon } from "@tamagui/lucide-icons-2";
+import { Copy, Info, RefreshCw, Share as ShareIcon, X } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
@@ -140,14 +140,10 @@ export default function AddCrypto() {
           <XStack gap="$s3" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <IconButton
-                icon={ArrowLeft}
-                aria-label={t("Back")}
+                icon={X}
+                aria-label={t("Close")}
                 onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.dismissTo("/(main)/(home)");
-                  }
+                  router.dismissTo("/(main)/(home)");
                 }}
               />
             </View>
