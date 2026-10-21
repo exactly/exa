@@ -1,25 +1,9 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- repeat:
-    while:
-      notVisible: Exclusive discounts on travel insurance
-    commands:
-      - extendedWaitUntil:
-          visible: Discounts on travel insurance
-          timeout: 15000
-      - tapOn: Discounts on travel insurance
+- tapOn: Discounts on travel insurance
 - assertVisible: Go to Pax Assistance
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
-- runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [waitForAnimationToEnd, { swipe: { from: Discounts on travel insurance, direction: LEFT } }]
-- repeat:
-    while:
-      notVisible: Visa Signature Exa Card benefits
-    commands:
-      - extendedWaitUntil:
-          visible: Visa Signature benefits
-          timeout: 15000
-      - tapOn: Learn more
+- swipe: { from: Discounts on travel insurance, direction: LEFT }
+- tapOn: Visa Signature benefits
 - assertVisible: Go to Visa
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
