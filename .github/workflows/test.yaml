@@ -67,6 +67,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: server
           name: server
+      - if: ${{ !cancelled() }}
+        run: echo "## [codecov](https://app.codecov.io/gh/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
