@@ -9,7 +9,6 @@ import chain, {
   exaPreviewerAbi,
   exaPreviewerCode,
   marketUSDCAddress,
-  proposalManagerAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
@@ -18,7 +17,6 @@ import ProposalType, {
 } from "@exactly/common/ProposalType";
 
 import useAccount from "./useAccount";
-import useProposalManager from "./useProposalManager";
 import exa from "./wagmi/exa";
 
 import type { RouteFrom } from "./lifi";
@@ -28,22 +26,17 @@ export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
   const { data: bytecode } = useBytecode({ address: exaAccount, chainId: chain.id, query: { enabled: !!exaAccount } });
 
-  const proposalManager = useProposalManager();
   const proposals = useReadContract({
     abi: exaPreviewerAbi,
     functionName: "pendingProposals",
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManager ?? proposalManagerAddress],
+      args: [auditorAddress, marketUSDCAddress],
     }),
     chainId: chain.id,
     args: exaAccount ? [exaAccount] : undefined,
-    query: {
-      enabled: !!exaAccount && !!bytecode && proposalManager !== undefined,
-      gcTime: 0,
-      refetchInterval: 30_000,
-    },
+    query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
   });
 
   const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({
