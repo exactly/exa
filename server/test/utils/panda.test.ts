@@ -1,12 +1,12 @@
 import "../mocks/sentry";
 
-import { parse } from "valibot";
+import { parse, ValiError } from "valibot";
 import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import { usdcAddress } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { PHYSICAL_SIGNATURE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import createPanda, * as Panda from "../../utils/panda";
@@ -62,6 +62,7 @@ describe("panda request", () => {
     const cards = [
       {
         id: "3c90c3cc-0d44-4b50-8888-8dd25736052a",
+        type: "virtual",
         status: "active",
         last4: "4242",
         expirationMonth: "9",
@@ -236,6 +237,96 @@ describe("create card", () => {
         }),
       }),
     );
+  });
+
+  it("ships a us physical card with standard method", async () => {
+    const physical = { ...card, type: "physical" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(physical)).buffer),
+    } as Response);
+
+    await expect(
+      panda.createCard("user-id", PHYSICAL_SIGNATURE_PRODUCT_ID, 2_000_000, {
+        displayName: "JOSE NUNEZ",
+        line1: "123 Main St",
+        line2: "Apt 4B",
+        city: "San Francisco",
+        region: "CA",
+        postalCode: "94105",
+        countryCode: "US",
+        phoneNumber: "+14155551234",
+      }),
+    ).resolves.toStrictEqual(physical);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "physical",
+          status: "active",
+          limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: PHYSICAL_SIGNATURE_PRODUCT_ID, displayName: "JOSE NUNEZ" },
+          shipping: {
+            line1: "123 Main St",
+            line2: "Apt 4B",
+            city: "San Francisco",
+            region: "CA",
+            postalCode: "94105",
+            countryCode: "US",
+            phoneNumber: "+14155551234",
+            method: "standard",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("ships a non-us physical card with international method", async () => {
+    const physical = { ...card, type: "physical" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(physical)).buffer),
+    } as Response);
+
+    await expect(
+      panda.createCard("user-id", PHYSICAL_SIGNATURE_PRODUCT_ID, undefined, {
+        line1: "Av. Corrientes 1234",
+        city: "Buenos Aires",
+        region: "Buenos Aires",
+        postalCode: "C1043",
+        countryCode: "AR",
+        phoneNumber: "+541143211234",
+      }),
+    ).resolves.toStrictEqual(physical);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "physical",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: PHYSICAL_SIGNATURE_PRODUCT_ID },
+          shipping: {
+            line1: "Av. Corrientes 1234",
+            city: "Buenos Aires",
+            region: "Buenos Aires",
+            postalCode: "C1043",
+            countryCode: "AR",
+            phoneNumber: "+541143211234",
+            method: "international",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("rejects a physical card without shipping", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockClear();
+
+    await expect(panda.createCard("user-id", PHYSICAL_SIGNATURE_PRODUCT_ID)).rejects.toThrow(ValiError);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

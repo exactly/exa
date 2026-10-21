@@ -32,7 +32,12 @@ import chain, {
   marketWETHAddress,
   wethAddress,
 } from "@exactly/common/generated/chain";
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import {
+  BASE_PRODUCT_ID,
+  PHYSICAL_SIGNATURE_PRODUCT_ID,
+  PLATINUM_PRODUCT_ID,
+  SIGNATURE_PRODUCT_ID,
+} from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import route from "../../api/card";
@@ -544,7 +549,7 @@ describe("authenticated", () => {
       pandaId: credentialId,
     });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ code: "kyc not approved" });
@@ -566,7 +571,7 @@ describe("authenticated", () => {
       .spyOn(panda, "createCard")
       .mockRejectedValueOnce(new HTTPException(500, { message: "unexpected panda failure" }));
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).toHaveBeenCalledOnce();
@@ -588,7 +593,7 @@ describe("authenticated", () => {
       .spyOn(panda, "createCard")
       .mockRejectedValueOnce(new HTTPException(500, { message: "User is locked" }));
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).toHaveBeenCalledOnce();
@@ -616,7 +621,7 @@ describe("authenticated", () => {
         ),
       );
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toStrictEqual({ code: "card limit reached" });
@@ -650,7 +655,7 @@ describe("authenticated", () => {
     const getApplicationStatus = vi.spyOn(panda, "getApplicationStatus");
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toStrictEqual({ code: "card limit reached" });
@@ -675,7 +680,7 @@ describe("authenticated", () => {
         new ServiceError("Panda", 400, '{"message":"Invalid request","error":"BadRequestError","statusCode":400}'),
       );
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).toHaveBeenCalledOnce();
@@ -695,12 +700,12 @@ describe("authenticated", () => {
 
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(panda, "getCards").mockResolvedValueOnce([
-      { id: orphanId, status: "active", last4: "4242", expirationMonth: "9", expirationYear: "2029" },
+      { id: orphanId, type: "virtual", status: "active", last4: "4242", expirationMonth: "9", expirationYear: "2029" },
     ]);
     const createCard = vi.spyOn(panda, "createCard");
     const getAccount = vi.spyOn(persona, "getAccount");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -755,10 +760,11 @@ describe("authenticated", () => {
 
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(panda, "getCards").mockResolvedValueOnce([
-      { id: first, status: "active", last4: "4444", expirationMonth: "9", expirationYear: "2029" },
-      { id: second, status: "active", last4: "5555", expirationMonth: "9", expirationYear: "2029" },
+      { id: first, type: "virtual", status: "active", last4: "4444", expirationMonth: "9", expirationYear: "2029" },
+      { id: second, type: "virtual", status: "active", last4: "5555", expirationMonth: "9", expirationYear: "2029" },
       {
         id: "00000000-0000-4000-8000-0000000000c3",
+        type: "virtual",
         status: "canceled",
         last4: "6666",
         expirationMonth: "9",
@@ -767,7 +773,7 @@ describe("authenticated", () => {
     ]);
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -816,6 +822,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getCards").mockResolvedValueOnce([
       {
         id: "00000000-0000-4000-8000-0000000000b1",
+        type: "virtual",
         status: "canceled",
         last4: "1111",
         expirationMonth: "9",
@@ -823,6 +830,7 @@ describe("authenticated", () => {
       },
       {
         id: "00000000-0000-4000-8000-0000000000b2",
+        type: "virtual",
         status: "locked",
         last4: "2222",
         expirationMonth: "9",
@@ -833,7 +841,7 @@ describe("authenticated", () => {
       .spyOn(panda, "createCard")
       .mockResolvedValueOnce({ ...cardTemplate, id: createdId, last4: "3333" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -865,7 +873,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getCards").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).not.toHaveBeenCalled();
@@ -895,7 +903,7 @@ describe("authenticated", () => {
     );
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
@@ -934,7 +942,7 @@ describe("authenticated", () => {
     );
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
@@ -955,7 +963,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getApplicationStatus").mockRejectedValueOnce(new ServiceError("Panda", 500, "internal error"));
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(500);
     expect(createCard).not.toHaveBeenCalled();
@@ -983,13 +991,13 @@ describe("authenticated", () => {
 
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(panda, "getCards").mockResolvedValueOnce([
-      { id: cardId, status: "active", last4: "9999", expirationMonth: "9", expirationYear: "2029" },
+      { id: cardId, type: "virtual", status: "active", last4: "9999", expirationMonth: "9", expirationYear: "2029" },
     ]);
     const createCard = vi
       .spyOn(panda, "createCard")
       .mockResolvedValueOnce({ ...cardTemplate, id: createdId, last4: "1111" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -1018,7 +1026,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id });
     vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    const response = await appClient.index.$post({ header: { "test-credential-id": "debit" } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": "debit" } });
 
     expect(response.status).toBe(200);
 
@@ -1044,7 +1052,7 @@ describe("authenticated", () => {
       last4: "1224",
     });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": "eth" } });
     expect(response.status).toBe(200);
     const created = await database.query.cards.findFirst({
       columns: { mode: true },
@@ -1082,7 +1090,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.mocked(credit.enqueue).mockRejectedValueOnce(error);
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -1148,10 +1156,10 @@ describe("authenticated", () => {
         .spyOn(panda, "createCard")
         .mockResolvedValueOnce({ ...cardTemplate, id: "543c1771-beae-4f26-b662-44ea48b40ba1", last4: "4081" });
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": "base-default" } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": "base-default" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("base-default-panda", BASE_PRODUCT_ID, undefined);
+      expect(createCard).toHaveBeenCalledWith("base-default-panda", BASE_PRODUCT_ID, undefined, undefined);
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "4081",
@@ -1175,10 +1183,10 @@ describe("authenticated", () => {
         .spyOn(panda, "createCard")
         .mockResolvedValueOnce({ ...cardTemplate, id: "543c1771-beae-4f26-b662-44ea48b40ba2", last4: "4242" });
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": "base-signature" } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": "base-signature" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("base-signature-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCard).toHaveBeenCalledWith("base-signature-panda", SIGNATURE_PRODUCT_ID, undefined, undefined);
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "4242",
@@ -1202,10 +1210,10 @@ describe("authenticated", () => {
         .spyOn(panda, "createCard")
         .mockResolvedValueOnce({ ...cardTemplate, id: "543c1771-beae-4f26-b662-44ea48b40fa1", last4: "1010" });
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": "optimism-credential" } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": "optimism-credential" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("optimism-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCard).toHaveBeenCalledWith("optimism-panda", SIGNATURE_PRODUCT_ID, undefined, undefined);
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "1010",
@@ -1241,10 +1249,253 @@ describe("authenticated", () => {
         .spyOn(panda, "createCard")
         .mockResolvedValueOnce({ ...cardTemplate, id: crypto.randomUUID(), last4: "7777" });
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith(credentialId, productId, undefined);
+      expect(createCard).toHaveBeenCalledWith(credentialId, productId, undefined, undefined);
+    });
+  });
+
+  describe("physical", () => {
+    const defaultChainId = chain.id;
+    const source = "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG"; // cspell:ignore azbh
+    const shipping = {
+      line1: "123 Main St",
+      line2: "Apt 4B",
+      city: "San Francisco",
+      region: "CA",
+      postalCode: "94105",
+      countryCode: "US",
+      phoneNumber: "+14155551234",
+    };
+
+    beforeEach(() => {
+      chain.id = base.id;
+    });
+
+    afterEach(() => {
+      chain.id = defaultChainId;
+    });
+
+    it("issues a frozen physical card next to the virtual one", async () => {
+      const credentialId = crypto.randomUUID();
+      const account = privateKeyToAddress(generatePrivateKey());
+      const cardId = crypto.randomUUID();
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account,
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+        source,
+      });
+      await database
+        .insert(cards)
+        .values({ id: crypto.randomUUID(), credentialId, lastFour: "1111", productId: SIGNATURE_PRODUCT_ID });
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: credentialId,
+        applicationStatus: "approved",
+      });
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "4250", type: "physical" });
+
+      const response = await appClient.index.$post(
+        { json: { shipping: { ...shipping, displayName: "JOSE NUNEZ" } } },
+        { headers: { "test-credential-id": credentialId } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({
+        status: "FROZEN",
+        lastFour: "4250",
+        cardId,
+        productId: PHYSICAL_SIGNATURE_PRODUCT_ID,
+      });
+      expect(createCard).toHaveBeenCalledExactlyOnceWith(credentialId, PHYSICAL_SIGNATURE_PRODUCT_ID, undefined, {
+        ...shipping,
+        displayName: "JOSE NUNEZ",
+      });
+      await expect(
+        database.query.cards.findMany({
+          columns: { lastFour: true, status: true, productId: true },
+          where: eq(cards.credentialId, credentialId),
+          orderBy: cards.lastFour,
+        }),
+      ).resolves.toStrictEqual([
+        { lastFour: "1111", status: "ACTIVE", productId: SIGNATURE_PRODUCT_ID },
+        { lastFour: "4250", status: "FROZEN", productId: PHYSICAL_SIGNATURE_PRODUCT_ID },
+      ]);
+      expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(account);
+      expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+        event: "CardIssued",
+        userId: account,
+        properties: { cardId, productId: PHYSICAL_SIGNATURE_PRODUCT_ID, source },
+      });
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("returns 409 card limit reached for a source without physical cards", async () => {
+      const credentialId = crypto.randomUUID();
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: privateKeyToAddress(generatePrivateKey()),
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+      });
+      const getApplicationStatus = vi.spyOn(panda, "getApplicationStatus");
+      const createCard = vi.spyOn(panda, "createCard");
+
+      const response = await appClient.index.$post(
+        { json: { shipping } },
+        { headers: { "test-credential-id": credentialId } },
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toStrictEqual({ code: "card limit reached" });
+      expect(getApplicationStatus).not.toHaveBeenCalled();
+      expect(createCard).not.toHaveBeenCalled();
+      await expect(
+        database.query.cards.findFirst({ where: eq(cards.credentialId, credentialId) }),
+      ).resolves.toBeUndefined();
+    });
+
+    it("adopts a physical orphan as frozen instead of shipping another card", async () => {
+      const credentialId = crypto.randomUUID();
+      const physicalId = crypto.randomUUID();
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: privateKeyToAddress(generatePrivateKey()),
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+        source,
+      });
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: credentialId,
+        applicationStatus: "approved",
+      });
+      vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+        {
+          id: crypto.randomUUID(),
+          type: "virtual",
+          status: "active",
+          last4: "1212",
+          expirationMonth: "9",
+          expirationYear: "2029",
+        },
+        {
+          id: physicalId,
+          type: "physical",
+          status: "active",
+          last4: "3434",
+          expirationMonth: "9",
+          expirationYear: "2029",
+        },
+      ]);
+      const createCard = vi.spyOn(panda, "createCard");
+
+      const response = await appClient.index.$post(
+        { json: { shipping } },
+        { headers: { "test-credential-id": credentialId } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({
+        status: "FROZEN",
+        lastFour: "3434",
+        cardId: physicalId,
+        productId: PHYSICAL_SIGNATURE_PRODUCT_ID,
+      });
+      expect(createCard).not.toHaveBeenCalled();
+      await expect(
+        database.query.cards.findMany({
+          columns: { id: true, status: true, productId: true },
+          where: eq(cards.credentialId, credentialId),
+        }),
+      ).resolves.toStrictEqual([{ id: physicalId, status: "FROZEN", productId: PHYSICAL_SIGNATURE_PRODUCT_ID }]);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), {
+        level: "warning",
+        fingerprint: ["orphan-card-adopted"],
+        extra: { credentialId, pandaId: credentialId, cardId: physicalId },
+      });
+    });
+
+    it("creates a virtual card instead of adopting a physical orphan", async () => {
+      const credentialId = crypto.randomUUID();
+      const cardId = crypto.randomUUID();
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: privateKeyToAddress(generatePrivateKey()),
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+        source,
+      });
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: credentialId,
+        applicationStatus: "approved",
+      });
+      vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+        {
+          id: crypto.randomUUID(),
+          type: "physical",
+          status: "active",
+          last4: "3434",
+          expirationMonth: "9",
+          expirationYear: "2029",
+        },
+      ]);
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "5656" });
+
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({
+        status: "ACTIVE",
+        lastFour: "5656",
+        cardId,
+        productId: SIGNATURE_PRODUCT_ID,
+      });
+      expect(createCard).toHaveBeenCalledWith(credentialId, SIGNATURE_PRODUCT_ID, undefined, undefined);
+      await expect(
+        database.query.cards.findMany({
+          columns: { id: true, status: true },
+          where: eq(cards.credentialId, credentialId),
+        }),
+      ).resolves.toStrictEqual([{ id: cardId, status: "ACTIVE" }]);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["accented addresses", { shipping: { ...shipping, line1: "123 Núñez St" } }], // cspell:ignore núñez
+      ["long postal codes", { shipping: { ...shipping, postalCode: "1234567890" } }],
+      ["lowercase country codes", { shipping: { ...shipping, countryCode: "us" } }],
+      ["local phone numbers", { shipping: { ...shipping, phoneNumber: "4155551234" } }],
+      ["shipping methods", { shipping: { ...shipping, method: "express" } }],
+      ["long display names", { shipping: { ...shipping, displayName: "ALEXANDRA CATHERINE WILLIAMS" } }],
+      ["display names outside shipping", { shipping, displayName: "JOSE NUNEZ" }],
+    ])("rejects %s", async (_, json) => {
+      const credentialId = crypto.randomUUID();
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: privateKeyToAddress(generatePrivateKey()),
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+        source,
+      });
+      const createCard = vi.spyOn(panda, "createCard");
+
+      const response = await appClient.index.$post({ json }, { headers: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ code: "bad request" });
+      expect(createCard).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bad request"), expect.anything());
     });
   });
 
@@ -1331,7 +1582,7 @@ describe("authenticated", () => {
       last4: "5555",
     });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": testCredentialId } });
 
     expect(response.status).toBe(200);
 
@@ -1366,7 +1617,7 @@ describe("authenticated", () => {
     vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "8888" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": testCredentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -1407,7 +1658,7 @@ describe("authenticated", () => {
       .spyOn(panda, "createCard")
       .mockResolvedValueOnce({ ...cardTemplate, id: signatureId, last4: "4240" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -1458,7 +1709,7 @@ describe("authenticated", () => {
     const updateCard = vi.spyOn(panda, "updateCard");
     const createCard = vi.spyOn(panda, "createCard");
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toStrictEqual({ code: "kyc not approved" });
@@ -1486,7 +1737,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: crypto.randomUUID(), last4: "4243" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(200);
     expect(persona.getAccount).not.toHaveBeenCalledWith(credentialId, "basic");
@@ -1565,7 +1816,7 @@ describe("authenticated", () => {
     vi.spyOn(pax, "addCapita").mockRejectedValueOnce(new Error("pax api error"));
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "6666" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": testCredentialId } });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({
@@ -1600,7 +1851,7 @@ describe("authenticated", () => {
     vi.spyOn(pax, "addCapita").mockResolvedValueOnce({});
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "7777" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": testCredentialId } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": testCredentialId } });
 
     expect(response.status).toBe(200);
 
@@ -1614,7 +1865,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "updateCard").mockResolvedValueOnce({ ...cardResponse, status: "canceled" });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
 
-    const response = await appClient.index.$post({ header: { "test-credential-id": "cancel" } });
+    const response = await appClient.index.$post({}, { headers: { "test-credential-id": "cancel" } });
 
     const cancelResponse = await appClient.index.$patch({
       // @ts-expect-error - bad hono patch type
@@ -2522,10 +2773,10 @@ describe("authenticated", () => {
         attributes: { fields: { card_limit_usd: { value: 20_000 } } },
       });
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000, undefined);
     });
 
     it("uses default limit when persona account has no card limit", async () => {
@@ -2551,10 +2802,10 @@ describe("authenticated", () => {
         attributes: { fields: { card_limit_usd: { value: null } } },
       });
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined, undefined);
     });
 
     it("falls back to default limit and captures when getAccount fails", async () => {
@@ -2577,10 +2828,10 @@ describe("authenticated", () => {
       const error = new Error("persona api error");
       vi.spyOn(persona, "getAccount").mockRejectedValueOnce(error);
 
-      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined);
+      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined, undefined);
       expect(captureException).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
@@ -2626,9 +2877,10 @@ describe("authenticated", () => {
       vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: migratedCardId });
 
-      const response = await appClient.index.$post({
-        header: { "test-credential-id": "migrate-card-upgraded-plugin" },
-      });
+      const response = await appClient.index.$post(
+        {},
+        { headers: { "test-credential-id": "migrate-card-upgraded-plugin" } },
+      );
 
       const created = await database.query.cards.findFirst({ where: eq(cards.id, migratedCardId) });
       const deleted = await database.query.cards.findFirst({ where: eq(cards.id, cardId) });
@@ -2647,9 +2899,7 @@ describe("authenticated", () => {
       vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: migratedCardId });
       const getCard = vi.spyOn(panda, "getCard");
 
-      const response = await appClient.index.$post({
-        header: { "test-credential-id": credentialId },
-      });
+      const response = await appClient.index.$post({}, { headers: { "test-credential-id": credentialId } });
 
       const created = await database.query.cards.findFirst({ where: eq(cards.id, migratedCardId) });
       const deleted = await database.query.cards.findFirst({ where: eq(cards.id, "not-uuid") });
