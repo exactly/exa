@@ -11,7 +11,7 @@ import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { safeParse } from "valibot";
-import { encodeFunctionData, formatUnits, parseUnits } from "viem";
+import { encodeFunctionData, formatUnits } from "viem";
 import { useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -56,9 +56,7 @@ export default function Review() {
   const contactString = typeof contactId === "string" ? contactId : "";
   const fiatCurrency = isFiatCurrency(currencyString) ? currencyString : undefined;
   const providerString = typeof provider === "string" ? provider : "";
-  const amount = parseAmount(
-    typeof amountParameter === "string" ? amountParameter.replaceAll(/[.,](?=.*[.,])/g, "").replace(",", ".") : "0",
-  );
+  const amount = parseAmount(typeof amountParameter === "string" ? amountParameter : "0");
   const ready = !!fiatCurrency && !!contactString && amount > 0n && providerString === "bridge";
   const symbol = getSymbol(currencyString);
 
@@ -136,7 +134,7 @@ export default function Review() {
 
   const recipientName = recipient?.ownerName ?? t("beneficiary");
   const recipientValid = !!recipient && recipient.currency === currencyString && recipient.addressValid !== false;
-  const meetsMinimum = usdcAmount !== undefined && usdcAmount >= parseUnits(String(MINIMUM_USDC), 6);
+  const meetsMinimum = usdcAmount !== undefined && usdcAmount >= parseAmount(String(MINIMUM_USDC), 6);
 
   if (transfer.isPending || transfer.isSuccess) {
     const sent = transfer.isSuccess;

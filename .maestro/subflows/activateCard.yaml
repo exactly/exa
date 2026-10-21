@@ -67,6 +67,10 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Installments calculator
       - assertVisible: Enter a purchase amount
       - assertVisible: to estimate installment options
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
+      - eraseText
+      - pressKey: enter
+      - assertVisible: \$0\.00
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
 - tapOn: Home
 - runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }

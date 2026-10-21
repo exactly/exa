@@ -4,12 +4,13 @@ import { Platform } from "react-native";
 
 import { Separator, Slider, XStack, YStack } from "tamagui";
 
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits } from "viem";
 
 import { min } from "@exactly/lib";
 
+import parseAmount from "../../utils/parseAmount";
+import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
-import Input from "../shared/Input";
 import Text from "../shared/Text";
 
 export default function RepayAmountSelector({
@@ -48,20 +49,8 @@ export default function RepayAmountSelector({
 
   const handleAmountChange = useCallback(
     (input: string) => {
-      const formattedValue = input
-        .replaceAll(",", ".")
-        .replaceAll(/[^\d.]/g, "")
-        .replaceAll(/\.(?=.*\.)/g, "");
-
-      setEditingValue(formattedValue);
-
-      if (!formattedValue || !Number.isFinite(Number(formattedValue)) || Number(formattedValue) < 0) {
-        onChange(0n);
-        return;
-      }
-
-      const inputAmount = parseUnits(formattedValue, 6);
-
+      setEditingValue(input);
+      const inputAmount = parseAmount(input, 6);
       if (inputAmount > effectiveMax) {
         onChange(effectiveMax);
         setEditingValue(formatUnits(effectiveMax, 6));
@@ -80,7 +69,7 @@ export default function RepayAmountSelector({
       if (sliderValue >= Number(effectiveMax) / 1e6) {
         onChange(effectiveMax);
       } else {
-        const sliderAmount = parseUnits(sliderValue.toFixed(6), 6);
+        const sliderAmount = parseAmount(sliderValue.toFixed(6), 6);
         onChange(sliderAmount);
       }
     },
@@ -128,7 +117,7 @@ export default function RepayAmountSelector({
             height={60}
           >
             <AssetLogo symbol="USDC" width={32} height={32} />
-            <Input
+            <AmountInput
               aria-label={t("Repay amount")}
               alignSelf="center"
               backgroundColor="$backgroundSoft"
@@ -139,11 +128,10 @@ export default function RepayAmountSelector({
               cursor="pointer"
               flex={1}
               height="auto"
-              inputMode="decimal"
+              decimals={6}
               onBlur={() => {
                 setFocused(false);
-                const cleanValue = value > 0n ? formatUnits(value, 6).replace(/\.?0+$/, "") : "";
-                setEditingValue(cleanValue || undefined);
+                setEditingValue(value > 0n ? formatUnits(value, 6) : undefined);
               }}
               onChangeText={handleAmountChange}
               onFocus={(event) => {

@@ -16,7 +16,21 @@ export default defineConfig([
       "@nx/enforce-module-boundaries": ["error", { allow: ["@exactly/server/api/*"] }],
       "no-restricted-imports": [
         "error",
-        { paths: [{ name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." }] },
+        {
+          paths: [
+            {
+              name: "viem",
+              importNames: ["parseEther", "parseGwei", "parseUnits"],
+              message: "Use `parseAmount` from utils.",
+            },
+            {
+              name: "viem/utils",
+              importNames: ["parseEther", "parseGwei", "parseUnits"],
+              message: "Use `parseAmount` from utils.",
+            },
+            { name: "wagmi", importNames: ["useAccount"], message: "Use `useAccount` from utils." },
+          ],
+        },
       ],
       "no-restricted-syntax": [
         "error",

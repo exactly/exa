@@ -19,7 +19,7 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { nonEmpty, pipe, string } from "valibot";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits } from "viem";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
@@ -31,9 +31,9 @@ import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import { APIError, getRampQuote } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
+import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
-import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -96,10 +96,10 @@ export default function SendAmount() {
 
   const [focused, setFocused] = useState(false);
   const amountValue = useStore(form.store, ({ values }) => values.amount);
-  const amountInTargetCurrency = parseAmount(amountValue.replaceAll(/[.,](?=.*[.,])/g, "").replace(",", "."));
+  const amountInTargetCurrency = parseAmount(amountValue);
   const usdcRequired = rate ? (amountInTargetCurrency * WAD + rate - 1n) / rate : 0n;
   const insufficient = usdcRequired > available;
-  const belowMinimum = usdcRequired > 0n && usdcRequired < parseUnits(String(MINIMUM_USDC), 6);
+  const belowMinimum = usdcRequired > 0n && usdcRequired < parseAmount(String(MINIMUM_USDC), 6);
   const hasError = insufficient || belowMinimum;
   const canContinue = !!rate && amountInTargetCurrency > 0n && !hasError && !missingTransfer;
 
@@ -161,17 +161,17 @@ export default function SendAmount() {
                       <Text title color={hasError ? "$interactiveBaseErrorDefault" : "$uiNeutralPlaceholder"}>
                         {symbol}
                       </Text>
-                      <Input
+                      <AmountInput
                         placeholder="0.00"
                         value={value}
-                        onChangeText={(text) => handleChange(text.replaceAll(/[^\d.,]/g, ""))}
+                        decimals={2}
+                        onChangeText={handleChange}
                         onFocus={() => {
                           setFocused(true);
                         }}
                         onBlur={() => {
                           setFocused(false);
                         }}
-                        keyboardType="decimal-pad"
                         fontSize={34}
                         fontWeight="400"
                         letterSpacing={-0.2}

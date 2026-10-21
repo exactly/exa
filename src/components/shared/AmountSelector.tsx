@@ -8,15 +8,16 @@ import { YStack, type TamaguiElement } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits } from "viem";
 
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
-import Input from "./Input";
+import AmountInput from "./AmountInput";
 import Button from "./StyledButton";
 import Text from "./Text";
 import View from "./View";
+import parseAmount from "../../utils/parseAmount";
 import useAsset from "../../utils/useAsset";
 
 export default function AmountSelector({ onChange }: { onChange: (value: bigint) => void }) {
@@ -38,15 +39,15 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
     (text: string) => {
       if (market) {
         setFieldValue("assetInput", text);
-        const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), market.decimals);
+        const assets = parseAmount(text, market.decimals);
         setFieldValue("usdInput", assets > 0n ? formatUnits((assets * market.usdPrice) / WAD, market.decimals) : "");
         onChange(assets);
         return;
       }
       if (externalAsset) {
         setFieldValue("assetInput", text);
-        const assets = parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), externalAsset.decimals);
-        const assetPriceUSD = parseUnits(externalAsset.priceUSD, 18);
+        const assets = parseAmount(text, externalAsset.decimals);
+        const assetPriceUSD = parseAmount(externalAsset.priceUSD, 18);
         setFieldValue(
           "usdInput",
           assets > 0n ? formatUnits((assets * assetPriceUSD) / WAD, externalAsset.decimals) : "",
@@ -62,19 +63,16 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       if (market) {
         setFieldValue("usdInput", text);
         const assets =
-          (((parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 18) * WAD) / market.usdPrice) *
-            BigInt(10 ** market.decimals)) /
-          WAD;
+          market.usdPrice > 0n ? (parseAmount(text, 18) * 10n ** BigInt(market.decimals)) / market.usdPrice : 0n;
         setFieldValue("assetInput", assets > 0n ? formatUnits(assets, market.decimals) : "");
         onChange(assets);
         return;
       }
       if (externalAsset) {
         setFieldValue("usdInput", text);
-        const assetPriceUSD = parseUnits(externalAsset.priceUSD, 18);
+        const assetPriceUSD = parseAmount(externalAsset.priceUSD, 18);
         const assets =
-          (parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), externalAsset.decimals) * WAD) /
-          assetPriceUSD;
+          assetPriceUSD > 0n ? (parseAmount(text, 18) * 10n ** BigInt(externalAsset.decimals)) / assetPriceUSD : 0n;
         setFieldValue("assetInput", assets > 0n ? formatUnits(assets, externalAsset.decimals) : "");
         onChange(assets);
       }
@@ -95,7 +93,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       setFieldValue("assetInput", formatUnits(available, externalAsset.decimals));
       setFieldValue(
         "usdInput",
-        formatUnits((available * parseUnits(externalAsset.priceUSD, 18)) / WAD, externalAsset.decimals),
+        formatUnits((available * parseAmount(externalAsset.priceUSD, 18)) / WAD, externalAsset.decimals),
       );
       onChange(available);
     }
@@ -110,11 +108,11 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
       <View borderRadius="$r3" gap="$s3" backgroundColor="$backgroundBrandSoft" padding="$s3">
         <Field name="assetInput" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
           {({ state: { value } }) => (
-            <Input
+            <AmountInput
               onFocus={() => {
                 setOverlayShown(true);
               }}
-              inputMode="decimal"
+              decimals={market?.decimals ?? externalAsset?.decimals ?? 18}
               placeholder={market?.symbol.slice(3) ?? externalAsset?.symbol ?? ""}
               onChangeText={handleAssetChange}
               value={value}
@@ -137,9 +135,9 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 usdInputReference.current?.focus();
               }}
             >
-              <Input
+              <AmountInput
                 ref={usdInputReference}
-                inputMode="decimal"
+                decimals={18}
                 onChangeText={handleUsdChange}
                 placeholder={t("USD")}
                 value={value}
@@ -168,7 +166,7 @@ export default function AmountSelector({ onChange }: { onChange: (value: bigint)
                 flex={1}
               >
                 <Text emphasized textAlign="center" fontSize={24}>
-                  {`$${Number(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, "")).toLocaleString(language, {
+                  {`$${Number(value).toLocaleString(language, {
                     style: "decimal",
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 2,

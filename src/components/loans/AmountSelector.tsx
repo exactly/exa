@@ -3,11 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import { Separator, XStack, YStack } from "tamagui";
 
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits } from "viem";
 
+import parseAmount from "../../utils/parseAmount";
 import useAsset from "../../utils/useAsset";
+import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
-import Input from "../shared/Input";
 import Text from "../shared/Text";
 
 import type { Hex } from "@exactly/common/validation";
@@ -54,16 +55,14 @@ export default function AmountSelector({
               width={32}
               height={32}
             />
-            <Input
+            <AmountInput
               aria-label={t("Amount")}
               height="auto"
-              inputMode="decimal"
+              decimals={selectedMarket?.decimals ?? 18}
               onChangeText={(text) => {
                 setInput(text);
                 if (!selectedMarket) return;
-                onChange(
-                  parseUnits(text.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), selectedMarket.decimals),
-                );
+                onChange(parseAmount(text, selectedMarket.decimals));
               }}
               placeholder="0"
               onFocus={() => {

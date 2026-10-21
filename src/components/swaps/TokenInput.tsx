@@ -6,12 +6,13 @@ import { XStack, YStack } from "tamagui";
 
 import { useForm } from "@tanstack/react-form";
 import { nonEmpty, pipe, string } from "valibot";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits } from "viem";
 
 import { WAD } from "@exactly/lib";
 
+import parseAmount from "../../utils/parseAmount";
+import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
-import Input from "../shared/Input";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -58,9 +59,9 @@ export default function TokenInput({
 
   const valueUSD =
     usdValue ??
-    (amount && token ? Number(formatUnits((amount * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0);
+    (amount && token ? Number(formatUnits((amount * parseAmount(token.priceUSD, 18)) / WAD, token.decimals)) : 0);
   const balanceUSD =
-    token && balance ? Number(formatUnits((balance * parseUnits(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
+    token && balance ? Number(formatUnits((balance * parseAmount(token.priceUSD, 18)) / WAD, token.decimals)) : 0;
   const price = token ? Number(token.priceUSD) : 0;
   const significantDecimals = price > 0 ? Math.min(8, Math.ceil(Math.log10(Math.max(1, price))) + 2) : 8;
   const balanceAmount = token
@@ -74,7 +75,7 @@ export default function TokenInput({
     (value: string) => {
       setFieldValue("amountInput", value);
       if (!token) return;
-      const inputAmount = parseUnits(value.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), token.decimals);
+      const inputAmount = parseAmount(value, token.decimals);
       onChange?.(inputAmount);
     },
     [setFieldValue, token, onChange],
@@ -174,8 +175,9 @@ export default function TokenInput({
                 <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
                   {({ state: { value } }) => (
                     <View width="100%">
-                      <Input
+                      <AmountInput
                         value={value}
+                        decimals={token?.decimals ?? 18}
                         onChangeText={handleAmountChange}
                         onFocus={onFocus}
                         disabled={disabled}
@@ -188,7 +190,6 @@ export default function TokenInput({
                         fontWeight="bold"
                         letterSpacing={-0.2}
                         textAlign="left"
-                        inputMode="decimal"
                         enterKeyHint="done"
                         inputAccessoryViewID={id}
                         borderColor="transparent"

@@ -26,16 +26,7 @@ import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagu
 import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
-import {
-  BaseError,
-  encodeEventTopics,
-  encodeFunctionData,
-  erc20Abi,
-  formatUnits,
-  getAddress,
-  parseUnits,
-  zeroAddress,
-} from "viem";
+import { BaseError, encodeEventTopics, encodeFunctionData, erc20Abi, formatUnits, getAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { useReadContract, useSimulateContract } from "wagmi";
 
@@ -76,6 +67,7 @@ import {
   statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
+import parseAmount from "../../utils/parseAmount";
 import { useFeed } from "../../utils/prices";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -1348,10 +1340,10 @@ export default function Swaps() {
     if (!paid || !received) return null;
     const resultToAmount = settled?.token && settled.amount ? BigInt(settled.amount) : resultRef.current.toAmount;
     const properties = {
-      fromUsdAmount: Number(formatUnits((resultFromAmount * parseUnits(paid.priceUSD, 18)) / WAD, paid.decimals)),
+      fromUsdAmount: Number(formatUnits((resultFromAmount * parseAmount(paid.priceUSD, 18)) / WAD, paid.decimals)),
       fromAmount: resultFromAmount,
       fromToken: paid,
-      toUsdAmount: Number(formatUnits((resultToAmount * parseUnits(received.priceUSD, 18)) / WAD, received.decimals)),
+      toUsdAmount: Number(formatUnits((resultToAmount * parseAmount(received.priceUSD, 18)) / WAD, received.decimals)),
       toAmount: resultToAmount,
       toToken: received,
     };

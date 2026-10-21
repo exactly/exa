@@ -17,7 +17,7 @@ import { ScrollView, XStack, YStack, type TamaguiElement } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
-import { formatUnits, parseUnits, zeroAddress } from "viem";
+import { formatUnits, zeroAddress } from "viem";
 
 import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -32,9 +32,9 @@ import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
+import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
-import Input from "../shared/Input";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
@@ -174,7 +174,7 @@ export default function Amount() {
 
   const destinationDecimals = destination?.decimals ?? 18;
   const destinationUnit = 10n ** BigInt(destinationDecimals);
-  const amount = parseUnits(entry.text || "0", entry.mode === "usd" ? 18 : destinationDecimals);
+  const amount = parseAmount(entry.text, entry.mode === "usd" ? 18 : destinationDecimals);
   const usdAmount = entry.mode === "usd" ? amount : (amount * (destination?.price ?? 0n)) / destinationUnit;
   const destinationAmount =
     !destination || (entry.mode === "usd" && destination.price <= 0n)
@@ -211,12 +211,8 @@ export default function Amount() {
   const size = room && digits ? Math.min(56, Math.max(20, Math.floor((probe * room * 0.9) / (digits + unit)))) : 56;
 
   function change(text: string) {
-    const next = text.replaceAll(",", ".");
-    if (!/^\d*(?:\.\d*)?$/.test(next)) return;
-    const fraction = next.split(".")[1];
-    if (fraction && fraction.length > (mode === "usd" ? 2 : (destination?.decimals ?? 18))) return;
-    if (next.replace(".", "").length > 30) return;
-    setEntry({ mode, text: next === "." ? "0." : next });
+    if (text.replace(".", "").length > 30) return;
+    setEntry({ mode, text });
   }
 
   function proceed() {
@@ -324,12 +320,12 @@ export default function Amount() {
                   $
                 </Text>
               )}
-              <Input
+              <AmountInput
                 ref={inputRef}
                 aria-label={t("Amount")}
                 value={value}
+                decimals={mode === "usd" ? 2 : destinationDecimals}
                 onChangeText={change}
-                keyboardType="decimal-pad"
                 placeholder="0"
                 fontSize={size}
                 width={(digits * size) / probe}

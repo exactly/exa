@@ -7,12 +7,13 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, CircleHelp } from "@tamagui/lucide-icons-2";
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits } from "viem";
 
 import { presentArticle } from "../../utils/intercom";
+import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useInstallmentRates from "../../utils/useInstallmentRates";
-import Input from "../shared/Input";
+import AmountInput from "../shared/AmountInput";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -25,7 +26,7 @@ export default function Calculator() {
     i18n: { language },
   } = useTranslation();
   const [input, setInput] = useState("100");
-  const assets = useMemo(() => parseUnits(input.replaceAll(/\D/g, ".").replaceAll(/\.(?=.*\.)/g, ""), 6), [input]);
+  const assets = useMemo(() => parseAmount(input, 6), [input]);
   const rates = useInstallmentRates(assets);
 
   const bestRateIndex = useMemo(() => {
@@ -128,9 +129,10 @@ export default function Calculator() {
                 <Text subHeadline color="$uiNeutralPlaceholder">
                   $
                 </Text>
-                <Input
+                <AmountInput
+                  aria-label={t("Amount")}
                   borderWidth={0}
-                  inputMode="decimal"
+                  decimals={6}
                   maxLength={6}
                   numberOfLines={1}
                   onChangeText={setInput}

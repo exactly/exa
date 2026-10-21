@@ -20,7 +20,6 @@ import {
   isAddress,
   maxUint256,
   parseAbi,
-  parseUnits,
   zeroAddress,
   type Hex,
 } from "viem";
@@ -1077,7 +1076,7 @@ export default function Bridge() {
                                       ? "—"
                                       : `≈$${Number(
                                           formatUnits(
-                                            (toAmount * parseUnits(destinationToken.priceUSD, 18)) / WAD,
+                                            (toAmount * parseAmount(destinationToken.priceUSD, 18)) / WAD,
                                             destinationToken.decimals,
                                           ),
                                         ).toLocaleString(language, {
@@ -1091,7 +1090,7 @@ export default function Bridge() {
                                   {t("Balance: {{value}}", {
                                     value: `$${Number(
                                       formatUnits(
-                                        (destinationBalance * parseUnits(destinationToken.priceUSD, 18)) / WAD,
+                                        (destinationBalance * parseAmount(destinationToken.priceUSD, 18)) / WAD,
                                         destinationToken.decimals,
                                       ),
                                     ).toLocaleString(language, {
