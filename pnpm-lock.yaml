@@ -204,7 +204,7 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@exactly/server':
-        specifier: workspace:^0.2.129
+        specifier: workspace:^0.2.130
         version: link:server
       '@expo/metro-runtime':
         specifier: ~55.0.6

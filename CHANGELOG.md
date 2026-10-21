@@ -1,5 +1,90 @@
 # @exactly/mobile
 
+## 1.2.37
+
+### Patch Changes
+
+- [#1470](https://github.com/exactly/exa/pull/1470) [`f714937`](https://github.com/exactly/exa/commit/f714937c18f0dba32b67f7f378f75497e5dd1ff7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 call account from owner when bundler rejects
+
+- [#1450](https://github.com/exactly/exa/pull/1450) [`45e60bf`](https://github.com/exactly/exa/commit/45e60bfb75e7723bd7ed39d85d6824d2d5418f78) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 space swaps cta from bottom edge
+
+- [#1450](https://github.com/exactly/exa/pull/1450) [`fe50d34`](https://github.com/exactly/exa/commit/fe50d349ea50f1a0175f76097ef7b50c2c968107) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add swap token switch
+
+- [#1464](https://github.com/exactly/exa/pull/1464) [`e272446`](https://github.com/exactly/exa/commit/e2724465273b33f4509b44a61f719d3708b6eaf6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 route undeployed accounts to support
+
+- [#1430](https://github.com/exactly/exa/pull/1430) [`3aa9ab4`](https://github.com/exactly/exa/commit/3aa9ab401d7a430a116d7f64260737f09edfe538) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 sign in on the app chain
+
+- [#1448](https://github.com/exactly/exa/pull/1448) [`ff7863b`](https://github.com/exactly/exa/commit/ff7863b2b11416c3d52ba62ef7100dae6bc3da87) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ brand deposit share and copy
+
+- [#1431](https://github.com/exactly/exa/pull/1431) [`551dd47`](https://github.com/exactly/exa/commit/551dd47d903772e570d95b96a57e86bf99514e41) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 discover browser wallets via eip-6963
+
+- [#1442](https://github.com/exactly/exa/pull/1442) [`edb5c64`](https://github.com/exactly/exa/commit/edb5c64a2f40aee4e3a14c2ba27eae05eb14dafa) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix duplicated balance after transfer
+
+- [#1473](https://github.com/exactly/exa/pull/1473) [`734dfa0`](https://github.com/exactly/exa/commit/734dfa0d7e45c64e644af91b27c87f3f7ab5d863) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ reconnect configs independently
+
+- [#1466](https://github.com/exactly/exa/pull/1466) [`1cd6471`](https://github.com/exactly/exa/commit/1cd64710b802f8de2ba202f9cbcfc05adb2983ca) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 pause auth carousel behind sheets
+
+- [#1483](https://github.com/exactly/exa/pull/1483) [`bbd083f`](https://github.com/exactly/exa/commit/bbd083f0c1db75186d064c77fde7df163043ad2d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 disable time to initial display on navigation
+
+- [#1431](https://github.com/exactly/exa/pull/1431) [`565bddb`](https://github.com/exactly/exa/commit/565bddb9ae6d8a63c7fa08824c2f8fa9af9c30ba) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 recheck browser wallet availability
+
+- [#1442](https://github.com/exactly/exa/pull/1442) [`5993f08`](https://github.com/exactly/exa/commit/5993f08a2d8b86ef10b8bcb5f8ffc20da60d8d97) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 split loan installments from chosen maturity
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`287580f`](https://github.com/exactly/exa/commit/287580fe92dd94a2e9932a14bc6892d928f7b915) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ reuse fresh markets across screens
+
+- [#1450](https://github.com/exactly/exa/pull/1450) [`9a9cad2`](https://github.com/exactly/exa/commit/9a9cad2aa53cce3e869853b402dad84f2fda668d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 add close button to token selector
+
+- [#1450](https://github.com/exactly/exa/pull/1450) [`1b54c87`](https://github.com/exactly/exa/commit/1b54c879ca27dc3a5881c8966110ba67d79f195c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add crypto and stocks tabs to swaps
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`a9d2050`](https://github.com/exactly/exa/commit/a9d20504ad20fa6833df4ece32e9dcad57f957b5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ stop tracking every markets query field
+
+- [#1450](https://github.com/exactly/exa/pull/1450) [`9237cd1`](https://github.com/exactly/exa/commit/9237cd104b5c7f85a25e26e788e7a73ca6d4a96f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 compact token inputs
+
+- [#1476](https://github.com/exactly/exa/pull/1476) [`c9e8a8d`](https://github.com/exactly/exa/commit/c9e8a8d3e092fab1c1d5120aff46245b08ed945b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 wait for wallet check before auth
+
+- [#1464](https://github.com/exactly/exa/pull/1464) [`e5dba91`](https://github.com/exactly/exa/commit/e5dba91138f173cb372ed269322e46ec2a0ccbc5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 wait for server deploy without factory stake
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`ac49e76`](https://github.com/exactly/exa/commit/ac49e766c6bcbcc02961042448642078567286f4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ compute installment rates only with sheet open
+
+- [#1442](https://github.com/exactly/exa/pull/1442) [`754c2d9`](https://github.com/exactly/exa/commit/754c2d9d33ddc3894494f3f7d503f46abed258ca) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 drop unlisted chains from swap networks
+
+- [#1451](https://github.com/exactly/exa/pull/1451) [`e163a24`](https://github.com/exactly/exa/commit/e163a24949db01aa6fa198c40aed8d28b3979da3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove deposit warning callout
+
+- [#1452](https://github.com/exactly/exa/pull/1452) [`3543615`](https://github.com/exactly/exa/commit/35436152b455a6e57135642de059f9da8f05ba51) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 add floating tab bar
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`57c887e`](https://github.com/exactly/exa/commit/57c887eb3c6c8fe6b364d68b7733f7f25968d05a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔒️ drop secrets from card details query
+
+- [#1442](https://github.com/exactly/exa/pull/1442) [`96d9110`](https://github.com/exactly/exa/commit/96d9110331f5ace752e1e8bfddd42086a54c4bbc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 send same-chain transfers via wallet calls
+
+- [#1442](https://github.com/exactly/exa/pull/1442) [`5042f74`](https://github.com/exactly/exa/commit/5042f7464f4a6358d838e26d29eb3b54f5d9f664) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ read exa from cached tokens
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`aa064f8`](https://github.com/exactly/exa/commit/aa064f808ea00913ce2a820465a35b08ce3cc3fa) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 restore persisted cache once
+
+- [#1442](https://github.com/exactly/exa/pull/1442) [`0def755`](https://github.com/exactly/exa/commit/0def755c52b45e2df795243f074def7c6f356508) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix onboarding title layout loop
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`3e6d383`](https://github.com/exactly/exa/commit/3e6d383327e4bc247d2170b2128d1c8acb745534) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ stabilize swaps network set
+
+- [#1445](https://github.com/exactly/exa/pull/1445) [`5c5b5c9`](https://github.com/exactly/exa/commit/5c5b5c9d976d4b8b961fd30d4df3a812d613f0ab) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♿️ pause benefits carousel on reduced motion
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`daf38e5`](https://github.com/exactly/exa/commit/daf38e5a22247e3c4808d0f46916df818009f349) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ expire swap quote with single timer
+
+- [#1448](https://github.com/exactly/exa/pull/1448) [`012263d`](https://github.com/exactly/exa/commit/012263d4d0bfb582d692b1f09a5956cbb0a78a8d) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 disable carousel scroll on single item
+
+- [#1448](https://github.com/exactly/exa/pull/1448) [`25044ed`](https://github.com/exactly/exa/commit/25044ed8358b6177bcf378429005c720c3560cec) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix duplicate home after closing flows
+
+- [#1450](https://github.com/exactly/exa/pull/1450) [`68b0741`](https://github.com/exactly/exa/commit/68b07417de54ade951cf0edcbe37fb0c13b5fdb7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 prioritize stocks and base chips
+
+- [#1448](https://github.com/exactly/exa/pull/1448) [`c404f47`](https://github.com/exactly/exa/commit/c404f4738aa8d6518da4c8eeca15fa634a3ec05e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 improve swaps keyboard dismissal
+
+- [#1448](https://github.com/exactly/exa/pull/1448) [`cb2a127`](https://github.com/exactly/exa/commit/cb2a127d126f9e20d4c87fc17c24ce4799d2d888) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 remove token selector bottom gap
+
+- [#1453](https://github.com/exactly/exa/pull/1453) [`7c1db7f`](https://github.com/exactly/exa/commit/7c1db7fc667d51c0bf28124bca904d2613de66b0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⚡️ render home card from persisted cache
+
+- [#1451](https://github.com/exactly/exa/pull/1451) [`0661727`](https://github.com/exactly/exa/commit/0661727f2982bc135eaecb0f29e9ebcc9932fe19) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 fit deposit qr alongside address
+
+- Updated dependencies [[`3764eae`](https://github.com/exactly/exa/commit/3764eae74c656d50a885749733ad7d52efe351a2)]:
+  - @exactly/server@0.2.130
+
 ## 1.2.36
 
 ### Patch Changes
