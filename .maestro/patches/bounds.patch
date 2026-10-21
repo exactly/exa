@@ -1,0 +1,42 @@
+From a404dd64920011dc43a05d68a15330a1553d20bc Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 16:42:29 +0000
+Subject: [PATCH] fix: report the visible part of web elements
+
+Web bounds were the element's whole box, even where it lies outside the viewport, so a tap on an element cut by the edge of the screen aimed at its center, which can be off screen, and hit nothing. Clip bounds to the viewport, as Android reports visible bounds, so the tap lands on the part a user can see. Elements entirely outside keep their box, so they are still filtered out.
+---
+ maestro-client/src/main/resources/maestro-web.js | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index 6dc68a9..cf32332 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -69,10 +69,18 @@
+ 
+         const scaleX = vpw / window.innerWidth;
+         const scaleY = vph / window.innerHeight;
+-        const l = (rect.x + iframeOffsetX) * scaleX + vpx;
+-        const t = (rect.y + iframeOffsetY) * scaleY + vpy;
+-        const r = (rect.x + rect.width + iframeOffsetX) * scaleX + vpx;
+-        const b = (rect.y + rect.height + iframeOffsetY) * scaleY + vpy;
++        let l = (rect.x + iframeOffsetX) * scaleX + vpx;
++        let t = (rect.y + iframeOffsetY) * scaleY + vpy;
++        let r = (rect.x + rect.width + iframeOffsetX) * scaleX + vpx;
++        let b = (rect.y + rect.height + iframeOffsetY) * scaleY + vpy;
++
++        // Like Android, report only the part inside the viewport, so a tap aims at what is on screen
++        if (l < vpx + vpw && r > vpx && t < vpy + vph && b > vpy) {
++            l = Math.max(l, vpx);
++            t = Math.max(t, vpy);
++            r = Math.min(r, vpx + vpw);
++            b = Math.min(b, vpy + vph);
++        }
+ 
+         return `[${Math.round(l)},${Math.round(t)}][${Math.round(r)},${Math.round(b)}]`
+     }
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
