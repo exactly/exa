@@ -1,6 +1,6 @@
 import { captureException, setContext, setUser, withScope } from "@sentry/node";
 import { Mutex } from "async-mutex";
-import { eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { describeRoute } from "hono-openapi";
@@ -886,23 +886,21 @@ async function encryptPIN(pin: string) {
               case "status": {
                 const { status } = patch;
                 if (card.status === status) return c.json({ code: "already set", status }, 400);
-                switch (status) {
-                  case "ACTIVE":
-                    segment.track({
-                      userId: account,
-                      event: "CardUnfrozen",
-                      properties: { source: credential.source },
-                    });
-                    break;
-                  case "DELETED":
-                    await panda.updateCard({ id: card.id, status: "canceled" });
-                    segment.track({ userId: account, event: "CardDeleted", properties: { source: credential.source } });
-                    break;
-                  case "FROZEN":
-                    segment.track({ userId: account, event: "CardFrozen", properties: { source: credential.source } });
-                    break;
+                if (status === "DELETED") await panda.updateCard({ id: card.id, status: "canceled" });
+                const [updated] = await database
+                  .update(cards)
+                  .set({ status })
+                  .where(and(eq(cards.id, card.id), ne(cards.status, "DELETED")))
+                  .returning({ id: cards.id });
+                if (updated) {
+                  segment.track({
+                    userId: account,
+                    event: ({ ACTIVE: "CardUnfrozen", DELETED: "CardDeleted", FROZEN: "CardFrozen" } as const)[status],
+                    properties: { source: credential.source },
+                  });
+                } else if (status !== "DELETED") {
+                  return c.json({ code: "no card" }, 404);
                 }
-                await database.update(cards).set({ status }).where(eq(cards.id, card.id));
                 return c.json({ status } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
               case "pin": {

@@ -143,6 +143,20 @@ describe("authenticated", () => {
         pandaId: "cancel",
       },
       {
+        id: "cancel-race",
+        publicKey,
+        account: padHex("0x5c", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+        pandaId: "cancel-race",
+      },
+      {
+        id: "freeze-race",
+        publicKey,
+        account: padHex("0x5d", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+        pandaId: "freeze-race",
+      },
+      {
         id: "migrate-card-upgraded-plugin",
         publicKey,
         account: padHex("0x6", { size: 20 }),
@@ -1528,6 +1542,60 @@ describe("authenticated", () => {
     const card = await database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) });
 
     expect(card?.status).toBe("DELETED");
+    expect(segment.track).toHaveBeenCalledWith({
+      userId: padHex("0x5", { size: 20 }),
+      event: "CardDeleted",
+      properties: { source: null },
+    });
+  });
+
+  it("returns 404 no card when a status change follows a webhook cancel", async () => {
+    const id = "123e4567-e89b-12d3-a456-42665544000d";
+    await database.insert(cards).values({ id, credentialId: "freeze-race", lastFour: "1226" });
+    const findFirst = database.query.credentials.findFirst.bind(database.query.credentials);
+    vi.spyOn(database.query.credentials, "findFirst").mockImplementationOnce((async (
+      config: Parameters<typeof findFirst>[0],
+    ) => {
+      const credential = await findFirst(config);
+      await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, id));
+      return credential;
+    }) as unknown as typeof findFirst);
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "freeze-race" },
+      json: { status: "FROZEN" },
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "DELETED" });
+    expect(segment.track).not.toHaveBeenCalled();
+  });
+
+  it("skips tracking a card already canceled by the webhook", async () => {
+    const id = "123e4567-e89b-12d3-a456-42665544000c";
+    await database.insert(cards).values({ id, credentialId: "cancel-race", lastFour: "1225" });
+    vi.spyOn(panda, "updateCard").mockImplementationOnce(async () => {
+      await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, id));
+      return { ...cardTemplate, id, last4: "1225", status: "canceled" };
+    });
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "cancel-race" },
+      json: { status: "DELETED" },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ status: "DELETED" });
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({ id, status: "canceled" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "DELETED" });
+    expect(segment.track).not.toHaveBeenCalled();
   });
 
   it("propagates stale card provisioning errors", async () => {
