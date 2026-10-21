@@ -1,0 +1,143 @@
+From f4e8228f193892f247d25f0a5f9759b66afa694e Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 15:09:32 +0000
+Subject: [PATCH] feat: add --browser-args to pass arguments to the web browser
+
+Maestro launches Chrome with a fixed set of arguments, so a run can't turn on browser behavior that only exists as a switch, such as --force-prefers-reduced-motion in headless mode, where Chrome has no desktop settings to read it from. Add a repeatable --browser-args option to `maestro test` and append each value to Chrome's arguments.
+---
+ .../src/main/java/maestro/cli/command/TestCommand.kt  |  7 +++++++
+ .../java/maestro/cli/session/MaestroSessionManager.kt | 11 +++++++----
+ maestro-client/src/main/java/maestro/Maestro.kt       |  2 ++
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt     |  5 ++++-
+ 4 files changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt b/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
+index 064ff51..8f8f544 100644
+--- a/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
++++ b/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
+@@ -187,6 +187,12 @@ class TestCommand : Callable<Int> {
+     )
+     private var screenSize: String? = null
+ 
++    @Option(
++        names = ["--browser-args"],
++        description = ["(Web only) Pass an extra argument to the browser. Can be repeated. Usage is --browser-args=--force-prefers-reduced-motion"],
++    )
++    private var browserArgs: List<String> = emptyList()
++
+     @Option(
+         names = ["--analyze"],
+         description = ["[Beta] Enhance the test output analysis with AI Insights"],
+@@ -483,6 +489,7 @@ class TestCommand : Callable<Int> {
+             platform = platform ?: parent?.platform,
+             isHeadless = headless,
+             screenSize = screenSize,
++            browserArgs = browserArgs,
+             reinstallDriver = reinstallDriver,
+             executionPlan = executionPlan
+         ) { session ->
+diff --git a/maestro-cli/src/main/java/maestro/cli/session/MaestroSessionManager.kt b/maestro-cli/src/main/java/maestro/cli/session/MaestroSessionManager.kt
+index cc05d69..0856fcd 100644
+--- a/maestro-cli/src/main/java/maestro/cli/session/MaestroSessionManager.kt
++++ b/maestro-cli/src/main/java/maestro/cli/session/MaestroSessionManager.kt
+@@ -71,6 +71,7 @@ object MaestroSessionManager {
+         isStudio: Boolean = false,
+         isHeadless: Boolean = false,
+         screenSize: String? = null,
++        browserArgs: List<String> = emptyList(),
+         reinstallDriver: Boolean = true,
+         deviceIndex: Int? = null,
+         executionPlan: WorkspaceExecutionPlanner.ExecutionPlan? = null,
+@@ -117,6 +118,7 @@ object MaestroSessionManager {
+             isStudio = isStudio,
+             isHeadless = isHeadless,
+             screenSize = screenSize,
++            browserArgs = browserArgs,
+             driverHostPort = driverHostPort,
+             reinstallDriver = reinstallDriver,
+             platformConfiguration = executionPlan?.workspaceConfig?.platform
+@@ -201,6 +203,7 @@ object MaestroSessionManager {
+         isStudio: Boolean,
+         isHeadless: Boolean,
+         screenSize: String?,
++        browserArgs: List<String>,
+         reinstallDriver: Boolean,
+         driverHostPort: Int?,
+         platformConfiguration: PlatformConfiguration? = null,
+@@ -224,7 +227,7 @@ object MaestroSessionManager {
+                         platformConfiguration = platformConfiguration
+                     )
+ 
+-                    Platform.WEB -> pickWebDevice(isStudio, isHeadless, screenSize)
++                    Platform.WEB -> pickWebDevice(isStudio, isHeadless, screenSize, browserArgs)
+                 },
+                 device = selectedDevice.device,
+             )
+@@ -253,7 +256,7 @@ object MaestroSessionManager {
+             )
+ 
+             selectedDevice.platform == Platform.WEB -> MaestroSession(
+-                maestro = pickWebDevice(isStudio, isHeadless, screenSize),
++                maestro = pickWebDevice(isStudio, isHeadless, screenSize, browserArgs),
+                 device = null
+             )
+ 
+@@ -449,8 +452,8 @@ object MaestroSessionManager {
+         )
+     }
+ 
+-    private fun pickWebDevice(isStudio: Boolean, isHeadless: Boolean, screenSize: String?): Maestro {
+-        return Maestro.web(isStudio, isHeadless, screenSize)
++    private fun pickWebDevice(isStudio: Boolean, isHeadless: Boolean, screenSize: String?, browserArgs: List<String>): Maestro {
++        return Maestro.web(isStudio, isHeadless, screenSize, browserArgs)
+     }
+ 
+     private data class SelectedDevice(
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index 1f850dc..8d6f102 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -815,6 +815,7 @@ class Maestro(
+             isStudio: Boolean,
+             isHeadless: Boolean,
+             screenSize: String?,
++            browserArgs: List<String> = emptyList(),
+         ): Maestro {
+             // Check that JRE is at least 11
+             val version = System.getProperty("java.version")
+@@ -831,6 +832,7 @@ class Maestro(
+                 isStudio = isStudio,
+                 isHeadless = isHeadless,
+                 screenSize = screenSize,
++                browserArgs = browserArgs,
+             )
+             driver.open()
+             return Maestro(driver)
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad651bb..cd1ff38 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -55,7 +55,8 @@ private const val SYNTHETIC_COORDINATE_SPACE_OFFSET = 100000
+ class CdpWebDriver(
+     val isStudio: Boolean,
+     private val isHeadless: Boolean = false,
+-    private val screenSize: String?
++    private val screenSize: String?,
++    private val browserArgs: List<String> = emptyList(),
+ ) : Driver {
+ 
+     private lateinit var cdpClient: CdpClient
+@@ -135,6 +136,8 @@ class CdpWebDriver(
+                         addArguments("--window-size=1024,768")
+                     }
+                 }
++
++                addArguments(browserArgs)
+             }
+         )
+ 
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
