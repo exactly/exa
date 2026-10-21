@@ -23,6 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - pressKey: enter
 - waitForAnimationToEnd
 - tapOn: Confirm payment
+- runFlow: sign.yaml
 - assertVisible: Processing.*
 - tapOn: Close
 - runFlow: getAccount.yaml

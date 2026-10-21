@@ -16,3 +16,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${method !== 'webauthn'}" }
     commands: [{ tapOn: I already have an account }, { tapOn: Log in with browser wallet }]
+- runFlow:
+    when: { true: "${maestro.platform == 'web' && method === 'siwe'}" }
+    commands:
+      - tapOn: Connect
+      - assertVisible: Add Anvil
+      - tapOn: Confirm
+      - assertVisible: Sign-in request
+- runFlow: sign.yaml

@@ -21,6 +21,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Review loan terms
 - assertVisible: Review terms
 - tapOn: Confirm and receive USDC
+- runFlow: sign.yaml
 - extendedWaitUntil: { visible: Funding request sent, timeout: 180000 }
 - runFlow: getAccount.yaml
 - runScript:

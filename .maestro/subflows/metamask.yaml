@@ -1,0 +1,26 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- extendedWaitUntil: { visible: { id: onboarding-import-wallet }, timeout: 60000 }
+- tapOn: { id: onboarding-import-wallet, retryTapIfNoChange: true }
+- tapOn: { id: onboarding-import-with-srp-button }
+- tapOn: { id: first-word-input-text-area }
+- inputText: ${EXPO_PUBLIC_E2E_MNEMONIC || 'test test test test test test test test test test test junk'}
+- tapOn: { id: import-srp-confirm }
+- tapOn: { id: create-password-new, index: 1 }
+- inputText: exa-e2e-wallet
+- tapOn: { id: create-password-confirm, index: 1 }
+- inputText: exa-e2e-wallet
+- tapOn: { id: create-password-terms }
+- tapOn: { id: create-password-submit }
+- tapOn: { id: passkey-maybe-later-button, optional: true }
+- tapOn: Continue
+- scrollUntilVisible: { element: { id: manage-default-settings } }
+- tapOn: { id: manage-default-settings }
+- tapOn: { id: General }
+- tapOn: "On"
+- tapOn: { id: basic-configuration-checkbox }
+- tapOn: { id: basic-configuration-modal-toggle-button }
+- back
+- tapOn: { id: onboarding-complete-done }
+- tapOn: { id: Account options }
+- tapOn: Switch to popup

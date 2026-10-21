@@ -1,0 +1,5 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    when: { true: "${maestro.platform == 'web' && method === 'siwe'}" }
+    commands: [{ tapOn: Confirm }]

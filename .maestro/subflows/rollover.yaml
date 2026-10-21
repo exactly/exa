@@ -14,6 +14,7 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { visible: Review refinance details }
     commands: [{ tapOn: Review refinance details }]
 - tapOn: Confirm rollover
+- runFlow: sign.yaml
 - runFlow: getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js

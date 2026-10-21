@@ -1,5 +1,8 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
+- runFlow:
+    when: { true: "${maestro.platform == 'web' && method === 'siwe'}" }
+    file: metamask.yaml
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - runFlow: hideDevtools.yaml
 - runFlow: signIn.yaml
