@@ -19,9 +19,8 @@ jobs:
       - uses: eas/install_node_modules
       - id: fingerprint
         run: |
-          for platform in android ios; do
-            set-output $platform "$(pnpm exec fingerprint fingerprint:generate --platform $platform | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
-          done
+          set-output android "$(pnpm exec fingerprint fingerprint:generate --platform android | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
+          set-output ios "$(APP_DOMAIN=sandbox.exactly.app APPLE_TEAM_ID=665NDX7LBZ pnpm exec fingerprint fingerprint:generate --platform ios | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
 
   android_get:
     if: ${{ github.ref_type != 'tag' }}
@@ -47,7 +46,7 @@ jobs:
     runs_on: linux-large-nested-virtualization
     image: latest
     env:
-      APP_DOMAIN: localhost
+      APP_DOMAIN: sandbox.exactly.app
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
@@ -70,8 +69,10 @@ jobs:
       - uses: eas/save_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
-      - name: exa setup
-        run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
+      - name: exa setup # cspell:ignore sysctl
+        run: |
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=443
+          flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
       - uses: eas/restore_cache
         id: maestro
         with:
@@ -93,10 +94,12 @@ jobs:
         run: |
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          adb root
+          adb wait-for-device
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
+          adb reverse tcp:443 tcp:443 && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
           adb install "${{ steps.repack.outputs.output_path }}"
           adb logcat -v time > emulator.log 2>&1 &
           for i in {1..420}; do
@@ -104,6 +107,22 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
+      - name: trust local server # cspell:ignore cacerts chcon conscrypt noout nsenter pidof servername zygote
+        run: |
+          { openssl s_client -connect 127.0.0.1:443 -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
+          adb push cert.pem "/data/local/tmp/$(openssl x509 -subject_hash_old -noout -in cert.pem).0"
+          adb shell "domain=$APP_DOMAIN sh -s" << 'EOF'
+          set -e
+          mkdir /data/local/tmp/cacerts
+          cp /apex/com.android.conscrypt/cacerts/* /data/local/tmp/*.0 /data/local/tmp/cacerts
+          { cat /system/etc/hosts; echo "127.0.0.1 $domain"; } > /data/local/tmp/hosts
+          chmod -R a+rX /data/local/tmp/cacerts /data/local/tmp/hosts
+          chcon -R u:object_r:system_file:s0 /data/local/tmp/cacerts /data/local/tmp/hosts
+          for pid in 1 $(pidof zygote zygote64); do
+            nsenter --mount=/proc/$pid/ns/mnt -- mount --bind /data/local/tmp/cacerts /apex/com.android.conscrypt/cacerts
+            nsenter --mount=/proc/$pid/ns/mnt -- mount --bind /data/local/tmp/hosts /system/etc/hosts
+          done
+          EOF
       - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
@@ -135,7 +154,7 @@ jobs:
     needs: [fingerprint]
     params:
       platform: ios
-      profile: e2e:local
+      profile: e2e:production
       fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
       wait_for_in_progress: true
 
@@ -145,16 +164,17 @@ jobs:
     after: [ios_get]
     if: ${{ !after.ios_get.outputs.build_id }}
     image: sdk-55
-    params: { platform: ios, profile: e2e:local }
+    env: { APP_DOMAIN: sandbox.exactly.app, APPLE_TEAM_ID: 665NDX7LBZ }
+    params: { platform: ios, profile: e2e:production }
 
   ios_e2e:
     after: [ios_get, ios_build]
     if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
     runs_on: macos-large
-    image: latest
+    image: macos-tahoe-26.5-xcode-26.6
     env:
-      APP_DOMAIN: localhost
+      APP_DOMAIN: sandbox.exactly.app
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
@@ -191,8 +211,9 @@ jobs:
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
       - uses: eas/start_ios_simulator
-      - name: prepare device
+      - name: prepare device # cspell:ignore servername
         run: |
+          printf '%s\n' "127.0.0.1 $APP_DOMAIN" "::1 $APP_DOMAIN" | sudo tee -a /etc/hosts
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
@@ -201,6 +222,8 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
+          { openssl s_client -connect "$APP_DOMAIN:443" -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
+          xcrun simctl keychain booted add-root-cert cert.pem
       - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
