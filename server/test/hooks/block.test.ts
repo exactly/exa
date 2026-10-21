@@ -2363,22 +2363,27 @@ async function waitForSuccessfulProposalExecutions(expectedNonces: bigint[]) {
   const exaSend = keeper.exaSend.bind(keeper);
   const expected = new Set(expectedNonces);
   const successfulReceipts = new Map<bigint, TransactionReceipt>();
+  const failures = new Map<bigint, unknown>();
   vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
-    const receipt = await exaSend(span, call, options);
-    if (
+    const nonce =
       call.functionName === "executeProposal" &&
       call.args?.length === 1 &&
       typeof call.args[0] === "bigint" &&
-      expected.has(call.args[0]) &&
-      receipt?.status === "success"
-    )
-      successfulReceipts.set(call.args[0], receipt);
+      expected.has(call.args[0])
+        ? call.args[0]
+        : undefined;
+    const receipt = await exaSend(span, call, options).catch((error: unknown) => {
+      if (nonce !== undefined) failures.set(nonce, error);
+      throw error;
+    });
+    if (nonce !== undefined && receipt?.status === "success") successfulReceipts.set(nonce, receipt);
     return receipt;
   });
-  await vi.waitUntil(() => expectedNonces.every((nonce) => successfulReceipts.has(nonce)), 26_666);
+  await vi.waitUntil(() => expectedNonces.every((nonce) => successfulReceipts.has(nonce)), 26_666).catch(() => null);
   return expectedNonces.map((nonce) => {
     const receipt = successfulReceipts.get(nonce);
-    if (!receipt) throw new Error(`missing successful receipt for nonce ${String(nonce)}`);
+    if (!receipt)
+      throw new Error(`missing successful receipt for nonce ${String(nonce)}`, { cause: failures.get(nonce) });
     return receipt;
   });
 }
