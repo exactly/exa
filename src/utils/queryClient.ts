@@ -251,20 +251,6 @@ queryClient.setQueryDefaults<boolean>(["settings", "stocks-tab-seen"], {
   gcTime: Infinity,
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
-queryClient.setQueryDefaults(["settings", "explore-defi-shown"], {
-  initialData: true,
-  retry: false,
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: () => queryClient.getQueryData(["settings", "explore-defi-shown"]),
-});
-queryClient.setQueryDefaults(["settings", "defi-intro-shown"], {
-  initialData: false,
-  retry: false,
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: () => queryClient.getQueryData(["settings", "defi-intro-shown"]),
-});
 queryClient.setQueryDefaults(["settings", "bridge-needed-shown"], {
   initialData: false,
   retry: false,
@@ -285,21 +271,6 @@ queryClient.setQueryDefaults(["settings", "swap-needed-shown"], {
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "swap-needed-shown"]),
-});
-queryClient.setQueryDefaults(["defi", "usdc-funding-connected"], {
-  initialData: false,
-  retry: false,
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: () => queryClient.getQueryData(["defi", "usdc-funding-connected"]),
-});
-
-queryClient.setQueryDefaults(["defi", "lifi-connected"], {
-  initialData: false,
-  retry: false,
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: () => queryClient.getQueryData(["defi", "lifi-connected"]),
 });
 queryClient.setQueryDefaults(["ramp", "quote"], {
   retry: (count, error) => !(error instanceof APIError && error.code === 400) && count < 3,
