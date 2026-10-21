@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Platform } from "react-native";
 
 import { Separator, Slider, XStack, YStack } from "tamagui";
 
@@ -145,8 +146,12 @@ export default function RepayAmountSelector({
                 setEditingValue(cleanValue || undefined);
               }}
               onChangeText={handleAmountChange}
-              onFocus={() => setFocused(true)}
+              onFocus={(event) => {
+                setFocused(true);
+                if (Platform.OS === "web" && "select" in event.currentTarget) event.currentTarget.select();
+              }}
               placeholder="0"
+              selectTextOnFocus
               fontSize={34}
               fontWeight="400"
               letterSpacing={-0.2}
