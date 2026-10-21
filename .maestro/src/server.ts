@@ -21,12 +21,12 @@ import { parseUnits } from "viem/utils";
 
 import { readContract } from "./anvil";
 
-export function activity(asset: Address, toAddress: Address, value: number, hash: Hash = zeroHash) {
+export function activity(asset: Address, toAddress: Address, value: number, hash: Hash = zeroHash, network?: string) {
   const payload = JSON.stringify({
     type: "ADDRESS_ACTIVITY",
-    webhookId: "activity",
+    webhookId: network?.toUpperCase() ?? "activity",
     event: {
-      network: "ANVIL",
+      network: network?.toUpperCase() ?? "ANVIL",
       activity: [
         {
           asset: asset === ethAddress ? "ETH" : asset,
@@ -40,7 +40,9 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
             rawValue: toHex(
               parseUnits(
                 value.toLocaleString("fullwide", { useGrouping: false, maximumFractionDigits: 18 }),
-                asset === ethAddress ? 18 : readContract({ address: asset, functionName: "decimals", abi: erc20Abi }),
+                asset === ethAddress
+                  ? 18
+                  : readContract({ address: asset, functionName: "decimals", abi: erc20Abi }, network),
               ),
             ),
           },

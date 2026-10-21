@@ -2,7 +2,37 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/deposit.yaml
-- runFlow:
-    file: ../subflows/mint.yaml
-    env: { asset: USDC, to: "${output.deposit}", amount: "420" }
+- runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "1", network: Anvil2 } }
+- runScript:
+    file: ../dist/mint.js
+    env: { asset: USDC.e, to: "${output.credential}", amount: "1000", network: Anvil2 }
+- runFlow: ../subflows/readPortfolio.yaml
+- evalScript: ${output.portfolioBefore = output.portfolio}
+- tapOn: Deposit
+- tapOn: With connected wallet
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Select token } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Filter by network } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Anvil2 } }
+- tapOn: USDC.e
+- extendedWaitUntil: { visible: "Balance: .*1,000.*", timeout: 60000 }
+- tapOn: { text: "0", index: 0 }
+- inputText: "100"
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bridge and swap via } }
+- tapOn: Bridge USDC.e
+- repeat: { times: 3, commands: [{ runFlow: ../subflows/sign.yaml }] }
+- extendedWaitUntil: { visible: Add funds request sent, timeout: 120000 }
+- runScript: { file: ../dist/bridge.js, env: { network: Anvil2, to: "${output.deposit}", amount: "100" } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: Home
+- runFlow: ../subflows/readPortfolio.yaml
+- runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
+- repeat:
+    times: 20
+    while: { true: "${output.portfolio === output.portfolioBefore || output.deposited !== 100}" }
+    commands:
+      - tapOn: Home
+      - runFlow: ../subflows/readPortfolio.yaml
+      - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
+- assertTrue: ${output.portfolio - output.portfolioBefore === 100}
+- assertTrue: ${output.deposited === 100}
 - runFlow: ../subflows/storeCoverage.yaml
