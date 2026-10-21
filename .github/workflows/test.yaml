@@ -87,8 +87,8 @@ jobs:
         include:
           - { flow: credit, screen: 1920x1080 }
           - { flow: onboarding, screen: 500x1200 }
-          - { flow: swap, screen: 600x900 }
-          - { flow: transfer, screen: 740x880 }
+          - { flow: swap, screen: 740x880 }
+          - { flow: transfer, screen: 760x600 }
     env:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
