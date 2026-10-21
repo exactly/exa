@@ -81,7 +81,14 @@ jobs:
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy: { fail-fast: false, matrix: { flow: [credit, onboarding, swap, transfer] } }
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { flow: credit, screen: 1920x1080 }
+          - { flow: onboarding, screen: 500x1200 }
+          - { flow: swap, screen: 600x900 }
+          - { flow: transfer, screen: 740x880 }
     env:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
@@ -120,7 +127,7 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log xvfb-run maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml
+          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }}
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
