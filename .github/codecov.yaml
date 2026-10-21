@@ -1,11 +1,20 @@
 codecov:
   notify: { after_n_builds: 8, notify_error: true }
+comment:
+  layout: condensed_header, diff, flags, components, condensed_files, condensed_footer
 component_management:
+  default_rules:
+    statuses:
+      - { type: project, name_prefix: component-, informational: true }
+      - { type: patch, name_prefix: component-, informational: true }
   individual_components:
     - { component_id: app, paths: [src/**, "*.ts"] }
     - { component_id: common, paths: [common/**] }
     - { component_id: contracts, paths: [contracts/**] }
     - { component_id: server, paths: [server/**] }
+flag_management:
+  default_rules:
+    statuses: [{ type: project, informational: true }, { type: patch, informational: true }]
 ignore:
   - contracts/test/**
   - server/test/**
