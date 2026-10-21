@@ -98,6 +98,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { platform: web }
     commands: [{ tapOn: "Send ${asset}" }]
+- runFlow: sign.yaml
 - assertVisible: (Processing send|Sent) to .*
 - runFlow: getAccount.yaml
 - runScript:
