@@ -15,8 +15,10 @@ import process, { env } from "node:process";
 import { fileURLToPath } from "node:url";
 import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
+import lifi from "./lifi";
 import database from "../database";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
@@ -93,6 +95,7 @@ describe("e2e", () => {
           baseline.catch(reject);
 
           app.use("/e2e/*", cors());
+          app.route("/e2e/lifi", lifi([anvil]));
           app.post("/e2e/coverage", async (c) => {
             const coverage = await c.req.json<Record<string, unknown>>();
             for (const [file, empty] of await baseline) {
