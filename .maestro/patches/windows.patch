@@ -1,0 +1,88 @@
+From 2b5ba31a89dafd7e3bc930f0f6143bab9cd05fff Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 18:51:54 +0000
+Subject: [PATCH] fix: follow popup and extension windows on web
+
+detectWindowChange only switches to new window handles, so after a popup closes every later command fails on the closed window, and ChromeDriver hides chrome-extension:// tabs and popups from the handles, so an extension's own windows are never reached. Turn on ChromeDriver's enableExtensionTargets, switch only to page targets (extension service workers and offscreen documents become handles too), and when the current window closes, switch back to the window that opened it.
+
+Commands that run while a window closes no longer fail on it: reading the current URL is skipped, and a JS evaluation whose target is gone is retried against the next one.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 26 ++++++++++++++-----
+ 1 file changed, 19 insertions(+), 7 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad651bb..fb79e47 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -63,6 +63,7 @@ class CdpWebDriver(
+     private var seleniumDriver: org.openqa.selenium.WebDriver? = null
+     private var maestroWebScript: String? = null
+     private var lastSeenWindowHandles = setOf<String>()
++    private val openerHandles = mutableListOf<String>()
+     private var injectedArguments: Map<String, Any> = emptyMap()
+ 
+     private var webScreenRecorder: WebScreenRecorder? = null
+@@ -125,6 +126,7 @@ class CdpWebDriver(
+                 setExperimentalOption("prefs", chromePrefs)
+ 
+                 setExperimentalOption("detach", true)
++                setExperimentalOption("enableExtensionTargets", true)
+ 
+                 if (isHeadless) {
+                     addArguments("--headless=new")
+@@ -226,7 +228,10 @@ class CdpWebDriver(
+     private fun isRetryableJsError(e: Exception): Boolean {
+         val message = e.message ?: return false
+         return message.contains("getContentDescription") ||
+-            message.contains("navigated or closed")
++            message.contains("navigated or closed") ||
++            message.contains("Handshake exception") ||
++            message.contains("No message with id") ||
++            message.contains("Channel was cancelled")
+     }
+ 
+     private fun scrollToPoint(point: Point): Long {
+@@ -265,6 +270,7 @@ class CdpWebDriver(
+ 
+         seleniumDriver = null
+         lastSeenWindowHandles = setOf()
++        openerHandles.clear()
+         webScreenRecorder = null
+     }
+ 
+@@ -328,7 +334,7 @@ class CdpWebDriver(
+         val rawMap = contentDesc as Map<String, Any>
+         val enrichedMap = injectCrossOriginIframes(rawMap)
+         val root = parseDomAsTreeNodes(enrichedMap)
+-        seleniumDriver?.currentUrl?.let { url ->
++        runCatching { seleniumDriver?.currentUrl }.getOrNull()?.let { url ->
+             root.attributes["url"] = url
+         }
+         return root
+@@ -369,12 +375,18 @@ class CdpWebDriver(
+         val driver = ensureOpen()
+ 
+         if (lastSeenWindowHandles != driver.windowHandles) {
+-            val newHandles = driver.windowHandles - lastSeenWindowHandles
++            val pages = runBlocking { cdpClient.listTargets() }.filter { it.type == PAGE_TARGET_TYPE }.map { it.id }
++            val newHandles = (driver.windowHandles - lastSeenWindowHandles).filter { it in pages }
+             lastSeenWindowHandles = driver.windowHandles
+-
+-            if (newHandles.isNotEmpty()) {
+-                val newHandle = newHandles.first()
+-                LOGGER.info("Detected a window change, switching to new window handle $newHandle")
++            val currentHandle = runCatching { driver.windowHandle }.getOrNull()
++            if (newHandles.isNotEmpty()) currentHandle?.let { openerHandles.add(it) }
++            openerHandles.retainAll(lastSeenWindowHandles)
++
++            val newHandle = newHandles.firstOrNull()
++                ?: (openerHandles.lastOrNull() ?: lastSeenWindowHandles.firstOrNull()).takeIf { currentHandle == null }
++            if (newHandle != null) {
++                openerHandles.remove(newHandle)
++                LOGGER.info("Detected a window change, switching to window handle $newHandle")
+ 
+                 driver.switchTo().window(newHandle)
+ 
+-- 
+2.43.0
+
