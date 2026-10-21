@@ -2415,10 +2415,9 @@ describe("card operations", () => {
 
       it("captures settlement feedback errors on over capture", async () => {
         const error = new Error("feedback failed");
-        const hold = 25;
+        const hold = 21;
         const capture = 30;
 
-        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         const cardId = "over-capture-feedback-error";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
         await appClient.index.$post({
@@ -2433,6 +2432,7 @@ describe("card operations", () => {
             },
           },
         });
+        vi.spyOn(sardine, "feedback").mockRejectedValueOnce(error);
         const response = await appClient.index.$post({
           ...authorization,
           json: {
