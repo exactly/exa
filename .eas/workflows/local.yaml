@@ -93,15 +93,11 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - run: maestro test .maestro/stress/stay.yaml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
           curl -X POST http://localhost:3000/e2e/shutdown || true
-          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
-          curl -Os https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
-          ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F android -n android --build-url ${{ workflow.url }} --git-service github
-          ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F android -n android --build-url ${{ workflow.url }} --git-service github
           pkill -f "adb logcat" || true
       - uses: eas/upload_artifact
         if: always()
@@ -114,101 +110,5 @@ jobs:
             server/node_modules/@exactly/.*
             emulator.log
             emulator-process.log
-            ${{ env.HOME }}/.maestro/tests
-            .maestro/screenshots
-
-  ios_get:
-    if: ${{ github.ref_type != 'tag' }}
-    type: get-build
-    needs: [fingerprint]
-    params:
-      platform: ios
-      profile: e2e:local
-      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
-      wait_for_in_progress: true
-
-  ios_build:
-    type: build
-    needs: [fingerprint]
-    after: [ios_get]
-    if: ${{ !after.ios_get.outputs.build_id }}
-    params: { platform: ios, profile: e2e:local }
-
-  ios_e2e:
-    after: [ios_get, ios_build]
-    if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
-    environment: development
-    runs_on: macos-large
-    image: latest
-    env:
-      APP_DOMAIN: localhost
-      CHAIN_ID: "31337"
-      EXPO_PUBLIC_ENV: e2e
-      GIT_BRANCH: "${{ github.ref_name }}"
-      REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
-    steps:
-      - run: brew install redis
-      - uses: eas/checkout
-      - uses: eas/restore_cache
-        if: ${{ github.ref_type != 'tag' }}
-        with: { key: "nx-ios-e2e-${{ github.sha }}", restore_keys: nx-ios-e2e-, path: nx.tar }
-      - run: tar -xf nx.tar -C ~ || true
-      - uses: eas/install_node_modules
-      - run: tar -cf nx.tar -C ~ .nx
-      - uses: eas/save_cache
-        if: ${{ github.ref_type != 'tag' }}
-        with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
-      - name: exa setup
-        run: pnpm nx e2e server > server.log 2>&1 &
-      - uses: eas/restore_cache
-        id: maestro
-        with:
-          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
-          path: .maestro/build
-      - run: GRADLE_USER_HOME=$(mktemp -d) pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
-      - uses: eas/save_cache
-        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
-        with:
-          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
-          path: .maestro/build
-      - uses: eas/download_build
-        id: download
-        with: { build_id: "${{ after.ios_get.outputs.build_id || after.ios_build.outputs.build_id }}" }
-      - uses: eas/repack
-        id: repack
-        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - uses: eas/start_ios_simulator
-      - name: prepare device
-        run: |
-          xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
-          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
-          xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
-          for i in {1..420}; do
-            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
-            [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
-            sleep 1
-          done
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
-      - name: exa teardown
-        if: always()
-        run: | # cspell:ignore pkill
-          curl -X POST http://localhost:3000/e2e/shutdown || true
-          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
-          curl -Os https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
-          ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F ios -n ios --build-url ${{ workflow.url }} --git-service github
-          ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F ios -n ios --build-url ${{ workflow.url }} --git-service github
-          pkill -f "log stream" || true
-          xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
-      - uses: eas/upload_artifact
-        if: always()
-        with:
-          type: other
-          ignore_error: true
-          path: |
-            server.log
-            server/coverage
-            server/node_modules/@exactly/.*
-            simulator.log
-            simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
