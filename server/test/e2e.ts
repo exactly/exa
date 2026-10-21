@@ -7,9 +7,12 @@ import "./mocks/sentry";
 import "./mocks/wallet";
 
 import { cors } from "hono/cors";
+import { createInstrumenter } from "istanbul-lib-instrument";
 import crypto from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import process, { env } from "node:process";
+import { fileURLToPath } from "node:url";
 import { padHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
@@ -76,8 +79,23 @@ describe("e2e", () => {
 
           app.use("/e2e/*", cors());
           app.post("/e2e/coverage", async (c) => {
+            const coverage = await c.req.json<Record<string, unknown>>();
+            const root = fileURLToPath(new URL("../..", import.meta.url));
+            for await (const file of glob("src/**/*.{ts,tsx}", {
+              cwd: root,
+              exclude: ["src/generated/**", "**/*.d.ts"],
+            })) {
+              if (Object.keys(coverage).some((key) => key.endsWith(`/${file}`))) continue;
+              const source = path.join(root, file);
+              const instrumenter = createInstrumenter({
+                esModules: true,
+                parserPlugins: file.endsWith(".tsx") ? ["typescript", "jsx"] : ["typescript"],
+              });
+              instrumenter.instrumentSync(await readFile(source, "utf8"), source); // eslint-disable-line security/detect-non-literal-fs-filename -- app source from glob
+              coverage[source] = instrumenter.lastFileCoverage();
+            }
             await mkdir("coverage", { recursive: true });
-            await writeFile("coverage/app.json", JSON.stringify(await c.req.json()));
+            await writeFile("coverage/app.json", JSON.stringify(coverage));
             return c.json({ code: "ok" });
           });
           app.post("/e2e/shutdown", (c) => {
