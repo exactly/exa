@@ -69,7 +69,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: to estimate installment options
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
 - tapOn: Home
-- runFlow: { file: scrollTo.yaml, env: { element: Later in 1 } }
+- runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Credit limit
 - assertVisible: If you hold more than one asset, your limit is a weighted average across all of them. Any outstanding Pay Later balance also reduces your available credit limit.
 - tapOn: Close

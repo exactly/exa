@@ -1,51 +1,11 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-# HACK https://github.com/mobile-dev-inc/maestro/issues/1775
-# maestro web uses window.scroll() which doesn't reach inner scroll containers
 - runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands:
-      - scrollUntilVisible: { element: "${element}", centerElement: true }
+    when: { true: "${typeof center === 'undefined'}" }
+    commands: [{ scrollUntilVisible: { element: "${element}" } }]
 - runFlow:
-    when: { true: "${maestro.platform === 'web' && Number(swipes || 0) > 0}" }
-    commands:
-      - evalScript: ${output.scrolls = 0}
-      - repeat:
-          while:
-            true: "${output.scrolls < Number(swipes)}"
-          commands:
-            - swipe:
-                start: "50%,40%"
-                end: "50%,10%"
-                waitToSettleTimeoutMs: 0
-            - evalScript: ${output.scrolls = output.scrolls + 1}
-- runFlow:
-    when: { platform: web }
-    commands:
-      - evalScript: ${output.scrollDeadline = Date.now() + 30_000}
-      - evalScript: ${output.found = false}
-      - repeat:
-          while:
-            true: "${!output.found}"
-          commands:
-            - runFlow:
-                when: { visible: "${element}" }
-                commands: [{ evalScript: "${output.found = true}" }]
-            - runFlow:
-                when: { true: "${!output.found}" }
-                commands:
-                  - runFlow:
-                      when: { visible: { id: "${element}" } }
-                      commands: [{ evalScript: "${output.found = true}" }]
-            - runFlow:
-                when: { true: "${!output.found}" }
-                commands:
-                  - runFlow:
-                      when: { true: "${Date.now() >= output.scrollDeadline}" }
-                      commands: [{ evalScript: "${throw new Error('scroll timeout')}" }]
-                  - swipe:
-                      start: "50%,40%"
-                      end: "50%,10%"
+    when: { true: "${typeof center !== 'undefined'}" }
+    commands: [{ scrollUntilVisible: { element: "${element}", centerElement: true } }]
 - runFlow:
     when: { true: "${typeof offset !== 'undefined' && Number(offset) > 0}" }
     commands:
