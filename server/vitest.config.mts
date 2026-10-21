@@ -8,7 +8,8 @@ export default defineConfig({
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
     coverage: {
       enabled: true,
-      include: ["**/*.{cjs,ts,tsx}"],
+      allowExternal: true,
+      include: ["**/*.{cjs,ts,tsx}", "../common/*.js"],
       exclude: ["*.config.ts", "generated/**", "script/**", "test/**"],
       reporter: [["lcov", { projectRoot: fileURLToPath(new URL("..", import.meta.url)) }]],
     },
