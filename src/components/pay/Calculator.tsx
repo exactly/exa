@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
+import { Platform, Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -134,6 +134,10 @@ export default function Calculator() {
                   maxLength={6}
                   numberOfLines={1}
                   onChangeText={setInput}
+                  onFocus={(event) => {
+                    if (Platform.OS === "web" && "select" in event.currentTarget) event.currentTarget.select();
+                  }}
+                  selectTextOnFocus
                   fontSize={20}
                   padding={0}
                   textAlign="right"
