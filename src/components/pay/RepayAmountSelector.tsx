@@ -174,7 +174,7 @@ export default function RepayAmountSelector({
               size={20}
               backgroundColor="$uiBrandSecondary"
               borderColor="$borderBrandStrong"
-              hitSlop={100}
+              hitSlop={10}
               hoverStyle={{ backgroundColor: "$uiBrandSecondary" }}
               pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
               aria-label={t("Repay amount slider")}
