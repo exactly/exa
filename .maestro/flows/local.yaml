@@ -1,6 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 tags: [critical]
 ---
+- runFlow: ../subflows/passkey.yaml
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/assertNotifications.yaml
 - runFlow: ../subflows/transfer.yaml

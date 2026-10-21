@@ -1,0 +1,8 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- extendedWaitUntil: { visible: Face ID|.*fingerprint.*, timeout: 10000 }
+- retry:
+    maxRetries: 3
+    commands:
+      - matchBiometrics
+      - extendedWaitUntil: { notVisible: Face ID|.*fingerprint.*, timeout: 5000 }

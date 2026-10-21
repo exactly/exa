@@ -1,0 +1,21 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- enrollBiometrics
+- runFlow: { when: { platform: android }, file: fingerprint.yaml }
+- launchApp: { permissions: { all: deny, camera: allow } }
+- runFlow: hideDevtools.yaml
+- tapOn: Create new account
+- tapOn: Sign up with Passkey
+- tapOn: Set passkey and create account
+- runFlow: { when: { platform: ios }, commands: [tapOn: Add Passkey] }
+- runFlow: matchBiometrics.yaml
+- runFlow: dismissNotifications.yaml
+- assertVisible: Good (morning|afternoon|evening)!
+- runFlow: { file: tapAria.yaml, env: { aria: Settings } }
+- tapOn: Logout
+- tapOn: I already have an account
+- tapOn: Log in with Passkey
+- runFlow: { when: { platform: ios }, commands: [tapOn: Use Passkey] }
+- runFlow: matchBiometrics.yaml
+- runFlow: { when: { platform: android }, file: dismissNotifications.yaml }
+- assertVisible: Hi, .+|Good (morning|afternoon|evening)!
