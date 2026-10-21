@@ -6,7 +6,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
-    coverage: { enabled: true, reporter: [["lcov", { projectRoot: fileURLToPath(new URL("..", import.meta.url)) }]] },
+    coverage: {
+      enabled: true,
+      include: ["**/*.{cjs,ts,tsx}"],
+      exclude: ["*.config.ts", "generated/**", "script/**", "test/**"],
+      reporter: [["lcov", { projectRoot: fileURLToPath(new URL("..", import.meta.url)) }]],
+    },
     reporters: ["default", "junit"],
     outputFile: { junit: fileURLToPath(new URL("coverage/junit.xml", import.meta.url)) },
     testTimeout: 36_666,
