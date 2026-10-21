@@ -6,8 +6,13 @@ import { env, stderr, stdout } from "node:process";
 import { text } from "node:stream/consumers";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
-import { encodeAbiParameters, keccak256, padHex, toBytes, toHex, zeroAddress, type Hex } from "viem";
-import { entryPoint06Address } from "viem/account-abstraction";
+import { concat, encodeAbiParameters, keccak256, padHex, toBytes, toHex, zeroAddress, type Hex } from "viem";
+import {
+  entryPoint06Address,
+  formatUserOperation,
+  getUserOperationHash,
+  type RpcUserOperation,
+} from "viem/account-abstraction";
 import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
@@ -140,13 +145,18 @@ export default async function setup() {
 
   await $(shell)`forge script test/mocks/Account.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = parse(
+  const [plugin, , paymaster] = parse(
     object({
-      transactions: tuple([object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address })]),
+      transactions: tuple([
+        object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address }),
+        object({ contractName: literal("UpgradeableModularAccount") }),
+        object({ contractName: literal("VerifyingPaymaster"), contractAddress: Address }),
+      ]),
     }),
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
-  ).transactions[0].contractAddress;
-  const started = rpc && rpc.start();
+  ).transactions;
+  shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = plugin.contractAddress;
+  const started = rpc && rpc.start(paymaster.contractAddress);
 
   await $(shell)`forge script test/mocks/ExaBusinessTenant.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
@@ -274,7 +284,6 @@ export default async function setup() {
         )
         .map(({ contractAddress, contractName }) => verify(contractAddress, contractName)),
       verify("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789", "EntryPoint"),
-      verify("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", "MockPaymaster"),
       verify(exaBusinessTenant, "AccessManager", encodeAbiParameters([{ type: "address" }], [deployer])),
       verify(
         "0x0046000000000151008789797b54fdb500E2a61e",
@@ -352,6 +361,8 @@ function alchemy(port: number) {
     port: 4337,
   });
   const agent = new Agent({ keepAlive: true });
+  const signer = privateKeyToAccount(padHex("0x4337"));
+  let paymaster: Hex;
   const server = createServer((incoming, outgoing) => {
     outgoing.setHeader("access-control-allow-origin", "*");
     if (incoming.method === "OPTIONS") {
@@ -364,14 +375,32 @@ function alchemy(port: number) {
       return;
     }
     text(incoming)
-      .then((body) => {
-        const { id, method } = JSON.parse(body) as { id?: number; method?: string };
-        if (method?.startsWith("pm_")) {
+      .then(async (body) => {
+        const { id, method, params } = JSON.parse(body) as {
+          id?: number;
+          method?: string;
+          params?: [RpcUserOperation<"0.6">];
+        };
+        if (method?.startsWith("pm_") && params) {
           outgoing.writeHead(200, { "content-type": "application/json" }).end(
             JSON.stringify({
               jsonrpc: "2.0",
               id,
-              result: { paymasterAndData: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" },
+              result: {
+                paymasterAndData: concat([
+                  paymaster,
+                  await signer.signMessage({
+                    message: {
+                      raw: getUserOperationHash({
+                        chainId: foundry.id,
+                        entryPointAddress: entryPoint06Address,
+                        entryPointVersion: "0.6",
+                        userOperation: { ...formatUserOperation(params[0]), paymasterAndData: paymaster },
+                      }),
+                    },
+                  }),
+                ]),
+              },
             }),
           );
           return;
@@ -392,8 +421,9 @@ function alchemy(port: number) {
       .catch((error: unknown) => outgoing.writeHead(500).end(String(error)));
   }).listen(8545);
   return {
-    async start() {
-      await anvilClient.setBalance({ address: privateKeyToAddress(padHex("0x4337")), value: 10n ** 24n });
+    async start(address: Hex) {
+      paymaster = address;
+      await anvilClient.setBalance({ address: signer.address, value: 10n ** 24n });
       await bundler.start();
     },
     async stop() {

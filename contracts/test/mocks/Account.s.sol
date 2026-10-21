@@ -11,13 +11,11 @@ import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factor
 import { WebauthnOwnerPlugin } from "webauthn-owner-plugin/WebauthnOwnerPlugin.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
-import { MockPaymaster } from "./MockPaymaster.sol";
+import { VerifyingPaymaster } from "./VerifyingPaymaster.sol";
 
 contract DeployAccount is BaseScript {
   using LibString for address;
   using LibString for bytes;
-
-  address public paymaster;
 
   function run() external {
     address deployer = acct("deployer");
@@ -30,12 +28,8 @@ contract DeployAccount is BaseScript {
     vm.label(ACCOUNT_IMPL, "UpgradeableModularAccount");
 
     if (block.chainid == getChain("anvil").chainId) {
-      paymaster = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-      bytes memory paymasterCode = address(new MockPaymaster()).code;
-      vm.etch(paymaster, paymasterCode);
-      vm.label(paymaster, "MockPaymaster");
       vm.deal(deployer, deployer.balance + 1 ether);
-      ENTRYPOINT.depositTo{ value: 1 ether }(paymaster);
+      ENTRYPOINT.depositTo{ value: 1 ether }(address(new VerifyingPaymaster(vm.addr(0x4337))));
       try vm.activeFork() {
         vm.rpc(
           "anvil_setCode",
@@ -50,7 +44,6 @@ contract DeployAccount is BaseScript {
           "anvil_setCode",
           string.concat('["', ACCOUNT_IMPL.toHexString(), '","', ACCOUNT_IMPL.code.toHexString(), '"]') // solhint-disable-line quotes
         );
-        vm.rpc("anvil_setCode", string.concat('["', paymaster.toHexString(), '","', paymasterCode.toHexString(), '"]')); // solhint-disable-line quotes
       } catch { } // solhint-disable-line no-empty-blocks
     }
 
