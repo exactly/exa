@@ -1,0 +1,28 @@
+From 093db03506884d03f2f1d5f2afe8da4df0597af7 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 18:41:42 +0000
+Subject: [PATCH] fix: read cached device info in scrollUntilVisible
+
+scrollUntilVisible asked the driver for device info on every call, two script round trips on web before the first lookup, even when the element is already on screen. Read the cached device info, like the rest of the orchestra, since Maestro.deviceInfo() is deprecated (#2031).
+---
+ maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+index 4127338..12ad73b 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+@@ -803,7 +803,7 @@ class Orchestra(
+     private suspend fun scrollUntilVisible(command: ScrollUntilVisibleCommand): Boolean {
+         val endTime = System.currentTimeMillis() + command.timeout.toLong()
+         val direction = command.direction.toSwipeDirection()
+-        val deviceInfo = maestro.deviceInfo()
++        val deviceInfo = maestro.cachedDeviceInfo
+ 
+         var retryCenterCount = 0
+         val maxRetryCenterCount = 4 // for when the list is no longer scrollable (last element) but the element is visible
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
