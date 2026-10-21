@@ -12,8 +12,8 @@ type CustomMatchers<R = unknown> = {
 };
 
 declare module "vitest" {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions, @typescript-eslint/no-empty-interface -- module augmentation requires interface merging
-  interface Assertion<T> extends CustomMatchers<T> {}
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions, @typescript-eslint/no-empty-interface, @typescript-eslint/no-unused-vars -- module augmentation requires interface merging
+  interface Assertion<R, T> extends CustomMatchers<R> {}
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions, @typescript-eslint/no-empty-interface -- module augmentation requires interface merging
   interface AsymmetricMatchersContaining extends CustomMatchers {}
 }
