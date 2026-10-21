@@ -77,22 +77,27 @@ describe("e2e", () => {
             ]).then(resolve, reject);
           };
 
-          app.use("/e2e/*", cors());
-          app.post("/e2e/coverage", async (c) => {
-            const coverage = await c.req.json<Record<string, unknown>>();
-            const root = fileURLToPath(new URL("../..", import.meta.url));
-            for await (const file of glob("src/**/*.{ts,tsx}", {
-              cwd: root,
-              exclude: ["src/generated/**", "**/*.d.ts"],
-            })) {
-              if (Object.keys(coverage).some((key) => key.endsWith(`/${file}`))) continue;
+          const root = fileURLToPath(new URL("../..", import.meta.url));
+          const baseline = Array.fromAsync(
+            glob("src/**/*.{ts,tsx}", { cwd: root, exclude: ["src/generated/**", "**/*.d.ts"] }),
+            async (file) => {
               const source = path.join(root, file);
               const instrumenter = createInstrumenter({
                 esModules: true,
                 parserPlugins: file.endsWith(".tsx") ? ["typescript", "jsx"] : ["typescript"],
               });
               instrumenter.instrumentSync(await readFile(source, "utf8"), source); // eslint-disable-line security/detect-non-literal-fs-filename -- app source from glob
-              coverage[source] = instrumenter.lastFileCoverage();
+              return [file, instrumenter.lastFileCoverage()] as const;
+            },
+          );
+          baseline.catch(reject);
+
+          app.use("/e2e/*", cors());
+          app.post("/e2e/coverage", async (c) => {
+            const coverage = await c.req.json<Record<string, unknown>>();
+            for (const [file, empty] of await baseline) {
+              if (Object.keys(coverage).some((key) => key.endsWith(`/${file}`))) continue;
+              coverage[empty.path] = empty;
             }
             await mkdir("coverage", { recursive: true });
             await writeFile("coverage/app.json", JSON.stringify(coverage));
