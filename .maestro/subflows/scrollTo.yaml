@@ -2,10 +2,10 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
     when: { true: "${typeof center === 'undefined'}" }
-    commands: [{ scrollUntilVisible: { element: "${element}" } }]
+    commands: [{ scrollUntilVisible: { element: "${element}", timeout: 60000 } }]
 - runFlow:
     when: { true: "${typeof center !== 'undefined'}" }
-    commands: [{ scrollUntilVisible: { element: "${element}", centerElement: true } }]
+    commands: [{ scrollUntilVisible: { element: "${element}", centerElement: true, timeout: 60000 } }]
 - runFlow:
     when: { true: "${typeof offset !== 'undefined' && Number(offset) > 0}" }
     commands:

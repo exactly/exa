@@ -45,11 +45,13 @@ jobs:
     steps:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
-      - name: start emulator # cspell:ignore avdmanager setsid swiftshader
+      - name: start emulators # cspell:ignore avdmanager setsid swiftshader
         run: |
-          avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
-          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+          for port in 5554 5556 5558 5560; do
+            avdmanager -s create avd -n "e2e$port" -k "system-images;android-32;google_apis;x86_64" --force
+            printf '%s\n' "hw.ramSize=4096" "vm.heapSize=1024" >> "$HOME/.android/avd/e2e$port.avd/config.ini"
+            setsid $ANDROID_HOME/emulator/emulator -avd "e2e$port" -port "$port" -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 4096 -wipe-data > "emulator-process-$port.log" 2>&1 &
+          done
       - uses: eas/restore_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
@@ -72,28 +74,56 @@ jobs:
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
+      - name: generate accounts
+        run: for flow in credit onboarding swap transfer; do node -p 'const { english, generateMnemonic } = require("viem/accounts"); generateMnemonic(english)' > "$flow.mnemonic"; done
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat credit.mnemonic)"
       - uses: eas/repack
-        id: repack
+        id: credit
         with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: prepare device # cspell:ignore getprop logcat
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat onboarding.mnemonic)"
+      - uses: eas/repack
+        id: onboarding
+        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat swap.mnemonic)"
+      - uses: eas/repack
+        id: swap
+        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat transfer.mnemonic)"
+      - uses: eas/repack
+        id: transfer
+        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - name: prepare devices # cspell:ignore getprop logcat
         run: |
-          adb wait-for-device
-          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
-          adb install "${{ steps.repack.outputs.output_path }}"
-          adb logcat -v time > emulator.log 2>&1 &
+          set -- "${{ steps.credit.outputs.output_path }}" "${{ steps.onboarding.outputs.output_path }}" "${{ steps.swap.outputs.output_path }}" "${{ steps.transfer.outputs.output_path }}"
+          for port in 5554 5556 5558 5560; do
+            adb -s "emulator-$port" wait-for-device
+            timeout 180 adb -s "emulator-$port" shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            adb -s "emulator-$port" shell settings put global window_animation_scale 0
+            adb -s "emulator-$port" shell settings put global transition_animation_scale 0
+            adb -s "emulator-$port" shell settings put global animator_duration_scale 0
+            adb -s "emulator-$port" reverse tcp:3000 tcp:3000 && adb -s "emulator-$port" reverse tcp:8545 tcp:8545 && adb -s "emulator-$port" reverse tcp:8969 tcp:8969
+            adb -s "emulator-$port" install "$1" && shift
+            adb -s "emulator-$port" logcat -v time > "emulator-$port.log" 2>&1 &
+          done
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - name: maestro
+        run: |
+          port=5554
+          for flow in credit onboarding swap transfer; do
+            maestro test --device "emulator-$port" ".maestro/flows/$flow.yaml" -e "EXPO_PUBLIC_E2E_MNEMONIC=$(cat "$flow.mnemonic")" --format junit --output ".maestro/junit-$flow.xml" --debug-output "$HOME/.maestro/tests/$flow" > >(awk -v flow="$flow" '{ print "[" flow "] " $0; fflush() }') 2>&1 &
+            pids="$pids $!"
+            port=$((port + 2))
+          done
+          status=0
+          for pid in $pids; do wait "$pid" || status=1; done
+          exit "$status"
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -101,7 +131,7 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
           ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F android -n android --build-url ${{ workflow.url }} --git-service github
-          ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F android -n android --build-url ${{ workflow.url }} --git-service github
+          ./codecov do-upload --report-type test_results --disable-search $(printf -- "-f %s " .maestro/junit-*.xml) -F android -n android --build-url ${{ workflow.url }} --git-service github
           pkill -f "adb logcat" || true
       - uses: eas/upload_artifact
         if: always()
@@ -112,8 +142,8 @@ jobs:
             server.log
             server/coverage
             server/node_modules/@exactly/.*
-            emulator.log
-            emulator-process.log
+            emulator-*.log
+            emulator-process-*.log
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
 
@@ -171,24 +201,71 @@ jobs:
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
+      - name: generate accounts
+        run: for flow in credit onboarding swap transfer; do node -p 'const { english, generateMnemonic } = require("viem/accounts"); generateMnemonic(english)' > "$flow.mnemonic"; done
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.ios_get.outputs.build_id || after.ios_build.outputs.build_id }}" }
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat credit.mnemonic)"
       - uses: eas/repack
-        id: repack
+        id: credit
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - uses: eas/start_ios_simulator
-      - name: prepare device
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat onboarding.mnemonic)"
+      - uses: eas/repack
+        id: onboarding
+        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat swap.mnemonic)"
+      - uses: eas/repack
+        id: swap
+        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - run: set-env EXPO_PUBLIC_E2E_MNEMONIC "$(cat transfer.mnemonic)"
+      - uses: eas/repack
+        id: transfer
+        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - name: start simulators # cspell:ignore apsd bootout bootstatus datamigrator
         run: |
-          xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
-          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
-          xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
+          source=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))] | min_by(.name | length) | .udid')
+          for flow in credit onboarding swap transfer; do
+            xcrun simctl clone "$source" "e2e-$flow" > /dev/null
+            xcrun simctl list devices -j | jq -r --arg name "e2e-$flow" '.devices[][] | select(.name == $name) | .udid' > "$flow.udid"
+            echo "cloned $flow"
+          done
+          for flow in credit onboarding swap transfer; do
+            {
+              udid=$(cat "$flow.udid")
+              xcrun simctl bootstatus "$udid" -b > /dev/null
+              xcrun simctl spawn "$udid" launchctl disable user/foreground/com.apple.apsd
+              xcrun simctl spawn "$udid" launchctl bootout user/foreground/com.apple.apsd || true
+              until xcrun simctl io "$udid" screenshot "$flow.png" > /dev/null 2>&1; do sleep 1; done
+              echo "booted $flow"
+            } &
+          done
+          wait
+          while ps -eo comm | grep -q com.apple.datamigrator; do sleep 1; done
+          echo "ready"
+      - name: prepare devices
+        run: |
+          set -- "${{ steps.credit.outputs.output_path }}" "${{ steps.onboarding.outputs.output_path }}" "${{ steps.swap.outputs.output_path }}" "${{ steps.transfer.outputs.output_path }}"
+          for flow in credit onboarding swap transfer; do
+            udid=$(cat "$flow.udid")
+            xcrun simctl spawn "$udid" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
+            xcrun simctl install "$udid" "$1" && shift
+            xcrun simctl spawn "$udid" log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > "simulator-$flow.log" 2>&1 &
+          done
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - name: maestro
+        run: |
+          for flow in credit onboarding swap transfer; do
+            maestro test --device "$(cat "$flow.udid")" ".maestro/flows/$flow.yaml" -e "EXPO_PUBLIC_E2E_MNEMONIC=$(cat "$flow.mnemonic")" --format junit --output ".maestro/junit-$flow.xml" --debug-output "$HOME/.maestro/tests/$flow" > >(awk -v flow="$flow" '{ print "[" flow "] " $0; fflush() }') 2>&1 &
+            pids="$pids $!"
+          done
+          status=0
+          for pid in $pids; do wait "$pid" || status=1; done
+          exit "$status"
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -196,7 +273,7 @@ jobs:
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
           ./codecov upload-coverage -f server/coverage/lcov.info -f server/coverage/app.json -F ios -n ios --build-url ${{ workflow.url }} --git-service github
-          ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F ios -n ios --build-url ${{ workflow.url }} --git-service github
+          ./codecov do-upload --report-type test_results --disable-search $(printf -- "-f %s " .maestro/junit-*.xml) -F ios -n ios --build-url ${{ workflow.url }} --git-service github
           pkill -f "log stream" || true
           xcrun simctl diagnose -b --no-archive --output=simulator-diagnose || true
       - uses: eas/upload_artifact
@@ -208,7 +285,7 @@ jobs:
             server.log
             server/coverage
             server/node_modules/@exactly/.*
-            simulator.log
+            simulator-*.log
             simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
