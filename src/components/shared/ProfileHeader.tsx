@@ -38,7 +38,7 @@ export default function ProfileHeader() {
   const [hour, setHour] = useState(() => new Date().getHours());
   const [natural, setNatural] = useState<{ height: number; width: number }>();
   const [width, setWidth] = useState<number>();
-  const first = hidden ? undefined : card?.displayName.split(" ")[0];
+  const first = hidden ? undefined : card?.displayName?.split(" ")[0];
   const greeting = first
     ? t("Hi, {{name}}", { name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() })
     : t(hour < 5 || hour >= 20 ? "Good evening!" : hour < 12 ? "Good morning!" : "Good afternoon!");

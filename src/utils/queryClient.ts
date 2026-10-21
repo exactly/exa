@@ -16,7 +16,7 @@ import release from "../generated/release";
 import type { Activity } from "./server";
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
 
-const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "feeds", "swap", "pax"]);
+const INVALIDATE_ON_UPGRADE = new Set(["kyc", "card", "deployed", "feeds", "swap", "pax", "lifi"]);
 export const isServer = typeof window === "undefined";
 
 export function triage(error: unknown) {
@@ -37,7 +37,13 @@ function versionAwareDeserialize(cache: string): PersistedClient {
 
 export const persister = createAsyncStoragePersister({
   key: `tanstack.${chain.id}`,
-  serialize,
+  serialize: (client) => {
+    for (const { queryKey, state } of client.clientState.queries) {
+      const trim = queryClient.getQueryDefaults(queryKey).meta?.persist;
+      if (trim && state.data) state.data = trim(state.data as never);
+    }
+    return serialize(client);
+  },
   deserialize: versionAwareDeserialize,
   storage: AsyncStorage,
   throttleTime: 0,
@@ -74,9 +80,12 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "kyc", "card", "capabilities", "deeplink", "ens", "pax", "prices", "lifi"].includes(
+    !["activity", "externalAssets", "capabilities", "deeplink", "ens", "pax", "prices"].includes(
       queryKey[0] as string,
     ) &&
+    !(queryKey[0] === "card" && queryKey[1] !== "details") &&
+    !(queryKey[0] === "kyc" && queryKey[1] !== "status") &&
+    !(queryKey[0] === "lifi" && queryKey[1] !== "balances") &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens") &&
     !(queryKey[0] === "readContract" && (queryKey[1] as { functionName?: string }).functionName === "prices"),
 };
@@ -370,6 +379,7 @@ declare module "@tanstack/react-query" {
   interface Register {
     queryMeta: {
       dropError?: (error: unknown) => boolean | undefined;
+      persist?: (data: never) => unknown;
       warnError?: (error: unknown) => boolean | undefined;
     };
   }

@@ -98,8 +98,20 @@ async function getCard(sessionid?: string) {
   if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
   return card;
 }
-queryClient.setQueryDefaults(["card", "details"], { queryFn: () => getCard() });
-export type CardDetails = Awaited<ReturnType<typeof getCard>>;
+queryClient.setQueryDefaults(["card", "details"], {
+  queryFn: () => getCard(),
+  meta: {
+    persist: (card: Card) => ({
+      cardId: card.cardId,
+      limit: card.limit,
+      mode: card.mode,
+      productId: card.productId,
+      status: card.status,
+    }),
+  },
+});
+export type CardDetails = null | (Partial<Card> & Pick<Card, "cardId" | "limit" | "mode" | "productId" | "status">);
+type Card = NonNullable<Awaited<ReturnType<typeof getCard>>>;
 
 async function getSecrets() {
   const { id, secret } = await session();
