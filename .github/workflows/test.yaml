@@ -85,10 +85,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { flow: credit, screen: 1920x1080 }
-          - { flow: deposit, screen: 720x500 }
+          - { flow: credit, screen: 500x963 }
+          - { flow: deposit, method: siwe, screen: 1920x1080 }
           - { flow: onboarding, screen: 500x1200 }
-          - { flow: portfolio, screen: 500x963 }
+          - { flow: portfolio, screen: 720x500 }
           - { flow: swap, screen: 740x880 }
           - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
@@ -117,6 +117,12 @@ jobs:
         with:
           path: .maestro/build
           key: maestro-${{ runner.os }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}
+      - if: matrix.method == 'siwe'
+        run: |
+          curl -fsSLo $RUNNER_TEMP/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v13.52.0/metamask-chrome-13.52.0.zip
+          unzip -q $RUNNER_TEMP/metamask.zip -d $RUNNER_TEMP/metamask
+          echo METAMASK=$RUNNER_TEMP/metamask >> "$GITHUB_ENV"
+          echo SE_FORCE_BROWSER_DOWNLOAD=true >> "$GITHUB_ENV"
       - run: echo ::add-matcher::.github/matcher.json
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
@@ -129,7 +135,7 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion
+          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${METAMASK:+--browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
