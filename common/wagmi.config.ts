@@ -201,6 +201,7 @@ export default defineConfig([
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
+              `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
               `export default chain as Chain & { contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),
           };

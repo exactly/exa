@@ -59,6 +59,7 @@ import chain, {
   exaAddress,
   exaPreviewerAbi,
   exaPreviewerCode,
+  lifiURL,
   marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
@@ -79,9 +80,9 @@ export const lifiChainsOptions = queryOptions({
   queryKey: ["lifi", "chains"],
   staleTime: Infinity,
   gcTime: Infinity,
-  enabled: !chain.testnet,
+  enabled: !!lifiURL,
   queryFn: async () => {
-    if (chain.testnet) return [];
+    if (!lifiURL) return [];
     ensureConfig();
     return getChains({ chainTypes });
   },
@@ -92,7 +93,7 @@ export const reachOptions = queryOptions({
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
-    if (chain.testnet) return { [chain.id]: [chain.id] };
+    if (!lifiURL) return { [chain.id]: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
     const reach = new Map<number, Set<number>>([[chain.id, new Set([chain.id])]]);
@@ -111,7 +112,7 @@ export const lifiTokensOptions = queryOptions({
   gcTime: Infinity,
   retry: 3,
   queryFn: async () => {
-    if (chain.testnet) {
+    if (!lifiURL) {
       const markets = await publicClient.readContract({
         abi: exaPreviewerAbi,
         functionName: "markets",
@@ -161,7 +162,7 @@ export function statsOptions(chainId: number, address: string) {
           volumeUSD24H: nullish(number()),
           fdvUSD: nullish(number()),
         }),
-        chain.testnet ? {} : await getToken(chainId as ChainId, address),
+        lifiURL ? await getToken(chainId as ChainId, address) : {},
       );
     },
   });
@@ -193,7 +194,7 @@ export function balancesOptions(account: Address | undefined) {
     queryKey: ["lifi", "balances", account],
     staleTime: 30_000,
     gcTime: isServer ? Infinity : 60_000,
-    enabled: !!account && !chain.testnet,
+    enabled: !!account && !!lifiURL,
     queryFn: streamedQuery({
       refetchMode: "append",
       initialValue: {} as Record<number, TokenAmount[]>,
@@ -221,7 +222,7 @@ export function balancesOptions(account: Address | undefined) {
   });
 }
 
-export const trackable = !chain.testnet;
+export const trackable = !!lifiURL;
 
 export function statusOptions(
   txHash: string | undefined,
@@ -260,9 +261,10 @@ export function chainTypeOf(receiver: string) {
 
 let configured = false;
 function ensureConfig() {
-  if (configured || chain.testnet) return;
+  if (configured || !lifiURL) return;
   createLifiConfig({
     integrator: "exa_app",
+    apiUrl: lifiURL,
     apiKey: "4bdb54aa-4f28-4c61-992a-a2fdc87b0a0b.251e33ad-ef5e-40cb-9b0f-52d634b99e8f",
     preloadChains: false,
     providers: [EVM({ getWalletClient: () => Promise.resolve(publicClient) })],
@@ -290,7 +292,7 @@ export async function getRoute(
   denyExchanges?: Record<string, boolean>,
 ) {
   ensureConfig();
-  if (chain.testnet) {
+  if (!lifiURL) {
     const fromAmount = await publicClient.readContract({
       abi: mockSwapperAbi,
       functionName: "getAmountIn",
@@ -364,7 +366,7 @@ export function isSendable(address: string) {
 
 export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
   ensureConfig();
-  if (chain.testnet) return [];
+  if (!lifiURL) return [];
   const { tokens } = await getTokens({ chains: [chain.id] });
   const allowed = swappable(markets);
   return (
@@ -477,7 +479,7 @@ export async function getRouteFrom({
   toTokenAddress: string;
 }): Promise<RouteFrom> {
   ensureConfig();
-  if (chain.testnet) {
+  if (!lifiURL) {
     const from = getAddress(fromTokenAddress);
     const to = getAddress(toTokenAddress);
     const toAmount = await publicClient.readContract({
