@@ -1,0 +1,15 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- evalScript: ${output.round = 0}
+- repeat:
+    times: 40
+    commands:
+      - evalScript: ${output.round = output.round + 1}
+      - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
+      - tapOn: Create new account
+      - tapOn: Sign up with browser wallet
+      - evalScript: ${output.start = Date.now()}
+      - evalScript: "${console.log('stress stay round ' + output.round + ' signed up')}"
+      - extendedWaitUntil: { visible: Stay updated, timeout: 60000 }
+      - evalScript: "${console.log('stress stay round ' + output.round + ' after ' + (Date.now() - output.start) + 'ms')}"
+      - tapOn: Not now
