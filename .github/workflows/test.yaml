@@ -46,9 +46,18 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           disable_search: true
-          files: contracts/lcov.info,server/coverage/lcov.info
+          files: contracts/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
-          name: test
+          flags: contracts
+          name: contracts
+      - uses: codecov/codecov-action@v7
+        if: ${{ !cancelled() }}
+        with:
+          disable_search: true
+          files: server/coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: server
+          name: server
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
@@ -56,7 +65,8 @@ jobs:
           disable_search: true
           files: server/coverage/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
-          name: test
+          flags: server
+          name: server
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
@@ -120,7 +130,7 @@ jobs:
           disable_search: true
           files: server/coverage/lcov.info,server/coverage/app.json
           token: ${{ secrets.CODECOV_TOKEN }}
-          flags: e2e
+          flags: e2e,web,siwe
           name: web
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
@@ -129,7 +139,7 @@ jobs:
           disable_search: true
           files: .maestro/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
-          flags: e2e
+          flags: e2e,web,siwe
           name: web
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
