@@ -125,15 +125,7 @@ export default function PluginUpgrade() {
           code: encodeDeployData({
             abi: exaPreviewerAbi,
             bytecode: exaPreviewerCode,
-            args: [
-              auditorAddress,
-              marketUSDCAddress,
-              await readContract(exa, {
-                address: installedPlugins[0],
-                abi: exaPluginAbi,
-                functionName: "proposalManager",
-              }),
-            ],
+            args: [auditorAddress, marketUSDCAddress],
           }),
           functionName: "pendingProposals",
           args: [address],
