@@ -6,7 +6,7 @@ on:
 defaults: { tools: { node: "24.14.1", pnpm: "10.33.0" } }
 concurrency: { cancel_in_progress: true, group: "${{ workflow.filename }}-${{ github.ref }}" }
 jobs:
-  fingerprint:
+  android_fingerprint:
     type: fingerprint
     environment: development
     env: { APP_DOMAIN: localhost }
@@ -14,16 +14,16 @@ jobs:
   android_get:
     if: ${{ github.ref_type != 'tag' }}
     type: get-build
-    needs: [fingerprint]
+    needs: [android_fingerprint]
     params:
       platform: android
       profile: e2e:local
-      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      fingerprint_hash: ${{ needs.android_fingerprint.outputs.android_fingerprint_hash }}
       wait_for_in_progress: true
 
   android_build:
     type: build
-    needs: [fingerprint]
+    needs: [android_fingerprint]
     after: [android_get]
     if: ${{ !after.android_get.outputs.build_id }}
     params: { platform: android, profile: e2e:local }
@@ -35,19 +35,27 @@ jobs:
     runs_on: linux-large-nested-virtualization
     image: latest
     env:
-      APP_DOMAIN: localhost
+      APP_DOMAIN: sandbox.exactly.app
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
+      EXPO_PUBLIC_PANDA_PUBLIC_KEY: |-
+        -----BEGIN PUBLIC KEY-----
+        MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCu2YOeObkaYiQmc49t2Cnk8syA
+        1UBqFBMVhkJXyuSA9f+hGC22fXgQtpfAjQmFRpt5q4f6i0rG2bUi8Km0jZELdD6X
+        Kz63/hp522fbxNuOOxs37dlH9B3k6W8NQjjDjaFhAwCsevq7uASXwEEK3NpV7DEP
+        lJe6c8CQ0+QqTTy2ZwIDAQAB
+        -----END PUBLIC KEY-----
       GIT_BRANCH: "${{ github.ref_name }}"
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
-      - name: start emulator # cspell:ignore avdmanager setsid swiftshader
+      - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
         run: |
-          avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
+          sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
+          avdmanager -s create avd -n e2e -k "system-images;android-35;google_apis;x86_64" --force
           printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 8192 -wipe-data > emulator-process.log 2>&1 &
       - uses: eas/restore_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
@@ -57,8 +65,10 @@ jobs:
       - uses: eas/save_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
-      - name: exa setup
-        run: pnpm nx e2e server > server.log 2>&1 &
+      - name: exa setup # cspell:ignore sysctl
+        run: |
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=443
+          pnpm nx e2e server > server.log 2>&1 &
       - uses: eas/restore_cache
         id: maestro
         with:
@@ -70,27 +80,58 @@ jobs:
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
+      - uses: eas/restore_cache
+        id: myvault
+        with: { key: "myvault-${{ hashFiles('.maestro/package.json') }}", path: .maestro/myvault.apk }
+      - run: GRADLE_USER_HOME=$(mktemp -d) pnpm nx myvault e2e
+        if: ${{ steps.myvault.outputs.cache_hit != 'true' }}
+      - uses: eas/save_cache
+        if: ${{ steps.myvault.outputs.cache_hit != 'true' }}
+        with: { key: "myvault-${{ hashFiles('.maestro/package.json') }}", path: .maestro/myvault.apk }
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
       - uses: eas/repack
         id: repack
         with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: prepare device # cspell:ignore getprop logcat
+      - name: prepare device # cspell:ignore getprop locksettings logcat stayon
         run: |
           adb wait-for-device
           timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          adb root && adb wait-for-device
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
+          adb reverse tcp:443 tcp:443 && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
           adb install "${{ steps.repack.outputs.output_path }}"
+          adb install .maestro/myvault.apk
+          for key in credential_service credential_service_primary; do
+            adb shell settings put secure $key com.example.android.authentication.myvault/.data.MyVaultService
+          done
+          adb shell locksettings set-pin 1111
+          adb shell svc power stayon true
           adb logcat -v time > emulator.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
+      - name: trust local server # cspell:ignore cacerts chcon conscrypt noout nsenter pidof servername zygote
+        run: |
+          { openssl s_client -connect 127.0.0.1:443 -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
+          adb push cert.pem "/data/local/tmp/$(openssl x509 -subject_hash_old -noout -in cert.pem).0"
+          adb shell "domain=$APP_DOMAIN sh -s" << 'EOF'
+          set -e
+          mkdir /data/local/tmp/cacerts
+          cp /apex/com.android.conscrypt/cacerts/* /data/local/tmp/*.0 /data/local/tmp/cacerts
+          { cat /system/etc/hosts; echo "127.0.0.1 $domain"; } > /data/local/tmp/hosts
+          chmod -R a+rX /data/local/tmp/cacerts /data/local/tmp/hosts
+          chcon -R u:object_r:system_file:s0 /data/local/tmp/cacerts /data/local/tmp/hosts
+          for pid in 1 $(pidof zygote zygote64); do
+            nsenter --mount=/proc/$pid/ns/mnt -- mount --bind /data/local/tmp/cacerts /apex/com.android.conscrypt/cacerts
+            nsenter --mount=/proc/$pid/ns/mnt -- mount --bind /data/local/tmp/hosts /system/etc/hosts
+          done
+          EOF
       - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
@@ -115,33 +156,46 @@ jobs:
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
 
+  ios_fingerprint:
+    type: fingerprint
+    environment: development
+    env: { APP_DOMAIN: sandbox.exactly.app, APPLE_TEAM_ID: 665NDX7LBZ }
+
   ios_get:
     if: ${{ github.ref_type != 'tag' }}
     type: get-build
-    needs: [fingerprint]
+    needs: [ios_fingerprint]
     params:
       platform: ios
-      profile: e2e:local
-      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: e2e:production
+      fingerprint_hash: ${{ needs.ios_fingerprint.outputs.ios_fingerprint_hash }}
       wait_for_in_progress: true
 
   ios_build:
     type: build
-    needs: [fingerprint]
+    needs: [ios_fingerprint]
     after: [ios_get]
     if: ${{ !after.ios_get.outputs.build_id }}
-    params: { platform: ios, profile: e2e:local }
+    env: { APP_DOMAIN: sandbox.exactly.app, APPLE_TEAM_ID: 665NDX7LBZ }
+    params: { platform: ios, profile: e2e:production }
 
   ios_e2e:
     after: [ios_get, ios_build]
     if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
     runs_on: macos-large
-    image: latest
+    image: macos-tahoe-26.5-xcode-26.6
     env:
-      APP_DOMAIN: localhost
+      APP_DOMAIN: sandbox.exactly.app
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
+      EXPO_PUBLIC_PANDA_PUBLIC_KEY: |-
+        -----BEGIN PUBLIC KEY-----
+        MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCu2YOeObkaYiQmc49t2Cnk8syA
+        1UBqFBMVhkJXyuSA9f+hGC22fXgQtpfAjQmFRpt5q4f6i0rG2bUi8Km0jZELdD6X
+        Kz63/hp522fbxNuOOxs37dlH9B3k6W8NQjjDjaFhAwCsevq7uASXwEEK3NpV7DEP
+        lJe6c8CQ0+QqTTy2ZwIDAQAB
+        -----END PUBLIC KEY-----
       GIT_BRANCH: "${{ github.ref_name }}"
       REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
     steps:
@@ -176,8 +230,9 @@ jobs:
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
       - uses: eas/start_ios_simulator
-      - name: prepare device
+      - name: prepare device # cspell:ignore servername
         run: |
+          printf '%s\n' "127.0.0.1 $APP_DOMAIN" "::1 $APP_DOMAIN" | sudo tee -a /etc/hosts
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
@@ -186,6 +241,8 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
+          { openssl s_client -connect "$APP_DOMAIN:443" -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
+          xcrun simctl keychain booted add-root-cert cert.pem
       - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
