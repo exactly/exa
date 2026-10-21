@@ -6,6 +6,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Create new account
       - enrollBiometrics
       - tapOn: Set passkey and create account
+      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
       - matchBiometrics
 - runFlow:
     when: { true: "${method !== 'webauthn'}" }
@@ -17,4 +18,4 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: Add Anvil
       - tapOn: Confirm
       - assertVisible: Sign-in request
-- runFlow: sign.yaml
+      - runFlow: sign.yaml
