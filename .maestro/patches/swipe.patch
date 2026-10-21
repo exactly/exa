@@ -1,0 +1,104 @@
+From 4485b2fa6db6cdff6f1f0c7418115a539b02455d Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 13:35:31 +0000
+Subject: [PATCH] fix: dispatch web swipes as timed touch events
+
+ChromeDriver sends a pointerMove with a duration as a single touchmove at its end point, and Chrome stamps each touch event when the renderer receives it. Gesture recognizers then see a jump instead of a drag, and a busy renderer turns the drag into a finger that stopped, so a swipe springs back instead of paging. Send the swipe over CDP instead: touchStart, one touchMove every 16 ms, then touchEnd, each paced to wall time and stamped with the time it was scheduled for.
+
+A swipe from an element, and scrollUntilVisible, scrolled the window instead, which never reaches inner scroll containers or gesture handlers. Drag from the element toward the edge of the viewport, like the Android and iOS drivers do.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 60 ++++++++++++-------
+ 1 file changed, 37 insertions(+), 23 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad651bb..b292421 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -509,29 +509,36 @@ class CdpWebDriver(
+     }
+ 
+     override fun swipe(start: Point, end: Point, durationMs: Long) {
+-        val driver = ensureOpen()
+-
+-        val finger = PointerInput(PointerInput.Kind.TOUCH, "finger")
+-        val swipe = Sequence(finger, 1)
+-        swipe.addAction(
+-            finger.createPointerMove(
+-                Duration.ofMillis(0),
+-                PointerInput.Origin.viewport(),
+-                start.x,
+-                start.y
++        val driver = ensureOpen() as ChromeDriver
++        val steps = (durationMs / SWIPE_FRAME_MS).coerceAtLeast(1)
++        val startedAt = System.currentTimeMillis()
++
++        fun dispatch(type: String, elapsedMs: Long, touchPoints: List<Point>) {
++            Thread.sleep((startedAt + elapsedMs - System.currentTimeMillis()).coerceAtLeast(0))
++            driver.executeCdpCommand(
++                "Input.dispatchTouchEvent",
++                mapOf(
++                    "type" to type,
++                    "touchPoints" to touchPoints.map { mapOf("x" to it.x, "y" to it.y) },
++                    "timestamp" to (startedAt + elapsedMs) / 1000.0,
++                )
+             )
+-        )
+-        swipe.addAction(finger.createPointerDown(PointerInput.MouseButton.LEFT.asArg()))
+-        swipe.addAction(
+-            finger.createPointerMove(
+-                Duration.ofMillis(durationMs),
+-                PointerInput.Origin.viewport(),
+-                end.x,
+-                end.y
++        }
++
++        dispatch("touchStart", 0, listOf(start))
++        for (step in 1..steps) {
++            dispatch(
++                "touchMove",
++                durationMs * step / steps,
++                listOf(
++                    Point(
++                        x = start.x + ((end.x - start.x) * step / steps).toInt(),
++                        y = start.y + ((end.y - start.y) * step / steps).toInt(),
++                    )
++                ),
+             )
+-        )
+-        swipe.addAction(finger.createPointerUp(PointerInput.MouseButton.LEFT.asArg()))
+-        (driver as RemoteWebDriver).perform(listOf(swipe))
++        }
++        dispatch("touchEnd", durationMs, emptyList())
+     }
+ 
+     override fun swipe(swipeDirection: SwipeDirection, durationMs: Long) {
+@@ -552,8 +559,14 @@ class CdpWebDriver(
+     }
+ 
+     override fun swipe(elementPoint: Point, direction: SwipeDirection, durationMs: Long) {
+-        // Ignoring elementPoint to enable a rudimentary implementation of scrollUntilVisible for web
+-        swipe(direction, durationMs)
++        val deviceInfo = deviceInfo()
++        val end = when (direction) {
++            SwipeDirection.UP -> Point(elementPoint.x, (deviceInfo.heightGrid * 0.1f).toInt())
++            SwipeDirection.DOWN -> Point(elementPoint.x, (deviceInfo.heightGrid * 0.9f).toInt())
++            SwipeDirection.RIGHT -> Point((deviceInfo.widthGrid * 0.9f).toInt(), elementPoint.y)
++            SwipeDirection.LEFT -> Point((deviceInfo.widthGrid * 0.1f).toInt(), elementPoint.y)
++        }
++        swipe(elementPoint, end, durationMs)
+     }
+ 
+     override fun backPress() {
+@@ -858,6 +871,7 @@ class CdpWebDriver(
+         private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
+         private const val JS_EXECUTION_MAX_ATTEMPTS = 5
+         private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
++        private const val SWIPE_FRAME_MS = 16L
+ 
+         // The only /json target type that is a real tab; everything else is a browser surface,
+         // an extension worker or an iframe.
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
