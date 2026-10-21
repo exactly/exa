@@ -3,6 +3,7 @@ docs/
 out/
 
 /broadcast/*
+/broadcast/*/1281/
 /broadcast/*/31337/
 /broadcast/**/dry-run/
 !/broadcast/ExaPlugin.s.sol

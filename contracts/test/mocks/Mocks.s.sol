@@ -52,7 +52,7 @@ contract DeployMocks is BaseScript {
 
     vm.stopBroadcast();
 
-    if (block.chainid == getChain("anvil").chainId) {
+    if (isAnvil()) {
       address target = acct("swapper");
       bytes memory code = address(swapper).code;
       vm.etch(target, code);

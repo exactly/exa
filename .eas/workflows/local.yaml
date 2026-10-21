@@ -96,7 +96,7 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
+          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944
           adb install "${{ steps.repack.outputs.output_path }}"
           adb logcat -v time > emulator.log 2>&1 &
           for i in {1..420}; do

@@ -27,7 +27,7 @@ contract DeployAccount is BaseScript {
     vm.label(address(ENTRYPOINT), "EntryPoint");
     vm.label(ACCOUNT_IMPL, "UpgradeableModularAccount");
 
-    if (block.chainid == getChain("anvil").chainId) {
+    if (isAnvil()) {
       vm.deal(deployer, deployer.balance + 1 ether);
       ENTRYPOINT.depositTo{ value: 1 ether }(address(new VerifyingPaymaster(vm.addr(0x4337))));
       try vm.activeFork() {

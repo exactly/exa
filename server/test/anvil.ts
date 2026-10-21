@@ -6,7 +6,18 @@ import { env, stderr, stdout } from "node:process";
 import { text } from "node:stream/consumers";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
-import { concat, encodeAbiParameters, keccak256, padHex, toBytes, toHex, zeroAddress, type Hex } from "viem";
+import {
+  concat,
+  createTestClient,
+  encodeAbiParameters,
+  http,
+  keccak256,
+  padHex,
+  toBytes,
+  toHex,
+  zeroAddress,
+  type Hex,
+} from "viem";
 import {
   entryPoint06Address,
   formatUserOperation,
@@ -14,7 +25,7 @@ import {
   type RpcUserOperation,
 } from "viem/account-abstraction";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
-import { foundry } from "viem/chains";
+import { anvil, foundry, moonbeamDev, optimism } from "viem/chains";
 
 import { Address } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
@@ -25,13 +36,16 @@ export default async function setup() {
   if (!env.NX_TASK_TARGET_PROJECT) {
     await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
   }
-  const instance = Instance.anvil({
-    codeSizeLimit: 69_000,
-    blockBaseFeePerGas: 1n,
-    ...(env.NODE_ENV === "e2e" && { port: 8546 }),
-  });
-  await instance.start();
-  const rpc = env.NODE_ENV === "e2e" && alchemy(instance.port);
+  const instances = chains.map(({ id, rpcUrls }) =>
+    Instance.anvil({
+      codeSizeLimit: 69_000,
+      blockBaseFeePerGas: 1n,
+      chainId: id,
+      port: env.NODE_ENV === "e2e" && id === anvil.id ? 8546 : Number(new URL(rpcUrls.default.http[0]).port),
+    }),
+  );
+  await Promise.all(instances.map((instance) => instance.start()));
+  const rpc = env.NODE_ENV === "e2e" && alchemy(8546);
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
   if (docker) {
     await $({ cwd: "test" })`docker compose down`;
@@ -49,24 +63,27 @@ export default async function setup() {
   const keeper = privateKeyToAccount(padHex("0x69"));
   await anvilClient.setBalance({ address: keeper.address, value: 10n ** 24n });
   if (env.NODE_ENV === "e2e") {
-    instance.on("stderr", (message) => stderr.write(message));
-    instance.on("stdout", (message) => {
-      if (
-        !message.startsWith("eth_blockNumber") &&
-        !message.startsWith("eth_call") &&
-        !message.startsWith("eth_chainId") &&
-        !message.startsWith("eth_feeHistory") &&
-        !message.startsWith("eth_gasPrice") &&
-        !message.startsWith("eth_getAccount") &&
-        !message.startsWith("eth_getAccountInfo") &&
-        !message.startsWith("eth_getBlockByNumber") &&
-        !message.startsWith("eth_getCode") &&
-        !message.startsWith("eth_getStorageAt") &&
-        !message.startsWith("eth_getTransactionReceipt")
-      ) {
-        stdout.write(message);
-      }
-    });
+    for (const instance of instances) {
+      instance.on("stderr", (message) => stderr.write(message));
+      instance.on("stdout", (message) => {
+        if (
+          !message.startsWith("eth_blockNumber") &&
+          !message.startsWith("eth_call") &&
+          !message.startsWith("eth_chainId") &&
+          !message.startsWith("eth_feeHistory") &&
+          !message.startsWith("eth_gasPrice") &&
+          !message.startsWith("eth_getAccount") &&
+          !message.startsWith("eth_getAccountInfo") &&
+          !message.startsWith("eth_getFilterChanges") &&
+          !message.startsWith("eth_getBlockByNumber") &&
+          !message.startsWith("eth_getCode") &&
+          !message.startsWith("eth_getStorageAt") &&
+          !message.startsWith("eth_getTransactionReceipt")
+        ) {
+          stdout.write(message);
+        }
+      });
+    }
   }
 
   const deployer = await anvilClient
@@ -85,8 +102,16 @@ export default async function setup() {
     } as Record<string, string>,
   };
 
-  await $(shell)`forge script test/mocks/Protocol.s.sol --disable-code-size-limit
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+  function forge(...args: string[]) {
+    return Promise.all(
+      chains.map(
+        ({ rpcUrls }) =>
+          $(shell)`forge script ${args} --unlocked --rpc-url ${rpcUrls.default.http[0]} --broadcast --skip-simulation`,
+      ),
+    );
+  }
+
+  await forge("test/mocks/Protocol.s.sol", "--disable-code-size-limit");
 
   const protocol = parse(
     Protocol,
@@ -125,11 +150,9 @@ export default async function setup() {
   shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
   shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
-  await $(shell)`forge script test/mocks/Mocks.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+  await forge("test/mocks/Mocks.s.sol");
 
-  await $(shell)`forge script test/mocks/Account.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+  await forge("test/mocks/Account.s.sol");
   const [plugin, , paymaster] = parse(
     object({
       transactions: tuple([
@@ -143,20 +166,13 @@ export default async function setup() {
   shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = plugin.contractAddress;
   const started = rpc && rpc.start(paymaster.contractAddress);
 
-  await $(shell)`forge script test/mocks/ExaBusinessTenant.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  await $(shell)`forge script script/IssuerChecker.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  await $(shell)`forge script script/ProposalManager.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  await $(shell)`forge script script/Refunder.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  await $(shell)`forge script script/ExaPreviewer.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  await $(shell)`forge script script/ExaPlugin.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  await $(shell)`forge script script/ExaAccountFactory.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+  await forge("test/mocks/ExaBusinessTenant.s.sol");
+  await forge("script/IssuerChecker.s.sol");
+  await forge("script/ProposalManager.s.sol");
+  await forge("script/Refunder.s.sol");
+  await forge("script/ExaPreviewer.s.sol");
+  await forge("script/ExaPlugin.s.sol");
+  await forge("script/ExaAccountFactory.s.sol");
 
   const bob = privateKeyToAddress(padHex("0xb0b"));
   await Promise.all([
@@ -281,9 +297,14 @@ export default async function setup() {
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
     if (rpc) await rpc.stop();
-    await instance.stop();
+    await Promise.all(instances.map((instance) => instance.stop()));
   };
 }
+
+export const chains = [anvil, ...(env.NODE_ENV === "e2e" ? [{ ...moonbeamDev, name: "Anvil2" }] : [])].map((chain) => ({
+  ...chain,
+  blockTime: optimism.blockTime,
+}));
 
 const Protocol = object({
   transactions: tuple([
