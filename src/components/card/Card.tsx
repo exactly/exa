@@ -43,6 +43,7 @@ import {
   setCardStatus,
   type CardActivity,
   type CardDetails as CardDetailsData,
+  type CardSecrets,
   type KYCStatus,
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
@@ -161,8 +162,11 @@ export default function Card() {
       }
       if (isRevealing || beginKYC.isPending) return;
       try {
-        const { data, error } = await refetchCard();
-        if (error && error instanceof APIError && error.code === 500) throw error;
+        const data = await queryClient
+          .fetchQuery<CardSecrets>({ queryKey: ["card", "secrets", cardDetails?.cardId], staleTime: 0 })
+          .catch((error: unknown) => {
+            if (error instanceof APIError && error.code === 500) throw error;
+          });
         if (data) {
           queryClient.setQueryData(["card-details-open"], true);
           return;

@@ -29,14 +29,22 @@ import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { CardDetails as CardDetailsData } from "../../utils/server";
+import type { CardDetails as CardDetailsData, CardSecrets } from "../../utils/server";
 
 export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
   const theme = useThemeName();
   const toast = useToastController();
   const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const { data: card, isPending } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
+  const { data: cardId } = useQuery<CardDetailsData, Error, string | undefined>({
+    queryKey: ["card", "details"],
+    select: (details) => details?.cardId,
+  });
+  const { data: card, isPending } = useQuery<CardSecrets>({
+    queryKey: ["card", "secrets", cardId],
+    enabled: open,
+    staleTime: (query) => (query.state.data ? Infinity : 0),
+  });
   const banner = card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
   const [details, setDetails] = useState({ pan: "", cvc: "" });
   useEffect(() => {

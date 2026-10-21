@@ -85,10 +85,9 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
   },
 });
 
-async function getCard() {
+async function getCard(sessionid?: string) {
   await auth();
-  const { id, secret } = await session();
-  const response = await api.card.$get({ header: { sessionid: id } });
+  const response = await api.card.$get({ header: sessionid ? { sessionid } : {} });
   if (!response.ok) {
     const { code } = await response.json();
     if (response.status === 404 && code === "no card") return null;
@@ -96,15 +95,22 @@ async function getCard() {
     throw new APIError(response.status, code);
   }
   const card = await response.json();
-  const result = { ...card, secret };
-  if (result.mode > 0) queryClient.setQueryData(["settings", "installments"], result.mode);
-  return result;
+  if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
+  return card;
 }
-queryClient.setQueryDefaults(["card", "details"], { queryFn: getCard });
+queryClient.setQueryDefaults(["card", "details"], { queryFn: () => getCard() });
 export type CardDetails = Awaited<ReturnType<typeof getCard>>;
 
+async function getSecrets() {
+  const { id, secret } = await session();
+  const card = await getCard(id);
+  return card && { ...card, secret };
+}
+queryClient.setQueryDefaults(["card", "secrets"], { queryFn: getSecrets });
+export type CardSecrets = Awaited<ReturnType<typeof getSecrets>>;
+
 async function getPIN() {
-  const result = await getCard();
+  const result = await getSecrets();
   if (!result) return null;
   const { secret, encryptedPan, encryptedCvc, pin } = result;
   if (!encryptedPan || !encryptedCvc) return null;
