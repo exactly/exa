@@ -1,0 +1,57 @@
+From 649b8ff0bc7d60cdde645f14a159ea176556d9b3 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 18:52:08 +0000
+Subject: [PATCH] fix: tap web elements with CDP mouse events
+
+ChromeDriver's pointer actions run script in the page's main world, so a tap fails on any page that locks down its globals, such as an extension popup under LavaMoat ("property \"Window\" of globalThis is inaccessible under scuttling mode"). Send the tap as mouseMoved, mousePressed and mouseReleased CDP input events instead, like swipes, which run no page script.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 24 +++++++++----------
+ 1 file changed, 11 insertions(+), 13 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad651bb..e7ef250 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -425,7 +425,7 @@ class CdpWebDriver(
+     }
+ 
+     override fun tap(point: Point) {
+-        val driver = ensureOpen()
++        val driver = ensureOpen() as ChromeDriver
+ 
+         if (point.x >= SYNTHETIC_COORDINATE_SPACE_OFFSET && point.y >= SYNTHETIC_COORDINATE_SPACE_OFFSET) {
+             tapOnSyntheticCoordinateSpace(point)
+@@ -434,20 +434,18 @@ class CdpWebDriver(
+ 
+         val pixelsScrolled = scrollToPoint(point)
+ 
+-        val mouse = PointerInput(PointerInput.Kind.MOUSE, "default mouse")
+-        val actions = Sequence(mouse, 1)
+-            .addAction(
+-                mouse.createPointerMove(
+-                    Duration.ofMillis(400),
+-                    PointerInput.Origin.viewport(),
+-                    point.x,
+-                    point.y - pixelsScrolled.toInt()
++        for (type in listOf("mouseMoved", "mousePressed", "mouseReleased")) {
++            driver.executeCdpCommand(
++                "Input.dispatchMouseEvent",
++                mapOf(
++                    "type" to type,
++                    "x" to point.x,
++                    "y" to point.y - pixelsScrolled.toInt(),
++                    "button" to if (type == "mouseMoved") "none" else "left",
++                    "clickCount" to 1,
+                 )
+             )
+-
+-        (driver as RemoteWebDriver).perform(listOf(actions))
+-
+-        Actions(driver).click().build().perform()
++        }
+     }
+ 
+     private fun tapOnSyntheticCoordinateSpace(point: Point) {
+-- 
+2.43.0
+
