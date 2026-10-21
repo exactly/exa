@@ -1,0 +1,26 @@
+From f3aaaaeeebb6e0691b5daf825af51bc923d7455e Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Wed, 21 Oct 2026 23:45:06 +0000
+Subject: [PATCH] fix: type into the focused element on web
+
+inputText sends every key to the element that was focused when the command started, so it fails with a stale element as soon as the page replaces that element while typing (an input that turns each typed word into a chip and focuses a new input). Send each key to the element focused at that moment, like a keyboard does.
+---
+ maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad651bb..a042fba 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -569,7 +569,7 @@ class CdpWebDriver(
+             }
+ 
+             for (c in text.toCharArray()) {
+-                element.sendKeys("$c")
++                ensureOpen().switchTo().activeElement().sendKeys("$c")
+                 sleep(random(20, 100).toLong())
+             }
+         }
+-- 
+2.43.0
+
