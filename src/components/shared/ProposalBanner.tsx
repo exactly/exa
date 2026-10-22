@@ -1,20 +1,23 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { useRouter } from "expo-router";
 
 import { ChevronRight } from "@tamagui/lucide-icons-2";
 
 import usePendingOperations from "../../utils/usePendingOperations";
+import AnimatedView from "../shared/AnimatedView";
 import Text from "../shared/Text";
-import View from "../shared/View";
 
 function ProposalBanner() {
   const { t } = useTranslation();
   const router = useRouter();
   const { count } = usePendingOperations();
   return count > 0 ? (
-    <View
+    <AnimatedView
+      entering={FadeIn}
+      exiting={FadeOut}
       backgroundColor="$interactiveBaseInformationSoftDefault"
       display="flex"
       flexDirection="row"
@@ -30,7 +33,7 @@ function ProposalBanner() {
         {t("Pending requests → {{count}}", { count })}
       </Text>
       <ChevronRight size={16} color="$interactiveOnBaseInformationSoft" />
-    </View>
+    </AnimatedView>
   ) : null;
 }
 

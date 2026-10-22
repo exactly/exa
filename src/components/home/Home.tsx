@@ -305,11 +305,9 @@ export default function Home() {
                     }}
                   />
                 )}
-                <AnimatePresence>
-                  {isKYCFetched && (!isKYCApproved || !bytecode) && (
-                    <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
-                  )}
-                </AnimatePresence>
+                {isKYCFetched && (!isKYCApproved || !bytecode) && (
+                  <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
+                )}
               </View>
             )}
             {isKYCFetched && (
