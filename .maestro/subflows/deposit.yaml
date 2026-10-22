@@ -4,6 +4,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Digital assets
 - tapOn: USDC
 - tapOn: Recommended
+- runFlow: { file: scrollTo.yaml, env: { element: "0x[\\da-fA-F]{40}" } }
 - copyTextFrom: 0x[\da-fA-F]{40}
 - evalScript: ${output.deposit = maestro.copiedText}
 - tapOn: Copy
