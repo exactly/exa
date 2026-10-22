@@ -56,6 +56,7 @@ import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
+import BridgeBanner from "../shared/BridgeBanner";
 import FundingAlert from "../shared/FundingAlert";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -233,6 +234,7 @@ export default function Home() {
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <ProfileHeader />
+          <BridgeBanner />
           <View flex={1} gap="$s5" paddingBottom="$s5">
             <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
               {overdueMaturity !== undefined && (
