@@ -1,4 +1,6 @@
-import domain from "./domain";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+
+import chain from "./generated/chain";
 
 const production = `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCeZ9uCoxi2XvOw1VmvVLo88TLk
@@ -17,11 +19,11 @@ LuVM/dGDC9UpulF+UwIDAQAB
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing -- ignore empty string */
 export default process.env.EXPO_PUBLIC_PANDA_PUBLIC_KEY ||
   {
-    "web.exactly.app": production,
-    "base.exactly.app": production,
-    "base-sepolia.exactly.app": sandbox,
-    "sandbox.exactly.app": sandbox,
-  }[domain] ||
+    [optimism.id]: production,
+    [base.id]: production,
+    [baseSepolia.id]: sandbox,
+    [optimismSepolia.id]: sandbox,
+  }[chain.id] ||
   `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCu2YOeObkaYiQmc49t2Cnk8syA
 1UBqFBMVhkJXyuSA9f+hGC22fXgQtpfAjQmFRpt5q4f6i0rG2bUi8Km0jZELdD6X
