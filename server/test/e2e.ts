@@ -19,6 +19,7 @@ import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import lifi from "./lifi";
+import push from "./push";
 import database from "../database";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
@@ -47,6 +48,7 @@ describe("e2e", () => {
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
       const bullmq = connect(env.REDIS_URL);
       const onesignal = createOnesignal("onesignal");
+      vi.mocked(onesignal.sendPushNotification).mockImplementation(push);
       const panda = createPanda({ key: "panda", url: "https://panda.test" });
       const sardine = createSardine("sardine", "https://sardine.test");
       const segment = createSegment("segment");
