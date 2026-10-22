@@ -1,4 +1,5 @@
 codecov:
+  ci: [expo.dev]
   notify: { after_n_builds: 10, notify_error: true }
 comment:
   layout: condensed_header, diff, flags, components, condensed_files, condensed_footer
