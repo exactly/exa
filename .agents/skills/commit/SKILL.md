@@ -171,9 +171,13 @@ file: `.changeset/<random-name>.md`
 ```
 
 - **no scope prefix** in changeset description (unlike commit messages)
-- **semver level**: almost always `patch`. use `minor` or `major` only when explicitly requested
+- **semver level**: almost always `patch`. use `minor` or `major` only when explicitly requested, unless the project's rule below says otherwise
 - **description**: a lowercase sentence in the imperative present tense. same as commit message but without `<scope>:` prefix (unless developer explicitly customizes)
 - **publishable packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`)
+
+### semver levels
+
+- **app** (`@exactly/mobile`) doesn't follow semver. every patch in a minor keeps the same expo fingerprint, so all of them receive the same ota updates. a change that alters the fingerprint (compare `pnpm exec fingerprint fingerprint:generate` before and after) is `minor`, and `minor` is reserved for those
 
 ### when a changeset is needed
 
@@ -330,7 +334,7 @@ when a changeset is needed (see the rules above), write `.changeset/<name>.md`:
 
 - **filename**: random, `<adj>-<animal>-<verb>.md`
 - **description**: the commit message without the `<scope>:` prefix (unless developer explicitly requests a different description)
-- **semver level**: `patch` (unless explicitly requested otherwise)
+- **semver level**: by project (see the rules above)
 
 ### commit
 
