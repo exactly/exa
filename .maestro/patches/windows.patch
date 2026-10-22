@@ -1,17 +1,19 @@
-From 2b5ba31a89dafd7e3bc930f0f6143bab9cd05fff Mon Sep 17 00:00:00 2001
+From bdcfe6c9b06bb855409dd5d7d4bb1a90e26627a3 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:51:54 +0000
 Subject: [PATCH] fix: follow popup and extension windows on web
 
 detectWindowChange only switches to new window handles, so after a popup closes every later command fails on the closed window, and ChromeDriver hides chrome-extension:// tabs and popups from the handles, so an extension's own windows are never reached. Turn on ChromeDriver's enableExtensionTargets, switch only to page targets (extension service workers and offscreen documents become handles too), and when the current window closes, switch back to the window that opened it.
 
+The window the session starts in is seen from the start. It used to count as a new window on the first command, so a window opened before then was never followed: both were new at once, and the first one won.
+
 Commands that run while a window closes no longer fail on it: reading the current URL is skipped, and a JS evaluation whose target is gone is retried against the next one.
 ---
- .../main/java/maestro/drivers/CdpWebDriver.kt | 26 ++++++++++++++-----
- 1 file changed, 19 insertions(+), 7 deletions(-)
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 27 ++++++++++++++-----
+ 1 file changed, 20 insertions(+), 7 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..fb79e47 100644
+index ad651bb..8129536 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 @@ -63,6 +63,7 @@ class CdpWebDriver(
@@ -22,7 +24,15 @@ index ad651bb..fb79e47 100644
      private var injectedArguments: Map<String, Any> = emptyMap()
  
      private var webScreenRecorder: WebScreenRecorder? = null
-@@ -125,6 +126,7 @@ class CdpWebDriver(
+@@ -81,6 +82,7 @@ class CdpWebDriver(
+ 
+     override fun open() {
+         seleniumDriver = createSeleniumDriver()
++        lastSeenWindowHandles = setOfNotNull(seleniumDriver?.windowHandle)
+ 
+         try {
+             seleniumDriver
+@@ -125,6 +127,7 @@ class CdpWebDriver(
                  setExperimentalOption("prefs", chromePrefs)
  
                  setExperimentalOption("detach", true)
@@ -30,7 +40,7 @@ index ad651bb..fb79e47 100644
  
                  if (isHeadless) {
                      addArguments("--headless=new")
-@@ -226,7 +228,10 @@ class CdpWebDriver(
+@@ -226,7 +229,10 @@ class CdpWebDriver(
      private fun isRetryableJsError(e: Exception): Boolean {
          val message = e.message ?: return false
          return message.contains("getContentDescription") ||
@@ -42,7 +52,7 @@ index ad651bb..fb79e47 100644
      }
  
      private fun scrollToPoint(point: Point): Long {
-@@ -265,6 +270,7 @@ class CdpWebDriver(
+@@ -265,6 +271,7 @@ class CdpWebDriver(
  
          seleniumDriver = null
          lastSeenWindowHandles = setOf()
@@ -50,7 +60,7 @@ index ad651bb..fb79e47 100644
          webScreenRecorder = null
      }
  
-@@ -328,7 +334,7 @@ class CdpWebDriver(
+@@ -328,7 +335,7 @@ class CdpWebDriver(
          val rawMap = contentDesc as Map<String, Any>
          val enrichedMap = injectCrossOriginIframes(rawMap)
          val root = parseDomAsTreeNodes(enrichedMap)
@@ -59,7 +69,7 @@ index ad651bb..fb79e47 100644
              root.attributes["url"] = url
          }
          return root
-@@ -369,12 +375,18 @@ class CdpWebDriver(
+@@ -369,12 +376,18 @@ class CdpWebDriver(
          val driver = ensureOpen()
  
          if (lastSeenWindowHandles != driver.windowHandles) {
@@ -83,6 +93,8 @@ index ad651bb..fb79e47 100644
  
                  driver.switchTo().window(newHandle)
  
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
 -- 
 2.43.0
 
