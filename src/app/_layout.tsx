@@ -81,7 +81,7 @@ configI18n(initReactI18next)
     },
     keySeparator: false,
     nsSeparator: false,
-    saveMissing: __DEV__ || !!e2e,
+    saveMissing: __DEV__ || e2e,
     missingKeyHandler: (languages, namespace, key) => {
       if (languages[0] !== "en") console.error("missing translation", languages.join(","), key); // eslint-disable-line no-console -- keys are the english copy
     },
@@ -180,7 +180,7 @@ init({
     }
     return event;
   },
-  spotlight: __DEV__ || !!e2e,
+  spotlight: __DEV__ || e2e,
 });
 const useServerFonts = isServer ? useFonts : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
 const useServerAssets = isServer ? useAssets : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional

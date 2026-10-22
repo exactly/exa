@@ -5,7 +5,6 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - tapOn: Create new account
       - enrollBiometrics
-      - tapOn: Sign up with Passkey
       - tapOn: Set passkey and create account
       - matchBiometrics
 - runFlow:

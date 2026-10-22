@@ -22,15 +22,16 @@ import chain from "@exactly/common/generated/chain";
 
 import publicClient from "./publicClient";
 
+const e2e = process.env.EXPO_PUBLIC_ENV === "e2e";
 const account =
-  typeof window !== "undefined" && process.env.EXPO_PUBLIC_ENV === "e2e"
+  Platform.OS !== "web" && e2e
     ? mnemonicToAccount(
         process.env.EXPO_PUBLIC_E2E_MNEMONIC || "test test test test test test test test test test test junk", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
         { nonceManager },
       )
     : undefined;
 const client = account && createWalletClient({ chain, account, transport: http(), dataSuffix });
-export default client;
+export default e2e;
 
 const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
 
@@ -92,7 +93,7 @@ if (client && !window.ethereum) {
 export function useSubmitCoverage() {
   return useMutation({
     mutationFn: () =>
-      client
+      e2e
         ? fetch(`http://localhost:3000/e2e/coverage?platform=${Platform.OS}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
