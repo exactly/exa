@@ -2,4 +2,31 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/swap.yaml
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: USDC, to: "${output.account}", amount: "420" }
+- evalScript: ${output.portfolioBefore = output.portfolio}
+- tapOn: Swap
+- assertVisible: Swaps
+- tapOn: { id: Select token, index: 1 }
+- assertVisible: Select token to receive
+- tapOn: Search by token name or address
+- inputText: eth
+- tapOn: WETH
+- assertNotVisible: Select token to receive
+- tapOn: { text: "0", index: 0 }
+- inputText: "100"
+- tapOn: Swap USDC for WETH
+- tapOn: View pending request
+- assertVisible: Pending requests
+- assertVisible: Swapping
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}" }
+- back
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
+- runFlow: ../subflows/readPortfolio.yaml
+- assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
 - runFlow: ../subflows/storeCoverage.yaml
