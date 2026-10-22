@@ -758,7 +758,8 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
     pending.delete(settled);
     if (result) yield result;
   }
-  if (!signal.aborted) for (const { error, ids } of failures.values()) reportError(error, { extra: { chains: ids } });
+  if (!signal.aborted)
+    for (const { error, ids } of failures.values()) reportError(error, { level: "warning", extra: { chains: ids } });
 }
 
 async function rpc(url: string, method: string, params: unknown[], signal: AbortSignal) {
