@@ -65,4 +65,40 @@
 - **one change per patch**: one `git format-patch` file per change on tag `cli-2.11.0`, with an upstream-style `fix:` or `feat:` subject.
 - **cache cost**: ci and eas cache `build/` by the hash of `package.json` and `patches/*.patch`, so any patch change rebuilds maestro in every job until the new key is saved.
 
+## legs
+
+- **one leg per app area**: each web leg covers one area of the app, and legs take similar time. extend an existing leg and its flow before adding a leg.
+- **a new leg is a new check**: a new or renamed matrix row changes a job name the repository ruleset requires, and codecov waits for one more upload (`after_n_builds` in `.github/codecov.yaml`).
+
+## screen sizes
+
+- **a size per leg**: each web leg runs at a different screen size, together covering ratios from narrow phones to desktop. permute the existing sizes before inventing new ones.
+- **limits**: chrome windows are at least 500 px wide, and the headless viewport is the window minus 143 px of height.
+- **ratios**: a size's ratio is its viewport's width over height. keep ratios spread from about 0.45 to 2, and place a new size where it splits the widest gap evenly (0.78 between 0.61 and 1.0).
+- **small screens**: prefer the smallest size that fills a gap, and cover a short portrait and a short landscape viewport, since layouts break there first. the scrolls a short size needs are the price of that coverage: they may grow the matrix sum, never the longest leg.
+- **one desktop size**: at 768 px wide and wider than 9:16, the app renders a 9:16 box sized by the viewport height (`src/app/+html.tsx`). another desktop size only changes the box's dimensions, which the narrower sizes already vary, so keep one. every other size stays under 768 px wide, where the app fills the viewport at any ratio.
+- **desktop leg**: the metamask leg takes the desktop size, since extension wallets live on desktop browsers and its onboarding needs the height.
+- **assign by scroll cost**: a `scrollTo` costs about 0.4 s when its element is already visible and 2 to 3 s when it really scrolls, and short sizes can need new centered scrolls. give short sizes to legs with few scroll targets and the most slack once open prs land, and measure the leg at the candidate size before assigning it. a leg with no scrolls gains nothing from a tall size.
+- **moving a leg**: a leg's size is coverage too. moving it drops the short-screen fixes only that size exercised, and changing a row's size or method renames its required check.
+- **final from the start**: a new leg lands at its final size and signer, never changed by a later commit of the same pr.
+
+## failures
+
+- **explain every failure**: find the cause before changing anything. no guess fixes for flakes, and no retries or waits that hide a race.
+- **check the surroundings**: compare with sibling legs and with main's run on the same base, and look for cache key changes, network errors while building maestro and duplicate eas runs of one commit.
+- **artifacts**: each leg uploads `e2e-<flow>-artifacts` with `chrome.log`, `server.log`, server coverage, maestro's test output and screenshots.
+- **coverage**: explain a coverage drop line by line from codecov, and never add steps only to hit lines.
+
+## validation
+
+- **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when `flows/local.yaml` covers it.
+- **fingerprint**: e2e changes must not change the expo fingerprint (`pnpm exec fingerprint fingerprint:generate --platform ios`, then `android`).
+- **eas spend**: draft prs skip eas and each push cancels the running pr workflow, so mark a pr ready only when native results matter.
+- **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's line from the `e2e` job:
+
+  ```sh
+  CI=true NX_DAEMON=false CHAIN_ID=31337 APP_DOMAIN=localhost EXPO_PUBLIC_ENV=e2e pnpm nx e2e:web:release mobile
+  .maestro/build/bin/maestro test .maestro/flows/web/transfer.yaml -e method=webauthn --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion
+  ```
+
 @../common/AGENTS.md
