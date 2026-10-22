@@ -5,9 +5,15 @@ import { View } from "tamagui";
 
 const ViewWithForwardedRef = ({
   forwardedRef,
+  entering,
+  exiting,
+  layout,
   ...properties
 }: ComponentPropsWithoutRef<typeof View> & {
+  entering?: unknown;
+  exiting?: unknown;
   forwardedRef?: React.Ref<React.ComponentRef<typeof View>>;
+  layout?: unknown;
 }) => {
   return <View ref={forwardedRef} {...properties} />;
 };
