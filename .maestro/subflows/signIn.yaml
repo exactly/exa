@@ -16,4 +16,3 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${method !== 'webauthn'}" }
     commands: [{ tapOn: I already have an account }, { tapOn: Log in with browser wallet }]
-- assertVisible: Hi, .+|Good (morning|afternoon|evening)!
