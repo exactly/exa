@@ -488,6 +488,7 @@ export default function Swaps() {
     error: swapExecuteProposalError,
     delay: proposalDelay,
     isPending: isSimulatingSwap,
+    queued,
   } = useSimulateProposal({
     account,
     amount: fromAmount,
@@ -496,6 +497,7 @@ export default function Swaps() {
     assetOut: crossChain ? neutralAsset : parse(Address, toToken?.token.address ?? zeroAddress),
     minAmountOut: crossChain ? 0n : (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD,
     route: route?.data,
+    poll: true,
     enabled:
       enableSimulations &&
       !!account &&
@@ -619,38 +621,68 @@ export default function Swaps() {
   const stalled = !!prepareError && wrapped && !!dust && dust > 0n;
   const insufficientCollateral =
     !!prepareError && insufficientAccountLiquidity.test(revertReason(prepareError, { fallback: "message" }));
+  const overdrawn =
+    !!prepareError && !fromToken?.external && revertReason(prepareError, { withArguments: true }) === "Panic(17)";
 
+  const [verified, setVerified] = useState<typeof prepareError>(null);
   const isSimulating = fromToken?.external
     ? routed
       ? isSimulatingRouted
       : isSimulatingExternalSwap
-    : isSimulatingSwap;
+    : (isSimulatingSwap && !queued) || (overdrawn && verified !== prepareError);
 
   useEffect(() => {
-    if (!prepareError) return;
+    if (!overdrawn && !insufficientCollateral) return;
+    let current = true;
+    queryClient
+      .invalidateQueries({ queryKey: marketsQueryKey })
+      .then(() => {
+        if (current) setVerified(prepareError);
+      })
+      .catch(reportError);
+    return () => {
+      current = false;
+    };
+  }, [insufficientCollateral, overdrawn, prepareError]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
+  useEffect(() => {
+    if (!prepareError || queued || insufficientCollateral) return;
+    if (overdrawn && (verified !== prepareError || isInsufficientBalance)) return;
     reportError(prepareError, { level: "warning" });
-    if (!tool || stalled || insufficientCollateral || undeployed) return;
+    if (!tool || stalled || undeployed) return;
     updateSwap((old) => ({
       ...old,
       denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
     }));
-  }, [insufficientCollateral, prepareError, stalled, tool, undeployed]);
+  }, [
+    insufficientCollateral,
+    isInsufficientBalance,
+    overdrawn,
+    prepareError,
+    queued,
+    stalled,
+    tool,
+    undeployed,
+    verified,
+  ]);
   const rerouting = denied.length > 0 && !route && isRouteFetching;
   const transient =
     !!routeError &&
     classify(routeError) === "quote" &&
     (route ? routeErroredAt < routeUpdatedAt + quoteValidity : routeErrors < 3);
-  const failure =
-    routeError && !transient
+  const failure = queued
+    ? "queued"
+    : routeError && !transient
       ? classify(routeError)
       : prepareError
         ? undeployed
           ? "account"
-          : insufficientCollateral
-            ? "collateral"
-            : stalled || (tool && denied.length < 3 && !denied.includes(tool))
-              ? undefined
-              : "route"
+          : (overdrawn || insufficientCollateral) && isInsufficientBalance
+            ? "balance"
+            : insufficientCollateral
+              ? "collateral"
+              : stalled || (tool && denied.length < 3 && !denied.includes(tool))
+                ? undefined
+                : "route"
         : undefined;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
@@ -1237,9 +1269,14 @@ export default function Swaps() {
                             ? t("Not enough liquidity for this amount currently. Try a different amount.")
                             : failure === "account"
                               ? t("Your account isn't set up on this network yet. Contact support to fix it.")
-                              : failure
-                                ? t("We can’t get a quote right now. Try again in a moment.")
-                                : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                              : failure === "queued"
+                                ? t("You have a pending request. Wait for it to be processed before swapping again.")
+                                : failure === "balance"
+                                  ? t("Your balance changed. Check the amount and try again.")
+                                  : failure
+                                    ? t("We can’t get a quote right now. Try again in a moment.")
+                                    : (shortfall ??
+                                      (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
                     </Text>
                   </XStack>
                 )}

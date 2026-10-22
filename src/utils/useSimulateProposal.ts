@@ -32,6 +32,7 @@ export default function useSimulateProposal({
   } = chain,
   enabled = true,
   market,
+  poll = false,
   ...proposal
 }: {
   account: Address | undefined;
@@ -39,6 +40,7 @@ export default function useSimulateProposal({
   chain?: { contracts: { multicall3: { address: Address } } };
   enabled?: boolean;
   market: Address | undefined;
+  poll?: boolean;
 } & (
   | {
       assetOut: Address | undefined;
@@ -112,7 +114,10 @@ export default function useSimulateProposal({
       },
     ] as const,
     allowFailure: false,
-    query: { enabled: enabled && !!account },
+    query: {
+      enabled: enabled && !!account,
+      refetchInterval: ({ state: { data } }) => (poll && data && data[2] > data[3] ? 5000 : false),
+    },
   });
   const [plugins, delay, nonce, executed, timestamp, blockNumber] = isFetchedAfterMount ? (reads ?? []) : [];
   const proposalData =
@@ -197,7 +202,7 @@ export default function useSimulateProposal({
     fallback === undefined || (propose?.status === "success" && retryPropose?.status === "failure")
       ? { simulation, request, propose, execute }
       : { simulation: retry, request: fallback.request, propose: retryPropose, execute: retryExecute };
-  const queued = nonce !== undefined && executed !== undefined && nonce > executed;
+  const queued = enabled && nonce !== undefined && executed !== undefined && nonce > executed;
   const error =
     readsError ??
     settled.simulation.error ??
