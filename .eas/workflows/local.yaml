@@ -53,8 +53,8 @@ jobs:
       GIT_BRANCH: "${{ github.ref_name }}"
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
+      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
       - name: start emulator # cspell:ignore avdmanager setsid swiftshader
         run: |
           avdmanager -s create avd -n e2e -k "system-images;android-32;google_apis;x86_64" --force
@@ -70,7 +70,7 @@ jobs:
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
       - name: exa setup
-        run: pnpm nx e2e server > server.log 2>&1 &
+        run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
       - uses: eas/restore_cache
         id: maestro
         with:
@@ -119,6 +119,7 @@ jobs:
           type: other
           ignore_error: true
           path: |
+            apt.log
             server.log
             server/coverage
             server/node_modules/@exactly/.*
