@@ -273,6 +273,8 @@ if files span multiple scopes, split them into separate commits. if the develope
 
 never settle for "the obvious one": weigh every possibly relevant gitmoji from the full list in `node_modules/gitmojis/dist/index.mjs` — be extensive, no count limit — and pick the 1 or 2 that fit best.
 
+gitmojis are how history gets scanned at a glance, so changes to ci, docs, infra or tests keep their own gitmojis (👷, 📝, 🧱, ✅, 🤡, 📸) even when they fix, pin or speed something up. the rest of the list stays with the code the project ships.
+
 when the developer reviews before committing, present the options using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
 
 - **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
