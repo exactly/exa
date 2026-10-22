@@ -250,6 +250,7 @@ coherence signals (fine together):
 - implementation + its changeset
 - a mechanical refactor applying the same transformation across files (e.g., renaming a symbol, updating an import path, changing a function signature)
 - config changes within the same package strictly required by the feature
+- every upgrade answering the same audit round, across projects too, with one empty changeset
 
 coherence must be evaluated at the **hunk level**, not the file level — a single file can contain hunks belonging to different intents. working on multiple changes simultaneously and authoring commits separately is normal workflow.
 
