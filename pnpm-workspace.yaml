@@ -183,6 +183,7 @@ packages:
 patchedDependencies:
   "@lifi/sdk": patches/@lifi__sdk.patch
   "@pimlico/alto": patches/@pimlico__alto.patch
+  "@tamagui/animations-reanimated": patches/@tamagui__animations-reanimated.patch
   "@tamagui/sheet": patches/@tamagui__sheet.patch
   "@tamagui/slider": patches/@tamagui__slider.patch
   embedded-postgres: patches/embedded-postgres.patch
