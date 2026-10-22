@@ -1,0 +1,100 @@
+From 0e38b1f128126e620338305c6ea003e2f802c332 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 22 Oct 2026 16:54:07 +0000
+Subject: [PATCH] fix: apply permissions on web
+
+The web driver ignored permissions: setPermissions was a no-op, so launchApp's permissions, and its default of allowing all, never reached the browser, and a page asking for one got the browser's default instead (headless Chrome denies a notification request without asking). Set each permission the web platform also has (camera, location, microphone, notifications) on the app's origin over CDP, mapping allow, deny and unset to granted, denied and prompt.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 62 +++++++++++++------
+ 1 file changed, 44 insertions(+), 18 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 86ac8b2..18eafba 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -419,23 +419,7 @@ class CdpWebDriver(
+     override fun clearAppState(appId: String) {
+         ensureOpen()
+ 
+-        val origin = try {
+-            val uri = URI(appId)
+-            if (uri.scheme.isNullOrBlank() || uri.host.isNullOrBlank()) {
+-                null
+-            } else if (uri.port == -1) {
+-                "${uri.scheme}://${uri.host}"
+-            } else {
+-                "${uri.scheme}://${uri.host}:${uri.port}"
+-            }
+-        } catch (e: Exception) {
+-            LOGGER.warn("Failed to parse origin from $appId", e)
+-            null
+-        }
+-
+-        if (origin == null) {
+-            return
+-        }
++        val origin = originOf(appId) ?: return
+ 
+         try {
+             runBlocking {
+@@ -705,7 +689,41 @@ class CdpWebDriver(
+     }
+ 
+     override fun setPermissions(appId: String, permissions: Map<String, String>) {
+-        // no-op for web
++        val driver = ensureOpen() as HasCdp
++        val origin = originOf(appId) ?: return
++
++        val all = permissions["all"]?.let { value -> WEB_PERMISSIONS.keys.associateWith { value } }.orEmpty()
++        for ((name, value) in all + (permissions - "all")) {
++            val permission = WEB_PERMISSIONS[name] ?: continue
++            driver.executeCdpCommand(
++                "Browser.setPermission",
++                mapOf(
++                    "permission" to mapOf("name" to permission),
++                    "setting" to when (value) {
++                        "allow" -> "granted"
++                        "deny" -> "denied"
++                        else -> "prompt"
++                    },
++                    "origin" to origin,
++                )
++            )
++        }
++    }
++
++    private fun originOf(appId: String): String? {
++        return try {
++            val uri = URI(appId)
++            if (uri.scheme.isNullOrBlank() || uri.host.isNullOrBlank()) {
++                null
++            } else if (uri.port == -1) {
++                "${uri.scheme}://${uri.host}"
++            } else {
++                "${uri.scheme}://${uri.host}:${uri.port}"
++            }
++        } catch (e: Exception) {
++            LOGGER.warn("Failed to parse origin from $appId", e)
++            null
++        }
+     }
+ 
+     override fun addMedia(mediaFiles: List<File>) {
+@@ -930,6 +948,14 @@ class CdpWebDriver(
+                 }));
+         """.trimIndent()
+ 
++        // Maestro permissions the web platform also has, by their Permissions API names
++        private val WEB_PERMISSIONS = mapOf(
++            "camera" to "camera",
++            "location" to "geolocation",
++            "microphone" to "microphone",
++            "notifications" to "notifications",
++        )
++
+         private val LOGGER = LoggerFactory.getLogger(CdpWebDriver::class.java)
+     }
+ }
+-- 
+2.43.0
+
