@@ -1,0 +1,70 @@
+From cac3569e042079b65be4b657bc0ec98649d0a280 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 22 Oct 2026 16:54:07 +0000
+Subject: [PATCH] feat: show web notifications in the hierarchy
+
+Android and iOS show an app's notifications in the system UI, so a flow can assert one after the app gets a push. A browser shows web notifications outside the page, so Maestro never saw them. Read the notifications the page's origin shows (ServiceWorkerRegistration.getNotifications) with every hierarchy and add each one, title with its body, just above the page, outside it, so it never covers an element. A web notification can't be clicked from outside the browser, so a tap on one reaches nothing.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 36 +++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ad8e376..86ac8b2 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -310,6 +310,28 @@ class CdpWebDriver(
+     }
+ 
+     override fun contentDescriptor(excludeKeyboardElements: Boolean): TreeNode {
++        val page = pageDescriptor()
++        return page.copy(children = page.children + notifications())
++    }
++
++    /**
++     * The notifications the browser shows for the page's origin, the way Android and iOS show theirs
++     * in the system UI. They sit just above the page, outside it, so they never cover an element,
++     * and a tap on one reaches nothing: a web notification can't be clicked from outside the browser.
++     */
++    @Suppress("UNCHECKED_CAST")
++    private fun notifications(): List<TreeNode> {
++        val driver = ensureOpen() as JavascriptExecutor
++        val notifications = try {
++            driver.executeScript(NOTIFICATIONS_SCRIPT) as? List<Map<String, Any>>
++        } catch (e: Exception) {
++            LOGGER.warn("Failed to read notifications", e)
++            null
++        }
++        return notifications.orEmpty().map { parseDomAsTreeNodes(it) }
++    }
++
++    private fun pageDescriptor(): TreeNode {
+         ensureOpen()
+ 
+         detectWindowChange()
+@@ -894,6 +916,20 @@ class CdpWebDriver(
+         private val BROWSER_INTERNAL_URL_SCHEMES =
+             listOf("chrome://", "chrome-untrusted://", "chrome-extension://", "devtools://")
+ 
++        private val NOTIFICATIONS_SCRIPT = """
++            const width = Math.min(360, window.innerWidth);
++            const height = 80;
++            return (navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]))
++                .then((registrations) => Promise.all(registrations.map((registration) => registration.getNotifications())))
++                .then((notifications) => notifications.flat().map(({ title, body }, index) => {
++                    const bounds = `[${'$'}{window.innerWidth - width},${'$'}{-height * (index + 1)}][${'$'}{window.innerWidth},${'$'}{-height * index}]`;
++                    return {
++                        attributes: { text: title, bounds, ignoreBoundsFiltering: true },
++                        children: [{ attributes: { text: body, bounds, ignoreBoundsFiltering: true }, children: [] }],
++                    };
++                }));
++        """.trimIndent()
++
+         private val LOGGER = LoggerFactory.getLogger(CdpWebDriver::class.java)
+     }
+ }
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+prerequisite-patch-id: ad2d36dab82d9d295648b6feeac9b93f6d3be32f
+-- 
+2.43.0
+
