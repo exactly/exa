@@ -11,7 +11,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress, marketWETHAddress, wethAddress } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAddress, lifiURL, marketWETHAddress, wethAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
@@ -21,6 +21,7 @@ import createOnesignal from "../../utils/onesignal";
 import redis from "../../utils/redis";
 
 import type createPoke from "../../workers/poke/queue";
+import type * as C from "@exactly/common/generated/chain";
 
 const alchemy = createAlchemy("webhooks");
 const onesignal = createOnesignal("onesignal");
@@ -468,6 +469,27 @@ describe("address activity", () => {
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
+        `${lifiURL}/tokens?chains=${optMainnet.id}`,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+      );
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+        userId: account,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+      });
+      expect(response.status).toBe(200);
+    });
+
+    it("fetches from li.quest when codegen has no lifi url", async () => {
+      const sendPushNotification = sendPushNotificationMock;
+      mocks.lifiURL.mockReset();
+      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
+
+      const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         `https://li.quest/v1/tokens?chains=${optMainnet.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
@@ -488,7 +510,7 @@ describe("address activity", () => {
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
-      expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("li.quest"), expect.anything());
+      expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining(`${lifiURL}/tokens`), expect.anything());
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
         userId: account,
         headings: t("Funds received"),
@@ -595,7 +617,7 @@ describe("address activity", () => {
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        `https://li.quest/v1/tokens?chains=${optMainnet.id}`,
+        `${lifiURL}/tokens?chains=${optMainnet.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
@@ -745,7 +767,7 @@ describe("webhook authentication", () => {
 function mockLifiTokens(response: Error | Record<string, { address: string }[]> | Response) {
   const originalFetch = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-    if ((input instanceof Request ? input.url : String(input)).includes("li.quest")) {
+    if ((input instanceof Request ? input.url : String(input)).includes("/tokens?chains=")) {
       return response instanceof Error
         ? Promise.reject(response)
         : Promise.resolve(
@@ -806,8 +828,22 @@ const activityPayload = {
   },
 } as const;
 
+const mocks = vi.hoisted(() => ({ lifiURL: vi.fn<(url: string | undefined) => string | undefined>() }));
+
 vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get lifiURL() {
+      return mocks.lifiURL(original.lifiURL);
+    },
+  };
+});
+beforeEach(() => {
+  mocks.lifiURL.mockReset().mockImplementation((url) => url);
+});
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();

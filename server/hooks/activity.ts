@@ -15,7 +15,7 @@ import * as v from "valibot";
 import { bytesToHex, hexToBigInt } from "viem";
 import { anvil } from "viem/chains";
 
-import exaChain, { exaPreviewerAbi, exaPreviewerAddress, wethAddress } from "@exactly/common/generated/chain";
+import exaChain, { exaPreviewerAbi, exaPreviewerAddress, lifiURL, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
@@ -246,7 +246,7 @@ async function isKnownToken(chainId: number, address: Address, redis: Redis) {
     );
     if (isMember) return true;
     if (count > 0) return false;
-    const response = await fetch(`https://li.quest/v1/tokens?chains=${chainId}`, {
+    const response = await fetch(`${lifiURL ?? "https://li.quest/v1"}/tokens?chains=${chainId}`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error(`lifi tokens ${response.status}`);
