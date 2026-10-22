@@ -1211,12 +1211,6 @@ export default function Swaps() {
                       }
                     />
                   )}
-                </YStack>
-              </View>
-            </ScrollView>
-            <YStack padding="$s4" gap="$s3">
-              <YStack gap="$s3">
-                <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
                   <Text caption2 color="$interactiveOnDisabled">
                     <Trans
                       i18nKey="Swaps are provided via <provider>LI.FI</provider> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
@@ -1235,98 +1229,93 @@ export default function Swaps() {
                       }}
                     />
                   </Text>
+                </YStack>
+              </View>
+            </ScrollView>
+            <YStack padding="$s4" gap="$s3">
+              {(!!failure || insufficientGas || rerouting || transient) && (
+                <XStack
+                  gap="$s4"
+                  alignItems="center"
+                  backgroundColor={
+                    failure || insufficientGas
+                      ? "$interactiveBaseErrorSoftDefault"
+                      : "$interactiveBaseInformationSoftDefault"
+                  }
+                  borderRadius="$r3"
+                  paddingHorizontal="$s4"
+                  paddingVertical="$s3"
+                >
+                  {failure || insufficientGas ? (
+                    <OctagonX size={16} color="$uiErrorSecondary" />
+                  ) : (
+                    <Info size={16} color="$uiInfoSecondary" />
+                  )}
+                  <Text caption2 color={failure || insufficientGas ? "$uiErrorSecondary" : "$uiInfoSecondary"} flex={1}>
+                    {failure === "collateral"
+                      ? t("This swap would leave your collateral below what your debt requires. Try a smaller amount.")
+                      : failure === "route"
+                        ? t("No route available for this swap. Try a different asset or network.")
+                        : failure === "liquidity"
+                          ? t("Not enough liquidity for this amount currently. Try a different amount.")
+                          : failure === "account"
+                            ? t("Your account isn't set up on this network yet. Contact support to fix it.")
+                            : failure === "queued"
+                              ? t("You have a pending request. Wait for it to be processed before swapping again.")
+                              : failure === "balance"
+                                ? t("Your balance changed. Check the amount and try again.")
+                                : failure
+                                  ? t("We can’t get a quote right now. Try again in a moment.")
+                                  : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                  </Text>
                 </XStack>
-                {(!!failure || insufficientGas || rerouting || transient) && (
-                  <XStack
-                    gap="$s4"
-                    alignItems="center"
-                    backgroundColor={
-                      failure || insufficientGas
-                        ? "$interactiveBaseErrorSoftDefault"
-                        : "$interactiveBaseInformationSoftDefault"
-                    }
-                    borderRadius="$r3"
-                    paddingHorizontal="$s4"
-                    paddingVertical="$s3"
-                  >
-                    {failure || insufficientGas ? (
-                      <OctagonX size={16} color="$uiErrorSecondary" />
-                    ) : (
-                      <Info size={16} color="$uiInfoSecondary" />
-                    )}
-                    <Text
-                      caption2
-                      color={failure || insufficientGas ? "$uiErrorSecondary" : "$uiInfoSecondary"}
-                      flex={1}
-                    >
-                      {failure === "collateral"
-                        ? t(
-                            "This swap would leave your collateral below what your debt requires. Try a smaller amount.",
-                          )
-                        : failure === "route"
-                          ? t("No route available for this swap. Try a different asset or network.")
-                          : failure === "liquidity"
-                            ? t("Not enough liquidity for this amount currently. Try a different amount.")
-                            : failure === "account"
-                              ? t("Your account isn't set up on this network yet. Contact support to fix it.")
-                              : failure === "queued"
-                                ? t("You have a pending request. Wait for it to be processed before swapping again.")
-                                : failure === "balance"
-                                  ? t("Your balance changed. Check the amount and try again.")
-                                  : failure
-                                    ? t("We can’t get a quote right now. Try again in a moment.")
-                                    : (shortfall ??
-                                      (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
-                    </Text>
-                  </XStack>
-                )}
-                {impact >= 0.02 && (
-                  <XStack gap="$s3" alignItems="center">
-                    <TriangleAlert size={16} color="$uiWarningSecondary" />
-                    <Text caption color="$uiWarningSecondary" flex={1}>
-                      {t("High price impact: you receive {{percent}}% less value than you pay.", {
-                        percent: (impact * 100).toFixed(1),
-                      })}
-                    </Text>
-                  </XStack>
-                )}
-                {showWarning && (
-                  <YStack gap="$s4_5">
-                    <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
-                    <YStack gap="$s3_5">
-                      {danger ? (
-                        <XStack gap="$s3" alignItems="flex-start">
-                          <TriangleAlert size={16} color="$uiErrorSecondary" />
-                          <Text caption color="$uiErrorSecondary" flex={1}>
-                            {t("Swapping this much of your collateral could instantly trigger liquidation.")}
-                          </Text>
-                        </XStack>
-                      ) : null}
-                      <XStack
-                        gap="$s3"
-                        alignItems="center"
-                        cursor="pointer"
-                        onPress={() => {
-                          setAcknowledged(!acknowledged);
-                        }}
-                      >
-                        <Checkbox danger={danger} checked={acknowledged}>
-                          <Checkbox.Indicator>
-                            <Check
-                              size={16}
-                              color={danger ? "$interactiveOnBaseErrorDefault" : "$interactiveOnBaseBrandDefault"}
-                            />
-                          </Checkbox.Indicator>
-                        </Checkbox>
-                        <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
-                          {t("I acknowledge the risks of swapping this much of my collateral assets.")}
+              )}
+              {impact >= 0.02 && (
+                <XStack gap="$s3" alignItems="center">
+                  <TriangleAlert size={16} color="$uiWarningSecondary" />
+                  <Text caption color="$uiWarningSecondary" flex={1}>
+                    {t("High price impact: you receive {{percent}}% less value than you pay.", {
+                      percent: (impact * 100).toFixed(1),
+                    })}
+                  </Text>
+                </XStack>
+              )}
+              {showWarning && (
+                <YStack gap="$s4_5">
+                  <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
+                  <YStack gap="$s3_5">
+                    {danger ? (
+                      <XStack gap="$s3" alignItems="flex-start">
+                        <TriangleAlert size={16} color="$uiErrorSecondary" />
+                        <Text caption color="$uiErrorSecondary" flex={1}>
+                          {t("Swapping this much of your collateral could instantly trigger liquidation.")}
                         </Text>
                       </XStack>
-                    </YStack>
-                    <Separator borderColor="$borderNeutralSoft" />
+                    ) : null}
+                    <XStack
+                      gap="$s3"
+                      alignItems="center"
+                      cursor="pointer"
+                      onPress={() => {
+                        setAcknowledged(!acknowledged);
+                      }}
+                    >
+                      <Checkbox danger={danger} checked={acknowledged}>
+                        <Checkbox.Indicator>
+                          <Check
+                            size={16}
+                            color={danger ? "$interactiveOnBaseErrorDefault" : "$interactiveOnBaseBrandDefault"}
+                          />
+                        </Checkbox.Indicator>
+                      </Checkbox>
+                      <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
+                        {t("I acknowledge the risks of swapping this much of my collateral assets.")}
+                      </Text>
+                    </XStack>
                   </YStack>
-                )}
-              </YStack>
+                  <Separator borderColor="$borderNeutralSoft" />
+                </YStack>
+              )}
               <Button
                 primary={!(caution && acknowledged)}
                 dangerSecondary={caution && acknowledged}
