@@ -17,5 +17,6 @@ flag_management:
   default_rules:
     statuses: [{ type: project, informational: true }, { type: patch, informational: true }]
 ignore:
+  - "**/+html.tsx"
   - contracts/test/**
   - server/test/**
