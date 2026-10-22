@@ -1112,7 +1112,7 @@ export default function Swaps() {
                             amount={paying ? fromAmount : toAmount}
                             balance={getBalance(tokenData)}
                             disabled={!paying}
-                            isLoading={isTokensLoading || !tokenData || (isRouteLoading && !fromAmount)}
+                            isLoading={isTokensLoading || !tokenData || isRouteLoading}
                             isActive={paying}
                             isDanger={paying && showWarning}
                             onTokenSelect={() => {
