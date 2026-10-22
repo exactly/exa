@@ -355,7 +355,5 @@ show the result to the developer.
 - **message selection is always deliberate** — always write all 9 options before picking. an agent that composes a single message and commits it without weighing alternatives is violating this workflow. when the developer reviews before committing, output all 9 as a plain numbered list in a regular text message, never in a selection widget
 - **local signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never rewrite a commit that is already on `main`
-- never skip git hooks (no `--no-verify`)
 - never push without being asked
-- if a pre-commit hook fails, fix the issue and create a NEW commit
 - the developer always has final say on every choice
