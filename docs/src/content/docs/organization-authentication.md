@@ -1,5 +1,6 @@
 ---
 title: Organizations, authentication and authorization
+description: Create organizations, manage members and roles, and authenticate with SIWE.
 sidebar:
   label: Organizations and authentication
   order: 10

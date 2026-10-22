@@ -1,5 +1,6 @@
 ---
 title: Webhooks
+description: Receive real-time notifications for transaction, user and card events, and verify their signatures.
 sidebar:
   label: Webhooks
   order: 10
