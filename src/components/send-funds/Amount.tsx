@@ -29,6 +29,7 @@ import { isSendable, lifiChainsOptions, lifiTokensOptions, reachOptions } from "
 import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import usePortfolio from "../../utils/usePortfolio";
 import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
@@ -64,6 +65,7 @@ export default function Amount() {
   const { allAssets, markets } = usePortfolio();
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: reach } = useQuery(reachOptions);
+  const allowlists = useAllowlists();
   const {
     data: tokens,
     isPending: isTokensPending,
@@ -110,11 +112,14 @@ export default function Amount() {
         return (
           (item.type === "external" || item.usdValue > 0 || item.market === payOverride) &&
           (from === chain.id || deployedChains.includes(from)) &&
-          (!!advanced || item.type !== "external" || from !== chain.id || isSendable(item.address)) &&
+          (!!advanced ||
+            item.type !== "external" ||
+            from !== chain.id ||
+            isSendable(allowlists[chain.id], item.address)) &&
           (from === destinationChain || !reach || !!reach[from]?.includes(destinationChain))
         );
       }),
-    [advanced, allAssets, deployedChains, destinationChain, payOverride, reach],
+    [advanced, allAssets, allowlists, deployedChains, destinationChain, payOverride, reach],
   );
 
   const pay = useMemo(
