@@ -83,7 +83,7 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 signing may fail due to key agent timeouts (e.g., gpg-agent passphrase cache expired, ssh-agent locked, hardware key like yubikey not touched in time). when this happens:
 
 - **warn the developer**: explain that signing failed (include the error output) and that the commit was not created. suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
-- **ask for acknowledgment**: use `AskUserQuestion` with options like "ready to retry" and "abort commit". do not retry silently
+- **ask for acknowledgment**: ask whether to retry or abort the commit. do not retry silently
 - **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
 - **repeat if needed**: if signing fails again, warn the developer again. there is no retry limit. never give up on signing. never strip `-S` to work around the failure
 
@@ -204,7 +204,7 @@ if files span multiple scopes, suggest splitting into separate commits. if the d
 
 suggest every possibly relevant gitmoji from the full list in `node_modules/gitmojis/dist/index.mjs` — be extensive, no count limit. present them using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
 
-- **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., `AskUserQuestion`, a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
+- **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
 - **allow multi-select** (1 or 2 gitmojis) — enable multi-select in the tool if supported, or instruct the developer to reply with multiple numbers
 - **each option must include**:
   - **label**: `<emoji> <name>` — some emojis are multi-codepoint: they contain a zero-width joiner (ZWJ, U+200D) or a variation selector (VS16, U+FE0F). terminals often render these as two visible glyphs instead of one. append `*` to the label of any such emoji so the developer isn't confused (e.g., 🧑‍💻\*, ⚗️\*, ♻️\*, 🏷️\*, 🏗️\*, ✏️\*)
@@ -218,7 +218,7 @@ the developer picks 1 or 2 gitmojis. **wait for their response.**
 
 **mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
 
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use `AskUserQuestion` or any other interactive tool for this choice** — `AskUserQuestion` caps at 4 options and most other selection widgets also cap below 9. plain text is the only reliable format.
+present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use a selection widget for this choice** — most cap below 9 options. plain text is the only reliable format.
 
 format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
 
@@ -279,7 +279,7 @@ show the result to the developer. if signing fails, follow "handling signing fai
 ## invariants
 
 - **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping the choice or choosing on behalf of the developer is a workflow violation
-- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use `AskUserQuestion` or any selection widget** — output all 9 as a plain numbered list in a regular text message
+- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use a selection widget** — output all 9 as a plain numbered list in a regular text message
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
