@@ -171,7 +171,7 @@ file: `.changeset/<random-name>.md`
 ```
 
 - **no scope prefix** in changeset description (unlike commit messages)
-- **semver level**: almost always `patch`. use `minor` or `major` only when explicitly requested, unless the project's rule below says otherwise
+- **semver level**: set by each project's rule below. never commit a `major` changeset without an explicit request
 - **description**: a lowercase sentence in the imperative present tense. same as commit message but without `<scope>:` prefix (unless developer explicitly customizes)
 - **publishable packages**: app (`@exactly/mobile`), server (`@exactly/server`), common (`@exactly/common`), contracts (`@exactly/plugin`)
 
@@ -180,6 +180,7 @@ file: `.changeset/<random-name>.md`
 - **app** (`@exactly/mobile`) doesn't follow semver. every patch in a minor keeps the same expo fingerprint, so all of them receive the same ota updates. a change that alters the fingerprint (compare `pnpm exec fingerprint fingerprint:generate` before and after) is `minor`, and `minor` is reserved for those
 - **contracts** (`@exactly/plugin`) follow strict semver and never break backwards compatibility, so they stay on v1. changes to core contracts are `minor` for new features and `patch` for fixes. the plugin's `VERSION` only changes when the plugin itself does, taking the version that release ships in, so plugin versions can skip. previewers and scripts get no changeset
 - **server** (`@exactly/server`) stays on v0 until its api is stable, which is still far off. on v0, almost every change is `patch`
+- every other package follows semver
 
 ### when a changeset is needed
 
