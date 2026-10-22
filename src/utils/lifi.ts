@@ -17,6 +17,7 @@ import {
 } from "@lifi/sdk";
 import { base58, bech32, bech32m, createBase58check } from "@scure/base";
 import { queryOptions, skipToken, experimental_streamedQuery as streamedQuery } from "@tanstack/react-query";
+import { getBlock, getContractEvents, readContract } from "@wagmi/core/actions";
 import {
   array,
   check,
@@ -34,6 +35,8 @@ import {
   type GenericSchema,
 } from "valibot";
 import {
+  ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
   createPublicClient,
   encodeDeployData,
   encodeFunctionData,
@@ -54,15 +57,16 @@ import { base } from "viem/chains";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
   alchemyChains,
-  allowlists,
   auditorAddress,
   exaAddress,
+  exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerCode,
   lifiURL,
   marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
+  proposalManagerAbi,
   proposalManagerAddress,
   stocks,
   swapperAddress,
@@ -73,6 +77,7 @@ import { WAD } from "@exactly/lib";
 import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
 import reportError from "./reportError";
+import exaConfig from "./wagmi/exa";
 
 export const chainTypes = [ChainType.EVM, ChainType.MVM, ChainType.SVM, ChainType.TVM, ChainType.UTXO]; // cspell:ignore UTXO
 
@@ -351,30 +356,69 @@ export async function getRoute(
   };
 }
 
-export function swappable(markets: readonly { asset: string }[] = []) {
-  return new Set(
-    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()),
-  );
+export function allowlistOptions(plugin: null | undefined | { address: Address; version: string }, chainId: number) {
+  return queryOptions({
+    queryKey: ["allowlist", chainId, plugin?.address],
+    staleTime: 5 * 60_000,
+    gcTime: Infinity,
+    queryFn:
+      plugin && plugin.version >= "0.0.4" && !chain.testnet
+        ? async ({ queryKey }): Promise<Allowlist> => {
+            const proposalManager = await readContract(exaConfig, {
+              chainId,
+              address: plugin.address,
+              abi: exaPluginAbi,
+              functionName: "proposalManager",
+            });
+            const { number: block } = await getBlock(exaConfig, { chainId, blockTag: "finalized" });
+            const previous = queryClient.getQueryData<Allowlist>(queryKey);
+            const resume = previous?.proposalManager === proposalManager ? previous : undefined;
+            if (resume && block <= resume.block) return resume;
+            const targets = new Set(resume?.targets);
+            for (const { args } of await getContractEvents(exaConfig, {
+              chainId,
+              address: proposalManager,
+              abi: proposalManagerAbi,
+              eventName: "TargetAllowed",
+              fromBlock: resume ? resume.block + 1n : 0n,
+              toBlock: block,
+              strict: true,
+            })) {
+              if (args.allowed) targets.add(args.target.toLowerCase());
+              else targets.delete(args.target.toLowerCase());
+            }
+            return { block, proposalManager, targets: [...targets] };
+          }
+        : skipToken,
+    refetchOnMount: ({ state }) => state.status !== "error",
+  });
 }
 
-export function isSendable(address: string) {
-  return (
-    address === zeroAddress ||
-    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
-  );
+export function swappable(allowlist: ReadonlySet<string> = new Set(), markets: readonly { asset: string }[] = []) {
+  return new Set([...allowlist, ...markets.map((m) => m.asset.toLowerCase())]);
 }
 
-export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
-  ensureConfig();
+export function isSendable(allowlist: ReadonlySet<string> | undefined, address: string) {
+  return address === zeroAddress || !!allowlist?.has(address.toLowerCase());
+}
+
+export function allowTokens(
+  tokens: readonly Token[],
+  allowlist: ReadonlySet<string> | undefined,
+  markets: readonly { asset: string }[] = [],
+) {
   if (!lifiURL) return [];
-  const { tokens } = await getTokens({ chains: [chain.id] });
-  const allowed = swappable(markets);
-  return (
-    tokens[chain.id]
-      ?.filter((token) => allowed.has(token.address.toLowerCase()))
-      .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress)) ?? []
-  );
+  const allowed = swappable(allowlist, markets);
+  return tokens
+    .filter((token) => token.chainId === (chain.id as Token["chainId"]) && allowed.has(token.address.toLowerCase()))
+    .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress));
 }
+
+export function reverted(error: unknown) {
+  return error instanceof ContractFunctionExecutionError && error.cause instanceof ContractFunctionRevertedError;
+}
+
+export type Allowlists = Record<string, ReadonlySet<string> | undefined>;
 
 export type RouteFrom = {
   chainId: number;
@@ -901,3 +945,5 @@ function decoded(coder: typeof base58, input: string) {
     return new Uint8Array();
   }
 }
+
+type Allowlist = { block: bigint; proposalManager: Address; targets: readonly string[] };

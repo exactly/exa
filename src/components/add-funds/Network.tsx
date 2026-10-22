@@ -11,7 +11,7 @@ import { queryOptions, skipToken, useQueries, useQuery } from "@tanstack/react-q
 import { getBytecode } from "@wagmi/core/actions";
 import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 
-import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
 import EducationSheet from "./EducationSheet";
@@ -20,6 +20,7 @@ import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useAllowlists from "../../utils/useAllowlists";
 import useMarkets from "../../utils/useMarkets";
 import exaConfig from "../../utils/wagmi/exa";
 import ChainLogo from "../shared/ChainLogo";
@@ -49,6 +50,7 @@ export default function Network() {
   const { data: swapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "swap-needed-shown"] });
   const { data: bridgeSwapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-swap-needed-shown"] });
   const { supportedAssets, isPending } = useMarkets();
+  const allowlists = useAllowlists();
   const symbols = useMemo(() => {
     const matched = new Map<number, string>();
     for (const token of tokens ?? []) {
@@ -56,11 +58,11 @@ export default function Network() {
         token.symbol in tokenCorrelation ? tokenCorrelation[token.symbol as keyof typeof tokenCorrelation] : undefined;
       if (token.symbol !== asset && correlated !== asset) continue;
       const allowed = allowlists[String(token.chainId)];
-      if (!allowed?.some((address) => address.toLowerCase() === token.address.toLowerCase())) continue;
+      if (!allowed?.has(token.address.toLowerCase())) continue;
       if (token.symbol === asset || !matched.has(token.chainId)) matched.set(token.chainId, token.symbol);
     }
     return matched;
-  }, [tokens, asset]);
+  }, [tokens, allowlists, asset]);
   const sorted = useMemo(() => {
     const others = (lifiChains ?? []).filter(
       (c) =>
