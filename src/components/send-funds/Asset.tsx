@@ -192,7 +192,7 @@ export default function AssetSelection() {
       .filter(
         (token) =>
           ids.has(token.chainId) &&
-          (filter !== "stocks" || isStock(token)) &&
+          (filter !== "stocks" || isStock(allowlists, token)) &&
           !keys.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
           (!search ||
             token.symbol.toLowerCase().includes(search) ||
@@ -213,7 +213,7 @@ export default function AssetSelection() {
       )
       .slice(0, 20)
       .map(({ token }) => token);
-  }, [advanced, chains, compatible, tokens, targets, filter, owned, search]);
+  }, [advanced, allowlists, chains, compatible, tokens, targets, filter, owned, search]);
 
   if (typeof receiver !== "string" || !receiver) return <Redirect href="/send-funds/receiver" />;
 
