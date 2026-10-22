@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { LinearTransition } from "react-native-reanimated";
 
 import { selectionAsync } from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
@@ -79,6 +80,7 @@ import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exaConfig from "../../utils/wagmi/exa";
+import AnimatedView from "../shared/AnimatedView";
 import Checkbox from "../shared/Checkbox";
 import IconButton from "../shared/IconButton";
 import MarketClosedBanner from "../shared/MarketClosedBanner";
@@ -1090,145 +1092,147 @@ export default function Swaps() {
                   <MarketClosedBanner
                     open={[fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen()}
                   />
-                  <YStack>
-                    {(["from", "to"] as const).map((type) => {
-                      const paying = type === "from";
-                      const tokenData = paying ? fromToken : toToken;
-                      return (
-                        <React.Fragment key={type}>
-                          {!paying && (
-                            <XStack paddingTop="$s3_5" justifyContent="center" alignItems="center" zIndex={1}>
-                              <XStack
-                                position="absolute"
-                                width={48}
-                                height={48}
-                                borderRadius="$r_0"
-                                borderWidth={4}
-                                borderColor="$backgroundSoft"
-                                backgroundColor={locked ? "$interactiveDisabled" : "$interactiveBaseBrandSoftDefault"}
-                                justifyContent="center"
-                                alignItems="center"
-                                cursor={locked ? "not-allowed" : "pointer"}
-                                role="button"
-                                aria-label={t("Switch tokens")}
-                                aria-disabled={locked}
-                                disabled={locked}
-                                rotate={`${flips * 180}deg`}
-                                transition="quick"
-                                pressStyle={{ opacity: 0.85, scale: 0.9 }}
-                                onPress={() => {
-                                  selectionAsync().catch(reportError);
-                                  if (debounceRef.current) clearTimeout(debounceRef.current);
-                                  setAcknowledged(false);
-                                  setFlips((count) => count + 1);
-                                  updateSwap((old) => ({
-                                    ...old,
-                                    fromAmount: 0n,
-                                    toAmount: 0n,
-                                    denied: [],
-                                    fromToken: old.toToken,
-                                    toToken: old.fromToken,
-                                    mode: undefined,
-                                  }));
-                                }}
-                              >
-                                <ArrowDownUp
-                                  size={20}
-                                  color={locked ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
-                                />
+                  <AnimatedView layout={LinearTransition} gap="$s4_5">
+                    <YStack>
+                      {(["from", "to"] as const).map((type) => {
+                        const paying = type === "from";
+                        const tokenData = paying ? fromToken : toToken;
+                        return (
+                          <React.Fragment key={type}>
+                            {!paying && (
+                              <XStack paddingTop="$s3_5" justifyContent="center" alignItems="center" zIndex={1}>
+                                <XStack
+                                  position="absolute"
+                                  width={48}
+                                  height={48}
+                                  borderRadius="$r_0"
+                                  borderWidth={4}
+                                  borderColor="$backgroundSoft"
+                                  backgroundColor={locked ? "$interactiveDisabled" : "$interactiveBaseBrandSoftDefault"}
+                                  justifyContent="center"
+                                  alignItems="center"
+                                  cursor={locked ? "not-allowed" : "pointer"}
+                                  role="button"
+                                  aria-label={t("Switch tokens")}
+                                  aria-disabled={locked}
+                                  disabled={locked}
+                                  rotate={`${flips * 180}deg`}
+                                  transition="quick"
+                                  pressStyle={{ opacity: 0.85, scale: 0.9 }}
+                                  onPress={() => {
+                                    selectionAsync().catch(reportError);
+                                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                                    setAcknowledged(false);
+                                    setFlips((count) => count + 1);
+                                    updateSwap((old) => ({
+                                      ...old,
+                                      fromAmount: 0n,
+                                      toAmount: 0n,
+                                      denied: [],
+                                      fromToken: old.toToken,
+                                      toToken: old.fromToken,
+                                      mode: undefined,
+                                    }));
+                                  }}
+                                >
+                                  <ArrowDownUp
+                                    size={20}
+                                    color={locked ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
+                                  />
+                                </XStack>
                               </XStack>
-                            </XStack>
-                          )}
-                          <TokenInput
-                            label={t(paying ? "You pay" : "You receive")}
-                            token={tokenData?.token}
-                            amount={paying ? fromAmount : toAmount}
-                            balance={getBalance(tokenData)}
-                            disabled={!paying}
-                            isLoading={isTokensLoading || !tokenData || isRouteLoading}
-                            isActive={paying}
-                            isDanger={paying && showWarning}
-                            onTokenSelect={() => {
-                              updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
-                              setAcknowledged(false);
-                            }}
-                            onFocus={() => {
-                              setAcknowledged(false);
-                            }}
-                            onChange={
-                              paying
-                                ? (value: bigint) => {
-                                    handleAmountChange(value);
-                                    setAcknowledged(false);
-                                  }
-                                : undefined
-                            }
-                            onUseMax={
-                              paying
-                                ? (value: bigint) => {
-                                    handleAmountChange(value);
-                                    setAcknowledged(false);
-                                  }
-                                : undefined
-                            }
-                            usdValue={quotedUSD(route?.estimate, type)}
-                          />
-                        </React.Fragment>
-                      );
-                    })}
-                  </YStack>
-                  {priced && (
-                    <PriceSummary
-                      key={`${priced.token.chainId}:${priced.token.address}`}
-                      token={priced.token}
-                      onPress={() => {
-                        router.push({
-                          pathname: "/asset",
-                          params: {
-                            chainId: String(priced.token.chainId),
-                            address: priced.token.address,
-                            market: priced.external
-                              ? undefined
-                              : markets?.find(({ asset }) => asset === priced.token.address)?.market,
-                          },
-                        });
-                      }}
-                    />
-                  )}
-                  {fromToken && toToken && route && (
-                    <SwapDetails
-                      exchange={tool}
-                      fee={route.estimate.feeCosts?.reduce((sum, { percentage }) => sum + Number(percentage), 0)}
-                      slippage={crossChain || routed ? BigInt(bridgeSlippage * 1000) : SLIPPAGE_PERCENT}
-                      exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
-                      fromToken={fromToken.token}
-                      toToken={toToken.token}
-                      networkFeeUSD={networkFeeUSD}
-                      duration={
-                        crossChain || !fromToken.external
-                          ? (duration ?? (isInsufficientBalance ? undefined : null))
-                          : undefined
-                      }
-                    />
-                  )}
-                  <Text caption2 color="$interactiveOnDisabled">
-                    <Trans
-                      i18nKey="Swaps are provided via <provider>LI.FI</provider> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
-                      components={{
-                        provider: (
-                          <Text
-                            cursor="pointer"
-                            caption2
-                            color="$interactiveOnDisabled"
-                            textDecorationLine="underline"
-                            onPress={() => {
-                              openBrowser(`https://li.fi/`).catch(reportError);
-                            }}
-                          />
-                        ),
-                      }}
-                    />
-                  </Text>
+                            )}
+                            <TokenInput
+                              label={t(paying ? "You pay" : "You receive")}
+                              token={tokenData?.token}
+                              amount={paying ? fromAmount : toAmount}
+                              balance={getBalance(tokenData)}
+                              disabled={!paying}
+                              isLoading={isTokensLoading || !tokenData || isRouteLoading}
+                              isActive={paying}
+                              isDanger={paying && showWarning}
+                              onTokenSelect={() => {
+                                updateSwap((old) => ({ ...old, tokenSelectionType: type, tokenModalOpen: true }));
+                                setAcknowledged(false);
+                              }}
+                              onFocus={() => {
+                                setAcknowledged(false);
+                              }}
+                              onChange={
+                                paying
+                                  ? (value: bigint) => {
+                                      handleAmountChange(value);
+                                      setAcknowledged(false);
+                                    }
+                                  : undefined
+                              }
+                              onUseMax={
+                                paying
+                                  ? (value: bigint) => {
+                                      handleAmountChange(value);
+                                      setAcknowledged(false);
+                                    }
+                                  : undefined
+                              }
+                              usdValue={quotedUSD(route?.estimate, type)}
+                            />
+                          </React.Fragment>
+                        );
+                      })}
+                    </YStack>
+                    {priced && (
+                      <PriceSummary
+                        key={`${priced.token.chainId}:${priced.token.address}`}
+                        token={priced.token}
+                        onPress={() => {
+                          router.push({
+                            pathname: "/asset",
+                            params: {
+                              chainId: String(priced.token.chainId),
+                              address: priced.token.address,
+                              market: priced.external
+                                ? undefined
+                                : markets?.find(({ asset }) => asset === priced.token.address)?.market,
+                            },
+                          });
+                        }}
+                      />
+                    )}
+                    {fromToken && toToken && route && (
+                      <SwapDetails
+                        exchange={tool}
+                        fee={route.estimate.feeCosts?.reduce((sum, { percentage }) => sum + Number(percentage), 0)}
+                        slippage={crossChain || routed ? BigInt(bridgeSlippage * 1000) : SLIPPAGE_PERCENT}
+                        exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
+                        fromToken={fromToken.token}
+                        toToken={toToken.token}
+                        networkFeeUSD={networkFeeUSD}
+                        duration={
+                          crossChain || !fromToken.external
+                            ? (duration ?? (isInsufficientBalance ? undefined : null))
+                            : undefined
+                        }
+                      />
+                    )}
+                    <Text caption2 color="$interactiveOnDisabled">
+                      <Trans
+                        i18nKey="Swaps are provided via <provider>LI.FI</provider> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
+                        components={{
+                          provider: (
+                            <Text
+                              cursor="pointer"
+                              caption2
+                              color="$interactiveOnDisabled"
+                              textDecorationLine="underline"
+                              onPress={() => {
+                                openBrowser(`https://li.fi/`).catch(reportError);
+                              }}
+                            />
+                          ),
+                        }}
+                      />
+                    </Text>
+                  </AnimatedView>
                 </YStack>
               </View>
             </ScrollView>
