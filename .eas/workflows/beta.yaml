@@ -1,5 +1,6 @@
 name: beta
 on: { workflow_dispatch: {} }
+defaults: { tools: { node: "24.14.1" } }
 jobs:
   android_build:
     type: build
