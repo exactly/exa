@@ -179,6 +179,7 @@ file: `.changeset/<random-name>.md`
 
 - **app** (`@exactly/mobile`) doesn't follow semver. every patch in a minor keeps the same expo fingerprint, so all of them receive the same ota updates. a change that alters the fingerprint (compare `pnpm exec fingerprint fingerprint:generate` before and after) is `minor`, and `minor` is reserved for those
 - **contracts** (`@exactly/plugin`) follow strict semver and never break backwards compatibility, so they stay on v1. changes to core contracts are `minor` for new features and `patch` for fixes. the plugin's `VERSION` only changes when the plugin itself does, taking the version that release ships in, so plugin versions can skip. previewers and scripts get no changeset
+- **server** (`@exactly/server`) stays on v0 until its api is stable, which is still far off. on v0, almost every change is `patch`
 
 ### when a changeset is needed
 
