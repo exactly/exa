@@ -78,7 +78,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     .filter(
       (asset) =>
         asset.usdValue > 0 &&
-        !isRestricted(country, asset) &&
+        !isRestricted(country, allowlists, asset) &&
         (asset.chainId === chain.id
           ? allowed.has(asset.address.toLowerCase())
           : factories[networks.indexOf(asset.chainId)]?.data === true) &&
