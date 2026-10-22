@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRouter } from "expo-router";
 
@@ -8,11 +7,12 @@ import { safeParse } from "valibot";
 
 import Scanner from "./Scanner";
 import { chainTypeOf, receiverSchema } from "../../utils/lifi";
+import useInsets from "../../utils/useInsets";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function QR() {
-  const { bottom } = useSafeAreaInsets();
+  const { bottom } = useInsets();
   const router = useRouter();
   const [invalid, setInvalid] = useState(false);
   const { t } = useTranslation();
