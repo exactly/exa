@@ -1,6 +1,7 @@
 import React, { use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { View as RNView } from "react-native";
+import { LinearTransition } from "react-native-reanimated";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
@@ -60,6 +61,7 @@ import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
+import AnimatedView from "../shared/AnimatedView";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
@@ -380,12 +382,12 @@ export default function Home() {
                 onStocksPress={stocksAvailable ? openStocks : undefined}
               />
             )}
-            <View paddingHorizontal="s4" gap="s5">
+            <AnimatedView layout={LinearTransition} paddingHorizontal="s4" gap="s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
-            </View>
+            </AnimatedView>
           </View>
           <CardDetailsSheet
             open={cardDetailsOpen}

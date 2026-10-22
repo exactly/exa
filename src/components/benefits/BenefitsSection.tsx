@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { ComponentProps } from "react";
 import { StyleSheet } from "react-native";
-import { Easing, useReducedMotion } from "react-native-reanimated";
+import { Easing, LinearTransition, useReducedMotion } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,6 +28,7 @@ import VisaImage from "../../assets/images/visa.webp";
 import { isPromoActive } from "../../utils/promo";
 import { getRampProviders, origin } from "../../utils/server";
 import useKYC from "../../utils/useKYC";
+import AnimatedView from "../shared/AnimatedView";
 import Image from "../shared/Image";
 import Skeleton from "../shared/Skeleton";
 import ThemedSvg from "../shared/ThemedSvg";
@@ -181,7 +182,8 @@ export default function BenefitsSection({
   if (!isLoading && benefits.length === 0) return null;
   return (
     <>
-      <View
+      <AnimatedView
+        layout={LinearTransition}
         backgroundColor="backgroundSoft"
         paddingVertical="s4_5"
         borderTopWidth={1}
@@ -217,7 +219,7 @@ export default function BenefitsSection({
             />
           )}
         </View>
-      </View>
+      </AnimatedView>
       <BenefitSheet benefit={selectedBenefit} open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
   );
