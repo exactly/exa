@@ -40,8 +40,7 @@ export default function SwapDetails({
             {t("Exchange rate")}
           </Text>
           <Text caption color="$uiNeutralPrimary">
-            1 {fromToken.symbol} ={" "}
-            {exchangeRate.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+            1 {fromToken.symbol} = {exchangeRate.toLocaleString(language, { maximumSignificantDigits: 6 })}{" "}
             {toToken.symbol}
           </Text>
         </XStack>

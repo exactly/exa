@@ -13,13 +13,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Swap
 - assertVisible: Swaps
 - tapOn: { id: Select token, index: 1 }
-- assertVisible: Select token to receive
 - tapOn: Search by token name or address
 - inputText: eth
 - tapOn: WETH
 - assertNotVisible: Select token to receive
 - tapOn: { text: "0", index: 0 }
 - inputText: "100"
+- assertVisible: 1 USDC = 0\.0*[1-9]\d* WETH
 - tapOn: Swap USDC for WETH
 - tapOn: View pending request
 - assertVisible: Pending requests
