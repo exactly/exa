@@ -17,7 +17,8 @@
 
 ## latency
 
-- **the longest leg cannot go up**: no change may raise the slowest leg's time, and the sum across the matrix must not grow, except by the scrolls short screen sizes need. pay for any other new coverage with a measured saving elsewhere, never with lost coverage.
+- **the longest leg cannot go up**: no change may raise the slowest leg's time. keep it in budget by speeding up or moving steps, never by dropping coverage.
+- **coverage may cost time, duplicates may not**: new coverage can raise the total sequential time of the legs and the native runs when it checks a user path no other step checks. measure what each added step costs, keep it to the minimum the check needs, and state the cost and what it buys in the pr.
 - **happy paths pay nothing for edge cases**: handling a special case (an optional sheet, a fallback, an error path) adds no time to a run that doesn't hit it. a saving elsewhere never pays for it.
 - **measure per step**: read step durations from `commands.json` in maestro's test output (`~/.maestro/tests`, uploaded with each leg's artifacts) or from `maestro.log`, and compare flow and step times on the same base. job and run totals swing by tens of seconds with install and cache times, so never infer a cost or a saving from them.
 - **legs have a fixed cost**: a web leg spends about 3.5 min on setup before maestro starts, so a new leg costs far more than a few steps in an existing one.
@@ -75,7 +76,7 @@
 - **a size per leg**: each web leg runs at a different screen size, together covering ratios from narrow phones to desktop. permute the existing sizes before inventing new ones.
 - **limits**: chrome windows are at least 500 px wide, and the headless viewport is the window minus 143 px of height.
 - **ratios**: a size's ratio is its viewport's width over height. keep ratios spread from about 0.45 to 2, and place a new size where it splits the widest gap evenly (0.78 between 0.61 and 1.0).
-- **small screens**: prefer the smallest size that fills a gap, and cover a short portrait and a short landscape viewport, since layouts break there first. the scrolls a short size needs are the price of that coverage: they may grow the matrix sum, never the longest leg.
+- **small screens**: prefer the smallest size that fills a gap, and cover a short portrait and a short landscape viewport, since layouts break there first. the scrolls a short size needs are part of that coverage: they may add sequential time, never raise the longest leg.
 - **one desktop size**: at 768 px wide and wider than 9:16, the app renders a 9:16 box sized by the viewport height (`src/app/+html.tsx`). another desktop size only changes the box's dimensions, which the narrower sizes already vary, so keep one. every other size stays under 768 px wide, where the app fills the viewport at any ratio.
 - **desktop leg**: the metamask leg takes the desktop size, since extension wallets live on desktop browsers and its onboarding needs the height.
 - **assign by scroll cost**: a `scrollTo` costs about 0.4 s when its element is already visible and 2 to 3 s when it really scrolls, and short sizes can need new centered scrolls. give short sizes to legs with few scroll targets and the most slack once open prs land, and measure the leg at the candidate size before assigning it. a leg with no scrolls gains nothing from a tall size.
