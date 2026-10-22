@@ -112,7 +112,10 @@ export default function useSimulateProposal({
       },
     ] as const,
     allowFailure: false,
-    query: { enabled: enabled && !!account },
+    query: {
+      enabled: enabled && !!account,
+      refetchInterval: ({ state: { data } }) => (data && data[2] > data[3] ? 5000 : false),
+    },
   });
   const [plugins, delay, nonce, executed, timestamp, blockNumber] = isFetchedAfterMount ? (reads ?? []) : [];
   const proposalData =

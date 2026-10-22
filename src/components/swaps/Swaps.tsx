@@ -487,6 +487,7 @@ export default function Swaps() {
     error: swapExecuteProposalError,
     delay: proposalDelay,
     isPending: isSimulatingSwap,
+    queued,
   } = useSimulateProposal({
     account,
     amount: fromAmount,
@@ -618,6 +619,8 @@ export default function Swaps() {
   const stalled = !!prepareError && wrapped && !!dust && dust > 0n;
   const insufficientCollateral =
     !!prepareError && insufficientAccountLiquidity.test(revertReason(prepareError, { fallback: "message" }));
+  const overdrawn =
+    !!prepareError && !fromToken?.external && revertReason(prepareError, { withArguments: true }) === "Panic(17)";
 
   const isSimulating = fromToken?.external
     ? routed
@@ -627,13 +630,18 @@ export default function Swaps() {
 
   useEffect(() => {
     if (!prepareError) return;
+    if (overdrawn || insufficientCollateral) {
+      queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+      return;
+    }
+    if (queued) return;
     reportError(prepareError, { level: "warning" });
-    if (!tool || stalled || insufficientCollateral || undeployed) return;
+    if (!tool || stalled || undeployed) return;
     updateSwap((old) => ({
       ...old,
       denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
     }));
-  }, [insufficientCollateral, prepareError, stalled, tool, undeployed]);
+  }, [insufficientCollateral, overdrawn, prepareError, queued, stalled, tool, undeployed]);
   const rerouting = denied.length > 0 && !route && isRouteFetching;
   const transient =
     !!routeError &&
@@ -645,11 +653,15 @@ export default function Swaps() {
       : prepareError
         ? undeployed
           ? "account"
-          : insufficientCollateral
-            ? "collateral"
-            : stalled || (tool && denied.length < 3 && !denied.includes(tool))
-              ? undefined
-              : "route"
+          : overdrawn || (insufficientCollateral && isInsufficientBalance)
+            ? "balance"
+            : insufficientCollateral
+              ? "collateral"
+              : queued
+                ? "queued"
+                : stalled || (tool && denied.length < 3 && !denied.includes(tool))
+                  ? undefined
+                  : "route"
         : undefined;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
@@ -1236,9 +1248,14 @@ export default function Swaps() {
                             ? t("Not enough liquidity for this amount currently. Try a different amount.")
                             : failure === "account"
                               ? t("Your account isn't set up on this network yet. Contact support to fix it.")
-                              : failure
-                                ? t("We can’t get a quote right now. Try again in a moment.")
-                                : (shortfall ?? (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
+                              : failure === "queued"
+                                ? t("You have a pending swap. Wait for it to be processed before swapping again.")
+                                : failure === "balance"
+                                  ? t("Your balance changed. Check the amount and try again.")
+                                  : failure
+                                    ? t("We can’t get a quote right now. Try again in a moment.")
+                                    : (shortfall ??
+                                      (rerouting ? t("Trying another route...") : t("Retrying quote...")))}
                     </Text>
                   </XStack>
                 )}
