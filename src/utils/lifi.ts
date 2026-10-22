@@ -66,7 +66,6 @@ import chain, {
   lifiURL,
   marketWETHAddress,
   mockSwapperAbi,
-  stocks,
   swapperAddress,
 } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
@@ -155,8 +154,12 @@ export function statsOptions(chainId: number, address: string) {
   });
 }
 
-export function isStock({ address, chainId }: { address: string; chainId: number }) {
-  return chainId === base.id && stocks.has(address.toLowerCase());
+export function isStock(allowlists: Allowlists, { address, chainId }: { address: string; chainId: number }) {
+  return (
+    chainId === base.id &&
+    address.slice(0, 5).toLowerCase() === "0xb20" &&
+    !!allowlists[base.id]?.has(address.toLowerCase())
+  );
 }
 
 export const stockAbi = parseAbi(["function multiplier() view returns (uint256)"]);
