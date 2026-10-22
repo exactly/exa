@@ -1,0 +1,53 @@
+From b5a1d1830b06a752bbe9d4312c2bccabedb25b3b Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 22 Oct 2026 23:30:06 +0000
+Subject: [PATCH] fix: run css selectors once per lookup
+
+deepestMatchingElement runs its filter on one node at a time, once for every node of every subtree in the hierarchy, and the css filter queries the page on each run. So a css lookup makes one round trip to the browser per node visit, each with the web script reinjected and a 100 ms pause: a page with a 26-node hierarchy took 186 queries and about 20 s for a single pass, longer than the lookup timeout, so the selector timed out even though it matched. Run the filter once over all the nodes and keep the deepest of the matches.
+---
+ maestro-client/src/main/java/maestro/Filters.kt | 24 ++++++++++++++----------
+ 1 file changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Filters.kt b/maestro-client/src/main/java/maestro/Filters.kt
+index f3adf5f..0c4e0f1 100644
+--- a/maestro-client/src/main/java/maestro/Filters.kt
++++ b/maestro-client/src/main/java/maestro/Filters.kt
+@@ -283,19 +283,23 @@ object Filters {
+ 
+     fun deepestMatchingElement(filter: ElementFilter): ElementFilter {
+         return { nodes ->
+-            nodes.flatMap { node ->
+-                val matchingChildren = deepestMatchingElement(filter)(node.children)
+-                if (matchingChildren.isNotEmpty()) {
+-                    matchingChildren
+-                } else if (filter(listOf(node)).isNotEmpty()) {
+-                    listOf(node)
+-                } else {
+-                    emptyList()
+-                }
+-            }.distinct()
++            deepestMatchingElement(nodes, filter(nodes.flatMap { it.aggregate() }).toSet())
+         }
+     }
+ 
++    private fun deepestMatchingElement(nodes: List<TreeNode>, matching: Set<TreeNode>): List<TreeNode> {
++        return nodes.flatMap { node ->
++            val matchingChildren = deepestMatchingElement(node.children, matching)
++            if (matchingChildren.isNotEmpty()) {
++                matchingChildren
++            } else if (node in matching) {
++                listOf(node)
++            } else {
++                emptyList()
++            }
++        }.distinct()
++    }
++
+     fun css(maestro: Maestro, cssSelector: String): ElementFilter {
+         return { nodes ->
+             val matchingNodes = runBlocking { maestro.findElementsByOnDeviceQuery(
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
