@@ -9,14 +9,15 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Send to
+- runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
+- assertVisible: Delete contact
+- runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
+- assertNotVisible: Contacts
 - runFlow: { file: tapAria.yaml, env: { aria: Send settings } }
 - tapOn: Advanced mode
 - tapOn: Close
 - evalScript: ${output.advanced = true}
-- tapOn: Enter ENS or wallet address
-- inputText: "0x000000000000000000000000000000000000dEaD"
-- hideKeyboard
-- tapOn: Continue
+- runFlow: { file: tapAria.yaml, env: { aria: "0x000000000000000000000000000000000000dEaD" } }
 - assertVisible: Select asset to send
 - runFlow: { file: tapAria.yaml, env: { aria: "^EXA on .+$" } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
