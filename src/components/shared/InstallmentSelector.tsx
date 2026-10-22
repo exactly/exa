@@ -120,7 +120,7 @@ function Installment({
             (isInstallmentsPending || isBorrowPending ? (
               <Skeleton height={18} />
             ) : (
-              <Text headline numberOfLines={1} adjustsFontSizeToFit>
+              <Text headline numberOfLines={1}>
                 {(Number(installmentAmount) / 10 ** (market?.decimals ?? 6)).toLocaleString(language, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
