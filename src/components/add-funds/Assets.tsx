@@ -9,13 +9,14 @@ import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain, { allowlists } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
 import EducationSheet from "./EducationSheet";
 import { presentArticle } from "../../utils/intercom";
 import { lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
+import useAllowlists from "../../utils/useAllowlists";
 import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
@@ -31,6 +32,7 @@ export default function Assets() {
   const insets = useInsets();
   const { t } = useTranslation();
   const { markets, supportedAssets, isPending } = useMarkets();
+  const allowlists = useAllowlists();
   const { data: tokens } = useQuery(lifiTokensOptions);
   const [collateralShown, setCollateralShown] = useState(false);
   const [otherShown, setOtherShown] = useState(false);
@@ -60,7 +62,7 @@ export default function Assets() {
     for (const token of tokens) {
       const home = token.chainId === (chain.id as (typeof token)["chainId"]);
       const allowed = allowlists[String(token.chainId)];
-      if (!allowed?.some((address) => address.toLowerCase() === token.address.toLowerCase())) continue;
+      if (!allowed?.has(token.address.toLowerCase())) continue;
       if (home && underlying.has(token.address.toLowerCase())) continue;
       const correlated =
         token.symbol in tokenCorrelation ? tokenCorrelation[token.symbol as keyof typeof tokenCorrelation] : undefined;
@@ -69,7 +71,7 @@ export default function Assets() {
       if (!current || (home && current.chainId !== token.chainId)) bySymbol.set(token.symbol, token);
     }
     return [...bySymbol.values()];
-  }, [tokens, markets, supportedAssets]);
+  }, [tokens, allowlists, markets, supportedAssets]);
   const visibleOthers = others.slice(0, 4);
   return (
     <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>

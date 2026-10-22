@@ -12,10 +12,11 @@ import { useBytecode } from "wagmi";
 import chain from "@exactly/common/generated/chain";
 
 import InfoAlert from "./InfoAlert";
-import { getAllowTokens } from "../../utils/lifi";
+import { allowTokens, lifiTokensOptions } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useKYC from "../../utils/useKYC";
 import usePortfolio from "../../utils/usePortfolio";
 import { defaultSwap } from "../swaps/Swaps";
@@ -29,6 +30,7 @@ export default function FundingAlert() {
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { approved: isKYCApproved, isFetched: isKYCFetched } = useKYC();
+  const allowlists = useAllowlists();
   const { portfolio, externalAssets, crossChainAssets, markets, isExternal, isPending, isBalancesPending } =
     usePortfolio();
   const swappable = externalAssets.filter(
@@ -39,11 +41,7 @@ export default function FundingAlert() {
     mutationFn: async () => {
       const [largest] = swappable.sort((a, b) => b.usdValue - a.usdValue);
       if (!largest) throw new Error("no swappable asset");
-      const protocolMarkets = markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [];
-      const tokens = await queryClient.fetchQuery({
-        queryKey: ["allowTokens", protocolMarkets],
-        queryFn: () => getAllowTokens(protocolMarkets),
-      });
+      const tokens = allowTokens(await queryClient.fetchQuery(lifiTokensOptions), allowlists[chain.id], markets);
       const usdc = tokens.find(({ symbol }) => symbol === "USDC");
       if (!usdc) throw new Error("no usdc");
       queryClient.setQueryData<Swap>(["swap"], {
