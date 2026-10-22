@@ -1,5 +1,5 @@
 codecov:
-  notify: { after_n_builds: 8, notify_error: true }
+  notify: { after_n_builds: 10, notify_error: true }
 comment:
   layout: condensed_header, diff, flags, components, condensed_files, condensed_footer
 component_management:
