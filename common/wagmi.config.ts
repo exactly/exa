@@ -134,10 +134,6 @@ export default defineConfig([
               },
             ] as const;
           });
-          const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
-            .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
-            .map((address) => address.toLowerCase());
-          if (stocks.length === 0) throw new Error("missing stocks");
           const networkConfig: Record<string, undefined | { network: string; slug: string; testnet?: boolean }> =
             alchemyNetworks;
           const slugs = Object.fromEntries(
@@ -286,7 +282,6 @@ export default defineConfig([
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
               `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
-              `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
               ...(chain
                 ? [`const chain: AlchemyChain & { smartAccount: true } = ${source}`]
