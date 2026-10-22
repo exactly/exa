@@ -218,6 +218,7 @@ export default defineConfig([
                 ),
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
+              `export const appPreviewerDeployedCode: \`0x\${string}\` = "${AppPreviewer.deployedBytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
