@@ -78,6 +78,7 @@ export default function useSimulateProposal({
   const {
     data: reads,
     error: readsError,
+    isFetchedAfterMount,
     refetch: refetchReads,
   } = useReadContracts({
     contracts: [
@@ -113,7 +114,7 @@ export default function useSimulateProposal({
     allowFailure: false,
     query: { enabled: enabled && !!account },
   });
-  const [plugins, delay, nonce, executed, timestamp, blockNumber] = reads ?? [];
+  const [plugins, delay, nonce, executed, timestamp, blockNumber] = isFetchedAfterMount ? (reads ?? []) : [];
   const proposalData =
     proposal.proposalType === ProposalType.BorrowAtMaturity
       ? encodeBorrowAtMaturity(proposal)
