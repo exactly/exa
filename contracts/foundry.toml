@@ -49,7 +49,6 @@ runs = 66_666
 [profile.coverage]
 cache_path = "cache/coverage"
 out = "out/coverage"
-skip = ["script/**"]
 
 [profile.sizes]
 cache_path = "cache/sizes"
