@@ -77,7 +77,8 @@ contract BobScript is BaseScript {
     address[] memory owners = new address[](1);
     owners[0] = bob;
 
-    uint256 maturity = block.timestamp + FixedLib.INTERVAL - (block.timestamp % FixedLib.INTERVAL);
+    uint256 timestamp = block.timestamp + 1 hours;
+    uint256 maturity = timestamp + FixedLib.INTERVAL - (timestamp % FixedLib.INTERVAL);
 
     uint256[] memory amounts = new uint256[](4);
     amounts[0] = 13e6;
