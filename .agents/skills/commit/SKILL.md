@@ -70,22 +70,15 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 - ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
 - 🧪 `test_tube` — add a failing test. this is for tdd workflows only. this project does not use it — use ✅ `white_check_mark` instead.
 
-## commit signing
+## authorship and signing
 
-**all commits must be cryptographically signed.** this is non-negotiable.
+every commit belongs to the developer operating the agent. they are its author, and the agent leaves no trace of itself: no agent or company name as author, committer, co-author, or anywhere else in the commit.
 
-- always pass `-S` to `git commit`
-- never use `--no-gpg-sign`
-- never fall back to an unsigned commit under any circumstance
+rebasing never takes authorship away: each commit keeps its original author. when the developer reworks someone else's commit along the way, the agent may add the developer as co-author.
 
-### handling signing failures
+in a local session, every commit carries the developer's signature (`git commit -S`, never `--no-gpg-sign`). a failed signature means no commit: show the error, let the developer unlock their key, and retry. nothing moves on while a local commit is unsigned.
 
-signing may fail due to key agent timeouts (e.g., gpg-agent passphrase cache expired, ssh-agent locked, hardware key like yubikey not touched in time). when this happens:
-
-- **warn the developer**: explain that signing failed (include the error output) and that the commit was not created. suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
-- **ask for acknowledgment**: ask whether to retry or abort the commit. do not retry silently
-- **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
-- **repeat if needed**: if signing fails again, warn the developer again. there is no retry limit. never give up on signing. never strip `-S` to work around the failure
+a cloud session has no access to the developer's key, so signing doesn't apply there: commit without `-S`. authorship always does.
 
 ## changeset format
 
@@ -259,9 +252,9 @@ when a changeset is needed (see the rules above), write `.changeset/<name>.md`:
 - **description**: the commit message without the `<scope>:` prefix (unless developer explicitly requests a different description)
 - **semver level**: `patch` (unless explicitly requested otherwise)
 
-### signed commit
+### commit
 
-**every commit must be signed.** the commit message format is `<emoji> <scope>: <message>` — do NOT reuse the changeset description (which omits scope). the chosen commit message already has the correct format.
+the commit message format is `<emoji> <scope>: <message>` — do NOT reuse the changeset description (which omits scope). the chosen commit message already has the correct format.
 
 stage the changeset (if any) and commit in a single command:
 
@@ -274,15 +267,15 @@ EOF
 
 if no changeset was created, omit the `git add` portion and run only the `git commit -S` command.
 
-show the result to the developer. if signing fails, follow "handling signing failures" above.
+show the result to the developer.
 
 ## invariants
 
 - **gitmoji selection is always deliberate** — weigh the options even if only one seems to fit. when the developer reviews before committing, they pick
 - **message selection is always deliberate** — always write all 9 options before picking. an agent that composes a single message and commits it without weighing alternatives is violating this workflow. when the developer reviews before committing, output all 9 as a plain numbered list in a regular text message, never in a selection widget
-- **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
+- **local signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
 - never push without being asked
-- if a pre-commit hook fails, fix the issue and create a NEW commit (still signed with `-S`)
+- if a pre-commit hook fails, fix the issue and create a NEW commit
 - the developer always has final say on every choice
