@@ -2868,6 +2868,7 @@ describe("concurrency", () => {
       const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, txId) });
 
       expect(response.status).toBe(200);
+      expect(captureException).not.toHaveBeenCalled();
       expect(transaction?.hashes).toHaveLength(2);
       expect(transaction?.hashes[1]).toBe(zeroHash);
       expect(transaction?.payload).toMatchObject({
@@ -2917,6 +2918,7 @@ describe("concurrency", () => {
       const bodies = (transaction?.payload as { bodies: { action: string; reason?: string; status?: string }[] })
         .bodies;
 
+      expect(captureException).not.toHaveBeenCalled();
       expect(transaction?.hashes).toHaveLength(4);
       expect(bodies).toHaveLength(4);
       expect(bodies[0]).toMatchObject({ action: "created" });
