@@ -15,6 +15,27 @@
 - **prove the outcome**: check the result onchain or through a script (the deposit event, the exact amount and receiver of a transfer), not a ui total that could also pass when the action failed.
 - **assert settled states**: never assert intermediate states users are not guaranteed to see, like spinners or pending toasts.
 
+## latency
+
+- **the longest leg cannot go up**: no change may raise the slowest leg's time, and the sum across the matrix must not grow, except by the scrolls short screen sizes need. pay for any other new coverage with a measured saving elsewhere, never with lost coverage.
+- **happy paths pay nothing for edge cases**: handling a special case (an optional sheet, a fallback, an error path) adds no time to a run that doesn't hit it. a saving elsewhere never pays for it.
+- **measure per step**: read step durations from `commands.json` in maestro's test output (`~/.maestro/tests`, uploaded with each leg's artifacts) or from `maestro.log`, and compare flow and step times on the same base. job and run totals swing by tens of seconds with install and cache times, so never infer a cost or a saving from them.
+- **legs have a fixed cost**: a web leg spends about 3.5 min on setup before maestro starts, so a new leg costs far more than a few steps in an existing one.
+- **native runs in sequence**: `flows/local.yaml` chains its bodies on each platform, so a step added to one of them adds native time too.
+- **compare like with like**: a local run takes about 1.2x the ci time. compare local with local and ci with ci.
+
+## maestro timing
+
+- **taps wait to settle**: on web, a tap waits for the view hierarchy to stop changing, polling every 200 ms and giving up after ten tries. a quiet tap costs about 1.5 s on ci, and one that starts a spinner pays the full settle without proving the action finished, so when completion matters, wait for the next expected state. drop taps the outcome does not need.
+- **lookups**: `tapOn` and `assertVisible` wait up to 17 s for their element, 7 s when optional.
+- **probes share a window**: `when: { visible }` and `when: { notVisible }` wait up to 7 s from the last interaction, so consecutive probes share that window and removing one moves its wait to the next. a probe whose condition is false pays the rest of the window: track state the flow set itself with `output` flags instead. a `true:` condition is checked first, so a false script condition skips the probe.
+- **nothing moves forever**: settle compares the bounds of every node, so a continuous animation (carousel, progress bar, looping spinner) makes every tap near it wait the full settle. app animations stop when hidden and respect reduced motion, which ci forces with `--force-prefers-reduced-motion`.
+- **positive checks only**: wait for what should appear next, or read chain state from a script. no sleeps, `waitForAnimationToEnd` or negative visibility asserts unless a measurement proves them necessary.
+- **scroll only as needed**: `subflows/scrollTo.yaml` wraps `scrollUntilVisible`. pass `center` only when the element can end up behind the floating tab bar: centering costs about one swipe, and at the end of a page it keeps swiping for seconds, so use `offset` there. `copyTextFrom` only reads text and never needs centering.
+- **keyboard**: `hideKeyboard` is nearly free on web, and with one swipe it beats a slow `scrollTo` under an open keyboard.
+- **scripts are not free**: graaljs takes seconds to run `mnemonicToAccount` (pbkdf2). compute values once and keep them in `output`, as `subflows/getAccount.yaml` does. a plain rpc call beats a deployless read.
+- **refresh instead of polling**: pending requests refetch every 30 s, so tap Home to refresh them instead of waiting.
+
 ## signers
 
 - **method**: the `method` env picks a leg's signer. empty is the mock wallet, `siwe` is metamask (web only) and `webauthn` is a passkey on the virtual authenticator from `biometrics.patch`.
