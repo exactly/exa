@@ -1,18 +1,53 @@
-From a404dd64920011dc43a05d68a15330a1553d20bc Mon Sep 17 00:00:00 2001
+From 9f59c63e53da3f162e00dbb6fe7aff0b15bcefdd Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 16:42:29 +0000
 Subject: [PATCH] fix: report the visible part of web elements
 
-Web bounds were the element's whole box, even where it lies outside the viewport, so a tap on an element cut by the edge of the screen aimed at its center, which can be off screen, and hit nothing. Clip bounds to the viewport, as Android reports visible bounds, so the tap lands on the part a user can see. Elements entirely outside keep their box, so they are still filtered out.
+Web bounds were the element's whole box, even where it lies outside the viewport or a scroll container hides it, so a tap on an element cut by the edge of the screen or of a scroll area aimed at its center, which can be hidden, and hit nothing or whatever sits there, and an element scrolled out of its container still counted as visible. Clip bounds to the viewport and to every ancestor that hides its overflow, as Android reports visible bounds, so the tap lands on the part a user can see. An element a scroll container hides entirely reports an empty box, so it is filtered out as on Android. Fixed elements escape every ancestor's clip, and absolute ones the clips below their containing block, as in CSS. Elements entirely outside the viewport keep their box, so they are still filtered out.
 ---
- maestro-client/src/main/resources/maestro-web.js | 16 ++++++++++++----
- 1 file changed, 12 insertions(+), 4 deletions(-)
+ .../src/main/resources/maestro-web.js         | 50 +++++++++++++++----
+ 1 file changed, 41 insertions(+), 9 deletions(-)
 
 diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
-index 6dc68a9..cf32332 100644
+index 6dc68a9..16ff662 100644
 --- a/maestro-client/src/main/resources/maestro-web.js
 +++ b/maestro-client/src/main/resources/maestro-web.js
-@@ -69,10 +69,18 @@
+@@ -56,12 +56,32 @@
+         return `[${Math.round(l)},${Math.round(t)}][${Math.round(r)},${Math.round(b)}]`
+     }
+ 
+-    const getNodeBounds = (node, iframeOffsetX = 0, iframeOffsetY = 0) => {
++    const getClip = (node, style, clip) => {
++        if (style.overflowX === 'visible' && style.overflowY === 'visible') return clip;
++
++        const rect = node.getBoundingClientRect();
++        const { left, top, right, bottom } = clip ?? { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
++        return {
++            left: style.overflowX === 'visible' ? left : Math.max(left, rect.left),
++            top: style.overflowY === 'visible' ? top : Math.max(top, rect.top),
++            right: style.overflowX === 'visible' ? right : Math.min(right, rect.right),
++            bottom: style.overflowY === 'visible' ? bottom : Math.min(bottom, rect.bottom),
++        };
++    }
++
++    const getNodeBounds = (node, iframeOffsetX = 0, iframeOffsetY = 0, clip = null) => {
+         if (isSynthetic(node)) {
+             return getSyntheticNodeBounds(node);
+         }
+ 
+-        const rect = node.getBoundingClientRect()
++        let rect = node.getBoundingClientRect()
++        if (clip && rect.width > 0 && rect.height > 0) {
++            const left = Math.max(rect.left, clip.left);
++            const top = Math.max(rect.top, clip.top);
++            const right = Math.min(rect.right, clip.right);
++            const bottom = Math.min(rect.bottom, clip.bottom);
++            rect = right > left && bottom > top ? new DOMRect(left, top, right - left, bottom - top) : new DOMRect(left, top, 0, 0);
++        }
+         const vpx = maestro.viewportX;
+         const vpy = maestro.viewportY;
+         const vpw = maestro.viewportWidth || window.innerWidth;
+@@ -69,10 +89,17 @@
  
          const scaleX = vpw / window.innerWidth;
          const scaleY = vph / window.innerHeight;
@@ -25,7 +60,6 @@ index 6dc68a9..cf32332 100644
 +        let r = (rect.x + rect.width + iframeOffsetX) * scaleX + vpx;
 +        let b = (rect.y + rect.height + iframeOffsetY) * scaleY + vpy;
 +
-+        // Like Android, report only the part inside the viewport, so a tap aims at what is on screen
 +        if (l < vpx + vpw && r > vpx && t < vpy + vph && b > vpy) {
 +            l = Math.max(l, vpx);
 +            t = Math.max(t, vpy);
@@ -35,6 +69,36 @@ index 6dc68a9..cf32332 100644
  
          return `[${Math.round(l)},${Math.round(t)}][${Math.round(r)},${Math.round(b)}]`
      }
+@@ -89,7 +116,7 @@
+         return typeof attribute === 'string' && attribute !== '' ? attribute : null
+     }
+ 
+-    const traverse = (node, includeChildren = true, iframeOffsetX = 0, iframeOffsetY = 0) => {
++    const traverse = (node, includeChildren = true, iframeOffsetX = 0, iframeOffsetY = 0, clip = null, outerClip = null) => {
+       if (!node || isInvalidTag(node)) return null
+ 
+       // Traverse into same-origin iframes; skip cross-origin ones silently
+@@ -121,13 +148,18 @@
+           return null;
+       }
+ 
++      const style = getComputedStyle(node)
++      if (style.position === 'fixed') clip = null
++      else if (style.position === 'absolute') clip = outerClip
++      const childClip = includeChildren ? getClip(node, style, clip) : clip
++      const childOuterClip = style.position === 'static' ? outerClip : childClip
+       const children = includeChildren
+-        ? [...node.children || []].map(child => traverse(child, true, iframeOffsetX, iframeOffsetY)).filter(el => !!el)
++        ? [...node.children || []].map(child => traverse(child, true, iframeOffsetX, iframeOffsetY, childClip, childOuterClip)).filter(el => !!el)
+         : []
+ 
+       const attributes = {
+           text: getNodeText(node),
+-          bounds: getNodeBounds(node, iframeOffsetX, iframeOffsetY),
++          bounds: getNodeBounds(node, iframeOffsetX, iframeOffsetY, clip),
+       }
+ 
+       // If this is an <option> element, we only want to include it if the parent <select> element is focused.
 
 base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
 -- 
