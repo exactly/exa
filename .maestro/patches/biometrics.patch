@@ -1,30 +1,30 @@
-From f9f48eda762037a63b8254622e16fb6e4fe8f281 Mon Sep 17 00:00:00 2001
+From 753625e21a8b8ab6433ea4f6e14bb98caa71f536 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Sun, 18 Oct 2026 22:51:13 +0000
 Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
 
 ---
- .../src/main/java/maestro/Driver.kt           |  4 +++
- .../src/main/java/maestro/Maestro.kt          | 12 +++++++++
- .../java/maestro/drivers/AndroidDriver.kt     | 19 ++++++++++++++
- .../main/java/maestro/drivers/CdpWebDriver.kt | 25 +++++++++++++++++++
- .../main/java/maestro/drivers/IOSDriver.kt    | 12 +++++++++
- .../main/java/maestro/drivers/WebDriver.kt    |  8 ++++++
- .../src/main/kotlin/device/IOSDevice.kt       |  4 +++
- .../src/main/kotlin/device/SimctlIOSDevice.kt |  8 ++++++
- .../main/kotlin/util/LocalSimulatorUtils.kt   | 13 ++++++++++
- .../src/main/java/ios/LocalIOSDevice.kt       |  8 ++++++
- .../ios/devicectl/DeviceControlIOSDevice.kt   |  8 ++++++
- .../main/java/ios/xctest/XCTestIOSDevice.kt   |  8 ++++++
- .../main/java/maestro/orchestra/Commands.kt   | 24 ++++++++++++++++++
- .../java/maestro/orchestra/MaestroCommand.kt  |  6 +++++
- .../main/java/maestro/orchestra/Orchestra.kt  | 14 +++++++++++
- .../orchestra/yaml/MaestroFlowParser.kt       |  2 ++
- .../orchestra/yaml/YamlEnrollBiometrics.kt    |  6 +++++
- .../orchestra/yaml/YamlFluentCommand.kt       | 22 ++++++++++++++++
- .../orchestra/yaml/YamlMatchBiometrics.kt     |  6 +++++
- .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 ++++++++++++
- 20 files changed, 225 insertions(+)
+ .../src/main/java/maestro/Driver.kt           |  4 ++
+ .../src/main/java/maestro/Maestro.kt          | 12 ++++++
+ .../java/maestro/drivers/AndroidDriver.kt     | 36 ++++++++++++++++
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 25 +++++++++++
+ .../main/java/maestro/drivers/IOSDriver.kt    | 12 ++++++
+ .../main/java/maestro/drivers/WebDriver.kt    |  8 ++++
+ .../src/main/kotlin/device/IOSDevice.kt       |  4 ++
+ .../src/main/kotlin/device/SimctlIOSDevice.kt |  8 ++++
+ .../main/kotlin/util/LocalSimulatorUtils.kt   | 41 +++++++++++++++++++
+ .../src/main/java/ios/LocalIOSDevice.kt       |  8 ++++
+ .../ios/devicectl/DeviceControlIOSDevice.kt   |  8 ++++
+ .../main/java/ios/xctest/XCTestIOSDevice.kt   |  8 ++++
+ .../main/java/maestro/orchestra/Commands.kt   | 24 +++++++++++
+ .../java/maestro/orchestra/MaestroCommand.kt  |  6 +++
+ .../main/java/maestro/orchestra/Orchestra.kt  | 14 +++++++
+ .../orchestra/yaml/MaestroFlowParser.kt       |  2 +
+ .../orchestra/yaml/YamlEnrollBiometrics.kt    |  6 +++
+ .../orchestra/yaml/YamlFluentCommand.kt       | 22 ++++++++++
+ .../orchestra/yaml/YamlMatchBiometrics.kt     |  6 +++
+ .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 ++++++++
+ 20 files changed, 270 insertions(+)
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
 
@@ -67,7 +67,7 @@ index 1f850dc..61cb889 100644
          driver.setAndroidChromeDevToolsEnabled(enabled)
      }
 diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-index 8211337..9598497 100644
+index 8211337..6605e57 100644
 --- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 @@ -60,6 +60,7 @@ import java.util.concurrent.CompletableFuture
@@ -78,7 +78,7 @@ index 8211337..9598497 100644
  import javax.xml.parsers.DocumentBuilderFactory
  import kotlin.io.use
  
-@@ -835,6 +836,24 @@ class AndroidDriver(
+@@ -835,6 +836,38 @@ class AndroidDriver(
          }
      }
  
@@ -88,6 +88,12 @@ index 8211337..9598497 100644
 +
 +    override fun matchBiometrics() {
 +        metrics.measured("operation", mapOf("command" to "matchBiometrics")) {
++            val latest = MaestroTimer.withTimeout(BIOMETRICS_TIMEOUT_MS) {
++                val events = fingerprintEvents()
++                events.lastOrNull { (_, message) -> FINGERPRINT_LISTENING.containsMatchIn(message) || FINGERPRINT_IDLE.containsMatchIn(message) }
++                    ?.takeIf { (_, message) -> FINGERPRINT_LISTENING.containsMatchIn(message) }
++                    ?.let { events.last() }
++            } ?: throw IllegalStateException("No fingerprint operation is waiting for a touch on ${connection.serial}")
 +            val process = ProcessBuilder("adb", "-s", connection.serial, "emu", "finger", "touch", "1")
 +                .redirectErrorStream(true)
 +                .start()
@@ -97,12 +103,30 @@ index 8211337..9598497 100644
 +            if (process.exitValue() != 0) {
 +                throw IllegalStateException("Failed to match biometrics on ${connection.serial}: ${process.inputStream.bufferedReader().readText()}")
 +            }
++            MaestroTimer.withTimeout(BIOMETRICS_TIMEOUT_MS) {
++                fingerprintEvents().firstOrNull { (time, message) -> time > latest.first && "onAcquired(" in message }
++            } ?: throw IllegalStateException("Fingerprint touch was not acquired on ${connection.serial}")
 +        }
++    }
++
++    private fun fingerprintEvents() = shell("logcat -d -v epoch -s fingerprint-service.ranchu").lines().mapNotNull { line ->
++        val fields = line.trim().split(Regex("\\s+"), limit = 6)
++        fields.getOrNull(5)?.let { message -> fields[0].toBigDecimalOrNull()?.let { time -> time to message } }
 +    }
 +
      private fun broadcastAirplaneMode(enabled: Boolean) {
          val command = "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $enabled"
          try {
+@@ -1535,6 +1568,9 @@ class AndroidDriver(
+         const val SET_LOCALE_RESULT_UPDATE_CONFIGURATION_FAILED = 2
+ 
+         private const val SERVER_LAUNCH_TIMEOUT_MS = 15000L
++        private const val BIOMETRICS_TIMEOUT_MS = 10000L
++        private val FINGERPRINT_LISTENING = Regex("AUTHENTICATING|ENROLLING_START|onEnrollmentProgress\\(.*left=[1-9]")
++        private val FINGERPRINT_IDLE = Regex("onAuthenticationSucceeded|onLockout|onError\\((CANCELED|UNABLE_TO_PROCESS, \\d+\\): fpHash)|onEnrollmentProgress\\(.*left=0")
+         private const val MAESTRO_DRIVER_STARTUP_TIMEOUT = "MAESTRO_DRIVER_STARTUP_TIMEOUT"
+         private const val WINDOW_UPDATE_TIMEOUT_MS = 750
+         private const val MAESTRO_IME_ID = "dev.mobile.maestro/.input.MaestroInputMethodService"
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 index ad651bb..8c8fed9 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
@@ -223,10 +247,30 @@ index 2894584..f5b3f06 100644
          return runCatching {
              localSimulatorUtils.setLocation(deviceId, latitude, longitude)
 diff --git a/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt b/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
-index 2f8c6b2..9e3e5a3 100644
+index 2f8c6b2..b0b669b 100644
 --- a/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
 +++ b/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
-@@ -412,6 +412,19 @@ class LocalSimulatorUtils(private val tempFileHandler: TempFileHandler) {
+@@ -15,6 +15,7 @@ import java.nio.file.Files
+ import java.nio.file.Path
+ import java.time.Instant
+ import java.time.LocalDateTime
++import java.time.OffsetDateTime
+ import java.time.format.DateTimeFormatter
+ import kotlin.io.path.Path
+ 
+@@ -24,6 +25,11 @@ class LocalSimulatorUtils(private val tempFileHandler: TempFileHandler) {
+ 
+     companion object {
+         private const val LOG_DIR_DATE_FORMAT = "yyyy-MM-dd_HHmmss"
++        private const val BIOMETRICS_TIMEOUT_MS = 10000L
++        private const val BIOMETRICS_STARTED = "-[BKOperation startWithError:] -> 1"
++        private const val BIOMETRICS_CANCELED = "-[BKOperation cancel]"
++        private const val BIOMETRICS_MATCHED = "-[BKMatchOperation simulateMatching:type:]"
++        private val BIOMETRICS_TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSZ")
+     }
+ 
+     private val homedir = System.getProperty("user.home")
+@@ -412,6 +418,41 @@ class LocalSimulatorUtils(private val tempFileHandler: TempFileHandler) {
          )
      }
  
@@ -236,7 +280,29 @@ index 2f8c6b2..9e3e5a3 100644
 +    }
 +
 +    fun matchBiometrics(deviceId: String) {
++        MaestroTimer.withTimeout(BIOMETRICS_TIMEOUT_MS) {
++            biometricEvents(deviceId).lastOrNull { (_, message) -> message == BIOMETRICS_STARTED || message == BIOMETRICS_CANCELED }
++                ?.takeIf { (_, message) -> message == BIOMETRICS_STARTED }
++        } ?: throw SimctlError("No biometric operation is waiting for a match on $deviceId")
++        val posted = Instant.now()
 +        notifyutil(deviceId, "-p", "com.apple.BiometricKit_Sim.fingerTouch.match")
++        MaestroTimer.withTimeout(BIOMETRICS_TIMEOUT_MS) {
++            biometricEvents(deviceId).firstOrNull { (time, message) -> time > posted && message.startsWith(BIOMETRICS_MATCHED) }
++        } ?: throw SimctlError("Biometric match was not simulated on $deviceId")
++    }
++
++    private fun biometricEvents(deviceId: String): List<Pair<Instant, String>> {
++        val process = ProcessBuilder(
++            "xcrun", "simctl", "spawn", deviceId, "log", "show", "--last", "1m", "--style", "ndjson",
++            "--predicate", "sender == \"BiometricKit\"",
++        ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
++        return process.inputStream.bufferedReader().readLines().mapNotNull { line ->
++            val event = runCatching { jacksonObjectMapper().readValue<Map<String, Any?>>(line) }.getOrNull()
++            val time = event?.get("timestamp") as? String
++            val message = event?.get("eventMessage") as? String
++            if (time == null || message == null) null
++            else OffsetDateTime.parse(time, BIOMETRICS_TIMESTAMP).toInstant() to message
++        }
 +    }
 +
 +    private fun notifyutil(deviceId: String, vararg arguments: String) {
@@ -524,8 +590,6 @@ index 758d1eb..4a54c93 100644
          object StartRecording : Event()
  
          object StopRecording : Event()
-
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
 -- 
 2.43.0
 
