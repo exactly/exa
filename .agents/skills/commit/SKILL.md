@@ -26,7 +26,7 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 | contracts | solidity smart contracts (`@exactly/plugin`) |
 | common | shared utilities (`@exactly/common`) |
 | docs | documentation-only changes |
-| dependencies | dependency changes |
+| dependencies | dependency changes across projects |
 | github | github actions or ci workflows |
 | eas | expo application services (eas builds, updates, submit) |
 | global | repository-wide changes that don't fit other scopes |
@@ -189,7 +189,7 @@ the scope comes from the staged files:
 - files in `.maestro/` → `e2e`
 - files in `.agents/` → `agents`
 - eas config files (`eas.json`, etc.) → `eas`
-- dependency-only changes → `dependencies`
+- dependency changes → the project's scope when they touch one project, `dependencies` when they span several
 - config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
 - everything else → `global`
 
