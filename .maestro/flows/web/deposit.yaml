@@ -2,4 +2,6 @@ url: http://localhost:8081
 ---
 - runFlow:
     file: ../deposit.yaml
-    env: { APP_ID: "${APP_ID ?? 'http://localhost:8081'}" }
+    env: { APP_ID: "${APP_ID ?? 'http://localhost:8081'}", notifications: allow }
+- assertVisible: Funds received
+- assertVisible: 420 USDC received and instantly started earning yield
