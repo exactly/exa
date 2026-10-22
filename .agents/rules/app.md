@@ -59,7 +59,6 @@ trigger: glob
 
 - **`useEffect` for data fetching**: forbidden. all data fetching must use tanstack query. useEffect is acceptable only for setup, cleanup, and third-party sdk initialization.
 - **manual theme/color logic**: do not write components that manually switch between light/dark mode colors.
-- **`any` type**: strictly forbidden. use `unknown` and perform type checking if a type is truly unknown.
 
 ## development workflow
 
