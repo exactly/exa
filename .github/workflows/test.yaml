@@ -135,7 +135,7 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${METAMASK:+--browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
+          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion --browser-args=--remote-debugging-port=9222 ${METAMASK:+--browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: always()
         run: |
