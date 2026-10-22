@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 
 import { ArrowRight, Calendar, CirclePercent, Siren } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
-import { Separator, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -66,60 +66,62 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
 
   return (
     <ModalSheet open={open} onClose={close}>
-      <YStack
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingTop="$s5"
-        paddingBottom="$s7"
-      >
-        <View aspectRatio={2} justifyContent="center" alignItems="center">
-          <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
-            <ThemedSvg xml={calendarRollover} width="100%" height="100%" />
+      <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+        <YStack
+          borderTopLeftRadius="$r5"
+          borderTopRightRadius="$r5"
+          backgroundColor="$backgroundSoft"
+          paddingTop="$s5"
+          paddingBottom="$s7"
+        >
+          <View aspectRatio={2} justifyContent="center" alignItems="center">
+            <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
+              <ThemedSvg xml={calendarRollover} width="100%" height="100%" />
+            </View>
           </View>
-        </View>
-        <Separator height={1} borderColor="$borderNeutralSoft" />
-        <YStack paddingTop="$s6" paddingHorizontal="$s5" flex={1} backgroundColor="$backgroundMild">
-          <YStack gap="$s7">
-            <YStack gap="$s4_5">
-              <Text primary emphasized title3>
-                {t("Refinance your debt")}
-              </Text>
-              <Text secondary subHeadline>
-                {t(
-                  "Roll over your debt to avoid penalties and gain more time to repay. It’s a smart way to manage your cash flow and possibly reduce your rate.",
-                )}
-              </Text>
+          <Separator height={1} borderColor="$borderNeutralSoft" />
+          <YStack paddingTop="$s6" paddingHorizontal="$s5" flex={1} backgroundColor="$backgroundMild">
+            <YStack gap="$s7">
+              <YStack gap="$s4_5">
+                <Text primary emphasized title3>
+                  {t("Refinance your debt")}
+                </Text>
+                <Text secondary subHeadline>
+                  {t(
+                    "Roll over your debt to avoid penalties and gain more time to repay. It’s a smart way to manage your cash flow and possibly reduce your rate.",
+                  )}
+                </Text>
+              </YStack>
+              <YStack gap="$s4">
+                <XStack gap="$s3" alignItems="center" justifyContent="center">
+                  <Siren strokeWidth={2.5} color="$uiBrandSecondary" />
+                  <Text color="$uiBrandSecondary" emphasized subHeadline>
+                    {t("Avoid penalties by extending your deadline")}
+                  </Text>
+                </XStack>
+                <XStack gap="$s3" alignItems="center" justifyContent="center">
+                  <CirclePercent strokeWidth={2.5} color="$uiBrandSecondary" />
+                  <Text color="$uiBrandSecondary" emphasized subHeadline>
+                    {t("Refinance at a better rate")}
+                  </Text>
+                </XStack>
+                <XStack gap="$s3" alignItems="center" justifyContent="center">
+                  <Calendar strokeWidth={2.5} color="$uiBrandSecondary" />
+                  <Text color="$uiBrandSecondary" emphasized subHeadline>
+                    {t("Get more time to repay")}
+                  </Text>
+                </XStack>
+              </YStack>
+              <Button primary onPress={navigate}>
+                <Button.Text>{t("Review refinance details")}</Button.Text>
+                <Button.Icon>
+                  <ArrowRight />
+                </Button.Icon>
+              </Button>
             </YStack>
-            <YStack gap="$s4">
-              <XStack gap="$s3" alignItems="center" justifyContent="center">
-                <Siren strokeWidth={2.5} color="$uiBrandSecondary" />
-                <Text color="$uiBrandSecondary" emphasized subHeadline>
-                  {t("Avoid penalties by extending your deadline")}
-                </Text>
-              </XStack>
-              <XStack gap="$s3" alignItems="center" justifyContent="center">
-                <CirclePercent strokeWidth={2.5} color="$uiBrandSecondary" />
-                <Text color="$uiBrandSecondary" emphasized subHeadline>
-                  {t("Refinance at a better rate")}
-                </Text>
-              </XStack>
-              <XStack gap="$s3" alignItems="center" justifyContent="center">
-                <Calendar strokeWidth={2.5} color="$uiBrandSecondary" />
-                <Text color="$uiBrandSecondary" emphasized subHeadline>
-                  {t("Get more time to repay")}
-                </Text>
-              </XStack>
-            </YStack>
-            <Button primary onPress={navigate}>
-              <Button.Text>{t("Review refinance details")}</Button.Text>
-              <Button.Icon>
-                <ArrowRight />
-              </Button.Icon>
-            </Button>
           </YStack>
         </YStack>
-      </YStack>
+      </ScrollView>
     </ModalSheet>
   );
 }
