@@ -34,7 +34,7 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - inputText: not-a-real-name.eth
       - extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
-      - eraseText
+      - eraseText: 19
       - inputText: "0xdead"
       - eraseText: 6
       - inputText: ${to}
