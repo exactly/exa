@@ -271,7 +271,7 @@ export default function Home() {
               )}
               <PluginUpgrade />
               <FundingAlert />
-              <YStack gap="$s5">
+              <AnimatedView layout={LinearTransition} gap="$s5">
                 <PortfolioSummary
                   balanceUSD={balanceUSD}
                   averageRate={averageRate}
@@ -279,10 +279,10 @@ export default function Home() {
                   totalBalanceUSD={totalBalanceUSD}
                 />
                 <HomeActions />
-              </YStack>
+              </AnimatedView>
             </YStack>
             {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
-              <View paddingHorizontal="$s4" gap="$s5">
+              <AnimatedView layout={LinearTransition} paddingHorizontal="$s4" gap="$s5">
                 <AnimatePresence>
                   {card && (
                     <CardStatus
@@ -323,7 +323,7 @@ export default function Home() {
                 {isKYCFetched && (!isKYCApproved || !bytecode) && (
                   <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
                 )}
-              </View>
+              </AnimatedView>
             )}
             {isKYCFetched && (
               <AnimatedView layout={LinearTransition}>
