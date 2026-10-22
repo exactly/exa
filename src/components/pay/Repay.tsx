@@ -507,7 +507,7 @@ export default function Repay() {
           </View>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flex: 1, justifyContent: "space-between" }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between" }}
           >
             <View padded>
               <YStack gap="$s4" paddingTop="$s5">
@@ -668,7 +668,6 @@ export default function Repay() {
           </ScrollView>
           <View
             padded
-            flexShrink={1}
             backgroundColor="$backgroundSoft"
             borderRadius="$r4"
             borderBottomLeftRadius={0}
