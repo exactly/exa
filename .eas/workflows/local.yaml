@@ -45,12 +45,12 @@ jobs:
     steps:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - uses: eas/checkout
-      - name: start emulator # cspell:ignore avdmanager setsid swiftshader
+      - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
         run: |
-          sdkmanager --list_installed | grep system-images || true
-          avdmanager -s create avd -n e2e -k "system-images;android-34;google_apis;x86_64" --force
+          sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
+          avdmanager -s create avd -n e2e -k "system-images;android-35;google_apis;x86_64" --force
           printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 8192 -wipe-data > emulator-process.log 2>&1 &
       - uses: eas/restore_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
