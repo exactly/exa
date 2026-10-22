@@ -85,12 +85,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { flow: credit, screen: 500x963 }
+          - { flow: credit, method: webauthn, screen: 500x963 }
           - { flow: deposit, method: siwe, screen: 1920x1080 }
-          - { flow: onboarding, screen: 500x1200 }
-          - { flow: portfolio, screen: 720x500 }
-          - { flow: ramp, screen: 500x780 }
-          - { flow: swap, screen: 740x880 }
+          - { flow: onboarding, method: webauthn, screen: 500x1200 }
+          - { flow: portfolio, method: webauthn, screen: 720x500 }
+          - { flow: ramp, method: webauthn, screen: 500x780 }
+          - { flow: swap, method: webauthn, screen: 740x880 }
           - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
       NX_DAEMON: false
