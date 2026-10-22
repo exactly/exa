@@ -47,6 +47,7 @@ import {
   bridgePolicyId,
   bridgePolicyTokens,
   bridgeSlippage,
+  classify,
   gasReserveBuffer,
   getBridgeSources,
   getRouteFrom,
@@ -337,7 +338,7 @@ export default function Bridge() {
     },
     enabled: bridgeQuoteEnabled,
     refetchInterval: 15_000,
-    meta: { warnError: () => true },
+    meta: { dropError: (error) => classify(error) !== "quote", warnError: () => true },
   });
 
   const quote = bridgeQuote && !bridgeQuoteError ? bridgeQuote : undefined;

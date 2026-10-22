@@ -34,7 +34,7 @@ import SafeView from "../../components/shared/SafeView";
 import Button from "../../components/shared/StyledButton";
 import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
-import { getRoute, getRouteFrom } from "../../utils/lifi";
+import { classify, getRoute, getRouteFrom } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -204,6 +204,7 @@ export default function Repay() {
       (mode === "crossRepay" || mode === "external"),
     refetchInterval: 20_000,
     placeholderData: keepPreviousData,
+    meta: { dropError: (error) => classify(error) !== "quote" },
   });
 
   const availableForRepayment = useMemo(() => ((routeFrom?.toAmount ?? 0n) * 97n) / 100n, [routeFrom?.toAmount]);
@@ -251,6 +252,7 @@ export default function Repay() {
     },
     enabled: enableSimulations && !!maxRepay && (mode === "crossRepay" || mode === "external") && positionAssets > 0n,
     refetchInterval: 20_000,
+    meta: { dropError: (error) => classify(error) !== "quote" },
   });
 
   const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, SLIPPAGE_DIVISOR) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit

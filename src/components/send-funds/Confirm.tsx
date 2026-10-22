@@ -234,10 +234,12 @@ export default function Confirm() {
           destinationChain === payChain ? Object.fromEntries(denied.map((tool) => [tool, true])) : undefined,
         nativeless: !!market, // cspell:ignore nativeless
       }).catch((error: unknown) => {
-        reportError(error, {
-          level: "warning",
-          extra: { lifi: (error as { cause?: { responseBody?: unknown } }).cause?.responseBody },
-        });
+        if (classify(error) === "quote") {
+          reportError(error, {
+            level: "warning",
+            extra: { lifi: (error as { cause?: { responseBody?: unknown } }).cause?.responseBody },
+          });
+        }
         throw error;
       });
     },

@@ -432,10 +432,12 @@ export default function Swaps() {
           denyExchanges: crossChain ? undefined : denyExchanges,
         });
       } catch (error: unknown) {
-        reportError(error, {
-          level: "warning",
-          extra: { lifi: (error as { cause?: { responseBody?: unknown } }).cause?.responseBody },
-        });
+        if (classify(error) === "quote") {
+          reportError(error, {
+            level: "warning",
+            extra: { lifi: (error as { cause?: { responseBody?: unknown } }).cause?.responseBody },
+          });
+        }
         throw error;
       }
     },
