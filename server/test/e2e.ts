@@ -6,20 +6,22 @@ import "./mocks/sardine";
 import "./mocks/sentry";
 import "./mocks/wallet";
 
+import { eq } from "drizzle-orm";
 import { cors } from "hono/cors";
+import { html } from "hono/html";
 import { createInstrumenter } from "istanbul-lib-instrument";
 import crypto from "node:crypto";
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process, { env } from "node:process";
 import { fileURLToPath } from "node:url";
-import { padHex } from "viem";
+import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import lifi from "./lifi";
-import database from "../database";
+import database, { credentials } from "../database";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
 import createOnesignal from "../utils/onesignal";
@@ -36,7 +38,10 @@ import { connect } from "../workers/worker";
 
 import type * as panda from "../utils/panda";
 import type * as persona from "../utils/persona";
+import type * as bridge from "../utils/ramps/bridge";
+import type * as manteca from "../utils/ramps/manteca";
 import type * as sentry from "@sentry/node";
+import type { InferInput, InferOutput } from "valibot";
 
 describe("e2e", () => {
   it(
@@ -106,6 +111,9 @@ describe("e2e", () => {
             await writeFile("coverage/app.json", JSON.stringify(coverage));
             return c.json({ code: "ok" });
           });
+          app.get("/e2e/redirect", (c) =>
+            c.html(html`<meta http-equiv="refresh" content="0;url=${c.req.query("url")}" />`),
+          );
           app.post("/e2e/shutdown", (c) => {
             teardown();
             return c.json({ code: "ok" });
@@ -232,7 +240,11 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
     ...original,
     default: (...parameters: Parameters<typeof original.default>) => ({
       ...original.default(...parameters),
-      getPendingInquiryTemplate: vi.fn().mockResolvedValue(original.PANDA_TEMPLATE),
+      getPendingInquiryTemplate: vi
+        .fn()
+        .mockImplementation(async (referenceId: string) =>
+          (await approved(referenceId)) ? undefined : original.PANDA_TEMPLATE,
+        ),
       getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
         const key = `${referenceId}:${templateId}`;
         const inquiry = inquiries.get(key);
@@ -272,7 +284,155 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
       }),
       addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
       getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
-      getAccount: vi.fn().mockResolvedValue(null),
+      getAccount: vi
+        .fn()
+        .mockImplementation(async (referenceId: string) =>
+          (await approved(referenceId))
+            ? { id: `act_${referenceId}`, type: "account" as const, attributes: { "country-code": "AR", fields: {} } }
+            : undefined,
+        ),
+    }),
+  };
+});
+
+vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bridge>) => {
+  const original = await importOriginal();
+  const accounts = new Map<string, InferOutput<typeof original.ExternalAccount>[]>();
+  const beneficiaries = new Map<string, InferInput<typeof original.ExternalAccountInput>>();
+  const transfers = new Map<string, { address: Address; rail?: "ach" | "wire"; reference?: string }>();
+  return {
+    ...original,
+    default: (...parameters: Parameters<typeof original.default>) => ({
+      ...original.default(...parameters),
+      createExternalAccount: vi
+        .fn()
+        .mockImplementation(
+          ({ id: customerId }: { id: string }, input: InferInput<typeof original.ExternalAccountInput>) => {
+            const account = {
+              addressValid: true,
+              bankName: input.bankName,
+              currency: input.currency,
+              id: crypto.randomUUID(),
+              ownerName: input.accountOwnerName,
+            };
+            accounts.set(customerId, [...(accounts.get(customerId) ?? []), account]);
+            beneficiaries.set(account.id, input);
+            return Promise.resolve(account);
+          },
+        ),
+      createOfframpTransfer: vi
+        .fn()
+        .mockImplementation(
+          (
+            _customerId: string,
+            _account: string,
+            id: string,
+            _currency: string,
+            rail?: "ach" | "wire",
+            reference?: string,
+          ) => {
+            transfers.set(id, {
+              address: getAddress(slice(keccak256(toBytes(JSON.stringify(beneficiaries.get(id)))), 12)),
+              rail,
+              reference,
+            });
+            return Promise.resolve({ id: crypto.randomUUID() });
+          },
+        ),
+      getCustomer: vi.fn().mockImplementation((id: string) => Promise.resolve({ id, status: "active" })),
+      getDepositDetails: vi.fn().mockResolvedValue(
+        (["ACH", "WIRE"] as const).map((network) => ({
+          network,
+          displayName: network,
+          beneficiaryName: "Test User",
+          routingNumber: "101019644",
+          accountNumber: "900000000001",
+          bankAddress: "1801 Main St, Kansas City, MO 64108",
+          beneficiaryAddress: "123 Test St, New York, NY 10001",
+          bankName: "Lead Bank",
+          fee: "0.0",
+          estimatedProcessingTime: network === "ACH" ? "1 - 3 business days" : "300",
+        })),
+      ),
+      getOfframpDepositDetails: vi.fn().mockImplementation((id: string) => {
+        const transfer = transfers.get(id);
+        if (!transfer) return Promise.reject(new Error(original.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND));
+        return Promise.resolve([
+          {
+            network: "OPTIMISM",
+            displayName: "Optimism",
+            fee: "0.0",
+            estimatedProcessingTime: "300",
+            ...transfer,
+          },
+        ]);
+      }),
+      getProvider: vi
+        .fn()
+        .mockImplementation(
+          ({ customerId, redirectURL }: Parameters<ReturnType<typeof original.default>["getProvider"]>[0]) => {
+            const currencies = { onramp: { currencies: ["USD"] }, offramp: { currencies: ["USD"] } };
+            if (customerId) return Promise.resolve({ ...currencies, status: "ACTIVE" });
+            const redirect = new URL(redirectURL ?? "");
+            redirect.searchParams.set("provider", "bridge");
+            redirect.searchParams.set("signed_agreement_id", crypto.randomUUID());
+            return Promise.resolve({
+              ...currencies,
+              status: "NOT_STARTED",
+              tosLink: `http://localhost:3000/e2e/redirect?url=${encodeURIComponent(redirect.href)}`,
+            });
+          },
+        ),
+      listExternalAccounts: vi
+        .fn()
+        .mockImplementation((customerId: string) => Promise.resolve(accounts.get(customerId) ?? [])),
+      onboarding: vi.fn().mockImplementation(async ({ credentialId }: { credentialId: string }) => {
+        await database
+          .update(credentials)
+          .set({ bridgeId: crypto.randomUUID() })
+          .where(eq(credentials.id, credentialId));
+      }),
+      removeExternalAccount: vi.fn().mockImplementation(({ id: customerId }: { id: string }, id: string) => {
+        accounts.set(customerId, accounts.get(customerId)?.filter((account) => account.id !== id) ?? []);
+        return Promise.resolve();
+      }),
+    }),
+  };
+});
+
+vi.mock("../utils/ramps/manteca", async (importOriginal: () => Promise<typeof manteca>) => {
+  const original = await importOriginal();
+  const users = new Set<string>();
+  return {
+    ...original,
+    default: (...parameters: Parameters<typeof original.default>) => ({
+      ...original.default(...parameters),
+      getProvider: vi.fn().mockImplementation((account: string) =>
+        Promise.resolve(
+          users.has(account)
+            ? {
+                onramp: {
+                  currencies: original.CurrenciesByExchange.ARGENTINA,
+                  limits: {
+                    monthly: { available: "10000000", limit: "10000000", symbol: "ARS" },
+                    yearly: { available: "120000000", limit: "120000000", symbol: "ARS" },
+                  },
+                },
+                status: "ACTIVE",
+              }
+            : { onramp: { currencies: original.CurrenciesByExchange.ARGENTINA }, status: "NOT_STARTED" },
+        ),
+      ),
+      getQuote: vi.fn().mockResolvedValue({ buyRate: "1450", sellRate: "1400" }),
+      getUser: vi
+        .fn()
+        .mockImplementation((account: string) =>
+          Promise.resolve(users.has(account) ? { exchange: "ARGENTINA", status: "ACTIVE" } : null),
+        ),
+      onboarding: vi.fn().mockImplementation((account: string) => {
+        users.add(account);
+        return Promise.resolve();
+      }),
     }),
   };
 });
@@ -287,3 +447,11 @@ vi.mock("@sentry/node", async (importOriginal) => {
     },
   };
 });
+
+async function approved(referenceId: string) {
+  const credential = await database.query.credentials.findFirst({
+    columns: { pandaId: true },
+    where: eq(credentials.id, referenceId),
+  });
+  return !!credential?.pandaId;
+}
