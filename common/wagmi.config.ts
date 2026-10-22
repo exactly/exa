@@ -125,10 +125,6 @@ export default defineConfig([
               },
             ] as const;
           });
-          const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
-            .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
-            .map((address) => address.toLowerCase());
-          if (stocks.length === 0) throw new Error("missing stocks");
           const networkConfig: Record<
             string,
             undefined | { network: string; slug: string; testnet?: boolean; webhooks?: boolean }
@@ -316,7 +312,6 @@ export default defineConfig([
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
-              `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
               ...(chain
                 ? [`const chain: AlchemyChain & { smartAccount: true; swapper: \`0x\${string}\` } = ${source}`]
