@@ -9,9 +9,19 @@ concurrency:
   group: "${{ workflow.filename }}-${{ github.ref }}"
 jobs:
   fingerprint:
-    type: fingerprint
     environment: development
     env: { APP_DOMAIN: localhost }
+    outputs:
+      android_fingerprint_hash: ${{ steps.fingerprint.outputs.android }}
+      ios_fingerprint_hash: ${{ steps.fingerprint.outputs.ios }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: fingerprint
+        run: |
+          for platform in android ios; do
+            set-output $platform "$(pnpm exec fingerprint fingerprint:generate --platform $platform | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
+          done
 
   android_get:
     if: ${{ github.ref_type != 'tag' }}
