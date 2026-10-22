@@ -35,7 +35,7 @@ import {
   type InferOutput,
 } from "valibot";
 import { withRetry, type Chain } from "viem";
-import { anvil } from "viem/chains";
+import { anvil, moonbeamDev } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -144,15 +144,11 @@ export function network(id = chain.id) {
 export const activityUrl = `${appOrigin}/hooks/activity`;
 
 export function activityNetworks(id = chain.id) {
-  if (id === anvil.id) {
-    const current = NETWORKS.get("ANVIL");
-    if (!current) throw new Error("missing anvil activity network");
-    return new Map([["ANVIL", current]]);
-  }
+  if (id === anvil.id) return new Map(LOCAL);
   const stack = [...NETWORKS.values()].find((current) => current.id === id);
   if (!stack) throw new Error("unsupported activity stack");
   return new Map(
-    [...NETWORKS].filter(([name, current]) => name !== "ANVIL" && Boolean(current.testnet) === Boolean(stack.testnet)),
+    [...NETWORKS].filter(([name, current]) => !LOCAL.has(name) && Boolean(current.testnet) === Boolean(stack.testnet)),
   );
 }
 
@@ -176,6 +172,18 @@ const WebhookAddressesResponse = object({
   pagination: object({ cursors: object({ after: optional(string()) }), total_count: number() }),
 });
 
+const LOCAL = new Map<string, AlchemyChain>([
+  ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } } as AlchemyChain],
+  [
+    "ANVIL2",
+    {
+      ...moonbeamDev,
+      name: "Anvil2",
+      rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default },
+    } as AlchemyChain,
+  ],
+]);
+
 export const NETWORKS = new Map<string, AlchemyChain>([
   ["ARB_MAINNET", arbitrum as AlchemyChain],
   ["ARB_SEPOLIA", arbitrumSepolia as AlchemyChain],
@@ -196,7 +204,7 @@ export const NETWORKS = new Map<string, AlchemyChain>([
   ["SONEIUM_MINATO", soneiumMinato as AlchemyChain], // cspell:ignore minato
   ["WORLDCHAIN_MAINNET", worldChain as AlchemyChain], // cspell:ignore worldchain
   ["WORLDCHAIN_SEPOLIA", worldChainSepolia as AlchemyChain],
-  ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } } as AlchemyChain],
+  ...LOCAL,
 ]);
 
 type AlchemyChain = Chain & { rpcUrls: { alchemy: { http: readonly [string] } } };

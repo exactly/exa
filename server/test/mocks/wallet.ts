@@ -38,7 +38,7 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
       .extend(publicActions)
       .extend((wallet) => {
         walletClient = wallet;
-        return original.extender(wallet, { publicClient });
+        return original.extender(wallet, { publicClient: network.id === chain.id ? publicClient : wallet });
       });
   };
   const keeper = create();

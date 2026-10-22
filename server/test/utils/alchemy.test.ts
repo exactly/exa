@@ -16,30 +16,28 @@ afterEach(() => {
 });
 
 describe("activity networks", () => {
-  it("selects only anvil for the local stack", () => {
-    expect([...activityNetworks(anvil.id).keys()]).toStrictEqual(["ANVIL"]);
+  it("selects the local networks for the local stack", () => {
+    expect([...activityNetworks(anvil.id).keys()]).toStrictEqual(["ANVIL", "ANVIL2"]);
   });
 
   it("selects every production network for production stacks", () => {
     expect([...activityNetworks(base.id).keys()]).toStrictEqual(
-      [...NETWORKS].filter(([name, chain]) => name !== "ANVIL" && !chain.testnet).map(([name]) => name),
+      [...NETWORKS]
+        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !chain.testnet)
+        .map(([name]) => name),
     );
   });
 
   it("selects every test network for test stacks", () => {
     expect([...activityNetworks(baseSepolia.id).keys()]).toStrictEqual(
-      [...NETWORKS].filter(([name, chain]) => name !== "ANVIL" && !!chain.testnet).map(([name]) => name),
+      [...NETWORKS]
+        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !!chain.testnet)
+        .map(([name]) => name),
     );
   });
 
   it("fails for unsupported stacks", () => {
     expect(() => activityNetworks(0)).toThrow("unsupported activity stack");
-  });
-
-  it("fails when the local capability disappears", () => {
-    vi.spyOn(NETWORKS, "get").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- missing capability
-
-    expect(() => activityNetworks(anvil.id)).toThrow("missing anvil activity network");
   });
 });
 

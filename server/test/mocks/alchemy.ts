@@ -28,7 +28,7 @@ const {
 vi.mock(import("../../utils/alchemy"), async (importOriginal) => {
   const original = await importOriginal();
   getWebhooks.mockResolvedValue(
-    ["ANVIL", "ETH_MAINNET", "OPT_MAINNET"].map((network) => ({
+    ["ANVIL", "ANVIL2", "ETH_MAINNET", "OPT_MAINNET"].map((network) => ({
       id: network === "ANVIL" ? "activity" : network,
       is_active: true,
       network,

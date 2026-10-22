@@ -235,8 +235,11 @@ export default async function setup() {
   await Promise.all(
     chains.slice(1).map(async (chain) => {
       const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
-      await $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
-            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      await Promise.all([
+        $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
+            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation`,
+        client.setBalance({ address: privateKeyToAddress(keccak256(toBytes("e2e.ts"))), value: 10n ** 24n }),
+      ]);
       if (
         !(await client.readContract({
           address: parse(
