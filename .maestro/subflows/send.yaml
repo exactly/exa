@@ -24,15 +24,15 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Turn off
       - assertNotVisible: Advanced mode on.
 - tapOn: Enter ENS or wallet address
-- inputText: not-a-real-name.eth
-- extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
-- eraseText
-- inputText: "0xdead"
-- eraseText: 6
-- inputText: ${to}
 - runFlow:
     when: { true: "${!pay}" }
     commands:
+      - inputText: not-a-real-name.eth
+      - extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
+      - eraseText
+      - inputText: "0xdead"
+      - eraseText: 6
+      - inputText: ${to}
       - runFlow: { file: tapAria.yaml, env: { aria: Save contact } }
       - assertNotVisible: Save contact
       - runFlow: { file: tapAria.yaml, env: { aria: Clear } }
@@ -42,7 +42,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow: { file: tapAria.yaml, env: { aria: Delete contact } }
       - assertNotVisible: Contacts
       - tapOn: Enter ENS or wallet address
-      - inputText: ${to}
+- inputText: ${to}
 - hideKeyboard
 - tapOn: Continue
 - assertVisible: Select asset to send
@@ -59,13 +59,19 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: "^${asset} on .+$" } }
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }
-- inputText: "9999"
-- assertNotVisible: Review
-- eraseText: 4
+- runFlow:
+    when: { true: "${!pay}" }
+    commands:
+      - inputText: "9999"
+      - assertNotVisible: Review
+      - eraseText: 4
 - inputText: ${amount}
 - tapOn: "^Send .+ on .+$"
-- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
-- runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+- runFlow:
+    when: { true: "${!pay}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Switch amount currency } }
 - runFlow:
     when: { true: "${!!pay}" }
     commands:
