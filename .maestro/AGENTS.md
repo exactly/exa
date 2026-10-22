@@ -43,4 +43,26 @@
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
 - **metamask**: `subflows/metamask.yaml` onboards the extension before `launchApp`, with basic functionality off, or the connect prompt never shows. ci passes `--screen-info={3840x2160}` so its popups fit any window.
 
+## selectors
+
+- **web text**: on web, an element's text is only its own text nodes, so nested react native `Text` becomes several elements. assert one that holds the whole text.
+- **aria labels**: on web, an aria label becomes the element's resource id instead of its text ([maestro#2914](https://github.com/mobile-dev-inc/Maestro/issues/2914)). tap, copy and dismiss labeled elements through `tapAria.yaml`, `copyAria.yaml` and `tapWhileAria.yaml`. the resource id comes from the first of the id, aria label, name, title, for and test id attributes.
+- **disambiguate**: use `below:` when a text appears twice. typed text matches tap selectors too, so type a part of the name you tap next (`eth`, then tap `WETH`).
+- **offscreen elements**: maestro web drops elements outside the viewport or entirely hidden by a scroll container, and trims partly hidden ones to their visible part (`bounds.patch`), so taps land on what users see. scroll before asserting them.
+- **yaml**: quote yaml 1.1 booleans like `"On"` and regexes with `?`. check edited flows with `.maestro/build/bin/maestro check-syntax <file>`.
+
+## platforms
+
+- **no platform branches in flows**: a platform difference lives in the one subflow that owns the interaction (`tapAria.yaml`, `sign.yaml`), never in flow bodies. prefer a step every platform can run over a branch.
+- **android**: `eraseText` deletes backward from the caret and a tap leaves the caret where it lands, so never tap and erase a prefilled field; amount fields select their text on focus instead. android 13 and later show a clipboard overlay for a few seconds after each copy. a tap right after a sheet opens can race its slide-in.
+- **ios**: `hideKeyboard` misses the number pad, so use `pressKey: enter`. a field under a pinned button counts as visible, so `scrollTo` does not scroll to it.
+
+## patches
+
+- **maestro gaps only**: patch maestro for a maestro bug or a missing capability, never to work around the app or a flow.
+- **fit for upstream**: each patch could land upstream as a pr: no app-specific code, no code comments, nothing that drifts further from upstream.
+- **wait for the real signal**: patched commands wait for the event they depend on. no retries, no sleeps.
+- **one change per patch**: one `git format-patch` file per change on tag `cli-2.11.0`, with an upstream-style `fix:` or `feat:` subject.
+- **cache cost**: ci and eas cache `build/` by the hash of `package.json` and `patches/*.patch`, so any patch change rebuilds maestro in every job until the new key is saved.
+
 @../common/AGENTS.md
