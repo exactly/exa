@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
@@ -10,13 +9,14 @@ import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons-2";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import IconButton from "../shared/IconButton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Scanner({ onClose, onScan }: { onClose: () => void; onScan: (data: string) => boolean }) {
-  const { top, bottom } = useSafeAreaInsets();
+  const { top, bottom } = useInsets();
   const { height, width } = useWindowDimensions();
 
   const [active, setActive] = useState(true);
@@ -134,7 +134,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
 }
 
 function BackControl({ onPress }: { onPress: () => void }) {
-  const { top } = useSafeAreaInsets();
+  const { top } = useInsets();
   const { t } = useTranslation();
   return (
     <XStack
