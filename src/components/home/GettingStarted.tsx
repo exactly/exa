@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable } from "react-native";
-import { FadeIn, FadeOut } from "react-native-reanimated";
+import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { useRouter } from "expo-router";
 
@@ -50,6 +50,7 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
     <AnimatedView
       entering={FadeIn}
       exiting={FadeOut}
+      layout={LinearTransition}
       backgroundColor="$backgroundBrandSoft"
       borderWidth={1}
       borderColor="$borderBrandSoft"

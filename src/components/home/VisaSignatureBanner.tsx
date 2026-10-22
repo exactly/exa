@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { FadeIn, FadeOut } from "react-native-reanimated";
+import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { ArrowRight } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
@@ -15,6 +15,7 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
     <AnimatedView
       entering={FadeIn}
       exiting={FadeOut}
+      layout={LinearTransition}
       flexDirection="row"
       backgroundColor="$backgroundBanner"
       borderRadius="$r4"
