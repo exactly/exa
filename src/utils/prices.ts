@@ -1,25 +1,19 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { array, boolean, nullish, object, parse, string } from "valibot";
-import {
-  ContractFunctionExecutionError,
-  ContractFunctionRevertedError,
-  formatUnits,
-  getAddress,
-  zeroAddress,
-} from "viem";
+import { formatUnits, getAddress, zeroAddress } from "viem";
 import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 import { useReadContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
   alchemyChains,
-  allowlists,
   auditorAddress,
   pricePreviewerAbi,
   pricePreviewerCode,
 } from "@exactly/common/generated/chain";
 
-import { isStock, marketOpen } from "./lifi";
+import { isStock, marketOpen, reverted } from "./lifi";
+import useAllowlists from "./useAllowlists";
 
 export const ranges = { "1D": 24 * 60 * 60, "1W": 7 * 24 * 60 * 60, "1M": 30 * 24 * 60 * 60 } as const;
 
@@ -97,6 +91,7 @@ export function useHistory(
 
 export function useFeed(token?: { address: string; chainId: number; symbol: string }) {
   const chainId = token?.chainId ?? chain.id;
+  const allowlists = useAllowlists();
   const markets = useReadContract({
     abi: pricePreviewerAbi,
     functionName: "feeds",
@@ -160,7 +155,7 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
   if ((chainId === chain.id && markets.isPending) || feeds.isPending) return;
   const address = getAddress(token.address);
   const market = chainId === chain.id ? markets.data?.find(({ asset }) => asset === address)?.feed : undefined;
-  if (address !== zeroAddress && !market && !allowlists[chainId]?.includes(address)) return null;
+  if (address !== zeroAddress && !market && !allowlists[chainId]?.has(address.toLowerCase())) return null;
   const symbol = token.symbol.toLowerCase();
   const named = isStock(token)
     ? feeds.data?.[`cb${symbol.slice(0, -1)}`]
@@ -174,8 +169,4 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
         ]).get(symbol) ?? symbol
       ]);
   return market ? { address: market, stablecoin: !!named?.stablecoin } : (named ?? null);
-}
-
-function reverted(error: unknown) {
-  return error instanceof ContractFunctionExecutionError && error.cause instanceof ContractFunctionRevertedError;
 }
