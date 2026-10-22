@@ -84,3 +84,4 @@ appId: ${APP_ID ?? "app.exactly"}
           env: { credentialId: "${output.owner}" }
 - tapOn: Home
 - assertNotVisible: Getting Started
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }

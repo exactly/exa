@@ -8,4 +8,5 @@ tags: [critical]
 - runFlow: ../subflows/portfolio.yaml
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/onboarding.yaml
+- runFlow: ../subflows/ramp.yaml
 - runFlow: ../subflows/storeCoverage.yaml

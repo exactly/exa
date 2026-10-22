@@ -1,0 +1,85 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: { file: scrollTo.yaml, env: { element: Create account, center: true } }
+- tapOn: Create account
+- assertVisible: From any Argentine bank account in your name
+- tapOn: Pesos
+- assertVisible: Turn ARS transfers to onchain USDC
+- tapOn: Continue
+- assertVisible: Open your Manteca virtual account
+- tapOn: Accept and continue
+- assertVisible: ARS Account details
+- tapOn: Fees and transfer times
+- assertVisible: Max ARS 10,000,000
+- tapOn: Close
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- tapOn: Dollars via ACH or WIRE
+- assertVisible: Turn USD transfers to onchain USDC
+- tapOn: Continue
+- assertVisible: Open your Bridge virtual account
+- tapOn: Accept and continue
+- assertVisible: USD Account details
+- assertVisible: "900000000001"
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: assertBenefits.yaml
+- tapOn: Home
+- tapOn: Send
+- tapOn: Bank transfers
+- tapOn: Dollars via ACH or WIRE
+- tapOn: Transfer to a new beneficiary
+- tapOn: ACH
+- tapOn: Continue
+- tapOn: Enter beneficiary's full name
+- inputText: Test User
+- tapOn: Enter address
+- inputText: 123 Test St
+- pressKey: enter
+- tapOn: Enter city
+- inputText: Brooklyn
+- pressKey: enter
+- swipe: { from: City, direction: UP }
+- tapOn: Select country
+- tapOn: Search
+- inputText: united st
+- pressKey: enter
+- tapOn: United States of America
+- tapOn: Select state
+- tapOn: Search
+- inputText: york
+- pressKey: enter
+- tapOn: New York
+- tapOn: Enter zip code
+- inputText: "11201"
+- pressKey: enter
+- tapOn: Continue
+- tapOn: Enter beneficiary's account number
+- inputText: "123456789"
+- tapOn: Enter beneficiary's routing number
+- inputText: "021000021"
+- pressKey: enter
+- tapOn: Enter bank name
+- inputText: Test Bank
+- pressKey: enter
+- tapOn: Continue
+- assertVisible: How much do you want to send?
+- tapOn: "0.00"
+- inputText: "69"
+- pressKey: enter
+- tapOn: Continue
+- assertVisible: Review and confirm
+- tapOn: Confirm and send
+- assertVisible: Sent to .*
+- runFlow: getAccount.yaml
+- runScript:
+    file: ../dist/hookProposals.js
+    env:
+      account: "${output.account}"
+      amount: "69"
+      beneficiary: >-
+        { "currency": "USD", "accountOwnerName": "Test User", "accountNumber": "123456789", "routingNumber": "021000021",
+        "bankName": "Test Bank", "address": { "streetLine1": "123 Test St", "city": "Brooklyn", "state": "NY",
+        "postalCode": "11201", "country": "USA" }, "rail": "ach" }
+- tapOn: Close

@@ -1,9 +1,10 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- tapOn: Discounts on travel insurance
-- assertVisible: Go to Pax Assistance
-- runFlow: { file: tapAria.yaml, env: { aria: Close } }
-- swipe: { from: Discounts on travel insurance, direction: LEFT }
+- swipe: { from: Send and receive USD and EUR, direction: RIGHT }
 - tapOn: Visa Signature benefits
 - assertVisible: Go to Visa
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- swipe: { from: Visa Signature benefits, direction: RIGHT }
+- tapOn: Discounts on travel insurance
+- assertVisible: Go to Pax Assistance
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
