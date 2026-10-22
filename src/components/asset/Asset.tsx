@@ -81,7 +81,7 @@ export default function Asset() {
     address: params.success ? params.output.address : undefined,
     abi: stockAbi,
     functionName: "multiplier",
-    query: { enabled: params.success && isStock(params.output) },
+    query: { enabled: params.success && isStock(allowlists, params.output) },
   });
   const [info, setInfo] = useState<(typeof stats)[number]>();
   const [unsupported, setUnsupported] = useState(false);
@@ -108,7 +108,7 @@ export default function Asset() {
   }
   const entry = token ?? external;
   const amount = (protocol?.floatingDepositAssets ?? 0n) + (external?.amount ?? 0n);
-  const stock = !!token && isStock(token);
+  const stock = !!token && isStock(allowlists, token);
   const decimals = protocol?.decimals ?? external?.decimals ?? 18;
   const shares = toShares(amount, decimals, multiplier);
   const symbol = protocol ? (protocol.symbol.slice(3) === "WETH" ? "ETH" : protocol.symbol.slice(3)) : entry?.symbol;
