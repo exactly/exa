@@ -29,7 +29,7 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
       network: "ANVIL",
       activity: [
         {
-          asset: asset === ethAddress ? "ETH" : asset,
+          asset: asset === ethAddress ? "ETH" : readContract({ address: asset, functionName: "symbol", abi: erc20Abi }),
           toAddress,
           value,
           hash,
