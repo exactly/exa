@@ -80,6 +80,10 @@ in a local session, every commit carries the developer's signature (`git commit 
 
 a cloud session has no access to the developer's key, so signing doesn't apply there: commit without `-S`. authorship always does.
 
+## history
+
+until a commit reaches `main`, it is still open: fixes go into the commit that introduced the change, folded in while rebasing, never stacked on top as new commits.
+
 ## changeset format
 
 file: `.changeset/<random-name>.md`
@@ -274,7 +278,7 @@ show the result to the developer.
 - **gitmoji selection is always deliberate** — weigh the options even if only one seems to fit. when the developer reviews before committing, they pick
 - **message selection is always deliberate** — always write all 9 options before picking. an agent that composes a single message and commits it without weighing alternatives is violating this workflow. when the developer reviews before committing, output all 9 as a plain numbered list in a regular text message, never in a selection widget
 - **local signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
-- never amend a previous commit unless the developer explicitly requests it
+- never rewrite a commit that is already on `main`
 - never skip git hooks (no `--no-verify`)
 - never push without being asked
 - if a pre-commit hook fails, fix the issue and create a NEW commit
