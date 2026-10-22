@@ -1,6 +1,6 @@
 import "../utils/onesignal";
 
-import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef, useState } from "react";
+import React, { useLayoutEffect as useClientLayoutEffect, useEffect, useRef, useState, type ReactNode } from "react";
 import { initReactI18next } from "react-i18next";
 import { AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -191,7 +191,6 @@ const devtools = !!JSON.parse(process.env.EXPO_PUBLIC_DEVTOOLS ?? String(Platfor
 
 export default wrap(function RootLayout() {
   const navigationContainer = useNavigationContainerRef();
-  const [restoring, setRestoring] = useState(true);
 
   useServerFonts({
     "SplineSansMono-Medium": SplineSansMonoMedium as FontSource,
@@ -204,12 +203,6 @@ export default wrap(function RootLayout() {
   }, [navigationContainer]);
 
   useEffect(() => {
-    const done = () => setRestoring(false);
-    hydrated.then(done, done);
-  }, []);
-
-  useEffect(() => {
-    reconnect(exaConfig).catch(reportError);
     reconnect(ownerConfig).catch(reportError);
     getOwnerConnector()
       .then(async (connector) => {
@@ -251,7 +244,7 @@ export default wrap(function RootLayout() {
   return (
     <WagmiProvider config={exaConfig}>
       <QueryClientProvider client={queryClient}>
-        <IsRestoringProvider value={restoring}>
+        <Restoring>
           <ToastProvider native="mobile">
             <GestureHandlerRootView style={{ flex: 1 }}>
               <SafeAreaProvider>
@@ -275,11 +268,20 @@ export default wrap(function RootLayout() {
             </GestureHandlerRootView>
             {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
           </ToastProvider>
-        </IsRestoringProvider>
+        </Restoring>
       </QueryClientProvider>
     </WagmiProvider>
   );
 });
+
+function Restoring({ children }: { children: ReactNode }) {
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    const done = () => setRestoring(false);
+    hydrated.then(done, done);
+  }, []);
+  return <IsRestoringProvider value={restoring}>{children}</IsRestoringProvider>;
+}
 
 function Navigator() {
   const { data: credential, isLoading, isFetched } = useQuery<Credential>({ queryKey: ["credential"] });
