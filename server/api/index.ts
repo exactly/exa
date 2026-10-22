@@ -68,7 +68,13 @@ export default function api({
   const org = createOrg(betterAuth);
   const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
   const app = new Hono()
-    .use(cors({ origin: [...origins, "http://localhost:8081"], credentials: true, exposeHeaders: ["X-Session-Id"] }))
+    .use(
+      cors({
+        origin: [...origins, "http://localhost:8081"],
+        credentials: true,
+        exposeHeaders: ["User-Country", "X-Session-Id"],
+      }),
+    )
     .use((c, next) => {
       if (c.req.method.toUpperCase() === "OPTIONS") return next();
       if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
