@@ -52,7 +52,7 @@ this project follows bob nystrom's "long names are long" philosophy. names must 
 
 a core principle is specific capitalization for different contexts. this must be followed with obsessive precision.
 
-- **internal documentation prose (`.agents/rules/*.md` files, `README.md`)**: all narrative text (headings, paragraphs, list items, proper nouns, brand names) must be **lowercase**. there are no exceptions.
+- **internal documentation prose (`AGENTS.md` files, `README.md`)**: all narrative text (headings, paragraphs, list items, proper nouns, brand names) must be **lowercase**. there are no exceptions.
   - ✅ `...built with astro and the starlight theme.`
   - ❌ `...built with Astro and the Starlight theme.`
 - **referring to code in prose**: when discussing a code concept (like a variable or function name) in a sentence, use regular lowercase words. the correctly-cased identifier itself must only appear inside backticks.
@@ -183,7 +183,7 @@ extracting a value into a variable and extracting logic into a function are the 
 
 ## stack-specific rules
 
-stack-specific guidance lives in `.agents/rules/`. these files are glob-triggered and apply only when working in their respective directories.
+stack-specific guidance lives in nested `AGENTS.md` files and applies only when working in their respective directories. guidance shared by several directories lives in `common/AGENTS.md`, linked from the others.
 
 ## ai assistant directives
 

@@ -1,12 +1,3 @@
----
-always_on: false
-alwaysApply: false
-applyTo: "src/**/*"
-globs: "src/**/*"
-paths: ["src/**/*"]
-trigger: glob
----
-
 # mobile app (`app`)
 
 - **stack**: react native, expo, tamagui, tanstack query.
@@ -26,6 +17,9 @@ trigger: glob
   - keep prop interfaces minimal.
   - do not pass entire objects if only a few fields are needed. destructure and pass only what's required.
   - for boolean props, the name should indicate the positive condition (e.g., `isActive`, `isLoading`). do not use negative names like `isNotActive`.
+- **inline prop types**: always define component props inline with destructuring. never extract to separate type definitions.
+  - ✅ `function Card({ title, isActive }: { title: string; isActive: boolean })`
+  - ❌ `type CardProps = { title: string; isActive: boolean }; function Card({ title, isActive }: CardProps)`
 
 ## state management (tanstack query)
 
@@ -64,3 +58,5 @@ trigger: glob
 
 - **start dev server**: `pnpm nx start mobile`
 - **run on platform**: `pnpm nx android mobile`, `pnpm nx ios mobile`, `pnpm nx web mobile`
+
+@../common/AGENTS.md

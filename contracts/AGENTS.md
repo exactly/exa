@@ -1,12 +1,3 @@
----
-always_on: false
-alwaysApply: false
-applyTo: "contracts/**/*"
-globs: "contracts/**/*"
-paths: ["contracts/**/*"]
-trigger: glob
----
-
 # contracts (`contracts`)
 
 - **stack**: solidity, foundry.

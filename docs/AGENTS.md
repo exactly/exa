@@ -1,12 +1,3 @@
----
-always_on: false
-alwaysApply: false
-applyTo: "docs/**/*"
-globs: "docs/**/*"
-paths: ["docs/**/*"]
-trigger: glob
----
-
 # documentation (`docs`)
 
 - **stack**: astro, starlight theme.
@@ -62,3 +53,5 @@ the documentation's eslint configuration enforces:
 
 - **preview documentation**: `pnpm nx dev docs`
 - **build documentation**: `pnpm nx build docs`
+
+@../common/AGENTS.md
