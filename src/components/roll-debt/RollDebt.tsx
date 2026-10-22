@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -35,6 +34,7 @@ import View from "../../components/shared/View";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useInsets from "../../utils/useInsets";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import Skeleton from "../shared/Skeleton";
@@ -47,7 +47,7 @@ export default function Pay() {
     i18n: { language },
   } = useTranslation();
   const { address } = useAccount();
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
   const router = useRouter();
   const { market: exaUSDC, timestamp, isFetching } = useAsset(marketUSDCAddress);
   const { success, output: repayMaturity } = safeParse(

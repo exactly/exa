@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
@@ -39,6 +38,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
@@ -50,7 +50,7 @@ import Skeleton from "../shared/Skeleton";
 import Success from "../shared/Success";
 
 export default function Repay() {
-  const insets = useSafeAreaInsets();
+  const insets = useInsets();
   const {
     t,
     i18n: { language },
