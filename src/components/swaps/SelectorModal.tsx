@@ -9,6 +9,7 @@ import chain from "@exactly/common/generated/chain";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { isStock } from "../../utils/lifi";
+import useAllowlists from "../../utils/useAllowlists";
 import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
@@ -126,6 +127,7 @@ export default function TokenSelectModal({
   const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
   const insets = useInsets();
+  const allowlists = useAllowlists();
   const {
     t,
     i18n: { language },
@@ -143,8 +145,10 @@ export default function TokenSelectModal({
   const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => `${chain.id}:${asset}`)), [markets]);
 
   const hasStocks = useMemo(
-    () => (!!onStocks || tokens.some((token) => isStock(token))) && !tokens.every((token) => isStock(token)),
-    [onStocks, tokens],
+    () =>
+      (!!onStocks || tokens.some((token) => isStock(allowlists, token))) &&
+      !tokens.every((token) => isStock(allowlists, token)),
+    [allowlists, onStocks, tokens],
   );
   const filter = (selection === "stocks" ? hasStocks : networks.some(({ id }) => id === selection))
     ? selection
@@ -162,7 +166,7 @@ export default function TokenSelectModal({
     const matchesQuery = (...fields: (string | undefined)[]) =>
       !query || fields.some((field) => field?.toLowerCase().includes(query));
     return tokens.flatMap<{ asset?: PortfolioAsset; external?: boolean; token: Token }>((token) => {
-      if (filter === "stocks" && !isStock(token)) return [];
+      if (filter === "stocks" && !isStock(allowlists, token)) return [];
       if (typeof filter === "number" && (token.chainId as number) !== filter) return [];
       const key = `${token.chainId}:${token.address}`;
       const assets = holdings.get(key) ?? [];
@@ -185,7 +189,7 @@ export default function TokenSelectModal({
         )
         .map((asset) => ({ token, asset, external: asset.type === "external" }));
     });
-  }, [searchQuery, tokens, filter, withBalanceOnly, holdings, marketAssets, isExternal]);
+  }, [searchQuery, tokens, allowlists, filter, withBalanceOnly, holdings, marketAssets, isExternal]);
 
   function close() {
     setSearchQuery("");
