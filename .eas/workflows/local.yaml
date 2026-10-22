@@ -144,6 +144,7 @@ jobs:
     needs: [fingerprint]
     after: [ios_get]
     if: ${{ !after.ios_get.outputs.build_id }}
+    image: sdk-55
     params: { platform: ios, profile: e2e:local }
 
   ios_e2e:

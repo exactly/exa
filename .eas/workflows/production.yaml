@@ -20,6 +20,7 @@ jobs:
     type: build
     needs: [ios_get]
     if: ${{ !needs.ios_get.outputs.build_id }}
+    image: sdk-55
     params: { platform: ios, profile: e2e:production }
 
   ios_repack:

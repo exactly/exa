@@ -1,0 +1,21 @@
+name: release
+on: { push: { tags: ["@exactly/mobile@*"] } }
+jobs:
+  android_build:
+    type: build
+    params: { platform: android, profile: production }
+
+  android_submit:
+    type: submit
+    needs: [android_build]
+    params: { build_id: "${{ needs.android_build.outputs.build_id }}", profile: production }
+
+  ios_build:
+    type: build
+    image: sdk-55
+    params: { platform: ios, profile: production }
+
+  ios_submit:
+    type: submit
+    needs: [ios_build]
+    params: { build_id: "${{ needs.ios_build.outputs.build_id }}", profile: production }
