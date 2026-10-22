@@ -11,15 +11,21 @@
 - **colocate logic by flow**: when a screen represents a single user journey or state machine, keep all its logic in one place - even if the screen is complex. this applies to onchain operations (send, borrow, repay), settings screens, or any cohesive flow. benefits: easier to reason about the whole picture, avoids prop drilling, simpler debugging, fewer re-renders. split only when combining distinct flows that could exist independently.
 - **dumb components are still encouraged**: colocating logic doesn't mean abandoning composition. extract reusable ui (buttons, inputs, cards) as dumb components. the rule is about *logic*, not *markup*.
 - **smart vs. dumb components**:
-  - **smart components (screens)**: handle data fetching, state management, and business logic. connected to hooks (`useQuery`). location: `src/app/**`.
-  - **dumb components (ui)**: receive data and callbacks via props. no knowledge of application state. location: `src/components/**`.
+  - **smart components (screens)**: handle data fetching, state management, and business logic. connected to hooks (`useQuery`).
+  - **dumb components (ui)**: receive data and callbacks via props. no knowledge of application state.
 - **props**:
   - keep prop interfaces minimal.
-  - do not pass entire objects if only a few fields are needed. destructure and pass only what's required.
-  - for boolean props, the name should indicate the positive condition (e.g., `isActive`, `isLoading`). do not use negative names like `isNotActive`.
+  - do not pass entire objects if only a few fields are needed. pass only what's required.
 - **inline prop types**: always define component props inline with destructuring. never extract to separate type definitions.
   - ✅ `function Card({ title, isActive }: { title: string; isActive: boolean })`
   - ❌ `type CardProps = { title: string; isActive: boolean }; function Card({ title, isActive }: CardProps)`
+
+## file structure
+
+- **colocation**: place related files together. for a component, this means `component.tsx` and any related hooks or types are in the same directory.
+- **feature-based directories**: group files by feature, not by type.
+  - ✅ `src/components/send-funds/ContactSheet.tsx`
+  - ❌ `src/components/sheets/ContactSheet.tsx`
 
 ## state management (tanstack query)
 
@@ -38,9 +44,6 @@
   - ❌ `padding: 16`
   - ❌ `color: '#ff0000'`
 - **stacks over views**: use `XStack` and `YStack` for layout instead of react native's `View`.
-- **shorthand props**: prefer shorthand for brevity.
-  - ✅ `p="$4"`, `m="$2"`, `f={1}`
-  - ❌ `paddingLeft="$4"`, `marginRight="$2"`
 - **responsive styles**: use platform selectors (`$platform-web`, `$platform-ios`) and media queries for platform-specific styles.
 
 ## navigation (expo router)
@@ -48,6 +51,7 @@
 - **file-based routing**: all routes are defined by the file structure in `src/app`. adhere strictly.
 - **typed routes**: expo-router's `typedRoutes` is enabled. string literals like `router.push("/send-funds")` ARE type-checked at compile time - this is not a code smell. do not construct routes via concatenation or template literals.
 - **layouts**: use `_layout.tsx` files to define shared ui and logic for a route segment.
+- **route files**: public expo router routes use `kebab-case`.
 
 ## prohibited patterns
 

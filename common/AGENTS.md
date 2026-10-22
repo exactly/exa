@@ -15,7 +15,7 @@
   - ✅ `const user = {};`
   - ✅ `const items = [];`
   - ❌ `const user = {}, items = [];`
-- **use destructuring**: `const { id, name } = user;` not `const id = user.id;`
+- **use destructuring**: when a field earns a name, destructure it. `const { id, name } = user;` not `const id = user.id;`
 
 ## imports
 
