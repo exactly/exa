@@ -9,6 +9,9 @@ import {
   getToken,
   getTokens,
   getTools,
+  HTTPError,
+  SDKError,
+  type BaseStatusData,
   type ChainId,
   type Estimate,
   type ExtendedChain,
@@ -236,7 +239,12 @@ export function statusOptions(
       txHash && trackable
         ? () => {
             ensureConfig();
-            return getStatus({ txHash, fromChain, toChain, bridge });
+            return getStatus({ txHash, fromChain, toChain, bridge }).catch((error: unknown): BaseStatusData => {
+              if (error instanceof SDKError && error.cause instanceof HTTPError && error.cause.status === 404) {
+                return { status: "NOT_FOUND" };
+              }
+              throw error;
+            });
           }
         : skipToken,
     refetchInterval: ({ state }) =>

@@ -62,6 +62,7 @@ import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
 import PluginUpgrade from "../shared/PluginUpgrade";
 import ProfileHeader from "../shared/ProfileHeader";
+import ProposalBanner from "../shared/ProposalBanner";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Spotlight from "../shared/Spotlight";
@@ -233,6 +234,7 @@ export default function Home() {
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <ProfileHeader />
+          <ProposalBanner />
           <View flex={1} gap="s5" paddingBottom="s5">
             <YStack backgroundColor="backgroundSoft" padding="s4" gap="s4">
               {overdueMaturity !== undefined && (

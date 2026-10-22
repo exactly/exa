@@ -99,7 +99,7 @@ export default function ProfileHeader() {
           />
           {count > 0 && (
             <Pressable
-              aria-label={t("Pending proposals")}
+              aria-label={t("Pending operations")}
               disabled={pendingProposalsFetching}
               onPress={() => {
                 router.push("/pending-proposals");

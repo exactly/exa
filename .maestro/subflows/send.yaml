@@ -124,6 +124,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Home
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+    env: { aria: Pending operations, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${!!destination || output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}

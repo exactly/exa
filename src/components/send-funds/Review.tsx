@@ -196,7 +196,7 @@ export default function Review() {
                   }}
                   primary
                 >
-                  <Button.Text>{t("View pending requests")}</Button.Text>
+                  <Button.Text>{t("View pending operations")}</Button.Text>
                   <Button.Icon>
                     <ArrowRight />
                   </Button.Icon>

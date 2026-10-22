@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import { useMutationState } from "@tanstack/react-query";
+import { useMutationState, useQuery } from "@tanstack/react-query";
 import { encodeDeployData } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
@@ -21,11 +21,14 @@ import useAccount from "./useAccount";
 import exa from "./wagmi/exa";
 
 import type { RouteFrom } from "./lifi";
+import type { Bridge } from "./useBridges";
 import type { MutationState } from "@tanstack/react-query";
 
 export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
   const { data: bytecode } = useBytecode({ address: exaAccount, chainId: chain.id, query: { enabled: !!exaAccount } });
+  const { address: account } = useAccount();
+  const { data: bridges } = useQuery<Bridge[]>({ queryKey: ["bridges", account], enabled: !!account });
 
   const proposals = useReadContract({
     abi: exaPreviewerAbi,
@@ -37,7 +40,12 @@ export default function usePendingOperations() {
     }),
     chainId: chain.id,
     args: exaAccount ? [exaAccount] : undefined,
-    query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
+    query: {
+      enabled: !!exaAccount && !!bytecode,
+      gcTime: 0,
+      refetchInterval: 30_000,
+      select: (pending) => pending.filter(({ nonce }) => !bridges?.some(({ proposal }) => proposal?.nonce === nonce)),
+    },
   });
 
   const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({

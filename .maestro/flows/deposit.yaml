@@ -65,7 +65,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Swap USDC for WETH
 - runFlow: ../subflows/sign.yaml
 - tapOn: View pending request
-- assertVisible: Pending requests
+- assertVisible: Pending operations
 - assertVisible: Swapping
 - back
 - tapOn: Swap
@@ -79,7 +79,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+    env: { aria: Pending operations, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
 - runFlow: ../subflows/storeCoverage.yaml

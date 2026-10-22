@@ -270,6 +270,13 @@ queryClient.setQueryDefaults(["settings", "swap-needed-shown"], {
   gcTime: Infinity,
   queryFn: () => queryClient.getQueryData(["settings", "swap-needed-shown"]),
 });
+queryClient.setQueryDefaults(["bridges"], {
+  initialData: [],
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? [],
+});
 queryClient.setQueryDefaults(["ramp", "quote"], {
   retry: (count, error) => !(error instanceof APIError && error.code === 400) && count < 3,
 });

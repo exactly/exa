@@ -23,7 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { account: "${output.account}" }
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+    env: { aria: Pending operations, tap: Home }
 - waitForAnimationToEnd
 - runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", offset: 1, center: true } }
 - assertNotVisible: "${output.maturity}"

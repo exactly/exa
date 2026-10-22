@@ -10,17 +10,12 @@ import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
-import { BaseError, encodeEventTopics, encodeFunctionData, erc20Abi, formatUnits, getAddress, zeroAddress } from "viem";
+import { BaseError, encodeFunctionData, erc20Abi, formatUnits, getAddress, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { useReadContract, useSimulateContract } from "wagmi";
 
 import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
-import {
-  auditorAbi,
-  marketAbi,
-  proposalManagerAbi,
-  upgradeableModularAccountAbi,
-} from "@exactly/common/generated/hooks";
+import { auditorAbi, marketAbi, upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import revertReason from "@exactly/common/revertReason";
 import { Address } from "@exactly/common/validation";
@@ -47,6 +42,7 @@ import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { Repeat } from "../../generated/icons/Repeat";
 import { TriangleAlert } from "../../generated/icons/TriangleAlert";
 import { DeploymentError, estimateCalls } from "../../utils/accountClient";
+import decodeProposal from "../../utils/decodeProposal";
 import deployedOptions, { requestDeployment } from "../../utils/deployedOptions";
 import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
@@ -71,6 +67,7 @@ import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
+import { track } from "../../utils/useBridges";
 import useCrossChainGas from "../../utils/useCrossChainGas";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -769,10 +766,19 @@ export default function Swaps() {
       };
       updateSwap((old) => ({ ...old, enableSimulations: false }));
     },
-    onSuccess() {
+    onSuccess(result) {
       queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
       queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
       updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n }));
+      const received = resultRef.current.toToken;
+      if (!crossChain || !result || !account || !received) return;
+      track(account, result, {
+        tool: resultRef.current.tool,
+        fromChain,
+        toChain,
+        toToken: received,
+        duration: resultRef.current.duration ?? 0,
+      });
     },
     onSettled() {
       queryClient.removeQueries({ queryKey: ["lifi", "route"] });
@@ -783,12 +789,7 @@ export default function Swaps() {
     },
   });
 
-  const proposal = useMemo(() => {
-    if (!receipt) return;
-    const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
-    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
-    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
-  }, [receipt]);
+  const proposal = useMemo(() => receipt && decodeProposal(receipt), [receipt]);
   const { data: execution } = useQuery(executionOptions(account, proposal?.nonce, proposal?.since));
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(

@@ -34,4 +34,4 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+    env: { aria: Pending operations, tap: Home }

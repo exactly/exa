@@ -30,13 +30,16 @@ import { Shuffle } from "../../generated/icons/Shuffle";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
+import useBridges from "../../utils/useBridges";
 import usePendingOperations from "../../utils/usePendingOperations";
+import { palette, Progress, useChainName, useNow, warns } from "../shared/BridgeBanner";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 import type { RouteFrom } from "../../utils/lifi";
+import type { Bridge } from "../../utils/useBridges";
 import type { MutationState } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 
@@ -142,6 +145,8 @@ export default function PendingProposals() {
     mutations,
     proposals: { refetch: refetchPendingProposals, data: pendingProposals },
   } = usePendingOperations();
+  const bridges = useBridges();
+  const now = useNow(bridges);
   return (
     <SafeView fullScreen>
       <View fullScreen padded>
@@ -159,7 +164,7 @@ export default function PendingProposals() {
           </Pressable>
           <View flexDirection="row" alignItems="center">
             <Text color="uiNeutralSecondary" fontSize={15} fontWeight="bold">
-              {t("Pending requests")}
+              {t("Pending operations")}
             </Text>
           </View>
           <Pressable
@@ -175,16 +180,19 @@ export default function PendingProposals() {
           refreshControl={<RefreshControl onRefresh={() => refetchPendingProposals()} />}
         >
           <View flex={1}>
-            {count === 0 && (
+            {count === 0 && bridges.length === 0 && (
               <YStack alignItems="center" justifyContent="center" gap="s4" paddingTop="s4">
                 <Text textAlign="center" color="uiNeutralSecondary" emphasized headline>
                   🙌
                 </Text>
                 <Text textAlign="center" color="uiNeutralSecondary" footnote>
-                  {t("There are no pending requests!")}
+                  {t("There are no pending operations!")}
                 </Text>
               </YStack>
             )}
+            {bridges.map((bridge) => (
+              <BridgeItem key={bridge.id} bridge={bridge} now={now} />
+            ))}
             {pendingProposals?.map(({ nonce, proposal }) => {
               return <ProposalItem key={String(nonce)} proposal={proposal} />;
             })}
@@ -193,11 +201,13 @@ export default function PendingProposals() {
             })}
           </View>
         </ScrollView>
-        <View paddingHorizontal="s8">
-          <Text color="uiNeutralPlaceholder" caption2 textAlign="center">
-            {t("Each request takes about 1 minute to complete and is processed in order.")}
-          </Text>
-        </View>
+        {(count > 0 || bridges.length === 0) && (
+          <View paddingHorizontal="s8">
+            <Text color="uiNeutralPlaceholder" caption2 textAlign="center">
+              {t("Each request takes about 1 minute to complete and is processed in order.")}
+            </Text>
+          </View>
+        )}
       </View>
     </SafeView>
   );
@@ -286,6 +296,44 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
           ) : null}
         </YStack>
       </XStack>
+    </XStack>
+  );
+}
+
+function BridgeItem({ bridge, now }: { bridge: Bridge; now: number }) {
+  const { t } = useTranslation();
+  const name = useChainName();
+  const { toToken, fromChain, toChain, timestamp, duration } = bridge;
+  const remaining = timestamp + duration * 1000 - now;
+  const [background, color] = palette(warns(bridge, now));
+  return (
+    <XStack gap="s4" paddingVertical="s3">
+      <View
+        width={40}
+        height={40}
+        borderRadius="r3"
+        backgroundColor={background}
+        justifyContent="center"
+        alignItems="center"
+      >
+        <Shuffle color={color} />
+      </View>
+      <YStack flex={1} gap="s2">
+        <XStack justifyContent="space-between" gap="s3">
+          <YStack flex={1}>
+            <Text subHeadline maxFontSizeMultiplier={1} numberOfLines={1}>
+              {toToken.symbol}
+            </Text>
+            <Text footnote maxFontSizeMultiplier={1} color="uiNeutralSecondary" numberOfLines={1}>
+              {name(fromChain)} → {name(toChain)}
+            </Text>
+          </YStack>
+          <Text footnote maxFontSizeMultiplier={1} color={remaining > 0 ? "uiNeutralSecondary" : color}>
+            {remaining > 0 ? t("~{{minutes}} min", { minutes: Math.ceil(remaining / 60_000) }) : t("Delayed")}
+          </Text>
+        </XStack>
+        <Progress color={color} duration={duration} now={now} timestamp={timestamp} />
+      </YStack>
     </XStack>
   );
 }
