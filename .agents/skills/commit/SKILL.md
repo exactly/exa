@@ -47,24 +47,98 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 
 ### examples
 
+✨, 🐛, 🔥, ♻️ and 🔧 are fallbacks: when a more specific gitmoji fits, it wins. neighbors are grouped together so the difference shows.
+
 ```bash
-# good — direct and keyword-focused
-🐛 app: fix card activation crash
+# behavior
 ✨ server: add user auth endpoint
-🩹 app: mirror session cookie as header in auth flow
-🥅 server: fallback session delivery via response header
-📈 server: fingerprint validator errors by code
-♻️ server: flatten ramp providers response
+👔 contracts: prevent zero amount proposals
+🚸 app: route unsupported tokens to support
+🚩 server: restrict miniapp discovery to base
+🛂 server: allow cross-origin for frontend assets
+🗃️ server: store kyc name and email
+✈️ app: show cached balances while offline
+
+# ui and copy
+💄 app: align close buttons to start
+💫 app: animate card component
+📱 app: improve web media queries
+♿️ app: respect reduced motion in spinner
+💬 app: reword passkeys action button copy
+🔍️ app: update meta description
 🌐 app: add missing translation keys for onboarding
 🍱 app: update card background assets
 
+# fixes
+🐛 app: fix card activation crash
+🩹 app: mirror session cookie as header in auth flow
+🚑️ server: require user verification on authentication
+🥅 server: fallback session delivery via response header
+🦺 server: validate public key algorithm
+🧵 server: prevent concurrent authorizations
+🔒️ app: drop secrets from card details query
+👽️ server: migrate to new simplewebauthn interface
+🦖 app: upgrade plugins from any version
+🚨 server: remove unnecessary eslint annotations
+✏️ app: fix typos
+
+# code shape
+♻️ server: flatten ramp providers response
+🎨 contracts: reorder account functions
+🏗️ server: use ioredis instead of vercel
+🚚 server: move address derivation to common
+🏷️ server: add tx hash to alchemy activity type
+⚡️ app: stream balances per chain
+
+# removals
+🔥 app: remove connection indicator
+⚰️ app: remove unused calculation
+🗑️ server: deprecate passkey metadata api
+💥 server: remove deprecated passkey metadata api
+
+# observability
+📈 server: fingerprint validator errors by code
+🔊 server: log authorization rejections
+🔇 server: remove colored debug logs
+
+# tests
+✅ e2e: wait for queued proposals
+🤡 server: mock alchemy and sardine on e2e
+📸 contracts: update gas snapshot for foundry v1.2
+
+# dependencies
+⬆️ dependencies: upgrade viem and wagmi
+⬇️ app: downgrade tanstack query
+➕ server: add redis-memory-server
+➖ server: remove noble curves
+📌 contracts: pin openzeppelin-contracts version
+
+# tooling
+🔧 nx: refine cache invalidation inputs
+🔨 wagmi: generate proposal manager definitions
+🧑‍💻 agents: escalate mcp failures to user
+👷 eas: share maestro build across runs
+🧱 server: skip redis install on docker
+🙈 global: ignore local pnpm store
+🔐 app: add intercom test workspace keys
+📝 docs: document server webhooks
+
 # bad — verbose and buries context
 🐛 app: fix a crash that happens when a user tries to activate their card
+
+# bad — generic gitmoji where a specific one fits (🌐, ⚰️)
+🐛 app: fix missing send usdc translation
+🔥 app: drop unused provider discovery listener
+
+# bad — no imperative verb
+🔒️ server: constant-time signature verification
 ```
 
 ### gitmoji usage notes
 
 - 🧑‍💻 `technologist` — improve developer experience. always use for ai/agent related changes (skills, rules, prompts, agent config).
+- 🦖 `t-rex` — add backwards compatibility. allowed even though the installed list predates it.
+- 💚 `green-heart` — fix ci build. only for a change that exists solely because something external broke ci. our own ci fixes are 👷.
 - 🎉 `tada` — begin a project. use only for starting new subprojects.
 - 🚧 `construction` — work in progress. use for features not yet ready. these commits are reworded later via rebase. should never be merged to main.
 - ⚗️ `alembic` — experiments. use for temporary commits needed to test something on the server, debug, or special instrumentation. should never be merged to main.
