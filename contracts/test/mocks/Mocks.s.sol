@@ -54,6 +54,8 @@ contract DeployMocks is BaseScript {
       pool.poke();
     }
 
+    usdc.mint(acct("swapper"), 1_000_000e6);
+
     vm.stopBroadcast();
 
     if (isAnvil()) {
@@ -104,6 +106,7 @@ contract DeployMocks is BaseScript {
     auditor.enableMarket(market, IPriceFeed(address(feed)), 0.9e18);
     market.setFrozen(true);
 
+    asset.mint(acct("swapper"), 1_000_000e6);
 
     vm.stopBroadcast();
   }

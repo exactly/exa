@@ -26,11 +26,11 @@ import process, { env } from "node:process";
 import { fileURLToPath } from "node:url";
 import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
 
+import { chains } from "./anvil";
 import lifi from "./lifi";
 import database, { credentials } from "../database";
 import createAlchemy from "../utils/alchemy";
@@ -116,7 +116,7 @@ describe("e2e", () => {
           baseline.catch(reject);
 
           app.use("/e2e/*", cors());
-          app.route("/e2e/lifi", lifi([anvil]));
+          app.route("/e2e/lifi", lifi(chains));
           app.get("/e2e/credential", async (c) => {
             const [credential, ...rest] = await database.query.credentials.findMany({
               columns: { account: true, id: true },

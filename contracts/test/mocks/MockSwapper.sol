@@ -15,6 +15,7 @@ contract MockSwapper {
 
   IVelodromeFactory public immutable VELODROME_FACTORY;
   uint256 internal transactionCount;
+  mapping(bytes32 transactionId => bool completed) public completed;
 
   constructor(IVelodromeFactory velodromeFactory) {
     VELODROME_FACTORY = velodromeFactory;
@@ -80,6 +81,39 @@ contract MockSwapper {
     // solhint-enable gas-increment-by-one
   }
 
+  function startBridgeTokensViaMock(BridgeData calldata bridgeData) external {
+    IERC20(bridgeData.sendingAssetId).safeTransferFrom(msg.sender, address(this), bridgeData.minAmount);
+    emit LiFiTransferStarted(bridgeData);
+  }
+
+  function swapAndStartBridgeTokensViaMock(BridgeData memory bridgeData, address fromAssetId, uint256 fromAmount)
+    external
+  {
+    address pool = VELODROME_FACTORY.getPool(fromAssetId, bridgeData.sendingAssetId, false);
+    uint24 swapFee = VELODROME_FACTORY.getFee(pool, false);
+    bool isToken0 = bridgeData.sendingAssetId > fromAssetId;
+    uint256 amountOut = _getAmountOut(pool, fromAmount, isToken0, swapFee);
+    if (amountOut < bridgeData.minAmount) revert InsufficientOutputAmount();
+
+    IERC20(fromAssetId).safeTransferFrom(msg.sender, pool, fromAmount);
+    IVelodromePool(pool).swap(isToken0 ? 0 : amountOut, isToken0 ? amountOut : 0, address(this), "");
+
+    bridgeData.minAmount = amountOut;
+    emit LiFiTransferStarted(bridgeData);
+  }
+
+  function completeBridgeTokensViaMock(
+    bytes32 transactionId,
+    address receivingAssetId,
+    address receiver,
+    uint256 amount
+  ) external {
+    if (completed[transactionId]) revert AlreadyCompleted();
+    completed[transactionId] = true;
+    IERC20(receivingAssetId).safeTransfer(receiver, amount);
+    emit LiFiTransferCompleted(transactionId, receivingAssetId, receiver, amount, block.timestamp); // solhint-disable-line not-rely-on-time
+  }
+
   function _getAmountIn(address pool, uint256 amountOut, bool isToken0, uint256 fee) internal view returns (uint256) {
     (uint256 reserve0, uint256 reserve1,) = IVelodromePool(pool).getReserves();
     return (isToken0
@@ -94,6 +128,28 @@ contract MockSwapper {
         : (reserve0 * amountIn * (10_000 - fee)) / (reserve1 * 10_000 + amountIn * (10_000 - fee)));
   }
 }
+
+error AlreadyCompleted();
+
+// solhint-disable-next-line gas-struct-packing
+struct BridgeData {
+  bytes32 transactionId;
+  string bridge;
+  string integrator;
+  address referrer;
+  address sendingAssetId;
+  address receiver;
+  uint256 minAmount;
+  uint256 destinationChainId;
+  bool hasSourceSwaps;
+  bool hasDestinationCall;
+}
+
+event LiFiTransferStarted(BridgeData bridgeData);
+
+event LiFiTransferCompleted(
+  bytes32 indexed transactionId, address receivingAssetId, address receiver, uint256 amount, uint256 timestamp
+);
 
 event LiFiGenericSwapCompleted(
   bytes32 indexed transactionId,
