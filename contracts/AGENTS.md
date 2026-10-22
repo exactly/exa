@@ -1,11 +1,6 @@
 # contracts (`contracts`)
 
 - **stack**: solidity, foundry.
-- **custom errors**: use `error MyError();` instead of require strings. prefer parameterless errors for gas savings, but add context parameters (`error Unauthorized(address caller)`) when genuinely useful for debugging.
-- **security**: checks-effects-interactions pattern mandatory. use `nonReentrant` selectively for high-risk functions (external calls in loops, complex control flow).
-- **formatting**: named mappings required `mapping(address user => uint256 balance)`.
-- **testing**: fuzzing required for inputs. gas snapshots mandatory. test function naming: `test_[function]_[scenario]()`.
-- **natspec**: minimal - `@title`, `@author`, `@inheritdoc`. code should be self-documenting.
 
 ## key files
 
@@ -17,27 +12,24 @@
 
 contracts are automatically formatted by `forge fmt` and linted by `solhint`. these tools run on every commit and must pass.
 
-- **import order**: imports must be sorted alphabetically and grouped by type (openzeppelin, solady, internal, etc.). enforced by the formatter.
+- **import order**: imports are grouped by type, external libraries (openzeppelin, solady, etc.) first and project-internal contracts last, and sorted alphabetically within each group. enforced by the formatter.
 - **explicit visibility**: all functions and state variables must have an explicit visibility (`public`, `private`, `internal`, `external`).
-- **custom errors**: `require()` statements with string messages are forbidden. use custom errors.
 - **no console logs**: `console.log` is forbidden in contract code.
-- **static analysis**: solhint and slither are run on all code.
+- **static analysis**: solhint and slither are run on all code. `pnpm nx run-many -t test:slither test:solhint` must pass with zero warnings.
 
 ## security & best practices
 
 - **checks-effects-interactions pattern**: non-negotiable. all functions must first perform checks, then update state (effects), then interact with external contracts.
 - **reentrancy guard**: rely on checks-effects-interactions as primary defense. use `nonReentrant` only for functions with external calls in loops or complex control flow where the pattern alone is insufficient.
 - **access control**: use modifiers like `onlyOwner` or function-level checks. default to strictest possible access level (`private` -> `internal` -> `external` -> `public`).
-- **named parameters in mappings**: use named parameters for clarity.
+- **named parameters in mappings**: required, for clarity.
   - ✅ `mapping(address user => uint256 balance)`
   - ❌ `mapping(address => uint256)`
-- **zero warnings policy**: `pnpm nx run-many -t test:slither test:solhint` must pass with zero warnings.
 
 ## solidity conventions
 
-- **import order**: openzeppelin or other external libraries first, then project-internal contracts.
 - **natspec comments**: minimal natspec. use `@title`, `@author`, `@inheritdoc` where appropriate. code should be self-documenting.
-- **error handling**: use custom errors.
+- **custom errors**: use custom errors, never `require()` with string messages. prefer parameterless errors (`error MyError();`) for gas savings, but add context parameters (`error Unauthorized(address caller)`) when genuinely useful for debugging.
   - ✅ `if (caller != owner) revert NotOwner();`
   - ❌ `require(caller == owner, "not owner");`
 - **constants**: use `constant` for true constants. use `immutable` for configurable values (like contract addresses) set at deployment.
@@ -45,8 +37,8 @@ contracts are automatically formatted by `forge fmt` and linted by `solhint`. th
 ## foundry & testing
 
 - **test file naming**: test files must end with `.t.sol` and mirror the contract name (e.g., `ExaPlugin.sol` -> `ExaPlugin.t.sol`).
-- **test function naming**: test functions must start with `test`. use descriptive names (e.g., `test_revert_when_caller_is_not_owner()`).
-- **fuzz testing**: use fuzz testing extensively for functions with numerical or address inputs. same `test_` prefix as regular tests.
+- **test function naming**: test functions must start with `test` and follow `test_[function]_[scenario]()` (e.g., `test_collect_reverts_whenProposalsLeaveNoLiquidity()`).
+- **fuzz testing**: required for inputs. use it extensively for functions with numerical or address inputs. same `test_` prefix as regular tests.
 - **gas snapshots**: always run `pnpm nx snapshot contracts` after changes and commit the resulting `.gas-snapshot` file. failing to do so breaks `test:gas`.
 - **`vm.prank`**: use `vm.prank` to simulate calls from different addresses. avoid changing `msg.sender` through other means.
 
