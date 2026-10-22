@@ -3,6 +3,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
+- runFlow: { file: scrollTo.yaml, env: { element: Send, center: true } }
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Send to
