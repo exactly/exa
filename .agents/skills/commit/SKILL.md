@@ -148,7 +148,7 @@ the gray area is refactors. most don't need a changeset, but some do. ask: "if t
 
 ## workflow
 
-the developer makes every decision — never auto-commit. organize the work however fits the change; these are the goals.
+organize the work however fits the change; these are the goals. split the changes and pick the gitmoji and message yourself: developers review commits after push, so every pick must hold up to that review. when the developer wants to review before committing, present the choices described below and wait for their picks.
 
 ### coherent commits
 
@@ -156,7 +156,7 @@ each commit is one coherent unit of work — every change is necessary for or di
 
 stage without asking when all changes form one coherent unit of work.
 
-**ask the developer** when the diff contains incoherent changes. incoherence signals:
+**split the diff** when it contains incoherent changes. incoherence signals:
 
 - **different gitmojis** — part of the diff is a fix and another part is a feature
 - **drive-by changes** — formatting, typo fixes, import cleanup in files unrelated to the main change
@@ -175,7 +175,7 @@ coherence signals (fine together):
 
 coherence must be evaluated at the **hunk level**, not the file level — a single file can contain hunks belonging to different intents. working on multiple changes simultaneously and authoring commits separately is normal workflow.
 
-when asking, explain which groups of changes were detected and suggest how to split them. stage only what the developer confirms.
+when the developer reviews before committing, explain which groups of changes were detected, suggest how to split them, and stage only what they confirm.
 
 staging must always be granular (never `git add -A` or `git add .`). when all hunks in a file belong to the same intent, `git add <file>` is acceptable. when a file contains hunks for different intents, stage individual hunks programmatically (e.g., generate a patch for the relevant hunks and apply with `git apply --cached`).
 
@@ -196,13 +196,13 @@ the scope comes from the staged files:
 - config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
 - everything else → `global`
 
-if files span multiple scopes, suggest splitting into separate commits. if the developer prefers a single commit, let them pick the primary scope.
+if files span multiple scopes, split them into separate commits. if the developer prefers a single commit, they pick the primary scope.
 
 ### gitmoji
 
-**mandatory and interactive.** the developer must explicitly choose the gitmoji — never auto-select, never skip, never pick "the obvious one" on the developer's behalf. even if only one gitmoji seems to fit, present the options and wait for a response.
+never settle for "the obvious one": weigh every possibly relevant gitmoji from the full list in `node_modules/gitmojis/dist/index.mjs` — be extensive, no count limit — and pick the 1 or 2 that fit best.
 
-suggest every possibly relevant gitmoji from the full list in `node_modules/gitmojis/dist/index.mjs` — be extensive, no count limit. present them using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
+when the developer reviews before committing, present the options using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
 
 - **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
 - **allow multi-select** (1 or 2 gitmojis) — enable multi-select in the tool if supported, or instruct the developer to reply with multiple numbers
@@ -216,9 +216,9 @@ the developer picks 1 or 2 gitmojis. **wait for their response.**
 
 ### message
 
-**mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
+never settle for the first message that comes to mind: write exactly **9** commit message options — always 9, no less — using the chosen gitmojis, then pick the best.
 
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use a selection widget for this choice** — most cap below 9 options. plain text is the only reliable format.
+when the developer reviews before committing, number the options 1–9, output them as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use a selection widget for this choice** — most cap below 9 options. plain text is the only reliable format.
 
 format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
 
@@ -245,11 +245,11 @@ rules for messages:
 - remove filler words (a, the, for, with, of, etc.)
 - be keyword-driven — details belong in the commit body, not the subject
 - **concise** — the message (after `<emoji> <scope>:`) should be short. most options 3–5 words, a couple tighter, at most 1–2 slightly longer when extra context genuinely earns its place. if it feels long, cut harder
-- **varied perspectives** — the 9 options must not be synonyms of each other. vary the angle: what was done, what it affects, what problem it solves, what it enables. each option should frame the change differently so the developer has a real choice, not the same sentence said 9 ways
+- **varied perspectives** — the 9 options must not be synonyms of each other. vary the angle: what was done, what it affects, what problem it solves, what it enables. each option should frame the change differently so there is a real choice, not the same sentence said 9 ways
 
 if the scope is obvious (one clear scope from the diff), use it for all 9 options. if ambiguous, use 2-3 different scopes across the options, but this is rare.
 
-the developer picks one option (or writes their own). **wait for their response.**
+when reviewing before committing, the developer picks one option (or writes their own). **wait for their response.**
 
 ### changeset
 
@@ -278,8 +278,8 @@ show the result to the developer. if signing fails, follow "handling signing fai
 
 ## invariants
 
-- **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping the choice or choosing on behalf of the developer is a workflow violation
-- **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use a selection widget** — output all 9 as a plain numbered list in a regular text message
+- **gitmoji selection is always deliberate** — weigh the options even if only one seems to fit. when the developer reviews before committing, they pick
+- **message selection is always deliberate** — always write all 9 options before picking. an agent that composes a single message and commits it without weighing alternatives is violating this workflow. when the developer reviews before committing, output all 9 as a plain numbered list in a regular text message, never in a selection widget
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
 - never skip git hooks (no `--no-verify`)
