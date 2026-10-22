@@ -47,7 +47,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - assertVisible: Select asset to send
 - runFlow: { file: tapAria.yaml, env: { aria: Select network } }
-- tapOn: All networks
+- tapOn: { text: Anvil, below: All networks }
 - tapOn: Search assets
 - inputText: ${asset}
 - runFlow:
