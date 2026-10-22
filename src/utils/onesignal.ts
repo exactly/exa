@@ -12,7 +12,7 @@ const { enablePrompt, login, logout } = (
     ? () => {
         const OneSignal = require("react-onesignal") as typeof OneSignalWeb; // eslint-disable-line unicorn/prefer-module
         const init =
-          appId && typeof window !== "undefined"
+          appId && typeof window !== "undefined" && window.isSecureContext
             ? OneSignal.init({
                 appId,
                 allowLocalhostAsSecureOrigin: __DEV__ || process.env.EXPO_PUBLIC_ENV === "e2e",
@@ -43,18 +43,23 @@ const { enablePrompt, login, logout } = (
                       };
                     }),
                 },
-              }).catch(reportError)
+              })
+                .then(() => true)
+                .catch((error: unknown) => {
+                  reportError(error);
+                  return false;
+                })
             : undefined;
         let displayPrompt: (() => void) | undefined;
         return {
           enablePrompt: () => {
-            init?.then(() => displayPrompt?.()).catch(reportError);
+            init?.then((ready) => (ready ? displayPrompt?.() : undefined)).catch(reportError);
           },
           login: (userId: string) => {
-            init?.then(() => OneSignal.login(userId)).catch(reportError);
+            init?.then((ready) => (ready ? OneSignal.login(userId) : undefined)).catch(reportError);
           },
           logout: () => {
-            init?.then(() => OneSignal.logout()).catch(reportError);
+            init?.then((ready) => (ready ? OneSignal.logout() : undefined)).catch(reportError);
           },
         };
       }

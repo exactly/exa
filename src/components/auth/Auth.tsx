@@ -113,7 +113,7 @@ export default function Auth() {
       setErrorDialogOpen(true);
     },
     () => {
-      if (isMiniApp) sdk.actions.addMiniApp().catch(reportError);
+      if (isMiniApp) sdk.actions.addMiniApp().catch((error: unknown) => reportError(error, { level: "warning" }));
     },
   );
 
