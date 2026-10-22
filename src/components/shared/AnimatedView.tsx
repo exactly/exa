@@ -7,9 +7,15 @@ import { View } from "tamagui";
 const ViewWithForwardedRef = ({
   forwardedRef,
   nativeID,
+  entering,
+  exiting,
+  layout,
   ...properties
 }: ComponentPropsWithoutRef<typeof View> & {
+  entering?: unknown;
+  exiting?: unknown;
   forwardedRef?: React.Ref<React.ComponentRef<typeof View>>;
+  layout?: unknown;
 }) => {
   return <View ref={forwardedRef} {...(Platform.OS === "web" ? {} : { nativeID })} {...properties} />;
 };

@@ -1,10 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { useQuery } from "@tanstack/react-query";
 
+import AnimatedView from "./AnimatedView";
 import Text from "./Text";
-import View from "./View";
 import { selectBalance } from "../../utils/isProcessing";
 
 import type { ActivityItem } from "../../utils/queryClient";
@@ -22,7 +23,9 @@ export default function ProcessingBalanceBanner() {
   });
   if (country !== "US" || !processingBalance) return null;
   return (
-    <View
+    <AnimatedView
+      entering={FadeIn}
+      exiting={FadeOut}
       backgroundColor="interactiveBaseWarningSoftDefault"
       display="flex"
       flexDirection="row"
@@ -35,6 +38,6 @@ export default function ProcessingBalanceBanner() {
           amount: `$${processingBalance.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         })}
       </Text>
-    </View>
+    </AnimatedView>
   );
 }
