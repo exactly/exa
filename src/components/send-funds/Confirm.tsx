@@ -14,7 +14,6 @@ import { ChainType } from "@lifi/sdk";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { parse, safeParse } from "valibot";
 import {
-  encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
   formatUnits,
@@ -26,13 +25,13 @@ import {
 import { useReadContract, useSimulateContract } from "wagmi";
 
 import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
-import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
 import { estimateCalls } from "../../utils/accountClient";
+import decodeProposal from "../../utils/decodeProposal";
 import ensOptions, { ensName } from "../../utils/ensOptions";
 import estimate from "../../utils/estimate";
 import executionOptions from "../../utils/executionOptions";
@@ -52,6 +51,7 @@ import queryClient from "../../utils/queryClient";
 import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import { track } from "../../utils/useBridges";
 import useCrossChainGas from "../../utils/useCrossChainGas";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
@@ -413,9 +413,6 @@ export default function Confirm() {
     onMutate() {
       setEnableSimulations(false);
     },
-    onSuccess() {
-      if (external) queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
-    },
     async mutationFn() {
       if ((!sendReady && !submitted) || !receiver) throw new Error("not ready");
       if (routed) {
@@ -438,6 +435,17 @@ export default function Confirm() {
         return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
       }
       throw new Error("no simulation ready");
+    },
+    onSuccess(result) {
+      if (external) queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
+      if (destinationChain === payChain || !result || !route || !destination || !address) return;
+      track(address, result, {
+        tool: route.tool,
+        fromChain: payChain,
+        toChain: destinationChain,
+        toToken: { symbol: destination.symbol, logoURI: destination.logoURI },
+        duration: arrival ?? route.estimate.executionDuration,
+      });
     },
     onError(error) {
       setEnableSimulations(true);
@@ -491,12 +499,7 @@ export default function Confirm() {
   ]);
 
   const hash = receipt?.transactionHash;
-  const proposal = useMemo(() => {
-    if (!receipt) return;
-    const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
-    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
-    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
-  }, [receipt]);
+  const proposal = useMemo(() => receipt && decodeProposal(receipt), [receipt]);
   const { data: execution } = useQuery(executionOptions(address, proposal?.nonce, proposal?.since));
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(

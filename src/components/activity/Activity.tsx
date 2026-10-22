@@ -17,6 +17,7 @@ import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useTabPress from "../../utils/useTabPress";
 import TabBarContext from "../context/TabBarContext";
+import BridgeBanner from "../shared/BridgeBanner";
 import ProcessingBalanceBanner from "../shared/ProcessingBalanceBanner";
 import ProposalBanner from "../shared/ProposalBanner";
 import RefreshControl from "../shared/RefreshControl";
@@ -147,6 +148,7 @@ const ListHeader = memo(function ListHeader({ onLayout }: { onLayout: (event: La
         </Text>
       </View>
       <ProposalBanner />
+      <BridgeBanner />
       <ProcessingBalanceBanner />
     </View>
   );
