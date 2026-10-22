@@ -86,7 +86,9 @@ jobs:
       matrix:
         include:
           - { flow: credit, screen: 1920x1080 }
+          - { flow: deposit, screen: 720x720 }
           - { flow: onboarding, screen: 500x1200 }
+          - { flow: portfolio, screen: 500x963 }
           - { flow: swap, screen: 740x880 }
           - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
