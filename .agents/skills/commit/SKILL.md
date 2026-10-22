@@ -82,10 +82,10 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 
 signing may fail due to key agent timeouts (e.g., gpg-agent passphrase cache expired, ssh-agent locked, hardware key like yubikey not touched in time). when this happens:
 
-1. **warn the developer**: explain that signing failed (include the error output) and that the commit was not created
-2. **ask for acknowledgment**: use `AskUserQuestion` with options like "ready to retry" and "abort commit". do not retry silently
-3. **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
-4. **repeat if needed**: if signing fails again, go back to step 1. never give up on signing. never strip `-S` to work around the failure
+- **warn the developer**: explain that signing failed (include the error output) and that the commit was not created. suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
+- **ask for acknowledgment**: use `AskUserQuestion` with options like "ready to retry" and "abort commit". do not retry silently
+- **retry with `-S`**: after acknowledgment, run the exact same `git commit -S` command again
+- **repeat if needed**: if signing fails again, warn the developer again. there is no retry limit. never give up on signing. never strip `-S` to work around the failure
 
 ## changeset format
 
@@ -148,21 +148,13 @@ the gray area is refactors. most don't need a changeset, but some do. ask: "if t
 
 ## workflow
 
-execute these steps in order. the developer makes every decision — never auto-commit.
+the developer makes every decision — never auto-commit. organize the work however fits the change; these are the goals.
 
-the workflow is split into a **prep phase** (runs in a `Task` subagent to avoid polluting the main context) and an **interactive phase** (runs in the main agent for user-facing choices).
+### coherent commits
 
-### prep phase (Task subagent)
+each commit is one coherent unit of work — every change is necessary for or directly caused by the same single intent. when changes are already staged, they are the commit: show the staged summary. look at the tree with `git status` (never `-uall`) and `git diff --staged --stat`, then read the full diff being committed (`git diff --staged`, or `git diff` before staging): scope, gitmoji, message and changeset all rest on it, never on the stat alone.
 
-launch a `Task` subagent (subagent_type: `general-purpose`). instruct it to perform steps 1–4 below and return **only** the compact summary described in step 4. the subagent must NOT return the full gitmoji list or the full diff — only the summary.
-
-#### step 1: smart staging
-
-1. run `git status` (never use `-uall`) and `git diff --staged --stat`
-2. if files are already staged, show the staged summary and proceed to step 2
-3. if nothing is staged, run `git diff` to read the full unstaged diff and evaluate **coherence** before staging:
-
-**auto-stage** (no question needed) when all changes form one coherent unit of work — every change is necessary for or directly caused by the same single intent.
+stage without asking when all changes form one coherent unit of work.
 
 **ask the developer** when the diff contains incoherent changes. incoherence signals:
 
@@ -187,14 +179,9 @@ when asking, explain which groups of changes were detected and suggest how to sp
 
 staging must always be granular (never `git add -A` or `git add .`). when all hunks in a file belong to the same intent, `git add <file>` is acceptable. when a file contains hunks for different intents, stage individual hunks programmatically (e.g., generate a patch for the relevant hunks and apply with `git apply --cached`).
 
-#### step 2: analyze the diff
+### scope
 
-1. run `git diff --staged` to read the full staged diff
-2. identify: which packages are affected, what changed semantically, whether the change is user-facing
-
-#### step 3: scope resolution
-
-determine the scope from staged files:
+the scope comes from the staged files:
 
 - files in `server/` → `server`
 - files in `src/` or root app files → `app`
@@ -211,32 +198,11 @@ determine the scope from staged files:
 
 if files span multiple scopes, suggest splitting into separate commits. if the developer prefers a single commit, let them pick the primary scope.
 
-#### step 4: suggest gitmojis and return summary
+### gitmoji
 
-1. read the full gitmoji list from `node_modules/gitmojis/dist/index.mjs`
-2. select all possibly relevant gitmojis for the change — be extensive, no count limit
-3. return **only** this compact summary (nothing else):
+**mandatory and interactive.** the developer must explicitly choose the gitmoji — never auto-select, never skip, never pick "the obvious one" on the developer's behalf. even if only one gitmoji seems to fit, present the options and wait for a response.
 
-```text
-scope: <resolved scope>
-changeset: <yes/no + package name if yes>
-summary: <one-line semantic summary of the change>
-gitmojis:
-- <emoji> <name>: <short reason>
-- ...
-```
-
-do NOT return the full diff, the full gitmoji list, or any other verbose output.
-
-### interactive phase (main agent)
-
-the main agent receives the compact summary and continues with the developer.
-
-#### step 5: gitmoji selection
-
-**this step is mandatory and interactive.** the developer must explicitly choose the gitmoji — never auto-select, never skip, never pick "the obvious one" on the developer's behalf. even if only one gitmoji seems to fit, present the options and wait for a response.
-
-present the suggested gitmojis using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
+suggest every possibly relevant gitmoji from the full list in `node_modules/gitmojis/dist/index.mjs` — be extensive, no count limit. present them using whatever interactive selection mechanism is available. the goal is a clear, scannable list where the developer can respond with minimal effort (a number, a click, or a short reply). guidelines:
 
 - **use the best interactive tool available** — if the environment provides a structured selection ui (e.g., `AskUserQuestion`, a picker widget, a multi-select prompt), use it. if not, fall back to a **numbered list** where each option is on its own line and the developer can reply with a number
 - **allow multi-select** (1 or 2 gitmojis) — enable multi-select in the tool if supported, or instruct the developer to reply with multiple numbers
@@ -246,13 +212,13 @@ present the suggested gitmojis using whatever interactive selection mechanism is
 - **question text**: only if at least one option label ends with `*`, append `(* may display as two emojis — it's one)` to the question. if no option has `*`, do NOT include this footnote
 - **scannable formatting** — one option per line, consistent alignment, no walls of text. the developer should be able to scan all options in under 5 seconds
 
-the developer picks 1 or 2 gitmojis. **do not proceed until they respond.**
+the developer picks 1 or 2 gitmojis. **wait for their response.**
 
-#### step 6: message options
+### message
 
-**this step is mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
+**mandatory and interactive.** never auto-select a message — always present options and wait for the developer to choose.
 
-present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use `AskUserQuestion` or any other interactive tool for this step** — `AskUserQuestion` caps at 4 options and most other selection widgets also cap below 9. plain text is the only reliable format.
+present exactly **9** commit message options — always 9, no less — using the gitmojis the developer chose. number them 1–9. output the 9 options as a **plain numbered list** (one per line) in a regular text message and let the developer reply with their choice. **never use `AskUserQuestion` or any other interactive tool for this choice** — `AskUserQuestion` caps at 4 options and most other selection widgets also cap below 9. plain text is the only reliable format.
 
 format: `<emoji> <scope>: <message>` — **scope is mandatory in every option, never omit it**.
 
@@ -283,47 +249,36 @@ rules for messages:
 
 if the scope is obvious (one clear scope from the diff), use it for all 9 options. if ambiguous, use 2-3 different scopes across the options, but this is rare.
 
-the developer picks one option (or writes their own). **do not proceed until they respond.**
+the developer picks one option (or writes their own). **wait for their response.**
 
-#### step 7: changeset decision
+### changeset
 
-determine if a changeset is needed using the rules above.
+when a changeset is needed (see the rules above), write `.changeset/<name>.md`:
 
-if a changeset is needed:
+- **filename**: random, `<adj>-<animal>-<verb>.md`
+- **description**: the commit message without the `<scope>:` prefix (unless developer explicitly requests a different description)
+- **semver level**: `patch` (unless explicitly requested otherwise)
 
-1. generate a random changeset filename (`<adj>-<animal>-<verb>.md`)
-2. the changeset description = the commit message without the `<scope>:` prefix (unless developer explicitly requests a different description)
-3. semver level = `patch` (unless explicitly requested otherwise)
-4. write the `.changeset/<name>.md` file
+### signed commit
 
-#### step 8: signed commit
+**every commit must be signed.** the commit message format is `<emoji> <scope>: <message>` — do NOT reuse the changeset description (which omits scope). the chosen commit message already has the correct format.
 
-**every commit must be signed.** the commit message format is `<emoji> <scope>: <message>` — do NOT reuse the changeset description (which omits scope). the commit message chosen in step 6 already has the correct format.
+stage the changeset (if any) and commit in a single command:
 
-1. stage the changeset (if created in step 7) and commit in a single command:
+```bash
+git add .changeset/<name>.md && git commit -S -m "$(cat <<'EOF'
+<emoji> <scope>: <message>
+EOF
+)"
+```
 
-   ```bash
-   git add .changeset/<name>.md && git commit -S -m "$(cat <<'EOF'
-   <emoji> <scope>: <message>
-   EOF
-   )"
-   ```
+if no changeset was created, omit the `git add` portion and run only the `git commit -S` command.
 
-   if no changeset was created, omit the `git add` portion and run only the `git commit -S` command.
-
-2. **if signing succeeds**: show the result to the developer. done.
-3. **if signing fails** (exit code non-zero and stderr mentions signing, gpg, ssh, key, timeout, agent, or passphrase):
-   1. show the full error output
-   2. warn the developer that the commit was **not created** because signing failed — suggest they check their key agent, unlock their hardware key, or re-enter their passphrase
-   3. use `AskUserQuestion` with two options: "retry" and "abort"
-   4. on "retry": run the exact same `git commit -S` command again and go back to step 2
-   5. on "abort": stop the workflow entirely — do **not** fall back to an unsigned commit
-   6. there is no retry limit — keep looping through warn → ack → retry as long as the developer chooses to retry
-4. do NOT push unless explicitly asked
+show the result to the developer. if signing fails, follow "handling signing failures" above.
 
 ## invariants
 
-- **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping this step or choosing on behalf of the developer is a workflow violation
+- **gitmoji selection is always interactive** — never auto-select a gitmoji. even if only one seems to fit, present the options and wait for the developer to pick. skipping the choice or choosing on behalf of the developer is a workflow violation
 - **message selection is always interactive** — never auto-select a commit message. always present all 9 options and wait for the developer to pick or write their own. an agent that composes a message and commits it without presenting options is violating this workflow. **never use `AskUserQuestion` or any selection widget** — output all 9 as a plain numbered list in a regular text message
 - **signing is mandatory** — never run `git commit` without `-S`, never use `--no-gpg-sign`, never commit unsigned
 - never amend a previous commit unless the developer explicitly requests it
