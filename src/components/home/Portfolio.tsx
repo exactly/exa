@@ -23,6 +23,7 @@ import { balancesOptions, isStock } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -41,6 +42,7 @@ import type { PortfolioAsset } from "../../utils/usePortfolio";
 export default function Portfolio() {
   const { address } = useAccount();
   const { averageRate, rates, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
+  const allowlists = useAllowlists();
   const router = useRouter();
   const insets = useInsets();
   const { t } = useTranslation();
@@ -50,8 +52,8 @@ export default function Portfolio() {
   const { refetch: refetchBalances, isFetching: isBalancesFetching } = useQuery(balancesOptions(address));
 
   const stocks = allAssets.flatMap<PortfolioAsset>((asset) => {
-    if (asset.type === "external") return isStock(asset) ? [asset] : [];
-    if (tab !== "stocks" || !isStock({ address: asset.asset, chainId: chain.id })) return [];
+    if (asset.type === "external") return isStock(allowlists, asset) ? [asset] : [];
+    if (tab !== "stocks" || !isStock(allowlists, { address: asset.asset, chainId: chain.id })) return [];
     const usdValue = Number((asset.floatingDepositAssets * asset.usdPrice) / BigInt(10 ** asset.decimals)) / 1e18;
     return [{ ...asset, usdValue }];
   });
@@ -155,7 +157,7 @@ export default function Portfolio() {
             {tab === "all" ? (
               <ExternalAssets
                 assets={allAssets.filter((asset) =>
-                  asset.type === "external" ? !isStock(asset) : asset.nonCollateral,
+                  asset.type === "external" ? !isStock(allowlists, asset) : asset.nonCollateral,
                 )}
               />
             ) : null}

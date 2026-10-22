@@ -12,6 +12,7 @@ import chain from "@exactly/common/generated/chain";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { isStock } from "../../utils/lifi";
+import useAllowlists from "../../utils/useAllowlists";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -127,6 +128,7 @@ export default function TokenSelectModal({
   const [picking, setPicking] = useState(false);
   const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
+  const allowlists = useAllowlists();
   const {
     t,
     i18n: { language },
@@ -144,8 +146,8 @@ export default function TokenSelectModal({
   const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => `${chain.id}:${asset}`)), [markets]);
 
   const hasStocks = useMemo(
-    () => !!onStocks || new Set(tokens.map((token) => isStock(token))).size > 1,
-    [onStocks, tokens],
+    () => !!onStocks || new Set(tokens.map((token) => isStock(allowlists, token))).size > 1,
+    [allowlists, onStocks, tokens],
   );
   const filter = (selection === "stocks" ? hasStocks : networks.some(({ id }) => id === selection))
     ? selection
@@ -163,7 +165,7 @@ export default function TokenSelectModal({
     const matchesQuery = (...fields: (string | undefined)[]) =>
       !query || fields.some((field) => field?.toLowerCase().includes(query));
     return tokens.flatMap<{ asset?: PortfolioAsset; external?: boolean; token: Token }>((token) => {
-      if (filter === "stocks" && !isStock(token)) return [];
+      if (filter === "stocks" && !isStock(allowlists, token)) return [];
       if (typeof filter === "number" && (token.chainId as number) !== filter) return [];
       const key = `${token.chainId}:${token.address}`;
       const assets = holdings.get(key) ?? [];
@@ -186,7 +188,7 @@ export default function TokenSelectModal({
         )
         .map((asset) => ({ token, asset, external: asset.type === "external" }));
     });
-  }, [searchQuery, tokens, filter, withBalanceOnly, holdings, marketAssets, isExternal]);
+  }, [searchQuery, tokens, allowlists, filter, withBalanceOnly, holdings, marketAssets, isExternal]);
 
   function close() {
     setSearchQuery("");

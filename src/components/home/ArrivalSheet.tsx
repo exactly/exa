@@ -16,6 +16,7 @@ import { balancesOptions, isStock, lifiChainsOptions, lifiTokensOptions, tokenCo
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import Conversion from "../shared/Conversion";
@@ -36,6 +37,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
   const { address } = useAccount();
   const { externalAssets, crossChainAssets, isBalancesPending, isExternal } = usePortfolio();
   const { supportedAssets, isPending } = useMarkets();
+  const allowlists = useAllowlists();
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { data: done, isSuccess } = useQuery<boolean | null>({
     queryKey: ["settings", "arrival", address],
@@ -49,7 +51,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     .filter(
       (asset) =>
         asset.usdValue > 0 &&
-        !isStock(asset) &&
+        !isStock(allowlists, asset) &&
         !(asset.chainId === chain.id && supportedAssets.includes(asset.symbol)),
     )
     .sort((a, b) => b.usdValue - a.usdValue)[0];

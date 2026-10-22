@@ -22,6 +22,7 @@ import { date } from "../../i18n";
 import { isStock, marketOpen, statsOptions } from "../../utils/lifi";
 import { defaultRange, ranges, useFeed, useHistory } from "../../utils/prices";
 import reportError from "../../utils/reportError";
+import useAllowlists from "../../utils/useAllowlists";
 
 import type { Token } from "@lifi/sdk";
 
@@ -41,7 +42,9 @@ export default function PriceChart({
     i18n: { language },
   } = useTranslation();
   const theme = useTheme();
-  const [range, setRange] = useState(() => defaultRange(token));
+  const allowlists = useAllowlists();
+  const [picked, setPicked] = useState<keyof typeof ranges>();
+  const range = picked ?? defaultRange(allowlists, token);
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState(-1);
   const formats = useMemo(
@@ -54,7 +57,7 @@ export default function PriceChart({
   const inverted = useFeed(token, true);
   const inverse = symbol === "wARS" && inverted !== null;
   const { data, isError, isPlaceholderData, refetch } = useHistory(token, range, undefined, inverse);
-  const closed = !!useFeed(token) && isStock(token) && !marketOpen();
+  const closed = !!useFeed(token) && isStock(allowlists, token) && !marketOpen();
   const { data: onchain } = useQuery({
     ...statsOptions(token.chainId, token.address),
     enabled: closed,
@@ -207,7 +210,7 @@ export default function PriceChart({
             aria-label={t(key)}
             onPress={() => {
               selectionAsync().catch(reportError);
-              setRange(key);
+              setPicked(key);
             }}
           >
             <Text footnote color={key === range ? "interactiveOnBaseBrandSoft" : "uiNeutralSecondary"}>
@@ -232,7 +235,7 @@ export function PriceSummary({ token, onPress }: { onPress: () => void; token: T
     t,
     i18n: { language },
   } = useTranslation();
-  const range = defaultRange(token);
+  const range = defaultRange(useAllowlists(), token);
   const { data, isError } = useHistory(token, range, 2);
   const first = data?.points[0];
   const last = data?.points.at(-1);
