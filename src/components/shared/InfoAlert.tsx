@@ -1,12 +1,14 @@
 import React from "react";
 import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import { Pressable } from "react-native";
+import { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Spinner, View, XStack } from "tamagui";
 
+import AnimatedView from "./AnimatedView";
 import Text from "./Text";
 
 export default function InfoAlert({
@@ -27,7 +29,14 @@ export default function InfoAlert({
   const { bg, iconBg, icon: variantIcon, color, text } = variants[variant];
   const Icon = icon ?? variantIcon;
   return (
-    <XStack borderRadius="r3" backgroundColor={bg} overflow="hidden">
+    <AnimatedView
+      entering={FadeIn}
+      exiting={FadeOut}
+      flexDirection="row"
+      borderRadius="r3"
+      backgroundColor={bg}
+      overflow="hidden"
+    >
       <View padding="s4" backgroundColor={iconBg} justifyContent="center" alignItems="center" alignSelf="stretch">
         <Icon size={32} color={color} />
       </View>
@@ -51,7 +60,7 @@ export default function InfoAlert({
           )}
         </Pressable>
       </View>
-    </XStack>
+    </AnimatedView>
   );
 }
 

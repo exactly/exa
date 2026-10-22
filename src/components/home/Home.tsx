@@ -6,7 +6,7 @@ import { LinearTransition } from "react-native-reanimated";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { toast } from "@tamagui/toast";
-import { AnimatePresence, ScrollView, YStack } from "tamagui";
+import { ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -264,7 +264,7 @@ export default function Home() {
                   }}
                 />
               )}
-              <YStack gap="s5">
+              <AnimatedView layout={LinearTransition} gap="s5">
                 <PortfolioSummary
                   collateralUSD={collateralUSD}
                   averageRate={averageRate}
@@ -272,40 +272,38 @@ export default function Home() {
                   totalBalanceUSD={totalBalanceUSD}
                 />
                 <HomeActions />
-              </YStack>
+              </AnimatedView>
             </YStack>
             {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
               <View paddingHorizontal="s4" gap="s5">
-                <AnimatePresence>
-                  {card && (
-                    <CardStatus
-                      collateral={collateralUSD}
-                      creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
-                      spotlightRef={spotlightRef}
-                      mode={card.mode}
-                      onCardPress={() => {
-                        router.push("/card");
-                      }}
-                      onCreditLimitInfoPress={() => {
-                        setCreditLimitSheetOpen(true);
-                      }}
-                      onDetailsPress={() => {
-                        setCardDetailsOpen(true);
-                      }}
-                      onInstallmentsPress={() => {
-                        setInstallmentsSheetOpen(true);
-                      }}
-                      onLearnMorePress={() => {
-                        setPayModeSheetOpen(true);
-                      }}
-                      onModeChange={handleModeChange}
-                      onSpendingLimitInfoPress={() => {
-                        setSpendingLimitSheetOpen(true);
-                      }}
-                      spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
-                    />
-                  )}
-                </AnimatePresence>
+                {card && (
+                  <CardStatus
+                    collateral={collateralUSD}
+                    creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
+                    spotlightRef={spotlightRef}
+                    mode={card.mode}
+                    onCardPress={() => {
+                      router.push("/card");
+                    }}
+                    onCreditLimitInfoPress={() => {
+                      setCreditLimitSheetOpen(true);
+                    }}
+                    onDetailsPress={() => {
+                      setCardDetailsOpen(true);
+                    }}
+                    onInstallmentsPress={() => {
+                      setInstallmentsSheetOpen(true);
+                    }}
+                    onLearnMorePress={() => {
+                      setPayModeSheetOpen(true);
+                    }}
+                    onModeChange={handleModeChange}
+                    onSpendingLimitInfoPress={() => {
+                      setSpendingLimitSheetOpen(true);
+                    }}
+                    spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
+                  />
+                )}
                 {card?.productId === PLATINUM_PRODUCT_ID && (
                   <VisaSignatureBanner
                     onPress={() => {
