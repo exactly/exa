@@ -43,3 +43,7 @@ jobs:
           publish: pnpm changeset publish
           version: ./.changeset/version.sh
           prDraft: create
+      - run: |
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/beta...$GITHUB_SHA" --jq .status)
+          if [ "$status" = ahead ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/beta" -f sha="$GITHUB_SHA"; fi
+        env: { GH_TOKEN: "${{ steps.github.outputs.token }}" }
