@@ -42,7 +42,7 @@ the documentation's eslint configuration enforces:
 
 ## writing style
 
-- **capitalization**: user-facing documentation follows standard english capitalization rules (title case for headings, sentence case for prose). the internal lowercase convention does not apply here.
+- **capitalization**: user-facing documentation follows standard english capitalization rules (sentence case for headings and prose). the internal lowercase convention does not apply here.
 
 ## prohibited actions
 

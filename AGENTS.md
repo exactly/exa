@@ -60,7 +60,6 @@ a core principle is specific capitalization for different contexts. this must be
   - ❌ `for boolean props, the name should be isActive.`
 - **code examples**: any identifier inside backticks (`` ` ``) or a code fence (` ``` `) is considered code, not prose. it must strictly follow the casing rules for that language.
 - **code comments**: all code comments must be lowercase.
-- **user-facing documentation (`docs/`)**: use proper sentence case.
 - **changeset summaries**: use a lowercase sentence in the imperative present tense (e.g., `implement x feature for y`).
 - **git commit messages**: must be lowercase.
 
