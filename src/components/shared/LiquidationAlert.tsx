@@ -1,9 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
+import { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { Text, View } from "tamagui";
 
+import AnimatedView from "./AnimatedView";
 import { AlertTriangle } from "../../generated/icons/AlertTriangle";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { presentArticle } from "../../utils/intercom";
@@ -12,7 +14,9 @@ import reportError from "../../utils/reportError";
 export default function LiquidationAlert() {
   const { t } = useTranslation();
   return (
-    <View
+    <AnimatedView
+      entering={FadeIn}
+      exiting={FadeOut}
       borderRadius="r6"
       flexDirection="row"
       backgroundColor="interactiveBaseErrorSoftDefault"
@@ -51,6 +55,6 @@ export default function LiquidationAlert() {
           </View>
         </Pressable>
       </View>
-    </View>
+    </AnimatedView>
   );
 }
