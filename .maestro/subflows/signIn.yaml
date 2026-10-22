@@ -8,11 +8,6 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Sign up with Passkey
       - tapOn: Set passkey and create account
       - matchBiometrics
-      - runFlow: { file: tapAria.yaml, env: { aria: "Good (morning|afternoon|evening)!" } }
-      - assertVisible: Address copied
-      - copyTextFrom: 0x[\da-fA-F]{40}
-      - evalScript: ${output.account = maestro.copiedText}
-      - tapOn: Close
 - runFlow:
     when: { true: "${method !== 'webauthn'}" }
     commands: [{ tapOn: I already have an account }, { tapOn: Log in with browser wallet }]

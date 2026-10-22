@@ -1,7 +1,7 @@
 export declare global {
   const http: {
     delete: (url: string, init: { headers?: HeadersInit }) => Response;
-    get: (url: string) => { body: string };
+    get: (url: string) => Response;
     post: (url: string, init: Body & { headers?: HeadersInit }) => Response;
     put: (url: string, init: Body & { headers?: HeadersInit }) => Response;
     request: (

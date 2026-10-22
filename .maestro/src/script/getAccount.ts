@@ -1,13 +1,9 @@
-import { padHex, zeroHash, type Address } from "viem";
-import { mnemonicToAccount } from "viem/accounts";
+import type { Address } from "viem";
 
-import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+declare const output: { account?: Address; credential?: string };
 
-declare const EXPO_PUBLIC_E2E_MNEMONIC: string | undefined;
-declare const output: { account?: Address; owner: Address };
-
-output.owner = mnemonicToAccount(
-  EXPO_PUBLIC_E2E_MNEMONIC || "test test test test test test test test test test test junk", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
-).address;
-output.account ??= deriveAddress(exaAccountFactoryAddress, { x: padHex(output.owner), y: zeroHash });
+const { ok, status, body } = http.get("http://localhost:3000/e2e/credential");
+if (!ok) throw new Error(`${status} ${body}`);
+const credential = JSON.parse(body) as { account: Address; id: string };
+output.account = credential.account;
+output.credential = credential.id;

@@ -47,6 +47,7 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
+      await database.delete(credentials); // eslint-disable-line drizzle/enforce-delete-with-where -- e2e starts with no users
       const { default: app, close: stop } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
@@ -101,6 +102,13 @@ describe("e2e", () => {
 
           app.use("/e2e/*", cors());
           app.route("/e2e/lifi", lifi([anvil]));
+          app.get("/e2e/credential", async (c) => {
+            const [credential, ...rest] = await database.query.credentials.findMany({
+              columns: { account: true, id: true },
+              limit: 2,
+            });
+            return credential && rest.length === 0 ? c.json(credential) : c.json({ code: "no single credential" }, 500);
+          });
           app.post("/e2e/coverage", async (c) => {
             const coverage = await c.req.json<Record<string, unknown>>();
             for (const [file, empty] of await baseline) {

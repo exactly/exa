@@ -5,7 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
 - runFlow:
     file: send.yaml
-    env: { asset: ETH, to: "${output.owner}", amount: "25", pay: ETH }
+    env: { asset: ETH, to: "0x000000000000000000000000000000000000dEaD", amount: "25", pay: ETH }
 - tapOn: Manage portfolio
 - assertVisible: Collateral assets
 - tapOn: Collateral

@@ -5,4 +5,4 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: EXA, to: "${output.account}", amount: "1000" }
 - runFlow:
     file: send.yaml
-    env: { asset: USDC, to: "${output.owner}", amount: "5", pay: EXA }
+    env: { asset: USDC, to: "0x000000000000000000000000000000000000dEaD", amount: "5", pay: EXA }

@@ -81,7 +81,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow: getAccount.yaml
       - runScript:
           file: ../dist/approveKYC.js
-          env: { credentialId: "${output.owner}" }
+          env: { credentialId: "${output.credential}" }
 - tapOn: Home
 - assertNotVisible: Getting Started
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
