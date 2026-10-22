@@ -75,6 +75,7 @@ export default function Breakdown({
       ) : isError && !data ? (
         <InfoAlert
           variant="error"
+          exiting={null}
           title={t("Couldn't load your statement. Please try again.")}
           actionText={t("Retry")}
           loading={isFetching}

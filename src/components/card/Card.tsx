@@ -1,5 +1,6 @@
 import React, { use, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -55,6 +56,7 @@ import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import Banner from "../business/Banner";
 import TabBarContext from "../context/TabBarContext";
+import AnimatedView from "../shared/AnimatedView";
 import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
@@ -97,7 +99,7 @@ export default function Card() {
     isFetching: isFetchingCard,
   } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
 
-  const { increase, limit, spent, pending, processing } = useCardLimit(cardDetails?.limit.amount, spendingLimitsOpen);
+  const { increase, limit, spent, pending, processing } = useCardLimit(cardDetails?.limit.amount, !!cardDetails);
 
   const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
@@ -317,26 +319,28 @@ export default function Card() {
                 </XStack>
                 {!cardDetails &&
                   (application === "pending" || application === "review" || application === "action") && (
-                    <Banner
-                      step={application}
-                      title={t("Get a business Exa Card")}
-                      description={
-                        application === "pending"
-                          ? requirement === "terms"
-                            ? t("Your business is approved. Accept the terms to continue.")
-                            : requirement === "representative"
-                              ? t("Add the details of the person who will use the card.")
-                              : t("Finish your business account set up")
-                          : application === "review"
-                            ? companyApproved
-                              ? t("We’re reviewing the card user. Your card will be issued once approved.")
-                              : t("Review takes 3 to 5 business days.")
-                            : t("We need more information before we can continue.")
-                      }
-                      onPress={() => {
-                        router.push("/business");
-                      }}
-                    />
+                    <AnimatedView entering={FadeIn} exiting={FadeOut} alignSelf="stretch">
+                      <Banner
+                        step={application}
+                        title={t("Get a business Exa Card")}
+                        description={
+                          application === "pending"
+                            ? requirement === "terms"
+                              ? t("Your business is approved. Accept the terms to continue.")
+                              : requirement === "representative"
+                                ? t("Add the details of the person who will use the card.")
+                                : t("Finish your business account set up")
+                            : application === "review"
+                              ? companyApproved
+                                ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                                : t("Review takes 3 to 5 business days.")
+                              : t("We need more information before we can continue.")
+                        }
+                        onPress={() => {
+                          router.push("/business");
+                        }}
+                      />
+                    </AnimatedView>
                   )}
                 {!business && isKYCInReview && !cardDetails && (
                   <InfoAlert
@@ -360,159 +364,161 @@ export default function Card() {
                   )}
                 <FundingAlert />
                 <PluginUpgrade />
-                <ExaCard
-                  revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
-                  frozen={displayStatus === "FROZEN"}
-                  onPress={() => {
-                    if (isRevealing || beginKYC.isPending) return;
-                    if (isGeneratingCard) {
-                      refetchCard()
-                        .then(({ data, error }) => {
-                          if (error) reportError(error);
-                          else if (data) queryClient.setQueryData(["card-details-open"], true);
-                          else setSignal((previous) => previous + 1);
-                        })
-                        .catch(reportError);
-                      return;
-                    }
-                    revealCard().catch(reportError);
-                  }}
-                />
-                <YStack
-                  borderRadius="r3"
-                  borderWidth={1}
-                  borderColor="borderNeutralSoft"
-                  width="100%"
-                  paddingHorizontal="s4"
-                >
-                  <XStack
-                    alignItems="center"
-                    paddingVertical="s4"
-                    justifyContent="space-between"
-                    cursor="pointer"
+                <AnimatedView layout={LinearTransition} alignItems="center" gap="s4" width="100%">
+                  <ExaCard
+                    revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
+                    frozen={displayStatus === "FROZEN"}
                     onPress={() => {
-                      selectionAsync().catch(reportError);
+                      if (isRevealing || beginKYC.isPending) return;
+                      if (isGeneratingCard) {
+                        refetchCard()
+                          .then(({ data, error }) => {
+                            if (error) reportError(error);
+                            else if (data) queryClient.setQueryData(["card-details-open"], true);
+                            else setSignal((previous) => previous + 1);
+                          })
+                          .catch(reportError);
+                        return;
+                      }
                       revealCard().catch(reportError);
                     }}
+                  />
+                  <YStack
+                    borderRadius="r3"
+                    borderWidth={1}
+                    borderColor="borderNeutralSoft"
+                    width="100%"
+                    paddingHorizontal="s4"
                   >
-                    <XStack gap="s3" justifyContent="flex-start" alignItems="center">
-                      <CreditCard size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
-                      <Text subHeadline color="uiNeutralPrimary">
-                        {t("Card details")}
-                      </Text>
-                    </XStack>
-                    <ChevronRight color="uiBrandSecondary" size={24} />
-                  </XStack>
-
-                  <Separator borderColor="borderNeutralSoft" />
-
-                  {cardDetails && (
-                    <>
-                      <XStack
-                        role="switch"
-                        aria-checked={displayStatus === "FROZEN"}
-                        aria-label={t("Freeze card")}
-                        aria-disabled={isFetchingCard || isSettingCardStatus}
-                        justifyContent="space-between"
-                        paddingVertical="s4"
-                        alignItems="center"
-                        cursor="pointer"
-                        onPress={() => {
-                          if (isFetchingCard || isSettingCardStatus) return;
-                          selectionAsync().catch(reportError);
-                          if (cardDetails.status === "FROZEN") {
-                            changeCardStatus("ACTIVE");
-                            return;
-                          }
-                          setFreezeConfirmOpen(true);
-                        }}
-                      >
-                        <XStack alignItems="center" gap="s3">
-                          <Square size="s5">
-                            {isSettingCardStatus ? (
-                              <Spinner width="s5" color="interactiveBaseBrandDefault" alignSelf="flex-start" />
-                            ) : (
-                              <Snowflake size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
-                            )}
-                          </Square>
-                          <Text subHeadline color="uiNeutralPrimary">
-                            {t("Freeze card")}
-                          </Text>
-                        </XStack>
-                        <Switch checked={displayStatus === "FROZEN"}>
-                          <Switch.Thumb />
-                        </Switch>
+                    <XStack
+                      alignItems="center"
+                      paddingVertical="s4"
+                      justifyContent="space-between"
+                      cursor="pointer"
+                      onPress={() => {
+                        selectionAsync().catch(reportError);
+                        revealCard().catch(reportError);
+                      }}
+                    >
+                      <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                        <CreditCard size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
+                        <Text subHeadline color="uiNeutralPrimary">
+                          {t("Card details")}
+                        </Text>
                       </XStack>
-                      <Separator borderColor="borderNeutralSoft" />
-                    </>
-                  )}
-
-                  {cardDetails && (
-                    <>
-                      <XStack
-                        alignItems="center"
-                        paddingVertical="s4"
-                        justifyContent="space-between"
-                        cursor="pointer"
-                        onPress={() => {
-                          selectionAsync().catch(reportError);
-                          setDisplayPIN(true);
-                        }}
-                      >
-                        <XStack gap="s3" justifyContent="flex-start" alignItems="center">
-                          <Hash size={24} color="backgroundBrand" />
-                          <Text subHeadline color="uiNeutralPrimary">
-                            {t("View PIN number")}
-                          </Text>
-                        </XStack>
-                        <ChevronRight color="uiBrandSecondary" size={24} />
-                      </XStack>
-                      <Separator borderColor="borderNeutralSoft" />
-                    </>
-                  )}
-
-                  <XStack
-                    alignItems="center"
-                    paddingVertical="s4"
-                    justifyContent="space-between"
-                    cursor="pointer"
-                    gap="s3"
-                    onPress={() => {
-                      if (!limit) return;
-                      selectionAsync().catch(reportError);
-                      setSpendingLimitsOpen(true);
-                    }}
-                  >
-                    <XStack gap="s3" justifyContent="flex-start" alignItems="center">
-                      <DollarSign size={24} color="backgroundBrand" />
-                      <Text subHeadline color="uiNeutralPrimary">
-                        {t("Weekly spending limit")}
-                      </Text>
+                      <ChevronRight color="uiBrandSecondary" size={24} />
                     </XStack>
-                    <XStack alignItems="center">
-                      {limit ? (
-                        <>
-                          <Text caption emphasized color="uiBrandSecondary">
-                            {`$${(limit - spent).toLocaleString(language, {
-                              style: "decimal",
-                              maximumFractionDigits: 0,
-                            })}`}
-                          </Text>
+
+                    <Separator borderColor="borderNeutralSoft" />
+
+                    {cardDetails && (
+                      <>
+                        <XStack
+                          role="switch"
+                          aria-checked={displayStatus === "FROZEN"}
+                          aria-label={t("Freeze card")}
+                          aria-disabled={isFetchingCard || isSettingCardStatus}
+                          justifyContent="space-between"
+                          paddingVertical="s4"
+                          alignItems="center"
+                          cursor="pointer"
+                          onPress={() => {
+                            if (isFetchingCard || isSettingCardStatus) return;
+                            selectionAsync().catch(reportError);
+                            if (cardDetails.status === "FROZEN") {
+                              changeCardStatus("ACTIVE");
+                              return;
+                            }
+                            setFreezeConfirmOpen(true);
+                          }}
+                        >
+                          <XStack alignItems="center" gap="s3">
+                            <Square size="s5">
+                              {isSettingCardStatus ? (
+                                <Spinner width="s5" color="interactiveBaseBrandDefault" alignSelf="flex-start" />
+                              ) : (
+                                <Snowflake size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
+                              )}
+                            </Square>
+                            <Text subHeadline color="uiNeutralPrimary">
+                              {t("Freeze card")}
+                            </Text>
+                          </XStack>
+                          <Switch checked={displayStatus === "FROZEN"}>
+                            <Switch.Thumb />
+                          </Switch>
+                        </XStack>
+                        <Separator borderColor="borderNeutralSoft" />
+                      </>
+                    )}
+
+                    {cardDetails && (
+                      <>
+                        <XStack
+                          alignItems="center"
+                          paddingVertical="s4"
+                          justifyContent="space-between"
+                          cursor="pointer"
+                          onPress={() => {
+                            selectionAsync().catch(reportError);
+                            setDisplayPIN(true);
+                          }}
+                        >
+                          <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                            <Hash size={24} color="backgroundBrand" />
+                            <Text subHeadline color="uiNeutralPrimary">
+                              {t("View PIN number")}
+                            </Text>
+                          </XStack>
                           <ChevronRight color="uiBrandSecondary" size={24} />
-                        </>
-                      ) : isFetchingCard ? (
-                        <Skeleton width={100} height={16} />
-                      ) : null}
+                        </XStack>
+                        <Separator borderColor="borderNeutralSoft" />
+                      </>
+                    )}
+
+                    <XStack
+                      alignItems="center"
+                      paddingVertical="s4"
+                      justifyContent="space-between"
+                      cursor="pointer"
+                      gap="s3"
+                      onPress={() => {
+                        if (!limit) return;
+                        selectionAsync().catch(reportError);
+                        setSpendingLimitsOpen(true);
+                      }}
+                    >
+                      <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                        <DollarSign size={24} color="backgroundBrand" />
+                        <Text subHeadline color="uiNeutralPrimary">
+                          {t("Weekly spending limit")}
+                        </Text>
+                      </XStack>
+                      <XStack alignItems="center">
+                        {limit ? (
+                          <>
+                            <Text caption emphasized color="uiBrandSecondary">
+                              {`$${(limit - spent).toLocaleString(language, {
+                                style: "decimal",
+                                maximumFractionDigits: 0,
+                              })}`}
+                            </Text>
+                            <ChevronRight color="uiBrandSecondary" size={24} />
+                          </>
+                        ) : isFetchingCard ? (
+                          <Skeleton width={100} height={16} />
+                        ) : null}
+                      </XStack>
                     </XStack>
-                  </XStack>
-                </YStack>
-                {revealError && (
-                  <Text color="uiErrorPrimary" fontWeight="bold">
-                    {revealError.message}
-                  </Text>
-                )}
+                  </YStack>
+                  {revealError && (
+                    <Text color="uiErrorPrimary" fontWeight="bold">
+                      {revealError.message}
+                    </Text>
+                  )}
+                </AnimatedView>
               </View>
-              <View paddingHorizontal="s4" gap="s5">
+              <AnimatedView layout={LinearTransition} paddingHorizontal="s4" gap="s5">
                 <LatestActivity
                   activity={purchases}
                   title={t("Latest purchases")}
@@ -550,7 +556,7 @@ export default function Card() {
                     />
                   </Text>
                 </XStack>
-              </View>
+              </AnimatedView>
             </View>
           </View>
         </ScrollView>

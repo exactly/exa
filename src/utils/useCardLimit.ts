@@ -11,7 +11,7 @@ import reportError from "./reportError";
 
 import type { CardActivity, KYCStatus } from "./server";
 
-export default function useCardLimit(amount?: number, open = false) {
+export default function useCardLimit(amount?: number, enabled = false) {
   const { t } = useTranslation();
   const { data: spent = 0 } = useQuery<CardActivity[], Error, number>({
     queryKey: ["activity", "card"],
@@ -21,7 +21,7 @@ export default function useCardLimit(amount?: number, open = false) {
   const usage = limit ? spent / limit : 0;
   const { data: status, isPending } = useQuery<KYCStatus>({
     queryKey: ["kyc", "cardLimit"],
-    enabled: open || usage >= 0.9,
+    enabled: enabled || usage >= 0.9,
   });
   function increase() {
     if (status?.code !== "not started") {
