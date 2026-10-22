@@ -18,13 +18,13 @@ import chain, {
   pricePreviewerCode,
 } from "@exactly/common/generated/chain";
 
-import { isStock, marketOpen } from "./lifi";
+import { isStock, marketOpen, type Allowlists } from "./lifi";
 import useAllowlists from "./useAllowlists";
 
 export const ranges = { "1D": 24 * 60 * 60, "1W": 7 * 24 * 60 * 60, "1M": 30 * 24 * 60 * 60 } as const;
 
-export function defaultRange(token: { address: string; chainId: number }): keyof typeof ranges {
-  return isStock(token) && !marketOpen() ? "1W" : "1D";
+export function defaultRange(allowlists: Allowlists, token: { address: string; chainId: number }): keyof typeof ranges {
+  return isStock(allowlists, token) && !marketOpen() ? "1W" : "1D";
 }
 
 export function useHistory(
@@ -166,7 +166,7 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
   const market = chainId === chain.id ? markets.data?.find(({ asset }) => asset === address)?.feed : undefined;
   if (address !== zeroAddress && !market && !allowlists[chainId]?.has(address.toLowerCase())) return null;
   const symbol = token.symbol.toLowerCase();
-  const named = isStock(token)
+  const named = isStock(allowlists, token)
     ? feeds.data?.[`cb${symbol.slice(0, -1)}`]
     : (feeds.data?.[symbol] ??
       feeds.data?.[
