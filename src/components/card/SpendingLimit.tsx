@@ -49,10 +49,10 @@ export default function SpendingLimit({ title, limit, spent }: { limit?: number;
           )}
         </XStack>
       </XStack>
-      <XStack flex={1} height="$s3" alignItems="center" justifyContent="space-between">
-        <XStack width="100%" height="$s3" borderRadius="$r_0" backgroundColor="$backgroundBrandMild">
+      <XStack flex={1} height="$space.s3" alignItems="center" justifyContent="space-between">
+        <XStack width="100%" height="$space.s3" borderRadius="$r_0" backgroundColor="$backgroundBrandMild">
           {percent === undefined ? null : (
-            <XStack width={`${percent}%`} height="$s3" borderRadius="$r_0" backgroundColor="$uiBrandSecondary" />
+            <XStack width={`${percent}%`} height="$space.s3" borderRadius="$r_0" backgroundColor="$uiBrandSecondary" />
           )}
         </XStack>
       </XStack>

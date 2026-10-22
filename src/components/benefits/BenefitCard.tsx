@@ -46,7 +46,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
           </Text>
         </YStack>
         <XStack justifyContent="space-between">
-          <XStack alignItems="center" gap="$1">
+          <XStack alignItems="center" gap="$s1">
             <Text emphasized footnote color="$interactiveBaseBrandSoftDefault">
               {benefit.linkText ? t(benefit.linkText) : t("Get now")}
             </Text>

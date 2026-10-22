@@ -259,7 +259,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
       </View>
       <XStack justifyContent="space-between" flex={1}>
         <YStack flex={1}>
-          <Text subHeadline maxFontSizeMultiplier={1} color="$uiPrimary" numberOfLines={1}>
+          <Text subHeadline maxFontSizeMultiplier={1} color="$uiNeutralPrimary" numberOfLines={1}>
             {label}
           </Text>
           {maturityDisplay && (
@@ -313,7 +313,7 @@ function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, Ro
       </View>
       <XStack justifyContent="space-between" flex={1}>
         <YStack flex={1}>
-          <Text subHeadline maxFontSizeMultiplier={1} color="$uiPrimary" numberOfLines={1}>
+          <Text subHeadline maxFontSizeMultiplier={1} color="$uiNeutralPrimary" numberOfLines={1}>
             {t("Bridge")}
           </Text>
           <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>

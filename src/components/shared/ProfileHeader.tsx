@@ -70,8 +70,8 @@ export default function ProfileHeader() {
           <View display="flex" flexDirection="row" alignItems="center" gap="$s3">
             <View position="relative">
               <View
-                width="$s6"
-                height="$s6"
+                width="$space.s6"
+                height="$space.s6"
                 borderRadius="$r_0"
                 backgroundColor="$uiNeutralPrimary"
                 alignItems="center"
