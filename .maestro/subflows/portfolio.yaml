@@ -37,4 +37,3 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - assertVisible: Collateral assets
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
-- tapOn: Home

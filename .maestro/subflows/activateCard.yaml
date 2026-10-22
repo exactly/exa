@@ -81,4 +81,3 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Spending limit
 - assertVisible: If your balance doesn’t cover a transaction, other assets in your wallet can make up the difference.
 - tapOn: Close
-- tapOn: Home

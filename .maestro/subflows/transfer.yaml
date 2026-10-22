@@ -26,4 +26,3 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Send to
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
-- tapOn: Home
