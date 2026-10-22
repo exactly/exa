@@ -5,6 +5,7 @@ tags: [critical]
 - runFlow: ../subflows/assertNotifications.yaml
 - runFlow: ../subflows/transfer.yaml
 - runFlow: ../subflows/swap.yaml
+- runFlow: ../subflows/portfolio.yaml
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/onboarding.yaml
 - runFlow: ../subflows/storeCoverage.yaml
