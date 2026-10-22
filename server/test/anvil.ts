@@ -13,6 +13,8 @@ import {
   http,
   keccak256,
   padHex,
+  parseAbi,
+  publicActions,
   toBytes,
   toHex,
   zeroAddress,
@@ -229,6 +231,32 @@ export default async function setup() {
       });
     }
   }
+
+  await Promise.all(
+    chains.slice(1).map(async (chain) => {
+      const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
+      await $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
+            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      if (
+        !(await client.readContract({
+          address: parse(
+            object({ returns: object({ market: object({ value: Address }) }) }),
+            JSON.parse(
+              // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled path from broadcast directory
+              await readFile(
+                `node_modules/@exactly/plugin/broadcast/Mocks.s.sol/${chain.id}/frozenMarket-latest.json`,
+                "utf8",
+              ),
+            ),
+          ).returns.market.value,
+          functionName: "isFrozen",
+          abi: parseAbi(["function isFrozen() view returns (bool)"]),
+        }))
+      ) {
+        throw new Error("market not frozen");
+      }
+    }),
+  );
 
   await started;
 
