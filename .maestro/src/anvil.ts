@@ -17,6 +17,7 @@ import {
   type Quantity,
   type ReadContractParameters,
   type ReadContractReturnType,
+  type RpcBlock,
   type RpcLog,
   type RpcTransactionReceipt,
   type TransactionRequest,
@@ -95,6 +96,11 @@ export default function anvil(
   params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
   network?: string,
 ): Hex;
+export default function anvil(
+  method: "eth_getBlockByNumber",
+  params: readonly [block: BlockNumber<Hex> | BlockTag, includeTransactions: false],
+  network?: string,
+): RpcBlock;
 export default function anvil(
   method: "eth_getLogs",
   params: readonly [filter: { address?: Address; fromBlock?: Hex; toBlock?: Hex; topics?: (Hex | Hex[] | null)[] }],
