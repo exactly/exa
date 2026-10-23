@@ -54,6 +54,19 @@ contract DeployMocks is BaseScript {
       pool.poke();
     }
 
+    MockERC20 usdt = MockERC20(
+      CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("USDT")),
+        abi.encodePacked(type(MockERC20).creationCode, abi.encode("Tether USD", "USDT", 6))
+      )
+    );
+    vm.label(address(usdt), "USDT");
+    MockVelodromePool usdtPool = velodromeFactory.createPool(address(usdt), address(usdc), false);
+    vm.label(address(usdtPool), "USDT/USDC");
+    usdt.mint(address(usdtPool), 1_000_000e6);
+    usdc.mint(address(usdtPool), 1_000_000e6);
+    usdtPool.poke();
+
     usdc.mint(acct("swapper"), 1_000_000e6);
 
     vm.stopBroadcast();

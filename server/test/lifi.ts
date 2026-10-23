@@ -3,10 +3,12 @@ import {
   createPublicClient,
   encodeDeployData,
   encodeFunctionData,
+  erc20Abi,
   formatUnits,
   getAddress,
   http,
   keccak256,
+  parseAbi,
   parseEventLogs,
   toHex,
   zeroAddress,
@@ -16,6 +18,7 @@ import {
 } from "viem";
 
 import {
+  allowlists,
   auditorAddress,
   exaPreviewerAbi,
   exaPreviewerCode,
@@ -28,6 +31,10 @@ import {
 
 const logoURI = `data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'/>")}`;
 const tool = { key: "mock", name: "Mock", logoURI };
+const velodromeAbi = parseAbi([
+  "function getPool(address tokenA, address tokenB, bool stable) view returns (address)",
+  "function getReserves() view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast)",
+]);
 
 export default function lifi(chains: readonly Chain[]) {
   const clients = new Map(chains.map((chain) => [chain.id, createPublicClient({ chain, transport: http() })]));
@@ -37,7 +44,8 @@ export default function lifi(chains: readonly Chain[]) {
     return found;
   }
   async function tokens(id: number) {
-    const markets = await client(id).readContract({
+    const source = client(id);
+    const markets = await source.readContract({
       abi: exaPreviewerAbi,
       functionName: "markets",
       code: encodeDeployData({
@@ -46,7 +54,7 @@ export default function lifi(chains: readonly Chain[]) {
         args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
       }),
     });
-    return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }) => {
+    const listed = markets.flatMap(({ asset, decimals, market, symbol, usdPrice }) => {
       const token = {
         address: asset,
         chainId: id,
@@ -60,6 +68,52 @@ export default function lifi(chains: readonly Chain[]) {
         ? [token, { ...token, address: zeroAddress, name: "ETH", symbol: "ETH", coinKey: "ETH" }]
         : [token];
     });
+    const usdc = markets.find(({ market }) => market === marketUSDCAddress);
+    const others = (allowlists[String(id)] ?? [])
+      .map((address) => getAddress(address))
+      .filter((address) => !markets.some(({ asset }) => asset === address));
+    if (!usdc || others.length === 0) return listed;
+    const factory = await source.readContract({
+      address: swapperAddress,
+      abi: mockSwapperAbi,
+      functionName: "VELODROME_FACTORY",
+    });
+    return [
+      ...listed,
+      ...(await Promise.all(
+        others.map(async (address) => {
+          const [symbol, decimals, pool] = await Promise.all([
+            source.readContract({ address, abi: erc20Abi, functionName: "symbol" }),
+            source.readContract({ address, abi: erc20Abi, functionName: "decimals" }),
+            source.readContract({
+              address: factory,
+              abi: velodromeAbi,
+              functionName: "getPool",
+              args: [address, usdc.asset, false],
+            }),
+          ]);
+          const [reserve0, reserve1] = await source.readContract({
+            address: pool,
+            abi: velodromeAbi,
+            functionName: "getReserves",
+          });
+          const [reserve, usdcReserve] =
+            BigInt(address) < BigInt(usdc.asset) ? [reserve0, reserve1] : [reserve1, reserve0];
+          return {
+            address,
+            chainId: id,
+            decimals,
+            name: symbol,
+            symbol,
+            priceUSD: formatUnits(
+              (usdcReserve * usdc.usdPrice * 10n ** BigInt(decimals)) / (reserve * 10n ** BigInt(usdc.decimals)),
+              18,
+            ),
+            logoURI,
+          };
+        }),
+      )),
+    ];
   }
   return new Hono()
     .get("/v1/chains", (c) =>

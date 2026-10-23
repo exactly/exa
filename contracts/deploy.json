@@ -203,6 +203,9 @@
         "0xFA2A03b6f4A65fB1Af64f7d935fDBf78693df9aF": "waBascbBTC",
         "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2": "USDT"
       },
+      "31337": {
+        "0x38e4880373BE34b657c5db7568F44ECf7A262C7f": "USDT"
+      },
       "42161": {
         "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f": "WBTC",
         "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1": "WETH",
