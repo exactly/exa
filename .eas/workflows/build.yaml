@@ -1,0 +1,25 @@
+name: build
+run_name: ${{ inputs.profile }}
+on: { workflow_dispatch: { inputs: { profile: { type: choice, options: [beta, development], default: beta } } } }
+defaults: { tools: { node: "24.14.1" } }
+jobs:
+  android_build:
+    type: build
+    params: { platform: android, profile: "${{ inputs.profile }}" }
+
+  android_submit:
+    type: submit
+    needs: [android_build]
+    if: ${{ needs.android_build.outputs.distribution == 'store' }}
+    params: { build_id: "${{ needs.android_build.outputs.build_id }}", profile: "${{ inputs.profile }}" }
+
+  ios_build:
+    type: build
+    image: sdk-55
+    params: { platform: ios, profile: "${{ inputs.profile }}" }
+
+  ios_submit:
+    type: submit
+    needs: [ios_build]
+    if: ${{ needs.ios_build.outputs.distribution == 'store' }}
+    params: { build_id: "${{ needs.ios_build.outputs.build_id }}", profile: "${{ inputs.profile }}" }
