@@ -36,6 +36,16 @@
   - ✅ `type User = v.InferOutput<typeof UserSchema>;`
   - ❌ `interface User { ... }` (manually defined)
 
+# translations
+
+these rules apply to the app's and the server's i18next resources (`src/i18n`, `server/i18n`).
+
+- **keys are the english copy**: key and namespace separators are off, so a key is the whole english text. `en.json` holds only plural forms, whose copy differs from the key.
+- **every key in every language**: a new key gets its `es` and `pt` entries in the same change. changing the english copy changes the key, so move its entries in every file and remove keys no code uses.
+- **shared keys**: the card decline reasons the server sends are keys in both, translated through a variable (`t(reason)`), so change them in both and search for them before calling one unused.
+- **languages**: `es` is standard spanish addressing the user as `tú`, and `pt` is brazilian portuguese addressing the user as `você`. <!-- cspell:ignore você -->
+- **spelling**: `cspell.json` has an override per locale file name (`es.json`, `es-AR.json`, `pt.json`), each adding that language's dictionary and its own word list. json has no comments, so a word the dictionaries miss goes in its file's override, never in the global `words`.
+
 # markdown
 
 these rules apply to all markdown files in the repository.
