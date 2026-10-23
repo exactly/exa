@@ -84,23 +84,46 @@ jobs:
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
+      - name: enroll fingerprint # cspell:ignore getprop locksettings stayon
+        run: |
+          {
+            trap 'echo $? > fingerprint.status' EXIT
+            set -e
+            adb wait-for-device
+            timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            adb root
+            adb wait-for-device
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            adb shell svc power stayon true
+            adb shell locksettings set-pin 1111
+            maestro test .maestro/subflows/fingerprint.yaml
+          } > fingerprint.log 2>&1 &
+      - uses: eas/restore_cache
+        id: vault
+        with: { key: "vault-${{ hashFiles('.maestro/package.json') }}", path: .maestro/vault.apk }
+      - run: GRADLE_USER_HOME=$(mktemp -d) pnpm nx vault e2e
+        if: ${{ steps.vault.outputs.cache_hit != 'true' }}
+      - uses: eas/save_cache
+        if: ${{ steps.vault.outputs.cache_hit != 'true' }}
+        with: { key: "vault-${{ hashFiles('.maestro/package.json') }}", path: .maestro/vault.apk }
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
       - uses: eas/repack
         id: repack
         with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: prepare device # cspell:ignore getprop logcat
+      - name: prepare device # cspell:ignore logcat myvault
         run: |
-          adb wait-for-device
-          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-          adb root
-          adb wait-for-device
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
+          until [ -s fingerprint.status ]; do sleep 1; done
+          [ "$(cat fingerprint.status)" = 0 ] || { cat fingerprint.log; exit 1; }
           adb reverse tcp:443 tcp:443 && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969
           adb install "${{ steps.repack.outputs.output_path }}"
+          adb install .maestro/vault.apk
+          for key in credential_service credential_service_primary; do
+            adb shell settings put secure $key com.example.android.authentication.myvault/.data.MyVaultService
+          done
           adb logcat -v time > emulator.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
@@ -123,7 +146,7 @@ jobs:
             nsenter --mount=/proc/$pid/ns/mnt -- mount --bind /data/local/tmp/hosts /system/etc/hosts
           done
           EOF
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro -e method=webauthn --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -224,7 +247,7 @@ jobs:
           done
           { openssl s_client -connect "$APP_DOMAIN:443" -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
           xcrun simctl keychain booted add-root-cert cert.pem
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro -e method=webauthn --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
