@@ -1,0 +1,47 @@
+From 6ca2ac9a4293e8adc872494736c9722f768daec7 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 23 Oct 2026 22:08:13 +0000
+Subject: [PATCH] fix: run flows in the browser with --platform web
+
+Maestro only lists the Chromium device when a flow's config has a url, so `maestro test --platform web` fails with "Not enough devices connected (0)" for a flow that gets its URL through appId from an environment variable, which is how one flow file can target both a web and a native app (#2383). List the web device when the web platform is selected too.
+---
+ .../src/main/java/maestro/cli/command/TestCommand.kt     | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt b/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
+index 064ff51..eab8bef 100644
+--- a/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
++++ b/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
+@@ -241,6 +241,11 @@ class TestCommand : Callable<Int> {
+                plan.sequence.flows.any { it.toFile().isWebFlow() }
+     }
+ 
++    private fun includesWeb(plan: ExecutionPlan): Boolean {
++        val platform = platform ?: parent?.platform
++        return platform?.let { Platform.fromString(it) } == Platform.WEB || executionPlanIncludesWebFlow(plan)
++    }
++
+     internal fun allFlowsAreWebFlow(plan: ExecutionPlan): Boolean {
+         if(plan.flowsToRun.isEmpty() && plan.sequence.flows.isEmpty()) return false
+         return (plan.flowsToRun.all { it.toFile().isWebFlow() } && plan.sequence.flows.all { it.toFile().isWebFlow() })
+@@ -331,7 +336,7 @@ class TestCommand : Callable<Int> {
+      * Get the list of device IDs that will be used for test execution
+      */
+     private fun getDeviceIds(plan: ExecutionPlan): List<String> {
+-        val includeWeb = executionPlanIncludesWebFlow(plan)
++        val includeWeb = includesWeb(plan)
+         val connectedDevices = DeviceService.listConnectedDevices(
+             includeWeb = includeWeb,
+             host = parent?.host,
+@@ -362,7 +367,7 @@ class TestCommand : Callable<Int> {
+         }
+ 
+         val onlySequenceFlows = plan.sequence.flows.isNotEmpty() && plan.flowsToRun.isEmpty() // An edge case
+-        val includeWeb = executionPlanIncludesWebFlow(plan);
++        val includeWeb = includesWeb(plan)
+ 
+         if (includeWeb) {
+           PrintUtils.warn("Web support is in Beta. We would appreciate your feedback!\n")
+-- 
+2.43.0
+
