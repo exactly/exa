@@ -28,7 +28,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - waitForAnimationToEnd
 - tapOn: Confirm payment
 - runFlow: sign.yaml
-- assertVisible: Processing.*
+- assertVisible: Transaction details
 - tapOn: Close
 - runFlow: getAccount.yaml
 - runScript:
