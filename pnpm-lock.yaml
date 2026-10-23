@@ -1020,6 +1020,9 @@ importers:
       '@types/ioredis-mock':
         specifier: ^8.2.7
         version: 8.2.7(ioredis@5.10.1)
+      '@types/istanbul-lib-coverage':
+        specifier: ^2.0.6
+        version: 2.0.6
       '@types/istanbul-lib-instrument':
         specifier: ^1.7.8
         version: 1.7.8
@@ -1062,6 +1065,9 @@ importers:
       execa:
         specifier: ^9.6.1
         version: 9.6.1
+      istanbul-lib-coverage:
+        specifier: ^3.2.2
+        version: 3.2.2
       istanbul-lib-instrument:
         specifier: ^6.0.3
         version: 6.0.3
