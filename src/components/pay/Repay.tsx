@@ -85,10 +85,13 @@ export default function Repay() {
     isFetching: isFetchingAsset,
     queryKey: assetQueryKey,
   } = useAsset(selectedAsset.address);
-  const [displayValues, setDisplayValues] = useState({
-    amount: 0,
-    usdAmount: 0,
-  });
+  const [displayValues, setDisplayValues] = useState<{
+    amount: number;
+    asset?: Address;
+    currency?: string;
+    repayAssets: bigint;
+    usdAmount: number;
+  }>({ amount: 0, repayAssets: 0n, usdAmount: 0 });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const withUSDC = selectedAsset.address === (marketUSDCAddress as Address);
@@ -138,6 +141,8 @@ export default function Repay() {
     .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n);
 
   const repayMarket = positions?.find((p) => p.market === selectedAsset.address);
+  const symbol =
+    repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
   const repayMarketAvailable =
     repayMarket && selectedAsset.address && !selectedAsset.external ? repayMarket.floatingDepositAssets : 0n;
 
@@ -330,6 +335,9 @@ export default function Repay() {
       if (!amount) return;
       setDisplayValues({
         amount: Number(amount) / 10 ** repayMarket.decimals,
+        asset: selectedAsset.address,
+        currency: symbol,
+        repayAssets,
         usdAmount: Number(previewValueUSD) / 1e18,
       });
     },
@@ -400,6 +408,9 @@ export default function Repay() {
       if (!route?.fromAmount) return;
       setDisplayValues({
         amount: Number(route.fromAmount) / 10 ** externalAsset.decimals,
+        asset: selectedAsset.address,
+        currency: symbol,
+        repayAssets,
         usdAmount: (Number(externalAsset.priceUSD) * Number(route.fromAmount)) / 10 ** externalAsset.decimals,
       });
     },
@@ -460,9 +471,6 @@ export default function Repay() {
     (needsRoute && !route) ||
     repayAssets > maxRepayInput;
   const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
-
-  const symbol =
-    repayMarket?.symbol.slice(3) === "WETH" ? "ETH" : (repayMarket?.symbol.slice(3) ?? externalAsset?.symbol);
   const dueDateFormatted = useMemo(
     () =>
       maturity
@@ -767,15 +775,15 @@ export default function Repay() {
         </View>
       </SafeView>
     );
-  if (isPending && repayAssets)
+  if (isPending && displayValues.repayAssets)
     return (
       <Pending
         maturity={maturity}
         timestamp={timestamp}
         amount={displayValues.amount}
-        repayAssets={repayAssets}
-        currency={symbol}
-        selectedAsset={selectedAsset.address}
+        repayAssets={displayValues.repayAssets}
+        currency={displayValues.currency}
+        selectedAsset={displayValues.asset}
         onClose={() => {
           if (router.canGoBack()) {
             router.back();
@@ -785,29 +793,29 @@ export default function Repay() {
         }}
       />
     );
-  if (isSuccess && repayAssets)
+  if (isSuccess && displayValues.repayAssets)
     return (
       <Success
         maturity={maturity}
         timestamp={timestamp}
         amount={displayValues.amount}
-        repayAssets={repayAssets}
-        currency={symbol}
-        selectedAsset={selectedAsset.address}
+        repayAssets={displayValues.repayAssets}
+        currency={displayValues.currency}
+        selectedAsset={displayValues.asset}
         onClose={() => {
           router.dismissTo("/activity");
         }}
       />
     );
-  if (writeError && repayAssets)
+  if (writeError && displayValues.repayAssets)
     return (
       <Failure
         maturity={maturity}
         timestamp={timestamp}
         amount={displayValues.amount}
-        repayAssets={repayAssets}
-        currency={symbol}
-        selectedAsset={selectedAsset.address}
+        repayAssets={displayValues.repayAssets}
+        currency={displayValues.currency}
+        selectedAsset={displayValues.asset}
         onClose={() => {
           if (router.canGoBack()) {
             router.back();
