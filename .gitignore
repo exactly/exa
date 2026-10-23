@@ -23,6 +23,7 @@ generated/
 *.apk
 *.ipa
 *.app
+*.tar
 *.tar.gz
 *.zip
 
