@@ -12,6 +12,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: tapAria.yaml, env: { aria: Send settings } }
 - tapOn: Advanced mode
 - tapOn: Close
+- evalScript: ${output.advanced = true}
 - tapOn: Enter ENS or wallet address
 - inputText: "0x000000000000000000000000000000000000dEaD"
 - hideKeyboard

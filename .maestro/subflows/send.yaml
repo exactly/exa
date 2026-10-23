@@ -8,22 +8,26 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Digital assets
 - assertVisible: Send to
 - runFlow:
-    when: { visible: "Send anything, anywhere" }
+    when: { true: "${!output.introSheet}" }
     commands:
+      - assertVisible: Send anything, anywhere
       - tapOn: Not now
       - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
+      - evalScript: ${output.introSheet = true}
 - runFlow:
-    when: { true: "${!!pay}", notVisible: Advanced mode on. }
+    when: { true: "${!!pay && !output.advanced}" }
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: Send settings } }
       - tapOn: Advanced mode
       - tapOn: Close
       - assertVisible: Advanced mode on.
+      - evalScript: ${output.advanced = true}
 - runFlow:
-    when: { true: "${!pay}", visible: Advanced mode on. }
+    when: { true: "${!pay && !!output.advanced}" }
     commands:
       - tapOn: Turn off
       - assertNotVisible: Advanced mode on.
+      - evalScript: ${output.advanced = false}
 - tapOn: Enter ENS or wallet address
 - runFlow:
     when: { true: "${!pay}" }
@@ -82,11 +86,12 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertNotVisible: Search assets
 - tapOn: Review
 - runFlow:
-    when: { true: "${!!pay && pay !== asset}" }
+    when: { true: "${!!pay && pay !== asset && !output.swapSheet}" }
     commands:
       - assertVisible: Swap assets
       - tapOn: Continue
       - assertNotVisible: Swap assets
+      - evalScript: ${output.swapSheet = true}
 - assertVisible: Review and send
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
