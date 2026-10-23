@@ -20,6 +20,11 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow: { file: tapAria.yaml, env: { aria: Repay amount } }
       - inputText: ${amount}
       - pressKey: enter
+- runFlow:
+    when: { true: "${market}" }
+    commands:
+      - tapOn: Pay with
+      - runFlow: { file: tapAria.yaml, env: { aria: "^${market}, [\\s\\d,.\\xa0]+ available$" } }
 - waitForAnimationToEnd
 - tapOn: Confirm payment
 - runFlow: sign.yaml

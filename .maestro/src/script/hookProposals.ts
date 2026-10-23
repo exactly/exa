@@ -18,6 +18,7 @@ declare const account: string | undefined;
 declare const amount: string | undefined;
 declare const beneficiary: string | undefined;
 declare const count: string | undefined;
+declare const market: string | undefined;
 declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
@@ -29,6 +30,13 @@ const proposalDelay = readContract({ address: proposalManagerAddress, functionNa
 let proposals = pending(account);
 for (const deadline = Date.now() + 30_000; proposals.length < Number(count ?? "1"); proposals = pending(account)) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for queued proposals");
+}
+if (market !== undefined) {
+  const expected = `exa${market === "ETH" ? "WETH" : market}`;
+  const markets = proposals
+    .map(({ market: address }) => readContract({ address, functionName: "symbol", abi: erc20Abi }))
+    .join(", ");
+  if (markets !== expected) throw new Error(`expected ${expected} proposal, got [${markets}]`);
 }
 
 anvil("anvil_mine", [1, Number(proposalDelay)]);
