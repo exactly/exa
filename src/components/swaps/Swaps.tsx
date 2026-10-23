@@ -175,8 +175,8 @@ export default function Swaps() {
       enableSimulations,
       tokenModalOpen,
       mode,
-    } = defaultSwap,
-  } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, staleTime: Infinity });
+    },
+  } = useQuery<Swap>({ queryKey: ["swap"], queryFn: () => defaultSwap, initialData: defaultSwap, staleTime: Infinity });
   const { filter } = useLocalSearchParams();
   const fromChain = (fromToken?.token.chainId as number | undefined) ?? chain.id;
   const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
