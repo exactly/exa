@@ -76,12 +76,12 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Done
       - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow:
-    when: { visible: Getting Started }
+    when: { visible: Get your Exa Card }
     commands:
       - runFlow: getAccount.yaml
       - runScript:
           file: ../dist/approveKYC.js
           env: { credentialId: "${output.credential}" }
 - tapOn: Home
-- assertNotVisible: Getting Started
+- assertNotVisible: Get your Exa Card
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }

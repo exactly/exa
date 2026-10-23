@@ -58,9 +58,9 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
       enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
       exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
     >
-      <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+      <XStack justifyContent="space-between" alignItems="center" gap="$s3" padding="$s4">
         <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-          {t("Getting Started")}
+          {kyc === "pending" ? t("Get your Exa Card") : t("Getting Started")}
         </Text>
         <Pressable hitSlop={15}>
           <XStack gap="$s1" alignItems="center">
@@ -78,15 +78,15 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
           </XStack>
         </Pressable>
       </XStack>
-      <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+      <XStack justifyContent="space-between" alignItems="center" gap="$s3" padding="$s4">
         <XStack gap="$s3" alignItems="center" flex={1}>
           {step?.id === "add-funds" ? (
             <ArrowDownToLine size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
           ) : (
             <IdCard size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
           )}
-          <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-            {step ? t(step.title) : ""}
+          <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3} flexGrow={1} flexBasis={0}>
+            {kyc === "pending" ? t("Verify your identity to unlock it") : step ? t(step.title) : ""}
           </Text>
         </XStack>
         <Pressable hitSlop={15} onPress={handleStepPress}>
