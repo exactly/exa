@@ -94,7 +94,6 @@
 
 - **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when `flows/local.yaml` covers it.
 - **fingerprint**: e2e changes must not change the expo fingerprint (`pnpm exec fingerprint fingerprint:generate --platform ios`, then `android`).
-- **eas spend**: draft prs skip eas and each push cancels the running pr workflow, so mark a pr ready only when native results matter.
 - **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's line from the `e2e` job:
 
   ```sh
