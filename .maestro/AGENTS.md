@@ -8,7 +8,7 @@
 
 ## principles
 
-- **as real as possible**: test the app users run, with real signers: passkeys on a virtual authenticator and metamask in chrome for testing. add no test-only app paths, shims or injected wallets.
+- **as real as possible**: test the app users run, with real signers: passkeys on a virtual authenticator, metamask in chrome for testing and brave's built-in wallet. add no test-only app paths, shims or injected wallets.
 - **no seeds**: web legs sign with a new passkey or a wallet created in the browser. no web leg imports a seed.
 - **mock only third parties**: mocks live in `server/test` and behave like the service they replace. they complete immediately, so flows never wait on artificial delays.
 - **never bend the app to a test**: do not change app behavior or add aria labels or hooks only to make a flow pass. change the app when users benefit too.
@@ -41,10 +41,11 @@
 
 ## signers
 
-- **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `metamask` is the metamask extension (web only) and `webauthn` is a passkey on the virtual authenticator from `biometrics.patch`.
+- **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `metamask` is the metamask extension (web only), `brave` is brave's built-in wallet (web only) and `webauthn` is a passkey on the virtual authenticator from `biometrics.patch`.
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
 - **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet and basic functionality off, or the connect prompt never shows. ci runs it with `--platform web` into a chrome profile it caches by metamask version and onboarding steps. metamask legs start from that profile, where metamask opens its unlock page on its own and `subflows/launch.yaml` unlocks it before `launchApp`. the wallet starts without funds on every run, so a leg funds `output.credential` before metamask sends a transaction. ci passes `--screen-info={3840x2160}` so its popups fit any window.
+- **brave**: `subflows/brave.yaml` creates a new wallet in `chrome://wallet` before `launchApp`. headless brave rejects every wallet request, so its leg runs headed under `xvfb-run`. its approval panel is browser ui, not a window, and `windows.patch` follows it while it shows.
 
 ## selectors
 
@@ -77,7 +78,7 @@
 ## screen sizes
 
 - **a size per leg**: each web leg runs at a different screen size, together covering ratios from narrow phones to desktop. permute the existing sizes before inventing new ones.
-- **limits**: chrome windows are at least 500 px wide, and the headless viewport is the window minus 143 px of height.
+- **limits**: chrome windows are at least 500 px wide, and the headless viewport is the window minus 143 px of height. headed brave's viewport is the window minus 40 px of width and 137 px of height, and maestro applies `--screen-size` only with `--headless`, so the brave row also passes it as `--window-size`.
 - **ratios**: a size's ratio is its viewport's width over height. keep ratios spread from about 0.45 to 2, and place a new size where it splits the widest gap evenly (0.78 between 0.61 and 1.0).
 - **small screens**: prefer the smallest size that fills a gap, and cover a short portrait and a short landscape viewport, since layouts break there first. the scrolls a short size needs are part of that coverage: they may add sequential time, never raise the longest leg.
 - **one desktop size**: at 768 px wide and wider than 9:16, the app renders a 9:16 box sized by the viewport height (`src/app/+html.tsx`). another desktop size only changes the box's dimensions, which the narrower sizes already vary, so keep one. every other size stays under 768 px wide, where the app fills the viewport at any ratio.

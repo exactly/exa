@@ -1,0 +1,19 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- launchApp: { appId: "chrome://wallet" }
+- tapOn: Need a new wallet\?
+- tapOn: I understand that this is a self-custody wallet.*
+- tapOn: I have read and agree to the.*
+- tapOn: Continue
+- tapOn: Continue with .* Networks
+- tapOn: 12 words
+- tapOn: Continue
+- tapOn: { text: Enter new password, index: 1 }
+- inputText: exa-e2e-wallet
+- tapOn: { text: Re-enter password, index: 1 }
+- inputText: exa-e2e-wallet
+- tapOn: Continue
+- scrollUntilVisible: { element: Skip, timeout: 30000 }
+- tapOn: Skip
+- tapOn: I'll back up later
+- assertVisible: Go to portfolio

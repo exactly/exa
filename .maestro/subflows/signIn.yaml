@@ -8,7 +8,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Set passkey and create account
       - matchBiometrics
 - runFlow:
-    when: { true: "${method !== 'webauthn'}" }
+    when: { true: "${method !== 'webauthn' && method !== 'brave'}" }
     commands: [{ tapOn: I already have an account }, { tapOn: Log in with browser wallet }]
 - runFlow:
     when: { true: "${maestro.platform == 'web' && method === 'metamask'}" }
@@ -17,4 +17,14 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: Add Anvil
       - tapOn: Confirm
       - assertVisible: Sign-in request
+- runFlow:
+    when: { true: "${method === 'brave'}" }
+    commands:
+      - tapOn: Create new account
+      - tapOn: Sign up with browser wallet
+      - tapOn: Account 1.*
+      - tapOn: Next
+      - tapOn: Connect
+      - tapOn: Approve
+      - tapOn: { text: Switch network, index: 1 }
 - runFlow: sign.yaml
