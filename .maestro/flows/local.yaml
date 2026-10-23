@@ -9,5 +9,7 @@ tags: [critical]
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/assertOnboarding.yaml
 - runFlow: ../subflows/onboarding.yaml
+- runFlow: ../subflows/accounts.yaml
+- runFlow: ../subflows/assertBenefits.yaml
 - runFlow: ../subflows/ach.yaml
 - runFlow: ../subflows/storeCoverage.yaml

@@ -1,0 +1,76 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runFlow: ../subflows/verifyIdentity.yaml
+- runFlow: ../subflows/accounts.yaml
+- tapOn: View accounts
+- tapOn: Euros via SEPA
+- assertVisible: DE89370400440532013000
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Pounds via Faster Payments } }
+- tapOn: Pounds via Faster Payments
+- assertVisible: "040004"
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Pesos via SPEI
+- assertVisible: "032180000118359719"
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Reals via PIX
+- tapOn: Show QR Code
+- assertVisible: Deposit with PIX
+- tapOn: Close
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Send
+- tapOn: Bank transfers
+- tapOn: Reals via PIX
+- tapOn: Scan QR code
+- tapOn: Enter address
+- inputText: 123 Test St
+- hideKeyboard
+- tapOn: Continue
+- tapOn: Enter bank name
+- inputText: Test Bank
+- hideKeyboard
+- tapOn: Continue
+- assertVisible: "270.00"
+- tapOn: Continue
+- tapOn: Confirm and send
+- assertVisible: Sent to .*
+- runFlow: ../subflows/getAccount.yaml
+- runScript:
+    file: ../dist/hookProposals.js
+    env:
+      account: "${output.account}"
+      amount: "50"
+      beneficiary: >-
+        { "currency": "BRL", "address": { "streetLine1": "123 Test St", "city": "SAO PAULO",
+        "postalCode": "01310100", "country": "BRA" }, "accountOwnerName": "Test User",
+        "account": { "pixKey": "52998224725", "documentNumber": "52998224725" }, "bankName": "Test Bank",
+        "reference": "exa" }
+- tapOn: Close
+- tapOn: Send
+- tapOn: Bank transfers
+- tapOn: Reals via PIX
+- tapOn: Test User
+- tapOn: "0.00"
+- inputText: "108"
+- tapOn: Continue
+- tapOn: Confirm and send
+- assertVisible: Sent to .*
+- runScript:
+    file: ../dist/hookProposals.js
+    env:
+      account: "${output.account}"
+      amount: "20"
+      beneficiary: >-
+        { "currency": "BRL", "address": { "streetLine1": "123 Test St", "city": "SAO PAULO",
+        "postalCode": "01310100", "country": "BRA" }, "accountOwnerName": "Test User",
+        "account": { "pixKey": "52998224725", "documentNumber": "52998224725" }, "bankName": "Test Bank",
+        "reference": "exa" }
+- tapOn: Close
+- tapOn: Home
+- runFlow: ../subflows/assertBenefits.yaml
+- runFlow: ../subflows/storeCoverage.yaml

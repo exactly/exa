@@ -1,0 +1,27 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: { file: scrollTo.yaml, env: { element: Create account, center: true } }
+- tapOn: Create account
+- assertVisible: From any Argentine bank account in your name
+- tapOn: Pesos
+- assertVisible: Turn ARS transfers to onchain USDC
+- tapOn: Continue
+- assertVisible: Open your Manteca virtual account
+- tapOn: Accept and continue
+- assertVisible: ARS Account details
+- tapOn: Fees and transfer times
+- assertVisible: Max ARS 10,000,000
+- tapOn: Close
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- tapOn: Dollars via ACH or WIRE
+- assertVisible: Turn USD transfers to onchain USDC
+- tapOn: Continue
+- assertVisible: Open your Bridge virtual account
+- tapOn: Accept and continue
+- assertVisible: USD Account details
+- assertVisible: "900000000001"
+- evalScript: ${output.bridge = true}
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
