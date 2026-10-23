@@ -5,5 +5,5 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - runFlow: ../subflows/verifyIdentity.yaml
-- runFlow: ../subflows/ramp.yaml
+- runFlow: ../subflows/ach.yaml
 - runFlow: ../subflows/storeCoverage.yaml
