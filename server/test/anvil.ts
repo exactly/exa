@@ -453,7 +453,11 @@ function alchemy(port: number) {
             upstream.pipe(outgoing.writeHead(upstream.statusCode ?? 502, { "content-type": "application/json" })),
         )
           .on("error", (error) => outgoing.writeHead(502).end(error.message))
-          .end(body);
+          .end(
+            method === "rundler_maxPriorityFeePerGas" // cspell:ignore rundler
+              ? JSON.stringify({ jsonrpc: "2.0", id, method: "eth_maxPriorityFeePerGas", params: [] })
+              : body,
+          );
       })
       .catch((error: unknown) => outgoing.writeHead(500).end(String(error)));
   }).listen(8545);
