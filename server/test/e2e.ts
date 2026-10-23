@@ -9,6 +9,7 @@ import "./mocks/wallet";
 import { eq } from "drizzle-orm";
 import { cors } from "hono/cors";
 import { html } from "hono/html";
+import { createCoverageMap } from "istanbul-lib-coverage";
 import { createInstrumenter } from "istanbul-lib-instrument";
 import crypto from "node:crypto";
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -41,6 +42,7 @@ import type * as persona from "../utils/persona";
 import type * as bridge from "../utils/ramps/bridge";
 import type * as manteca from "../utils/ramps/manteca";
 import type * as sentry from "@sentry/node";
+import type { CoverageMapData } from "istanbul-lib-coverage";
 import type { InferInput, InferOutput } from "valibot";
 
 describe("e2e", () => {
@@ -109,8 +111,10 @@ describe("e2e", () => {
             });
             return credential && rest.length === 0 ? c.json(credential) : c.json({ code: "no single credential" }, 500);
           });
+          const submitted = createCoverageMap();
           app.post("/e2e/coverage", async (c) => {
-            const coverage = await c.req.json<Record<string, unknown>>();
+            submitted.merge(await c.req.json<CoverageMapData>());
+            const coverage = { ...submitted.toJSON() };
             for (const [file, empty] of await baseline) {
               if (Object.keys(coverage).some((key) => key.endsWith(`/${file}`))) continue;
               coverage[empty.path] = empty;
