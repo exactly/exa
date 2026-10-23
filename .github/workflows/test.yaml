@@ -27,9 +27,11 @@ jobs:
           cache-dependency-path: contracts/requirements.txt
       - uses: actions/cache@v6
         with:
-          path: /tmp/metro-cache
-          key: metro-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: metro-${{ runner.os }}-${{ github.job }}-
+          path: |
+            ~/.local/share/svm
+            /tmp/metro-cache
+          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          restore-keys: deps-${{ runner.os }}-${{ github.job }}-
       - uses: actions/cache@v6
         with:
           path: ~/.nx
@@ -106,9 +108,10 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: |
+            ~/.local/share/svm
             .maestro/build
             /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch', 'pnpm-lock.yaml') }}
+          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
       - uses: actions/cache@v6
         with:
