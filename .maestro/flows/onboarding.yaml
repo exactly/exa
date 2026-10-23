@@ -6,4 +6,10 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - runFlow: ../subflows/onboarding.yaml
+- assertTrue: '${http.post("http://localhost:3000/e2e/platinum", { body: "" }).ok}'
+- tapOn: Home
+- tapOn: Upgrade now
+- tapOn: Upgrade Exa Card
+- tapOn: Activate new Exa Card
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
