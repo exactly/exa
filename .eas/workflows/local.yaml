@@ -193,12 +193,22 @@ jobs:
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", restore_keys: nx-ios-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
+      - uses: eas/restore_cache
+        id: modules
+        if: ${{ github.ref_type != 'tag' }}
+        with: { key: "modules-${{ hashFiles('pnpm-lock.yaml') }}", restore_keys: modules-, path: modules.tar }
+      - run: tar -xPf modules.tar || true
       - uses: eas/install_node_modules
       - if: ${{ github.ref_name == 'main' }}
         run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
         if: ${{ github.ref_name == 'main' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
+      - if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+        run: tar -cPf modules.tar node_modules */node_modules .maestro/node_modules ~/Library/Caches/pnpm/lockfile-verified.jsonl
+      - uses: eas/save_cache
+        if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+        with: { key: "modules-${{ hashFiles('pnpm-lock.yaml') }}", path: modules.tar }
       - name: exa setup
         run: pnpm nx e2e server > server.log 2>&1 &
       - id: script
