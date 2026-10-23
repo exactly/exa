@@ -3,6 +3,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands:
+      - runFlow: storeCoverage.yaml
       - pressKey: home
       - launchApp: { permissions: { all: deny, camera: allow } }
       - extendedWaitUntil: { visible: Portfolio, timeout: 180000 }
