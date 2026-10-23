@@ -254,9 +254,13 @@ queryClient.setQueryDefaults(["kyc", "panda-business"], {
   staleTime: 5 * 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
   queryFn: async () => {
+    const previous = queryClient.getQueryData<{ approved?: boolean; code: string }>(["kyc", "panda-business"]);
     const application = await getKYCStatus("panda-business").catch(kycFallback);
     if (application.code === "ok" && !queryClient.getQueryData(["card", "details"])) {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
+    }
+    if (application.code === "not started" && previous && (previous.approved || previous.code !== "not started")) {
+      return { ...application, approved: true };
     }
     return application;
   },

@@ -122,7 +122,7 @@ export default function Card() {
   });
 
   const { refetch: refetchMarkets } = useMarkets();
-  const { card: step, locked, profile } = useBusiness();
+  const { card: step, approved: companyApproved, locked, profile } = useBusiness();
   const application = locked ? profile : step;
 
   const scrollRef = useRef<ScrollView>(null);
@@ -352,9 +352,13 @@ export default function Card() {
                       title={t("Get a business Exa Card")}
                       description={
                         application === "pending"
-                          ? t("Finish your business account set up")
+                          ? companyApproved
+                            ? t("Your business is approved. Finish setting up your card.")
+                            : t("Finish your business account set up")
                           : application === "review"
-                            ? t("Review takes 3 to 5 business days.")
+                            ? companyApproved
+                              ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                              : t("Review takes 3 to 5 business days.")
                             : t("We need more information before we can continue.")
                       }
                       onPress={() => {

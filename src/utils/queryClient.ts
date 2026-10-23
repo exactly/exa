@@ -84,7 +84,7 @@ const dehydrateOptions = {
       queryKey[0] as string,
     ) &&
     !(queryKey[0] === "card" && queryKey[1] !== "details") &&
-    !(queryKey[0] === "kyc" && queryKey[1] !== "status") &&
+    !(queryKey[0] === "kyc" && queryKey[1] !== "status" && queryKey[1] !== "panda-business") &&
     !(queryKey[0] === "lifi" && queryKey[1] !== "balances") &&
     !(queryKey[0] === "ramp" && queryKey[1] === "kyc-tokens") &&
     !(queryKey[0] === "readContract" && (queryKey[1] as { functionName?: string }).functionName === "prices"),

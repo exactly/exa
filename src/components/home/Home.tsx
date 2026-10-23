@@ -131,7 +131,7 @@ export default function Home() {
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
-  const { current } = useBusiness();
+  const { current, approved } = useBusiness();
   const {
     increase: increaseLimit,
     usage,
@@ -285,9 +285,13 @@ export default function Home() {
                   }
                   description={
                     current.step === "pending"
-                      ? t("Verify your business")
+                      ? current.id === "card" && approved
+                        ? t("Your business is approved. Finish setting up your card.")
+                        : t("Verify your business")
                       : current.step === "review"
-                        ? t("Review takes 3 to 5 business days.")
+                        ? current.id === "card" && approved
+                          ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                          : t("Review takes 3 to 5 business days.")
                         : current.step === "failed" || current.step === "unavailable"
                           ? t("Contact support to continue.")
                           : t("We need more information before we can continue.")

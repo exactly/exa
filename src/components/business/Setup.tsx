@@ -17,7 +17,7 @@ import Tag from "./Tag";
 import Task from "./Task";
 import { present } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
-import { startBridgeKYB } from "../../utils/persona";
+import { startBridgeKYB, startBusinessKYC } from "../../utils/persona";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { startApplication, startRampOnboarding } from "../../utils/server";
@@ -36,8 +36,21 @@ export default function Setup() {
   const toast = useToastController();
   const [verification, setVerification] = useState<{ terms?: boolean; uri: string }>();
   const [handoff, setHandoff] = useState<string>();
-  const { profile, card, cardLink, locked, redirectURL, refetchTransfers, transfers, tosLink, kycLink } =
-    useBusiness(true);
+  const {
+    profile,
+    card: cardStep,
+    cardLink,
+    approved,
+    locked,
+    redirectURL,
+    refetchTransfers,
+    transfers: transfersStep,
+    tosLink,
+    kycLink,
+  } = useBusiness(true);
+  const blocked = locked && profile !== undefined;
+  const card = blocked ? "pending" : cardStep;
+  const transfers = blocked ? "pending" : transfersStep;
   function close() {
     setVerification(undefined);
     queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"] }).catch(reportError);
@@ -47,7 +60,7 @@ export default function Setup() {
     if (
       error instanceof APIError &&
       error.code === 400 &&
-      ["already onboarded", "bad kyb", "not started", "processing"].includes(error.text)
+      ["already onboarded", "bad kyb", "bad kyc", "not started", "processing"].includes(error.text)
     ) {
       close();
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"] }).catch(reportError);
@@ -62,9 +75,13 @@ export default function Setup() {
   }
   const application = useMutation({
     mutationKey: ["kyc", "panda-business"],
-    mutationFn: startApplication,
-    onSuccess: (data) => {
-      const uri = kybLink(data);
+    async mutationFn() {
+      const data = await startApplication();
+      if (data.type !== "persona") return kybLink(data);
+      queryClient.setQueryData(["kyc", "panda-business"], { code: "not started", approved: true });
+      await startBusinessKYC(data);
+    },
+    onSuccess: (uri) => {
       if (uri) setHandoff(uri);
       queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"] }).catch(reportError);
     },
@@ -154,9 +171,15 @@ export default function Setup() {
                 description={
                   card === "action"
                     ? t("We need more information before we can continue.")
-                    : t("Verify your business to get a Visa Signature Business Exa Card.")
+                    : approved
+                      ? t(
+                          "Your business is approved. Accept the terms and add the details of the person who will use the card.",
+                        )
+                      : t("Verify your business to get a Visa Signature Business Exa Card.")
                 }
-                action={card === "action" ? t("Continue verification") : t("Start verification")}
+                action={
+                  card === "action" ? t("Continue verification") : approved ? t("Continue") : t("Start verification")
+                }
                 loading={application.isPending}
                 onPress={
                   locked
@@ -196,15 +219,21 @@ export default function Setup() {
           </YStack>
           <YStack gap="$s4">
             {[
-              { step: card, title: t("Exa Card for your business") },
+              {
+                step: card,
+                title: t("Exa Card for your business"),
+                review: approved
+                  ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                  : undefined,
+              },
               { step: transfers, title: t("USD and EUR transfers") },
               { step: profile, title: t("Business profile") },
             ]
               .filter(({ step }) => step !== "pending" && step !== "action")
-              .map(({ step, title }, index) => (
+              .map(({ step, title, review }, index) => (
                 <React.Fragment key={title}>
                   {index > 0 && <YStack height={1} backgroundColor="$borderNeutralSoft" />}
-                  <Progress step={step} title={title} />
+                  <Progress step={step} title={title} review={review} />
                 </React.Fragment>
               ))}
           </YStack>
@@ -266,7 +295,7 @@ export default function Setup() {
   );
 }
 
-function Progress({ step, title }: { step?: Step; title: string }) {
+function Progress({ step, title, review }: { review?: string; step?: Step; title: string }) {
   const { t } = useTranslation();
   switch (step) {
     case undefined:
@@ -276,7 +305,7 @@ function Progress({ step, title }: { step?: Step; title: string }) {
         <Row
           icon={<Clock size={20} color="$uiWarningSecondary" />}
           title={title}
-          description={t("Review takes 3 to 5 business days.")}
+          description={review ?? t("Review takes 3 to 5 business days.")}
           tag={<Tag label={t("In review")} variant="warning" />}
         />
       );

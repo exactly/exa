@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { nullish, object, safeParse, string } from "valibot";
+import { boolean, nullish, object, safeParse, string } from "valibot";
 
 import business from "@exactly/common/business";
 import domain from "@exactly/common/domain";
@@ -32,6 +32,7 @@ export default function useBusiness(poll = false) {
   const kyb = safeParse(KYB, application.data);
   const locked = profileStep(profile.data) !== "completed";
   const card = cardStep(kyb.success ? kyb.output : undefined);
+  const approved = kyb.success && approvedCompany(kyb.output);
   const transfers = transfersStep(providers.data?.bridge);
   const tasks = [
     { id: "profile" as const, step: profileStep(profile.data) },
@@ -43,7 +44,8 @@ export default function useBusiness(poll = false) {
     refetchTransfers: providers.refetch,
     profile: profileStep(profile.data),
     card,
-    cardLink: kybLink(application.data),
+    cardLink: approved ? undefined : kybLink(application.data),
+    approved,
     transfers,
     tosLink:
       providers.data?.bridge.status === "NOT_STARTED" && "tosLink" in providers.data.bridge
@@ -67,6 +69,7 @@ export default function useBusiness(poll = false) {
 const Link = object({ params: object({ signature: string(), userId: string() }), url: string() });
 
 const KYB = object({
+  approved: nullish(boolean()),
   code: string(),
   completionLink: nullish(Link),
   status: nullish(string()),
@@ -100,10 +103,21 @@ function profileStep(status?: KYCStatus): Step | undefined {
   }
 }
 
+function approvedCompany(application: InferOutput<typeof KYB>) {
+  return (
+    !!application.approved ||
+    application.code === "ok" ||
+    application.code === "bad kyc" ||
+    (application.code === "processing" && !application.status)
+  );
+}
+
 function cardStep(application?: InferOutput<typeof KYB>): Step | undefined {
   if (!application) return;
+  if (application.code === "ok") return "completed";
   if (application.code === "not started") return "pending";
-  if (application.code === "bad kyb") return "failed";
+  if (application.code === "bad kyb" || application.code === "bad kyc") return "failed";
+  if (application.code === "processing" && !application.status) return "review";
   switch (application.status) {
     case "approved":
       return "completed";
