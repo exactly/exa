@@ -1,17 +1,16 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Info } from "@tamagui/lucide-icons-2";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import AssetLogo from "../shared/AssetLogo";
-import { Trend } from "../shared/PriceChart";
 import Text from "../shared/Text";
 
 export default function AssetRow({
-  address,
   balance,
   chainId,
+  children,
   disabled = false,
   name,
   onPress,
@@ -20,9 +19,9 @@ export default function AssetRow({
   uri,
   value,
 }: {
-  address: string;
   balance: string;
   chainId: number;
+  children: ReactNode;
   disabled?: boolean;
   name: string;
   onPress: () => void;
@@ -48,18 +47,18 @@ export default function AssetRow({
         <AssetLogo network chainId={chainId} symbol={symbol} uri={uri} width={40} height={40} />
       </YStack>
       <YStack gap="$s2" flex={1} opacity={opacity}>
-        <Text subHeadline color="$uiNeutralPrimary" numberOfLines={1}>
+        <Text callout color="$uiNeutralPrimary" numberOfLines={1}>
           {name}
         </Text>
-        <Text sensitive caption color="$uiNeutralSecondary" numberOfLines={1}>
+        <Text sensitive footnote color="$uiNeutralSecondary" numberOfLines={1}>
           {balance}
         </Text>
       </YStack>
       <YStack gap="$s2" alignItems="flex-end" opacity={opacity}>
-        <Text sensitive emphasized subHeadline color="$uiNeutralPrimary" textAlign="right">
+        <Text sensitive emphasized title3 color="$uiNeutralPrimary" textAlign="right">
           {`$${value.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </Text>
-        <Trend chainId={chainId} address={address} symbol={symbol} />
+        {children}
       </YStack>
       {pending ? (
         <Spinner size="small" color="$interactiveOnBaseBrandSoft" />

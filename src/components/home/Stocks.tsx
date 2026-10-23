@@ -15,6 +15,7 @@ import formatTokenAmount from "../../utils/formatTokenAmount";
 import { presentArticle } from "../../utils/intercom";
 import { stockAbi, toShares } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
+import { Trend } from "../shared/PriceChart";
 import Text from "../shared/Text";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
@@ -63,7 +64,6 @@ export default function Stocks({
         return (
           <AssetRow
             key={asset.address}
-            address={asset.address}
             chainId={asset.chainId}
             symbol={asset.symbol}
             uri={asset.logoURI}
@@ -81,7 +81,9 @@ export default function Stocks({
               selectionAsync().catch(reportError);
               router.push({ pathname: "/asset", params: { chainId: String(asset.chainId), address: asset.address } });
             }}
-          />
+          >
+            <Trend chainId={asset.chainId} address={asset.address} symbol={asset.symbol} />
+          </AssetRow>
         );
       })}
     </AssetSection>

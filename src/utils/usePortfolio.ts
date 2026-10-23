@@ -158,6 +158,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   return {
     portfolio,
     averageRate,
+    rates,
     assets,
     allAssets,
     protocolAssets,

@@ -5,7 +5,7 @@ import { LineChart } from "react-native-wagmi-charts";
 
 import { impactAsync, ImpactFeedbackStyle, selectionAsync } from "expo-haptics";
 
-import { ChartLine, ChevronRight } from "@tamagui/lucide-icons-2";
+import { ChartLine, ChevronRight, TrendingDown, TrendingUp } from "@tamagui/lucide-icons-2";
 import { useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -263,18 +263,26 @@ export function PriceSummary({ token, onPress }: { onPress: () => void; token: T
 
 export function Trend({ chainId, address, symbol }: { address: string; chainId: number; symbol: string }) {
   const {
+    t,
     i18n: { language },
   } = useTranslation();
   const { data, isPending } = useHistory({ address, chainId, symbol }, "1D", 2);
-  if (isPending) return <Skeleton height={12} width={50} />;
+  if (isPending) return <Skeleton height={17} width={70} />;
   const first = data?.points[0];
   const last = data?.points.at(-1);
   if (!first || !last) return null;
-  const change = delta(first.value, last.value);
+  const change = Number(delta(first.value, last.value).toFixed(precision + 2));
   return (
-    <Text caption textAlign="right" color={tint(change)}>
-      {`${sign(change)}${percent(Math.abs(change), language)}`}
-    </Text>
+    <XStack gap="$s2" alignItems="center">
+      {change > 0 ? <TrendingUp size={16} color={tint(change)} /> : null}
+      {change < 0 ? <TrendingDown size={16} color={tint(change)} /> : null}
+      <Text caption emphasized color={tint(change)}>
+        {`${sign(change)}${percent(Math.abs(change), language)}`}
+      </Text>
+      <Text caption color="$uiNeutralSecondary">
+        {t("24h")}
+      </Text>
+    </XStack>
   );
 }
 
@@ -377,8 +385,14 @@ function decimals(value: number) {
 }
 
 function percent(value: number, language: string) {
-  return value.toLocaleString(language, { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return value.toLocaleString(language, {
+    style: "percent",
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
 }
+
+const precision = 2;
 
 const height = 173;
 

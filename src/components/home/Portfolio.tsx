@@ -21,17 +21,17 @@ import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
+import Rate from "../shared/Rate";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Tabs from "../shared/Tabs";
 import Text from "../shared/Text";
 import View from "../shared/View";
-import WeightedRate from "../shared/WeightedRate";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
+  const { averageRate, rates, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
   const router = useRouter();
   const { t } = useTranslation();
   const [tab, setTab] = useState<"all" | "collateral" | "stocks">("all");
@@ -95,9 +95,8 @@ export default function Portfolio() {
                 }
               />
               {tab !== "stocks" && portfolio.balanceUSD > 0n ? (
-                <WeightedRate
-                  averageRate={averageRate}
-                  depositMarkets={portfolio.depositMarkets}
+                <Rate
+                  rate={averageRate}
                   onPress={() => {
                     presentArticle("12633694").catch(reportError);
                   }}
@@ -133,7 +132,7 @@ export default function Portfolio() {
           </YStack>
         ) : (
           <>
-            {tab === "stocks" ? null : <AssetList titled={tab === "all"} />}
+            {tab === "stocks" ? null : <AssetList titled={tab === "all"} rates={rates} />}
             {tab === "collateral" ? null : (
               <Stocks titled={tab === "all"} assets={stocks} pending={isBalancesFetching} />
             )}

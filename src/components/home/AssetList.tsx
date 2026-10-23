@@ -12,8 +12,15 @@ import CollateralAssetsSheet from "./CollateralAssetsSheet";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
+import Rate from "../shared/Rate";
 
-export default function AssetList({ titled = false }: { titled?: boolean }) {
+export default function AssetList({
+  rates,
+  titled = false,
+}: {
+  rates: { market: string; rate: bigint }[];
+  titled?: boolean;
+}) {
   const {
     t,
     i18n: { language },
@@ -35,6 +42,7 @@ export default function AssetList({ titled = false }: { titled?: boolean }) {
         {markets
           .map((market) => ({
             ...market,
+            rate: rates.find(({ market: address }) => address === market.market)?.rate,
             symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             usdValue: Number((market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
           }))
@@ -43,7 +51,6 @@ export default function AssetList({ titled = false }: { titled?: boolean }) {
           .map((market) => (
             <AssetRow
               key={market.asset}
-              address={market.asset}
               chainId={chain.id}
               symbol={market.symbol}
               name={market.symbol}
@@ -56,7 +63,9 @@ export default function AssetList({ titled = false }: { titled?: boolean }) {
                   params: { chainId: String(chain.id), address: market.asset, market: market.market },
                 });
               }}
-            />
+            >
+              {market.rate === undefined ? null : <Rate compact rate={market.rate} />}
+            </AssetRow>
           ))}
       </AssetSection>
       <CollateralAssetsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
