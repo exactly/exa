@@ -101,6 +101,7 @@ jobs:
           - { flow: ach, method: webauthn, screen: 500x780 }
           - { flow: credit, method: webauthn, screen: 500x963 }
           - { flow: deposit, method: siwe, screen: 1920x1080 }
+          - { flow: eth, method: webauthn, screen: 500x994 }
           - { flow: external, method: webauthn, screen: 600x608 }
           - { flow: onboarding, method: webauthn, screen: 500x1200 }
           - { flow: pix, method: webauthn, screen: 500x857 }
