@@ -12,6 +12,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: I already have an account
 - assertVisible: Good (morning|afternoon|evening)!
 - runFlow: ../subflows/swap.yaml
+- runFlow: ../subflows/assertOnboarding.yaml
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
