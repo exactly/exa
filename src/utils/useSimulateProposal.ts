@@ -210,6 +210,7 @@ export default function useSimulateProposal({
         : undefined,
     isPending: !error && settled.simulation.isPending,
     error,
+    delay,
     queued,
     refetch: () =>
       Promise.all([refetchReads(), simulation.error && simulation.refetch(), retry.error && retry.refetch()]),

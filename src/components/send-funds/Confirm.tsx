@@ -26,7 +26,7 @@ import {
 import { useReadContract, useSimulateContract } from "wagmi";
 
 import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
-import { proposalManagerAbi, useReadProposalManagerDelay } from "@exactly/common/generated/hooks";
+import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
@@ -175,6 +175,7 @@ export default function Confirm() {
   const {
     request: proposeSimulation,
     error: proposeError,
+    delay: proposeDelay,
     isPending: isProposePending,
     queued,
     refetch: refetchPropose,
@@ -271,6 +272,7 @@ export default function Confirm() {
   const {
     request: bridgePropose,
     error: bridgeProposeError,
+    delay: bridgeDelay,
     refetch: refetchBridgePropose,
   } = useSimulateProposal({
     account: address,
@@ -575,10 +577,12 @@ export default function Confirm() {
     if (sent <= 0 || settled <= 0) return;
     return Math.max(0, ((sent - settled) / sent) * 100);
   }, [route, destination, payDecimals, payPrice]);
-  const { data: proposalDelay } = useReadProposalManagerDelay({ query: { enabled: !!market } });
-  const arrivalMinutes = routed
-    ? Math.max(1, Math.ceil((route?.estimate.executionDuration ?? 60) / 60))
-    : Math.max(1, Math.ceil(Number(proposalDelay ?? 0n) / 60));
+  const proposalDelay = routed ? bridgeDelay : proposeDelay;
+  const arrival =
+    (routed && !route) || (market && proposalDelay === undefined)
+      ? undefined
+      : (routed && route ? route.estimate.executionDuration : 0) + (market ? Number(proposalDelay) : 0);
+  const arrivalMinutes = arrival === undefined ? undefined : Math.max(1, Math.ceil(arrival / 60));
   const destinationFailure = routed && !destination && !isTokensFetching;
   const transient =
     !!routeError &&
@@ -845,9 +849,13 @@ export default function Confirm() {
                       </>
                     )}
                     <Detail label={t("Estimated arrival")}>
-                      <Text subHeadline primary>
-                        {t("~{{minutes}} min", { minutes: arrivalMinutes })}
-                      </Text>
+                      {arrivalMinutes === undefined ? (
+                        <Skeleton width={60} height={21} />
+                      ) : (
+                        <Text subHeadline primary>
+                          {t("~{{minutes}} min", { minutes: arrivalMinutes })}
+                        </Text>
+                      )}
                     </Detail>
                   </YStack>
                   {routed && (
@@ -1168,7 +1176,7 @@ export default function Confirm() {
                             : t("Delivering on {{network}}", { network: networkName })}
               </Text>
             )}
-            {routed && processing && (
+            {routed && processing && arrivalMinutes !== undefined && (
               <Text caption secondary textAlign="center">
                 {now - submittedAt > arrivalMinutes * 120_000
                   ? t("Taking longer than expected. You can close this screen safely.")
