@@ -106,13 +106,15 @@ jobs:
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1 }
+      - id: script
+        run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: |
             ~/.local/share/svm
             .maestro/build
             /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
       - uses: actions/cache@v6
         with:

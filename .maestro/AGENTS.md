@@ -64,7 +64,7 @@
 - **fit for upstream**: each patch could land upstream as a pr: no app-specific code, no code comments, nothing that drifts further from upstream.
 - **wait for the real signal**: patched commands wait for the event they depend on. no retries, no sleeps.
 - **one change per patch**: one `git format-patch` file per change on tag `cli-2.11.0`, with an upstream-style `fix:` or `feat:` subject.
-- **cache cost**: ci and eas cache `build/` by the hash of `package.json` and `patches/*.patch`, so any patch change rebuilds maestro in every job until the new key is saved.
+- **cache cost**: ci and eas cache `build/` by the hash of the `maestro` script and `patches/*.patch`, so any patch change rebuilds maestro in every job until the new key is saved.
 
 ## legs
 

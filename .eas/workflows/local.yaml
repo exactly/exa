@@ -72,16 +72,18 @@ jobs:
         with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
       - name: exa setup
         run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
+      - id: script
+        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
       - uses: eas/restore_cache
         id: maestro
         with:
-          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/restore_cache
         id: gradle
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          key: "gradle-${{ steps.script.outputs.hash }}"
           restore_keys: gradle-
           path: | # cspell:ignore dists
             .maestro/.gradle/caches/modules-2
@@ -90,12 +92,12 @@ jobs:
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          key: "gradle-${{ steps.script.outputs.hash }}"
           path: |
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
@@ -189,16 +191,18 @@ jobs:
         with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
       - name: exa setup
         run: pnpm nx e2e server > server.log 2>&1 &
+      - id: script
+        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
       - uses: eas/restore_cache
         id: maestro
         with:
-          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/restore_cache
         id: gradle
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          key: "gradle-${{ steps.script.outputs.hash }}"
           restore_keys: gradle-
           path: | # cspell:ignore dists
             .maestro/.gradle/caches/modules-2
@@ -207,12 +211,12 @@ jobs:
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          key: "gradle-${{ steps.script.outputs.hash }}"
           path: |
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
