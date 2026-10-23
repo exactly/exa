@@ -20,6 +20,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Freeze your card?
 - tapOn: Cancel
 - tapOn: View PIN number
+- tapOn: Hide PIN
+- assertVisible: { text: '\*', above: Show PIN }
+- tapOn: Show PIN
+- assertVisible: { text: '\d', above: Hide PIN }
 - tapOn: Close
 - tapOn: Weekly spending limit
 - tapOn: Close
