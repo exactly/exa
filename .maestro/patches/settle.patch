@@ -1,0 +1,33 @@
+From 53026afbfa9c66d1645d05cdf8d6acbe64ea4ebf Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 23 Oct 2026 20:56:11 +0000
+Subject: [PATCH] fix: stop waiting for an idle window before taps
+
+waitForWindowToSettle polls isWindowUpdating until its 750 ms deadline even after the device reports the window idle, so every tap on Android waits at least 750 ms before it lands. isWindowUpdating already waits on the device for an update, so an idle answer means the window is quiet: stop polling there and settle on the hierarchy as before.
+---
+ .../src/main/java/maestro/drivers/AndroidDriver.kt         | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+index 8211337..9c00730 100644
+--- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+@@ -737,11 +737,8 @@ class AndroidDriver(
+                 })
+             }.orThrow().isWindowUpdating
+ 
+-            if (windowUpdating) {
+-                hierarchy = ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
+-            } else {
+-                Thread.sleep(50) // avoid busy-spinning the device server while the window is already settled
+-            }
++            if (!windowUpdating) break
++            hierarchy = ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
+         } while (System.currentTimeMillis() < endTime)
+ 
+         return hierarchy ?: ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
+
+base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+-- 
+2.43.0
+
