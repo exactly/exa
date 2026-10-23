@@ -1,12 +1,13 @@
 import { env } from "node:process";
 import { createConfig, factory } from "ponder";
 import { getAbiItem } from "viem";
-import { anvil } from "viem/chains";
+import { anvil, optimism } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, { exaAccountFactoryAbi, factories, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
 
 const addresses = [...factories.versions, ...factories.legacy];
+const startBlock = { [optimism.id]: 123_125_164 }[chain.id];
 
 export default createConfig({
   database: { kind: "postgres", connectionString: env.POSTGRES_URL },
@@ -26,7 +27,8 @@ export default createConfig({
         event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
         parameter: "account",
       }),
+      startBlock,
     },
-    ExaAccountFactory: { chain: chain.name, abi: exaAccountFactoryAbi, address: addresses },
+    ExaAccountFactory: { chain: chain.name, abi: exaAccountFactoryAbi, address: addresses, startBlock },
   },
 });
