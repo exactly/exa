@@ -39,7 +39,7 @@
 
 ## signers
 
-- **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `siwe` is metamask (web only) and `webauthn` is a passkey, on chrome's virtual authenticator on web and the platform authenticator on native, with biometrics from `biometrics.patch`.
+- **method**: the `method` env picks a leg's signer. `siwe` is metamask (web only) and `webauthn` is a passkey, on chrome's virtual authenticator on web and the platform authenticator on native, with biometrics from `biometrics.patch`.
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
 - **metamask**: `subflows/metamask.yaml` onboards the extension before `launchApp`, with basic functionality off, or the connect prompt never shows. ci passes `--screen-info={3840x2160}` so its popups fit any window.

@@ -354,9 +354,6 @@
           "env": "EAS_BUILD_RUNNER"
         },
         {
-          "env": "EXPO_PUBLIC_E2E_MNEMONIC"
-        },
-        {
           "env": "EXPO_PUBLIC_ENV"
         },
         {
