@@ -25,6 +25,10 @@ appId: ${APP_ID ?? "app.exactly"}
           text: "[A-Z][a-z]+ \\d+, \\d{4} - .+"
           below: Due in .+
       - evalScript: ${output.maturity = maestro.copiedText}
+      - runFlow:
+          when: { true: "${external}" }
+          file: scrollTo.yaml
+          env: { element: Rollover, center: true }
       - tapOn: { text: Pay, leftOf: Rollover }
 - runFlow:
     when: { true: "${amount}" }
@@ -33,22 +37,35 @@ appId: ${APP_ID ?? "app.exactly"}
       - inputText: ${amount}
       - pressKey: enter
 - runFlow:
-    when: { true: "${market}" }
+    when: { true: "${market || external}" }
     commands:
       - tapOn: Pay with
-      - runFlow: { file: tapAria.yaml, env: { aria: "^${market}, [\\s\\d,.\\xa0]+ available$" } }
+      - runFlow: { file: tapAria.yaml, env: { aria: "^${market ?? external}, [\\s\\d,.\\xa0]+ available$" } }
 - waitForAnimationToEnd
 - tapOn: Confirm payment
 - runFlow: sign.yaml
 - assertVisible: Transaction details
+- runFlow:
+    when: { true: "${external}" }
+    file: scrollTo.yaml
+    env: { element: Close }
 - tapOn: Close
 - runFlow: getAccount.yaml
-- runScript:
-    file: ../dist/hookProposals.js
-    env: { account: "${output.account}" }
 - runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+    when: { true: "${external}" }
+    commands:
+      - runScript:
+          file: ../dist/hookActivity.js
+          env: { account: "${output.account}", repay: "${external}" }
+- runFlow:
+    when: { true: "${!external}" }
+    commands:
+      - runScript:
+          file: ../dist/hookProposals.js
+          env: { account: "${output.account}" }
+      - runFlow:
+          file: ../subflows/tapWhileAria.yaml
+          env: { aria: Pending proposals, tap: Home }
 - tapOn: Payments
 - runFlow:
     when: { true: "${!amount}" }

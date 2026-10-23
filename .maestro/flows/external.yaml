@@ -1,0 +1,49 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: USDT, to: "${output.account}", amount: "1000" }
+- tapOn: Manage portfolio
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
+- tapOn: USDT
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Send } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Send } }
+- tapOn: Not now
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Dismiss } }
+- tapOn: Enter ENS or wallet address
+- inputText: "0x000000000000000000000000000000000000dEaD"
+- hideKeyboard
+- tapOn: Continue
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
+- inputText: "100"
+- tapOn: Review
+- tapOn: Send USDT
+- assertVisible: Sent to .*
+- runScript:
+    file: ../dist/hookActivity.js
+    env:
+      account: "${output.account}"
+      receiver: "0x000000000000000000000000000000000000dEaD"
+      amount: "100"
+      asset: USDT
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: Home
+- runFlow: ../subflows/verifyIdentity.yaml
+- tapOn: Swap assets
+- tapOn: { text: "0", index: 0 }
+- inputText: "500"
+- tapOn: Swap USDT for USDC
+- assertVisible: completed
+- runScript:
+    file: ../dist/hookActivity.js
+    env: { account: "${output.account}" }
+- tapOn: Close
+- tapOn: Home
+- extendedWaitUntil: { visible: "^[\\d.,]+% APR$", timeout: 30000 }
+- runFlow:
+    file: ../subflows/borrow.yaml
+    env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
+- runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
+- tapOn: Home
+- runFlow: ../subflows/storeCoverage.yaml

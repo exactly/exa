@@ -1,15 +1,7 @@
-import { encodeDeployData, ethAddress } from "viem";
+import { ethAddress, hexToNumber, zeroAddress, type Address } from "viem";
 import { isHex, parseUnits } from "viem/utils";
 
-import {
-  auditorAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
-  marketUSDCAddress,
-  proposalManagerAddress,
-} from "@exactly/common/generated/chain";
-
-import anvil, { readContract, writeContract } from "../anvil";
+import anvil, { writeContract } from "../anvil";
 import { activity } from "../server";
 
 declare const asset: string | undefined;
@@ -22,35 +14,29 @@ if (!asset) throw new Error("missing asset");
 if (!to || !isHex(to)) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
-const markets = readContract(
-  {
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-    }),
-    functionName: "markets",
-    abi: exaPreviewerAbi,
-  },
-  network,
-);
-const market = markets.find(({ symbol }) => symbol === (asset === "ETH" ? "WETH" : asset));
-if (!market) throw new Error("bad asset");
+const { ok, status, body } = http.get("http://localhost:3000/e2e/lifi/v1/tokens");
+if (!ok) throw new Error(`${status} ${body}`);
+const token = (
+  JSON.parse(body) as {
+    tokens: Record<number, { address: Address; decimals: number; priceUSD: string; symbol: string }[]>;
+  }
+).tokens[hexToNumber(anvil("eth_chainId", [], network))]?.find(({ symbol }) => symbol === asset);
+if (!token) throw new Error("bad asset");
 
-output.usd = Math.round((Number(amount) * Number(market.usdPrice)) / 1e18);
+output.usd = Math.round(Number(amount) * Number(token.priceUSD));
 
-if (asset === "ETH") {
+if (token.address === zeroAddress) {
   const current = BigInt(anvil("eth_getBalance", [to, "latest"], network));
   anvil("anvil_setBalance", [to, String(current + parseUnits(amount, 18))], network);
   activity(ethAddress, to, Number(amount), undefined, network);
 } else {
   activity(
-    market.asset,
+    token.address,
     to,
     Number(amount),
     writeContract(
       {
-        address: market.asset,
+        address: token.address,
         functionName: "mint",
         abi: [
           {
@@ -64,7 +50,7 @@ if (asset === "ETH") {
             stateMutability: "nonpayable",
           },
         ],
-        args: [to, parseUnits(amount, market.decimals)],
+        args: [to, parseUnits(amount, token.decimals)],
       },
       network,
     ),
