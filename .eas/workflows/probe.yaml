@@ -1,0 +1,84 @@
+name: probe
+on: { workflow_dispatch: {} }
+defaults: { tools: { node: "24.14.1" } }
+jobs:
+  android:
+    runs_on: linux-medium
+    image: latest
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/restore_cache
+        id: maestro
+        with:
+          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          restore_keys: gradle-
+          path: |
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - name: block maven hosts on gradle hit
+        if: ${{ steps.gradle.outputs.cache_hit == 'true' }}
+        run: |
+          for h in repo.maven.apache.org repo1.maven.org plugins.gradle.org plugins-artifacts.gradle.org dl.google.com maven.google.com services.gradle.org; do printf '0.0.0.0 %s\n:: %s\n' $h $h; done | sudo -n tee -a /etc/hosts
+          curl -sS -m 10 -o /dev/null https://plugins-artifacts.gradle.org/ && echo "NOT BLOCKED" || echo "blocked"
+          find .maestro/.gradle -type f | wc -l
+      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - run: find .maestro/.gradle/caches/modules-2 .maestro/.gradle/wrapper/dists -type f | wc -l && maestro --version
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          path: |
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+  ios:
+    runs_on: macos-medium
+    image: latest
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - uses: eas/restore_cache
+        id: maestro
+        with:
+          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          restore_keys: gradle-
+          path: |
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - name: block maven hosts on gradle hit
+        if: ${{ steps.gradle.outputs.cache_hit == 'true' }}
+        run: |
+          for h in repo.maven.apache.org repo1.maven.org plugins.gradle.org plugins-artifacts.gradle.org dl.google.com maven.google.com services.gradle.org; do printf '0.0.0.0 %s\n:: %s\n' $h $h; done | sudo -n tee -a /etc/hosts
+          curl -sS -m 10 -o /dev/null https://plugins-artifacts.gradle.org/ && echo "NOT BLOCKED" || echo "blocked"
+          find .maestro/.gradle -type f | wc -l
+      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - run: find .maestro/.gradle/caches/modules-2 .maestro/.gradle/wrapper/dists -type f | wc -l && maestro --version
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          path: |
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists

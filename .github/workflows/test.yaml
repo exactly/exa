@@ -1,110 +1,12 @@
 name: test
-on:
-  push: { branches-ignore: [changesets-ghcommit-temp/**] } # cspell:ignore ghcommit
+on: { push: {} }
 jobs:
-  test:
-    environment: test
-    runs-on: ubuntu-latest
-    env:
-      NX_DAEMON: false
-      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
-      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
-      ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
-      OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
-      OPTIMISM_SEPOLIA_RPC_URL: ${{ secrets.OPTIMISM_SEPOLIA_RPC_URL }}
-      POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
-    steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0, fetch-tags: true }
-      - uses: actions/setup-node@v7
-        with: { node-version: "^24.14.1" }
-      - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.7.1 }
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: contracts/requirements.txt
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.local/share/svm
-            /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
-          restore-keys: deps-${{ runner.os }}-${{ github.job }}-
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nx
-          key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-${{ github.job }}-
-      - run: pip install -r contracts/requirements.txt
-      - run: echo ::add-matcher::.github/matcher.json
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm nx run-many -t test
-
-      - uses: codecov/codecov-action@v7
-        if: ${{ !cancelled() }}
-        with:
-          disable_search: true
-          files: contracts/lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: contracts
-          name: contracts
-      - uses: codecov/codecov-action@v7
-        if: ${{ !cancelled() }}
-        with:
-          disable_search: true
-          files: server/coverage/lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: server
-          name: server
-      - uses: codecov/codecov-action@v7
-        if: ${{ !cancelled() }}
-        with:
-          report_type: test_results
-          disable_search: true
-          files: server/coverage/junit.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: server
-          name: server
-      - if: ${{ !cancelled() }}
-        run: echo "## [codecov](https://app.codecov.io/gh/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: server-artifacts
-          path: server/node_modules/@exactly/.*
-          include-hidden-files: true
-
   e2e:
-    environment: test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { flow: credit, method: webauthn, screen: 500x963 }
-          - { flow: deposit, method: siwe, screen: 1920x1080 }
-          - { flow: onboarding, method: webauthn, screen: 500x1200 }
-          - { flow: portfolio, method: webauthn, screen: 720x500 }
-          - { flow: ramp, method: webauthn, screen: 500x780 }
-          - { flow: swap, method: webauthn, screen: 740x880 }
-          - { flow: transfer, method: webauthn, screen: 760x600 }
-    env:
-      NX_DAEMON: false
-      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
-      CHAIN_ID: "31337"
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0, fetch-tags: true }
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
-      - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.7.1 }
       - uses: actions/cache@v6
         id: deps
         with:
@@ -115,68 +17,20 @@ jobs:
           key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
       - uses: actions/cache@v6
+        id: gradle
         if: steps.deps.outputs.cache-hit != 'true'
         with:
-          path: | # cspell:ignore dists
+          path: |
             ~/.gradle/caches/modules-2
             ~/.gradle/wrapper/dists
           key: gradle-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json') }}
           restore-keys: gradle-${{ runner.os }}-${{ github.job }}-
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nx
-          key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-${{ github.job }}-
-      - if: matrix.method == 'siwe'
-        run: |
-          curl -fsSLo $RUNNER_TEMP/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v13.52.0/metamask-chrome-13.52.0.zip
-          unzip -q $RUNNER_TEMP/metamask.zip -d $RUNNER_TEMP/metamask
-          echo METAMASK=$RUNNER_TEMP/metamask >> "$GITHUB_ENV"
-          echo SE_FORCE_BROWSER_DOWNLOAD=true >> "$GITHUB_ENV"
-      - run: echo ::add-matcher::.github/matcher.json
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
-      - run: pnpm install --frozen-lockfile
-      - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
-      - run: |
-          GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 &
-          for i in {1..420}; do
-            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && curl -f http://localhost:8081 > /dev/null 2>&1 && break
-            { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
-            sleep 1
-          done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${METAMASK:+--browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
-        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
-      - if: always()
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - if: steps.gradle.outputs.cache-hit == 'true'
         run: |
-          curl -X POST http://localhost:3000/e2e/shutdown || true
-          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
-      - uses: codecov/codecov-action@v7
-        if: ${{ !cancelled() }}
-        with:
-          disable_search: true
-          files: server/coverage/lcov.info,server/coverage/app.json
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: web
-          name: ${{ matrix.flow }}
-      - uses: codecov/codecov-action@v7
-        if: ${{ !cancelled() }}
-        with:
-          report_type: test_results
-          disable_search: true
-          files: .maestro/junit.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: web
-          name: ${{ matrix.flow }}
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: e2e-${{ matrix.flow }}-artifacts
-          path: |
-            chrome.log
-            server.log
-            server/coverage
-            server/node_modules/@exactly/.*
-            ~/.maestro/tests
-            .maestro/screenshots
-          include-hidden-files: true
+          for h in repo.maven.apache.org repo1.maven.org plugins.gradle.org plugins-artifacts.gradle.org dl.google.com maven.google.com services.gradle.org; do printf '0.0.0.0 %s\n:: %s\n' $h $h; done | sudo tee -a /etc/hosts
+          curl -sS -m 10 -o /dev/null https://plugins-artifacts.gradle.org/ && echo "NOT BLOCKED" || echo "blocked"
+          find ~/.gradle -type f | wc -l
+      - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
+      - run: find ~/.gradle/caches/modules-2 ~/.gradle/wrapper/dists -type f | wc -l && maestro --version
