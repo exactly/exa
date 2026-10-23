@@ -57,7 +57,7 @@ export default function LatestActivity({
                 {t("No activity yet")}
               </Text>
               <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-                {t("Your transactions will show up here once you get started. Add funds to begin!")}
+                {t("Your deposits, purchases and transfers will show up here.")}
               </Text>
             </YStack>
           ))}

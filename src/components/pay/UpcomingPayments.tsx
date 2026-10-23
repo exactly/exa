@@ -70,13 +70,13 @@ export default function UpcomingPayments({
         </Text>
         <YStack alignItems="center" justifyContent="center" gap="$s4_5">
           <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
-            🎉
+            💳
           </Text>
           <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
-            {t("You’re all set!")}
+            {t("No payments due")}
           </Text>
           <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
-            {t("Any funding or purchases will show up here.")}
+            {t("When you pay later with your card or borrow, your payments will show up here.")}
           </Text>
         </YStack>
       </View>
