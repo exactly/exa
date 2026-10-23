@@ -14,7 +14,7 @@
   "dependencies": {
     "@exactly/common": "workspace:^0.0.22",
     "hono": "catalog:",
-    "ponder": "^0.17.12",
+    "ponder": "^0.18.2",
     "viem": "catalog:"
   },
   "devDependencies": {
