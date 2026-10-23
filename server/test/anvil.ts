@@ -13,7 +13,7 @@ import {
   getUserOperationHash,
   type RpcUserOperation,
 } from "viem/account-abstraction";
-import { mnemonicToAccount, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { foundry } from "viem/chains";
 
 import { Address } from "@exactly/common/validation";
@@ -67,12 +67,6 @@ export default async function setup() {
         stdout.write(message);
       }
     });
-    if (env.EXPO_PUBLIC_E2E_MNEMONIC) {
-      await anvilClient.setBalance({
-        address: mnemonicToAccount(env.EXPO_PUBLIC_E2E_MNEMONIC).address,
-        value: 10n ** 24n,
-      });
-    }
   }
 
   const deployer = await anvilClient

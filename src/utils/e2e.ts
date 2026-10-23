@@ -25,10 +25,7 @@ import publicClient from "./publicClient";
 const e2e = process.env.EXPO_PUBLIC_ENV === "e2e";
 const account =
   Platform.OS !== "web" && e2e
-    ? mnemonicToAccount(
-        process.env.EXPO_PUBLIC_E2E_MNEMONIC || "test test test test test test test test test test test junk", // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
-        { nonceManager },
-      )
+    ? mnemonicToAccount("test test test test test test test test test test test junk", { nonceManager })
     : undefined;
 const client = account && createWalletClient({ chain, account, transport: http(), dataSuffix });
 export default e2e;

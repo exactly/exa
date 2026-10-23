@@ -96,7 +96,6 @@ jobs:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
       CHAIN_ID: "31337"
-      EXPO_PUBLIC_E2E_MNEMONIC: ${{ secrets.EXPO_PUBLIC_E2E_MNEMONIC }}
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0, fetch-tags: true }

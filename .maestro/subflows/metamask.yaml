@@ -5,7 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { id: onboarding-import-wallet }
 - tapOn: { id: onboarding-import-with-srp-button }
 - tapOn: { id: first-word-input-text-area }
-- inputText: ${EXPO_PUBLIC_E2E_MNEMONIC || 'test test test test test test test test test test test junk'}
+- inputText: test test test test test test test test test test test junk
 - tapOn: { id: import-srp-confirm }
 - tapOn: { id: create-password-new, index: 1 }
 - inputText: exa-e2e-wallet
