@@ -202,6 +202,7 @@ const selected = await automation.LocalWorkspace.selectStack(
           }
           for (const secret of new Set([
             ...modules.crema,
+            ...modules.indexer,
             ...Object.values(modules.services).flatMap((fields) => fields.secrets),
             ...Object.values(modules.workers).flatMap((worker) => worker.secrets),
           ])) {
@@ -248,6 +249,16 @@ const selected = await automation.LocalWorkspace.selectStack(
               project,
               role: "roles/parametermanager.parameterViewer",
             },
+            { provider },
+          );
+          const indexer = new serviceaccount.Account(
+            `${stack.name}-indexer`,
+            { accountId: `${stack.name}-indexer` },
+            { dependsOn: service, provider },
+          );
+          new serviceaccount.IAMMember(
+            `${stack.name}-indexer`,
+            { member, role: "roles/iam.serviceAccountUser", serviceAccountId: indexer.name },
             { provider },
           );
           for (const name of Object.keys(modules.services)) {

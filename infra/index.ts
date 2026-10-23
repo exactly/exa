@@ -22,6 +22,7 @@ await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: imp
 const config = new Config();
 const project = new Config("gcp").require("project");
 const location = config.get("location") ?? "us-west1";
+const rollout = hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16);
 const run = new projects.Service("run", { service: "run.googleapis.com" });
 const engine = new projects.Service("compute", { service: "compute.googleapis.com" });
 const registry = new projects.Service("artifactregistry", { service: "artifactregistry.googleapis.com" });
@@ -37,6 +38,7 @@ const subnet = new compute.Subnetwork("network", {
   network: network.id,
   name: `${stack}-network`,
   ipCidrRange: "10.0.0.0/20",
+  privateIpGoogleAccess: true,
 });
 const address = new compute.Address(
   "egress",
@@ -177,7 +179,7 @@ const pools = workers.map(({ dependencies, name, template }) => {
       deletionProtection: false,
       location,
       name: `${stack}-${name}-check`,
-      runExecutionToken: hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16),
+      runExecutionToken: rollout,
       template: {
         template: {
           ...template,
@@ -201,6 +203,81 @@ const pools = workers.map(({ dependencies, name, template }) => {
     ),
   };
 });
+
+const indexer = serviceaccount.getAccountOutput({ accountId: `${stack}-indexer` });
+const indexerDeployment = `${stack}-indexer-${config.require("serverImage").slice(0, 16)}`;
+const indexerTimeout = config.get("indexerTimeout") ?? "3600s";
+const indexerTemplate = {
+  serviceAccount: indexer.email,
+  vpcAccess: { egress: "ALL_TRAFFIC", networkInterfaces: [{ network: network.id, subnetwork: subnet.id }] },
+};
+const indexerContainer = {
+  image,
+  workingDir: "/prod/indexer",
+  envs: [
+    {
+      name: "POSTGRES_URL",
+      valueSource: { secretKeyRef: { secret: `${stack}-indexer-postgres-url`, version: "latest" } },
+    },
+  ],
+};
+const indexerAccess = modules.indexer.map(
+  (secret) =>
+    new secretmanager.SecretIamMember(`indexer-${secret}-access`, {
+      member: interpolate`serviceAccount:${indexer.email}`,
+      role: "roles/secretmanager.secretAccessor",
+      secretId: `projects/${project}/secrets/${stack}-${secret}`,
+    }),
+);
+const indexerService = new cloudrunv2.Service(
+  "indexer",
+  {
+    deletionProtection: false,
+    location,
+    name: indexerDeployment,
+    ingress: "INGRESS_TRAFFIC_INTERNAL_ONLY",
+    invokerIamDisabled: true,
+    scaling: { scalingMode: "MANUAL", manualInstanceCount: 1 },
+    template: {
+      ...indexerTemplate,
+      containers: [
+        {
+          ...indexerContainer,
+          commands: ["dumb-init", "node_modules/.bin/ponder"],
+          args: ["start", "--schema", indexerDeployment, "--views-schema", "indexer", "--log-format", "json"],
+          resources: { cpuIdle: false, limits: { memory: "1Gi" } },
+        },
+      ],
+    },
+  },
+  { dependsOn: [run, gateway, ...indexerAccess] },
+);
+new cloudrunv2.Job(
+  "indexer-prune",
+  {
+    deletionProtection: false,
+    location,
+    name: `${stack}-indexer-prune`,
+    runExecutionToken: rollout,
+    template: {
+      template: {
+        ...indexerTemplate,
+        containers: [
+          {
+            ...indexerContainer,
+            commands: ["sh", "-c"],
+            args: [
+              interpolate`until node -e 'fetch(process.argv[1]).then(({ ok }) => process.exit(ok ? 0 : 1), () => process.exit(1))' ${indexerService.uri}/ready; do sleep 10; done; exec node_modules/.bin/ponder db prune`,
+            ],
+          },
+        ],
+        maxRetries: 0,
+        timeout: indexerTimeout,
+      },
+    },
+  },
+  { dependsOn: [run, gateway, ...indexerAccess], customTimeouts: { create: indexerTimeout, update: indexerTimeout } },
+);
 
 const crema = serviceaccount.getAccountOutput({ accountId: `${stack}-crema` });
 const cremaConfig = JSON.stringify({
