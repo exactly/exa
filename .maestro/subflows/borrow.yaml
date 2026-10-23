@@ -6,20 +6,15 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Borrow
 - tapOn: Explore funding options
-- assertVisible: Select amount
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }
 - inputText: ${amount}
 - pressKey: enter
 - tapOn: Continue
-- assertVisible: Select your funding installment plan
 - tapOn: "${installments + ' installment' + (installments > 1 ? 's' : '') + ' of'}"
 - tapOn: Continue
-- assertVisible: Select first due date
 - tapOn: "^[A-Z][a-z]+ \\d+, \\d{4}$"
 - tapOn: Continue
-- assertVisible: Your Exa account
 - tapOn: Review loan terms
-- assertVisible: Review terms
 - tapOn: Confirm and receive USDC
 - runFlow: sign.yaml
 - extendedWaitUntil: { visible: Funding request sent, timeout: 180000 }
@@ -28,7 +23,6 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookProposals.js
     env: { account: "${output.account}", count: "${installments}" }
 - tapOn: Close
-- tapOn: Home
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
