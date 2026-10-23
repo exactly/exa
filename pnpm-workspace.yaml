@@ -61,7 +61,7 @@ catalog:
 ignoreWorkspaceRootCheck: true
 includeWorkspaceRoot: true
 minimumReleaseAge: 1440
-minimumReleaseAgeExclude: ["@wagmi/core@3.6.6", wagmi@3.7.8]
+minimumReleaseAgeExclude: ["@wagmi/core@3.6.6", prool@0.2.17, wagmi@3.7.8]
 packages:
   - "."
   - common
