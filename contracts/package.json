@@ -59,11 +59,6 @@
           "runtime": "forge --version"
         },
         "sharedGlobals"
-      ],
-      "production": [
-        "default",
-        "!{projectRoot}/test/**/*",
-        "!{projectRoot}/broadcast/*/31337/**/*"
       ]
     },
     "targets": {

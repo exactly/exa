@@ -11,7 +11,12 @@
       "!{projectRoot}/broadcast/*/31337/**/*",
       "sharedGlobals"
     ],
-    "production": ["default", "!{projectRoot}/test/**/*", "!{projectRoot}/eslint.config.mjs"],
+    "production": [
+      "default",
+      "!{projectRoot}/test/**/*",
+      "!{projectRoot}/eslint.config.mjs",
+      "!{projectRoot}/**/AGENTS.md"
+    ],
     "sharedGlobals": ["{workspaceRoot}/nx.json", "{workspaceRoot}/package.json", "{workspaceRoot}/pnpm-lock.yaml"]
   },
   "targetDefaults": {
