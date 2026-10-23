@@ -11,12 +11,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
 - tapOn: Close
 - tapOn: Freeze card
-- tapOn: { text: Freeze card, below: "Freeze your card?" }
-- assertNotVisible: "Freeze your card?"
-- waitForAnimationToEnd
-- tapOn: Freeze card
-- waitForAnimationToEnd
-- tapOn: Freeze card
 - assertVisible: Freeze your card?
 - tapOn: Cancel
 - tapOn: View PIN number
@@ -50,8 +44,14 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible:
           text: \$[\s\d,.\xa0]+
           above: Available balance
+- tapOn: Freeze card
+- tapOn: { text: Freeze card, below: "Freeze your card?" }
+- assertNotVisible: "Freeze your card?"
+- waitForAnimationToEnd
 - tapOn: Home
 - runFlow: { file: scrollTo.yaml, env: { element: Exa Card pay mode } }
+- runFlow: { file: scrollTo.yaml, env: { element: Freeze card, center: true } }
+- tapOn: Freeze card
 - tapOn:
     text: Learn more
     rightOf: Exa Card pay mode
