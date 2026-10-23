@@ -9,6 +9,7 @@
 ## principles
 
 - **as real as possible**: test the app users run, with real signers: passkeys on a virtual authenticator and metamask in chrome for testing. add no test-only app paths, shims or injected wallets.
+- **no seeds**: web legs sign with a new passkey or a wallet created in the browser. no web leg imports a seed.
 - **mock only third parties**: mocks live in `server/test` and behave like the service they replace. they complete immediately, so flows never wait on artificial delays.
 - **never bend the app to a test**: do not change app behavior or add aria labels or hooks only to make a flow pass. change the app when users benefit too.
 - **no test ids**: never add test ids (`testID`) to the app. flows select what users see or hear: text, or an aria label that serves screen readers too.
@@ -43,7 +44,7 @@
 - **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `siwe` is metamask (web only) and `webauthn` is a passkey on the virtual authenticator from `biometrics.patch`.
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
-- **metamask**: `subflows/metamask.yaml` onboards the extension before `launchApp`, with basic functionality off, or the connect prompt never shows. ci passes `--screen-info={3840x2160}` so its popups fit any window.
+- **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet before `launchApp`, with basic functionality off, or the connect prompt never shows. ci passes `--screen-info={3840x2160}` so its popups fit any window.
 
 ## selectors
 

@@ -1,12 +1,9 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- extendedWaitUntil: { visible: { id: onboarding-import-wallet }, timeout: 60000 }
+- extendedWaitUntil: { visible: { id: onboarding-create-wallet }, timeout: 60000 }
 - assertVisible: { css: .riv-animation__wordmark-container--complete } # cspell:ignore wordmark
-- tapOn: { id: onboarding-import-wallet }
-- tapOn: { id: onboarding-import-with-srp-button }
-- tapOn: { id: first-word-input-text-area }
-- inputText: test test test test test test test test test test test junk
-- tapOn: { id: import-srp-confirm }
+- tapOn: { id: onboarding-create-wallet }
+- tapOn: { id: onboarding-create-with-srp-button }
 - tapOn: { id: create-password-new, index: 1 }
 - inputText: exa-e2e-wallet
 - tapOn: { id: create-password-confirm, index: 1 }
@@ -14,6 +11,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { id: create-password-terms }
 - tapOn: { id: create-password-submit }
 - tapOn: { id: passkey-maybe-later-button, optional: true }
+- tapOn: { id: recovery-phrase-remind-later }
 - tapOn: Continue
 - scrollUntilVisible: { element: { id: manage-default-settings } }
 - tapOn: { id: manage-default-settings }
