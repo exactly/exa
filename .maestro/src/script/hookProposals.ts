@@ -1,5 +1,5 @@
 import { encodeDeployData, erc20Abi, formatUnits, keccak256, pad, slice, toBytes, type Address } from "viem";
-import { getAbiItem, isHex, toEventSelector } from "viem/utils";
+import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
   auditorAddress,
@@ -18,10 +18,12 @@ declare const account: string | undefined;
 declare const amount: string | undefined;
 declare const beneficiary: string | undefined;
 declare const count: string | undefined;
+declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
 if (count !== undefined && !(Number.isSafeInteger(Number(count)) && Number(count) > 0)) throw new Error("bad count");
-if (beneficiary !== undefined && !amount) throw new Error("bad amount");
+if (receiver !== undefined && !isAddress(receiver)) throw new Error("bad receiver");
+if ((receiver ?? beneficiary) !== undefined && !amount) throw new Error("bad amount");
 
 const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
 let proposals = pending(account);
@@ -47,18 +49,16 @@ for (const log of logs) {
   const decimals = readContract({ address: log.address, functionName: "decimals", abi: erc20Abi });
   activity(log.address, account, Number(BigInt(log.data)) / 10 ** decimals);
 }
-if (beneficiary !== undefined) {
-  const withdrawn = anvil("eth_getLogs", [
-    {
-      address: usdcAddress,
-      fromBlock,
-      toBlock,
-      topics: [transfer, null, pad(slice(keccak256(toBytes(JSON.stringify(JSON.parse(beneficiary)))), 12))],
-    },
-  ])
-    .map(({ data }) => formatUnits(BigInt(data), 6))
-    .join(", ");
-  if (withdrawn !== amount) throw new Error(`expected ${amount} usdc to ${beneficiary}, got [${withdrawn}]`);
+const to = receiver ?? (beneficiary && slice(keccak256(toBytes(JSON.stringify(JSON.parse(beneficiary)))), 12));
+if (to) {
+  const withdrawn = formatUnits(
+    anvil("eth_getLogs", [{ address: usdcAddress, fromBlock, toBlock, topics: [transfer, null, pad(to)] }]).reduce(
+      (total, { data }) => total + BigInt(data),
+      0n,
+    ),
+    6,
+  );
+  if (withdrawn !== amount) throw new Error(`expected ${amount} usdc to ${receiver ?? beneficiary}, got ${withdrawn}`);
 }
 
 function pending(address: Address) {
