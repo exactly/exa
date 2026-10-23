@@ -18,6 +18,7 @@
     "esbuild": "^0.28.1",
     "eslint": "catalog:",
     "fast-text-encoding": "^1.0.6",
+    "qrcode": "^1.5.4",
     "typescript": "catalog:",
     "viem": "catalog:"
   },
