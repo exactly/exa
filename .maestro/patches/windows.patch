@@ -1,46 +1,53 @@
-From bdcfe6c9b06bb855409dd5d7d4bb1a90e26627a3 Mon Sep 17 00:00:00 2001
+From 3826214cf2bc49a411509fae3c0833d20dfabb16 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:51:54 +0000
-Subject: [PATCH] fix: follow popup and extension windows on web
+Subject: [PATCH] fix: follow popup, extension and browser UI windows on web
 
 detectWindowChange only switches to new window handles, so after a popup closes every later command fails on the closed window, and ChromeDriver hides chrome-extension:// tabs and popups from the handles, so an extension's own windows are never reached. Turn on ChromeDriver's enableExtensionTargets, switch only to page targets (extension service workers and offscreen documents become handles too), and when the current window closes, switch back to the window that opened it.
+
+Popups that are part of the browser UI, such as the panel a browser's built-in wallet opens for a page's request, are browser_ui targets, which ChromeDriver hides too. Turn on its windowTypes for them and follow one while its document is visible. The browser keeps such a target after its popup closes, with the document hidden, so a hidden one counts as closed, and browser UI that stays hidden, such as the omnibox popup, is never followed. ChromeDriver crashes when a window that isn't a tab closes during one of its commands (WebViewImplHolder checks for a page tracker, which only tabs have), and such a popup closes on the click that answers it, so in a browser UI window taps and the current URL go over Maestro's own CDP connection to the target, like scripts and screenshots. The click that answers such a popup can close it before the browser acknowledges the click, so a tap whose window closed counts as done.
 
 The window the session starts in is seen from the start. It used to count as a new window on the first command, so a window opened before then was never followed: both were new at once, and the first one won.
 
 Commands that run while a window closes no longer fail on it: reading the current URL is skipped, and a JS evaluation whose target is gone is retried against the next one.
 ---
- .../main/java/maestro/drivers/CdpWebDriver.kt | 27 ++++++++++++++-----
- 1 file changed, 20 insertions(+), 7 deletions(-)
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 62 ++++++++++++++++---
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 24 +++++++
+ 2 files changed, 77 insertions(+), 9 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..8129536 100644
+index 5220ffc..72bf268 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -63,6 +63,7 @@ class CdpWebDriver(
+@@ -95,6 +95,9 @@ class CdpWebDriver(
      private var seleniumDriver: org.openqa.selenium.WebDriver? = null
      private var maestroWebScript: String? = null
      private var lastSeenWindowHandles = setOf<String>()
 +    private val openerHandles = mutableListOf<String>()
++    private val browserUiHandles = mutableSetOf<String>()
++    private var currentWindow: String? = null
      private var injectedArguments: Map<String, Any> = emptyMap()
  
      private var webScreenRecorder: WebScreenRecorder? = null
-@@ -81,6 +82,7 @@ class CdpWebDriver(
+@@ -113,6 +116,8 @@ class CdpWebDriver(
  
      override fun open() {
          seleniumDriver = createSeleniumDriver()
-+        lastSeenWindowHandles = setOfNotNull(seleniumDriver?.windowHandle)
++        currentWindow = seleniumDriver?.windowHandle
++        lastSeenWindowHandles = setOfNotNull(currentWindow)
  
          try {
              seleniumDriver
-@@ -125,6 +127,7 @@ class CdpWebDriver(
+@@ -157,6 +162,8 @@ class CdpWebDriver(
                  setExperimentalOption("prefs", chromePrefs)
  
                  setExperimentalOption("detach", true)
 +                setExperimentalOption("enableExtensionTargets", true)
++                setExperimentalOption("windowTypes", listOf(BROWSER_UI_TARGET_TYPE))
  
                  if (isHeadless) {
                      addArguments("--headless=new")
-@@ -226,7 +229,10 @@ class CdpWebDriver(
+@@ -260,7 +267,10 @@ class CdpWebDriver(
      private fun isRetryableJsError(e: Exception): Boolean {
          val message = e.message ?: return false
          return message.contains("getContentDescription") ||
@@ -52,49 +59,136 @@ index ad651bb..8129536 100644
      }
  
      private fun scrollToPoint(point: Point): Long {
-@@ -265,6 +271,7 @@ class CdpWebDriver(
+@@ -299,6 +309,9 @@ class CdpWebDriver(
  
          seleniumDriver = null
          lastSeenWindowHandles = setOf()
 +        openerHandles.clear()
++        browserUiHandles.clear()
++        currentWindow = null
          webScreenRecorder = null
      }
  
-@@ -328,7 +335,7 @@ class CdpWebDriver(
+@@ -362,7 +375,7 @@ class CdpWebDriver(
          val rawMap = contentDesc as Map<String, Any>
          val enrichedMap = injectCrossOriginIframes(rawMap)
          val root = parseDomAsTreeNodes(enrichedMap)
 -        seleniumDriver?.currentUrl?.let { url ->
-+        runCatching { seleniumDriver?.currentUrl }.getOrNull()?.let { url ->
++        runCatching { if (inBrowserUi()) runBlocking { currentTarget().url } else seleniumDriver?.currentUrl }.getOrNull()?.let { url ->
              root.attributes["url"] = url
          }
          return root
-@@ -369,12 +376,18 @@ class CdpWebDriver(
+@@ -402,15 +415,32 @@ class CdpWebDriver(
+         // Checks whether there are any new window handles available and, if so, switches Selenium driver focus to it
          val driver = ensureOpen()
  
-         if (lastSeenWindowHandles != driver.windowHandles) {
+-        if (lastSeenWindowHandles != driver.windowHandles) {
 -            val newHandles = driver.windowHandles - lastSeenWindowHandles
-+            val pages = runBlocking { cdpClient.listTargets() }.filter { it.type == PAGE_TARGET_TYPE }.map { it.id }
-+            val newHandles = (driver.windowHandles - lastSeenWindowHandles).filter { it in pages }
-             lastSeenWindowHandles = driver.windowHandles
+-            lastSeenWindowHandles = driver.windowHandles
 -
 -            if (newHandles.isNotEmpty()) {
 -                val newHandle = newHandles.first()
 -                LOGGER.info("Detected a window change, switching to new window handle $newHandle")
-+            val currentHandle = runCatching { driver.windowHandle }.getOrNull()
++        val handles = driver.windowHandles
++        val targets by lazy { runBlocking { cdpClient.listTargets() } }
++        val current = currentWindow?.takeIf { it in handles }
++        val currentHandle = current.takeUnless { handle ->
++            handle in browserUiHandles && targets.none { it.id == handle && isVisible(it) }
++        }
++        if (lastSeenWindowHandles != handles || currentHandle != current) {
++            val windows = targets
++                .filter { it.type == PAGE_TARGET_TYPE || it.type == BROWSER_UI_TARGET_TYPE && isVisible(it) }
++                .associateBy { it.id }
++            val newHandles = (handles - lastSeenWindowHandles).filter { it in windows }
++            lastSeenWindowHandles = handles
 +            if (newHandles.isNotEmpty()) currentHandle?.let { openerHandles.add(it) }
 +            openerHandles.retainAll(lastSeenWindowHandles)
++            browserUiHandles.retainAll(lastSeenWindowHandles)
 +
 +            val newHandle = newHandles.firstOrNull()
-+                ?: (openerHandles.lastOrNull() ?: lastSeenWindowHandles.firstOrNull()).takeIf { currentHandle == null }
++                ?: (openerHandles.lastOrNull() ?: lastSeenWindowHandles.firstOrNull { windows[it]?.type == PAGE_TARGET_TYPE })
++                    .takeIf { currentHandle == null }
 +            if (newHandle != null) {
 +                openerHandles.remove(newHandle)
++                if (windows[newHandle]?.type == BROWSER_UI_TARGET_TYPE) browserUiHandles.add(newHandle)
 +                LOGGER.info("Detected a window change, switching to window handle $newHandle")
  
                  driver.switchTo().window(newHandle)
++                currentWindow = newHandle
  
-
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+                 try {
+                     webScreenRecorder?.onWindowChange()
+@@ -424,6 +454,11 @@ class CdpWebDriver(
+         }
+     }
+ 
++    private fun inBrowserUi() = currentWindow in browserUiHandles
++
++    private fun isVisible(target: CdpTarget) =
++        runCatching { runBlocking { cdpClient.evaluate("document.visibilityState", target) } }.getOrNull() == "\"visible\""
++
+     override fun clearAppState(appId: String) {
+         ensureOpen()
+ 
+@@ -468,7 +503,15 @@ class CdpWebDriver(
+ 
+         val pixelsScrolled = scrollToPoint(point)
+ 
++        val browserUiTarget = if (inBrowserUi()) runBlocking { currentTarget() } else null
+         for (type in listOf("mouseMoved", "mousePressed", "mouseReleased")) {
++            if (browserUiTarget != null) {
++                runBlocking {
++                    runCatching { cdpClient.dispatchMouseEvent(type, point.x, point.y - pixelsScrolled.toInt(), browserUiTarget) }
++                        .onFailure { if (cdpClient.listTargets().any { it.id == browserUiTarget.id && isVisible(it) }) throw it }
++                }
++                continue
++            }
+             driver.executeCdpCommand(
+                 "Input.dispatchMouseEvent",
+                 mapOf(
+@@ -960,6 +1003,7 @@ class CdpWebDriver(
+         // The only /json target type that is a real tab; everything else is a browser surface,
+         // an extension worker or an iframe.
+         private const val PAGE_TARGET_TYPE = "page"
++        private const val BROWSER_UI_TARGET_TYPE = "browser_ui"
+ 
+         private val BROWSER_INTERNAL_URL_SCHEMES =
+             listOf("chrome://", "chrome-untrusted://", "chrome-extension://", "devtools://")
+diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+index c8c5ed1..7541a2a 100644
+--- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
++++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+@@ -159,6 +159,30 @@ class CdpClient(
+         }
+     }
+ 
++    suspend fun dispatchMouseEvent(type: String, x: Int, y: Int, target: CdpTarget) {
++        val messageId = idCounter.getAndIncrement()
++        val button = if (type == "mouseMoved") "none" else "left"
++        val payload = """
++            {
++                "id": $messageId,
++                "method": "Input.dispatchMouseEvent",
++                "params": {
++                    "type": "$type",
++                    "x": $x,
++                    "y": $y,
++                    "button": "$button",
++                    "clickCount": 1
++                }
++            }
++        """.trimIndent()
++
++        withSession(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) { session ->
++            session.send(Frame.Text(payload))
++
++            session.waitForMessage(messageId)
++        }
++    }
++
+     suspend fun openUrl(url: String, target: CdpTarget) {
+         // Send a CDP command to open a new tab with the specified URL
+         val messageId = idCounter.getAndIncrement()
 -- 
 2.43.0
 
