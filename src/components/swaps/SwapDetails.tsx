@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { XStack, YStack } from "tamagui";
 
+import estimate from "../../utils/estimate";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
@@ -18,7 +19,7 @@ export default function SwapDetails({
   networkFeeUSD,
   duration,
 }: {
-  duration?: number;
+  duration?: null | number;
   exchange: string;
   exchangeRate: number;
   fee?: number;
@@ -65,9 +66,13 @@ export default function SwapDetails({
             <Text caption color="$uiNeutralSecondary">
               {t("Estimated time")}
             </Text>
-            <Text caption color="$uiNeutralPrimary">
-              {t("~{{minutes}} min", { minutes: Math.max(1, Math.round(duration / 60)) })}
-            </Text>
+            {duration === null ? (
+              <Skeleton width={60} height={17} />
+            ) : (
+              <Text caption color="$uiNeutralPrimary">
+                {t("~{{minutes}} min", { minutes: estimate(duration).minutes })}
+              </Text>
+            )}
           </XStack>
         )}
         <XStack justifyContent="space-between">

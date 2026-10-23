@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ArrowDown, X } from "@tamagui/lucide-icons-2";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
+import estimate from "../../utils/estimate";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
@@ -24,8 +25,10 @@ export default function Pending({
   toAmount,
   toToken,
   network,
+  duration,
   onClose,
 }: {
+  duration?: number;
   fromAmount: bigint;
   fromToken: Token;
   fromUsdAmount: number;
@@ -70,7 +73,12 @@ export default function Pending({
               </Text>
               {network ? (
                 <Text footnote secondary textAlign="center">
-                  {t("Funds are on their way to {{network}}. This can take a few minutes.", { network })}
+                  {duration
+                    ? t("Funds are on their way to {{network}}. This can take ~{{minutes}} min.", {
+                        network,
+                        minutes: estimate(duration).minutes,
+                      })
+                    : t("Funds are on their way to {{network}}. This can take a few minutes.", { network })}
                 </Text>
               ) : null}
               <Text title primary color="$uiNeutralPrimary">

@@ -34,6 +34,7 @@ import { WAD } from "@exactly/lib";
 
 import { estimateCalls } from "../../utils/accountClient";
 import ensOptions, { ensName } from "../../utils/ensOptions";
+import estimate from "../../utils/estimate";
 import executionOptions from "../../utils/executionOptions";
 import { presentArticle } from "../../utils/intercom";
 import {
@@ -582,7 +583,7 @@ export default function Confirm() {
     (routed && !route) || (market && proposalDelay === undefined)
       ? undefined
       : (routed && route ? route.estimate.executionDuration : 0) + (market ? Number(proposalDelay) : 0);
-  const arrivalMinutes = arrival === undefined ? undefined : Math.max(1, Math.ceil(arrival / 60));
+  const arrivalEstimate = arrival === undefined ? undefined : estimate(arrival);
   const destinationFailure = routed && !destination && !isTokensFetching;
   const transient =
     !!routeError &&
@@ -849,11 +850,11 @@ export default function Confirm() {
                       </>
                     )}
                     <Detail label={t("Estimated arrival")}>
-                      {arrivalMinutes === undefined ? (
+                      {arrivalEstimate === undefined ? (
                         <Skeleton width={60} height={21} />
                       ) : (
                         <Text subHeadline primary>
-                          {t("~{{minutes}} min", { minutes: arrivalMinutes })}
+                          {t("~{{minutes}} min", { minutes: arrivalEstimate.minutes })}
                         </Text>
                       )}
                     </Detail>
@@ -1176,11 +1177,11 @@ export default function Confirm() {
                             : t("Delivering on {{network}}", { network: networkName })}
               </Text>
             )}
-            {routed && processing && arrivalMinutes !== undefined && (
+            {routed && processing && arrivalEstimate !== undefined && (
               <Text caption secondary textAlign="center">
-                {now - submittedAt > arrivalMinutes * 120_000
+                {now - submittedAt > arrivalEstimate.minutes * 120_000
                   ? t("Taking longer than expected. You can close this screen safely.")
-                  : t("Estimated arrival ~{{minutes}} min", { minutes: arrivalMinutes })}
+                  : t("Estimated arrival ~{{minutes}} min", { minutes: arrivalEstimate.minutes })}
               </Text>
             )}
           </YStack>

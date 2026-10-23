@@ -367,6 +367,7 @@
   "Funding request sent": "Solicitud de financiamiento enviada",
   "Funds added": "Fondos agregados",
   "Funds are on their way to {{network}}. This can take a few minutes.": "Los fondos están en camino a {{network}}. Puede tardar unos minutos.",
+  "Funds are on their way to {{network}}. This can take ~{{minutes}} min.": "Los fondos están en camino a {{network}}. Puede tardar ~{{minutes}} min.",
   "Funds delivered on {{network}}": "Fondos entregados en {{network}}",
   "Funds refunded to your account": "Fondos devueltos a tu cuenta",
   "Get benefit": "Obtener beneficio",

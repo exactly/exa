@@ -485,6 +485,7 @@ export default function Swaps() {
   const {
     request: swapPropose,
     error: swapExecuteProposalError,
+    delay: proposalDelay,
     isPending: isSimulatingSwap,
   } = useSimulateProposal({
     account,
@@ -683,6 +684,14 @@ export default function Swaps() {
     value: routed ? (route?.value ?? 0n) : undefined,
   });
 
+  const duration =
+    route &&
+    (fromToken?.external
+      ? route.estimate.executionDuration
+      : proposalDelay === undefined
+        ? undefined
+        : route.estimate.executionDuration + Number(proposalDelay));
+
   const resultRef = useRef<{
     duration?: number;
     fromAmount: bigint;
@@ -720,7 +729,7 @@ export default function Swaps() {
     },
     onMutate() {
       resultRef.current = {
-        duration: route?.estimate.executionDuration,
+        duration,
         fromAmount,
         fromToken: fromToken?.token,
         networkFeeUSD,
@@ -1162,7 +1171,11 @@ export default function Swaps() {
                       fromToken={fromToken.token}
                       toToken={toToken.token}
                       networkFeeUSD={networkFeeUSD}
-                      duration={crossChain ? route.estimate.executionDuration : undefined}
+                      duration={
+                        crossChain || !fromToken.external
+                          ? (duration ?? (isInsufficientBalance ? undefined : null))
+                          : undefined
+                      }
                     />
                   )}
                 </YStack>
@@ -1352,6 +1365,7 @@ export default function Swaps() {
         <Pending
           {...properties}
           network={crossChain ? networkName : undefined}
+          duration={resultRef.current.duration}
           onClose={() => {
             onClose();
           }}
