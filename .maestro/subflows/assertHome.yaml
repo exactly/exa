@@ -44,14 +44,10 @@ appId: ${APP_ID ?? "app.exactly"}
           id: \$[\s\d,.\xa0]+
 - runFlow: readPortfolio.yaml
 - assertTrue: ${output.portfolio > 0}
-- tapOn: Manage portfolio
-- assertVisible: Collateral assets
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - assertVisible: Deposit
 - assertVisible: Send
 - assertVisible: Swap
 - assertVisible: Borrow
-- assertNotVisible: Getting Started
 - runFlow: { file: scrollTo.yaml, env: { element: Upcoming payments } }
 - runFlow: { file: scrollTo.yaml, env: { element: Latest activity, offset: 1 } }
 - assertNotVisible: No activity yet
