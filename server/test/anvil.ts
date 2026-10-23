@@ -133,15 +133,6 @@ export default async function setup() {
 
   await $(shell)`forge script test/mocks/Mocks.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
-  shell.env.SWAPPER_ADDRESS = parse(
-    object({
-      transactions: tuple([
-        object({ contractName: literal("MockVelodromeFactory"), contractAddress: Address }),
-        object({ contractName: literal("MockSwapper"), contractAddress: Address }),
-      ]),
-    }),
-    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Mocks.s.sol/31337/run-latest.json", "utf8")),
-  ).transactions[1].contractAddress;
 
   await $(shell)`forge script test/mocks/Account.s.sol
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
