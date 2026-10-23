@@ -91,6 +91,11 @@ export default function anvil(
   network?: string,
 ): `0x${string}`;
 export default function anvil(
+  method: "eth_getCode",
+  params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
+  network?: string,
+): Hex;
+export default function anvil(
   method: "eth_getLogs",
   params: readonly [filter: { address?: Address; fromBlock?: Hex; toBlock?: Hex; topics?: (Hex | Hex[] | null)[] }],
   network?: string,

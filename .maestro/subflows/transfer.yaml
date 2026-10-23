@@ -5,7 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - runFlow:
     file: send.yaml
-    env: { asset: USDC, to: "0x000000000000000000000000000000000000dEaD", amount: "69" }
+    env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "69" }
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Send to

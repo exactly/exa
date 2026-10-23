@@ -50,8 +50,11 @@ appId: ${APP_ID ?? "app.exactly"}
       - hideKeyboard
       - tapOn: Continue
 - assertVisible: Select asset to send
-- runFlow: { file: tapAria.yaml, env: { aria: Select network } }
-- tapOn: { text: Anvil, below: All networks }
+- runFlow:
+    when: { true: "${!!network}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Select network } }
+      - tapOn: { text: "${network}", below: All networks }
 - tapOn: Search assets
 - inputText: ${asset}
 - runFlow:
@@ -87,9 +90,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!!pay && pay !== asset && !output.swapSheet}" }
     commands:
-      - assertVisible: Swap assets
+      - assertVisible: "${destination ? 'Swap across networks' : 'Swap assets'}"
       - tapOn: Continue
-      - assertNotVisible: Swap assets
+      - assertNotVisible: "${destination ? 'Swap across networks' : 'Swap assets'}"
       - evalScript: ${output.swapSheet = true}
 - assertVisible: Review and send
 - runFlow:
@@ -106,10 +109,16 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!pay}" }
     commands: [{ assertVisible: Sent to .* }]
+- runFlow:
+    when: { true: "${!!destination}" }
+    commands:
+      - runScript:
+          file: ../dist/bridge.js
+          env: { destination: "${destination}", to: "${to}", amount: "${amount}" }
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}
+- assertTrue: ${!!destination || output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}

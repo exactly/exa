@@ -5,4 +5,12 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: EXA, to: "${output.account}", amount: "1000" }
 - runFlow:
     file: send.yaml
-    env: { asset: USDC, to: "0x000000000000000000000000000000000000dEaD", amount: "5", pay: EXA }
+    env: { asset: USDC.e, destination: Anvil2, to: "${output.account}", amount: "5", pay: EXA }
+- repeat:
+    times: 20
+    while: { true: "${output.portfolioBefore - output.portfolio <= 0 || output.portfolioBefore - output.portfolio >= 1}" }
+    commands: [{ tapOn: Home }, { runFlow: readPortfolio.yaml }]
+- assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
+- runScript:
+    file: ../dist/awaitDeployment.js
+    env: { account: "${output.account}", network: Anvil2 }
