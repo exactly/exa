@@ -1,19 +1,31 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- waitForAnimationToEnd
-- copyTextFrom:
-    text: "[A-Z].+"
-    below: Upcoming payments
-    index: 0
-- evalScript: ${output.maturity = maestro.copiedText}
-- copyTextFrom:
-    text: \$[\d,.]+
-    below: Upcoming payments
-    index: 0
-- evalScript: ${output.debt = Number(maestro.copiedText.slice(1).split(",").join(""))}
-- tapOn: { text: "${output.maturity}", below: Upcoming payments }
-- waitForAnimationToEnd
-- tapOn: Pay
+- tapOn: { text: Payments, index: -1 }
+- runFlow:
+    when: { true: "${sheet}" }
+    commands:
+      - runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", center: true } }
+      - copyTextFrom:
+          text: "[A-Z].+"
+          below: Upcoming payments
+          index: 0
+      - evalScript: ${output.maturity = maestro.copiedText}
+      - copyTextFrom:
+          text: \$[\d,.]+
+          below: Upcoming payments
+          index: 0
+      - evalScript: ${output.debt = Number(maestro.copiedText.slice(1).split(",").join(""))}
+      - tapOn: { text: "${output.maturity}", below: Upcoming payments }
+      - waitForAnimationToEnd
+      - tapOn: { text: Pay, index: -1 }
+- runFlow:
+    when: { true: "${!sheet}" }
+    commands:
+      - copyTextFrom:
+          text: "[A-Z][a-z]+ \\d+, \\d{4} - .+"
+          below: Due in .+
+      - evalScript: ${output.maturity = maestro.copiedText}
+      - tapOn: { text: Pay, leftOf: Rollover }
 - runFlow:
     when: { true: "${amount}" }
     commands:
@@ -37,18 +49,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
-- waitForAnimationToEnd
-- runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", offset: 1, center: true } }
+- tapOn: Payments
 - runFlow:
     when: { true: "${!amount}" }
     commands: [{ assertNotVisible: "${output.maturity}" }]
 - runFlow:
     when: { true: "${amount}" }
     commands:
-      - assertVisible: "${output.maturity}"
-      - copyTextFrom:
-          text: \$[\d,.]+
+      - assertVisible:
+          text: \$(${[-0.01, 0, 0.01].map((delta) => (output.debt - Number(amount) + delta).toFixed(2)).join("|")})
           below: Upcoming payments
-          index: 0
-      - evalScript: ${output.newDebt = Number(maestro.copiedText.slice(1).split(",").join(""))}
-      - assertTrue: ${Math.abs(output.debt - output.newDebt - Number(amount)) < 0.02}
