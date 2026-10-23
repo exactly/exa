@@ -1,0 +1,8 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    file: mint.yaml
+    env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runFlow:
+    file: send.yaml
+    env: { asset: ETH, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "25", pay: ETH }

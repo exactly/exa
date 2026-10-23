@@ -1,11 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- runFlow:
-    file: mint.yaml
-    env: { asset: ETH, to: "${output.account}", amount: "0.1" }
-- runFlow:
-    file: send.yaml
-    env: { asset: ETH, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "25", pay: ETH }
 - tapOn: Manage portfolio
 - assertVisible: Collateral assets
 - tapOn: Collateral
@@ -25,6 +19,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Sell
 - runFlow: { file: tapAria.yaml, env: { aria: Send } }
 - assertVisible: Send to
+- runFlow:
+    when: { true: "${!output.introSheet}" }
+    commands:
+      - tapOn: Turn it on
+      - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
+      - assertVisible: Advanced mode on.
+      - evalScript: ${output.introSheet = output.advanced = true}
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: scrollTo.yaml, env: { element: Balance } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
