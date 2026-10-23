@@ -853,7 +853,7 @@ export default function Confirm() {
                       {arrivalEstimate === undefined ? (
                         <Skeleton width={60} height={21} />
                       ) : (
-                        <Text subHeadline primary>
+                        <Text subHeadline color={arrivalEstimate.slow ? "$uiWarningSecondary" : "$uiNeutralPrimary"}>
                           {t("~{{minutes}} min", { minutes: arrivalEstimate.minutes })}
                         </Text>
                       )}

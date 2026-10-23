@@ -69,7 +69,7 @@ export default function SwapDetails({
             {duration === null ? (
               <Skeleton width={60} height={17} />
             ) : (
-              <Text caption color="$uiNeutralPrimary">
+              <Text caption color={estimate(duration).slow ? "$uiWarningSecondary" : "$uiNeutralPrimary"}>
                 {t("~{{minutes}} min", { minutes: estimate(duration).minutes })}
               </Text>
             )}
