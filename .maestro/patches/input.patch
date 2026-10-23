@@ -1,26 +1,89 @@
-From f3aaaaeeebb6e0691b5daf825af51bc923d7455e Mon Sep 17 00:00:00 2001
+From cb93d12a394a284e9884547eea167599fee758bc Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
-Date: Wed, 21 Oct 2026 23:45:06 +0000
+Date: Fri, 23 Oct 2026 16:56:35 +0000
 Subject: [PATCH] fix: type into the focused element on web
 
-inputText sends every key to the element that was focused when the command started, so it fails with a stale element as soon as the page replaces that element while typing (an input that turns each typed word into a chip and focuses a new input). Send each key to the element focused at that moment, like a keyboard does.
+inputText resolves the focused element through ChromeDriver once and sends every key to it. That fails with a stale element as soon as the page replaces that element while typing (an input that turns each typed word into a chip and focuses a new input). It also fails on a page that locks down its globals before ChromeDriver attaches to its tab, such as an extension page under LavaMoat scuttling: ChromeDriver's saved copy of `window.Window` stays unset, so every element it returns falls back to the locked global and throws ("property \"Window\" of globalThis is inaccessible under scuttling mode"). Send the key events ChromeDriver sends for each character straight through CDP instead: they reach the element focused at that moment and run no page script. Characters keep ChromeDriver's US layout code, key code and Shift press, a newline is an Enter press, a tab a Tab press, a backspace a Backspace press, and a carriage return types nothing. Other characters go as their text, one code point at a time, so characters outside the BMP arrive whole. Date inputs keep their direct value path, inside a focused iframe too.
 ---
- maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 58 +++++++++++++++----
+ 1 file changed, 48 insertions(+), 10 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..a042fba 100644
+index ad651bb..1db4a0d 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -569,7 +569,7 @@ class CdpWebDriver(
-             }
+@@ -51,6 +51,36 @@ import java.util.logging.Logger
  
-             for (c in text.toCharArray()) {
+ 
+ private const val SYNTHETIC_COORDINATE_SPACE_OFFSET = 100000
++private const val SHIFT = 8
++
++// CDP key events ChromeDriver sends to type each character, on a US layout
++private val SHIFT_KEY = mapOf("key" to "Shift", "code" to "ShiftLeft", "windowsVirtualKeyCode" to 16)
++private val KEY_EVENTS: Map<String, Map<String, Any>> = buildMap {
++    val keys = ('a'..'z').map { Triple("$it${it.uppercaseChar()}", "Key${it.uppercaseChar()}", it.uppercaseChar().code) } +
++        "0123456789".zip(")!@#\$%^&*(").map { (digit, symbol) -> Triple("$digit$symbol", "Digit$digit", digit.code) } +
++        listOf(
++            Triple(" ", "Space", 32),
++            Triple("`~", "Backquote", 192),
++            Triple("-_", "Minus", 189),
++            Triple("=+", "Equal", 187),
++            Triple("[{", "BracketLeft", 219),
++            Triple("]}", "BracketRight", 221),
++            Triple("\\|", "Backslash", 220),
++            Triple(";:", "Semicolon", 186),
++            Triple("'\"", "Quote", 222),
++            Triple(",<", "Comma", 188),
++            Triple(".>", "Period", 190),
++            Triple("/?", "Slash", 191),
++        )
++    for ((chars, code, keyCode) in keys) {
++        for (c in chars) {
++            put("$c", mapOf("key" to "$c", "code" to code, "windowsVirtualKeyCode" to keyCode, "text" to "$c", "modifiers" to if (c == chars[0]) 0 else SHIFT))
++        }
++    }
++    put("\n", mapOf("key" to "Enter", "code" to "Enter", "windowsVirtualKeyCode" to 13, "text" to "\r"))
++    put("\t", mapOf("key" to "Tab", "code" to "Tab", "windowsVirtualKeyCode" to 9))
++    put("\b", mapOf("key" to "Backspace", "code" to "Backspace", "windowsVirtualKeyCode" to 8))
++}
+ 
+ class CdpWebDriver(
+     val isStudio: Boolean,
+@@ -562,16 +592,24 @@ class CdpWebDriver(
+     }
+ 
+     override fun inputText(text: String) {
+-        withActiveElement { element ->
+-            val jsExecutor = ensureOpen() as JavascriptExecutor
+-            if (element.isHtmlDateInput() && jsExecutor.inputHtmlDate(element, text)) {
+-                return@withActiveElement
+-            }
+-
+-            for (c in text.toCharArray()) {
 -                element.sendKeys("$c")
-+                ensureOpen().switchTo().activeElement().sendKeys("$c")
-                 sleep(random(20, 100).toLong())
-             }
+-                sleep(random(20, 100).toLong())
+-            }
++        val driver = ensureOpen() as ChromeDriver
++
++        if (executeJS("document.activeElement?.type === 'date' || document.activeElement?.localName === 'iframe'") == true) {
++            var filled = false
++            withActiveElement { element -> filled = element.isHtmlDateInput() && driver.inputHtmlDate(element, text) }
++            if (filled) return
++        }
++
++        // ChromeDriver types nothing for a carriage return
++        text.replace("\r", "").codePoints().forEach { codePoint ->
++            val c = Character.toString(codePoint)
++            val key = KEY_EVENTS[c] ?: mapOf("key" to c, "text" to c)
++            val shift = key["modifiers"] == SHIFT
++            if (shift) driver.executeCdpCommand("Input.dispatchKeyEvent", SHIFT_KEY + ("type" to "rawKeyDown"))
++            driver.executeCdpCommand("Input.dispatchKeyEvent", key + ("type" to if ("text" in key) "keyDown" else "rawKeyDown"))
++            driver.executeCdpCommand("Input.dispatchKeyEvent", key - "text" + ("type" to "keyUp"))
++            if (shift) driver.executeCdpCommand("Input.dispatchKeyEvent", SHIFT_KEY + ("type" to "keyUp"))
++            sleep(random(20, 100).toLong())
          }
+     }
+ 
 -- 
 2.43.0
 
