@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.23
+
+### Patch Changes
+
+- [#1570](https://github.com/exactly/exa/pull/1570) [`2519c72`](https://github.com/exactly/exa/commit/2519c728f239bd1ed0fd0e96e9dee7f34d61ddd2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 pick panda certificate by chain
+
 ## 0.0.22
 
 ### Patch Changes

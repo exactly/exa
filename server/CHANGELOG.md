@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.131
+
+### Patch Changes
+
+- [#1558](https://github.com/exactly/exa/pull/1558) [`c600531`](https://github.com/exactly/exa/commit/c600531881a6a50a322a6b1c4b376f3a347fb61e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ♻️ fetch lifi tokens from codegen url
+
+- [#1545](https://github.com/exactly/exa/pull/1545) [`7b414c5`](https://github.com/exactly/exa/commit/7b414c52bda7b6d4dfe6189a11d548ff25241e2f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 expose user country header cross-origin
+
 ## 0.2.130
 
 ### Patch Changes

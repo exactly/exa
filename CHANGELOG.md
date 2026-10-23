@@ -1,5 +1,45 @@
 # @exactly/mobile
 
+## 1.2.38
+
+### Patch Changes
+
+- [#1552](https://github.com/exactly/exa/pull/1552) [`0db4dda`](https://github.com/exactly/exa/commit/0db4ddabf8774bea2a8d443f6d1ef3853361ad77) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix send arrival estimate
+
+- [#1516](https://github.com/exactly/exa/pull/1516) [`a4af998`](https://github.com/exactly/exa/commit/a4af998c4a98e61fdd8cf120eeb61ff8ed6bcb12) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix amount input parsing
+
+- [#1528](https://github.com/exactly/exa/pull/1528) [`100f35d`](https://github.com/exactly/exa/commit/100f35dbfd3aff94b2bf5e69d2984e8acfffe276) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 wait for fresh reads before simulating
+
+- [#1548](https://github.com/exactly/exa/pull/1548) [`44f2750`](https://github.com/exactly/exa/commit/44f2750a911034d025e28f4651bbc3d6cb8e3866) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ show apr on collateral rows
+
+- [#1432](https://github.com/exactly/exa/pull/1432) [`1d764b4`](https://github.com/exactly/exa/commit/1d764b4353d98d7124fa443b88a6184e14b8e0ee) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 pin repay footer on short screens
+
+- [#1552](https://github.com/exactly/exa/pull/1552) [`4011171`](https://github.com/exactly/exa/commit/40111710ba7c1eb74be585d9367f125586727db6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 estimate swap time with proposal delay
+
+- [#1554](https://github.com/exactly/exa/pull/1554) [`d854323`](https://github.com/exactly/exa/commit/d85432345ff7e9f347ce31daae280c3930a21e9e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix dropped keys in select sheet search
+
+- [#1574](https://github.com/exactly/exa/pull/1574) [`056ba33`](https://github.com/exactly/exa/commit/056ba33ecf9a85c29b37599f53798f7b936a2622) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 reword home empty states
+
+- [#1552](https://github.com/exactly/exa/pull/1552) [`5169e7a`](https://github.com/exactly/exa/commit/5169e7ad515f94ce970f688af99b74804c011ddb) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 warn on slow arrival estimates
+
+- [#1432](https://github.com/exactly/exa/pull/1432) [`911c244`](https://github.com/exactly/exa/commit/911c24483634d7d31e37d1bf36e8fc0edf6961de) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 scroll rollover intro on short screens
+
+- [#1503](https://github.com/exactly/exa/pull/1503) [`0b8643a`](https://github.com/exactly/exa/commit/0b8643a0778c32c0b0cd915f8b3222900a2ec4ec) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep repay slider off amount input
+
+- [#1433](https://github.com/exactly/exa/pull/1433) [`52acfe2`](https://github.com/exactly/exa/commit/52acfe2a475163140940e4c7b2f0f1edc337c92d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fall back to sponsored user operations
+
+- [#1521](https://github.com/exactly/exa/pull/1521) [`3ff033f`](https://github.com/exactly/exa/commit/3ff033f0bedbdc051e52ac12a371b3e8c16ba25c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 close deposit address in one tap
+
+- [#1516](https://github.com/exactly/exa/pull/1516) [`0272471`](https://github.com/exactly/exa/commit/02724718beb84643f284d5e3a62a749c69b7a61a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 select calculator amount on focus
+
+- [#1540](https://github.com/exactly/exa/pull/1540) [`f67c927`](https://github.com/exactly/exa/commit/f67c927219994c93733294d1b717123c5d2384ad) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 fix tiny installment amounts
+
+- [#1512](https://github.com/exactly/exa/pull/1512) [`14cc43f`](https://github.com/exactly/exa/commit/14cc43fe8abaed3bddac4aec697ce0a1545b9f57) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 select repay amount on focus
+
+- Updated dependencies [[`c600531`](https://github.com/exactly/exa/commit/c600531881a6a50a322a6b1c4b376f3a347fb61e), [`7b414c5`](https://github.com/exactly/exa/commit/7b414c52bda7b6d4dfe6189a11d548ff25241e2f), [`2519c72`](https://github.com/exactly/exa/commit/2519c728f239bd1ed0fd0e96e9dee7f34d61ddd2)]:
+  - @exactly/server@0.2.131
+  - @exactly/common@0.0.23
+
 ## 1.2.37
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @exactly/docs
 
+## 0.1.6
+
+### Patch Changes
+
+- [#1538](https://github.com/exactly/exa/pull/1538) [`be6bbeb`](https://github.com/exactly/exa/commit/be6bbeb59ae58437b1f347225fd414b1d7e5a609) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📝 add page descriptions
+
 ## 0.1.5
 
 ### Patch Changes
