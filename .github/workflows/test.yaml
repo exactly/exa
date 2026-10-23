@@ -159,7 +159,7 @@ jobs:
           path: ${{ runner.temp }}/profile
           key: metamask-${{ env.METAMASK_VERSION }}-${{ hashFiles('.maestro/**/metamask.yaml') }}
       - if: matrix.method == 'siwe' && steps.metamask.outputs.cache-hit != 'true'
-        run: maestro test .maestro/flows/web/metamask.yaml --headless --screen-size 1920x1080 --browser-args=--force-prefers-reduced-motion --browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"
+        run: maestro test .maestro/subflows/metamask.yaml -e APP_ID=http://localhost:8081 --platform web --headless --screen-size 1920x1080 --browser-args=--force-prefers-reduced-motion --browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"
       - if: matrix.method == 'siwe' && steps.metamask.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
@@ -171,7 +171,7 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $(cat server.pid); } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
+          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/${{ matrix.flow }}.yaml -e APP_ID=http://localhost:8081 -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --platform web --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true

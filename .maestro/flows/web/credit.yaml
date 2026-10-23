@@ -1,5 +1,0 @@
-url: http://localhost:8081
----
-- runFlow:
-    file: ../credit.yaml
-    env: { APP_ID: "${APP_ID ?? 'http://localhost:8081'}" }
