@@ -125,6 +125,7 @@ export default function anvil(
   params: readonly [account: Address, balance: string],
   network?: string,
 ): void;
+export default function anvil(method: "evm_mine", params: readonly [timestamp: number], network?: string): void;
 export default function anvil(method: string, params: readonly unknown[], network?: string) {
   const url = network
     ? (

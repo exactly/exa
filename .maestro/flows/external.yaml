@@ -44,6 +44,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
-- runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
+- runScript:
+    file: ../dist/passMaturity.js
+    env: { account: "${output.account}" }
+- runFlow: { file: ../subflows/repay.yaml, env: { external: USDT, overdue: "true" } }
 - tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
