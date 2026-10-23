@@ -2,7 +2,10 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
     when: { true: "${maestro.platform == 'web' && method === 'siwe'}" }
-    file: metamask.yaml
+    commands:
+      - tapOn: Enter your password
+      - inputText: exa-e2e-wallet
+      - tapOn: { id: unlock-submit }
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - runFlow: hideDevtools.yaml
 - runFlow: signIn.yaml

@@ -105,6 +105,7 @@ jobs:
       NX_MAX_CACHE_SIZE: 1GB
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
       CHAIN_ID: "31337"
+      METAMASK_VERSION: 13.52.0
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0, fetch-tags: true }
@@ -130,7 +131,7 @@ jobs:
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - if: matrix.method == 'siwe'
         run: |
-          curl -fsSLo $RUNNER_TEMP/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v13.52.0/metamask-chrome-13.52.0.zip
+          curl -fsSLo $RUNNER_TEMP/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v$METAMASK_VERSION/metamask-chrome-$METAMASK_VERSION.zip
           unzip -q $RUNNER_TEMP/metamask.zip -d $RUNNER_TEMP/metamask
           echo METAMASK=$RUNNER_TEMP/metamask >> "$GITHUB_ENV"
           echo SE_FORCE_BROWSER_DOWNLOAD=true >> "$GITHUB_ENV"
@@ -141,15 +142,28 @@ jobs:
       - if: hashFiles(format('.maestro/generated/{0}.y4m', matrix.flow)) != ''
         run: echo CAMERA=$PWD/.maestro/generated/${{ matrix.flow }}.y4m >> "$GITHUB_ENV"
       - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
+      - run: GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 & echo $! > server.pid
+        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
+      - if: matrix.method == 'siwe'
+        id: metamask
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/profile
+          key: metamask-${{ env.METAMASK_VERSION }}-${{ hashFiles('.maestro/**/metamask.yaml') }}
+      - if: matrix.method == 'siwe' && steps.metamask.outputs.cache-hit != 'true'
+        run: maestro test .maestro/flows/web/metamask.yaml --headless --screen-size 1920x1080 --browser-args=--force-prefers-reduced-motion --browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"
+      - if: matrix.method == 'siwe' && steps.metamask.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/profile
+          key: ${{ steps.metamask.outputs.cache-primary-key }}
       - run: |
-          GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && curl -f http://localhost:8081 > /dev/null 2>&1 && break
-            { [ $i -eq 420 ] || ! kill -0 $!; } && cat server.log && exit 1
+            { [ $i -eq 420 ] || ! kill -0 $(cat server.pid); } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
-        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
+          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
