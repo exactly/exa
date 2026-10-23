@@ -44,6 +44,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
+- tapOn: Payments
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
 - tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
