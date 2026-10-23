@@ -7,6 +7,8 @@ import { SplashScreen, useRouter, useUnstableGlobalHref } from "expo-router";
 import { ExternalLink } from "@tamagui/lucide-icons-2";
 import { YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
+
 import domain from "@exactly/common/domain";
 
 import Image from "./Image";
@@ -15,12 +17,16 @@ import Button from "./StyledButton";
 import Text from "./Text";
 import errorImage from "../../assets/images/error.webp";
 import openBrowser from "../../utils/openBrowser";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+
+import type { Credential } from "@exactly/common/validation";
 
 export default function NotFound() {
   const { t } = useTranslation();
   const router = useRouter();
   const href = useUnstableGlobalHref();
+  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(reportError);
@@ -65,7 +71,8 @@ export default function NotFound() {
         )}
         <Pressable
           onPress={() => {
-            router.replace("/");
+            queryClient.removeQueries({ queryKey: ["deeplink"] });
+            router.replace(credential ? "/(main)/(home)" : "/(auth)");
           }}
         >
           <Text emphasized footnote centered color="$interactiveBaseBrandDefault">
