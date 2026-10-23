@@ -85,7 +85,7 @@ export default function EditRecipient() {
         duration: 2000,
         burntOptions: { haptic: "success", preset: "done" },
       });
-      router.replace({ pathname: "/send-funds/recipients", params: { currency, provider } });
+      router.dismissTo({ pathname: "/send-funds/recipients", params: { currency, provider } });
     },
     onError: (error) => {
       const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
