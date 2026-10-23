@@ -14,6 +14,7 @@ auditConfig:
     - GHSA-h67p-54hq-rp68
     - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
     - GHSA-mh99-v99m-4gvg
+    - GHSA-mrhx-c7xc-m3w5 # cspell:ignore mrhx
     - GHSA-r28c-9q8g-f849
     - GHSA-rgw5-rvv9-x895
     - GHSA-vcc3-ghjq-m6fr # cspell:ignore ghjq
