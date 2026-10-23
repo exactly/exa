@@ -4,10 +4,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Submit coverage
 - runFlow:
     when: { platform: android }
-    commands: [{ assertVisible: Finished }, { tapOn: Back }]
+    commands: [{ assertVisible: Finished }]
 - runFlow:
     when: { platform: ios }
-    commands: [{ assertVisible: "Submit coverage, Finished" }, { tapOn: Back }]
+    commands: [{ assertVisible: "Submit coverage, Finished" }]
 - runFlow:
     when: { platform: web }
-    commands: [{ assertVisible: { id: Finished } }, { tapOn: { id: Back } }]
+    commands: [{ assertVisible: { id: Finished } }]
