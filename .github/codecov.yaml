@@ -12,6 +12,7 @@ component_management:
     - { component_id: app, paths: [src/**, "*.ts"] }
     - { component_id: common, paths: [common/**] }
     - { component_id: contracts, paths: [contracts/**] }
+    - { component_id: e2e, flag_regexes: [^(web|ios|android)] }
     - { component_id: server, paths: [server/**] }
 flag_management:
   default_rules:
