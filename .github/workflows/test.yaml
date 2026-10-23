@@ -94,6 +94,7 @@ jobs:
           - { flow: ach, method: webauthn, screen: 500x780 }
           - { flow: credit, method: webauthn, screen: 500x963 }
           - { flow: deposit, method: siwe, screen: 1920x1080 }
+          - { flow: eth, method: brave, screen: 500x994 }
           - { flow: external, method: webauthn, screen: 600x608 }
           - { flow: onboarding, method: webauthn, screen: 500x1200 }
           - { flow: pix, method: webauthn, screen: 500x857 }
@@ -135,6 +136,11 @@ jobs:
           unzip -q $RUNNER_TEMP/metamask.zip -d $RUNNER_TEMP/metamask
           echo METAMASK=$RUNNER_TEMP/metamask >> "$GITHUB_ENV"
           echo SE_FORCE_BROWSER_DOWNLOAD=true >> "$GITHUB_ENV"
+      - if: matrix.method == 'brave'
+        run: |
+          curl -fsSLo $RUNNER_TEMP/brave.zip https://github.com/brave/brave-browser/releases/download/v1.98.60/brave-browser-1.98.60-linux-amd64.zip
+          unzip -q $RUNNER_TEMP/brave.zip -d $RUNNER_TEMP/brave
+          echo SE_BROWSER_PATH=$RUNNER_TEMP/brave/brave >> "$GITHUB_ENV"
       - run: echo ::add-matcher::.github/matcher.json
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
@@ -163,7 +169,8 @@ jobs:
             { [ $i -eq 420 ] || ! kill -0 $(cat server.pid); } && cat server.log && exit 1
             sleep 1
           done
-          CHROME_LOG_FILE=$PWD/chrome.log maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --headless --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
+          CHROME_LOG_FILE=$PWD/chrome.log ${SE_BROWSER_PATH:+xvfb-run -a} maestro test .maestro/flows/web/${{ matrix.flow }}.yaml -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml ${{ matrix.method != 'brave' && '--headless' || '' }} --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${SE_BROWSER_PATH:+--browser-args=--window-size=${SCREEN/x/,} --browser-args=--no-sandbox} ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
+        env: { SCREEN: "${{ matrix.screen }}" }
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
