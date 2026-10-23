@@ -502,6 +502,7 @@ export async function getRouteFrom({
     fee: 0.0025,
     slippage: bridgeSlippage,
     integrator: "exa_app",
+    order: (fromChainId ?? chain.id) === (toChainId ?? chain.id) ? undefined : ("FASTEST" as const),
     fromChain: fromChainId ?? chain.id,
     toChain: toChainId ?? chain.id,
     fromToken: fromTokenAddress,
