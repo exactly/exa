@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.23",
+    "@exactly/plugin": "workspace:^1.1.0",
     "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
     "esbuild": "^0.28.1",

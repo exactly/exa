@@ -8,4 +8,14 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: { id: "0x000000000000000000000000000000000000bEEF" }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runScript:
+    file: ../dist/downgradePlugin.js
+    env: { account: "${output.account}" }
+- tapOn: Card
+- tapOn: Upgrade account now
+- runFlow: ../subflows/sign.yaml
+- runScript:
+    file: ../dist/waitUpgrade.js
+    env: { account: "${output.account}" }
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml

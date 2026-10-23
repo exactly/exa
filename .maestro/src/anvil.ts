@@ -80,6 +80,7 @@ export function writeContract<
 
 declare const output: { id?: number };
 
+export default function anvil(method: "eth_accounts", params: readonly [], network?: string): Address[];
 export default function anvil(method: "eth_blockNumber" | "eth_chainId", params: readonly [], network?: string): Hex;
 export default function anvil(
   method: "eth_call",
@@ -122,8 +123,18 @@ export default function anvil(
   network?: string,
 ): Hash;
 export default function anvil(
+  method: "eth_sendTransactionSync",
+  params: readonly [transaction: TransactionRequest],
+  network?: string,
+): RpcTransactionReceipt;
+export default function anvil(
   method: "anvil_mine",
   params: readonly [count: number, interval: number | undefined],
+  network?: string,
+): void;
+export default function anvil(
+  method: "anvil_impersonateAccount" | "anvil_stopImpersonatingAccount",
+  params: readonly [account: Address],
   network?: string,
 ): void;
 export default function anvil(

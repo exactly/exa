@@ -614,6 +614,9 @@ importers:
       '@exactly/common':
         specifier: workspace:^0.0.23
         version: link:../common
+      '@exactly/plugin':
+        specifier: workspace:^1.1.0
+        version: link:../contracts
       '@noble/curves':
         specifier: ^2.0.1
         version: 2.0.1
