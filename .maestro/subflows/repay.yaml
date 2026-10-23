@@ -1,7 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - waitForAnimationToEnd
-- runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", offset: 1, center: true } }
 - copyTextFrom:
     text: "[A-Z].+"
     below: Upcoming payments
@@ -30,7 +29,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
-- tapOn: Home
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
@@ -49,5 +47,3 @@ appId: ${APP_ID ?? "app.exactly"}
           index: 0
       - evalScript: ${output.newDebt = Number(maestro.copiedText.slice(1).split(",").join(""))}
       - assertTrue: ${Math.abs(output.debt - output.newDebt - Number(amount)) < 0.02}
-- tapOn: Home
-- waitForAnimationToEnd
