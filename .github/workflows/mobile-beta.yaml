@@ -1,7 +1,5 @@
 name: mobile/beta
-on:
-  push:
-    branches: [beta]
+on: { workflow_dispatch: {} }
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   expo:
