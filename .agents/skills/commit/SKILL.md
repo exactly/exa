@@ -158,6 +158,8 @@ a cloud session has no access to the developer's key, so signing doesn't apply t
 
 until a commit reaches `main`, it is still open: fixes go into the commit that introduced the change, folded in while rebasing, never stacked on top as new commits.
 
+push each update once, at its final head, never a partial branch first (like a rebase stopped mid-stack): the next push cancels the partial head's eas run, and its `error` statuses land on main with the merge.
+
 ## changeset format
 
 file: `.changeset/<random-name>.md`
