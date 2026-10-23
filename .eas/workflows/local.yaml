@@ -16,6 +16,13 @@ jobs:
       ios_fingerprint_hash: ${{ steps.fingerprint.outputs.ios }}
     steps:
       - uses: eas/checkout
+      - uses: eas/restore_cache
+        if: ${{ github.ref_type != 'tag' }}
+        with:
+          key: "node-modules-linux-${{ hashFiles('pnpm-lock.yaml') }}"
+          restore_keys: node-modules-linux-
+          path: node_modules.tar
+      - run: tar -xf node_modules.tar || true
       - uses: eas/install_node_modules
       - id: fingerprint
         run: |
@@ -65,11 +72,26 @@ jobs:
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
+      - uses: eas/restore_cache
+        id: modules
+        if: ${{ github.ref_type != 'tag' }}
+        with:
+          key: "node-modules-linux-${{ hashFiles('pnpm-lock.yaml') }}"
+          restore_keys: node-modules-linux-
+          path: node_modules.tar
+      - run: tar -xf node_modules.tar || true
       - uses: eas/install_node_modules
       - run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
+      - run: tar -cf node_modules.tar node_modules */node_modules .maestro/node_modules
+        if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+      - uses: eas/save_cache
+        if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+        with:
+          key: "node-modules-linux-${{ hashFiles('pnpm-lock.yaml') }}"
+          path: node_modules.tar
       - name: exa setup
         run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
       - id: script
@@ -185,11 +207,26 @@ jobs:
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", restore_keys: nx-ios-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
+      - uses: eas/restore_cache
+        id: modules
+        if: ${{ github.ref_type != 'tag' }}
+        with:
+          key: "node-modules-macos-${{ hashFiles('pnpm-lock.yaml') }}"
+          restore_keys: node-modules-macos-
+          path: node_modules.tar
+      - run: tar -xf node_modules.tar || true
       - uses: eas/install_node_modules
       - run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
+      - run: tar -cf node_modules.tar node_modules */node_modules .maestro/node_modules
+        if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+      - uses: eas/save_cache
+        if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+        with:
+          key: "node-modules-macos-${{ hashFiles('pnpm-lock.yaml') }}"
+          path: node_modules.tar
       - name: exa setup
         run: pnpm nx e2e server > server.log 2>&1 &
       - id: script
