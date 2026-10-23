@@ -89,6 +89,7 @@ jobs:
         include:
           - { flow: credit, method: webauthn, screen: 500x963 }
           - { flow: deposit, method: siwe, screen: 1920x1080 }
+          - { flow: external, method: webauthn, screen: 600x608 }
           - { flow: onboarding, method: webauthn, screen: 500x1200 }
           - { flow: portfolio, method: webauthn, screen: 720x500 }
           - { flow: ramp, method: webauthn, screen: 500x780 }
