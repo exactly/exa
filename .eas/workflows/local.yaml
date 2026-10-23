@@ -146,7 +146,7 @@ jobs:
             nsenter --mount=/proc/$pid/ns/mnt -- mount --bind /data/local/tmp/hosts /system/etc/hosts
           done
           EOF
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro -e method=webauthn --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -247,7 +247,7 @@ jobs:
           done
           { openssl s_client -connect "$APP_DOMAIN:443" -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
           xcrun simctl keychain booted add-root-cert cert.pem
-      - run: pnpm e2e:maestro -e "EXPO_PUBLIC_E2E_MNEMONIC=${{ env.EXPO_PUBLIC_E2E_MNEMONIC }}" --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro -e method=webauthn --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
