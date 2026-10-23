@@ -1,6 +1,10 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Settings } }
+- tapOn: Logout
+- tapOn: I already have an account
+- assertVisible: Good (morning|afternoon|evening)!
 - runFlow: ../subflows/swap.yaml
 - runFlow:
     file: ../subflows/mint.yaml
