@@ -374,7 +374,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
             const { calls, chainId } = params[0] as { calls: readonly Call[]; chainId?: Hex };
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
-            const targetChain = alchemyChains.get(targetChainId);
+            const targetChain = targetChainId === chain.id ? chain : alchemyChains.get(targetChainId);
             if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
             const remote = await getCrossChainAccount(targetChain);
             const uo = calls.map(({ to, data = "0x", value }) => ({ target: to, data, value }));
