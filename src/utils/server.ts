@@ -354,19 +354,6 @@ function stringOrLegacy(response: string | { code: string } | { legacy: string }
   throw new Error("invalid api response");
 }
 
-export async function getPaxId() {
-  await auth();
-  const response = await api.pax.$get();
-  if (!response.ok) {
-    const { code } = await response.json();
-    throw new APIError(response.status, code);
-  }
-  return response.json();
-}
-
-queryClient.setQueryDefaults(["pax", "id"], { queryFn: getPaxId });
-export type PaxId = Awaited<ReturnType<typeof getPaxId>>;
-
 export async function getRampProviders(countryCode?: string, redirectURL?: string) {
   await auth();
   const query = { countryCode, redirectURL };

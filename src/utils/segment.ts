@@ -36,9 +36,3 @@ export function page() {
 export function reset() {
   analytics?.reset().catch(reportError);
 }
-
-export function track({ event, properties }: Action) {
-  analytics?.track(event, properties).catch(reportError);
-}
-
-type Action = { event: "CtaPressed"; properties: { name: string } };
