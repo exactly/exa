@@ -69,6 +69,7 @@
 ## legs
 
 - **one leg per app area**: each web leg covers one area of the app, and legs take similar time. extend an existing leg and its flow before adding a leg.
+- **no step on two legs**: each user path runs on one web leg only, setup aside, even when the copy fits in a leg's slack or `flows/local.yaml` doesn't chain it. to cover it with another signer or browser, move the step to that leg or switch an existing leg's `method`, never copy it.
 - **a new leg is a new check**: a new or renamed matrix row changes a job name the repository ruleset requires, and codecov waits for one more upload (`after_n_builds` in `.github/codecov.yaml`).
 
 ## screen sizes
