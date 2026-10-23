@@ -29,9 +29,9 @@ pnpm ios # for native ios app
 #### end-to-end tests
 
 ```bash
-# native
-pnpm nx e2e:ios mobile # or e2e:android
-maestro test .maestro/flows/local.yaml
+# native, with sandbox.exactly.app on 127.0.0.1 and ::1 in /etc/hosts (ios) and an emulator without google play (android)
+APP_DOMAIN=sandbox.exactly.app pnpm nx e2e:ios mobile # or e2e:android
+pnpm e2e:iphone:trust && maestro test .maestro/flows/local.yaml # or e2e:android:trust, once the server is up
 
 
 # web
