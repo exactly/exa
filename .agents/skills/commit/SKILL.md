@@ -171,6 +171,8 @@ each change lands in its final form: no later commit of the same pr, or of a pr 
 
 someone else's open commit is theirs to fold: a fix for it goes in a standalone commit at the bottom of your branch, without a changeset, whose body names the commit it belongs to by its subject.
 
+push each update once, at its final head, never a partial branch first (like a rebase stopped mid-stack): the next push cancels the partial head's eas run, and its `error` statuses land on main with the merge.
+
 ## changeset format
 
 file: `.changeset/<random-name>.md`
