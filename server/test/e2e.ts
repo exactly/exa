@@ -393,20 +393,54 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
           },
         ),
       getCustomer: vi.fn().mockImplementation((id: string) => Promise.resolve({ id, status: "active" })),
-      getDepositDetails: vi.fn().mockResolvedValue(
-        (["ACH", "WIRE"] as const).map((network) => ({
-          network,
-          displayName: network,
-          beneficiaryName: "Test User",
-          routingNumber: "101019644",
-          accountNumber: "900000000001",
-          bankAddress: "1801 Main St, Kansas City, MO 64108",
-          beneficiaryAddress: "123 Test St, New York, NY 10001",
-          bankName: "Lead Bank",
-          fee: "0.0",
-          estimatedProcessingTime: network === "ACH" ? "1 - 3 business days" : "300",
-        })),
-      ),
+      getDepositDetails: vi.fn().mockImplementation((currency: (typeof original.FiatCurrency)[number]) => {
+        const details = { beneficiaryName: "Test User", fee: "0.0", estimatedProcessingTime: "300" };
+        switch (currency) {
+          case "USD":
+            return Promise.resolve(
+              (["ACH", "WIRE"] as const).map((network) => ({
+                ...details,
+                network,
+                displayName: network,
+                routingNumber: "101019644",
+                accountNumber: "900000000001",
+                bankAddress: "1801 Main St, Kansas City, MO 64108",
+                beneficiaryAddress: "123 Test St, New York, NY 10001",
+                bankName: "Lead Bank",
+                estimatedProcessingTime: network === "ACH" ? "1 - 3 business days" : "300",
+              })),
+            );
+          case "EUR":
+            return Promise.resolve([
+              { ...details, network: "SEPA", displayName: "SEPA", iban: "DE89370400440532013000" },
+            ]);
+          case "MXN":
+            return Promise.resolve([{ ...details, network: "SPEI", displayName: "SPEI", clabe: "032180000118359719" }]);
+          case "BRL":
+            return Promise.resolve([
+              {
+                ...details,
+                network: "PIX-BR",
+                displayName: "PIX BR",
+                brCode:
+                  "00020126580014br.gov.bcb.pix01362c3b5f0e-6f7a-4d8b-9c1e-0a2b3c4d5e6f5204000053039865802BR5909Test User6009SAO PAULO61080131010062070503***6304B61A",
+              },
+            ]);
+          case "GBP":
+            return Promise.resolve([
+              {
+                ...details,
+                network: "FASTER_PAYMENTS",
+                displayName: "Faster Payments",
+                accountHolderName: "Test User",
+                accountNumber: "12345678",
+                sortCode: "040004",
+                bankName: "Test Bank",
+                bankAddress: "1 Test St, London, EC1A 1BB",
+              },
+            ]);
+        }
+      }),
       getOfframpDepositDetails: vi.fn().mockImplementation((id: string) => {
         const transfer = transfers.get(id);
         if (!transfer) return Promise.reject(new Error(original.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND));
@@ -424,7 +458,8 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
         .fn()
         .mockImplementation(
           ({ customerId, redirectURL }: Parameters<ReturnType<typeof original.default>["getProvider"]>[0]) => {
-            const currencies = { onramp: { currencies: ["USD"] }, offramp: { currencies: ["USD"] } };
+            const fiat = ["USD", "EUR", "MXN", "BRL", "GBP"];
+            const currencies = { onramp: { currencies: fiat }, offramp: { currencies: fiat } };
             if (customerId) return Promise.resolve({ ...currencies, status: "ACTIVE" });
             const redirect = new URL(redirectURL ?? "");
             redirect.searchParams.set("provider", "bridge");
@@ -436,6 +471,10 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
             });
           },
         ),
+      getQuote: vi.fn().mockImplementation((_: "USD", to: (typeof original.QuoteCurrency)[number]) => {
+        const rate = { BRL: "5.4", EUR: "0.9", GBP: "0.8", MXN: "18", USD: "1.0", USDC: "1.0", USDT: "1.0" }[to];
+        return Promise.resolve({ buyRate: rate, sellRate: rate });
+      }),
       listExternalAccounts: vi
         .fn()
         .mockImplementation((customerId: string) => Promise.resolve(accounts.get(customerId) ?? [])),
@@ -448,6 +487,11 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
       removeExternalAccount: vi.fn().mockImplementation(({ id: customerId }: { id: string }, id: string) => {
         accounts.set(customerId, accounts.get(customerId)?.filter((account) => account.id !== id) ?? []);
         return Promise.resolve();
+      }),
+      updateExternalAccount: vi.fn().mockImplementation(({ id: customerId }: { id: string }, id: string) => {
+        const account = accounts.get(customerId)?.find((external) => external.id === id);
+        if (!account) return Promise.reject(new Error(original.ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND));
+        return Promise.resolve(account);
       }),
     }),
   };
