@@ -468,7 +468,7 @@ export default function Review() {
             <Button
               primary
               onPress={() => {
-                router.dismissTo("/pending-proposals");
+                router.push("/pending-proposals");
               }}
             >
               <Button.Text>{t("Go to Requests")}</Button.Text>
