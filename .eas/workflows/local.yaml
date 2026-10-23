@@ -77,12 +77,28 @@ jobs:
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
-      - run: GRADLE_USER_HOME=$(mktemp -d) pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          restore_keys: gradle-
+          path: | # cspell:ignore dists
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          path: |
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
@@ -178,12 +194,28 @@ jobs:
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
-      - run: GRADLE_USER_HOME=$(mktemp -d) pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          restore_keys: gradle-
+          path: | # cspell:ignore dists
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
           key: "maestro-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch') }}"
           path: .maestro/build
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ hashFiles('.maestro/package.json') }}"
+          path: |
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
       - uses: eas/download_build
         id: download
         with: { build_id: "${{ after.ios_get.outputs.build_id || after.ios_build.outputs.build_id }}" }
