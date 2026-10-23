@@ -106,6 +106,7 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1 }
       - uses: actions/cache@v6
+        id: deps
         with:
           path: |
             ~/.local/share/svm
@@ -113,6 +114,14 @@ jobs:
             /tmp/metro-cache
           key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json', '.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache@v6
+        if: steps.deps.outputs.cache-hit != 'true'
+        with:
+          path: | # cspell:ignore dists
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-${{ runner.os }}-${{ github.job }}-${{ hashFiles('.maestro/package.json') }}
+          restore-keys: gradle-${{ runner.os }}-${{ github.job }}-
       - uses: actions/cache@v6
         with:
           path: ~/.nx
