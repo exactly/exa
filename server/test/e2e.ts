@@ -29,10 +29,11 @@ import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
+import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 import { chains } from "./anvil";
 import lifi from "./lifi";
-import database, { credentials } from "../database";
+import database, { cards as cardsTable, credentials } from "../database";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
 import createOnesignal from "../utils/onesignal";
@@ -123,6 +124,14 @@ describe("e2e", () => {
               limit: 2,
             });
             return credential && rest.length === 0 ? c.json(credential) : c.json({ code: "no single credential" }, 500);
+          });
+          app.post("/e2e/platinum", async (c) => {
+            const [card, ...rest] = await database
+              .update(cardsTable)
+              .set({ productId: PLATINUM_PRODUCT_ID })
+              .where(eq(cardsTable.status, "ACTIVE"))
+              .returning({ id: cardsTable.id });
+            return card && rest.length === 0 ? c.json({ code: "ok" }) : c.json({ code: "no single card" }, 500);
           });
           const submitted = createCoverageMap();
           app.post("/e2e/coverage", async (c) => {
