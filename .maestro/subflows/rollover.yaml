@@ -15,6 +15,8 @@ appId: ${APP_ID ?? "app.exactly"}
     commands: [{ tapOn: Review refinance details }]
 - tapOn: Confirm rollover
 - runFlow: sign.yaml
+- tapOn: Payments
+- assertVisible: Processing
 - runFlow: getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js
