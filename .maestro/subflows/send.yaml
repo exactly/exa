@@ -103,6 +103,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
+- runFlow:
+    when: { true: "${!pay}" }
+    commands: [{ assertVisible: Sent to .* }]
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow:
