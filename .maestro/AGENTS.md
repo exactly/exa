@@ -4,6 +4,7 @@
 - **flows**: `flows/*.yaml` are the entry points. `flows/web/*.yaml` wrap them with `url:`, since maestro only drives a browser when the top-level config has one. bodies and shared steps live in `subflows/`.
 - **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
+- **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the `e2e` job plays it through chrome's fake camera on legs that have one, so each leg scans a single code.
 
 ## principles
 
@@ -95,11 +96,11 @@
 
 - **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when `flows/local.yaml` covers it.
 - **fingerprint**: e2e changes must not change the expo fingerprint (`pnpm exec fingerprint fingerprint:generate --platform ios`, then `android`).
-- **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's line from the `e2e` job:
+- **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's line from the `e2e` job, with the camera flags on legs that have a feed:
 
   ```sh
   CI=true NX_DAEMON=false CHAIN_ID=31337 APP_DOMAIN=localhost EXPO_PUBLIC_ENV=e2e pnpm nx e2e:web:release mobile
-  .maestro/build/bin/maestro test .maestro/flows/web/transfer.yaml -e method=webauthn --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion
+  .maestro/build/bin/maestro test .maestro/flows/web/transfer.yaml -e method=webauthn --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/.maestro/generated/transfer.y4m
   ```
 
 @../common/AGENTS.md
