@@ -6,4 +6,19 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/ach.yaml
+- tapOn: Send
+- tapOn: Bank transfers
+- tapOn: Dollars via ACH or WIRE
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Edit contact } }
+- tapOn: Edit contact
+- tapOn: Select
+- tapOn: Checking
+- tapOn: Save changes
+- assertVisible: Contact updated
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Edit contact } }
+- tapOn: Delete contact
+- assertVisible: You don't have any contacts yet.
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: ../subflows/storeCoverage.yaml
