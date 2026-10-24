@@ -107,103 +107,119 @@ export default function CardStatus({
         </Pressable>
       </XStack>
       <YStack paddingHorizontal="$s4" paddingTop="$s3" gap="$s4">
-        <Pressable
-          onPress={() => {
-            selectionAsync().catch(reportError);
-            onCardPress();
-          }}
-        >
-          <XStack
-            height={96}
-            borderRadius="$r4"
-            overflow="hidden"
-            alignItems="center"
-            justifyContent="flex-end"
-            backgroundColor={card?.productId === BASE_PRODUCT_ID ? "$baseBlue" : "$cardPreviewBackground"}
+        <View>
+          <Pressable
+            role="button"
+            aria-label={t("Exa Card")}
+            onPress={() => {
+              selectionAsync().catch(reportError);
+              onCardPress();
+            }}
           >
-            <View position="absolute" top={0} left={0} right={0} bottom={0} alignItems="center" justifyContent="center">
-              <Art width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
-            </View>
-            <AnimatePresence>
-              {frozen ? null : (
-                <View
-                  key="exa-logo"
-                  style={styles.exa}
-                  transition="default"
-                  animateOnly={["opacity"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0 }}
-                  exitStyle={{ opacity: 0 }}
-                >
-                  <Exa width={50} height={20} {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })} />
-                </View>
-              )}
-            </AnimatePresence>
             <XStack
-              hitSlop={15}
-              style={styles.details}
-              borderRadius="$r3"
-              paddingVertical="$s2"
-              paddingHorizontal="$s3"
+              height={96}
+              borderRadius="$r4"
+              overflow="hidden"
               alignItems="center"
-              gap="$s2"
-              transition="quick"
-              animateOnly={["transform", "backgroundColor"]}
-              pressStyle={{ scale: 0.92, backgroundColor: "rgba(255,255,255,0.15)" }}
-              cursor="pointer"
-              zIndex={4}
-              onPress={(event) => {
-                event.stopPropagation();
-                selectionAsync().catch(reportError);
-                onDetailsPress();
-              }}
+              justifyContent="flex-end"
+              backgroundColor={card?.productId === BASE_PRODUCT_ID ? "$baseBlue" : "$cardPreviewBackground"}
             >
-              <CreditCard size={14} color="white" />
-              <Text footnote emphasized color="white">
-                {t("Details")}
-              </Text>
+              <View
+                position="absolute"
+                top={0}
+                left={0}
+                right={0}
+                bottom={0}
+                alignItems="center"
+                justifyContent="center"
+              >
+                <Art width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
+              </View>
+              <AnimatePresence>
+                {frozen ? null : (
+                  <View
+                    key="exa-logo"
+                    style={styles.exa}
+                    transition="default"
+                    animateOnly={["opacity"]}
+                    opacity={1}
+                    enterStyle={{ opacity: 0 }}
+                    exitStyle={{ opacity: 0 }}
+                  >
+                    <Exa
+                      width={50}
+                      height={20}
+                      {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })}
+                    />
+                  </View>
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {frozen && (
+                  <View
+                    key="frozen-overlay"
+                    position="absolute"
+                    top={0}
+                    left={0}
+                    right={0}
+                    bottom={0}
+                    backgroundColor="rgba(0,0,0,0.4)"
+                    zIndex={2}
+                    pointerEvents="none"
+                    transition="default"
+                    animateOnly={["opacity"]}
+                    opacity={1}
+                    enterStyle={{ opacity: 0 }}
+                    exitStyle={{ opacity: 0 }}
+                  />
+                )}
+                {frozen && (
+                  <View
+                    key="frozen-icon"
+                    position="absolute"
+                    top={0}
+                    bottom={0}
+                    left="$s4"
+                    justifyContent="center"
+                    zIndex={3}
+                    pointerEvents="none"
+                    transition="default"
+                    animateOnly={["opacity", "transform"]}
+                    opacity={1}
+                    enterStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
+                    exitStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
+                  >
+                    <Snowflake size={48} strokeWidth={2} color="white" />
+                  </View>
+                )}
+              </AnimatePresence>
             </XStack>
-            <AnimatePresence>
-              {frozen && (
-                <View
-                  key="frozen-overlay"
-                  position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
-                  backgroundColor="rgba(0,0,0,0.4)"
-                  zIndex={2}
-                  pointerEvents="none"
-                  transition="default"
-                  animateOnly={["opacity"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0 }}
-                  exitStyle={{ opacity: 0 }}
-                />
-              )}
-              {frozen && (
-                <View
-                  key="frozen-icon"
-                  position="absolute"
-                  top={0}
-                  bottom={0}
-                  left="$s4"
-                  justifyContent="center"
-                  zIndex={3}
-                  pointerEvents="none"
-                  transition="default"
-                  animateOnly={["opacity", "transform"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
-                  exitStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
-                >
-                  <Snowflake size={48} strokeWidth={2} color="white" />
-                </View>
-              )}
-            </AnimatePresence>
+          </Pressable>
+          <XStack
+            role="button"
+            hitSlop={15}
+            style={styles.details}
+            borderRadius="$r3"
+            paddingVertical="$s2"
+            paddingHorizontal="$s3"
+            alignItems="center"
+            gap="$s2"
+            transition="quick"
+            animateOnly={["transform", "backgroundColor"]}
+            pressStyle={{ scale: 0.92, backgroundColor: "rgba(255,255,255,0.15)" }}
+            cursor="pointer"
+            zIndex={4}
+            onPress={() => {
+              selectionAsync().catch(reportError);
+              onDetailsPress();
+            }}
+          >
+            <CreditCard size={14} color="white" />
+            <Text footnote emphasized color="white">
+              {t("Details")}
+            </Text>
           </XStack>
-        </Pressable>
+        </View>
         <AnimatePresence>
           {frozen && (
             <YStack

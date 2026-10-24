@@ -52,6 +52,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: scrollTo.yaml, env: { element: Exa Card pay mode } }
 - runFlow: { file: scrollTo.yaml, env: { element: Freeze card, center: true } }
 - tapOn: Freeze card
+- tapOn: Details
+- assertVisible: CVV
+- tapOn: Close
 - tapOn:
     text: Learn more
     rightOf: Exa Card pay mode
@@ -63,25 +66,25 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { visible: How installment repayment works }
     commands:
       - tapOn: Close
-- runFlow:
-    when: { visible: Tap here to change the number of installments }
-    commands:
-      - tapOn: Tap here to change the number of installments
-      - assertVisible: Choose how many installments to use for future card purchases. You can always change this before each purchase.
-      - tapOn: Installments calculator
-      - assertVisible: Enter a purchase amount
-      - assertVisible: to estimate installment options
-      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
-      - eraseText: 3
-      - pressKey: enter
-      - assertVisible: \$0\.00
-      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
-- tapOn: Home
-- runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
+- tapOn: Tap here to change the number of installments
+- assertVisible: Choose how many installments to use for future card purchases. You can always change this before each purchase.
+- tapOn: "2"
+- tapOn: Installments calculator
+- assertVisible: Enter a purchase amount
+- assertVisible: to estimate installment options
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
+- eraseText: 3
+- pressKey: enter
+- assertVisible: \$0\.00
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
+- runFlow: { file: scrollTo.yaml, env: { element: Later in 2, center: true } }
 - tapOn: Credit limit
 - assertVisible: If you hold more than one asset, your limit is a weighted average across all of them. Any outstanding Pay Later balance also reduces your available credit limit.
 - tapOn: Close
 - tapOn: Now
+- assertVisible: Later in 2
 - tapOn: Spending limit
 - assertVisible: If your balance doesn’t cover a transaction, other assets in your wallet can make up the difference.
 - tapOn: Close
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Exa Card } }
+- assertVisible: My Exa Card
