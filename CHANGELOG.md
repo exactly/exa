@@ -1,5 +1,19 @@
 # @exactly/mobile
 
+## 1.2.39
+
+### Patch Changes
+
+- [#1584](https://github.com/exactly/exa/pull/1584) [`1d0156b`](https://github.com/exactly/exa/commit/1d0156ba1d9f9873f07fccbcb26e0051fdeebee0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix zero swap rate
+
+- [#1563](https://github.com/exactly/exa/pull/1563) [`d4352c4`](https://github.com/exactly/exa/commit/d4352c4a14dc4e6412378688c6e33706fb9f66cd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep repay result after debt clears
+
+- [#1599](https://github.com/exactly/exa/pull/1599) [`c113bab`](https://github.com/exactly/exa/commit/c113bab0ae36c05a9a4ade66e29949e65dd9d8c4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix duplicate contacts screen after edit
+
+- [#1597](https://github.com/exactly/exa/pull/1597) [`6394737`](https://github.com/exactly/exa/commit/63947372838cd39b7af7b8d7f7a0759aa825b3c0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 pick default swap tokens on revisit
+
+- [#1592](https://github.com/exactly/exa/pull/1592) [`39cf1c6`](https://github.com/exactly/exa/commit/39cf1c6aca87a4ad589ac954e2c76a1101f065c2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix go home on not-found page
+
 ## 1.2.38
 
 ### Patch Changes
