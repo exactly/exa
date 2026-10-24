@@ -235,7 +235,7 @@ IssuerCheckerTest:test_setPrevIssuerWindow_emits_PrevIssuerWindowSet() (gas: 526
 IssuerCheckerTest:test_setPrevIssuerWindow_reverts_whenNotAdmin() (gas: 45548)
 MockSwapperTest:test_swapExactAmountIn_swaps() (gas: 269458)
 MockSwapperTest:test_swapExactAmountOut_swaps() (gas: 269411)
-PricePreviewerTest:test_feeds_returnsAssetAndFeedOfEachMarket() (gas: 89816759)
+PricePreviewerTest:test_feeds_returnsAssetAndFeedOfEachMarket() (gas: 105457163)
 PricePreviewerTest:test_prices_fallsBackToPreviousPhase_whenLatestPhaseIsHidden() (gas: 255774)
 PricePreviewerTest:test_prices_ignoresRoundsAfterLatest() (gas: 73138)
 PricePreviewerTest:test_prices_matchesReference(uint256,uint256,uint256) (runs: 64, μ: 1685160, ~: 1456099)

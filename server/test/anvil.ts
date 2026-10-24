@@ -19,6 +19,7 @@ import {
   publicActions,
   toBytes,
   toHex,
+  walletActions,
   zeroAddress,
   type Hex,
 } from "viem";
@@ -136,7 +137,6 @@ export default async function setup() {
   const integrationPreviewer = protocol[29].contractAddress;
   const ratePreviewer = protocol[30].contractAddress;
   const installmentsRouter = protocol[31].contractAddress;
-  const firewall = protocol[33].contractAddress;
 
   // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
   shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
@@ -152,7 +152,6 @@ export default async function setup() {
   shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
   shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
   shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
-  shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
   shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
   shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
@@ -212,8 +211,61 @@ export default async function setup() {
   );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-  for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
-    const address = privateKeyToAddress(keccak256(toBytes(testFile)));
+  const signers = files
+    .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
+    .map((file) => privateKeyToAddress(keccak256(toBytes(file))));
+  const verified = Promise.all(
+    chains.slice(1).map(async (chain) => {
+      const client = createTestClient({ chain, mode: "anvil", transport: http() })
+        .extend(publicActions)
+        .extend(walletActions);
+      await $(shell)`forge script test/mocks/Protocol.s.sol
+          --sig anvil2() --disable-code-size-limit
+          --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
+      const firewall = await client.readContract({
+        address: auditor,
+        functionName: "firewall",
+        abi: parseAbi(["function firewall() view returns (address)"]),
+      });
+      for (const address of signers) {
+        await client.setBalance({ address, value: 10n ** 24n });
+        for (const [contract, role] of [
+          [exaPlugin, "KEEPER_ROLE"],
+          [firewall, "ALLOWER_ROLE"],
+        ] as const) {
+          await client.waitForTransactionReceipt({
+            hash: await client.writeContract({
+              address: contract,
+              functionName: "grantRole",
+              args: [keccak256(toHex(role)), address],
+              abi: parseAbi(["function grantRole(bytes32 role, address account)"]),
+              account: null,
+            }),
+          });
+        }
+      }
+      if (
+        !(await client.readContract({
+          address: parse(
+            object({ returns: object({ frozen: object({ value: Address }) }) }),
+            JSON.parse(
+              // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled path from broadcast directory
+              await readFile(
+                `node_modules/@exactly/plugin/broadcast/Protocol.s.sol/${chain.id}/anvil2-latest.json`,
+                "utf8",
+              ),
+            ),
+          ).returns.frozen.value,
+          functionName: "isFrozen",
+          abi: parseAbi(["function isFrozen() view returns (bool)"]),
+        }))
+      ) {
+        throw new Error("market not frozen");
+      }
+    }),
+  );
+
+  for (const address of signers) {
     await anvilClient.setBalance({ address, value: 10n ** 24n });
     for (const contract of [exaPlugin, refunder]) {
       await anvilClient.waitForTransactionReceipt({
@@ -236,35 +288,7 @@ export default async function setup() {
     }
   }
 
-  await Promise.all(
-    chains.slice(1).map(async (chain) => {
-      const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
-      await Promise.all([
-        $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
-            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
-        client.setBalance({ address: privateKeyToAddress(keccak256(toBytes("e2e.ts"))), value: 10n ** 24n }),
-      ]);
-      if (
-        !(await client.readContract({
-          address: parse(
-            object({ returns: object({ market: object({ value: Address }) }) }),
-            JSON.parse(
-              // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled path from broadcast directory
-              await readFile(
-                `node_modules/@exactly/plugin/broadcast/Mocks.s.sol/${chain.id}/frozenMarket-latest.json`,
-                "utf8",
-              ),
-            ),
-          ).returns.market.value,
-          functionName: "isFrozen",
-          abi: parseAbi(["function isFrozen() view returns (bool)"]),
-        }))
-      ) {
-        throw new Error("market not frozen");
-      }
-    }),
-  );
-
+  await verified;
   await started;
 
   if (docker) {
@@ -336,7 +360,7 @@ export default async function setup() {
   };
 }
 
-export const chains = [anvil, ...(env.NODE_ENV === "e2e" ? [{ ...moonbeamDev, name: "Anvil2" }] : [])].map((chain) => ({
+export const chains = [anvil, { ...moonbeamDev, name: "Anvil2" }].map((chain) => ({
   ...chain,
   blockTime: optimism.blockTime,
 }));
@@ -387,8 +411,6 @@ const Protocol = object({
       contractName: literal("InstallmentsRouter"),
       contractAddress: Address,
     }),
-    object({ transactionType: literal("CREATE"), contractName: literal("Firewall") }),
-    object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
 
