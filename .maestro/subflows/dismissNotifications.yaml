@@ -1,5 +1,10 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
+    when: { platform: android }
+    commands:
+      - assertVisible: Good (morning|afternoon|evening)!
+      - launchApp: { permissions: { all: deny, camera: allow } }
+- runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ assertVisible: Stay updated }, { tapOn: Not now }]
