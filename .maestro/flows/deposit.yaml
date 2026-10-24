@@ -51,7 +51,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Swap
-- assertVisible: Swaps
+- assertVisible: LI.FI
 - tapOn: { id: Select token, index: 1 }
 - tapOn: Search by token name or address
 - inputText: eth
