@@ -12,15 +12,19 @@ import { IntegrationPreviewer } from "@exactly/protocol/periphery/IntegrationPre
 import { Previewer } from "@exactly/protocol/periphery/Previewer.sol";
 import { RatePreviewer } from "@exactly/protocol/periphery/RatePreviewer.sol";
 import { Firewall } from "@exactly/protocol/verified/Firewall.sol";
+import { VerifiedAuditor } from "@exactly/protocol/verified/VerifiedAuditor.sol";
+import { VerifiedMarket } from "@exactly/protocol/verified/VerifiedMarket.sol";
 
 import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
+import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
 import { IFlashLoaner } from "../../src/ExaPlugin.sol";
+import { ProposalManager } from "../../src/ProposalManager.sol";
 import { MockPriceFeed } from "./MockPriceFeed.sol";
 
 contract DeployProtocol is BaseScript {
@@ -38,18 +42,21 @@ contract DeployProtocol is BaseScript {
   IntegrationPreviewer public integrationPreviewer;
   RatePreviewer public ratePreviewer;
   InstallmentsRouter public installmentsRouter;
-  Firewall public firewall;
 
   IFlashLoaner public balancer;
 
   function run() external {
     vm.startBroadcast(acct("deployer"));
 
+    Auditor.LiquidationIncentive memory incentive = Auditor.LiquidationIncentive(0.09e18, 0.01e18);
     auditor = Auditor(
       address(
-        new ERC1967Proxy(
-          address(new Auditor(18)), abi.encodeCall(Auditor.initialize, (Auditor.LiquidationIncentive(0.09e18, 0.01e18)))
-        )
+        verified()
+          ? new ERC1967Proxy(
+            address(new VerifiedAuditor(18)),
+            abi.encodeCall(VerifiedAuditor.initializeVerified, (incentive, Firewall(address(0))))
+          )
+          : new ERC1967Proxy(address(new Auditor(18)), abi.encodeCall(Auditor.initialize, (incentive)))
       )
     );
     vm.label(address(auditor), "Auditor");
@@ -74,7 +81,7 @@ contract DeployProtocol is BaseScript {
     exaEXA = Market(
       address(
         new ERC1967Proxy(
-          address(new Market(exa, auditor)),
+          market(exa),
           abi.encodeCall(
             Market.initialize, ("EXA", 7, type(uint256).max, 1e18, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18)
           )
@@ -91,7 +98,7 @@ contract DeployProtocol is BaseScript {
     exaUSDC = Market(
       address(
         new ERC1967Proxy(
-          address(new Market(usdc, auditor)),
+          market(usdc),
           abi.encodeCall(
             Market.initialize, ("USDC", 7, type(uint256).max, 1e6, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18)
           )
@@ -108,7 +115,7 @@ contract DeployProtocol is BaseScript {
     exaWETH = Market(
       address(
         new ERC1967Proxy(
-          address(new Market(weth, auditor)),
+          market(weth),
           abi.encodeCall(
             Market.initialize, ("WETH", 7, type(uint256).max, 1e6, irm, 0.02e18 / uint256(1 days), 1e17, 0, 1e18, 1e18)
           )
@@ -131,9 +138,6 @@ contract DeployProtocol is BaseScript {
 
     installmentsRouter = new InstallmentsRouter(auditor, exaWETH);
 
-    firewall = Firewall(address(new ERC1967Proxy(address(new Firewall()), abi.encodeCall(Firewall.initialize, ()))));
-    vm.label(address(firewall), "Firewall");
-
     exa.mint(address(balancer), 1_000_000e18);
     usdc.mint(address(balancer), 1_000_000e6);
     vm.label(address(balancer), "Balancer2Vault");
@@ -147,5 +151,66 @@ contract DeployProtocol is BaseScript {
     wethFeed.push(2, block.timestamp.zeroFloorSub(12 hours), 2500e18);
 
     vm.stopBroadcast();
+  }
+
+  function anvil2() external returns (Market frozen) {
+    VerifiedAuditor verifiedAuditor = VerifiedAuditor(protocol("Auditor"));
+    address allower = acct("allower");
+
+    vm.startBroadcast(acct("deployer"));
+
+    Firewall firewall =
+      Firewall(address(new ERC1967Proxy(address(new Firewall()), abi.encodeCall(Firewall.initialize, ()))));
+    vm.label(address(firewall), "Firewall");
+    firewall.grantRole(firewall.ALLOWER_ROLE(), allower);
+    verifiedAuditor.setFirewall(firewall);
+
+    MockERC20 asset = MockERC20(
+      CREATE3_FACTORY.deploy(
+        keccak256(abi.encode("USDC.e")),
+        abi.encodePacked(type(MockERC20).creationCode, abi.encode("Bridged USDC", "USDC.e", 6))
+      )
+    );
+    frozen = Market(
+      address(
+        new ERC1967Proxy(
+          address(new VerifiedMarket(asset, verifiedAuditor)),
+          abi.encodeCall(
+            Market.initialize,
+            (
+              "USDC.e",
+              7,
+              type(uint256).max,
+              1e6,
+              InterestRateModel(address(0)),
+              0.02e18 / uint256(1 days),
+              1e17,
+              0,
+              1e18,
+              1e18
+            )
+          )
+        )
+      )
+    );
+    MockPriceFeed feed = new MockPriceFeed(18);
+    feed.push(1, block.timestamp, 1e18);
+    verifiedAuditor.enableMarket(frozen, IPriceFeed(address(feed)), 0.9e18, false);
+    frozen.setFrozen(true);
+    ProposalManager(broadcast("ProposalManager")).allowTarget(address(asset), true);
+
+    asset.mint(acct("swapper"), 1_000_000e6);
+
+    vm.stopBroadcast();
+  }
+
+  function market(ERC20 asset) internal returns (address) {
+    return verified()
+      ? address(new VerifiedMarket(asset, VerifiedAuditor(address(auditor))))
+      : address(new Market(asset, auditor));
+  }
+
+  function verified() internal returns (bool) {
+    return block.chainid == getChain("anvil2").chainId;
   }
 }
