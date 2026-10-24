@@ -8,6 +8,7 @@ tags: [critical]
 - runFlow: ../subflows/portfolio.yaml
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/assertOnboarding.yaml
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: ../subflows/onboarding.yaml
 - runFlow: ../subflows/accounts.yaml
 - runFlow: ../subflows/assertBenefits.yaml
