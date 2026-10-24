@@ -5,7 +5,7 @@ defaults: { tools: { node: "24.14.1" } }
 jobs:
   fingerprint:
     environment: development
-    env: { APP_DOMAIN: localhost, APPLE_TEAM_ID: 665NDX7LBZ }
+    env: { APP_DOMAIN: localhost.exactly.app, APPLE_TEAM_ID: 665NDX7LBZ, EXPO_PUBLIC_ENV: e2e }
     outputs:
       ios_fingerprint_hash: ${{ steps.fingerprint.outputs.ios }}
     steps:
@@ -19,7 +19,7 @@ jobs:
     needs: [fingerprint]
     params:
       platform: ios
-      profile: e2e:local
+      profile: e2e:production
       fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
       wait_for_in_progress: true
 
@@ -29,8 +29,8 @@ jobs:
     after: [ios_get]
     if: ${{ !after.ios_get.outputs.build_id }}
     image: sdk-55
-    env: { APPLE_TEAM_ID: 665NDX7LBZ }
-    params: { platform: ios, profile: e2e:local }
+    env: { APP_DOMAIN: localhost.exactly.app, APPLE_TEAM_ID: 665NDX7LBZ, CHAIN_ID: "31337" }
+    params: { platform: ios, profile: e2e:production }
 
   ios_probe:
     after: [ios_get, ios_build]
@@ -39,8 +39,8 @@ jobs:
     runs_on: macos-large
     image: latest
     env:
-      APP_DOMAIN: localhost
-      APP_ORIGINS: https://localhost
+      APP_DOMAIN: localhost.exactly.app
+      APP_ORIGINS: https://localhost.exactly.app
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
@@ -78,6 +78,8 @@ jobs:
       - name: prepare device # cspell:ignore servername swcd
         run: |
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
+          printf '127.0.0.1 %s\n::1 %s\n' "$APP_DOMAIN" "$APP_DOMAIN" | sudo tee -a /etc/hosts
+          sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
           xcrun simctl spawn booted log stream --level debug --predicate 'process == "swcd" or subsystem == "com.apple.AuthenticationServices"' > swcd.log 2>&1 &
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
           for i in {1..420}; do
@@ -86,19 +88,19 @@ jobs:
             sleep 1
           done
           for i in {1..60}; do
-            { openssl s_client -connect 127.0.0.1:443 -servername localhost < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem 2> /dev/null && break
+            { openssl s_client -connect 127.0.0.1:443 -servername "$APP_DOMAIN" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem 2> /dev/null && break
             [ $i -eq 60 ] && echo "https timed out" && cat server.log && exit 1
             sleep 1
           done
           openssl x509 -in cert.pem -noout -text | grep -A1 'Subject Alternative Name' || true
           xcrun simctl keychain booted add-root-cert cert.pem
-          curl -sS --cacert cert.pem https://localhost/.well-known/apple-app-site-association && echo
-          grep -a -o -h -r 'webcredentials:[^<]*\|[A-Z0-9]\{10\}\.app\.exactly' "${{ steps.repack.outputs.output_path }}" | sort -u || true
+          curl -sS --cacert cert.pem "https://$APP_DOMAIN/.well-known/apple-app-site-association" && echo
+          grep -a -o -h -r 'webcredentials:[^<]*\|[A-Z0-9]\{10\}\.app\.exactly' "${{ steps.repack.outputs.output_path }}" | LC_ALL=C sort -u || true
           xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
           SECONDS=0
-          for i in {1..120}; do grep -q 'localhost' swcd.log && break; sleep 1; done
-          echo "swcd mentioned localhost after ${SECONDS}s"
-          grep -i 'localhost' swcd.log | head -40 || true
+          for i in {1..120}; do grep -q "$APP_DOMAIN" swcd.log && break; sleep 1; done
+          echo "swcd mentioned $APP_DOMAIN after ${SECONDS}s"
+          grep -F "$APP_DOMAIN" swcd.log | head -40 || true
       - run: maestro test .maestro/probe.yaml
       - name: exa teardown
         if: always()

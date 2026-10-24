@@ -38,7 +38,7 @@ export default {
     icon: "src/assets/icon.png",
     bundleIdentifier: "app.exactly",
     associatedDomains: [
-      `webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}${env.APP_DOMAIN === "localhost" ? "?mode=developer" : ""}`,
+      `webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}${env.EXPO_PUBLIC_ENV === "e2e" ? "?mode=developer" : ""}`,
     ],
     appleTeamId: env.APPLE_TEAM_ID,
     supportsTablet: false,
