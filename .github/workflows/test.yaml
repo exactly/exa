@@ -40,10 +40,10 @@ jobs:
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - run: pip install -r contracts/requirements.txt
       - run: echo ::add-matcher::.github/matcher.json
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
+      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm nx run-many -t test
+      - run: flock /tmp/apt.lock pnpm nx run-many -t test
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
@@ -85,7 +85,9 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: server-artifacts
-          path: server/node_modules/@exactly/.*
+          path: |
+            apt.log
+            server/node_modules/@exactly/.*
           include-hidden-files: true
 
   e2e:
@@ -141,13 +143,13 @@ jobs:
           echo METAMASK=$RUNNER_TEMP/metamask >> "$GITHUB_ENV"
           echo SE_FORCE_BROWSER_DOWNLOAD=true >> "$GITHUB_ENV"
       - run: echo ::add-matcher::.github/matcher.json
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
+      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - if: hashFiles(format('.maestro/generated/{0}.y4m', matrix.flow)) != ''
         run: echo CAMERA=$PWD/.maestro/generated/${{ matrix.flow }}.y4m >> "$GITHUB_ENV"
       - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
-      - run: GITHUB_STEP_SUMMARY= pnpm nx e2e:web:release mobile > server.log 2>&1 & echo $! > server.pid
+      - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 & echo $! > server.pid
         env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - if: matrix.method == 'siwe'
         id: metamask
@@ -201,6 +203,7 @@ jobs:
         with:
           name: e2e-${{ matrix.flow }}-artifacts
           path: |
+            apt.log
             chrome.log
             server.log
             server/coverage
