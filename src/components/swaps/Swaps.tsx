@@ -1275,9 +1275,8 @@ export default function Swaps() {
                         <Checkbox
                           pointerEvents="none"
                           borderColor={danger ? "$borderErrorStrong" : "$backgroundBrand"}
-                          backgroundColor={
-                            acknowledged ? (danger ? "$uiErrorSecondary" : "$backgroundBrand") : "transparent"
-                          }
+                          backgroundColor="transparent"
+                          activeStyle={{ backgroundColor: danger ? "$uiErrorSecondary" : "$backgroundBrand" }}
                           checked={acknowledged}
                         >
                           <Checkbox.Indicator>

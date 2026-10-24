@@ -143,7 +143,8 @@ export default function Amount() {
                 <Checkbox
                   pointerEvents="none"
                   borderColor="$backgroundBrand"
-                  backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
+                  backgroundColor="transparent"
+                  activeStyle={{ backgroundColor: "$backgroundBrand" }}
                   checked={acknowledged}
                 >
                   <Checkbox.Indicator>
