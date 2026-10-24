@@ -119,7 +119,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.7.1 }
+        with: { version: v1.7.1, cache: false }
       - id: script
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
