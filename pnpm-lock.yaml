@@ -176,6 +176,9 @@ patchedDependencies:
   '@pimlico/alto':
     hash: d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276
     path: patches/@pimlico__alto.patch
+  '@tamagui/animations-reanimated':
+    hash: cd61cc707eec5fb9b3fbfd9455989aba00e06e7d01f92cbb837c57eb847c53be
+    path: patches/@tamagui__animations-reanimated.patch
   '@tamagui/sheet':
     hash: ca92034306a3cd44d5e953ccf3e4de88a8d930bb1eb1e1c75fde8760254d2f55
     path: patches/@tamagui__sheet.patch
@@ -267,7 +270,7 @@ importers:
         version: 13.3.0
       '@tamagui/animations-reanimated':
         specifier: 'catalog:'
-        version: 2.7.7(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)
+        version: 2.7.7(patch_hash=cd61cc707eec5fb9b3fbfd9455989aba00e06e7d01f92cbb837c57eb847c53be)(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)
       '@tamagui/config':
         specifier: 'catalog:'
         version: 2.7.7(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)
@@ -22906,7 +22909,7 @@ snapshots:
     transitivePeerDependencies:
       - react-dom
 
-  '@tamagui/animations-reanimated@2.7.7(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)':
+  '@tamagui/animations-reanimated@2.7.7(patch_hash=cd61cc707eec5fb9b3fbfd9455989aba00e06e7d01f92cbb837c57eb847c53be)(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@react-native/normalize-colors': 0.83.2
       '@tamagui/animation-helpers': 2.7.7
@@ -23057,7 +23060,7 @@ snapshots:
       '@tamagui/animations-css': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/animations-motion': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/animations-react-native': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@tamagui/animations-reanimated': 2.7.7(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)
+      '@tamagui/animations-reanimated': 2.7.7(patch_hash=cd61cc707eec5fb9b3fbfd9455989aba00e06e7d01f92cbb837c57eb847c53be)(react-dom@19.2.0(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.2(@babel/core@7.29.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react@19.2.0)
       '@tamagui/colors': 2.7.7
       '@tamagui/core': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tamagui/font-inter': 2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
