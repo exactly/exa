@@ -70,6 +70,7 @@ export default function TokenInput({
       })
     : "0";
   const canUseMax = !!token && !!onUseMax;
+  const loading = isLoading && !isActive;
 
   const handleAmountChange = useCallback(
     (value: string) => {
@@ -168,90 +169,89 @@ export default function TokenInput({
             )}
           </View>
           <YStack flex={1}>
-            {isLoading && !isActive ? (
-              <Skeleton height={28} width="100%" />
-            ) : (
-              <>
-                <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
-                  {({ state: { value } }) => (
-                    <View width="100%">
-                      <AmountInput
-                        value={value}
-                        decimals={token?.decimals ?? 18}
-                        onChangeText={handleAmountChange}
-                        onFocus={onFocus}
-                        disabled={disabled}
-                        cursor={disabled ? undefined : "pointer"}
-                        placeholder={token ? formatUnits(amount, token.decimals) : String(amount)}
-                        color={
-                          isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"
-                        }
-                        fontSize={28}
-                        fontWeight="bold"
-                        letterSpacing={-0.2}
-                        textAlign="left"
-                        enterKeyHint="done"
-                        inputAccessoryViewID={id}
-                        borderColor="transparent"
-                        numberOfLines={1}
-                        flex={1}
-                        width="100%"
-                      />
-                      {Platform.OS === "ios" && !disabled && (
-                        <InputAccessoryView nativeID={id}>
-                          <XStack
-                            justifyContent="flex-end"
-                            paddingHorizontal="$s4"
-                            paddingVertical="$s3"
-                            backgroundColor="$backgroundSoft"
-                            borderTopWidth={1}
-                            borderColor="$borderNeutralSoft"
-                          >
-                            <Text
-                              emphasized
-                              callout
-                              color="$interactiveOnBaseBrandSoft"
-                              role="button"
-                              hitSlop={8}
-                              onPress={() => Keyboard.dismiss()}
-                            >
-                              {t("Done")}
-                            </Text>
-                          </XStack>
-                        </InputAccessoryView>
-                      )}
-                    </View>
-                  )}
-                </Field>
-                <XStack justifyContent="space-between" alignItems="flex-start">
-                  {isLoading && !isActive ? (
-                    <View flex={1}>
-                      <Skeleton height={16} width={120} />
-                    </View>
-                  ) : (
-                    <Text callout color="$uiNeutralPlaceholder">
-                      {`${valueUSD > 0 ? "≈" : ""}$${valueUSD.toLocaleString(language, {
-                        style: "decimal",
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}`}
-                    </Text>
-                  )}
-                  {token ? (
-                    <YStack alignItems="flex-end" gap="$s1">
-                      <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
-                        {t("Balance: {{value}}", {
-                          value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        })}
-                      </Text>
-                      <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
-                        {`${balanceAmount} ${token.symbol}`}
-                      </Text>
+            <Field name="amountInput" validators={{ onChange: pipe(string(), nonEmpty("empty")) }}>
+              {({ state: { value } }) => (
+                <View width="100%">
+                  <AmountInput
+                    value={value}
+                    decimals={token?.decimals ?? 18}
+                    onChangeText={handleAmountChange}
+                    onFocus={onFocus}
+                    disabled={disabled}
+                    cursor={disabled ? undefined : "pointer"}
+                    placeholder={token ? formatUnits(amount, token.decimals) : String(amount)}
+                    color={isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"}
+                    fontSize={28}
+                    fontWeight="bold"
+                    letterSpacing={-0.2}
+                    textAlign="left"
+                    enterKeyHint="done"
+                    inputAccessoryViewID={id}
+                    borderColor="transparent"
+                    numberOfLines={1}
+                    flex={1}
+                    width="100%"
+                    opacity={loading ? 0 : 1}
+                    aria-hidden={loading}
+                  />
+                  {loading && (
+                    <YStack position="absolute" top={0} bottom={0} left={0} right={0} justifyContent="center">
+                      <Skeleton height={28} width="100%" />
                     </YStack>
-                  ) : null}
-                </XStack>
-              </>
-            )}
+                  )}
+                  {Platform.OS === "ios" && !disabled && (
+                    <InputAccessoryView nativeID={id}>
+                      <XStack
+                        justifyContent="flex-end"
+                        paddingHorizontal="$s4"
+                        paddingVertical="$s3"
+                        backgroundColor="$backgroundSoft"
+                        borderTopWidth={1}
+                        borderColor="$borderNeutralSoft"
+                      >
+                        <Text
+                          emphasized
+                          callout
+                          color="$interactiveOnBaseBrandSoft"
+                          role="button"
+                          hitSlop={8}
+                          onPress={() => Keyboard.dismiss()}
+                        >
+                          {t("Done")}
+                        </Text>
+                      </XStack>
+                    </InputAccessoryView>
+                  )}
+                </View>
+              )}
+            </Field>
+            <XStack justifyContent="space-between" alignItems="flex-start">
+              {loading ? (
+                <View flex={1}>
+                  <Skeleton height={16} width={120} />
+                </View>
+              ) : (
+                <Text callout color="$uiNeutralPlaceholder">
+                  {`${valueUSD > 0 ? "≈" : ""}$${valueUSD.toLocaleString(language, {
+                    style: "decimal",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
+                </Text>
+              )}
+              {token ? (
+                <YStack alignItems="flex-end" gap="$s1">
+                  <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
+                    {t("Balance: {{value}}", {
+                      value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    })}
+                  </Text>
+                  <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
+                    {`${balanceAmount} ${token.symbol}`}
+                  </Text>
+                </YStack>
+              ) : null}
+            </XStack>
           </YStack>
         </XStack>
       </YStack>
