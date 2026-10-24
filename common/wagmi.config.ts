@@ -7,7 +7,7 @@ import { env } from "node:process";
 import { isDeepStrictEqual } from "node:util";
 import { getAddress, type Abi, type Chain } from "viem";
 import * as chains from "viem/chains";
-import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
@@ -106,7 +106,7 @@ export default defineConfig([
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
-          const alchemyChains = Object.values(infra).flatMap((c) => {
+          const alchemyChains: { id: number; name?: string; source: string }[] = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
             const url = alchemy && (chain ? alchemy : anvil.rpcUrls.default).http[0];
@@ -124,6 +124,14 @@ export default defineConfig([
               },
             ];
           });
+          const allowlists: Record<string, Record<string, string>> = { ...deploy.proposalManager.allowlist };
+          if (!chain) {
+            alchemyChains.push({
+              id: moonbeamDev.id,
+              source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default } })})`,
+            });
+            allowlists[moonbeamDev.id] = { "0x345108DA76464B8115ABcDBf0E8C969c470aE02c": "USDC.e" };
+          }
           const source = alchemyChains.find(({ id }) => id === chainId)?.source;
           if (chain && !source) throw new Error("missing alchemy chain");
           return {
@@ -176,12 +184,10 @@ export default defineConfig([
               ),
               `export const allowlists: Record<string, readonly string[] | undefined> = ${JSON.stringify(
                 Object.fromEntries(
-                  Object.entries(deploy.proposalManager.allowlist as Record<string, Record<string, string>>).map(
-                    ([id, tokens]) => [
-                      id,
-                      [...(markets[id] ?? []), ...Object.keys(tokens).map((address) => getAddress(address))],
-                    ],
-                  ),
+                  Object.entries(allowlists).map(([id, tokens]) => [
+                    id,
+                    [...(markets[id] ?? []), ...Object.keys(tokens).map((address) => getAddress(address))],
+                  ]),
                 ),
               )}`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
