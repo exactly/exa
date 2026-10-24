@@ -1,4 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
+tags: [smoke]
 ---
 - runFlow: ../subflows/launch.yaml
 - openLink: ${APP_ID}/missing

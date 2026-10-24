@@ -2,7 +2,8 @@
 
 - **stack**: maestro 2.11.0, built from source with `patches/*.patch` into `build/` by `pnpm nx maestro e2e`. scripts run on graaljs, bundled from `src/script/` into `dist/`.
 - **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
-- **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
+- **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size. eas runs `flows/local.yaml`, which chains the bodies native covers, on ios and android.
+- **tags**: maestro applies `--include-tags` only when it runs a folder, so the single-file legs ignore tags. `critical` marks the eas flow, `flows/local.yaml`. `smoke` marks `flows/swap.yaml`, a short leg that needs no camera or metamask and still signs up, logs back in with the passkey and settles a send onchain. a tag marks one flow, since one stack serves one run.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
 - **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the `e2e` job plays it through chrome's fake camera on legs that have one, so each leg scans a single code.
 
@@ -102,6 +103,12 @@
   ```sh
   CI=true NX_DAEMON=false CHAIN_ID=31337 APP_DOMAIN=localhost EXPO_PUBLIC_ENV=e2e pnpm nx e2e:web:release mobile
   .maestro/build/bin/maestro test .maestro/flows/transfer.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/.maestro/generated/transfer.y4m
+  ```
+
+- **levels**: while developing, run the smoke flow first, then the leg that covers the change, each on a fresh stack, and leave every leg to ci and the `critical` flow to eas:
+
+  ```sh
+  .maestro/build/bin/maestro test .maestro/flows --include-tags=smoke -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size 740x880 --browser-args=--force-prefers-reduced-motion
   ```
 
 @../common/AGENTS.md
