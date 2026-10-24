@@ -1,0 +1,100 @@
+name: probe:android
+on:
+  workflow_dispatch: {}
+defaults: { tools: { node: "24.14.1" } }
+jobs:
+  android_get:
+    type: get-build
+    params:
+      platform: android
+      profile: e2e:local
+      fingerprint_hash: b26eff2f8dc1e2ec62b80e86a69dc12e1fbf5a30 # main's e2e build, the probe changes only ios config
+      wait_for_in_progress: true
+
+  android_probe:
+    after: [android_get]
+    if: ${{ after.android_get.outputs.build_id }}
+    environment: development
+    runs_on: linux-large-nested-virtualization
+    image: latest
+    env:
+      APP_DOMAIN: localhost
+      CHAIN_ID: "31337"
+      EXPO_PUBLIC_ENV: e2e
+      GIT_BRANCH: "${{ github.ref_name }}"
+      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
+    steps:
+      - uses: eas/checkout
+      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
+      - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
+        run: |
+          sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
+          avdmanager -s create avd -n e2e -k "system-images;android-35;google_apis;x86_64" --force
+          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+      - uses: eas/install_node_modules
+      - name: exa setup
+        run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
+      - id: script
+        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
+      - uses: eas/restore_cache
+        id: maestro
+        with:
+          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ steps.script.outputs.hash }}"
+          restore_keys: gradle-
+          path: | # cspell:ignore dists
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - run: curl -fsSLo keepassdx.apk https://f-droid.org/repo/com.kunzisoft.keepass.libre_45600.apk # cspell:ignore keepassdx
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ after.android_get.outputs.build_id }}" }
+      - uses: eas/repack
+        id: repack
+        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - name: prepare device # cspell:ignore getprop logcat kunzisoft stayon
+        run: |
+          adb wait-for-device
+          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell svc power stayon true
+          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944
+          adb install "${{ steps.repack.outputs.output_path }}"
+          adb install keepassdx.apk
+          for key in credential_service credential_service_primary; do
+            adb shell settings put secure $key com.kunzisoft.keepass.libre/com.kunzisoft.keepass.credentialprovider.passkey.PasskeyProviderService
+          done
+          adb logcat -v time > emulator.log 2>&1 &
+          for i in {1..420}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
+            sleep 1
+          done
+      - run: maestro test .maestro/probe.yaml
+      - name: exa teardown
+        if: always()
+        run: | # cspell:ignore pkill uiautomator screencap
+          adb exec-out uiautomator dump /dev/tty > hierarchy.xml || true
+          adb exec-out screencap -p > screen.png || true
+          curl -X POST http://localhost:3000/e2e/shutdown || true
+          pkill -f "adb logcat" || true
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            server.log
+            emulator.log
+            hierarchy.xml
+            screen.png
+            ${{ env.HOME }}/.maestro/tests

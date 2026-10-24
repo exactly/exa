@@ -1,5 +1,22 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
+- runFlow:
+    when: { platform: Android }
+    commands:
+      - launchApp: { appId: com.kunzisoft.keepass.libre, clearState: true }
+      - tapOn: Create new vault
+      - extendedWaitUntil: { visible: "SAVE|Save", timeout: 15000 }
+      - takeScreenshot: android-documents
+      - tapOn: "SAVE|Save"
+      - extendedWaitUntil: { visible: Assign a master key, timeout: 15000 }
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/password_edit_text" }
+      - inputText: "1111"
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/password_confirmation" }
+      - inputText: "1111"
+      - hideKeyboard
+      - tapOn: OK
+      - waitForAnimationToEnd
+      - takeScreenshot: android-vault
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - tapOn: Create new account
 - enrollBiometrics
@@ -11,6 +28,31 @@ appId: ${APP_ID ?? "app.exactly"}
       - takeScreenshot: passkey-sheet
       - tapOn: "Add Passkey|Continue"
       - matchBiometrics
+- runFlow:
+    when: { platform: Android }
+    commands:
+      - extendedWaitUntil: { visible: "Create|Continue", timeout: 30000 }
+      - takeScreenshot: android-credman
+      - tapOn: "Create|Continue"
+      - waitForAnimationToEnd
+      - takeScreenshot: android-keepassdx
+      - runFlow:
+          when: { visible: Check }
+          commands:
+            - tapOn: { id: "com.kunzisoft.keepass.libre:id/password_text_view" }
+            - inputText: "1111"
+            - tapOn: Check
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/add_button" }
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/fab_add_entry" }
+      - waitForAnimationToEnd
+      - takeScreenshot: android-entry
+      - runFlow:
+          when: { visible: Check }
+          commands:
+            - tapOn: { id: "com.kunzisoft.keepass.libre:id/password_text_view" }
+            - inputText: "1111"
+            - tapOn: Check
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/entry_edit_validate" }
 - runFlow: subflows/dismissNotifications.yaml
 - assertVisible: Good (morning|afternoon|evening)!
 - takeScreenshot: home
