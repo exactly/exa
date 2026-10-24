@@ -7,7 +7,7 @@ import { env } from "node:process";
 import { isDeepStrictEqual } from "node:util";
 import { getAddress, type Abi, type Chain } from "viem";
 import * as chains from "viem/chains";
-import { anvil, base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
@@ -124,6 +124,13 @@ export default defineConfig([
               },
             ];
           });
+          if (!chain) {
+            alchemyChains.push({
+              id: moonbeamDev.id,
+              name: "moonbeamDev",
+              source: `{ ...moonbeamDev, name: "Anvil2", rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default } }`,
+            });
+          }
           const source = alchemyChains.find(({ id }) => id === chainId)?.source;
           if (chain && !source) throw new Error("missing alchemy chain");
           return {
