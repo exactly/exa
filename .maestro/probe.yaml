@@ -46,7 +46,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - extendedWaitUntil: { visible: "Create|Continue", timeout: 30000 }
       - takeScreenshot: android-credman
       - tapOn: "Create|Continue"
-      - tapOn: "keepass(\\.kdbx)?"
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/file_alias" }
       - tapOn: { id: "com.kunzisoft.keepass.libre:id/password_text_view" }
       - inputText: "1111"
       - tapOn: { id: "com.kunzisoft.keepass.libre:id/activity_password_open_button" }
