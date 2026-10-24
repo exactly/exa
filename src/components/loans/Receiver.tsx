@@ -193,6 +193,7 @@ export default function Receiver() {
                             borderRightColor="transparent"
                             borderTopRightRadius={0}
                             borderBottomRightRadius={0}
+                            hoverStyle={{ borderColor: "$uiNeutralTertiary", borderRightColor: "transparent" }}
                             value={value}
                             onChangeText={handleChange}
                           />
