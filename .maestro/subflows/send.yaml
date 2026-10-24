@@ -102,6 +102,12 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { platform: web }
     commands: [{ tapOn: "Send ${asset}" }]
 - assertVisible: (Processing send|Sent) to .*
+- runFlow:
+    when: { true: "${!!requests}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Close } }
+      - tapOn: Pending request → 1
+      - assertVisible: Sending to
 - runFlow: getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js
@@ -115,7 +121,13 @@ appId: ${APP_ID ?? "app.exactly"}
       - runScript:
           file: ../dist/bridge.js
           env: { destination: "${destination}", to: "${to}", amount: "${amount}" }
-- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- runFlow:
+    when: { true: "${!!requests}" }
+    commands: [back]
+- runFlow:
+    when: { true: "${!requests}" }
+    file: tapAria.yaml
+    env: { aria: Close }
 - tapOn: Home
 - runFlow:
     file: ../subflows/tapWhileAria.yaml

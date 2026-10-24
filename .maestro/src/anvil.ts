@@ -17,6 +17,7 @@ import {
   type Quantity,
   type ReadContractParameters,
   type ReadContractReturnType,
+  type RpcBlock,
   type RpcLog,
   type RpcTransactionReceipt,
   type TransactionRequest,
@@ -79,6 +80,7 @@ export function writeContract<
 
 declare const output: { id?: number };
 
+export default function anvil(method: "eth_accounts", params: readonly [], network?: string): Address[];
 export default function anvil(method: "eth_blockNumber" | "eth_chainId", params: readonly [], network?: string): Hex;
 export default function anvil(
   method: "eth_call",
@@ -95,6 +97,11 @@ export default function anvil(
   params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
   network?: string,
 ): Hex;
+export default function anvil(
+  method: "eth_getBlockByNumber",
+  params: readonly [block: BlockNumber<Hex> | BlockTag, includeTransactions: false],
+  network?: string,
+): RpcBlock;
 export default function anvil(
   method: "eth_getLogs",
   params: readonly [filter: { address?: Address; fromBlock?: Hex; toBlock?: Hex; topics?: (Hex | Hex[] | null)[] }],
@@ -116,8 +123,18 @@ export default function anvil(
   network?: string,
 ): Hash;
 export default function anvil(
+  method: "eth_sendTransactionSync",
+  params: readonly [transaction: TransactionRequest],
+  network?: string,
+): RpcTransactionReceipt;
+export default function anvil(
   method: "anvil_mine",
   params: readonly [count: number, interval: number | undefined],
+  network?: string,
+): void;
+export default function anvil(
+  method: "anvil_impersonateAccount" | "anvil_stopImpersonatingAccount",
+  params: readonly [account: Address],
   network?: string,
 ): void;
 export default function anvil(
