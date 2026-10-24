@@ -60,7 +60,7 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
-      const tls = domain === "localhost" ? undefined : await certificate();
+      const tls = origins.includes(`https://${domain}`) ? await certificate() : undefined;
       await database.delete(credentials); // eslint-disable-line drizzle/enforce-delete-with-where -- e2e starts with no users
       const { default: app, close: stop } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");

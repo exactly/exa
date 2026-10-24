@@ -1,0 +1,117 @@
+name: probe:ios
+on:
+  workflow_dispatch: {}
+defaults: { tools: { node: "24.14.1" } }
+jobs:
+  fingerprint:
+    environment: development
+    env: { APP_DOMAIN: localhost, APPLE_TEAM_ID: 665NDX7LBZ }
+    outputs:
+      ios_fingerprint_hash: ${{ steps.fingerprint.outputs.ios }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: fingerprint
+        run: set-output ios "$(pnpm exec fingerprint fingerprint:generate --platform ios | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
+
+  ios_get:
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: e2e:local
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  ios_build:
+    type: build
+    needs: [fingerprint]
+    after: [ios_get]
+    if: ${{ !after.ios_get.outputs.build_id }}
+    image: sdk-55
+    env: { APPLE_TEAM_ID: 665NDX7LBZ }
+    params: { platform: ios, profile: e2e:local }
+
+  ios_probe:
+    after: [ios_get, ios_build]
+    if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
+    environment: development
+    runs_on: macos-large
+    image: latest
+    env:
+      APP_DOMAIN: localhost
+      APP_ORIGINS: https://localhost
+      CHAIN_ID: "31337"
+      EXPO_PUBLIC_ENV: e2e
+      GIT_BRANCH: "${{ github.ref_name }}"
+      REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
+    steps:
+      - run: brew install redis
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: exa setup
+        run: pnpm nx e2e server > server.log 2>&1 &
+      - id: script
+        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
+      - uses: eas/restore_cache
+        id: maestro
+        with:
+          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-${{ steps.script.outputs.hash }}"
+          restore_keys: gradle-
+          path: | # cspell:ignore dists
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - uses: eas/download_build
+        id: download
+        with: { build_id: "${{ after.ios_get.outputs.build_id || after.ios_build.outputs.build_id }}" }
+      - uses: eas/repack
+        id: repack
+        with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - uses: eas/start_ios_simulator
+      - name: prepare device # cspell:ignore servername swcd
+        run: |
+          xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
+          xcrun simctl spawn booted log stream --level debug --predicate 'process == "swcd" or subsystem == "com.apple.AuthenticationServices"' > swcd.log 2>&1 &
+          xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
+          for i in {1..420}; do
+            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
+            [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
+            sleep 1
+          done
+          for i in {1..60}; do
+            { openssl s_client -connect 127.0.0.1:443 -servername localhost < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem 2> /dev/null && break
+            [ $i -eq 60 ] && echo "https timed out" && cat server.log && exit 1
+            sleep 1
+          done
+          openssl x509 -in cert.pem -noout -subject -ext subjectAltName
+          xcrun simctl keychain booted add-root-cert cert.pem
+          curl -sS --cacert cert.pem https://localhost/.well-known/apple-app-site-association && echo
+          grep -a -o -h -r 'webcredentials:[^<]*\|[A-Z0-9]\{10\}\.app\.exactly' "${{ steps.repack.outputs.output_path }}" | sort -u || true
+          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
+          SECONDS=0
+          for i in {1..120}; do grep -q 'localhost' swcd.log && break; sleep 1; done
+          echo "swcd mentioned localhost after ${SECONDS}s"
+          grep -i 'localhost' swcd.log | head -40 || true
+      - run: maestro test .maestro/probe.yaml
+      - name: exa teardown
+        if: always()
+        run: | # cspell:ignore pkill
+          curl -X POST http://localhost:3000/e2e/shutdown || true
+          pkill -f "log stream" || true
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            server.log
+            swcd.log
+            simulator.log
+            ${{ env.HOME }}/.maestro/tests

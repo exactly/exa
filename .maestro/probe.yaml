@@ -1,0 +1,16 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
+- tapOn: Create new account
+- enrollBiometrics
+- tapOn: Set passkey and create account
+- runFlow:
+    when: { platform: iOS }
+    commands:
+      - extendedWaitUntil: { visible: "Add Passkey|Continue", timeout: 30000 }
+      - takeScreenshot: passkey-sheet
+      - tapOn: "Add Passkey|Continue"
+      - matchBiometrics
+- runFlow: subflows/dismissNotifications.yaml
+- assertVisible: Good (morning|afternoon|evening)!
+- takeScreenshot: home
