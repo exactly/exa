@@ -177,7 +177,8 @@
           "{workspaceRoot}/contracts/broadcast/*/31337/run-latest.json",
           "{workspaceRoot}/contracts/cache/tooling",
           "{workspaceRoot}/contracts/out/tooling",
-          "{projectRoot}/generated/anvil.json"
+          "{projectRoot}/generated/anvil.json",
+          "{projectRoot}/generated/anvil2.json"
         ]
       },
       "generate:app": {
