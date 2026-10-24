@@ -58,13 +58,7 @@ export default function NotificationToast() {
           <Toast.Title>
             <Text
               footnote
-              color={
-                type === "success"
-                  ? "$uiSuccessPrimary"
-                  : type === "error"
-                    ? "$uiErrorPrimary"
-                    : "$uiInformationPrimary"
-              }
+              color={type === "success" ? "$uiSuccessPrimary" : type === "error" ? "$uiErrorPrimary" : "$uiInfoPrimary"}
             >
               {toast.title}
             </Text>
