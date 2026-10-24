@@ -13,4 +13,3 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Home
 - tapOn: Swap
 - assertVisible: Swaps
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
