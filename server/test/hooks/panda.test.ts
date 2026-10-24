@@ -2664,6 +2664,94 @@ describe("card notification", () => {
   });
 });
 
+describe("card updated", () => {
+  it("deletes canceled card", async () => {
+    const id = crypto.randomUUID();
+    await database.insert(cards).values([{ id, credentialId: "cred", lastFour: "7392" }]);
+
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: { ...cardUpdated.json.body, id, status: "canceled", tokenWallets: ["Apple"] },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "DELETED" });
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      event: "CardDeleted",
+      properties: { source: null },
+    });
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips tracking already deleted card", async () => {
+    const id = crypto.randomUUID();
+    await database.insert(cards).values([{ id, credentialId: "cred", lastFour: "7392", status: "DELETED" }]);
+
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: { ...cardUpdated.json.body, id, status: "canceled", tokenWallets: ["Apple"] },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "DELETED" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("ignores unknown canceled card", async () => {
+    const id = crypto.randomUUID();
+
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: { ...cardUpdated.json.body, id, status: "canceled", tokenWallets: ["Apple"] },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    await expect(database.query.cards.findFirst({ where: eq(cards.id, id) })).resolves.toBeUndefined();
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each(["active", "locked", "notActivated"] as const)("keeps card status when %s", async (status) => {
+    const id = crypto.randomUUID();
+    await database.insert(cards).values([{ id, credentialId: "cred", lastFour: "7392" }]);
+
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, id, status, tokenWallets: ["Apple"] } },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "ACTIVE" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+});
+
 describe("dispute", () => {
   it("returns ok", async () => {
     const response = await appClient.index.$post({
