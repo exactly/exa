@@ -95,8 +95,8 @@ import ownerConfig from "./wagmi/owner";
 import type { Credential } from "@exactly/common/validation";
 import type { Config } from "@wagmi/core";
 
-export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
-  const accountAddress = deriveAddress(factory, { x, y });
+export default async function createAccountClient({ credentialId, factory, x, y, salt }: Credential) {
+  const accountAddress = deriveAddress(factory, { x, y, salt });
   setUser({ id: accountAddress });
   login(accountAddress);
   identify(accountAddress);
@@ -198,7 +198,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     const promise = rpc
       .readContract({ address, abi, functionName: "getDepositInfo", args: [factory] })
       .then(async ({ staked }) => {
-        if (staked) return concatHex([factory, accountInit({ x, y })]);
+        if (staked) return concatHex([factory, accountInit({ x, y, salt })]);
         if (!(await rpc.getCode({ address: factory }))) throw new DeploymentError("factory");
         for (let attempt = 0; attempt < 30; attempt++) {
           await new Promise((resolve) => setTimeout(resolve, 2000));
