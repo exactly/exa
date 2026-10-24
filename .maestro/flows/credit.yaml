@@ -7,5 +7,19 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Coffee Shop, amount: "90", installments: "3", credentialId: "${output.credential}" }
+- tapOn: Home
+- runFlow:
+    when: { visible: Tap here to change the number of installments }
+    commands:
+      - tapOn: Tap here to change the number of installments
+      - waitForAnimationToEnd
+      - runFlow:
+          when: { visible: Invest in companies you know }
+          commands: [{ tapOn: { id: Close, above: NEW - Tokenized stocks } }]
+      - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/storeCoverage.yaml

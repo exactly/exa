@@ -201,7 +201,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const cards = new Map<string, Card>();
   return {
     ...original,
-    signIssuerOp: vi.fn().mockResolvedValue("0x" + "ab".repeat(65)),
     default: (...parameters: Parameters<typeof original.default>) => ({
       ...original.default(...parameters),
       createCard: vi.fn().mockImplementation((userId: string) => {

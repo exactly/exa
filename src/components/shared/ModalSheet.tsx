@@ -10,6 +10,7 @@ export default function ModalSheet({
   heightPercent,
   disableDrag = true,
   dismissible = true,
+  transition = "default",
 }: {
   children: React.ReactNode;
   disableDrag?: boolean;
@@ -17,6 +18,7 @@ export default function ModalSheet({
   heightPercent?: number;
   onClose: () => void;
   open: boolean;
+  transition?: React.ComponentProps<typeof Sheet>["transition"];
 }) {
   return (
     <Sheet
@@ -24,7 +26,7 @@ export default function ModalSheet({
       dismissOnSnapToBottom={dismissible}
       unmountChildrenWhenHidden
       disableRemoveScroll={!open}
-      transition="default"
+      transition={transition}
       dismissOnOverlayPress={dismissible}
       onOpenChange={(isOpen: boolean) => {
         if (!isOpen) onClose();
