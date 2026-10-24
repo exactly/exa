@@ -32,6 +32,7 @@ import {
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import exaConfig from "../../utils/wagmi/exa";
 import Amount from "../shared/Amount";
@@ -57,6 +58,7 @@ export default function Asset() {
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
+  const insets = useInsets();
   const navigation = useNavigation();
   const params = safeParse(Search, useLocalSearchParams());
   const { data: tokens } = useQuery(lifiTokensOptions);
@@ -121,7 +123,7 @@ export default function Asset() {
   const priced =
     protocol && symbol ? { address, chainId, symbol, priceUSD: formatUnits(protocol.usdPrice, 18) } : entry;
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
       <View padded flexDirection="row" alignItems="center" justifyContent="space-between">
         <IconButton
           icon={ArrowLeft}
@@ -142,7 +144,12 @@ export default function Asset() {
           }}
         />
       </View>
-      <ScrollView flex={1} backgroundColor="$backgroundMild" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        flex={1}
+        backgroundColor="$backgroundMild"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom }}
+      >
         <View padded gap="$s4_5" backgroundColor="$backgroundSoft" paddingBottom="$s5">
           <MarketClosedBanner open={stock && !marketOpen()} />
           {priced ? (

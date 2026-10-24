@@ -13,7 +13,6 @@ import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/co
 
 import GradientScrollView from "./GradientScrollView";
 import IconButton from "./IconButton";
-import SafeView from "./SafeView";
 import View from "./View";
 import useAccount from "../../utils/useAccount";
 import AssetLogo from "../shared/AssetLogo";
@@ -55,7 +54,7 @@ export default function Success({
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   return (
     <GradientScrollView variant={isLatestPlugin ? "info" : "success"}>
-      <SafeView flex={1} backgroundColor="transparent">
+      <View flex={1}>
         <YStack gap="$s5" justifyContent="space-between">
           <YStack>
             <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
@@ -136,7 +135,7 @@ export default function Success({
             </Pressable>
           </YStack>
         </View>
-      </SafeView>
+      </View>
     </GradientScrollView>
   );
 }

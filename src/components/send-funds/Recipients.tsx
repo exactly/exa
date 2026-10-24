@@ -5,7 +5,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, CircleHelp, Contact, PencilLine, QrCode, Settings, TriangleAlert } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
-import { ScrollView, Spinner, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -14,6 +14,7 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, deleteExternalAccount, listExternalAccounts } from "../../utils/server";
+import useInsets from "../../utils/useInsets";
 import AddFundsOption from "../add-funds/AddFundsOption";
 import Blocky from "../shared/Blocky";
 import IconButton from "../shared/IconButton";
@@ -27,6 +28,7 @@ import View from "../shared/View";
 export default function Recipients() {
   const { t } = useTranslation();
   const router = useRouter();
+  const insets = useInsets();
   const { currency, provider } = useLocalSearchParams();
   const toast = useToastController();
 
@@ -69,8 +71,8 @@ export default function Recipients() {
   const recipients = allRecipients?.filter((recipient) => recipient.currency === currency) ?? [];
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s5" fullScreen padded>
+    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
+      <View gap="$s5" fullScreen padded paddingBottom={0}>
         <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -91,7 +93,7 @@ export default function Recipients() {
             }}
           />
         </XStack>
-        <ScrollView flex={1}>
+        <ScrollView flex={1} contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}>
           <YStack flex={1} gap="$s5">
             <YStack gap="$s3_5">
               <AddFundsOption

@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
 
 import { ArrowLeft, CircleHelp, Info, Search } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -16,6 +16,7 @@ import EducationSheet from "./EducationSheet";
 import { presentArticle } from "../../utils/intercom";
 import { lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
@@ -27,6 +28,7 @@ import TokenSelectModal from "../swaps/SelectorModal";
 
 export default function Assets() {
   const router = useRouter();
+  const insets = useInsets();
   const { t } = useTranslation();
   const { markets, supportedAssets, isPending } = useMarkets();
   const { data: tokens } = useQuery(lifiTokensOptions);
@@ -70,8 +72,8 @@ export default function Assets() {
   }, [tokens, markets, supportedAssets]);
   const visibleOthers = others.slice(0, 4);
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s6" fullScreen padded>
+    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
+      <View gap="$s6" fullScreen padded paddingBottom={0}>
         <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -95,7 +97,11 @@ export default function Assets() {
             }}
           />
         </XStack>
-        <ScrollView flex={1} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          flex={1}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}
+        >
           <YStack gap="$s7">
             <YStack gap="$s4">
               <XStack gap="$s2" alignItems="center">

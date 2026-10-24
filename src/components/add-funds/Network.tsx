@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, CircleHelp, Info } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { queryOptions, skipToken, useQueries, useQuery } from "@tanstack/react-query";
 import { getBytecode } from "@wagmi/core/actions";
@@ -20,6 +20,7 @@ import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import exaConfig from "../../utils/wagmi/exa";
 import ChainLogo from "../shared/ChainLogo";
@@ -32,6 +33,7 @@ import type { Credential } from "@exactly/common/validation";
 
 export default function Network() {
   const router = useRouter();
+  const insets = useInsets();
   const { t } = useTranslation();
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
@@ -110,8 +112,8 @@ export default function Network() {
     navigate(chainId, symbol);
   }
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s6" fullScreen padded>
+    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
+      <View gap="$s6" fullScreen padded paddingBottom={0}>
         <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -135,7 +137,11 @@ export default function Network() {
             }}
           />
         </XStack>
-        <ScrollView flex={1} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          flex={1}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}
+        >
           <YStack gap="$s7">
             {receivable && (
               <YStack gap="$s4">
