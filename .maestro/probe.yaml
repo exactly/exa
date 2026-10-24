@@ -19,6 +19,9 @@ appId: ${APP_ID ?? "app.exactly"}
       - takeScreenshot: android-vault
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - tapOn: Create new account
+- runFlow:
+    when: { visible: Sign up with Passkey }
+    commands: [{ tapOn: Sign up with Passkey }]
 - enrollBiometrics
 - tapOn: Set passkey and create account
 - runFlow:
