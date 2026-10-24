@@ -13,6 +13,7 @@ import { LibString } from "solady/utils/LibString.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
+import { ProposalManager } from "../../src/ProposalManager.sol";
 import { MockPriceFeed } from "./MockPriceFeed.sol";
 import { MockSwapper } from "./MockSwapper.sol";
 import { MockVelodromeFactory, MockVelodromePool } from "./MockVelodromeFactory.sol";
@@ -118,6 +119,7 @@ contract DeployMocks is BaseScript {
     feed.push(1, block.timestamp, 1e18);
     auditor.enableMarket(market, IPriceFeed(address(feed)), 0.9e18);
     market.setFrozen(true);
+    ProposalManager(broadcast("ProposalManager")).allowTarget(address(asset), true);
 
     asset.mint(acct("swapper"), 1_000_000e6);
 
