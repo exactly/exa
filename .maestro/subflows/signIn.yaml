@@ -6,7 +6,15 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Create new account
       - enrollBiometrics
       - tapOn: Set passkey and create account
+      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
+      - runFlow: { when: { platform: android }, commands: [{ tapOn: Continue }] }
       - matchBiometrics
+      - runFlow:
+          when: { platform: android }
+          commands:
+            - tapOn: { id: com.kunzisoft.keepass.libre:id/add_button } # cspell:ignore kunzisoft keepass
+            - tapOn: { id: com.kunzisoft.keepass.libre:id/fab_add_entry }
+            - tapOn: { id: com.kunzisoft.keepass.libre:id/entry_edit_validate }
 - runFlow:
     when: { true: "${method !== 'webauthn' && method !== 'brave'}" }
     commands: [{ tapOn: I already have an account }, { tapOn: Log in with browser wallet }]
@@ -27,4 +35,4 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Connect
       - tapOn: Approve
       - tapOn: { text: Switch network, index: 1 }
-- runFlow: sign.yaml
+- runFlow: { when: { true: "${method !== 'webauthn'}" }, file: sign.yaml }
