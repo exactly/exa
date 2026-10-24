@@ -122,14 +122,25 @@ jobs:
         with: { version: v1.7.1, cache: false }
       - id: script
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache/restore@v6
+        id: deps
         with:
           path: |
             ~/.local/share/svm
             .maestro/build
             /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
-          restore-keys: deps-${{ runner.os }}-${{ github.job }}-
+          key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}-
+            deps-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache@v6
+        if: ${{ !startsWith(steps.deps.outputs.cache-matched-key, format('deps-{0}-{1}-{2}-{3}-', runner.os, github.job, steps.script.outputs.hash, hashFiles('.maestro/patches/*.patch'))) }}
+        with:
+          path: | # cspell:ignore dists
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-${{ runner.os }}-${{ steps.script.outputs.hash }}
+          restore-keys: gradle-${{ runner.os }}-
       - uses: actions/cache/restore@v6
         id: nx
         with:
@@ -175,6 +186,14 @@ jobs:
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+      - uses: actions/cache/save@v6
+        if: steps.deps.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.local/share/svm
+            .maestro/build
+            /tmp/metro-cache
+          key: ${{ steps.deps.outputs.cache-primary-key }}
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
