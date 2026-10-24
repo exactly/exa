@@ -43,7 +43,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes redis-server
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: pnpm nx run-many -t test
+      - run: pnpm nx run-many -t test --parallel=5
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
