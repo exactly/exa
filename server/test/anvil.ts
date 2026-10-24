@@ -10,8 +10,10 @@ import {
   concat,
   createTestClient,
   encodeAbiParameters,
+  erc20Abi,
   http,
   keccak256,
+  numberToHex,
   padHex,
   parseAbi,
   publicActions,
@@ -43,11 +45,11 @@ export default async function setup() {
       codeSizeLimit: 69_000,
       blockBaseFeePerGas: 1n,
       chainId: id,
-      port: env.NODE_ENV === "e2e" && id === anvil.id ? 8546 : Number(new URL(rpcUrls.default.http[0]).port),
+      port: Number(new URL(rpcUrls.default.http[0]).port) + (env.NODE_ENV === "e2e" ? 1 : 0),
     }),
   );
   await Promise.all(instances.map((instance) => instance.start()));
-  const rpc = env.NODE_ENV === "e2e" && alchemy(8546);
+  const rpcs = env.NODE_ENV === "e2e" ? chains.map((chain) => alchemy(chain)) : [];
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
   if (docker) {
     await $({ cwd: "test" })`docker compose down`;
@@ -166,7 +168,7 @@ export default async function setup() {
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
   ).transactions;
   shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = plugin.contractAddress;
-  const started = rpc && rpc.start(paymaster.contractAddress);
+  const started = Promise.all(rpcs.map((rpc) => rpc.start(paymaster.contractAddress)));
 
   await forge("test/mocks/ExaBusinessTenant.s.sol");
   await forge("script/IssuerChecker.s.sol");
@@ -327,7 +329,7 @@ export default async function setup() {
 
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
-    if (rpc) await rpc.stop();
+    await Promise.all(rpcs.map((rpc) => rpc.stop()));
     await Promise.all(instances.map((instance) => instance.stop()));
   };
 }
@@ -388,16 +390,20 @@ const Protocol = object({
   ]),
 });
 
-function alchemy(port: number) {
+function alchemy(chain: (typeof chains)[number]) {
+  const port = Number(new URL(chain.rpcUrls.default.http[0]).port);
   const bundler = Instance.alto({
     entrypoints: [entryPoint06Address],
     executorPrivateKeys: [padHex("0x4337")],
     utilityPrivateKey: padHex("0x4337"),
-    rpcUrl: `http://localhost:${port}`,
+    rpcUrl: `http://localhost:${port + 1}`,
     safeMode: true,
-    port: 4337,
+    port: port + 2,
   });
   const agent = new Agent({ keepAlive: true });
+  const client = createTestClient({ chain, mode: "anvil", transport: http(`http://localhost:${port + 1}`) }).extend(
+    publicActions,
+  );
   const signer = privateKeyToAccount(padHex("0x4337"));
   let paymaster: Hex;
   const server = createServer((incoming, outgoing) => {
@@ -416,8 +422,41 @@ function alchemy(port: number) {
         const { id, method, params } = JSON.parse(body) as {
           id?: number;
           method?: string;
-          params?: [RpcUserOperation<"0.6">];
+          params?: [unknown];
         };
+        if (method === "alchemy_getTokenBalances" && params) {
+          const owner = parse(Address, params[0]);
+          const tokens = await client.getContractEvents({
+            abi: erc20Abi,
+            eventName: "Transfer",
+            args: { to: owner },
+            fromBlock: 0n,
+          });
+          outgoing.writeHead(200, { "content-type": "application/json" }).end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                address: owner,
+                tokenBalances: await Promise.all(
+                  [...new Set(tokens.map(({ address }) => address))].map(async (contractAddress) => ({
+                    contractAddress,
+                    tokenBalance: numberToHex(
+                      await client.readContract({
+                        address: contractAddress,
+                        abi: erc20Abi,
+                        functionName: "balanceOf",
+                        args: [owner],
+                      }),
+                      { size: 32 },
+                    ),
+                  })),
+                ),
+              },
+            }),
+          );
+          return;
+        }
         if (method?.startsWith("pm_") && params) {
           outgoing.writeHead(200, { "content-type": "application/json" }).end(
             JSON.stringify({
@@ -429,10 +468,13 @@ function alchemy(port: number) {
                   await signer.signMessage({
                     message: {
                       raw: getUserOperationHash({
-                        chainId: foundry.id,
+                        chainId: chain.id,
                         entryPointAddress: entryPoint06Address,
                         entryPointVersion: "0.6",
-                        userOperation: { ...formatUserOperation(params[0]), paymasterAndData: paymaster },
+                        userOperation: {
+                          ...formatUserOperation(params[0] as RpcUserOperation<"0.6">),
+                          paymasterAndData: paymaster,
+                        },
                       }),
                     },
                   }),
@@ -444,7 +486,7 @@ function alchemy(port: number) {
         }
         request(
           {
-            port: /UserOperation|EntryPoints/.test(method ?? "") ? bundler.port : port,
+            port: /UserOperation|EntryPoints/.test(method ?? "") ? bundler.port : port + 1,
             method: "POST",
             headers: { "content-type": "application/json" },
             agent,
@@ -460,11 +502,11 @@ function alchemy(port: number) {
           );
       })
       .catch((error: unknown) => outgoing.writeHead(500).end(String(error)));
-  }).listen(8545);
+  }).listen(port);
   return {
     async start(address: Hex) {
       paymaster = address;
-      await anvilClient.setBalance({ address: signer.address, value: 10n ** 24n });
+      await client.setBalance({ address: signer.address, value: 10n ** 24n });
       await bundler.start();
     },
     async stop() {
