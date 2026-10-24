@@ -41,7 +41,7 @@
 
 ## signers
 
-- **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `siwe` is metamask (web only) and `webauthn` is a passkey, on chrome's virtual authenticator on web, the system passkey sheet on ios and keepassdx on android, with biometrics from `biometrics.patch`. <!-- cspell:ignore keepassdx -->
+- **method**: the `method` env picks a leg's signer. `siwe` is metamask (web only) and `webauthn` is a passkey, on chrome's virtual authenticator on web, the system passkey sheet on ios and keepassdx on android, with biometrics from `biometrics.patch`. <!-- cspell:ignore keepassdx -->
 - **native passkeys**: eas jobs prepare the device. ios points the rp id `localhost.exactly.app` at the runner and trusts the e2e server's certificate for it, so the app's associated domain resolves to the local server in developer mode. android enrolls a fingerprint (`subflows/fingerprint.yaml`) and opens a keepassdx vault (`subflows/keepassdx.yaml`) in the background. keepassdx saves a new passkey on full-screen pages, which stop the app right when onesignal would fetch its in-app messages (it skips the fetch in the background), so `subflows/dismissNotifications.yaml` relaunches the app on android before it waits for the prompt. <!-- cspell:ignore keepassdx -->
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
