@@ -52,6 +52,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - assertVisible: Review and confirm
 - tapOn: Confirm and send
+- runFlow: sign.yaml
 - assertVisible: Sent to .*
 - runFlow: getAccount.yaml
 - runScript:

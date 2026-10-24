@@ -1,0 +1,32 @@
+appId: com.kunzisoft.keepass.libre # cspell:ignore kunzisoft keepass
+---
+- launchApp
+- repeat: { while: { notVisible: Appearance }, times: 5, commands: [tapOn: Settings] }
+- tapOn: Appearance
+- scrollUntilVisible: { element: Educational hints }
+- tapOn: Educational hints
+- back
+- tapOn: App settings
+- scrollUntilVisible: { element: Timeout }
+- tapOn: Timeout
+- tapOn: { id: com.kunzisoft.keepass.libre:id/switch_element }
+- tapOn: OK
+- back
+- tapOn: Form filling
+- tapOn: Passkeys settings
+- tapOn: Close database
+- repeat: { times: 3, commands: [back] }
+- tapOn: Create new vault
+- tapOn: SAVE|Save
+- tapOn: { id: com.kunzisoft.keepass.libre:id/password_edit_text }
+- inputText: "1111"
+- tapOn: { id: com.kunzisoft.keepass.libre:id/password_confirmation }
+- inputText: "1111"
+- hideKeyboard
+- tapOn: OK
+- tapOn: { id: com.kunzisoft.keepass.libre:id/lock_button }
+- tapOn: { id: com.kunzisoft.keepass.libre:id/file_alias }
+- tapOn: { id: com.kunzisoft.keepass.libre:id/password_text_view }
+- inputText: "1111"
+- tapOn: { id: com.kunzisoft.keepass.libre:id/activity_password_open_button }
+- assertVisible: { id: com.kunzisoft.keepass.libre:id/lock_button }
