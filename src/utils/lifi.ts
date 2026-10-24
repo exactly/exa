@@ -5,13 +5,16 @@ import {
   EVM,
   getChains,
   getQuote,
+  getRoutes,
   getStatus,
+  getStepTransaction,
   getToken,
   getTokens,
   getTools,
   type ChainId,
   type Estimate,
   type ExtendedChain,
+  type LiFiStep,
   type Token,
   type TokenAmount,
 } from "@lifi/sdk";
@@ -527,14 +530,89 @@ export async function getRouteFrom({
         .filter(([_, value]) => value)
         .map(([key]) => key),
   };
-  const denied = [...denyBridges];
-  let quote = await getQuote(denied.length > 0 ? { ...request, denyBridges: denied } : request);
-  for (let attempt = 0; nativeless && BigInt(quote.transactionRequest?.value ?? 0) > 0n; attempt++) {
-    const bridge = quote.includedSteps.find(({ type }) => type === "cross")?.tool;
-    if (attempt >= 3 || !bridge || denied.includes(bridge)) throw new Error(nativeFeeRoute);
-    denied.push(bridge);
-    quote = await getQuote({ ...request, denyBridges: denied });
+  function fees(step: LiFiStep) {
+    return (
+      step.estimate.feeCosts?.reduce(
+        (total, { included, amountUSD }) => (included ? total : total + Number(amountUSD)),
+        0,
+      ) ?? 0
+    );
   }
+  const denied = [...denyBridges];
+  let error: unknown;
+  let quote: LiFiStep | undefined;
+  let slow: LiFiStep | undefined;
+  let routed = request.fromChain !== request.toChain;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 8000);
+    const [quoted, found] = await Promise.allSettled([
+      getQuote(denied.length > 0 ? { ...request, denyBridges: denied } : request),
+      routed
+        ? getRoutes(
+            {
+              fromChainId: request.fromChain,
+              toChainId: request.toChain,
+              fromTokenAddress,
+              toTokenAddress,
+              fromAmount: request.fromAmount,
+              fromAddress,
+              toAddress,
+              options: {
+                fee: request.fee,
+                slippage: request.slippage,
+                integrator: request.integrator,
+                bridges: { deny: denied },
+                exchanges: { deny: request.denyExchanges },
+              },
+            },
+            { signal: controller.signal },
+          )
+        : { routes: [] },
+    ]);
+    if (found.status === "rejected") routed = false;
+    const deadline = new AbortController();
+    setTimeout(() => deadline.abort(), 8000);
+    error = quoted.status === "rejected" ? quoted.reason : new Error("missing quote transaction data");
+    for (const candidate of [
+      ...(quoted.status === "fulfilled" ? [quoted.value] : []),
+      ...(found.status === "fulfilled" ? found.value.routes : []).flatMap(({ steps: [step, ...rest] }) =>
+        step && rest.length === 0 ? [step] : [],
+      ),
+    ].sort(
+      (a, b) =>
+        Math.max(a.estimate.executionDuration, 120) - Math.max(b.estimate.executionDuration, 120) ||
+        Number(b.estimate.toAmountUSD) - fees(b) - (Number(a.estimate.toAmountUSD) - fees(a)) ||
+        Number(BigInt(b.estimate.toAmount) - BigInt(a.estimate.toAmount)),
+    )) {
+      if (
+        nativeless &&
+        candidate.estimate.feeCosts?.some(({ included, token }) => !included && token.address === zeroAddress)
+      ) {
+        error = new Error(nativeFeeRoute);
+        continue;
+      }
+      const step = candidate.transactionRequest
+        ? candidate
+        : await getStepTransaction(candidate, { signal: deadline.signal }).catch(() => undefined);
+      if (!step?.transactionRequest?.to || !step.transactionRequest.data) continue;
+      if (!nativeless || BigInt(step.transactionRequest.value ?? 0) === 0n) {
+        quote = step;
+        break;
+      }
+      error = new Error(nativeFeeRoute);
+    }
+    const bridge =
+      quoted.status === "fulfilled" ? quoted.value.includedSteps.find(({ type }) => type === "cross")?.tool : undefined;
+    if (quote && !routed && quote.estimate.executionDuration > 120) {
+      slow = slow && slow.estimate.executionDuration <= quote.estimate.executionDuration ? slow : quote;
+      quote = undefined;
+    }
+    if (quote || !bridge) break;
+    denied.push(bridge);
+  }
+  quote ??= slow;
+  if (!quote) throw error;
   const { estimate, transactionRequest, tool } = quote;
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
   const chainId = transactionRequest.chainId ?? fromChainId ?? chain.id;
