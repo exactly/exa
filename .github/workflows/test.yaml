@@ -38,6 +38,13 @@ jobs:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache/restore@v6
+        with:
+          path: |
+            node_modules
+            */node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: node-modules-${{ runner.os }}-
       - run: pip install -r contracts/requirements.txt
       - run: echo ::add-matcher::.github/matcher.json
       - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
@@ -136,6 +143,14 @@ jobs:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache/restore@v6
+        id: modules
+        with:
+          path: |
+            node_modules
+            */node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: node-modules-${{ runner.os }}-
       - if: matrix.method == 'siwe'
         run: |
           curl -fsSLo $RUNNER_TEMP/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v$METAMASK_VERSION/metamask-chrome-$METAMASK_VERSION.zip
@@ -146,6 +161,13 @@ jobs:
       - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - uses: actions/cache/save@v6
+        if: github.ref_name == 'main' && steps.modules.outputs.cache-hit != 'true'
+        with:
+          path: |
+            node_modules
+            */node_modules
+          key: ${{ steps.modules.outputs.cache-primary-key }}
       - if: hashFiles(format('.maestro/generated/{0}.y4m', matrix.flow)) != ''
         run: echo CAMERA=$PWD/.maestro/generated/${{ matrix.flow }}.y4m >> "$GITHUB_ENV"
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 & echo $! > server.pid
