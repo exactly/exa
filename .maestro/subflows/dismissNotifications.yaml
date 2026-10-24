@@ -1,5 +1,15 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
+    when: { platform: android }
+    commands:
+      - assertVisible: "Good (morning|afternoon|evening)!|Stay updated"
+      - extendedWaitUntil: { visible: Stay updated, timeout: 5000, optional: true }
+      - runFlow:
+          when: { notVisible: Stay updated }
+          commands:
+            - runFlow: storeCoverage.yaml
+            - launchApp: { permissions: { all: deny, camera: allow } }
+- runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ assertVisible: Stay updated }, { tapOn: Not now }]

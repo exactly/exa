@@ -31,7 +31,7 @@ pnpm ios # for native ios app
 ```bash
 # native
 pnpm nx e2e:ios mobile # or e2e:android
-maestro test .maestro/flows/local.yaml
+.maestro/build/bin/maestro test .maestro/flows/local.yaml
 
 
 # web
