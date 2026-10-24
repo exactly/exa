@@ -1,7 +1,7 @@
 # end-to-end tests (`e2e`)
 
 - **stack**: maestro 2.11.0, built from source with `patches/*.patch` into `build/` by `pnpm nx maestro e2e`. scripts run on graaljs, bundled from `src/script/` into `dist/`.
-- **flows**: `flows/*.yaml` are the entry points. `flows/web/*.yaml` wrap them with `url:`, since maestro only drives a browser when the top-level config has one. bodies and shared steps live in `subflows/`.
+- **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
 - **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
 - **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the `e2e` job plays it through chrome's fake camera on legs that have one, so each leg scans a single code.
@@ -44,7 +44,7 @@
 - **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `siwe` is metamask (web only) and `webauthn` is a passkey on the virtual authenticator from `biometrics.patch`.
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
-- **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet and basic functionality off, or the connect prompt never shows. ci runs it through `flows/web/metamask.yaml` into a chrome profile it caches by metamask version and onboarding steps. siwe legs start from that profile, where metamask opens its unlock page on its own and `subflows/launch.yaml` unlocks it before `launchApp`. the wallet starts without funds on every run, so a leg funds `output.credential` before metamask sends a transaction. ci passes `--screen-info={3840x2160}` so its popups fit any window.
+- **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet and basic functionality off, or the connect prompt never shows. ci runs it with `--platform web` into a chrome profile it caches by metamask version and onboarding steps. siwe legs start from that profile, where metamask opens its unlock page on its own and `subflows/launch.yaml` unlocks it before `launchApp`. the wallet starts without funds on every run, so a leg funds `output.credential` before metamask sends a transaction. ci passes `--screen-info={3840x2160}` so its popups fit any window.
 
 ## selectors
 
@@ -101,7 +101,7 @@
 
   ```sh
   CI=true NX_DAEMON=false CHAIN_ID=31337 APP_DOMAIN=localhost EXPO_PUBLIC_ENV=e2e pnpm nx e2e:web:release mobile
-  .maestro/build/bin/maestro test .maestro/flows/web/transfer.yaml -e method=webauthn --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/.maestro/generated/transfer.y4m
+  .maestro/build/bin/maestro test .maestro/flows/transfer.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/.maestro/generated/transfer.y4m
   ```
 
 @../common/AGENTS.md
