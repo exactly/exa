@@ -52,6 +52,8 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           disable_search: true
+          exclude: node_modules
+          plugins: noop
           files: contracts/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: contracts
@@ -60,6 +62,8 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           disable_search: true
+          exclude: node_modules
+          plugins: noop
           files: server/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: server
@@ -69,6 +73,7 @@ jobs:
         with:
           report_type: test_results
           disable_search: true
+          exclude: node_modules
           files: server/coverage/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: server
@@ -175,6 +180,8 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           disable_search: true
+          exclude: node_modules
+          plugins: noop
           files: server/coverage/lcov.info,server/coverage/app.json
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: web
@@ -184,6 +191,7 @@ jobs:
         with:
           report_type: test_results
           disable_search: true
+          exclude: node_modules
           files: .maestro/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: web
