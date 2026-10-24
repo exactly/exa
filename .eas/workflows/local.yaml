@@ -19,9 +19,9 @@ jobs:
       - uses: eas/install_node_modules
       - id: fingerprint
         run: |
-          for platform in android ios; do
-            set-output $platform "$(pnpm exec fingerprint fingerprint:generate --platform $platform | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
-          done
+          hash() { pnpm exec fingerprint fingerprint:generate --platform $1 | node -p 'JSON.parse(require("fs").readFileSync(0)).hash'; }
+          set-output android "$(hash android)"
+          set-output ios "$(RP_ID=localhost.exactly.app APPLE_TEAM_ID=665NDX7LBZ hash ios)"
 
   android_get:
     if: ${{ github.ref_type != 'tag' }}
@@ -89,6 +89,27 @@ jobs:
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
       - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+      - name: prepare passkeys # cspell:ignore credentialprovider getprop keepass keepassdx kunzisoft locksettings stayon
+        run: |
+          {
+            trap 'echo $? > passkeys.status' EXIT
+            set -e
+            curl -fsSLo keepassdx.apk https://github.com/Kunzisoft/KeePassDX/releases/download/4.5.6/KeePassDX-4.5.6-libre.apk
+            adb wait-for-device
+            timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            adb shell svc power stayon true
+            adb shell locksettings set-pin 1111
+            adb install keepassdx.apk
+            for key in credential_service credential_service_primary; do
+              adb shell settings put secure $key com.kunzisoft.keepass.libre/com.kunzisoft.keepass.credentialprovider.passkey.PasskeyProviderService
+            done
+            adb shell settings put secure autofill_service com.kunzisoft.keepass.libre/com.kunzisoft.keepass.credentialprovider.autofill.KeeAutofillService
+            maestro test .maestro/subflows/fingerprint.yaml
+            maestro test .maestro/subflows/keepassdx.yaml
+          } > passkeys.log 2>&1 &
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
@@ -107,13 +128,10 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: prepare device # cspell:ignore getprop logcat
+      - name: prepare device # cspell:ignore logcat
         run: |
-          adb wait-for-device
-          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
+          until [ -s passkeys.status ]; do sleep 1; done
+          [ "$(cat passkeys.status)" = 0 ] || { cat passkeys.log; exit 1; }
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944
           adb install "${{ steps.repack.outputs.output_path }}"
           adb logcat -v time > emulator.log 2>&1 &
@@ -122,7 +140,7 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro -e method=webauthn --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -140,6 +158,7 @@ jobs:
           ignore_error: true
           path: |
             apt.log
+            passkeys.log
             server.log
             server/coverage
             server/node_modules/@exactly/.*
@@ -164,6 +183,7 @@ jobs:
     after: [ios_get]
     if: ${{ !after.ios_get.outputs.build_id }}
     image: sdk-55
+    env: { RP_ID: localhost.exactly.app, APPLE_TEAM_ID: 665NDX7LBZ }
     params: { platform: ios, profile: e2e:local }
 
   ios_e2e:
@@ -174,10 +194,12 @@ jobs:
     image: latest
     env:
       APP_DOMAIN: localhost
+      APP_ORIGINS: https://localhost.exactly.app
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
       REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
+      RP_ID: localhost.exactly.app
     steps:
       - run: brew install redis
       - uses: eas/checkout
@@ -228,17 +250,21 @@ jobs:
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
       - uses: eas/start_ios_simulator
-      - name: prepare device
+      - name: prepare device # cspell:ignore dscacheutil flushcache killall servername
         run: |
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
-          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
+          printf '127.0.0.1 %s\n::1 %s\n' "$RP_ID" "$RP_ID" | sudo tee -a /etc/hosts > /dev/null
+          sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+          { openssl s_client -connect 127.0.0.1:443 -servername "$RP_ID" < /dev/null 2> /dev/null || true; } | openssl x509 > cert.pem
+          xcrun simctl keychain booted add-root-cert cert.pem
+          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
+      - run: pnpm e2e:maestro -e method=webauthn --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
