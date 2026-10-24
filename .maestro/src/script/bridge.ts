@@ -14,18 +14,10 @@ declare const amount: string | undefined;
 if (!to || !isHex(to)) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
-const log = anvil(
-  "eth_getLogs",
-  [
-    {
-      address: swapperAddress,
-      fromBlock: "0x0",
-      topics: [toEventSelector(getAbiItem({ abi: mockSwapperAbi, name: "LiFiTransferStarted" }))],
-    },
-  ],
-  network,
-).pop();
-if (!log) throw new Error("missing bridge");
+let log = bridge();
+for (const deadline = Date.now() + 30_000; !log; log = bridge()) {
+  if (Date.now() >= deadline) throw new Error("timeout waiting for bridge");
+}
 const { transactionId, sendingAssetId, receiver, minAmount, destinationChainId } = decodeEventLog({
   abi: mockSwapperAbi,
   eventName: "LiFiTransferStarted",
@@ -60,3 +52,17 @@ const delivered =
 const expected = parseUnits(amount, decimals);
 if (delivered < (expected * 98n) / 100n || delivered > (expected * 102n) / 100n) throw new Error("bad delivery");
 activity(token, to, Number(formatUnits(delivered, decimals)), hash, destination);
+
+function bridge() {
+  return anvil(
+    "eth_getLogs",
+    [
+      {
+        address: swapperAddress,
+        fromBlock: "0x0",
+        topics: [toEventSelector(getAbiItem({ abi: mockSwapperAbi, name: "LiFiTransferStarted" }))],
+      },
+    ],
+    network,
+  ).pop();
+}
