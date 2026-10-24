@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView } from "react-native";
+import { ScrollView } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -33,6 +33,7 @@ import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import usePendingOperations from "../../utils/usePendingOperations";
+import IconButton from "../shared/IconButton";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -148,7 +149,9 @@ export default function PendingProposals() {
     <SafeView fullScreen>
       <View fullScreen padded>
         <View flexDirection="row" gap="$s3_5" paddingBottom="$s4" justifyContent="space-between" alignItems="center">
-          <Pressable
+          <IconButton
+            icon={ArrowLeft}
+            aria-label={t("Back")}
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -156,21 +159,19 @@ export default function PendingProposals() {
                 router.dismissTo("/(main)/(home)");
               }
             }}
-          >
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
-          </Pressable>
+          />
           <View flexDirection="row" alignItems="center">
             <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
               {t("Pending requests")}
             </Text>
           </View>
-          <Pressable
+          <IconButton
+            icon={CircleHelp}
+            aria-label={t("Help")}
             onPress={() => {
               presentArticle("10752721").catch(reportError);
             }}
-          >
-            <CircleHelp color="$uiNeutralPrimary" />
-          </Pressable>
+          />
         </View>
         <ScrollView
           showsVerticalScrollIndicator={false}
