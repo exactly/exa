@@ -28,7 +28,13 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "100"
       asset: USDT
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
+- tapOn: Deposit
+- tapOn: Digital assets
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
+- tapOn: USDT
+- tapOn: Recommended
+- tapOn: Continue
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }
