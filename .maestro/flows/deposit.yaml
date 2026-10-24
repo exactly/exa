@@ -67,10 +67,16 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: View pending request
 - assertVisible: Pending requests
 - assertVisible: Swapping
+- back
+- tapOn: Swap
+- tapOn: { text: "0", index: 0 }
+- inputText: "1"
+- assertVisible: You have a pending request. Wait for it to be processed before swapping again.
 - runScript:
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
-- back
+- assertVisible: Swap USDC for EXA
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
