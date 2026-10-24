@@ -1,10 +1,9 @@
 import { $ } from "execa";
 import { spawn } from "node:child_process";
-import { access, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { Agent, createServer, request } from "node:http";
 import { env, stderr, stdout } from "node:process";
 import { text } from "node:stream/consumers";
-import { gunzipSync } from "node:zlib";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import {
@@ -12,7 +11,6 @@ import {
   createTestClient,
   encodeAbiParameters,
   erc20Abi,
-  hexToBytes,
   http,
   keccak256,
   numberToHex,
@@ -21,6 +19,7 @@ import {
   publicActions,
   toBytes,
   toHex,
+  walletActions,
   zeroAddress,
   type Hex,
 } from "viem";
@@ -45,16 +44,17 @@ async function start(dump = false) {
   const state =
     !dump &&
     env.NODE_ENV !== "e2e" &&
-    (await access("generated/anvil.json").then(
+    (await Promise.all(chains.map((_, index) => access(snapshot(index)))).then(
       () => true,
       () => false,
     ));
-  const instances = chains.map(({ id, rpcUrls }) =>
+  const instances = chains.map(({ id, rpcUrls }, index) =>
     Instance.anvil({
       codeSizeLimit: 69_000,
       blockBaseFeePerGas: 1n,
       chainId: id,
-      ...(state && { loadState: "generated/anvil.json" }),
+      ...(state && { loadState: snapshot(index) }),
+      ...(dump && { dumpState: snapshot(index), preserveHistoricalStates: true }),
       port: Number(new URL(rpcUrls.default.http[0]).port) + (env.NODE_ENV === "e2e" ? 1 : 0),
     }),
   );
@@ -126,52 +126,58 @@ async function start(dump = false) {
     );
   }
 
+  const bob = privateKeyToAddress(padHex("0xb0b"));
   let started: Promise<unknown> | undefined;
   if (state) {
-    const [{ timestamp }, now] = [await anvilClient.getBlock(), BigInt(Math.floor(Date.now() / 1000))];
-    if (now > timestamp) await anvilClient.setNextBlockTimestamp({ timestamp: now });
-    await anvilClient.mine({ blocks: 1 });
+    await Promise.all(
+      chains.map(async (chain) => {
+        const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
+        const [{ timestamp }, now] = [await client.getBlock(), BigInt(Math.floor(Date.now() / 1000))];
+        if (now > timestamp) await client.setNextBlockTimestamp({ timestamp: now });
+        await client.mine({ blocks: 1 });
+      }),
+    );
   } else {
     await $(shell)`forge compiler resolve`;
     await forge("test/mocks/Protocol.s.sol", "--disable-code-size-limit");
+  }
 
-    const protocol = parse(
-      Protocol,
-      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
-    ).transactions;
-    const auditor = protocol[1].contractAddress;
-    const exa = protocol[2].contractAddress;
-    const marketEXA = protocol[4].contractAddress;
-    const usdc = protocol[9].contractAddress;
-    const marketUSDC = protocol[11].contractAddress;
-    const weth = protocol[16].contractAddress;
-    const marketWETH = protocol[18].contractAddress;
-    const balancer = protocol[23].contractAddress;
-    const debtManager = protocol[24].contractAddress;
-    const previewer = protocol[28].contractAddress;
-    const integrationPreviewer = protocol[29].contractAddress;
-    const ratePreviewer = protocol[30].contractAddress;
-    const installmentsRouter = protocol[31].contractAddress;
-    const firewall = protocol[33].contractAddress;
+  const protocol = parse(
+    Protocol,
+    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
+  ).transactions;
+  const auditor = protocol[1].contractAddress;
+  const exa = protocol[2].contractAddress;
+  const marketEXA = protocol[4].contractAddress;
+  const usdc = protocol[9].contractAddress;
+  const marketUSDC = protocol[11].contractAddress;
+  const weth = protocol[16].contractAddress;
+  const marketWETH = protocol[18].contractAddress;
+  const balancer = protocol[23].contractAddress;
+  const debtManager = protocol[24].contractAddress;
+  const previewer = protocol[28].contractAddress;
+  const integrationPreviewer = protocol[29].contractAddress;
+  const ratePreviewer = protocol[30].contractAddress;
+  const installmentsRouter = protocol[31].contractAddress;
 
-    // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
-    shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
-    shell.env.PROTOCOL_EXA_ADDRESS = exa;
-    shell.env.PROTOCOL_MARKETEXA_ADDRESS = marketEXA;
-    shell.env.PROTOCOL_USDC_ADDRESS = usdc;
-    shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
-    shell.env.PROTOCOL_WETH_ADDRESS = weth;
-    shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
-    shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
-    shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
-    shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
-    shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
-    shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
-    shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
-    shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
-    shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
-    shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
+  // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
+  shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
+  shell.env.PROTOCOL_EXA_ADDRESS = exa;
+  shell.env.PROTOCOL_MARKETEXA_ADDRESS = marketEXA;
+  shell.env.PROTOCOL_USDC_ADDRESS = usdc;
+  shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
+  shell.env.PROTOCOL_WETH_ADDRESS = weth;
+  shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
+  shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
+  shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
+  shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
+  shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
+  shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
+  shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
+  shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
+  shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
+  if (!state) {
     await forge("test/mocks/Mocks.s.sol");
 
     await forge("test/mocks/Account.s.sol");
@@ -196,7 +202,6 @@ async function start(dump = false) {
     await forge("script/ExaPlugin.s.sol");
     await forge("script/ExaAccountFactory.s.sol");
 
-    const bob = privateKeyToAddress(padHex("0xb0b"));
     await Promise.all([
       anvilClient.impersonateAccount({ address: bob }),
       anvilClient.impersonateAccount({ address: keeper.address }),
@@ -212,12 +217,8 @@ async function start(dump = false) {
     await anvilClient.stopImpersonatingAccount({ address: keeper.address });
   }
   if (dump) {
-    const client = createTestClient({
-      chain: foundry,
-      mode: "anvil",
-      transport: http(undefined, { maxResponseBodySize: false }),
-    });
-    await writeFile("generated/anvil.json", gunzipSync(hexToBytes(await client.dumpState())));
+    await Promise.all(instances.map((instance) => instance.stop()));
+    return () => Promise.resolve();
   }
 
   const [exaBusinessTenant, refunder, exaPlugin] = await Promise.all([
@@ -237,8 +238,61 @@ async function start(dump = false) {
   );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-  for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
-    const address = privateKeyToAddress(keccak256(toBytes(testFile)));
+  const signers = files
+    .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
+    .map((file) => privateKeyToAddress(keccak256(toBytes(file))));
+  const verified = Promise.all(
+    chains.slice(1).map(async (chain) => {
+      const client = createTestClient({ chain, mode: "anvil", transport: http() })
+        .extend(publicActions)
+        .extend(walletActions);
+      await $(shell)`forge script test/mocks/Protocol.s.sol
+          --sig anvil2() --disable-code-size-limit
+          --unlocked --sender ${deployer} --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
+      const firewall = await client.readContract({
+        address: auditor,
+        functionName: "firewall",
+        abi: parseAbi(["function firewall() view returns (address)"]),
+      });
+      for (const address of signers) {
+        await client.setBalance({ address, value: 10n ** 24n });
+        for (const [contract, role] of [
+          [exaPlugin, "KEEPER_ROLE"],
+          [firewall, "ALLOWER_ROLE"],
+        ] as const) {
+          await client.waitForTransactionReceipt({
+            hash: await client.writeContract({
+              address: contract,
+              functionName: "grantRole",
+              args: [keccak256(toHex(role)), address],
+              abi: parseAbi(["function grantRole(bytes32 role, address account)"]),
+              account: null,
+            }),
+          });
+        }
+      }
+      if (
+        !(await client.readContract({
+          address: parse(
+            object({ returns: object({ frozen: object({ value: Address }) }) }),
+            JSON.parse(
+              // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled path from broadcast directory
+              await readFile(
+                `node_modules/@exactly/plugin/broadcast/Protocol.s.sol/${chain.id}/anvil2-latest.json`,
+                "utf8",
+              ),
+            ),
+          ).returns.frozen.value,
+          functionName: "isFrozen",
+          abi: parseAbi(["function isFrozen() view returns (bool)"]),
+        }))
+      ) {
+        throw new Error("market not frozen");
+      }
+    }),
+  );
+
+  for (const address of signers) {
     await anvilClient.setBalance({ address, value: 10n ** 24n });
     for (const contract of [exaPlugin, refunder]) {
       await anvilClient.waitForTransactionReceipt({
@@ -261,35 +315,7 @@ async function start(dump = false) {
     }
   }
 
-  await Promise.all(
-    chains.slice(1).map(async (chain) => {
-      const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
-      await Promise.all([
-        $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
-            --unlocked --sender ${deployer} --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
-        client.setBalance({ address: privateKeyToAddress(keccak256(toBytes("e2e.ts"))), value: 10n ** 24n }),
-      ]);
-      if (
-        !(await client.readContract({
-          address: parse(
-            object({ returns: object({ market: object({ value: Address }) }) }),
-            JSON.parse(
-              // eslint-disable-next-line security/detect-non-literal-fs-filename -- controlled path from broadcast directory
-              await readFile(
-                `node_modules/@exactly/plugin/broadcast/Mocks.s.sol/${chain.id}/frozenMarket-latest.json`,
-                "utf8",
-              ),
-            ),
-          ).returns.market.value,
-          functionName: "isFrozen",
-          abi: parseAbi(["function isFrozen() view returns (bool)"]),
-        }))
-      ) {
-        throw new Error("market not frozen");
-      }
-    }),
-  );
-
+  await verified;
   await started;
 
   if (docker) {
@@ -361,7 +387,7 @@ async function start(dump = false) {
   };
 }
 
-export const chains = [anvil, ...(env.NODE_ENV === "e2e" ? [{ ...moonbeamDev, name: "Anvil2" }] : [])].map((chain) => ({
+export const chains = [anvil, { ...moonbeamDev, name: "Anvil2" }].map((chain) => ({
   ...chain,
   blockTime: optimism.blockTime,
 }));
@@ -412,8 +438,6 @@ const Protocol = object({
       contractName: literal("InstallmentsRouter"),
       contractAddress: Address,
     }),
-    object({ transactionType: literal("CREATE"), contractName: literal("Firewall") }),
-    object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
 
@@ -547,6 +571,10 @@ function alchemy(chain: (typeof chains)[number]) {
       await bundler.stop();
     },
   };
+}
+
+function snapshot(index: number) {
+  return `generated/anvil${index === 0 ? "" : index + 1}.json`;
 }
 
 export default function setup() {

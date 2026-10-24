@@ -2,10 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Auditor, IPriceFeed } from "@exactly/protocol/Auditor.sol";
-import { InterestRateModel } from "@exactly/protocol/InterestRateModel.sol";
 import { Market } from "@exactly/protocol/Market.sol";
-
-import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { LibString } from "solady/utils/LibString.sol";
@@ -13,8 +10,6 @@ import { LibString } from "solady/utils/LibString.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
-import { ProposalManager } from "../../src/ProposalManager.sol";
-import { MockPriceFeed } from "./MockPriceFeed.sol";
 import { MockSwapper } from "./MockSwapper.sol";
 import { MockVelodromeFactory, MockVelodromePool } from "./MockVelodromeFactory.sol";
 
@@ -80,49 +75,5 @@ contract DeployMocks is BaseScript {
         vm.rpc("anvil_setCode", string.concat('["', target.toHexString(), '","', code.toHexString(), '"]')); // solhint-disable-line quotes
       } catch { } // solhint-disable-line no-empty-blocks
     }
-  }
-
-  function frozenMarket() external returns (Market market) {
-    Auditor auditor = Auditor(protocol("Auditor"));
-
-    vm.startBroadcast(acct("deployer"));
-
-    MockERC20 asset = MockERC20(
-      CREATE3_FACTORY.deploy(
-        keccak256(abi.encode("USDC.e")),
-        abi.encodePacked(type(MockERC20).creationCode, abi.encode("Bridged USDC", "USDC.e", 6))
-      )
-    );
-    market = Market(
-      address(
-        new ERC1967Proxy(
-          address(new Market(asset, auditor)),
-          abi.encodeCall(
-            Market.initialize,
-            (
-              "USDC.e",
-              7,
-              type(uint256).max,
-              1e6,
-              InterestRateModel(address(0)),
-              0.02e18 / uint256(1 days),
-              1e17,
-              0,
-              1e18,
-              1e18
-            )
-          )
-        )
-      )
-    );
-    MockPriceFeed feed = new MockPriceFeed(18);
-    feed.push(1, block.timestamp, 1e18);
-    auditor.enableMarket(market, IPriceFeed(address(feed)), 0.9e18, false);
-    market.setFrozen(true);
-    ProposalManager(broadcast("ProposalManager")).allowTarget(address(asset), true);
-
-    asset.mint(acct("swapper"), 1_000_000e6);
-
-    vm.stopBroadcast();
   }
 }
