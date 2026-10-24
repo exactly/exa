@@ -2,7 +2,7 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/deposit.yaml
-- runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "1" } }
+- runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "2" } }
 - runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "1", network: Anvil2 } }
 - runScript:
     file: ../dist/mint.js
@@ -64,4 +64,14 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
+- tapOn: Deposit
+- tapOn: With connected wallet
+- tapOn: { text: "0", index: 0 }
+- inputText: "1"
+- tapOn: Transfer ETH
+- runFlow: ../subflows/sign.yaml
+- assertVisible: Add funds request sent
+- assertTrue: '${Number(JSON.parse(http.post("http://localhost:8545", { body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "eth_getBalance", params: [output.deposit, "latest"] }) }).body).result) === 1e18}'
+- back
+- back
 - runFlow: ../subflows/storeCoverage.yaml
