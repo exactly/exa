@@ -97,6 +97,7 @@ jobs:
           - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
       NX_DAEMON: false
+      NX_MAX_CACHE_SIZE: 1GB
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
       CHAIN_ID: "31337"
     steps:
