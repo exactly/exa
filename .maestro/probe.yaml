@@ -4,6 +4,15 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { platform: Android }
     commands:
       - launchApp: { appId: com.kunzisoft.keepass.libre, clearState: true }
+      - repeat:
+          while: { notVisible: Appearance }
+          times: 5
+          commands: [{ tapOn: Settings }]
+      - tapOn: Appearance
+      - scrollUntilVisible: { element: { text: Educational hints } }
+      - tapOn: Educational hints
+      - back
+      - back
       - tapOn: Create new vault
       - extendedWaitUntil: { visible: "SAVE|Save", timeout: 15000 }
       - takeScreenshot: android-documents
@@ -15,8 +24,8 @@ appId: ${APP_ID ?? "app.exactly"}
       - inputText: "1111"
       - hideKeyboard
       - tapOn: OK
-      - waitForAnimationToEnd
-      - takeScreenshot: android-vault
+      - extendedWaitUntil: { visible: { id: "com.kunzisoft.keepass.libre:id/lock_button" }, timeout: 15000 }
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/lock_button" }
 - launchApp: { clearState: true, permissions: { all: deny, camera: allow } }
 - tapOn: Create new account
 - runFlow:
@@ -37,8 +46,10 @@ appId: ${APP_ID ?? "app.exactly"}
       - extendedWaitUntil: { visible: "Create|Continue", timeout: 30000 }
       - takeScreenshot: android-credman
       - tapOn: "Create|Continue"
-      - waitForAnimationToEnd
-      - takeScreenshot: android-keepassdx
+      - tapOn: "keepass(\\.kdbx)?"
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/password_text_view" }
+      - inputText: "1111"
+      - tapOn: { id: "com.kunzisoft.keepass.libre:id/activity_password_open_button" }
       - runFlow:
           when: { visible: Check }
           commands:
@@ -47,8 +58,6 @@ appId: ${APP_ID ?? "app.exactly"}
             - tapOn: Check
       - tapOn: { id: "com.kunzisoft.keepass.libre:id/add_button" }
       - tapOn: { id: "com.kunzisoft.keepass.libre:id/fab_add_entry" }
-      - waitForAnimationToEnd
-      - takeScreenshot: android-entry
       - runFlow:
           when: { visible: Check }
           commands:

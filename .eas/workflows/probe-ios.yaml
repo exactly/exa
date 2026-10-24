@@ -90,7 +90,7 @@ jobs:
             [ $i -eq 60 ] && echo "https timed out" && cat server.log && exit 1
             sleep 1
           done
-          openssl x509 -in cert.pem -noout -subject -ext subjectAltName
+          openssl x509 -in cert.pem -noout -text | grep -A1 'Subject Alternative Name' || true
           xcrun simctl keychain booted add-root-cert cert.pem
           curl -sS --cacert cert.pem https://localhost/.well-known/apple-app-site-association && echo
           grep -a -o -h -r 'webcredentials:[^<]*\|[A-Z0-9]\{10\}\.app\.exactly' "${{ steps.repack.outputs.output_path }}" | sort -u || true
