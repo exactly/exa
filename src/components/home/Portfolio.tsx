@@ -17,6 +17,7 @@ import { balancesOptions, isStock } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import Amount from "../shared/Amount";
@@ -33,6 +34,7 @@ export default function Portfolio() {
   const { address } = useAccount();
   const { averageRate, rates, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
   const router = useRouter();
+  const insets = useInsets();
   const { t } = useTranslation();
   const [tab, setTab] = useState<"all" | "collateral" | "stocks">("all");
 
@@ -42,7 +44,7 @@ export default function Portfolio() {
   const stocks = allAssets.filter((asset): asset is ExternalAsset => asset.type === "external" && isStock(asset));
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
       <View padded flexDirection="row" gap="$s3_5" paddingBottom="$s4" alignItems="center">
         <IconButton
           icon={ArrowLeft}
@@ -69,6 +71,7 @@ export default function Portfolio() {
       <ScrollView
         backgroundColor="$backgroundSoft"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom }}
         refreshControl={
           <RefreshControl
             onRefresh={() =>

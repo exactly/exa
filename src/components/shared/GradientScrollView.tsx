@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ScrollView, styled, useTheme } from "tamagui";
 
 import SafeView from "./SafeView";
+import useInsets from "../../utils/useInsets";
 
 export default function GradientScrollView({
   children,
@@ -16,6 +17,7 @@ export default function GradientScrollView({
   variant?: "error" | "info" | "neutral" | "success";
 }) {
   const theme = useTheme();
+  const insets = useInsets();
   const config = VARIANTS[variant];
   const gradientColors = useMemo((): [string, string] => {
     const [mainColor, secondaryColor] = config.gradientColors;
@@ -25,7 +27,7 @@ export default function GradientScrollView({
     return [String(main.val), String(secondary.val)];
   }, [theme, config.gradientColors]);
   return (
-    <SafeView fullScreen backgroundColor={config.backgroundColor}>
+    <SafeView fullScreen backgroundColor={config.backgroundColor} paddingBottom={0}>
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
@@ -46,6 +48,7 @@ export default function GradientScrollView({
           flexDirection: "column",
           justifyContent: "space-between",
           gap: "$s4_5",
+          paddingBottom: insets.bottom,
         }}
       >
         {children}

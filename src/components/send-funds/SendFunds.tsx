@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, Banknote, Blocks, CircleHelp } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { base } from "viem/chains";
@@ -15,6 +15,7 @@ import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getKYCStatus, getRampProviders, origin } from "../../utils/server";
+import useInsets from "../../utils/useInsets";
 import useKYC from "../../utils/useKYC";
 import AddFundsOption from "../add-funds/AddFundsOption";
 import RampButton from "../ramp/RampButton";
@@ -27,6 +28,7 @@ import View from "../shared/View";
 export default function SendFunds() {
   const { type } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useInsets();
   const { t } = useTranslation();
 
   const { approved: isKYCApproved } = useKYC();
@@ -91,8 +93,8 @@ export default function SendFunds() {
   }
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s6" fullScreen padded>
+    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
+      <View gap="$s6" fullScreen padded paddingBottom={0}>
         <YStack gap="$s4_5">
           <XStack flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
@@ -119,7 +121,7 @@ export default function SendFunds() {
             />
           </XStack>
         </YStack>
-        <ScrollView flex={1}>
+        <ScrollView flex={1} contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}>
           <YStack flex={1} gap="$s3_5">
             {type !== "fiat" && (
               <>

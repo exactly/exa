@@ -9,7 +9,6 @@ import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import IconButton from "./IconButton";
-import SafeView from "./SafeView";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -39,7 +38,7 @@ export default function Failure({
   } = useTranslation();
   return (
     <GradientScrollView variant="error">
-      <SafeView flex={1} backgroundColor="transparent">
+      <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
@@ -104,7 +103,7 @@ export default function Failure({
             </Pressable>
           </YStack>
         </View>
-      </SafeView>
+      </View>
     </GradientScrollView>
   );
 }

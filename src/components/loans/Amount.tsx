@@ -18,6 +18,7 @@ import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -27,6 +28,7 @@ import View from "../shared/View";
 
 export default function Amount() {
   const router = useRouter();
+  const insets = useInsets();
   const { address } = useAccount();
   const {
     t,
@@ -47,7 +49,7 @@ export default function Amount() {
 
   if (!market || (markets && !asset)) return <Redirect href="/loan" />;
   return (
-    <SafeView fullScreen>
+    <SafeView fullScreen paddingBottom={0}>
       <View
         padded
         flexDirection="row"
@@ -78,7 +80,7 @@ export default function Amount() {
       <ScrollView
         backgroundColor="$backgroundMild"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom }}
       >
         <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
           <YStack gap="$s4">

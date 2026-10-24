@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check, CircleHelp } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { parse } from "valibot";
 
@@ -16,6 +16,7 @@ import { presentArticle } from "../../utils/intercom";
 import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
+import useInsets from "../../utils/useInsets";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -24,6 +25,7 @@ import View from "../shared/View";
 
 export default function Maturity() {
   const router = useRouter();
+  const insets = useInsets();
   const {
     t,
     i18n: { language },
@@ -33,7 +35,7 @@ export default function Maturity() {
 
   if (!market || !amount || !installments || (markets && !asset)) return <Redirect href="/loan" />;
   return (
-    <SafeView fullScreen>
+    <SafeView fullScreen paddingBottom={0}>
       <View
         padded
         flexDirection="row"
@@ -137,7 +139,12 @@ export default function Maturity() {
           </YStack>
         </YStack>
       </ScrollView>
-      <YStack gap="$s4" padding="$s4" backgroundColor="$backgroundSoft">
+      <YStack
+        gap="$s4"
+        padding="$s4"
+        paddingBottom={insets.bottom + getTokens().space.$s4.val}
+        backgroundColor="$backgroundSoft"
+      >
         <LoanSummary market={market} amount={amount} installments={installments} maturity={maturity} />
         <Button
           onPress={() => {

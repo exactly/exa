@@ -19,7 +19,7 @@ import {
   X,
 } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
-import { AnimatePresence, ScrollView, Spinner, XStack, YStack } from "tamagui";
+import { AnimatePresence, getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -36,6 +36,7 @@ import ContactSheet from "./ContactSheet";
 import ensOptions, { ensName } from "../../utils/ensOptions";
 import { chainTypeOf, lifiChainsOptions, receiverSchema } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
+import useInsets from "../../utils/useInsets";
 import Blocky from "../shared/Blocky";
 import ChainLogo from "../shared/ChainLogo";
 import IconButton from "../shared/IconButton";
@@ -48,6 +49,7 @@ import View from "../shared/View";
 
 export default function ReceiverSelection() {
   const router = useRouter();
+  const insets = useInsets();
   const {
     t,
     i18n: { language },
@@ -113,8 +115,8 @@ export default function ReceiverSelection() {
   }
 
   return (
-    <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
+    <SafeView fullScreen paddingBottom={0}>
+      <View gap="$s4_5" fullScreen padded paddingBottom={0}>
         <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -138,7 +140,7 @@ export default function ReceiverSelection() {
           </View>
         </XStack>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + getTokens().space.$s4.val }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
