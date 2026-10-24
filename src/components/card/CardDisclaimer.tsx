@@ -59,9 +59,9 @@ export default function CardDisclaimer({
                   >
                     <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
                       <Trans
-                        i18nKey="By continuing, you accept both the notice below and the <link>Terms and Conditions</link> of the Exa Card."
+                        i18nKey="By continuing, you accept both the notice below and the <terms>Terms and Conditions</terms> of the Exa Card."
                         components={{
-                          link: <Text color="$interactiveTextBrandDefault" footnote />,
+                          terms: <Text color="$interactiveTextBrandDefault" footnote />,
                         }}
                       />
                     </Text>
@@ -75,9 +75,9 @@ export default function CardDisclaimer({
                 </YStack>
                 <Text color="$interactiveOnDisabled" caption textAlign="justify">
                   <Trans
-                    i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <link>Exactly Protocol</link> subject to its separate terms and conditions. Third National is not a party to any agreement with <link>Exactly Protocol</link> and is not responsible for any funding or credit arrangement between user and <link>Exactly Protocol</link>."
+                    i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <protocol>Exactly Protocol</protocol> subject to its separate terms and conditions. Third National is not a party to any agreement with <protocol>Exactly Protocol</protocol> and is not responsible for any funding or credit arrangement between user and <protocol>Exactly Protocol</protocol>."
                     components={{
-                      link: (
+                      protocol: (
                         <Text
                           cursor="pointer"
                           caption

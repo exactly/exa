@@ -1187,9 +1187,9 @@ export default function Swaps() {
                 <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
                   <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
                     <Trans
-                      i18nKey="Swaps are provided via <link>LI.FI</link> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
+                      i18nKey="Swaps are provided via <provider>LI.FI</provider> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
                       components={{
-                        link: (
+                        provider: (
                           <Text
                             cursor="pointer"
                             caption2
