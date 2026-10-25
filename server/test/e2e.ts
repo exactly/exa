@@ -18,6 +18,8 @@ import { cors } from "hono/cors";
 import { html } from "hono/html";
 import { createCoverageMap } from "istanbul-lib-coverage";
 import { createInstrumenter } from "istanbul-lib-instrument";
+import { createContext } from "istanbul-lib-report";
+import { create } from "istanbul-reports";
 import crypto from "node:crypto";
 import { glob, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:https";
@@ -143,6 +145,9 @@ describe("e2e", () => {
             }
             await mkdir("coverage", { recursive: true });
             await writeFile("coverage/app.json", JSON.stringify(coverage));
+            create("lcovonly", { file: "app.lcov", projectRoot: root }).execute(
+              createContext({ coverageMap: createCoverageMap(coverage) }),
+            );
             return c.json({ code: "ok" });
           });
           app.get("/e2e/redirect", (c) =>
