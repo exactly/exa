@@ -7,6 +7,7 @@ import {
   formatUnits,
   getAddress,
   http,
+  isAddress,
   keccak256,
   parseAbi,
   parseEventLogs,
@@ -31,6 +32,26 @@ import {
 
 const logoURI = `data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'/>")}`;
 const tool = { key: "mock", name: "Mock", logoURI };
+const nonEVMAddress = "0x11f111f111f111F111f111f111F111f111f111F1";
+const solana = {
+  key: "sol",
+  chainType: "SVM",
+  name: "Solana",
+  coin: "SOL",
+  id: 1_151_111_081_099_710,
+  mainnet: true,
+  logoURI,
+  nativeToken: {
+    address: "11111111111111111111111111111111",
+    chainId: 1_151_111_081_099_710,
+    symbol: "SOL",
+    decimals: 9,
+    name: "SOL",
+    coinKey: "SOL",
+    priceUSD: "0",
+    logoURI,
+  },
+};
 const velodromeAbi = parseAbi([
   "function getPool(address tokenA, address tokenB, bool stable) view returns (address)",
   "function getReserves() view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast)",
@@ -43,6 +64,7 @@ export default function lifi(chains: readonly Chain[]) {
     if (!found) throw new Error(`unknown chain ${id}`);
     return found;
   }
+  const receivers = new Map<Hash, string>();
   async function tokens(id: number) {
     const source = client(id);
     const markets = await source.readContract({
@@ -115,46 +137,57 @@ export default function lifi(chains: readonly Chain[]) {
       )),
     ];
   }
+  async function listTokens(id: number) {
+    if (id !== solana.id) return tokens(id);
+    const [home] = chains;
+    const usdc = home && (await tokens(home.id).then((list) => list.find(({ symbol }) => symbol === "USDC")));
+    return usdc ? [{ ...usdc, address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", chainId: id }] : [];
+  }
   return new Hono()
     .get("/v1/chains", (c) =>
       c.json({
-        chains: chains.map(({ id, name, rpcUrls }) => ({
-          key: `local${id}`,
-          chainType: "EVM",
-          name,
-          coin: "ETH",
-          id,
-          mainnet: true,
-          logoURI,
-          multicallAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
-          diamondAddress: swapperAddress,
-          nativeToken: {
-            address: zeroAddress,
-            chainId: id,
-            symbol: "ETH",
-            decimals: 18,
-            name: "ETH",
-            coinKey: "ETH",
-            priceUSD: "0",
+        chains: [
+          ...chains.map(({ id, name, rpcUrls }) => ({
+            key: `local${id}`,
+            chainType: "EVM",
+            name,
+            coin: "ETH",
+            id,
+            mainnet: true,
             logoURI,
-          },
-          metamask: {
-            chainId: toHex(id),
-            blockExplorerUrls: [],
-            chainName: name,
-            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-            rpcUrls: rpcUrls.default.http,
-          },
-        })),
+            multicallAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
+            diamondAddress: swapperAddress,
+            nativeToken: {
+              address: zeroAddress,
+              chainId: id,
+              symbol: "ETH",
+              decimals: 18,
+              name: "ETH",
+              coinKey: "ETH",
+              priceUSD: "0",
+              logoURI,
+            },
+            metamask: {
+              chainId: toHex(id),
+              blockExplorerUrls: [],
+              chainName: name,
+              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: rpcUrls.default.http,
+            },
+          })),
+          solana,
+        ],
       }),
     )
     .get("/v1/tokens", async (c) =>
       c.json({
-        tokens: Object.fromEntries(await Promise.all(chains.map(async ({ id }) => [id, await tokens(id)] as const))),
+        tokens: Object.fromEntries(
+          await Promise.all([...chains, solana].map(async ({ id }) => [id, await listTokens(id)] as const)),
+        ),
       }),
     )
     .get("/v1/token", async (c) => {
-      const token = await tokens(Number(c.req.query("chain"))).then((list) =>
+      const token = await listTokens(Number(c.req.query("chain"))).then((list) =>
         list.find(({ address }) => address.toLowerCase() === c.req.query("token")?.toLowerCase()),
       );
       return token ? c.json(token) : c.json({ code: 1003, message: "token not found" }, 404);
@@ -165,7 +198,10 @@ export default function lifi(chains: readonly Chain[]) {
           {
             ...tool,
             supportedChains: chains.flatMap(({ id: fromChainId }) =>
-              chains.filter(({ id }) => id !== fromChainId).map(({ id: toChainId }) => ({ fromChainId, toChainId })),
+              [...chains.filter(({ id }) => id !== fromChainId), solana].map(({ id: toChainId }) => ({
+                fromChainId,
+                toChainId,
+              })),
             ),
           },
         ],
@@ -177,18 +213,19 @@ export default function lifi(chains: readonly Chain[]) {
       const fromChain = Number(query.fromChain);
       const toChain = Number(query.toChain);
       const fromToken = getAddress(query.fromToken ?? "");
-      const toToken = getAddress(query.toToken ?? "");
+      const toToken = toChain === solana.id ? (query.toToken ?? "") : getAddress(query.toToken ?? "");
       const fromAddress = getAddress(query.fromAddress ?? "");
-      const toAddress = getAddress(query.toAddress ?? fromAddress);
+      const receiver = query.toAddress ?? fromAddress;
+      const toAddress = toChain === solana.id ? nonEVMAddress : getAddress(receiver);
       const exact = c.req.param("direction") === "toAmount" ? "out" : "in";
       const source = client(fromChain);
-      const [fromTokens, toTokens] = await Promise.all([tokens(fromChain), tokens(toChain)]);
+      const [fromTokens, toTokens] = await Promise.all([tokens(fromChain), listTokens(toChain)]);
       const from = fromTokens.find(({ address }) => address === fromToken);
       const to = toTokens.find(({ address }) => address === toToken);
       let fromAmount: bigint;
       let toAmount: bigint;
       let data: Hex;
-      if (fromChain === toChain) {
+      if (fromChain === toChain && isAddress(toToken)) {
         if (exact === "in") {
           fromAmount = BigInt(query.fromAmount ?? "0");
           toAmount = await source.readContract({
@@ -217,9 +254,10 @@ export default function lifi(chains: readonly Chain[]) {
           });
         }
       } else {
-        const bridged = fromTokens.find(
-          ({ symbol }) =>
-            (to?.symbol === "USDC" && symbol === "USDC.e") || (to?.symbol === "USDC.e" && symbol === "USDC"),
+        const bridged = fromTokens.find(({ symbol }) =>
+          toChain === solana.id
+            ? symbol === to?.symbol
+            : (to?.symbol === "USDC" && symbol === "USDC.e") || (to?.symbol === "USDC.e" && symbol === "USDC"),
         );
         if (!from || !bridged) {
           return c.json({ code: 1002, message: "No available quotes for the requested transfer", errors: {} }, 404);
@@ -256,6 +294,7 @@ export default function lifi(chains: readonly Chain[]) {
           hasSourceSwaps: bridged.address !== fromToken,
           hasDestinationCall: false,
         };
+        if (toChain === solana.id) receivers.set(bridgeData.transactionId, receiver);
         data =
           bridged.address === fromToken
             ? encodeFunctionData({ abi: mockSwapperAbi, functionName: "startBridgeTokensViaMock", args: [bridgeData] })
@@ -326,6 +365,16 @@ export default function lifi(chains: readonly Chain[]) {
           );
         }
         const { transactionId, destinationChainId } = started.args.bridgeData;
+        if (Number(destinationChainId) === solana.id) {
+          return c.json({
+            transactionId,
+            status: "DONE",
+            tool: tool.key,
+            sending,
+            receiving: { chainId: solana.id },
+            toAddress: receivers.get(transactionId),
+          });
+        }
         const [completed] = await client(Number(destinationChainId)).getContractEvents({
           address: swapperAddress,
           abi: mockSwapperAbi,
