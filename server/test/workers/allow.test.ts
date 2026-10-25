@@ -528,7 +528,7 @@ describe("allow worker", () => {
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
-  it("allows other chains without poking", async () => {
+  it("allows and pokes other chains", async () => {
     await jobFinished(account, undefined, { chainId: moonbeamDev.id });
 
     expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(allower, NETWORKS.get("ANVIL2"));
@@ -537,7 +537,7 @@ describe("allow worker", () => {
       { address: firewall, functionName: "allow", args: [account, true], abi: firewallAbi },
       { fees: "auto", ignore: [`AlreadyAllowed(${account})`] },
     );
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({ ...request, chainId: moonbeamDev.id, origin: "allow" });
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
@@ -621,7 +621,7 @@ describe("allow worker", () => {
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
-  it("allows batches on other chains without poking", async () => {
+  it("allows and pokes batches on other chains", async () => {
     mocks.multicall.mockResolvedValueOnce([{ status: "failure" }]);
 
     await batchFinished([account], moonbeamDev.id);
@@ -632,7 +632,7 @@ describe("allow worker", () => {
       batch(firewall, [account]),
       { fees: "auto" },
     );
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({ ...request, chainId: moonbeamDev.id, origin: "allow" });
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
