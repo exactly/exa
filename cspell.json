@@ -229,7 +229,8 @@
     "zadd",
     "zeppelinos",
     "zrange",
-    "zrem"
+    "zrem",
+    "zxing"
   ],
   "overrides": [
     {
