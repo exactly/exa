@@ -101,7 +101,12 @@ export default function Assets() {
                 <Text emphasized primary headline>
                   {t("Supported assets")}
                 </Text>
-                <Pressable hitSlop={15} onPress={() => setCollateralShown(true)}>
+                <Pressable
+                  role="button"
+                  aria-label={t("Supported assets")}
+                  hitSlop={15}
+                  onPress={() => setCollateralShown(true)}
+                >
                   <Info size={16} color="$uiBrandSecondary" />
                 </Pressable>
               </XStack>
@@ -127,7 +132,12 @@ export default function Assets() {
                   <Text emphasized primary headline>
                     {t("Other assets")}
                   </Text>
-                  <Pressable hitSlop={15} onPress={() => setOtherShown(true)}>
+                  <Pressable
+                    role="button"
+                    aria-label={t("Other assets")}
+                    hitSlop={15}
+                    onPress={() => setOtherShown(true)}
+                  >
                     <Info size={16} color="$uiBrandSecondary" />
                   </Pressable>
                 </XStack>
