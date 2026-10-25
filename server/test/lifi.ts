@@ -304,7 +304,9 @@ export default function lifi(chains: readonly Chain[]) {
       const estimate = {
         tool: tool.key,
         fromAmount: String(fromAmount),
+        fromAmountUSD: from && (Number(formatUnits(fromAmount, from.decimals)) * Number(from.priceUSD)).toFixed(2),
         toAmount: String(toAmount),
+        toAmountUSD: to && (Number(formatUnits(toAmount, to.decimals)) * Number(to.priceUSD)).toFixed(2),
         toAmountMin: String(toAmount),
         approvalAddress: swapperAddress,
         executionDuration: fromChain === toChain ? 1 : query.order === "FASTEST" ? 60 : 1200,
