@@ -651,7 +651,7 @@ export function getBridgeSources(
   }
 
   const chains = [...supportedChains]
-    .filter((c) => (balancesByChain[c.id]?.length ?? 0) > 0)
+    .filter(({ id }) => id in balancesByChain)
     .sort((a, b) => {
       const bValue = usdByChain[b.id] ?? 0;
       const aValue = usdByChain[a.id] ?? 0;
