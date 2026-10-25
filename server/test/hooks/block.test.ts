@@ -1533,7 +1533,9 @@ describe("legacy withdraw", () => {
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const removals = waitForRemovals([match]);
-    sendPushNotificationMock.mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockImplementation(({ userId }) =>
+      userId === withdrawAccount ? Promise.reject(error) : Promise.resolve({}),
+    );
     vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
     if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
     const exaSend = keeper.exaSend.bind(keeper);
