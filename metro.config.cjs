@@ -20,7 +20,7 @@ module.exports = function config() {
     resolver: {
       ...base.resolver,
       extraNodeModules: { crypto: require.resolve("react-native-quick-crypto") },
-      assetExts: base.resolver?.assetExts?.filter((extension) => extension !== "svg"),
+      assetExts: [...(base.resolver?.assetExts?.filter((extension) => extension !== "svg") ?? []), "wasm"],
       sourceExts: [...(base.resolver?.sourceExts ?? []), "svg"],
       blockList: [
         ...((base.resolver?.blockList &&
