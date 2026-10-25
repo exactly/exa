@@ -7,7 +7,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import reportError from "../../utils/reportError";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
@@ -20,11 +20,11 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
   const { t } = useTranslation();
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild" scrollsUnderInset>
       <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <View flex={1} padded>
+            <View flex={1} padded paddingBottom="s0">
               <YStack gap="s4_5">
                 <YStack gap="s4">
                   <Text emphasized headline primary>
@@ -55,6 +55,7 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
               </YStack>
             </View>
           </View>
+          <Inset />
         </ScrollView>
       </SafeView>
     </ModalSheet>

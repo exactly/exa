@@ -22,9 +22,8 @@ export default function Handoff({
     <ModalSheet open={open} onClose={onClose}>
       <YStack
         gap="s7"
-        padding="s5"
+        paddingHorizontal="s5"
         paddingTop="s7"
-        paddingBottom="s7"
         borderTopLeftRadius="r5"
         borderTopRightRadius="r5"
         backgroundColor="backgroundSoft"

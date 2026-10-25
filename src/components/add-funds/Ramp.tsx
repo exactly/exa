@@ -32,7 +32,7 @@ import { getRampProviders, getRampQuote, origin } from "../../utils/server";
 import useIsBusiness from "../../utils/useIsBusiness";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
@@ -314,9 +314,9 @@ export default function Ramp() {
         </YStack>
       </View>
       {qrCode && (
-        <ModalSheet open={qrSheetOpen} onClose={() => setQRSheetOpen(false)}>
+        <ModalSheet open={qrSheetOpen} onClose={() => setQRSheetOpen(false)} backgroundColor="backgroundMild">
           <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4">
-            <YStack gap="s4" alignItems="center" padding="s5">
+            <YStack gap="s4" alignItems="center" paddingHorizontal="s5" paddingTop="s5">
               <Text emphasized headline color="uiNeutralPrimary">
                 {t("Deposit with PIX")}
               </Text>
@@ -339,10 +339,15 @@ export default function Ramp() {
           </SafeView>
         </ModalSheet>
       )}
-      <ModalSheet open={detailsOpen} onClose={() => setDetailsOpen(false)}>
+      <ModalSheet
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        backgroundColor="backgroundMild"
+        scrollsUnderInset
+      >
         <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4">
           <ScrollView maxHeight="web:100vh">
-            <YStack gap="s5" padding="s5">
+            <YStack gap="s5" paddingHorizontal="s5" paddingTop="s5">
               <Text emphasized headline color="uiNeutralPrimary">
                 {t("Fees and transfer times")}
               </Text>
@@ -446,6 +451,7 @@ export default function Ramp() {
                 </Text>
               </Pressable>
             </YStack>
+            <Inset />
           </ScrollView>
         </SafeView>
       </ModalSheet>

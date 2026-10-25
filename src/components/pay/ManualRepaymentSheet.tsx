@@ -5,7 +5,7 @@ import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { Check } from "../../generated/icons/Check";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -28,7 +28,7 @@ export default function ManualRepaymentSheet({
   } = useTranslation();
   const [acknowledged, setAcknowledged] = useState(true);
   return (
-    <ModalSheet key={open ? "open" : "closed"} open={open} onClose={onClose} disableDrag>
+    <ModalSheet key={open ? "open" : "closed"} open={open} onClose={onClose} disableDrag scrollsUnderInset>
       <SafeView
         paddingTop="s0"
         fullScreen
@@ -38,7 +38,7 @@ export default function ManualRepaymentSheet({
       >
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <YStack flex={1} paddingHorizontal="s5" paddingVertical="s5" gap="s4">
+            <YStack flex={1} paddingHorizontal="s5" paddingTop="s5" gap="s4">
               <YStack flex={1} gap="s5">
                 <Text emphasized headline>
                   {t("How installment repayment works")}
@@ -95,6 +95,7 @@ export default function ManualRepaymentSheet({
               </YStack>
             </YStack>
           </View>
+          <Inset />
         </ScrollView>
       </SafeView>
     </ModalSheet>

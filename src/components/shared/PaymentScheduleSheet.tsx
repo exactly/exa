@@ -10,7 +10,7 @@ import { parse } from "valibot";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import AssetLogo from "./AssetLogo";
-import ModalSheet from "./ModalSheet";
+import ModalSheet, { Inset } from "./ModalSheet";
 import { X } from "../../generated/icons/X";
 import Loan from "../../utils/Loan";
 import useAsset from "../../utils/useAsset";
@@ -38,7 +38,7 @@ export default function PaymentScheduleSheet({
     return market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
   }, [market]);
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet open={open} onClose={onClose} disableDrag scrollsUnderInset>
       <ScrollView maxHeight="web:100vh">
         <SafeView
           borderTopLeftRadius="r4"
@@ -46,7 +46,6 @@ export default function PaymentScheduleSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s7">
             <YStack gap="s5">
@@ -100,6 +99,7 @@ export default function PaymentScheduleSheet({
             </YStack>
           </YStack>
         </SafeView>
+        <Inset />
       </ScrollView>
     </ModalSheet>
   );

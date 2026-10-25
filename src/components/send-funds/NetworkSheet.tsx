@@ -31,7 +31,6 @@ export default function NetworkSheet({
         backgroundColor="backgroundSoft"
         paddingHorizontal="s5"
         paddingTop="s7"
-        paddingBottom="web:s7 android:s5"
       >
         <YStack gap="s5">
           <XStack gap="s3_5" alignItems="center">

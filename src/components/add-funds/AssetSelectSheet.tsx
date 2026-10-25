@@ -13,7 +13,7 @@ import { Search } from "../../generated/icons/Search";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Input from "../shared/Input";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -77,7 +77,7 @@ export default function AssetSelectSheet({
   }, [onClose]);
 
   return (
-    <ModalSheet open={open} onClose={handleClose} heightPercent={85}>
+    <ModalSheet open={open} onClose={handleClose} heightPercent={85} backgroundColor="backgroundMild" scrollsUnderInset>
       <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <View padded paddingTop="s4" paddingBottom="s0" flex={1} gap="s4_5">
           <Text fontSize={15} fontWeight="bold" textAlign="center">
@@ -164,8 +164,8 @@ export default function AssetSelectSheet({
               </YStack>
             )}
           </View>
-          <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-            <YStack paddingBottom="s6" gap="s4">
+          <ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
+            <YStack gap="s4">
               {filteredGroups.map((group) => (
                 <YStack key={group.chain.id} gap="s4">
                   <XStack alignItems="center" paddingHorizontal="s3">
@@ -240,6 +240,7 @@ export default function AssetSelectSheet({
                 </View>
               )}
             </YStack>
+            <Inset offset="s3_5" />
           </ScrollView>
         </View>
       </SafeView>

@@ -7,7 +7,7 @@ import { ScrollView, YStack } from "tamagui";
 import { ThumbsUp } from "../../generated/icons/ThumbsUp";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -27,7 +27,7 @@ export default function EducationSheet({
 }) {
   const { t } = useTranslation();
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet open={open} onClose={onClose} disableDrag scrollsUnderInset>
       <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
           borderTopLeftRadius="r4"
@@ -35,7 +35,6 @@ export default function EducationSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s5">
             <Text emphasized primary headline>
@@ -59,6 +58,7 @@ export default function EducationSheet({
             </Pressable>
           </YStack>
         </SafeView>
+        <Inset />
       </ScrollView>
     </ModalSheet>
   );
