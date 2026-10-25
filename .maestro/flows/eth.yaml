@@ -2,6 +2,9 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/eth.yaml
+- runFlow:
+    file: ../subflows/send.yaml
+    env: { asset: USDC, destination: Solana, to: 1nc1nerator11111111111111111111111111111111, amount: "5", pay: ETH } # cspell:ignore nerator
 - runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "2" } }
 - tapOn: Deposit
 - tapOn: With connected wallet
