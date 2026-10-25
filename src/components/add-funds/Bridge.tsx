@@ -10,7 +10,7 @@ import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { getAlchemyPaymasterAddress } from "@account-kit/infra";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { switchChain, waitForTransactionReceipt } from "@wagmi/core";
+import { switchChain } from "@wagmi/core";
 import { is, literal, object } from "valibot";
 import {
   encodeFunctionData,
@@ -24,14 +24,7 @@ import {
   type Hex,
 } from "viem";
 import { mainnet } from "viem/chains";
-import {
-  useCapabilities,
-  useEnsName,
-  useReadContract,
-  useSendCalls,
-  useSendTransaction,
-  useSimulateContract,
-} from "wagmi";
+import { useCapabilities, useEnsName, useReadContract, useSendCalls, useSimulateContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
@@ -41,7 +34,7 @@ import { WAD } from "@exactly/lib";
 
 import AssetMatchSheet from "./AssetMatchSheet";
 import AssetSelectSheet from "./AssetSelectSheet";
-import { callsStatus } from "../../utils/accountClient";
+import { callsStatus, sendOwnerCalls } from "../../utils/accountClient";
 import {
   balancesOptions,
   bridgePolicyId,
@@ -134,7 +127,6 @@ export default function Bridge() {
       meta: { dropError: () => true },
     },
   });
-  const { mutateAsync: sendTx } = useSendTransaction({ config: senderConfig });
   const { mutateAsync: sendCallsTx } = useSendCalls({ config: senderConfig });
   const { protocolSymbols, protocolAssets, externalAssets, markets } = usePortfolio();
 
@@ -599,75 +591,65 @@ export default function Bridge() {
             }
             setBridgeStatus(t("Submitting bridge transaction..."));
           }
-          const result = await sendCallsTx({
-            chainId: source.chain,
-            forceAtomic: is(object({ atomic: object({ status: literal("supported") }) }), sourceCapabilities),
-            calls: [
-              ...(paymasterFee && paymasterApproval
-                ? [{ to: getAddress(paymasterFee.token.address), data: paymasterApproval }]
-                : []),
-              ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
-              { to: from.to, data: from.data, value: from.value },
-            ],
-            ...(isExaSender && !isNativeSource
-              ? {
-                  capabilities: {
-                    paymasterService: {
-                      optional: true,
-                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      context: {
-                        policyId: paymasterFee ? bridgePolicyId : alchemyGasPolicyId,
-                        ...(paymasterFee
-                          ? {
-                              erc20Context: {
-                                tokenAddress: getAddress(paymasterFee.token.address),
-                                maxTokenAmount: erc20GasReserve,
-                              },
-                            }
-                          : {}),
+          const calls = [
+            ...(paymasterFee && paymasterApproval
+              ? [{ to: getAddress(paymasterFee.token.address), data: paymasterApproval }]
+              : []),
+            ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
+            { to: from.to, data: from.data, value: from.value },
+          ];
+          const forceAtomic = is(object({ atomic: object({ status: literal("supported") }) }), sourceCapabilities);
+          ({ id } = isExaSender
+            ? await sendCallsTx({
+                chainId: source.chain,
+                forceAtomic,
+                calls,
+                ...(isNativeSource
+                  ? {}
+                  : {
+                      capabilities: {
+                        paymasterService: {
+                          optional: true,
+                          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                          context: {
+                            policyId: paymasterFee ? bridgePolicyId : alchemyGasPolicyId,
+                            ...(paymasterFee
+                              ? {
+                                  erc20Context: {
+                                    tokenAddress: getAddress(paymasterFee.token.address),
+                                    maxTokenAmount: erc20GasReserve,
+                                  },
+                                }
+                              : {}),
+                          },
+                        },
                       },
-                    },
-                  },
-                }
-              : {}),
-          });
-          id = result.id;
+                    }),
+              })
+            : await sendOwnerCalls({ chainId: source.chain, forceAtomic, experimental_fallback: true, calls }));
         } catch (error) {
           if (classifyError(error).authKnown) throw error;
-          if (relayed || (isExaSender && !paymasterFee)) throw error;
+          if (!isExaSender || !paymasterFee) throw error;
           reportError(error, {
             level: "warning",
             extra: error instanceof Error ? { cause: error.cause } : undefined,
           });
-          if (isExaSender) {
-            setBridgeStatus(t("Retrying bridge transaction..."));
-            const retry = await sendCallsTx({
-              chainId: source.chain,
-              calls: [
-                ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
-                { to: from.to, data: from.data, value: from.value },
-              ],
-              capabilities: {
-                paymasterService: {
-                  optional: true,
-                  url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                  context: { policyId: alchemyGasPolicyId },
-                },
+          setBridgeStatus(t("Retrying bridge transaction..."));
+          const retry = await sendCallsTx({
+            chainId: source.chain,
+            calls: [
+              ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
+              { to: from.to, data: from.data, value: from.value },
+            ],
+            capabilities: {
+              paymasterService: {
+                optional: true,
+                url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                context: { policyId: alchemyGasPolicyId },
               },
-            });
-            if ((await callsStatus(senderConfig, retry.id)) === "failure") {
-              throw new Error("failed to submit bridge transaction", { cause: error });
-            }
-            setBridgeStatus(t("Bridge transaction submitted"));
-            return;
-          }
-          await switchChain(senderConfig, { chainId: source.chain });
-          if (approval) {
-            const hash = await sendTx({ chainId: source.chain, to: getAddress(source.address), data: approval });
-            await waitForTransactionReceipt(senderConfig, { hash, chainId: source.chain });
-          }
-          const hash = await sendTx({ chainId: source.chain, to: from.to, data: from.data, value: from.value });
-          if ((await callsStatus(senderConfig, hash, source.chain)) === "failure") {
+            },
+          });
+          if ((await callsStatus(senderConfig, retry.id)) === "failure") {
             throw new Error("failed to submit bridge transaction", { cause: error });
           }
           setBridgeStatus(t("Bridge transaction submitted"));
@@ -763,16 +745,8 @@ export default function Bridge() {
               dataSuffix: transferSimulation.request.dataSuffix,
             }
           : { to: getAddress(account), value: sourceAmount };
-      let status;
-      try {
-        const { id } = await sendCallsTx({ chainId: source.chain, experimental_fallback: true, calls: [call] });
-        status = await callsStatus(senderConfig, id);
-      } catch (error) {
-        if (classifyError(error).authKnown || relayed) throw error;
-        reportError(error, { level: "warning", extra: error instanceof Error ? { cause: error.cause } : undefined });
-        status = await callsStatus(senderConfig, await sendTx({ chainId: source.chain, ...call }), source.chain);
-      }
-      if (status === "failure") throw new Error("failed to submit transfer transaction");
+      const { id } = await sendOwnerCalls({ chainId: source.chain, experimental_fallback: true, calls: [call] });
+      if ((await callsStatus(senderConfig, id)) === "failure") throw new Error("failed to submit transfer transaction");
       setBridgeStatus(t("Transfer transaction submitted"));
     },
     onSuccess: async () => {

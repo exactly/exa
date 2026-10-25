@@ -62,10 +62,13 @@ import {
   hexToNumber,
   isHex,
   maxUint256,
+  MethodNotFoundRpcError,
+  MethodNotSupportedRpcError,
   numberToHex,
   RpcRequestError,
   sliceHex,
   trim,
+  UnknownRpcError,
   zeroAddress,
   type Address,
   type Call,
@@ -92,7 +95,7 @@ import { identify } from "./segment";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
-import type { Config } from "@wagmi/core";
+import type { Config, SendCallsParameters } from "@wagmi/core";
 
 export default async function createAccountClient({ credentialId, factory, x, y }: Credential) {
   const accountAddress = deriveAddress(factory, { x, y });
@@ -239,20 +242,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
               abi: upgradeableModularAccountAbi,
             } as const;
-            const fallback = async (error: unknown) => {
-              reportError(error, {
-                level: "warning",
-                extra: error instanceof Error ? { cause: error.cause } : undefined,
-              });
-              await switchChain(ownerConfig, { chainId: targetChainId });
-              const hash = await sendTransaction(ownerConfig, {
-                to: accountAddress,
-                data: encodeFunctionData(execute),
-                chainId: targetChainId,
-                ...(suffix ? { dataSuffix: suffix } : {}),
-              });
-              return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), TX_MAGIC_ID]) };
-            };
             const context = capabilities?.paymasterService?.context as
               | undefined
               | { erc20Context?: { maxTokenAmount?: bigint; tokenAddress?: Address }; policyId?: string | string[] };
@@ -292,7 +281,12 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 ) {
                   throw error;
                 }
-                return fallback(error);
+                reportError(error, { level: "warning", extra: { cause: error.cause } });
+                return sendOwnerCalls({
+                  chainId: targetChainId,
+                  calls: [{ to: accountAddress, data: encodeFunctionData(execute), dataSuffix: suffix }],
+                  experimental_fallback: true,
+                });
               }
             }
             const policyId = [
@@ -300,60 +294,30 @@ export default async function createAccountClient({ credentialId, factory, x, y 
               alchemyGasPolicyId,
             ];
             if (isSiwe() && (await account.isAccountDeployed())) {
-              try {
-                if (getConnection(ownerConfig).chainId !== chain.id)
-                  await switchChain(ownerConfig, { chainId: chain.id });
-                return await sendCalls(ownerConfig, {
-                  id,
-                  chainId: chain.id,
-                  calls: [execute],
-                  capabilities: {
-                    ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
-                    paymasterService: {
-                      optional: true,
-                      url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                      context: {
-                        policyId,
-                        ...(policyToken
-                          ? {
-                              erc20Context: {
-                                tokenAddress: policyToken.address,
-                                maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
-                              },
-                            }
-                          : {}),
-                      },
+              const sent = await sendOwnerCalls({
+                id,
+                chainId: chain.id,
+                calls: [{ to: accountAddress, data: encodeFunctionData(execute) }],
+                capabilities: {
+                  ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
+                  paymasterService: {
+                    optional: true,
+                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                    context: {
+                      policyId,
+                      ...(policyToken
+                        ? {
+                            erc20Context: {
+                              tokenAddress: policyToken.address,
+                              maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
+                            },
+                          }
+                        : {}),
                     },
                   },
-                });
-              } catch (error) {
-                if (
-                  !(error instanceof BaseError) ||
-                  !(await viemSendCalls(
-                    createClient({
-                      chain,
-                      transport: custom({
-                        request: (args: { method: string }) =>
-                          args.method === "wallet_sendCalls"
-                            ? Promise.reject(error.walk())
-                            : Promise.resolve(numberToHex(chain.id)),
-                      }),
-                    }),
-                    {
-                      account: zeroAddress,
-                      calls: [{ to: zeroAddress }],
-                      experimental_fallback: true,
-                      experimental_fallbackDelay: 0,
-                    },
-                  ).then(
-                    () => true,
-                    () => false,
-                  ))
-                ) {
-                  throw error;
-                }
-                reportError(error, { level: "warning", extra: { cause: error.cause } });
-              }
+                },
+              });
+              if (sent) return sent;
             }
             const uoClient = context
               ? createSmartAccountClient({
@@ -562,6 +526,67 @@ export async function callsStatus(config: Config, id: string, chainId?: number) 
     reportError(error, { level: "warning" });
     return "unknown";
   }
+}
+
+const unsupported = new Map<string, BaseError>();
+
+type OwnerCalls = SendCallsParameters<
+  typeof ownerConfig,
+  (typeof ownerConfig)["chains"][number]["id"],
+  readonly { data?: Hex; dataSuffix?: Hex; to: Address; value?: bigint }[]
+>;
+
+export async function sendOwnerCalls(parameters: OwnerCalls & { experimental_fallback: true }): Promise<{ id: string }>;
+export async function sendOwnerCalls(parameters: OwnerCalls): Promise<undefined | { id: string }>;
+export async function sendOwnerCalls({ chainId = chain.id, experimental_fallback, ...parameters }: OwnerCalls) {
+  if (getConnection(ownerConfig).chainId !== chainId) await switchChain(ownerConfig, { chainId });
+  const key = `${getConnection(ownerConfig).connector?.uid}:${chainId}`;
+  try {
+    const remembered = unsupported.get(key);
+    if (remembered) throw remembered;
+    return await sendCalls(ownerConfig, { ...parameters, chainId });
+  } catch (error) {
+    if (
+      !(error instanceof BaseError) ||
+      error.walk((cause) => cause instanceof UnknownRpcError) ||
+      !(await viemSendCalls(
+        createClient({
+          chain,
+          transport: custom({
+            request: (args: { method: string }) =>
+              args.method === "wallet_sendCalls"
+                ? Promise.reject(error.walk())
+                : Promise.resolve(numberToHex(chain.id)),
+          }),
+        }),
+        {
+          account: zeroAddress,
+          calls: parameters.calls.map(() => ({ to: zeroAddress })),
+          capabilities: parameters.capabilities,
+          forceAtomic: parameters.forceAtomic,
+          experimental_fallback: true,
+          experimental_fallbackDelay: 0,
+        },
+      ).then(
+        () => true,
+        () => false,
+      ))
+    ) {
+      throw error;
+    }
+    if (!unsupported.has(key)) reportError(error, { level: "warning", extra: { cause: error.cause } });
+    if (error.walk((cause) => cause instanceof MethodNotFoundRpcError || cause instanceof MethodNotSupportedRpcError)) {
+      unsupported.set(key, error);
+    }
+  }
+  if (!experimental_fallback) return;
+  let hash: Hex | undefined;
+  for (const call of parameters.calls) {
+    if (hash && (await callsStatus(ownerConfig, hash, chainId)) !== "success") throw new Error("transaction failed");
+    hash = await sendTransaction(ownerConfig, { chainId, ...call });
+  }
+  if (!hash) throw new Error("no calls");
+  return { id: concat([hash, numberToHex(chainId, { size: 32 }), TX_MAGIC_ID]) };
 }
 
 export class DeploymentError extends Error {
