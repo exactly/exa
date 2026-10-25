@@ -44,6 +44,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}", amount: "100", receiver: "0x000000000000000000000000000000000000dEaD" }
+- tapOn: Close
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
 - tapOn: Payments
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
 - tapOn: Home
