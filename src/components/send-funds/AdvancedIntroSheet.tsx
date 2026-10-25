@@ -27,7 +27,6 @@ export default function AdvancedIntroSheet({
         backgroundColor="backgroundSoft"
         paddingHorizontal="s5"
         paddingTop="s7"
-        paddingBottom="web:s7 android:s5"
       >
         <YStack gap="s5" alignItems="center">
           <Text

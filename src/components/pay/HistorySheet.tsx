@@ -48,14 +48,9 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
 
   return (
     <ModalSheet open={maturity !== undefined} onClose={close}>
-      <SafeView
-        borderTopLeftRadius="r4"
-        borderTopRightRadius="r4"
-        backgroundColor="backgroundSoft"
-        paddingBottom="android:s5"
-      >
+      <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="backgroundSoft">
         {displayMaturity !== undefined && breakdownOpen ? (
-          <YStack paddingHorizontal="s5" paddingVertical="web:s7">
+          <YStack paddingHorizontal="s5" paddingTop="web:s7">
             <Breakdown
               maturity={displayMaturity}
               onBack={() => {
@@ -101,7 +96,7 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
             </XStack>
             <Separator borderColor="borderNeutralSoft" />
             {displayMaturity !== undefined && (
-              <YStack paddingHorizontal="s3" paddingBottom="s4_5">
+              <YStack paddingHorizontal="s3">
                 <StatementActions
                   maturity={displayMaturity}
                   onBreakdown={() => {

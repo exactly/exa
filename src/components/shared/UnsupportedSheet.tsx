@@ -34,13 +34,7 @@ export default function UnsupportedSheet({
   const pendingMessageRef = useRef<null | string>(null);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <YStack
-        gap="s7"
-        borderTopLeftRadius="r5"
-        borderTopRightRadius="r5"
-        backgroundColor="backgroundSoft"
-        paddingBottom="android:s5"
-      >
+      <YStack gap="s7" borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
         <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t(reason === "token" ? "Non-supported token" : "Non-supported network")}
@@ -62,7 +56,7 @@ export default function UnsupportedSheet({
             </Text>
           </YStack>
         </YStack>
-        <YStack paddingHorizontal="s5" paddingBottom="s7">
+        <YStack paddingHorizontal="s5">
           <Button
             onPress={() => {
               pendingMessageRef.current =

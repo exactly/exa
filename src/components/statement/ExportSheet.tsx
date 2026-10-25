@@ -132,13 +132,7 @@ export default function ExportSheet({
 
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView
-        paddingTop={0}
-        borderTopLeftRadius="r5"
-        borderTopRightRadius="r5"
-        backgroundColor="backgroundSoft"
-        paddingBottom="web:s7 android:s5"
-      >
+      <SafeView paddingTop={0} borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
         <XStack gap="s4" alignItems="center" paddingTop="s6" paddingBottom="s4_5" paddingHorizontal="s5">
           <XStack
             width={48}
