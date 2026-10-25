@@ -179,7 +179,6 @@ export default function worker({
               { ...(job.data.chainId !== chain.id && { fees: "auto" as const }) },
             );
           }
-          if (job.data.chainId !== chain.id) return;
           await Promise.all(
             job.data.accounts.map((account) =>
               poke.enqueue({ ...account, chainId: job.data.chainId, origin: "allow" }),
@@ -204,7 +203,6 @@ export default function worker({
             ...(job.data.chainId !== chain.id && { fees: "auto" as const }),
           },
         );
-        if (job.data.chainId !== chain.id) return;
         await poke.enqueue({
           account: job.data.account,
           assets: job.data.assets,
