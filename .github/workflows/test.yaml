@@ -185,7 +185,7 @@ jobs:
           disable_search: true
           exclude: node_modules
           plugins: noop
-          files: server/coverage/lcov.info,server/coverage/app.json
+          files: server/coverage/lcov.info,server/coverage/app.lcov
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: web
           name: ${{ matrix.flow }}
