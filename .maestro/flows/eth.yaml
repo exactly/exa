@@ -2,4 +2,16 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/eth.yaml
+- runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "2" } }
+- tapOn: Deposit
+- tapOn: With connected wallet
+- tapOn: { text: "0", index: 0 }
+- inputText: "1"
+- tapOn: Transfer ETH
+- runFlow: ../subflows/sign.yaml
+- pressKey: escape
+- assertVisible: Add funds request sent
+- assertTrue: '${Number(JSON.parse(http.post("http://localhost:8545", { body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "eth_getBalance", params: [output.account, "latest"] }) }).body).result) === 1e18}'
+- back
+- back
 - runFlow: ../subflows/storeCoverage.yaml

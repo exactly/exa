@@ -5,4 +5,4 @@ appId: ${APP_ID ?? "app.exactly"}
     commands: [{ tapOn: Confirm }]
 - runFlow:
     when: { true: "${maestro.platform == 'web' && method === 'brave'}" }
-    commands: [{ tapOn: "Sign( in)?" }]
+    commands: [{ tapOn: "Confirm|Sign( in)?" }]

@@ -45,7 +45,7 @@
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
 - **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet and basic functionality off, or the connect prompt never shows. ci runs it with `--platform web` into a chrome profile it caches by metamask version and onboarding steps. metamask legs start from that profile, where metamask opens its unlock page on its own and `subflows/launch.yaml` unlocks it before `launchApp`. the wallet starts without funds on every run, so a leg funds `output.credential` before metamask sends a transaction. ci passes `--screen-info={3840x2160}` so its popups fit any window.
-- **brave**: `subflows/brave.yaml` creates a new wallet in `chrome://wallet` before `launchApp`. headless brave rejects every wallet request, so its leg runs headed under `xvfb-run`. its approval panel is browser ui, not a window, and `windows.patch` follows it while it shows.
+- **brave**: `subflows/brave.yaml` creates a new wallet in `chrome://wallet` before `launchApp`. headless brave rejects every wallet request, so its leg runs headed under `xvfb-run`. its approval panel is browser ui, not a window, and `windows.patch` follows it while it shows. after a transaction the panel stays open on its status until `pressKey: escape` closes it.
 
 ## selectors
 
