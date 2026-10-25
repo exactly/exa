@@ -1,0 +1,14 @@
+diff --git a/build/fork/createMemoryHistory.js b/build/fork/createMemoryHistory.js
+index 9e67d40b248b3d4a36bb79771a4ea2733bfe18a7..8f7fa94c2c302640f54927271330756bed454209 100644
+--- a/build/fork/createMemoryHistory.js
++++ b/build/fork/createMemoryHistory.js
+@@ -165,6 +165,9 @@ function createMemoryHistory() {
+         // Here we normalize it so that only external changes (e.g. user pressing back/forward) trigger the listener
+         listen(listener) {
+             const onPopState = () => {
++                // Fix createMemoryHistory.index variable's value
++                // as it may go out of sync when navigating in the browser.
++                index = this.index;
+                 if (pending.length) {
+                     // This was triggered by `history.go(n)`, we shouldn't call the listener
+                     return;

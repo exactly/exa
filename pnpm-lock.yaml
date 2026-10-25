@@ -188,6 +188,9 @@ patchedDependencies:
   eslint-config-universe:
     hash: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
     path: patches/eslint-config-universe.patch
+  expo-router:
+    hash: 879a54ba6d6b560235080e316935d2905c573a80de4c34262fa64db1a05f7819
+    path: patches/expo-router.patch
   react-native-wagmi-charts:
     hash: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
     path: patches/react-native-wagmi-charts.patch
@@ -363,7 +366,7 @@ importers:
         version: 55.0.9(expo@55.0.9)(react@19.2.0)
       expo-router:
         specifier: ~55.0.5
-        version: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+        version: 55.0.8(patch_hash=879a54ba6d6b560235080e316935d2905c573a80de4c34262fa64db1a05f7819)(e648b7c2d7f97def12d5a5dbfb5d4641)
       expo-status-bar:
         specifier: ~55.0.4
         version: 55.0.4(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
@@ -19209,7 +19212,7 @@ snapshots:
       ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       zod: 3.25.76
     optionalDependencies:
-      expo-router: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+      expo-router: 55.0.8(patch_hash=879a54ba6d6b560235080e316935d2905c573a80de4c34262fa64db1a05f7819)(e648b7c2d7f97def12d5a5dbfb5d4641)
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@expo/metro-runtime'
@@ -19459,7 +19462,7 @@ snapshots:
       react: 19.2.0
     optionalDependencies:
       '@expo/metro-runtime': 55.0.7(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
-      expo-router: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+      expo-router: 55.0.8(patch_hash=879a54ba6d6b560235080e316935d2905c573a80de4c34262fa64db1a05f7819)(e648b7c2d7f97def12d5a5dbfb5d4641)
       react-dom: 19.2.0(react@19.2.0)
     transitivePeerDependencies:
       - supports-color
@@ -27921,7 +27924,7 @@ snapshots:
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
 
-  expo-router@55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641):
+  expo-router@55.0.8(patch_hash=879a54ba6d6b560235080e316935d2905c573a80de4c34262fa64db1a05f7819)(e648b7c2d7f97def12d5a5dbfb5d4641):
     dependencies:
       '@expo/log-box': 55.0.8(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       '@expo/metro-runtime': 55.0.7(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
