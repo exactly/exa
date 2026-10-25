@@ -3,7 +3,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/launch.yaml
 - runFlow:
     file: ../subflows/mint.yaml
-    env: { asset: USDT, to: "${output.account}", amount: "1000" }
+    env: { asset: USDT, to: "${output.account}", amount: "20500" }
 - tapOn: Manage portfolio
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
 - tapOn: USDT
@@ -32,7 +32,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }
-- inputText: "500"
+- inputText: "20000"
+- assertVisible: "High price impact: you receive 2\\.2% less value than you pay\\."
 - tapOn: Swap USDT for USDC
 - assertVisible: completed
 - runScript:
