@@ -465,9 +465,9 @@ export default function Swaps() {
   const toUSD = Number(route?.estimate.toAmountUSD);
   const impact = fromUSD > 0 && toUSD > 0 ? 1 - toUSD / fromUSD : 0;
   const feeds = [useFeed(toToken?.token), useFeed(fromToken?.token)];
-  const priced = feeds.includes(undefined)
-    ? undefined
-    : [toToken, fromToken].find((side, index) => !!side && !feeds[index]?.stablecoin);
+  const priced = [toToken, fromToken].find(
+    (side, index) => !!side && !feeds.includes(undefined) && !feeds[index]?.stablecoin,
+  );
 
   const isInsufficientBalance = useMemo(() => {
     if (!fromToken) return false;
