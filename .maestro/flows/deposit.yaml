@@ -7,6 +7,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/mint.js
     env: { asset: USDC.e, to: "${output.credential}", amount: "1000", network: Anvil2 }
+- runScript: { file: ../dist/mint.js, env: { asset: USDT, to: "${output.credential}", amount: "10000" } }
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Deposit
@@ -23,18 +24,27 @@ appId: ${APP_ID ?? "app.exactly"}
 - repeat: { times: 3, commands: [{ runFlow: ../subflows/sign.yaml }] }
 - extendedWaitUntil: { visible: Add funds request sent, timeout: 120000 }
 - runScript: { file: ../dist/bridge.js, env: { network: Anvil2, to: "${output.deposit}", amount: "100" } }
+- back
+- tapOn: With connected wallet
+- tapOn: { text: "0", index: 0 }
+- inputText: "1"
+- tapOn: Transfer USDT
+- runFlow: ../subflows/sign.yaml
+- assertVisible: Add funds request sent
+- evalScript: '${output.usdt = JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/tokens").body).tokens[31337].find(({ symbol }) => symbol === "USDT").address}'
+- assertTrue: '${Number(JSON.parse(http.post("http://localhost:8545", { body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "eth_call", params: [{ to: output.usdt, data: "0x70a08231" + output.deposit.slice(2).padStart(64, "0") }, "latest"] }) }).body).result) === 1e6}'
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml
 - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
 - repeat:
     times: 20
-    while: { true: "${output.portfolio === output.portfolioBefore || output.deposited !== 100}" }
+    while: { true: "${output.portfolio - output.portfolioBefore !== 101 || output.deposited !== 100}" }
     commands:
       - tapOn: Home
       - runFlow: ../subflows/readPortfolio.yaml
       - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
-- assertTrue: ${output.portfolio - output.portfolioBefore === 100}
+- assertTrue: ${output.portfolio - output.portfolioBefore === 101}
 - assertTrue: ${output.deposited === 100}
 - runFlow:
     file: ../subflows/mint.yaml
