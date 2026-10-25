@@ -258,6 +258,7 @@
       "@tamagui/slider": "patches/@tamagui__slider.patch",
       "embedded-postgres": "patches/embedded-postgres.patch",
       "eslint-config-universe": "patches/eslint-config-universe.patch",
+      "expo-router": "patches/expo-router.patch",
       "react-native-wagmi-charts": "patches/react-native-wagmi-charts.patch"
     },
     "updateConfig": {
