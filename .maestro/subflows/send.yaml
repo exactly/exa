@@ -11,9 +11,9 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { true: "${!output.introSheet}" }
     commands:
       - assertVisible: Send anything, anywhere
-      - tapOn: Not now
+      - tapOn: "${pay ? 'Turn it on' : 'Not now'}"
       - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
-      - evalScript: ${output.introSheet = true}
+      - evalScript: ${output.introSheet = true, output.advanced = !!pay}
 - runFlow:
     when: { true: "${!!pay && !output.advanced}" }
     commands:
