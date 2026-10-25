@@ -65,7 +65,9 @@ import {
   MethodNotFoundRpcError,
   MethodNotSupportedRpcError,
   numberToHex,
+  parseTransaction,
   RpcRequestError,
+  serializeTransaction,
   sliceHex,
   trim,
   UnknownRpcError,
@@ -77,7 +79,12 @@ import {
   type Hex,
   type Transport,
 } from "viem";
-import { getCallsStatus as viemGetCallsStatus, sendCalls as viemSendCalls } from "viem/actions";
+import {
+  sendRawTransaction,
+  signTransaction,
+  getCallsStatus as viemGetCallsStatus,
+  sendCalls as viemSendCalls,
+} from "viem/actions";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -90,7 +97,7 @@ import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/com
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
-import reportError from "./reportError";
+import reportError, { classifyError } from "./reportError";
 import { identify } from "./segment";
 import ownerConfig from "./wagmi/owner";
 
@@ -581,9 +588,23 @@ export async function sendOwnerCalls({ chainId = chain.id, experimental_fallback
   }
   if (!experimental_fallback) return;
   let hash: Hex | undefined;
-  for (const call of parameters.calls) {
+  for (const { data, dataSuffix: suffix, to, value } of parameters.calls) {
     if (hash && (await callsStatus(ownerConfig, hash, chainId)) !== "success") throw new Error("transaction failed");
-    hash = await sendTransaction(ownerConfig, { chainId, ...call });
+    const client = await getConnectorClient(ownerConfig, { chainId });
+    hash = await signTransaction(client, { to, value, data: suffix ? concat([data ?? "0x", suffix]) : data }).then(
+      (signed) => {
+        let serializedTransaction = signed;
+        try {
+          const { r, s, v, ...transaction } = parseTransaction(signed); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy transactions sign with v
+          if (r && s && v !== undefined) serializedTransaction = serializeTransaction(transaction, { r, s, v });
+        } catch {} // eslint-disable-line no-empty -- chain specific transaction types go out as the wallet signed them
+        return sendRawTransaction(client, { serializedTransaction });
+      },
+      (error: unknown) => {
+        if (classifyError(error).walletRejected) throw error;
+        return sendTransaction(ownerConfig, { chainId, to, data, dataSuffix: suffix, value });
+      },
+    );
   }
   if (!hash) throw new Error("no calls");
   return { id: concat([hash, numberToHex(chainId, { size: 32 }), TX_MAGIC_ID]) };
