@@ -312,9 +312,9 @@ export default function Ramp() {
         </YStack>
       </View>
       {qrCode && (
-        <ModalSheet open={qrSheetOpen} onClose={() => setQRSheetOpen(false)}>
+        <ModalSheet open={qrSheetOpen} onClose={() => setQRSheetOpen(false)} backgroundColor="backgroundMild">
           <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4">
-            <YStack gap="s4" alignItems="center" padding="s5">
+            <YStack gap="s4" alignItems="center" paddingHorizontal="s5" paddingTop="s5">
               <Text emphasized headline color="uiNeutralPrimary">
                 {t("Deposit with PIX")}
               </Text>
@@ -337,10 +337,10 @@ export default function Ramp() {
           </SafeView>
         </ModalSheet>
       )}
-      <ModalSheet open={detailsOpen} onClose={() => setDetailsOpen(false)}>
+      <ModalSheet open={detailsOpen} onClose={() => setDetailsOpen(false)} backgroundColor="backgroundMild">
         <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4">
           <ScrollView maxHeight="web:100vh">
-            <YStack gap="s5" padding="s5">
+            <YStack gap="s5" paddingHorizontal="s5" paddingTop="s5">
               <Text emphasized headline color="uiNeutralPrimary">
                 {t("Fees and transfer times")}
               </Text>

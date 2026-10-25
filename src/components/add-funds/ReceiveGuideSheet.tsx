@@ -104,7 +104,6 @@ export default function ReceiveGuideSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s5">
             <Text emphasized primary headline>

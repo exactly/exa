@@ -6,14 +6,14 @@ import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { ChevronDown } from "@tamagui/lucide-icons-2/icons/ChevronDown";
 import { Network } from "@tamagui/lucide-icons-2/icons/Network";
 import { Search } from "@tamagui/lucide-icons-2/icons/Search";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, Sheet, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Input from "../shared/Input";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -77,8 +77,8 @@ export default function AssetSelectSheet({
   }, [onClose]);
 
   return (
-    <ModalSheet open={open} onClose={handleClose} heightPercent={85}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+    <ModalSheet open={open} onClose={handleClose} heightPercent={85} backgroundColor="backgroundMild" scrollsUnderInset>
+      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <View padded paddingTop="s4" paddingBottom={0} flex={1} gap="s4_5">
           <Text fontSize={15} fontWeight="bold" textAlign="center">
             {displayLabel}
@@ -164,8 +164,8 @@ export default function AssetSelectSheet({
               </YStack>
             )}
           </View>
-          <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-            <YStack paddingBottom="s6" gap="s4">
+          <Sheet.ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
+            <YStack gap="s4">
               {filteredGroups.map((group) => (
                 <YStack key={group.chain.id} gap="s4">
                   <XStack alignItems="center" paddingHorizontal="s3">
@@ -240,7 +240,8 @@ export default function AssetSelectSheet({
                 </View>
               )}
             </YStack>
-          </ScrollView>
+            <Inset offset="s3_5" />
+          </Sheet.ScrollView>
         </View>
       </SafeView>
     </ModalSheet>

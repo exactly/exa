@@ -30,12 +30,12 @@ export default function StocksIntroSheet({
     <ModalSheet open={open} onClose={onClose} heightPercent={90}>
       <SafeView
         paddingTop={0}
+        flex={1}
         borderTopLeftRadius="r4"
         borderTopRightRadius="r4"
         backgroundColor="backgroundSoft"
-        fullScreen
       >
-        <View fullScreen padded gap="s4">
+        <View fullScreen padded paddingBottom="s0" gap="s4">
           <IconButton
             alignSelf="flex-end"
             color="uiNeutralSecondary"

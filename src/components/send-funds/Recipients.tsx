@@ -257,7 +257,6 @@ function RecipientRow({
           backgroundColor="backgroundSoft"
           paddingTop="s6"
           paddingHorizontal="s5"
-          paddingBottom="s7 android:s5"
         >
           <Button
             primary

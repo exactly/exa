@@ -59,11 +59,11 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
     }
   }, [card]);
   return (
-    <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild">
+      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView>
           <View fullScreen flex={1} alignItems="center" width="100%">
-            <View gap="s5" flex={1} alignItems="center" width="100%" padded>
+            <View gap="s5" flex={1} padded paddingBottom="s0" alignItems="center" width="100%">
               {isPending ? (
                 <Skeleton height={200} width="100%" />
               ) : card ? (

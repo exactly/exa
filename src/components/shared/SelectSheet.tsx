@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { Search } from "@tamagui/lucide-icons-2/icons/Search";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { Sheet, XStack, YStack } from "tamagui";
 
 import Input from "./Input";
-import ModalSheet from "./ModalSheet";
+import ModalSheet, { Inset } from "./ModalSheet";
 import Text from "./Text";
 
 export default function SelectSheet(properties: ComponentProps<typeof OptionList>) {
@@ -16,6 +16,7 @@ export default function SelectSheet(properties: ComponentProps<typeof OptionList
       onClose={properties.onClose}
       disableDrag
       heightPercent={properties.heightPercent}
+      scrollsUnderInset
     >
       <OptionList {...properties} />
     </ModalSheet>
@@ -57,7 +58,6 @@ function OptionList({
       backgroundColor="backgroundSoft"
       paddingTop="s5"
       paddingHorizontal="s4"
-      paddingBottom="s7 android:s5"
     >
       <YStack gap="s5">
         <Text emphasized headline centered>
@@ -86,7 +86,12 @@ function OptionList({
           </XStack>
         )}
       </YStack>
-      <ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <Sheet.ScrollView
+        flex={1}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <YStack gap="s2">
           {filtered.map((option) => (
             <XStack
@@ -119,7 +124,8 @@ function OptionList({
             </XStack>
           ))}
         </YStack>
-      </ScrollView>
+        <Inset offset="s4" />
+      </Sheet.ScrollView>
     </YStack>
   );
 }

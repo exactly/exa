@@ -40,13 +40,7 @@ export default function TimeoutSheet({
   const open = pending && failureCount >= 5 && dismissedKey !== key;
   return (
     <ModalSheet open={open} onClose={dismiss} disableDrag>
-      <YStack
-        gap="s7"
-        borderTopLeftRadius="r5"
-        borderTopRightRadius="r5"
-        backgroundColor="backgroundSoft"
-        paddingBottom="android:s5"
-      >
+      <YStack gap="s7" borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
         <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Taking longer than usual")}
@@ -61,7 +55,7 @@ export default function TimeoutSheet({
                 )}
           </Text>
         </YStack>
-        <YStack gap="s5" paddingHorizontal="s5" paddingBottom="s7">
+        <YStack gap="s5" paddingHorizontal="s5">
           <Button primary width="100%" onPress={contacted ? dismiss : contact}>
             <Button.Text>{contacted ? t("Keep waiting") : t("Contact support")}</Button.Text>
             {!contacted && (

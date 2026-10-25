@@ -38,7 +38,7 @@ export default function ManualRepaymentSheet({
       >
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <YStack flex={1} paddingHorizontal="s5" paddingVertical="s5" gap="s4">
+            <YStack flex={1} paddingHorizontal="s5" paddingTop="s5" gap="s4">
               <YStack flex={1} gap="s5">
                 <Text emphasized headline>
                   {t("How installment repayment works")}

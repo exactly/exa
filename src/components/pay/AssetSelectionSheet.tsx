@@ -17,9 +17,9 @@ export default function AssetSelectionSheet({
   open: boolean;
 }) {
   return (
-    <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
-        <View padded paddingTop="s6" flex={1} fullScreen>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild">
+      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
+        <View padded paddingTop="s6" paddingBottom="s0" fullScreen flex={1}>
           <AssetSelector
             sortBy="usdcFirst"
             onSubmit={(market, isExternalAsset) => {

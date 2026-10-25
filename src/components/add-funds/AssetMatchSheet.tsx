@@ -51,7 +51,6 @@ export default function AssetMatchSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s5">
             <XStack gap="s3" alignItems="center">

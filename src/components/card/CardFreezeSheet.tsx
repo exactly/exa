@@ -21,13 +21,7 @@ export default function CardFreezeSheet({
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <YStack
-        gap="s7"
-        borderTopLeftRadius="r5"
-        borderTopRightRadius="r5"
-        backgroundColor="backgroundSoft"
-        paddingBottom="android:s5"
-      >
+      <YStack gap="s7" borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
         <YStack gap="s4" paddingTop="s5" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Freeze your card?")}
@@ -36,7 +30,7 @@ export default function CardFreezeSheet({
             {t("Your card will be temporarily paused. You can unfreeze it anytime.")}
           </Text>
         </YStack>
-        <YStack gap="s4" paddingHorizontal="s4" paddingBottom="s7">
+        <YStack gap="s4" paddingHorizontal="s4">
           <Button primary onPress={onConfirm}>
             <Button.Text>{t("Freeze card")}</Button.Text>
             <Button.Icon>

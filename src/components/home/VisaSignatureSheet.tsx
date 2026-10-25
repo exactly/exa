@@ -64,15 +64,23 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
     onClose();
   }, [isSuccess, onSuccess, onClose]);
   return (
-    <ModalSheet key={open ? "open" : "closed"} open={open} onClose={close} disableDrag heightPercent={90}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="black" fullScreen>
+    <ModalSheet
+      key={open ? "open" : "closed"}
+      open={open}
+      onClose={close}
+      disableDrag
+      heightPercent={90}
+      backgroundColor="black"
+    >
+      <SafeView paddingTop={0} flex={1} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="black">
         <View position="absolute" top="s5" right="s5" zIndex={100_000}>
           <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={close} />
         </View>
         <ScrollView contentContainerStyle={scrollContentContainerStyle} maxHeight="web:100vh">
           <YStack
             flex={1}
-            padding="s5"
+            paddingHorizontal="s5"
+            paddingTop="s5"
             gap="s5"
             justifyContent={isSuccess || isIdle || isError ? "space-between" : "center"}
           >

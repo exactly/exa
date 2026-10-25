@@ -20,11 +20,11 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
   const { t } = useTranslation();
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
   return (
-    <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild">
+      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <View flex={1} padded>
+            <View flex={1} padded paddingBottom="s0">
               <YStack gap="s4_5">
                 <YStack gap="s4">
                   <Text emphasized headline primary>

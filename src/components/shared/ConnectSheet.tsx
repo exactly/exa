@@ -47,7 +47,6 @@ export default function ConnectSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s5"
-          paddingBottom="web:s5 android:s5"
         >
           <YStack gap="s7">
             <YStack gap="s4">

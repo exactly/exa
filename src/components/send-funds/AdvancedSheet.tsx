@@ -27,8 +27,7 @@ export default function AdvancedSheet({
         borderTopRightRadius="r5"
         backgroundColor="backgroundSoft"
         paddingHorizontal="s5"
-        paddingTop="s7 web:s7"
-        paddingBottom="web:s7 android:s5"
+        paddingTop="s7"
       >
         <YStack gap="s5">
           <XStack

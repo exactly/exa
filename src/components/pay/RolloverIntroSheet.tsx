@@ -64,15 +64,9 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
   }, [isLatestPlugin, close, router, displayMaturity, t]);
 
   return (
-    <ModalSheet open={open} onClose={close}>
+    <ModalSheet open={open} onClose={close} backgroundColor="backgroundMild">
       <ScrollView maxHeight="web:100vh">
-        <YStack
-          borderTopLeftRadius="r5"
-          borderTopRightRadius="r5"
-          backgroundColor="backgroundSoft"
-          paddingTop="s5"
-          paddingBottom="s7"
-        >
+        <YStack borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft" paddingTop="s5">
           <View aspectRatio={2} justifyContent="center" alignItems="center">
             <View width="100%" height="100%" style={StyleSheet.absoluteFill}>
               <ThemedSvg xml={calendarRollover} width="100%" height="100%" />

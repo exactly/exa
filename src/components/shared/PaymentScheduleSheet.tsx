@@ -46,7 +46,6 @@ export default function PaymentScheduleSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s7">
             <YStack gap="s5">
