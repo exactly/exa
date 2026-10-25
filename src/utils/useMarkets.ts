@@ -56,7 +56,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     rateSnapshot: result.data?.[1],
     floatingAssetsAverage: result.data?.[3],
     timestamp,
-    firstMaturity: nextMaturity - now < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity,
+    firstMaturity: nextMaturity + MATURITY_INTERVAL * Number(nextMaturity - now < MIN_BORROW_INTERVAL),
     queryKey: result.queryKey,
     refetch: result.refetch,
     get isFetching() {
