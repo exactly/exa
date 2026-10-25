@@ -41,7 +41,9 @@ export default function ProfileHeader() {
   const first = hidden ? undefined : card?.displayName?.split(" ")[0];
   const greeting = first
     ? t("Hi, {{name}}", { name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() })
-    : t(hour < 5 || hour >= 20 ? "Good evening!" : hour < 12 ? "Good morning!" : "Good afternoon!");
+    : [t("Good evening!"), t("Good morning!"), t("Good afternoon!"), t("Good evening!")][
+        Number(hour >= 5) + Number(hour >= 12) + Number(hour >= 20)
+      ];
   useEffect(() => {
     if (first) return;
     const timer = setInterval(() => setHour(new Date().getHours()), 60_000);
