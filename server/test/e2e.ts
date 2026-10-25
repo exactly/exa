@@ -95,10 +95,9 @@ describe("e2e", () => {
           let closing: Promise<unknown> | undefined;
           const teardown = () => {
             closing ??= Promise.allSettled([
-              bullmq.quit(),
+              Promise.allSettled(workers.map((worker) => worker.close())).then(() => bullmq.quit()),
               segment.close(),
               stop(),
-              ...workers.map((worker) => worker.close()),
               ...(https ? [new Promise((closed) => https.close(closed))] : []),
             ]).then(resolve, reject);
           };
