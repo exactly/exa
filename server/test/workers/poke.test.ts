@@ -10,21 +10,31 @@ import { parse } from "valibot";
 import {
   BaseError,
   ContractFunctionRevertedError,
+  createTestClient,
   encodeErrorResult,
   erc20Abi,
+  http,
   padHex,
   parseEther,
+  publicActions,
+  walletActions,
   zeroAddress,
   zeroHash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { moonbeamDev } from "viem/chains";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   activityChains,
+  auditorAbi,
+  chains,
   exaAccountFactoryAddress,
+  exaPreviewerAbi,
+  firewallAbi,
   marketAbi,
+  marketWETHAddress,
   previewerAbi,
   previewerAddress,
   usdcAddress,
@@ -57,6 +67,17 @@ const weth = parse(Address, wethAddress);
 const salt = parse(Address, padHex("0x0", { size: 20 }));
 const poker = privateKeyToAccount(padHex("0xb0b"));
 const poke = createPoke(bullmq);
+const anvil2 = activityChains.get(moonbeamDev.id);
+if (!anvil2?.smartAccount) throw new Error("missing anvil2");
+const anvil2Client = createTestClient({ chain: anvil2, mode: "anvil", transport: http() })
+  .extend(publicActions)
+  .extend(walletActions);
+const anvil2Auditor = await anvil2Client.readContract({
+  address: parse(Address, chains.get(moonbeamDev.id)?.exaPreviewer),
+  functionName: "AUDITOR",
+  abi: exaPreviewerAbi,
+});
+const allower = wallet(poker, anvil2);
 const mocks = vi.hoisted(() => ({
   closeSegment: vi.fn(),
   lifiURL: vi.fn<(url: string | undefined) => string | undefined>(),
@@ -342,7 +363,7 @@ describe("poke worker", () => {
       throw error;
     });
 
-    await jobFinished({ ...request, assets: [unknownAsset] });
+    await jobFinished({ ...request, assets: [unknownAsset], origin: "activity" });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
@@ -465,11 +486,11 @@ describe("poke worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("treats empty balances as an idempotent success", async () => {
+  it("skips the deploy of allowed accounts without balance", async () => {
     await jobFinished({ ...request, assets: [token] });
 
-    expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(await getWETHMarket(account)).toMatchObject({ deposited: 0n, isCollateral: false });
+    expect(await publicClient.getCode({ address: account })).toBeUndefined();
+    expect(mocks.track).not.toHaveBeenCalled();
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -570,29 +591,97 @@ describe("poke worker", () => {
     await job.remove();
   });
 
-  it("deploys without poking on other chains", async () => {
-    const anvil = activityChains.get(chain.id);
-    if (!anvil) throw new Error("missing anvil");
-    const network = { ...anvil };
-    vi.spyOn(activityChains, "get").mockImplementation((id) => (id === network.id ? network : undefined));
+  it("deploys and pokes other chains without queuing credit", async () => {
+    const deposit = parseEther("5");
+    await anvil2Client.setBalance({ address: account, value: deposit });
+    await allow(account);
     const readContract = vi.spyOn(publicClient, "readContract");
-    const id = chain.id;
-    Object.assign(chain, { id: 1 });
+    const add = vi.spyOn(Queue.prototype, "add");
 
-    try {
-      await jobFinished({ ...request, chainId: network.id });
-    } finally {
-      Object.assign(chain, { id });
-    }
+    await jobFinished({ ...request, chainId: moonbeamDev.id });
+
+    expect(readContract).not.toHaveBeenCalled();
+    await expect(getAnvil2Market(account, marketWETHAddress)).resolves.toStrictEqual({
+      floatingDepositAssets: deposit,
+      isCollateral: true,
+    });
+    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, anvil2);
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("deploys without poking on networks without the protocol", async () => {
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
+    const readContract = vi.spyOn(publicClient, "readContract");
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, origin: "activity" });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
     expect(readContract).not.toHaveBeenCalled();
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n });
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips accounts the firewall has not allowed", async () => {
+    await anvil2Client.setBalance({ address: account, value: parseEther("5") });
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, chainId: moonbeamDev.id, origin: "activity" });
+
+    expect(await anvil2Client.getCode({ address: account })).toBeDefined();
+    await expect(getAnvil2Market(account, marketWETHAddress)).resolves.toStrictEqual({
+      floatingDepositAssets: 0n,
+      isCollateral: false,
+    });
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("pokes the remaining assets when a market is frozen", async () => {
+    const deposit = parseEther("2");
+    const frozen = await anvil2Client
+      .readContract({ address: anvil2Auditor, functionName: "allMarkets", abi: auditorAbi })
+      .then(async (markets) => {
+        for (const market of markets) {
+          if (await anvil2Client.readContract({ address: market, functionName: "isFrozen", abi: marketAbi })) {
+            return market;
+          }
+        }
+        throw new Error("missing frozen market");
+      });
+    const asset = parse(
+      Address,
+      await anvil2Client.readContract({ address: frozen, functionName: "asset", abi: marketAbi }),
+    );
+    await allow(account);
+    await mint(asset, account, 2_000_000n, anvil2Client);
+    await mint(token, account, deposit, anvil2Client);
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, assets: [asset, token], chainId: moonbeamDev.id, origin: "activity" });
+
+    await expect(getAnvil2Market(account, frozen)).resolves.toStrictEqual({
+      floatingDepositAssets: 0n,
+      isCollateral: false,
+    });
+    await expect(getAnvil2Market(account, marketWETHAddress)).resolves.toStrictEqual({
+      floatingDepositAssets: deposit,
+      isCollateral: true,
+    });
+    expect(credits(add)).toStrictEqual([]);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("delays deploys on other chains until gas is affordable", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const id = `${network.id}-${account}`;
     const keeper = walletClient.account.address;
     const funds = await publicClient.getBalance({ address: keeper });
@@ -637,7 +726,7 @@ describe("poke worker", () => {
     try {
       await anvilClient.setBalance({ address: keeper, value: 1n });
       const first = delayed();
-      await poke.enqueue({ ...request, chainId: network.id });
+      await poke.enqueue({ ...request, chainId: network.id, origin: "activity" });
       const job = await queue.getJob(id);
       if (!job) throw new Error("job not found");
       await first;
@@ -700,6 +789,7 @@ describe("poke worker", () => {
   it("delays deploys on other chains while gas costs more than the ceiling", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const id = `${network.id}-${account}`;
     const chainId = chain.id;
     const setAttribute = await spySpanSetAttribute();
@@ -716,7 +806,7 @@ describe("poke worker", () => {
           resolve();
         });
       });
-      await poke.enqueue({ ...request, chainId: network.id });
+      await poke.enqueue({ ...request, chainId: network.id, origin: "activity" });
       const job = await queue.getJob(id);
       if (!job) throw new Error("job not found");
       await delayed;
@@ -751,12 +841,13 @@ describe("poke worker", () => {
   it("deploys on testnet stacks without pricing", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const chainId = chain.id;
     const fetch = mockLifi(new Response(null, { status: 500 }));
     Object.assign(chain, { id: 1 });
 
     try {
-      await jobFinished({ ...request, chainId: network.id });
+      await jobFinished({ ...request, chainId: network.id, origin: "activity" });
     } finally {
       Object.assign(chain, { id: chainId });
     }
@@ -769,6 +860,7 @@ describe("poke worker", () => {
   it("prices other chains on li.quest when codegen has no lifi url", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const chainId = chain.id;
     mocks.lifiURL.mockReset();
     const fetch = mockLifi();
@@ -776,7 +868,7 @@ describe("poke worker", () => {
     Object.assign(chain, { id: 1 });
 
     try {
-      await jobFinished({ ...request, chainId: network.id });
+      await jobFinished({ ...request, chainId: network.id, origin: "activity" });
     } finally {
       Object.assign(chain, { testnet: true });
       Object.assign(chain, { id: chainId });
@@ -792,6 +884,7 @@ describe("poke worker", () => {
   it("deploys on other chains when no native price is known", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const id = `${network.id}-${account}`;
     const chainId = chain.id;
     const keeper = walletClient.account.address;
@@ -818,7 +911,7 @@ describe("poke worker", () => {
     try {
       await anvilClient.setBalance({ address: keeper, value: 1n });
       const first = delayed();
-      await poke.enqueue({ ...request, chainId: network.id });
+      await poke.enqueue({ ...request, chainId: network.id, origin: "activity" });
       const job = await queue.getJob(id);
       if (!job) throw new Error("job not found");
       await first;
@@ -861,15 +954,16 @@ describe("poke worker", () => {
   it("deploys on other chains with the last native price while li.fi fails", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const chainId = chain.id;
     const next = createRequest();
     Object.assign(chain, { testnet: false });
     Object.assign(chain, { id: 1 });
 
     try {
-      await jobFinished({ ...request, chainId: network.id });
+      await jobFinished({ ...request, chainId: network.id, origin: "activity" });
       mockLifi(new Response(null, { status: 500 }));
-      await jobFinished({ ...next.request, chainId: network.id });
+      await jobFinished({ ...next.request, chainId: network.id, origin: "activity" });
     } finally {
       Object.assign(chain, { testnet: true });
       Object.assign(chain, { id: chainId });
@@ -886,6 +980,7 @@ describe("poke worker", () => {
   it("warns once when deploys stay delayed for twelve hours", async () => {
     const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
+    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
     const id = `${network.id}-${account}`;
     const chainId = chain.id;
     mockLifi(Response.json({ priceUSD: "1000000" }));
@@ -906,7 +1001,7 @@ describe("poke worker", () => {
     const delayedAt = Date.now() - 12 * 60 * 60_000;
     try {
       const first = delayed();
-      await poke.enqueue({ ...request, chainId: network.id });
+      await poke.enqueue({ ...request, chainId: network.id, origin: "activity" });
       const job = await queue.getJob(id);
       if (!job) throw new Error("job not found");
       await first;
@@ -962,7 +1057,9 @@ describe("poke worker", () => {
       .mockRejectedValueOnce(new Error("rpc unavailable"))
       .mockImplementation((parameters) => readContract(parameters as never));
 
-    await jobFinished({ ...request, assets: [token] }, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
+
+    await jobFinished(request, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(captureException).not.toHaveBeenCalled();
@@ -1108,9 +1205,47 @@ async function getMarket(address: Address, asset: Address) {
 
 const getWETHMarket = (address: Address) => getMarket(address, token);
 
-async function mint(asset: Address, address: Address, amount: bigint) {
-  await anvilClient.waitForTransactionReceipt({
-    hash: await anvilClient.writeContract({
+async function getAnvil2Market(address: Address, market: `0x${string}`) {
+  const [shares, listing, entered] = await Promise.all([
+    anvil2Client.readContract({ address: market, functionName: "balanceOf", args: [address], abi: marketAbi }),
+    anvil2Client.readContract({ address: anvil2Auditor, functionName: "markets", args: [market], abi: auditorAbi }),
+    anvil2Client.readContract({
+      address: anvil2Auditor,
+      functionName: "accountMarkets",
+      args: [address],
+      abi: auditorAbi,
+    }),
+  ]);
+  return {
+    floatingDepositAssets: await anvil2Client.readContract({
+      address: market,
+      functionName: "convertToAssets",
+      args: [shares],
+      abi: marketAbi,
+    }),
+    isCollateral: (entered & (1n << BigInt(listing[2]))) !== 0n,
+  };
+}
+
+async function allow(address: Address) {
+  await allower.waitForTransactionReceipt({
+    hash: await allower.writeContract({
+      address: await anvil2Client.readContract({ address: anvil2Auditor, functionName: "firewall", abi: auditorAbi }),
+      functionName: "allow",
+      args: [address, true],
+      abi: firewallAbi,
+    }),
+  });
+}
+
+async function mint(
+  asset: Address,
+  address: Address,
+  amount: bigint,
+  client: typeof anvil2Client | typeof anvilClient = anvilClient,
+) {
+  await client.waitForTransactionReceipt({
+    hash: await client.writeContract({
       account: null,
       address: asset,
       functionName: "mint",
