@@ -37,6 +37,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - assertVisible: "270.00"
 - tapOn: Continue
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: More info } }
+- assertVisible: The reference is saved with this contact\. .+
+- tapOn: { point: "50%,5%" }
 - tapOn: Confirm and send
 - assertVisible: Sent to .*
 - runFlow: ../subflows/getAccount.yaml
