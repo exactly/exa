@@ -12,3 +12,103 @@ index 9e67d40b248b3d4a36bb79771a4ea2733bfe18a7..8f7fa94c2c302640f54927271330756b
                  if (pending.length) {
                      // This was triggered by `history.go(n)`, we shouldn't call the listener
                      return;
+diff --git a/build/fork/useLinking.js b/build/fork/useLinking.js
+index b858a3bdc91cffebbf03326c964c9b6a0b655404..d621929a2f9ac964db05a042b79cb9b30288a69f 100644
+--- a/build/fork/useLinking.js
++++ b/build/fork/useLinking.js
+@@ -76,6 +76,34 @@ const findMatchingState = (a, b) => {
+     }
+     return findMatchingState(aChildState, bChildState);
+ };
++// START FORK
++/**
++ * Find the history entry that a navigation state goes back to: the latest entry the state continues from, where it only
++ * adds routes, or the first entry if the state replaced the routes of every entry
++ * The entries of removed or replaced routes are skipped, including the ones pushed by their nested navigators
++ */
++const findHistoryEntry = (history, state) => {
++    for (let index = history.index; index >= 0; index--) {
++        const [a, b] = findMatchingState(history.get(index)?.state, state);
++        if (a === undefined || b === undefined) {
++            return undefined;
++        }
++        const aHistory = a.history ?? a.routes;
++        const bHistory = b.history ?? b.routes;
++        if (aHistory.length > bHistory.length || aHistory.some((item, i) => item.key !== bHistory[i].key)) {
++            continue;
++        }
++        if (aHistory.length < bHistory.length) {
++            return { index, push: true };
++        }
++        // The history is the same, so the focused route's child state is missing in one of them or was replaced
++        if (a.routes[a.index].state === undefined || b.routes[b.index].state === undefined) {
++            return { index, push: false };
++        }
++    }
++    return { index: 0, push: false };
++};
++// END FORK
+ /**
+  * Run async function in series as it's called.
+  */
+@@ -362,35 +390,41 @@ function useLinking(ref, { enabled = true, config, getStateFromPath = native_1.g
+                     // Note that path might not actually change here, for example, drawer open should pushState
+                     history.push({ path, state });
+                 }
+-                else if (historyDelta < 0) {
+-                    // If history length is decreased, i.e. entries were removed, we want to go back
+-                    const nextIndex = history.backIndex({ path });
++                // START FORK
++                // Routes that were removed or replaced may have pushed several entries in their nested navigators,
++                // which neither the history length nor the path tells, so we go back to the entry the state continues from
++                else {
+                     const currentIndex = history.index;
++                    const entry = findHistoryEntry(history, state);
+                     try {
+-                        if (nextIndex !== -1 &&
+-                            nextIndex < currentIndex &&
+-                            // We should only go back if the entry exists and it's less than current index
+-                            history.get(nextIndex - currentIndex)) {
+-                            // An existing entry for this path exists and it's less than current index, go back to that
+-                            await history.go(nextIndex - currentIndex);
++                        if (entry === undefined) {
++                            // We couldn't find an entry to go back to, so we'll go back by the delta
++                            if (historyDelta < 0) {
++                                await history.go(historyDelta);
++                            }
++                            history.replace({ path, state });
++                        }
++                        else if (entry.index + (entry.push ? 1 : 0) === currentIndex) {
++                            // The state only replaces the current entry
++                            history.replace({ path, state });
+                         }
+                         else {
+-                            // We couldn't find an existing entry to go back to, so we'll go back by the delta
+-                            // This won't be correct if multiple routes were pushed in one go before
+-                            // Usually this shouldn't happen and this is a fallback for that
+-                            await history.go(historyDelta);
++                            if (entry.index !== currentIndex) {
++                                await history.go(entry.index - currentIndex);
++                            }
++                            if (entry.push) {
++                                history.push({ path, state });
++                            }
++                            else {
++                                history.replace({ path, state });
++                            }
+                         }
+-                        // Store the updated state as well as fix the path if incorrect
+-                        history.replace({ path, state });
+                     }
+                     catch {
+                         // The navigation was interrupted
+                     }
+                 }
+-                else {
+-                    // If history length is unchanged, we want to replaceState
+-                    history.replace({ path, state });
+-                }
++                // END FORK
+             }
+             else {
+                 // If no common navigation state was found, assume it's a replace
