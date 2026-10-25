@@ -8,4 +8,12 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
 - runFlow: ../subflows/portfolio.yaml
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Deposit } }
+- tapOn: Digital assets
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
+- tapOn: USDT
+- tapOn: Recommended
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Continue } }
+- tapOn: Continue
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runFlow: ../subflows/storeCoverage.yaml
