@@ -525,7 +525,7 @@ export default function Card() {
                   }
                 />
                 <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
-                  <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                  <Text caption2 color="$interactiveOnDisabled">
                     <Trans
                       i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <protocol>Exactly Protocol</protocol> subject to its separate terms and conditions. Third National is not a party to any agreement with <protocol>Exactly Protocol</protocol> and is not responsible for any funding or credit arrangement between user and <protocol>Exactly Protocol</protocol>."
                       components={{

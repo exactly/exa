@@ -11,7 +11,7 @@ import Text from "../shared/Text";
 export default function HomeDisclaimer() {
   return (
     <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
-      <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+      <Text caption2 color="$interactiveOnDisabled">
         <Trans
           i18nKey="The <app>Exa App</app> is a self-custody smart wallet. All lending and credit features are decentralized and powered by <protocol>Exactly Protocol</protocol>. <terms>Terms and conditions</terms>."
           components={{

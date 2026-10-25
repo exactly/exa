@@ -73,7 +73,7 @@ export default function CardDisclaimer({
                     </Button.Icon>
                   </Button>
                 </YStack>
-                <Text color="$interactiveOnDisabled" caption textAlign="justify">
+                <Text color="$interactiveOnDisabled" caption>
                   <Trans
                     i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <protocol>Exactly Protocol</protocol> subject to its separate terms and conditions. Third National is not a party to any agreement with <protocol>Exactly Protocol</protocol> and is not responsible for any funding or credit arrangement between user and <protocol>Exactly Protocol</protocol>."
                     components={{

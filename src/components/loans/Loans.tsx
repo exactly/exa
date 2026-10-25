@@ -86,7 +86,7 @@ export default function Loans() {
               <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
             </View>
             <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
-              <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+              <Text caption2 color="$interactiveOnDisabled">
                 {t(
                   "You are accessing a decentralized protocol using your crypto as collateral. The Exa App does not issue funding or provide credit. No credit checks or intermediaries are involved.",
                 )}

@@ -1185,7 +1185,7 @@ export default function Swaps() {
             <YStack padding="$s4" gap="$s3">
               <YStack gap="$s3">
                 <XStack alignItems="flex-start" flexWrap="wrap" paddingBottom="$s3">
-                  <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+                  <Text caption2 color="$interactiveOnDisabled">
                     <Trans
                       i18nKey="Swaps are provided via <provider>LI.FI</provider> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
                       components={{

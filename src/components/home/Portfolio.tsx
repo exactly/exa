@@ -147,7 +147,7 @@ export default function Portfolio() {
         )}
         {tab === "stocks" ? null : (
           <View padding="$s4">
-            <Text caption2 color="$interactiveOnDisabled" textAlign="justify">
+            <Text caption2 color="$interactiveOnDisabled">
               <Trans
                 i18nKey="Performance is variable, not guaranteed, and powered by <protocol>Exactly Protocol</protocol>. Yields depend on protocol performance and network activity. Past performance does not guarantee future results."
                 components={{

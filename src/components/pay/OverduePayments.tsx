@@ -122,7 +122,7 @@ export default function OverduePayments({
             </React.Fragment>
           );
         })}
-        <Text caption color="$uiNeutralSecondary" textAlign="justify">
+        <Text caption color="$uiNeutralSecondary">
           <Text emphasized>{t("You must repay each installment manually before its due date.")} </Text>
           {t("If not, a {{rate}} penalty is added every day the payment is late.", {
             rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
