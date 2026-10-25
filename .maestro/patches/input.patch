@@ -4,21 +4,22 @@ Date: Fri, 23 Oct 2026 16:56:35 +0000
 Subject: [PATCH] fix: type into the focused element on web
 
 inputText resolves the focused element through ChromeDriver once and sends every key to it. That fails with a stale element as soon as the page replaces that element while typing (an input that turns each typed word into a chip and focuses a new input). It also fails on a page that locks down its globals before ChromeDriver attaches to its tab, such as an extension page under LavaMoat scuttling: ChromeDriver's saved copy of `window.Window` stays unset, so every element it returns falls back to the locked global and throws ("property \"Window\" of globalThis is inaccessible under scuttling mode"). Send the key events ChromeDriver sends for each character straight through CDP instead: they reach the element focused at that moment and run no page script. Characters keep ChromeDriver's US layout code, key code and Shift press, a newline is an Enter press, a tab a Tab press, a backspace a Backspace press, and a carriage return types nothing. Other characters go as their text, one code point at a time, so characters outside the BMP arrive whole. Date inputs keep their direct value path, inside a focused iframe too.
+
+pressKey had the same problem, sending its key to the active element through ChromeDriver, and it supported only Enter and Backspace. It sends the same CDP key events now, for Enter, Tab, Backspace and Escape. A pressed key also carries its key code as the native key code, as Puppeteer sends it: CDP keeps a key without one from the browser, so a key the page doesn't handle never reaches it, and Escape doesn't close a popup the browser draws, such as a wallet's confirmation panel.
 ---
- .../main/java/maestro/drivers/CdpWebDriver.kt | 58 +++++++++++++++----
- 1 file changed, 48 insertions(+), 10 deletions(-)
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 77 +++++++++++++++----
+ 1 file changed, 60 insertions(+), 17 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..1db4a0d 100644
+index 10d7e90..9b71800 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -51,6 +51,36 @@ import java.util.logging.Logger
+@@ -52,6 +52,36 @@ import java.util.logging.Logger
  
  
  private const val SYNTHETIC_COORDINATE_SPACE_OFFSET = 100000
 +private const val SHIFT = 8
 +
-+// CDP key events ChromeDriver sends to type each character, on a US layout
 +private val SHIFT_KEY = mapOf("key" to "Shift", "code" to "ShiftLeft", "windowsVirtualKeyCode" to 16)
 +private val KEY_EVENTS: Map<String, Map<String, Any>> = buildMap {
 +    val keys = ('a'..'z').map { Triple("$it${it.uppercaseChar()}", "Key${it.uppercaseChar()}", it.uppercaseChar().code) } +
@@ -45,11 +46,48 @@ index ad651bb..1db4a0d 100644
 +    put("\n", mapOf("key" to "Enter", "code" to "Enter", "windowsVirtualKeyCode" to 13, "text" to "\r"))
 +    put("\t", mapOf("key" to "Tab", "code" to "Tab", "windowsVirtualKeyCode" to 9))
 +    put("\b", mapOf("key" to "Backspace", "code" to "Backspace", "windowsVirtualKeyCode" to 8))
++    put("\u001b", mapOf("key" to "Escape", "code" to "Escape", "windowsVirtualKeyCode" to 27))
 +}
  
  class CdpWebDriver(
      val isStudio: Boolean,
-@@ -562,16 +592,24 @@ class CdpWebDriver(
+@@ -483,16 +513,27 @@ class CdpWebDriver(
+     }
+ 
+     override fun pressKey(code: KeyCode) {
+-        val key = mapToSeleniumKey(code)
+-        withActiveElement { it.sendKeys(key) }
+-    }
+-
+-    private fun mapToSeleniumKey(code: KeyCode): Keys {
+-        return when (code) {
+-            KeyCode.ENTER -> Keys.ENTER
+-            KeyCode.BACKSPACE -> Keys.BACK_SPACE
++        val key = when (code) {
++            KeyCode.ENTER -> "\n"
++            KeyCode.TAB -> "\t"
++            KeyCode.BACKSPACE -> "\b"
++            KeyCode.ESCAPE -> "\u001b"
+             else -> error("Keycode $code is not supported on web")
+         }
++        val event = KEY_EVENTS.getValue(key)
++        pressKey(event + ("nativeVirtualKeyCode" to event.getValue("windowsVirtualKeyCode")))
++    }
++
++    private fun pressKey(key: Map<String, Any>) {
++        val shift = key["modifiers"] == SHIFT
++        val events = listOfNotNull(
++            if (shift) SHIFT_KEY + ("type" to "rawKeyDown") else null,
++            key + ("type" to if ("text" in key) "keyDown" else "rawKeyDown"),
++            key - "text" + ("type" to "keyUp"),
++            if (shift) SHIFT_KEY + ("type" to "keyUp") else null,
++        )
++        val driver = ensureOpen() as ChromeDriver
++        for (event in events) driver.executeCdpCommand("Input.dispatchKeyEvent", event)
+     }
+ 
+     override fun scrollVertical() {
+@@ -566,16 +607,18 @@ class CdpWebDriver(
      }
  
      override fun inputText(text: String) {
@@ -58,28 +96,21 @@ index ad651bb..1db4a0d 100644
 -            if (element.isHtmlDateInput() && jsExecutor.inputHtmlDate(element, text)) {
 -                return@withActiveElement
 -            }
--
++        val driver = ensureOpen() as ChromeDriver
+ 
 -            for (c in text.toCharArray()) {
 -                element.sendKeys("$c")
 -                sleep(random(20, 100).toLong())
 -            }
-+        val driver = ensureOpen() as ChromeDriver
-+
 +        if (executeJS("document.activeElement?.type === 'date' || document.activeElement?.localName === 'iframe'") == true) {
 +            var filled = false
 +            withActiveElement { element -> filled = element.isHtmlDateInput() && driver.inputHtmlDate(element, text) }
 +            if (filled) return
 +        }
 +
-+        // ChromeDriver types nothing for a carriage return
 +        text.replace("\r", "").codePoints().forEach { codePoint ->
 +            val c = Character.toString(codePoint)
-+            val key = KEY_EVENTS[c] ?: mapOf("key" to c, "text" to c)
-+            val shift = key["modifiers"] == SHIFT
-+            if (shift) driver.executeCdpCommand("Input.dispatchKeyEvent", SHIFT_KEY + ("type" to "rawKeyDown"))
-+            driver.executeCdpCommand("Input.dispatchKeyEvent", key + ("type" to if ("text" in key) "keyDown" else "rawKeyDown"))
-+            driver.executeCdpCommand("Input.dispatchKeyEvent", key - "text" + ("type" to "keyUp"))
-+            if (shift) driver.executeCdpCommand("Input.dispatchKeyEvent", SHIFT_KEY + ("type" to "keyUp"))
++            pressKey(KEY_EVENTS[c] ?: mapOf("key" to c, "text" to c))
 +            sleep(random(20, 100).toLong())
          }
      }
