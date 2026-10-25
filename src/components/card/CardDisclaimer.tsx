@@ -29,14 +29,14 @@ export default function CardDisclaimer({
 }) {
   const { t } = useTranslation();
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="$backgroundMild">
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
           <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
           <View fullScreen flex={1}>
-            <YStack flex={1} padding="$s4" gap="$s6">
+            <YStack flex={1} paddingHorizontal="$s4" paddingTop="$s4" gap="$s6">
               <YStack flex={1} justifyContent="center" gap="$s4">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
                   <View width="100%" height="100%">

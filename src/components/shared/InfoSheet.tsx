@@ -19,11 +19,11 @@ export default function InfoSheet({
   title: string;
 }) {
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="$backgroundMild">
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
           <View fullScreen flex={1}>
-            <YStack flex={1} padding="$s4" gap="$s4">
+            <YStack flex={1} paddingHorizontal="$s4" paddingTop="$s4" gap="$s4">
               <Text headline emphasized>
                 {title}
               </Text>

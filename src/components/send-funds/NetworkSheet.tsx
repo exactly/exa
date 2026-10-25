@@ -31,8 +31,6 @@ export default function NetworkSheet({
         backgroundColor="$backgroundSoft"
         paddingHorizontal="$s5"
         paddingTop="$s7"
-        $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
       >
         <YStack gap="$s5">
           <XStack gap="$s3_5" alignItems="center">

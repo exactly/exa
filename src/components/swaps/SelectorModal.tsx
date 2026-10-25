@@ -3,13 +3,12 @@ import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 
 import { ChartNoAxesCombined, Ellipsis, Search, X } from "@tamagui/lucide-icons-2";
-import { getTokens, ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { isStock } from "../../utils/lifi";
-import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -17,7 +16,7 @@ import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import NetworkFilter from "../shared/NetworkFilter";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -125,7 +124,6 @@ export default function TokenSelectModal({
   const [picking, setPicking] = useState(false);
   const { allAssets, isExternal } = usePortfolio();
   const { markets } = useMarkets();
-  const insets = useInsets();
   const {
     t,
     i18n: { language },
@@ -193,8 +191,16 @@ export default function TokenSelectModal({
   }
 
   return (
-    <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
-      <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+    <ModalSheet
+      open={open}
+      onClose={close}
+      disableDrag
+      heightPercent={85}
+      backgroundColor="$backgroundMild"
+      moveOnKeyboardChange={false}
+      scrollsUnderInset
+    >
+      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
           <XStack alignItems="center" justifyContent="center" marginHorizontal="$s4">
             <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="$s6">
@@ -309,7 +315,8 @@ export default function TokenSelectModal({
                 )}
                 keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s4.val) }}
+                keyboardDismissMode="on-drag"
+                ListFooterComponent={<Inset keyboard offset="$s3_5" />}
                 windowSize={5}
                 ListEmptyComponent={() => (
                   <View padding="$s6" alignItems="center">

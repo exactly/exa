@@ -213,7 +213,6 @@ function Frame({ children, ...properties }: YStackProps & { children: React.Reac
       backgroundColor="$backgroundSoft"
       paddingTop="$s5"
       paddingHorizontal="$s5"
-      paddingBottom="$s7"
       {...properties}
     >
       {children}

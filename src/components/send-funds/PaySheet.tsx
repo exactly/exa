@@ -90,8 +90,6 @@ export default function PaySheet({
         backgroundColor="$backgroundSoft"
         paddingTop="$s7"
         paddingHorizontal="$s4"
-        paddingBottom="$s7"
-        $platform-android={{ paddingBottom: "$s5" }}
       >
         <Text emphasized subHeadline primary textAlign="center">
           {t("Pay with")}
