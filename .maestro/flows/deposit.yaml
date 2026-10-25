@@ -2,6 +2,9 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/deposit.yaml
+- pressKey: Forward
+- assertVisible: USDC, ETH, stocks, and more
+- back
 - runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "2" } }
 - runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.credential}", amount: "1", network: Anvil2 } }
 - runScript:
