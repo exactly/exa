@@ -5,7 +5,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
-import ModalSheet from "./ModalSheet";
+import ModalSheet, { Inset } from "./ModalSheet";
 import SafeView from "./SafeView";
 import Button from "./StyledButton";
 import Text from "./Text";
@@ -33,7 +33,7 @@ export default function CopyAddressSheet({
   const { address: accountAddress } = useAccount();
   const { t } = useTranslation();
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet open={open} onClose={onClose} disableDrag scrollsUnderInset>
       <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
           borderTopLeftRadius="r4"
@@ -41,7 +41,6 @@ export default function CopyAddressSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s7">
             <YStack gap="s5">
@@ -101,6 +100,7 @@ export default function CopyAddressSheet({
             </Button>
           </YStack>
         </SafeView>
+        <Inset />
       </ScrollView>
     </ModalSheet>
   );

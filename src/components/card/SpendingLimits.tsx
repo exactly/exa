@@ -7,7 +7,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import SpendingLimit from "./SpendingLimit";
 import { Plus } from "../../generated/icons/Plus";
 import InfoAlert from "../shared/InfoAlert";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -32,11 +32,11 @@ export default function SpendingLimits({
 }) {
   const { t } = useTranslation();
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild" scrollsUnderInset>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <View flex={1} padded>
+            <View flex={1} padded paddingBottom="s0">
               <YStack gap="s4_5">
                 <YStack gap="s4">
                   <Text emphasized headline primary>
@@ -81,6 +81,7 @@ export default function SpendingLimits({
               </YStack>
             </View>
           </View>
+          <Inset />
         </ScrollView>
       </SafeView>
     </ModalSheet>

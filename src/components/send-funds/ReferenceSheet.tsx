@@ -26,13 +26,7 @@ export default function ReferenceSheet({
 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <YStack
-        gap="s7"
-        borderTopLeftRadius="r5"
-        borderTopRightRadius="r5"
-        backgroundColor="backgroundSoft"
-        paddingBottom="android:s5"
-      >
+      <YStack gap="s7" borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
         <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Reference")}
@@ -43,7 +37,7 @@ export default function ReferenceSheet({
             )}
           </Text>
         </YStack>
-        <YStack gap="s4" paddingHorizontal="s5" paddingBottom="s7">
+        <YStack gap="s4" paddingHorizontal="s5">
           <Button primary width="100%" onPress={onClose}>
             <Button.Text>{t("Got it!")}</Button.Text>
             <Button.Icon>

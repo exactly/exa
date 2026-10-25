@@ -8,7 +8,7 @@ import { X } from "../../generated/icons/X";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -33,10 +33,9 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
   const LogoComponent = benefit.logo;
 
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} scrollsUnderInset>
       <SafeView
         paddingTop={0}
-        paddingBottom="web:s4"
         fullScreen
         borderTopLeftRadius="r4"
         borderTopRightRadius="r4"
@@ -46,7 +45,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
           <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView maxHeight="web:100vh">
-          <YStack gap="s3" paddingHorizontal="s5" paddingVertical="s7">
+          <YStack gap="s3" paddingHorizontal="s5" paddingTop="s7">
             <YStack gap="s3" paddingBottom="s4">
               <XStack alignItems="center" gap="s3">
                 <LogoComponent width={32} height={32} />
@@ -85,6 +84,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               <ExternalLink size={20} color="interactiveOnBaseBrandDefault" />
             </Button>
           </YStack>
+          <Inset />
         </ScrollView>
       </SafeView>
     </ModalSheet>

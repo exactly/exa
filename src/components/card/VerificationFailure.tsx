@@ -10,7 +10,7 @@ import { present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -19,14 +19,14 @@ import View from "../shared/View";
 export default function VerificationFailure({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild" scrollsUnderInset>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <View position="absolute" top="s5" right="s5" zIndex={100_000}>
           <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <YStack flex={1} padding="s4">
+            <YStack flex={1} paddingHorizontal="s4" paddingTop="s4">
               <YStack flex={1} justifyContent="center" gap="s4">
                 <Image
                   source={verifyIdentity}
@@ -58,6 +58,7 @@ export default function VerificationFailure({ open, onClose }: { onClose: () => 
               </YStack>
             </YStack>
           </View>
+          <Inset />
         </ScrollView>
       </SafeView>
     </ModalSheet>

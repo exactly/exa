@@ -43,11 +43,11 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   const card = isPending ? { ...placeholder, ...details } : data;
   const banner = card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
   return (
-    <ModalSheet open={open} onClose={onClose}>
+    <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild">
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView>
           <View fullScreen flex={1} alignItems="center" width="100%">
-            <View gap="s5" flex={1} padded alignItems="center" width="100%">
+            <View gap="s5" flex={1} padded paddingBottom="s0" alignItems="center" width="100%">
               {card ? (
                 <Skeleton show={isPending} width="100%" disableExitAnimation>
                   <YStack

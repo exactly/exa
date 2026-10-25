@@ -15,7 +15,7 @@ import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Checkbox from "../shared/Checkbox";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -96,6 +96,7 @@ export default function ReceiveGuideSheet({
         onClose();
       }}
       disableDrag
+      scrollsUnderInset
     >
       <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
@@ -104,7 +105,6 @@ export default function ReceiveGuideSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s5">
             <Text emphasized primary headline>
@@ -188,6 +188,7 @@ export default function ReceiveGuideSheet({
             </Pressable>
           </YStack>
         </SafeView>
+        <Inset />
       </ScrollView>
     </ModalSheet>
   );

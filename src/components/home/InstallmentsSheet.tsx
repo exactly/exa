@@ -61,7 +61,7 @@ export default function InstallmentsSheet({
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="backgroundSoft">
-        <YStack gap="s5" paddingVertical="s5">
+        <YStack gap="s5" paddingTop="s5">
           <YStack gap="s5">
             <YStack gap="s4" paddingHorizontal="s5">
               <XStack justifyContent="space-between" alignItems="center" gap="s3">
