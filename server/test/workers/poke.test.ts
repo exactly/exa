@@ -8,18 +8,28 @@ import { parse } from "valibot";
 import {
   BaseError,
   ContractFunctionRevertedError,
+  createTestClient,
   encodeErrorResult,
   erc20Abi,
+  http,
   padHex,
   parseEther,
+  publicActions,
+  walletActions,
   zeroHash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { moonbeamDev } from "viem/chains";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  auditorAbi,
+  auditors,
   exaAccountFactoryAddress,
+  firewallAbi,
+  marketAbi,
+  marketWETHAddress,
   previewerAbi,
   previewerAddress,
   usdcAddress,
@@ -51,6 +61,13 @@ const weth = parse(Address, wethAddress);
 const salt = parse(Address, padHex("0x0", { size: 20 }));
 const poker = privateKeyToAccount(padHex("0xb0b"));
 const poke = createPoke(bullmq);
+const anvil2 = NETWORKS.get("ANVIL2");
+if (!anvil2) throw new Error("missing anvil2");
+const anvil2Client = createTestClient({ chain: anvil2, mode: "anvil", transport: http() })
+  .extend(publicActions)
+  .extend(walletActions);
+const anvil2Auditor = parse(Address, auditors.get(moonbeamDev.id));
+const allower = wallet(poker, anvil2);
 const mocks = vi.hoisted(() => ({
   closeSegment: vi.fn(),
   segmentOn: vi.fn<(event: string, listener: (error: Error) => void) => void>(),
@@ -543,22 +560,91 @@ describe("poke worker", () => {
     await job.remove();
   });
 
-  it("deploys without poking on other chains", async () => {
-    const network = NETWORKS.get("ANVIL");
-    if (!network) throw new Error("missing anvil");
+  it("deploys and pokes other chains without queuing credit", async () => {
+    const deposit = parseEther("5");
+    await anvil2Client.setBalance({ address: account, value: deposit });
+    await allow(account);
     const readContract = vi.spyOn(publicClient, "readContract");
-    const id = chain.id;
-    Object.assign(chain, { id: 1 });
+    const add = vi.spyOn(Queue.prototype, "add");
 
-    try {
-      await jobFinished({ ...request, chainId: network.id });
-    } finally {
-      Object.assign(chain, { id });
-    }
+    await jobFinished({ ...request, chainId: moonbeamDev.id });
+
+    expect(readContract).not.toHaveBeenCalled();
+    await expect(getAnvil2Market(account, marketWETHAddress)).resolves.toStrictEqual({
+      floatingDepositAssets: deposit,
+      isCollateral: true,
+    });
+    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, anvil2);
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("deploys without poking on networks without the protocol", async () => {
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
+    vi.spyOn(auditors, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no auditor
+    const readContract = vi.spyOn(publicClient, "readContract");
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, origin: "activity" });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
     expect(readContract).not.toHaveBeenCalled();
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n });
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips accounts the firewall has not allowed", async () => {
+    await anvil2Client.setBalance({ address: account, value: parseEther("5") });
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, chainId: moonbeamDev.id, origin: "activity" });
+
+    expect(await anvil2Client.getCode({ address: account })).toBeDefined();
+    await expect(getAnvil2Market(account, marketWETHAddress)).resolves.toStrictEqual({
+      floatingDepositAssets: 0n,
+      isCollateral: false,
+    });
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("pokes the remaining assets when a market is frozen", async () => {
+    const deposit = parseEther("2");
+    const frozen = await anvil2Client
+      .readContract({ address: anvil2Auditor, functionName: "allMarkets", abi: auditorAbi })
+      .then(async (markets) => {
+        for (const market of markets) {
+          if (await anvil2Client.readContract({ address: market, functionName: "isFrozen", abi: marketAbi })) {
+            return market;
+          }
+        }
+        throw new Error("missing frozen market");
+      });
+    const asset = parse(
+      Address,
+      await anvil2Client.readContract({ address: frozen, functionName: "asset", abi: marketAbi }),
+    );
+    await allow(account);
+    await mint(asset, account, 2_000_000n, anvil2Client);
+    await mint(token, account, deposit, anvil2Client);
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, assets: [asset, token], chainId: moonbeamDev.id, origin: "activity" });
+
+    await expect(getAnvil2Market(account, frozen)).resolves.toStrictEqual({
+      floatingDepositAssets: 0n,
+      isCollateral: false,
+    });
+    await expect(getAnvil2Market(account, marketWETHAddress)).resolves.toStrictEqual({
+      floatingDepositAssets: deposit,
+      isCollateral: true,
+    });
+    expect(credits(add)).toStrictEqual([]);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("deploys activity accounts funded with unsupported assets without queuing credit", async () => {
@@ -709,9 +795,47 @@ async function getMarket(address: Address, asset: Address) {
 
 const getWETHMarket = (address: Address) => getMarket(address, token);
 
-async function mint(asset: Address, address: Address, amount: bigint) {
-  await anvilClient.waitForTransactionReceipt({
-    hash: await anvilClient.writeContract({
+async function getAnvil2Market(address: Address, market: `0x${string}`) {
+  const [shares, listing, entered] = await Promise.all([
+    anvil2Client.readContract({ address: market, functionName: "balanceOf", args: [address], abi: marketAbi }),
+    anvil2Client.readContract({ address: anvil2Auditor, functionName: "markets", args: [market], abi: auditorAbi }),
+    anvil2Client.readContract({
+      address: anvil2Auditor,
+      functionName: "accountMarkets",
+      args: [address],
+      abi: auditorAbi,
+    }),
+  ]);
+  return {
+    floatingDepositAssets: await anvil2Client.readContract({
+      address: market,
+      functionName: "convertToAssets",
+      args: [shares],
+      abi: marketAbi,
+    }),
+    isCollateral: (entered & (1n << BigInt(listing[2]))) !== 0n,
+  };
+}
+
+async function allow(address: Address) {
+  await allower.waitForTransactionReceipt({
+    hash: await allower.writeContract({
+      address: await anvil2Client.readContract({ address: anvil2Auditor, functionName: "firewall", abi: auditorAbi }),
+      functionName: "allow",
+      args: [address, true],
+      abi: firewallAbi,
+    }),
+  });
+}
+
+async function mint(
+  asset: Address,
+  address: Address,
+  amount: bigint,
+  client: typeof anvil2Client | typeof anvilClient = anvilClient,
+) {
+  await client.waitForTransactionReceipt({
+    hash: await client.writeContract({
       account: null,
       address: asset,
       functionName: "mint",
