@@ -352,7 +352,20 @@ describe("allow backfill", () => {
       ]),
     );
     expect(batched.filter(({ account: current }) => [done, partner, pending].includes(current))).toStrictEqual([]);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    for (const [current, source] of [
+      [persona, null],
+      [sourced, "allow-client"],
+    ] as const) {
+      expect(mocks.enqueuePoke).toHaveBeenCalledWith({
+        account: current,
+        chainId: moonbeamDev.id,
+        factory,
+        origin: "allow",
+        publicKey: "0x",
+        salt,
+        source,
+      });
+    }
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -462,14 +475,19 @@ describe("allow worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("allows other chains without poking", async () => {
+  it("allows and pokes other chains", async () => {
     const current = random();
 
     await jobFinished(current, undefined, { chainId: moonbeamDev.id });
 
     await expect(allowlist(current)).resolves.toBe(allower.address);
     expect(wallet).toHaveBeenCalledExactlyOnceWith(allower, anvil2);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
+      ...request,
+      account: current,
+      chainId: moonbeamDev.id,
+      origin: "allow",
+    });
     expect(startSpan).toHaveBeenCalledWith(
       {
         forceTransaction: true,
@@ -490,13 +508,18 @@ describe("allow worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("ignores accounts already allowed", async () => {
+  it("pokes accounts already allowed", async () => {
     const current = random();
     await allowOnChain(current);
 
     await jobFinished(current, undefined, { chainId: moonbeamDev.id });
 
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
+      ...request,
+      account: current,
+      chainId: moonbeamDev.id,
+      origin: "allow",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -511,7 +534,9 @@ describe("allow worker", () => {
     await expect(anvil2Client.getDelegation({ address: allower.address })).resolves.toBe(simple7702AccountAddress);
     await expect(allowed(fromBlock)).resolves.toStrictEqual([current, other]);
     expect(wallet).toHaveBeenCalledExactlyOnceWith(allower, anvil2);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke.mock.calls).toStrictEqual(
+      [current, done, other].map((poked) => [{ ...request, account: poked, chainId: moonbeamDev.id, origin: "allow" }]),
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -527,7 +552,12 @@ describe("allow worker", () => {
 
     await expect(anvil2Client.getTransactionCount({ address: allower.address })).resolves.toBe(nonce + 1);
     await expect(allowlist(current)).resolves.toBe(allower.address);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
+      ...request,
+      account: current,
+      chainId: moonbeamDev.id,
+      origin: "allow",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -539,7 +569,12 @@ describe("allow worker", () => {
     await batchFinished([current]);
 
     await expect(anvil2Client.getTransactionCount({ address: allower.address })).resolves.toBe(nonce);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
+      ...request,
+      account: current,
+      chainId: moonbeamDev.id,
+      origin: "allow",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -589,6 +624,49 @@ describe("allow worker", () => {
       level: "error",
       tags: { queue: "allow", job: "allow", chainId: 0 },
     });
+  });
+
+  it("queues the poke only after allow settles", async () => {
+    const current = random();
+    const poked = Promise.withResolvers<string>();
+    mocks.enqueuePoke.mockImplementationOnce(() => allowlist(current).then(poked.resolve));
+
+    await jobFinished(current, undefined, { chainId: moonbeamDev.id });
+
+    await expect(poked.promise).resolves.toBe(allower.address);
+  });
+
+  it("closes the poke queue after active jobs settle", async () => {
+    const deferred = Promise.withResolvers<null>();
+    mocks.enqueuePoke.mockImplementationOnce(async () => {
+      await deferred.promise;
+    });
+
+    const processing = jobFinished(random(), undefined, { chainId: moonbeamDev.id });
+    await vi.waitUntil(() => mocks.enqueuePoke.mock.calls.length === 1, { timeout: 20_000 });
+    const closeWorker = vi.spyOn(worker.queue, "close");
+    const closing = worker.close();
+    expect(worker.close()).toBe(closing);
+    await vi.waitUntil(() => closeWorker.mock.calls.length === 1);
+
+    expect(mocks.closePoke).not.toHaveBeenCalled();
+
+    deferred.resolve(null);
+    await processing;
+    await closing;
+    expect(mocks.closePoke).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it("retries poke publication without allowing twice", async () => {
+    const current = random();
+    const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
+    mocks.enqueuePoke.mockRejectedValueOnce(new Error("poke unavailable"));
+
+    await jobFinished(current, { attempts: 2, backoff: { type: "fixed", delay: 1 } }, { chainId: moonbeamDev.id });
+
+    await expect(allowed(fromBlock)).resolves.toStrictEqual([current]);
+    expect(mocks.enqueuePoke).toHaveBeenCalledTimes(2);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("captures terminal failures", async () => {
