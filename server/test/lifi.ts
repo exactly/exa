@@ -19,6 +19,7 @@ import {
 
 import {
   allowlists,
+  auditorAbi,
   auditorAddress,
   exaPreviewerAbi,
   exaPreviewerCode,
@@ -31,6 +32,7 @@ import {
 
 const logoURI = `data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'/>")}`;
 const tool = { key: "mock", name: "Mock", logoURI };
+const gas = 300_000n;
 const velodromeAbi = parseAbi([
   "function getPool(address tokenA, address tokenB, bool stable) view returns (address)",
   "function getReserves() view returns (uint256 reserve0, uint256 reserve1, uint256 blockTimestampLast)",
@@ -116,36 +118,55 @@ export default function lifi(chains: readonly Chain[]) {
     ];
   }
   return new Hono()
-    .get("/v1/chains", (c) =>
+    .get("/v1/chains", async (c) =>
       c.json({
-        chains: chains.map(({ id, name, rpcUrls }) => ({
-          key: `local${id}`,
-          chainType: "EVM",
-          name,
-          coin: "ETH",
-          id,
-          mainnet: true,
-          logoURI,
-          multicallAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
-          diamondAddress: swapperAddress,
-          nativeToken: {
-            address: zeroAddress,
-            chainId: id,
-            symbol: "ETH",
-            decimals: 18,
-            name: "ETH",
-            coinKey: "ETH",
-            priceUSD: "0",
+        chains: await Promise.all(
+          chains.map(async ({ id, name, rpcUrls }) => ({
+            key: `local${id}`,
+            chainType: "EVM",
+            name,
+            coin: "ETH",
+            id,
+            mainnet: true,
             logoURI,
-          },
-          metamask: {
-            chainId: toHex(id),
-            blockExplorerUrls: [],
-            chainName: name,
-            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-            rpcUrls: rpcUrls.default.http,
-          },
-        })),
+            multicallAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
+            diamondAddress: swapperAddress,
+            nativeToken: {
+              address: zeroAddress,
+              chainId: id,
+              symbol: "ETH",
+              decimals: 18,
+              name: "ETH",
+              coinKey: "ETH",
+              priceUSD: formatUnits(
+                await client(id)
+                  .readContract({
+                    address: auditorAddress,
+                    abi: auditorAbi,
+                    functionName: "markets",
+                    args: [marketWETHAddress],
+                  })
+                  .then(({ 4: priceFeed }) =>
+                    client(id).readContract({
+                      address: auditorAddress,
+                      abi: auditorAbi,
+                      functionName: "assetPrice",
+                      args: [priceFeed],
+                    }),
+                  ),
+                18,
+              ),
+              logoURI,
+            },
+            metamask: {
+              chainId: toHex(id),
+              blockExplorerUrls: [],
+              chainName: name,
+              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: rpcUrls.default.http,
+            },
+          })),
+        ),
       }),
     )
     .get("/v1/tokens", async (c) =>
@@ -182,9 +203,14 @@ export default function lifi(chains: readonly Chain[]) {
       const toAddress = getAddress(query.toAddress ?? fromAddress);
       const exact = c.req.param("direction") === "toAmount" ? "out" : "in";
       const source = client(fromChain);
-      const [fromTokens, toTokens] = await Promise.all([tokens(fromChain), tokens(toChain)]);
+      const [fromTokens, toTokens, price] = await Promise.all([
+        tokens(fromChain),
+        tokens(toChain),
+        source.getGasPrice(),
+      ]);
       const from = fromTokens.find(({ address }) => address === fromToken);
       const to = toTokens.find(({ address }) => address === toToken);
+      const eth = fromTokens.find(({ address }) => address === zeroAddress);
       let fromAmount: bigint;
       let toAmount: bigint;
       let data: Hex;
@@ -283,7 +309,17 @@ export default function lifi(chains: readonly Chain[]) {
         approvalAddress: swapperAddress,
         executionDuration: 1,
         feeCosts: [],
-        gasCosts: [],
+        gasCosts: [
+          {
+            type: "SEND",
+            price: String(price),
+            estimate: String(gas),
+            limit: String((gas * 125n) / 100n),
+            amount: String(gas * price),
+            amountUSD: (Number(formatUnits(gas * price, 18)) * Number(eth?.priceUSD)).toFixed(4),
+            token: eth,
+          },
+        ],
       };
       return c.json({
         type: "lifi",
