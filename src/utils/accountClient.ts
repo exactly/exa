@@ -72,7 +72,6 @@ import {
   type Chain,
   type ExtractCapabilities,
   type Hex,
-  type TransactionRequest,
   type Transport,
 } from "viem";
 import { getCallsStatus as viemGetCallsStatus, sendCalls as viemSendCalls } from "viem/actions";
@@ -88,7 +87,7 @@ import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/com
 import { login } from "./onesignal";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
-import reportError, { classifyError } from "./reportError";
+import reportError from "./reportError";
 import { identify } from "./segment";
 import ownerConfig from "./wagmi/owner";
 
@@ -425,35 +424,6 @@ export default async function createAccountClient({ credentialId, factory, x, y 
                 .filter((id): id is Hex => isHex(id))
                 .map((id) => [id, { dataSuffix: { supported: true } }]),
             );
-          case "eth_sendTransaction":
-            if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-            try {
-              const { to, data = "0x", value = 0n } = params[0] as TransactionRequest;
-              const { id } = await sendCalls(ownerConfig, {
-                chainId: chain.id,
-                calls: [
-                  {
-                    to: accountAddress,
-                    functionName: "executeBatch",
-                    args: [[{ target: to ?? "0x", data, value }]],
-                    abi: upgradeableModularAccountAbi,
-                  },
-                ],
-                capabilities: {
-                  ...(dataSuffix ? { dataSuffix: { optional: true, value: dataSuffix } } : {}),
-                  paymasterService: {
-                    optional: true,
-                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    context: { policyId: alchemyGasPolicyId },
-                  },
-                },
-              });
-              return id;
-            } catch (error) {
-              if (classifyError(error).authKnown) throw error;
-              reportError(error, { level: "warning" });
-              return client.request({ method: method as never, params: params as never });
-            }
           default:
             return client.request({ method: method as never, params: params as never });
         }
