@@ -3,7 +3,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/launch.yaml
 - runFlow:
     file: ../subflows/mint.yaml
-    env: { asset: USDT, to: "${output.account}", amount: "1000" }
+    env: { asset: USDT, to: "${output.account}", amount: "100" }
 - tapOn: Manage portfolio
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
 - tapOn: USDT
@@ -28,17 +28,23 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "100"
       asset: USDT
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runScript:
+    file: ../dist/mint.js
+    env: { asset: USDC.e, to: "${output.account}", amount: "500", network: Anvil2 }
 - tapOn: Home
 - runFlow: ../subflows/verifyIdentity.yaml
-- tapOn: Swap assets
+- tapOn: Add funds
 - tapOn: { text: "0", index: 0 }
 - inputText: "500"
-- tapOn: Swap USDT for USDC
-- assertVisible: completed
+- tapOn: Bridge USDC.e
+- assertVisible: Add funds request sent
 - runScript:
-    file: ../dist/hookActivity.js
-    env: { account: "${output.account}" }
-- tapOn: Close
+    file: ../dist/bridge.js
+    env: { network: Anvil2, to: "${output.account}", amount: "500" }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runScript:
+    file: ../dist/mint.js
+    env: { asset: USDT, to: "${output.account}", amount: "400" }
 - tapOn: Home
 - extendedWaitUntil: { visible: "^[\\d.,]+% APR$", timeout: 30000 }
 - runFlow:
