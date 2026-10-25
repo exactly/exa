@@ -68,7 +68,7 @@ export function useHistory(
     queryFn: async () => {
       const network = alchemyChains.get(token.chainId);
       const url = network?.rpcUrls.alchemy?.http[0];
-      if (!network || !url) return null;
+      if (!network || !url || !alchemyAPIKey) return null;
       const now = Math.floor(Date.now() / 1000);
       const response = await fetch(`https://api.g.alchemy.com/prices/v1/${alchemyAPIKey}/tokens/historical`, {
         method: "POST",
