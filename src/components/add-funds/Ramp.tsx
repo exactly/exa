@@ -6,7 +6,7 @@ import QRCode from "react-native-qrcode-styled";
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Banknote, Clock, Copy, Percent, QrCode, Repeat, Share as ShareIcon } from "@tamagui/lucide-icons-2";
+import { ArrowLeft, Banknote, Clock, Copy, Percent, QrCode, Repeat } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -25,6 +25,7 @@ import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
+import ShareButton from "../shared/ShareButton";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -245,20 +246,13 @@ export default function Ramp() {
         </ScrollView>
         <YStack gap="$s4" padding="$s2">
           <XStack alignItems="center" gap="$s3">
-            <Button
-              secondary
-              flex={1}
+            <ShareButton
               disabled={isPending || !deposit}
               onPress={() => {
                 if (!message) return;
                 Share.share({ message, title: t("Share account details") }).catch(reportError);
               }}
-            >
-              <Button.Text>{t("Share")}</Button.Text>
-              <Button.Icon>
-                <ShareIcon size={18 * fontScale} />
-              </Button.Icon>
-            </Button>
+            />
             <Button
               primary
               flex={1}
