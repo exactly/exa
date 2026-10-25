@@ -115,6 +115,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - runScript:
           file: ../dist/bridge.js
           env: { destination: "${destination}", to: "${to}", amount: "${amount}" }
+      - assertVisible: Funds delivered on ${destination}
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow:
