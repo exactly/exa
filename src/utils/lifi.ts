@@ -331,18 +331,11 @@ export async function getRoute(
   });
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
   const chainId = transactionRequest.chainId ?? chain.id;
-  const gasLimit = transactionRequest.gasLimit;
   return {
     chainId,
     to: parse(AddressSchema, transactionRequest.to),
     data: parse(Hex, transactionRequest.data),
     value: transactionRequest.value ? BigInt(transactionRequest.value) : 0n,
-    gas: gasLimit ? BigInt(gasLimit) : undefined,
-    gasPrice: transactionRequest.gasPrice ? BigInt(transactionRequest.gasPrice) : undefined,
-    maxFeePerGas: transactionRequest.maxFeePerGas ? BigInt(transactionRequest.maxFeePerGas) : undefined,
-    maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas
-      ? BigInt(transactionRequest.maxPriorityFeePerGas)
-      : undefined,
     tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
@@ -380,10 +373,6 @@ export type RouteFrom = {
   data: Hex;
   estimate: Estimate;
   exchange?: string;
-  gas?: bigint;
-  gasPrice?: bigint;
-  maxFeePerGas?: bigint;
-  maxPriorityFeePerGas?: bigint;
   to: Address;
   toAmount: bigint;
   tool?: string;
@@ -537,18 +526,11 @@ export async function getRouteFrom({
   const { estimate, transactionRequest, tool } = quote;
   if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
   const chainId = transactionRequest.chainId ?? fromChainId ?? chain.id;
-  const gasLimit = transactionRequest.gasLimit;
   return {
     chainId,
     to: parse(AddressSchema, transactionRequest.to),
     data: parse(Hex, transactionRequest.data),
     value: transactionRequest.value ? BigInt(transactionRequest.value) : 0n,
-    gas: gasLimit ? BigInt(gasLimit) : undefined,
-    gasPrice: transactionRequest.gasPrice ? BigInt(transactionRequest.gasPrice) : undefined,
-    maxFeePerGas: transactionRequest.maxFeePerGas ? BigInt(transactionRequest.maxFeePerGas) : undefined,
-    maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas
-      ? BigInt(transactionRequest.maxPriorityFeePerGas)
-      : undefined,
     tool,
     exchange: quote.includedSteps.find(({ type }) => type === "swap")?.tool,
     estimate,
