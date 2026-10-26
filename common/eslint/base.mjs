@@ -45,6 +45,9 @@ export default defineConfig([
       "@typescript-eslint/no-shadow": "error",
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
       "exa/prefer-string": "error",
+      "import/default": "off", // checked by typescript
+      "import/namespace": "off", // checked by typescript
+      "import/no-named-as-default-member": "off", // checked by typescript
       "import/order": "off", // handled by perfectionist
       "import/prefer-default-export": "error",
       "no-console": "warn",
