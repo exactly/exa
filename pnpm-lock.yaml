@@ -1007,6 +1007,9 @@ importers:
       '@pulumi/pulumi':
         specifier: ^3.259.0
         version: 3.259.0(typescript@5.9.3)
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@5.9.3)
     devDependencies:
       '@exactly/common':
         specifier: workspace:^0.0.24
