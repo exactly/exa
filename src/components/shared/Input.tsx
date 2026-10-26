@@ -8,6 +8,7 @@ export default styled(Input, {
   color: "$uiNeutralPrimary",
   borderRadius: "$r3",
   placeholderTextColor: "$uiNeutralSecondary",
+  hoverStyle: { borderColor: "$borderBrandStrong" },
   focusStyle: { borderColor: "$borderBrandStrong" },
   focusVisibleStyle: { outlineWidth: 0, borderColor: "$borderBrandStrong", outlineColor: "$borderBrandStrong" },
 });

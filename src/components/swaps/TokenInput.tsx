@@ -192,7 +192,7 @@ export default function TokenInput({
                         textAlign="left"
                         enterKeyHint="done"
                         inputAccessoryViewID={id}
-                        borderColor="transparent"
+                        borderWidth="$s0"
                         numberOfLines={1}
                         flex={1}
                         width="100%"
