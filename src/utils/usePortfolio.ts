@@ -126,16 +126,13 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
 
   const crossChainAssets = useMemo<ExternalAsset[]>(() => {
     if (!balances) return [];
-    const result: ExternalAsset[] = [];
-    for (const [chainIdKey, tokens] of Object.entries(balances)) {
-      const chainId = Number(chainIdKey);
-      if (!Number.isInteger(chainId) || chainId === chain.id) continue;
-      for (const token of tokens) {
+    return Object.entries(balances)
+      .filter(([id]) => Number(id) !== chain.id)
+      .flatMap(([, tokens]) => tokens)
+      .flatMap((token) => {
         const asset = toExternalAsset(token);
-        if (asset) result.push(asset);
-      }
-    }
-    return result;
+        return asset ? [asset] : [];
+      });
   }, [balances]);
 
   const assets = useMemo<PortfolioAsset[]>(
