@@ -98,7 +98,7 @@
 
 - **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when `flows/local.yaml` covers it.
 - **fingerprint**: e2e changes must not change the expo fingerprint (`pnpm exec fingerprint fingerprint:generate --platform ios`, then `android`).
-- **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's row through its signer's target, as ci does:
+- **local runs**: one stack serves any number of runs, and one run takes several flows when they share a signer, a screen size and at most one camera feed. run a leg's row through its signer's target, as ci does:
 
   ```sh
   CI=true NX_DAEMON=false pnpm nx e2e:web:release mobile &

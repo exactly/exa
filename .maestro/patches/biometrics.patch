@@ -1,4 +1,4 @@
-From 9992e68b7335063ae7708ca020684e92afd895ff Mon Sep 17 00:00:00 2001
+From 4db607578e11b6dc6eeba6d7176ffbaf96c0eaf8 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Sun, 18 Oct 2026 22:51:13 +0000
 Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
@@ -7,7 +7,7 @@ Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
  .../src/main/java/maestro/Driver.kt           |  4 ++
  .../src/main/java/maestro/Maestro.kt          | 12 ++++
  .../java/maestro/drivers/AndroidDriver.kt     | 36 ++++++++++++
- .../main/java/maestro/drivers/CdpWebDriver.kt | 25 ++++++++
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 27 +++++++++
  .../main/java/maestro/drivers/IOSDriver.kt    | 12 ++++
  .../main/java/maestro/drivers/WebDriver.kt    |  8 +++
  .../src/main/kotlin/device/IOSDevice.kt       |  4 ++
@@ -24,7 +24,7 @@ Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
  .../orchestra/yaml/YamlFluentCommand.kt       | 22 +++++++
  .../orchestra/yaml/YamlMatchBiometrics.kt     |  6 ++
  .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 ++++++
- 20 files changed, 286 insertions(+)
+ 20 files changed, 288 insertions(+)
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
 
@@ -128,7 +128,7 @@ index 76b89ee..e5101ab 100644
          private const val WINDOW_UPDATE_TIMEOUT_MS = 750
          private const val MAESTRO_IME_ID = "dev.mobile.maestro/.input.MaestroInputMethodService"
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index 71205bc..b130c19 100644
+index 71205bc..7738c2f 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 @@ -37,6 +37,7 @@ import org.openqa.selenium.chrome.ChromeDriver
@@ -139,7 +139,15 @@ index 71205bc..b130c19 100644
  import org.openqa.selenium.devtools.HasDevTools
  import org.openqa.selenium.devtools.v155.emulation.Emulation
  import org.openqa.selenium.devtools.v155.emulation.model.MediaFeature
-@@ -750,6 +751,30 @@ class CdpWebDriver(
+@@ -71,6 +72,7 @@ class CdpWebDriver(
+     private var injectedArguments: Map<String, Any> = emptyMap()
+ 
+     private var webScreenRecorder: WebScreenRecorder? = null
++    private var authenticatorId: String? = null
+ 
+     init {
+         Maestro::class.java.getResourceAsStream("/maestro-web.js")?.let {
+@@ -750,6 +752,31 @@ class CdpWebDriver(
          )
      }
  
@@ -147,7 +155,8 @@ index 71205bc..b130c19 100644
 +        val driver = ensureOpen() as HasCdp
 +
 +        driver.executeCdpCommand("WebAuthn.enable", emptyMap())
-+        driver.executeCdpCommand(
++        authenticatorId?.let { driver.executeCdpCommand("WebAuthn.removeVirtualAuthenticator", mapOf("authenticatorId" to it)) }
++        authenticatorId = driver.executeCdpCommand(
 +            "WebAuthn.addVirtualAuthenticator",
 +            mapOf(
 +                "options" to mapOf(
@@ -160,7 +169,7 @@ index 71205bc..b130c19 100644
 +                    "defaultBackupState" to true
 +                )
 +            )
-+        )
++        )["authenticatorId"] as String
 +    }
 +
 +    override fun matchBiometrics() {
