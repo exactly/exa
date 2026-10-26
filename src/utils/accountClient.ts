@@ -118,7 +118,7 @@ export default async function createAccountClient({ credentialId, factory, x, y 
     const signature = AsnParser.parse(base64URLStringToBuffer(response.signature), ECDSASigValue);
     const r = bytesToBigInt(new Uint8Array(signature.r));
     let s = bytesToBigInt(new Uint8Array(signature.s));
-    if (s > P256_N / 2n) s = P256_N - s; // pass malleability guard
+    s += (P256_N - 2n * s) * BigInt(s > P256_N / 2n); // pass malleability guard
     return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
   };
   const accountOptions = {
