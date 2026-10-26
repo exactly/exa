@@ -10,8 +10,8 @@ import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generat
 import { WAD } from "@exactly/lib";
 
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import useInstallments from "../../utils/useInstallments";
+import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -39,7 +39,8 @@ export default function LoanSummary({
     chainId: chain.id,
     query: { enabled: !!address },
   });
-  const { market: asset, timestamp, isFetching: isMarketFetching } = useAsset(market);
+  const { markets, timestamp, isFetching: isMarketFetching } = useMarkets();
+  const asset = markets?.find(({ market: m }) => m === market);
   const symbol = asset?.symbol.slice(3) === "WETH" ? "ETH" : asset?.symbol.slice(3);
   const decimals = asset?.decimals ?? 6;
   const isBorrow = installments === 1;
