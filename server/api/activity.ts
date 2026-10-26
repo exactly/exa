@@ -46,7 +46,6 @@ import chain, {
   marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { decodeWithdraw } from "@exactly/common/ProposalType";
@@ -194,28 +193,53 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 fromBlock: 0n,
                 strict: true,
               }),
-              publicClient.getContractEvents({
-                abi: proposalManagerAbi,
-                eventName: "Proposed",
-                address: proposalManagerAddress,
-                args: { account, market: marketWETHAddress },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
-            ]).then(([withdraw, proposed]) =>
-              Promise.all(
+              plugins.size > 0
+                ? publicClient.getContractEvents({
+                    abi: exaPluginAbi,
+                    eventName: "ProposalManagerSet",
+                    address: [...plugins],
+                    toBlock: "latest",
+                    fromBlock: 0n,
+                    strict: true,
+                  })
+                : [],
+            ]).then(([withdraw, managers]) => {
+              const proposals = () =>
+                publicClient.getContractEvents({
+                  abi: proposalManagerAbi,
+                  eventName: "Proposed",
+                  address: [...new Set(managers.map(({ args }) => args.proposalManager))],
+                  args: { account, market: marketWETHAddress },
+                  toBlock: "latest",
+                  fromBlock: 0n,
+                  strict: true,
+                });
+              let proposed: ReturnType<typeof proposals> | undefined;
+              return Promise.all(
                 withdraw.map(async (log) => {
                   const receiver = log.args.receiver.toLowerCase() as Hex;
                   if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
                     return log;
                   }
                   if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
+                    const manager = managers
+                      .findLast(
+                        ({ address, blockNumber, logIndex }) =>
+                          address.toLowerCase() === receiver &&
+                          (blockNumber < log.blockNumber ||
+                            (blockNumber === log.blockNumber && logIndex < log.logIndex)),
+                      )
+                      ?.args.proposalManager.toLowerCase();
+                    if (manager) proposed ??= proposals();
                     const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
                     if (data === "0x3ccfd60b") return log;
                     const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
                     if (functionName !== "executeProposal") return;
-                    const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
+                    const proposal = await proposed?.then((logs) =>
+                      logs.find(
+                        ({ address, args: { nonce } }) => address.toLowerCase() === manager && nonce === args[0],
+                      ),
+                    );
                     if (!proposal) return;
                     return {
                       ...log,
@@ -237,8 +261,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                       typeof WithdrawActivity
                     >),
                   ),
-              ),
-            ),
+              );
+            }),
         ignore("card")
           ? undefined
           : publicClient
