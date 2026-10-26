@@ -1,5 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
-    when: { true: "${maestro.platform == 'web' && method === 'siwe'}" }
+    when: { true: "${maestro.platform == 'web' && method === 'metamask'}" }
     commands: [{ tapOn: Confirm }]

@@ -11,7 +11,7 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { true: "${method !== 'webauthn'}" }
     commands: [{ tapOn: I already have an account }, { tapOn: Log in with browser wallet }]
 - runFlow:
-    when: { true: "${maestro.platform == 'web' && method === 'siwe'}" }
+    when: { true: "${maestro.platform == 'web' && method === 'metamask'}" }
     commands:
       - tapOn: Connect
       - assertVisible: Add Anvil
