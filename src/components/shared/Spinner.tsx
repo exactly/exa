@@ -30,7 +30,6 @@ export default function Spinner({
       justifyContent="center"
       alignItems="center"
       borderRadius="$r_0"
-      padding="$5"
       style={rStyle}
     >
       <Loader size={size} color={color} />

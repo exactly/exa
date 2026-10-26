@@ -15,6 +15,7 @@ export default function NotificationToast() {
     preset === "error" || haptic === "error" ? "error" : preset === "done" || haptic === "success" ? "success" : "info";
   return (
     <Toast
+      unstyled
       key={toast.id}
       duration={toast.duration}
       enterStyle={{ opacity: 0, scale: 0.5, y: -25 }}
@@ -29,6 +30,7 @@ export default function NotificationToast() {
       transition="quick"
       viewportName={toast.viewportName}
       borderRadius="$r3"
+      marginHorizontal="auto"
     >
       <XStack justifyContent="space-between" alignItems="center" backgroundColor="transparent" alignSelf="center">
         <View
