@@ -214,9 +214,8 @@ export function balancesOptions(account: Address | undefined) {
             const token = known.get(`${id}:${address.toLowerCase()}`);
             return token ? [{ ...token, amount }] : [];
           });
-          if (chain.id in balances) yield balances;
+          yield balances;
         }
-        if (!(chain.id in balances)) yield balances;
       },
     }),
   });
@@ -751,9 +750,12 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
       }
     }),
   );
+  const home = [...pending][chains.findIndex(({ id }) => id === chain.id)];
   while (pending.size > 0) {
     const [settled, result] = await Promise.race(
-      [...pending].map((promise) => promise.then((value) => [promise, value] as const)),
+      (home && pending.has(home) ? [home] : [...pending]).map((promise) =>
+        promise.then((value) => [promise, value] as const),
+      ),
     );
     pending.delete(settled);
     if (result) yield result;
