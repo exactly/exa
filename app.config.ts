@@ -13,6 +13,7 @@ import type { ExpoConfig } from "expo/config";
 
 if (env.EAS_BUILD_RUNNER === "eas-build") env.APP_DOMAIN ??= "web.exactly.app";
 if (env.APP_DOMAIN) env.EXPO_PUBLIC_DOMAIN = env.APP_DOMAIN;
+if (env.RP_ID) env.EXPO_PUBLIC_RP_ID = env.RP_ID;
 env.EXPO_PUBLIC_INTERCOM_APP_ID ??= env.APP_DOMAIN === "web.exactly.app" ? "eknd6y0s" : "pxd0wo85"; // cspell:ignore eknd6y0s
 
 export default {
@@ -37,7 +38,10 @@ export default {
   ios: {
     icon: "src/assets/icon.png",
     bundleIdentifier: "app.exactly",
-    associatedDomains: [`webcredentials:${env.APP_DOMAIN ?? "sandbox.exactly.app"}`],
+    associatedDomains: [
+      `webcredentials:${env.RP_ID ?? env.APP_DOMAIN ?? "sandbox.exactly.app"}${env.APP_DOMAIN === "localhost" ? "?mode=developer" : ""}`,
+    ],
+    appleTeamId: env.APPLE_TEAM_ID,
     supportsTablet: false,
     buildNumber: String(versionCode),
     infoPlist: {

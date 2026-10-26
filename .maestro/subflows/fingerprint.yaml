@@ -1,0 +1,17 @@
+appId: com.android.settings
+---
+- launchApp
+- scrollUntilVisible: { element: Security.* }
+- tapOn: Security.*
+- scrollUntilVisible: { element: Device unlock }
+- tapOn: Device unlock
+- scrollUntilVisible: { element: .*Fingerprint.* }
+- tapOn: .*Fingerprint.*
+- extendedWaitUntil: { visible: .*PIN.*, timeout: 10000 }
+- inputText: "1111"
+- pressKey: Enter
+- runFlow: { when: { visible: Ways to unlock }, commands: [tapOn: Tap to set up fingerprint] }
+- repeat: { times: 2, commands: [tapOn: More] }
+- tapOn: I agree
+- repeat: { times: 3, commands: [matchBiometrics] }
+- tapOn: Done

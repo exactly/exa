@@ -75,6 +75,7 @@ YQIDAQAB
       WHATSAPP_PHONE_NUMBER_ID: "whatsapp",
       ...(env.NODE_ENV === "e2e" && {
         APP_DOMAIN: env.APP_DOMAIN ?? "localhost",
+        ...(env.APP_ORIGINS && { APP_ORIGINS: env.APP_ORIGINS }),
         APP_STACK: "localhost",
         DEBUG: "exa:*",
       }),

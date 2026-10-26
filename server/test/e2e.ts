@@ -30,8 +30,8 @@ import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "vie
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
-import domain from "@exactly/common/domain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import rpId from "@exactly/common/rpId";
 
 import { chains } from "./anvil";
 import lifi from "./lifi";
@@ -62,7 +62,7 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
-      const tls = domain === "localhost" ? undefined : await certificate();
+      const tls = rpId === "localhost" ? undefined : await certificate();
       await database.delete(credentials); // eslint-disable-line drizzle/enforce-delete-with-where -- e2e starts with no users
       const { default: app, close: stop } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");
@@ -183,12 +183,12 @@ async function certificate() {
   const algorithm = { name: "ECDSA", namedCurve: "P-256", hash: "SHA-256" };
   const keys = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
   const leaf = await X509CertificateGenerator.createSelfSigned({
-    name: `CN=${domain}`,
+    name: `CN=${rpId}`,
     keys,
     signingAlgorithm: algorithm,
     extensions: [
       new ExtendedKeyUsageExtension([ExtendedKeyUsage.serverAuth]),
-      new SubjectAlternativeNameExtension([{ type: "dns", value: domain }]),
+      new SubjectAlternativeNameExtension([{ type: "dns", value: rpId }]),
     ],
   });
   return {

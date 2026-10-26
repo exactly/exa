@@ -29,9 +29,9 @@ pnpm ios # for native ios app
 #### end-to-end tests
 
 ```bash
-# native
+# native, with the device and env prepared for passkeys as in `.eas/workflows/local.yaml`
 pnpm nx e2e:ios mobile # or e2e:android
-maestro test .maestro/flows/local.yaml
+maestro test .maestro/flows/local.yaml -e method=webauthn
 
 
 # web
