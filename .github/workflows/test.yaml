@@ -99,6 +99,7 @@ jobs:
           include-hidden-files: true
 
   e2e:
+    name: e2e (${{ matrix.flow }}, ${{ matrix.method }}, ${{ matrix.screen }})
     if: github.ref_name != 'beta' || github.event.head_commit.distinct
     environment: test
     runs-on: ubuntu-latest
@@ -108,6 +109,7 @@ jobs:
       matrix:
         include:
           - { flow: ach, method: webauthn, screen: 500x780 }
+          - { flow: business, method: webauthn, screen: 500x900, app: "https://business.localhost" }
           - { flow: credit, method: webauthn, screen: 500x963 }
           - { flow: deposit, method: metamask, screen: 1920x1080 }
           - { flow: eth, method: brave, screen: 500x994 }
@@ -159,7 +161,7 @@ jobs:
           path: .maestro/node_modules/.cache/metamask
           key: metamask-${{ hashFiles('.maestro/package.json', '.maestro/subflows/metamask.yaml') }}
           restore-keys: metamask-
-      - run: GITHUB_STEP_SUMMARY= pnpm nx e2e:${{ matrix.method }} e2e --flow=${{ matrix.flow }} --screen=${{ matrix.screen }} --skip-nx-cache
+      - run: GITHUB_STEP_SUMMARY= pnpm nx e2e:${{ matrix.method }} e2e --flow=${{ matrix.flow }} --screen=${{ matrix.screen }} ${{ matrix.app && format('--app={0}', matrix.app) }} --skip-nx-cache
       - if: ${{ !cancelled() && matrix.method == 'metamask' && steps.metamask.outputs.cache-hit != 'true' && hashFiles('.maestro/node_modules/.cache/metamask/hash') != '' }}
         uses: actions/cache/save@v6
         with:
