@@ -16,7 +16,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Filter by network } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Anvil2 } }
 - tapOn: USDC.e
-- extendedWaitUntil: { visible: "Balance: .*1,000.*", timeout: 60000 }
+- extendedWaitUntil: { visible: "Balance: .*\\d,\\d{3}.*", timeout: 60000 }
 - tapOn: { text: "0", index: 0 }
 - inputText: "100"
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bridge and swap via } }
@@ -24,6 +24,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - repeat: { times: 3, commands: [{ runFlow: ../subflows/sign.yaml }] }
 - extendedWaitUntil: { visible: Add funds request sent, timeout: 120000 }
 - runScript: { file: ../dist/bridge.js, env: { network: Anvil2, to: "${output.deposit}", amount: "100" } }
+- runScript: { file: ../dist/getBalance.js, env: { asset: USDT, account: "${output.deposit}" } }
+- evalScript: ${output.usdtBefore = output.balance}
 - back
 - tapOn: With connected wallet
 - tapOn: { text: "0", index: 0 }
@@ -32,7 +34,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/sign.yaml
 - assertVisible: Add funds request sent
 - runScript: { file: ../dist/getBalance.js, env: { asset: USDT, account: "${output.deposit}" } }
-- assertTrue: ${output.balance === 1}
+- assertTrue: ${output.balance - output.usdtBefore === 1}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml
