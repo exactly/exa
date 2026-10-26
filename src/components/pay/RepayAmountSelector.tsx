@@ -169,7 +169,7 @@ export default function RepayAmountSelector({
               borderColor="$borderBrandStrong"
               hitSlop={10}
               hoverStyle={{ backgroundColor: "$uiBrandSecondary", borderColor: "$borderBrandStrong" }}
-              pressStyle={{ backgroundColor: "$uiBrandSecondary" }}
+              pressStyle={{ backgroundColor: "$uiBrandSecondary", borderColor: "$borderBrandStrong" }}
               aria-label={t("Repay amount slider")}
               aria-valuetext={`${(Number(clampedValue) / 1e6).toLocaleString(language, {
                 minimumFractionDigits: 2,
