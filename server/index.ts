@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
 import { env } from "node:process";
-import { nonEmpty, parse, pipe, string } from "valibot";
+import { array, nonEmpty, optional, parse, picklist, pipe, string, transform } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
@@ -24,7 +24,7 @@ import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin, { origins } from "./utils/appOrigin";
 import createIntercom from "./utils/intercom";
-import { closeQueue as closeMaturity, reminders, setup as setupMaturity } from "./utils/maturity";
+import createMaturity from "./utils/maturity";
 import createOnesignal from "./utils/onesignal";
 import createPanda from "./utils/panda";
 import createPax from "./utils/pax";
@@ -84,7 +84,6 @@ const subscribe = createSubscribe(redis);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
-setupMaturity(onesignal);
 const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
@@ -102,61 +101,75 @@ const api = createApi({
   walletExtension,
 });
 
-const activityHook = createActivityHook({
-  alchemy,
-  database,
-  onesignal,
-  poke,
-  redis,
-});
-const blockHook = createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis });
-const bridgeHook = createBridgeHook({
-  bridge,
-  bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
-  database,
-  onesignal,
-  persona,
-  segment,
-});
-const mantecaHook = createMantecaHook({
-  database,
-  manteca,
-  mantecaWebhookKey: parse(pipe(string("manteca webhook"), nonEmpty("manteca webhook")), env.MANTECA_WEBHOOKS_KEY),
-  onesignal,
-  segment,
-});
-const pandaHook = createPandaHook({
-  database,
-  issuer,
-  onesignal,
-  panda,
-  refund,
-  sardine,
-  segment,
-  settler: keeper,
-  webhook,
-  webhookKey: parse(pipe(string("panda webhooks"), nonEmpty("panda webhooks")), env.PANDA_WEBHOOKS_KEY),
-});
-const personaHook = createPersonaHook({
-  allow,
-  database,
-  panda,
-  pax,
-  persona,
-  personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
-  sardine,
-});
-const hookWorker = createHookWorker({ bullmq, database, panda });
+const hooks = {
+  activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
+  block: () => createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis }),
+  bridge: () =>
+    createBridgeHook({
+      bridge,
+      bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
+      database,
+      onesignal,
+      persona,
+      segment,
+    }),
+  manteca: () =>
+    createMantecaHook({
+      database,
+      manteca,
+      mantecaWebhookKey: parse(pipe(string("manteca webhook"), nonEmpty("manteca webhook")), env.MANTECA_WEBHOOKS_KEY),
+      onesignal,
+      segment,
+    }),
+  panda: () =>
+    createPandaHook({
+      database,
+      issuer,
+      onesignal,
+      panda,
+      refund,
+      sardine,
+      segment,
+      settler: keeper,
+      webhook,
+      webhookKey: parse(pipe(string("panda webhooks"), nonEmpty("panda webhooks")), env.PANDA_WEBHOOKS_KEY),
+    }),
+  persona: () =>
+    createPersonaHook({
+      allow,
+      database,
+      panda,
+      pax,
+      persona,
+      personaWebhookSecret: parse(pipe(string("persona hook"), nonEmpty("persona hook")), env.PERSONA_WEBHOOK_SECRET),
+      sardine,
+    }),
+};
+const workers = {
+  hook: () => createHookWorker({ bullmq, database, panda }),
+  maturity: () => createMaturity(onesignal),
+};
+const disabled = new Set<string>(
+  parse(
+    pipe(
+      optional(string(), ""),
+      transform((value) => value.split(",").filter(Boolean)),
+      array(picklist([...Object.keys(hooks), ...Object.keys(workers)], "unknown module")),
+    ),
+    env.DISABLED_MODULES,
+  ),
+);
+const enabledHooks = Object.entries(hooks)
+  .filter(([name]) => !disabled.has(name))
+  .map(([name, create]) => [name, create()] as const);
+const enabledWorkers = Object.entries(workers)
+  .filter(([name]) => !disabled.has(name))
+  .map(([, create]) => create());
 
 const app = new Hono();
 app.use(trimTrailingSlash());
 app.route("/api", api.app);
-app.route("/hooks/activity", activityHook.app);
-app.route("/hooks/block", blockHook.app);
-app.route("/hooks/bridge", bridgeHook.app);
-app.route("/hooks/manteca", mantecaHook.app);
-app.route("/hooks/panda", pandaHook.app);
-app.route("/hooks/persona", personaHook.app);
+for (const [name, hook] of enabledHooks) app.route(`/hooks/${name}`, hook.app);
 
 app.get("/.well-known/webauthn", (c) => c.json({ origins: [...origins.slice(1), appOrigin] }));
 app.get("/.well-known/apple-app-site-association", (c) =>
@@ -427,20 +440,13 @@ export const close = supervise(
           app,
           ready: Promise.all([
             api.ready,
-            activityHook.ready,
-            blockHook.ready,
-            bridgeHook.ready,
-            hookWorker.ready,
-            mantecaHook.ready,
-            pandaHook.ready,
-            personaHook.ready,
-            reminders().catch(reminders),
+            ...enabledHooks.map(([, { ready }]) => ready),
+            ...enabledWorkers.map(({ ready }) => ready),
           ]),
         },
         () => allow.close(),
-        closeMaturity,
         () => credit.close(),
-        () => hookWorker.close(),
+        ...enabledWorkers.map((worker) => () => worker.close()),
         () => poke.close(),
         () => refund.close(),
         () => segment.close(),

@@ -23,11 +23,18 @@ import t from "../i18n";
 
 import type createOnesignal from "./onesignal";
 
+export default function start(onesignal: ReturnType<typeof createOnesignal>) {
+  setup(onesignal);
+  return { ready: reminders().catch(reminders), close: closeQueue };
+}
+
 export function setup(onesignal: ReturnType<typeof createOnesignal>) {
   ({ sendPushNotification } = onesignal);
+  workers ??= [createWorker(), createNotificationWorker()];
 }
 
 let sendPushNotification: ReturnType<typeof createOnesignal>["sendPushNotification"];
+let workers: readonly Worker[] | undefined;
 
 const queueName = "maturity";
 const notificationQueueName = "maturity-notifications";
@@ -115,224 +122,227 @@ const notificationQueue = new Queue<SendMaturityReminders>(notificationQueueName
   },
 });
 
-const worker = observe(
-  new Worker<CheckDebts | ScanChunk>(
-    queueName,
-    (job) =>
-      processJob(job, queueName, "maturity.worker", async (span) => {
-        span.setAttributes({ job: job.name, window: job.data.window });
-        switch (job.name) {
-          case "check-debts": {
-            const check = parse(checkDebtsSchema, job.data);
-            const maturity = (Math.floor(Date.now() / 1000 / MATURITY_INTERVAL) + 1) * MATURITY_INTERVAL;
-            const accounts = await database.query.credentials
-              .findMany({ columns: { account: true }, orderBy: credentials.account })
-              .then((rows) => rows.map(({ account }) => parse(Address, account)));
-            const jobs = Array.from({ length: Math.ceil(accounts.length / chunkSize) }, (_, index) => ({
-              name: "scan-chunk",
-              data: {
-                accounts: accounts.slice(index * chunkSize, (index + 1) * chunkSize),
-                chunkIndex: index,
-                maturity,
-                window: check.window,
-              },
-              opts: { jobId: `maturity-scan-${maturity}-${check.window}-${index}` },
-            }));
-            if (jobs.length > 0)
-              await startSpan(
-                {
-                  name: "maturity.scan.publish",
-                  op: "queue.publish",
-                  attributes: {
-                    "messaging.destination.name": queueName,
-                    "maturity.chunk_count": jobs.length,
+function createWorker() {
+  return observe(
+    new Worker<CheckDebts | ScanChunk>(
+      queueName,
+      (job) =>
+        processJob(job, queueName, "maturity.worker", async (span) => {
+          span.setAttributes({ job: job.name, window: job.data.window });
+          switch (job.name) {
+            case "check-debts": {
+              const check = parse(checkDebtsSchema, job.data);
+              const maturity = (Math.floor(Date.now() / 1000 / MATURITY_INTERVAL) + 1) * MATURITY_INTERVAL;
+              const accounts = await database.query.credentials
+                .findMany({ columns: { account: true }, orderBy: credentials.account })
+                .then((rows) => rows.map(({ account }) => parse(Address, account)));
+              const jobs = Array.from({ length: Math.ceil(accounts.length / chunkSize) }, (_, index) => ({
+                name: "scan-chunk",
+                data: {
+                  accounts: accounts.slice(index * chunkSize, (index + 1) * chunkSize),
+                  chunkIndex: index,
+                  maturity,
+                  window: check.window,
+                },
+                opts: { jobId: `maturity-scan-${maturity}-${check.window}-${index}` },
+              }));
+              if (jobs.length > 0)
+                await startSpan(
+                  {
+                    name: "maturity.scan.publish",
+                    op: "queue.publish",
+                    attributes: {
+                      "messaging.destination.name": queueName,
+                      "maturity.chunk_count": jobs.length,
+                    },
                   },
-                },
-                async (publishSpan) => {
-                  publishSpan.setAttribute(
-                    "messaging.message.id",
-                    await queue
-                      .addBulk(
-                        jobs.map(({ name, data, opts }) => ({
-                          name,
-                          data: {
-                            ...data,
-                            sentryBaggage: spanToBaggageHeader(publishSpan),
-                            sentryTrace: spanToTraceHeader(publishSpan),
-                          },
-                          opts,
-                        })),
-                      )
-                      .then((published) => published[0]?.id ?? job.id ?? job.name),
-                  );
-                  publishSpan.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(jobs)));
-                },
-              );
-            break;
-          }
+                  async (publishSpan) => {
+                    publishSpan.setAttribute(
+                      "messaging.message.id",
+                      await queue
+                        .addBulk(
+                          jobs.map(({ name, data, opts }) => ({
+                            name,
+                            data: {
+                              ...data,
+                              sentryBaggage: spanToBaggageHeader(publishSpan),
+                              sentryTrace: spanToTraceHeader(publishSpan),
+                            },
+                            opts,
+                          })),
+                        )
+                        .then((published) => published[0]?.id ?? job.id ?? job.name),
+                    );
+                    publishSpan.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(jobs)));
+                  },
+                );
+              break;
+            }
 
-          case "scan-chunk": {
-            const scan = parse(scanChunkSchema, job.data);
-            let rpcFailures = 0;
-            const accounts = await publicClient
-              .readContract({
-                address: chain.contracts.multicall3.address,
-                abi: multicall3Abi,
-                functionName: "aggregate3",
-                args: [
-                  scan.accounts.map((account) => ({
-                    target: marketUSDCAddress,
-                    allowFailure: true,
-                    callData: encodeFunctionData({
+            case "scan-chunk": {
+              const scan = parse(scanChunkSchema, job.data);
+              let rpcFailures = 0;
+              const accounts = await publicClient
+                .readContract({
+                  address: chain.contracts.multicall3.address,
+                  abi: multicall3Abi,
+                  functionName: "aggregate3",
+                  args: [
+                    scan.accounts.map((account) => ({
+                      target: marketUSDCAddress,
+                      allowFailure: true,
+                      callData: encodeFunctionData({
+                        abi: marketAbi,
+                        functionName: "fixedBorrowPositions",
+                        args: [BigInt(scan.maturity), account],
+                      }),
+                    })),
+                  ],
+                })
+                .then((results) =>
+                  scan.accounts.flatMap((userId, index) => {
+                    const result = results[index];
+                    if (!result?.success) {
+                      rpcFailures += 1;
+                      return [];
+                    }
+                    const [principal, fee] = decodeFunctionResult({
                       abi: marketAbi,
                       functionName: "fixedBorrowPositions",
-                      args: [BigInt(scan.maturity), account],
-                    }),
-                  })),
-                ],
-              })
-              .then((results) =>
-                scan.accounts.flatMap((userId, index) => {
-                  const result = results[index];
-                  if (!result?.success) {
-                    rpcFailures += 1;
-                    return [];
-                  }
-                  const [principal, fee] = decodeFunctionResult({
-                    abi: marketAbi,
-                    functionName: "fixedBorrowPositions",
-                    data: result.returnData,
-                  });
-                  return principal + fee >= 2_000_000n ? [userId] : [];
-                }),
-              );
-            if (rpcFailures > 0) {
-              captureException(new Error("fixed borrow position call failed"), {
-                level: "error",
-                extra: { accounts: scan.accounts.length, kind: "rpc", maturity: scan.maturity, window: scan.window },
-              });
-              throw new Error("rpc failed");
-            }
-            if (accounts.length > 0) {
-              const id = `maturity-reminders-${scan.maturity}-${scan.window}-${scan.chunkIndex}`;
-              await startSpan(
-                {
-                  name: "maturity.notification.publish",
-                  op: "queue.publish",
-                  attributes: {
-                    "messaging.destination.name": notificationQueueName,
-                    "maturity.account_count": accounts.length,
-                  },
-                },
-                async (publishSpan) => {
-                  publishSpan.setAttribute(
-                    "messaging.message.id",
-                    await notificationQueue
-                      .add(
-                        "send-maturity-reminders",
-                        {
-                          accounts,
-                          maturity: scan.maturity,
-                          sentryBaggage: spanToBaggageHeader(publishSpan),
-                          sentryTrace: spanToTraceHeader(publishSpan),
-                          window: scan.window,
-                        },
-                        { jobId: id },
-                      )
-                      .then((created) => created.id),
-                  );
-                  publishSpan.setAttribute(
-                    "messaging.message.body.size",
-                    Buffer.byteLength(JSON.stringify({ accounts, maturity: scan.maturity, window: scan.window })),
-                  );
-                },
-              );
-            }
-            break;
-          }
-
-          default: {
-            const message = `Unknown job name: ${job.name}`;
-            span.setStatus({ code: SPAN_STATUS_ERROR, message });
-            throw new Error(message);
-          }
-        }
-      }),
-    { connection, concurrency: 3 },
-  ),
-  queueName,
-);
-
-const notificationWorker = observe(
-  new Worker<SendMaturityReminders>(
-    notificationQueueName,
-    (job) =>
-      processJob(job, notificationQueueName, "maturity.notification", async (span) => {
-        span.setAttributes({
-          job: job.name,
-          maturity: job.data.maturity,
-          window: job.data.window,
-          accounts: job.data.accounts.length,
-        });
-        const reminder = parse(sendMaturityRemindersSchema, job.data);
-        switch (job.name) {
-          case "send-maturity-reminders": {
-            const failedAccounts: Address[] = [];
-            for (let offset = 0; offset < reminder.accounts.length; offset += 50) {
-              const batch = reminder.accounts.slice(offset, offset + 50);
-              const results = await Promise.allSettled(
-                batch.map((userId) =>
-                  sendPushNotification({
-                    userId,
-                    headings: t("Payment due soon"),
-                    contents: t(
-                      reminder.window === "24h"
-                        ? "Your debt is due in 24 hours. Repay now to avoid penalties."
-                        : "Your debt is due in 1 hour. Repay now to avoid penalties.",
-                    ),
-                    idempotencyKey: v5(
-                      `https://exact.ly/maturity-reminder/${userId}/${reminder.maturity}/${reminder.window}`,
-                      v5.URL,
-                    ),
-                    ttl: Math.max(0, reminder.maturity - Math.floor(Date.now() / 1000)),
+                      data: result.returnData,
+                    });
+                    return principal + fee >= 2_000_000n ? [userId] : [];
                   }),
-                ),
-              );
-              for (const [index, result] of results.entries()) {
-                if (result.status === "rejected") {
-                  const account = batch[index];
-                  if (!account) continue;
-                  failedAccounts.push(account);
-                  captureException(result.reason, {
-                    level: "error",
-                    extra: { account, kind: "notification", maturity: reminder.maturity, window: reminder.window },
-                  });
+                );
+              if (rpcFailures > 0) {
+                captureException(new Error("fixed borrow position call failed"), {
+                  level: "error",
+                  extra: { accounts: scan.accounts.length, kind: "rpc", maturity: scan.maturity, window: scan.window },
+                });
+                throw new Error("rpc failed");
+              }
+              if (accounts.length > 0) {
+                const id = `maturity-reminders-${scan.maturity}-${scan.window}-${scan.chunkIndex}`;
+                await startSpan(
+                  {
+                    name: "maturity.notification.publish",
+                    op: "queue.publish",
+                    attributes: {
+                      "messaging.destination.name": notificationQueueName,
+                      "maturity.account_count": accounts.length,
+                    },
+                  },
+                  async (publishSpan) => {
+                    publishSpan.setAttribute(
+                      "messaging.message.id",
+                      await notificationQueue
+                        .add(
+                          "send-maturity-reminders",
+                          {
+                            accounts,
+                            maturity: scan.maturity,
+                            sentryBaggage: spanToBaggageHeader(publishSpan),
+                            sentryTrace: spanToTraceHeader(publishSpan),
+                            window: scan.window,
+                          },
+                          { jobId: id },
+                        )
+                        .then((created) => created.id),
+                    );
+                    publishSpan.setAttribute(
+                      "messaging.message.body.size",
+                      Buffer.byteLength(JSON.stringify({ accounts, maturity: scan.maturity, window: scan.window })),
+                    );
+                  },
+                );
+              }
+              break;
+            }
+
+            default: {
+              const message = `Unknown job name: ${job.name}`;
+              span.setStatus({ code: SPAN_STATUS_ERROR, message });
+              throw new Error(message);
+            }
+          }
+        }),
+      { connection, concurrency: 3 },
+    ),
+    queueName,
+  );
+}
+
+function createNotificationWorker() {
+  return observe(
+    new Worker<SendMaturityReminders>(
+      notificationQueueName,
+      (job) =>
+        processJob(job, notificationQueueName, "maturity.notification", async (span) => {
+          span.setAttributes({
+            job: job.name,
+            maturity: job.data.maturity,
+            window: job.data.window,
+            accounts: job.data.accounts.length,
+          });
+          const reminder = parse(sendMaturityRemindersSchema, job.data);
+          switch (job.name) {
+            case "send-maturity-reminders": {
+              const failedAccounts: Address[] = [];
+              for (let offset = 0; offset < reminder.accounts.length; offset += 50) {
+                const batch = reminder.accounts.slice(offset, offset + 50);
+                const results = await Promise.allSettled(
+                  batch.map((userId) =>
+                    sendPushNotification({
+                      userId,
+                      headings: t("Payment due soon"),
+                      contents: t(
+                        reminder.window === "24h"
+                          ? "Your debt is due in 24 hours. Repay now to avoid penalties."
+                          : "Your debt is due in 1 hour. Repay now to avoid penalties.",
+                      ),
+                      idempotencyKey: v5(
+                        `https://exact.ly/maturity-reminder/${userId}/${reminder.maturity}/${reminder.window}`,
+                        v5.URL,
+                      ),
+                      ttl: Math.max(0, reminder.maturity - Math.floor(Date.now() / 1000)),
+                    }),
+                  ),
+                );
+                for (const [index, result] of results.entries()) {
+                  if (result.status === "rejected") {
+                    const account = batch[index];
+                    if (!account) continue;
+                    failedAccounts.push(account);
+                    captureException(result.reason, {
+                      level: "error",
+                      extra: { account, kind: "notification", maturity: reminder.maturity, window: reminder.window },
+                    });
+                  }
                 }
               }
+              if (failedAccounts.length > 0) {
+                await job.updateData({ ...reminder, accounts: failedAccounts });
+                throw new Error("notification failed");
+              }
+              break;
             }
-            if (failedAccounts.length > 0) {
-              await job.updateData({ ...reminder, accounts: failedAccounts });
-              throw new Error("notification failed");
-            }
-            break;
-          }
 
-          default: {
-            const message = `Unknown job name: ${job.name}`;
-            span.setStatus({ code: SPAN_STATUS_ERROR, message });
-            throw new Error(message);
+            default: {
+              const message = `Unknown job name: ${job.name}`;
+              span.setStatus({ code: SPAN_STATUS_ERROR, message });
+              throw new Error(message);
+            }
           }
-        }
-      }),
-    { connection, concurrency: 3 },
-  ),
-  notificationQueueName,
-);
+        }),
+      { connection, concurrency: 3 },
+    ),
+    notificationQueueName,
+  );
+}
 
 export async function closeQueue() {
   const results = await Promise.allSettled([
-    worker.close(),
-    notificationWorker.close(),
+    ...(workers ?? []).map((target) => target.close()),
     queue.close(),
     notificationQueue.close(),
   ]);
