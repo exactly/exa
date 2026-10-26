@@ -13,5 +13,4 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: hideDevtools.yaml
 - runFlow: signIn.yaml
 - runFlow: dismissNotifications.yaml
-- assertVisible: Good (morning|afternoon|evening)!
 - runFlow: getAccount.yaml

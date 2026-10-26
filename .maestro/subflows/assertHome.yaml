@@ -2,14 +2,6 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: Home
 - assertVisible: Hi, Test
-- runFlow: getAccount.yaml
-- runFlow: { file: tapAria.yaml, env: { aria: "Hi, Test" } }
-- assertVisible: Address copied
-- assertVisible: ${output.account}
-- runFlow:
-    when: { platform: android }
-    commands: [{ assertVisible: Clipboard }, { tapOn: Address copied }]
-- tapOn: Close
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ assertVisible: Settings }]

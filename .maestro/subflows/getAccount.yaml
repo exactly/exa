@@ -2,4 +2,12 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
     when: { true: "${!output.account}" }
-    commands: [{ runScript: ../dist/getAccount.js }]
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: "Good (morning|afternoon|evening)!" } }
+      - copyTextFrom: 0x[\da-fA-F]{40}
+      - evalScript: ${output.account = maestro.copiedText}
+      - runFlow:
+          when: { platform: android }
+          commands: [{ assertVisible: Clipboard }, { tapOn: Address copied }]
+      - tapOn: Close
+      - evalScript: ${output.credential = JSON.parse(http.get("http://localhost:3000/e2e/credential?account=" + output.account).body).id}

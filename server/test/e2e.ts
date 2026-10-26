@@ -13,7 +13,7 @@ import {
   SubjectAlternativeNameExtension,
   X509CertificateGenerator,
 } from "@peculiar/x509";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { cors } from "hono/cors";
 import { html } from "hono/html";
 import { createCoverageMap } from "istanbul-lib-coverage";
@@ -120,17 +120,17 @@ describe("e2e", () => {
           app.use("/e2e/*", cors());
           app.route("/e2e/lifi", lifi(chains));
           app.get("/e2e/credential", async (c) => {
-            const [credential, ...rest] = await database.query.credentials.findMany({
-              columns: { account: true, id: true },
-              limit: 2,
+            const credential = await database.query.credentials.findFirst({
+              columns: { id: true },
+              where: eq(credentials.account, c.req.query("account") ?? ""),
             });
-            return credential && rest.length === 0 ? c.json(credential) : c.json({ code: "no single credential" }, 500);
+            return credential ? c.json(credential) : c.json({ code: "no credential" }, 404);
           });
           app.post("/e2e/platinum", async (c) => {
             const [card, ...rest] = await database
               .update(cardsTable)
               .set({ productId: PLATINUM_PRODUCT_ID })
-              .where(eq(cardsTable.status, "ACTIVE"))
+              .where(and(eq(cardsTable.credentialId, await c.req.text()), eq(cardsTable.status, "ACTIVE")))
               .returning({ id: cardsTable.id });
             return card && rest.length === 0 ? c.json({ code: "ok" }) : c.json({ code: "no single card" }, 500);
           });
