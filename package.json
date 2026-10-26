@@ -339,8 +339,11 @@
     "projectType": "application",
     "namedInputs": {
       "default": [
+        "{projectRoot}/*.config.*",
         "{projectRoot}/patches/**/*",
+        "{projectRoot}/public/**/*",
         "{projectRoot}/src/**/*",
+        "{projectRoot}/tsconfig.json",
         "sharedGlobals",
         "!{projectRoot}/common/**/*",
         "!{projectRoot}/contracts/**/*",
