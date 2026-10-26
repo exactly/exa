@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@pulumi/gcp": "^9.35.0",
-    "@pulumi/pulumi": "^3.259.0"
+    "@pulumi/pulumi": "^3.259.0",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@exactly/common": "workspace:^0.0.24",

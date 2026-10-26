@@ -2,6 +2,7 @@ import { iam, kms, orgpolicy, projects, Provider, secretmanager, serviceaccount,
 import { automation, interpolate, runtime } from "@pulumi/pulumi";
 import { readdir } from "node:fs/promises";
 import process, { argv, stdout } from "node:process";
+import { array, optional, parse, picklist } from "valibot";
 
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
@@ -20,11 +21,26 @@ const stacks = await Promise.all(
     .filter((stack): stack is string => stack !== undefined && stack !== "meta")
     .map(async (name) => {
       const settings = await workspace.stackSettings(name);
+      const disabledModules = parse(
+        optional(
+          array(picklist(Object.keys({ ...modules.services, ...modules.workers }), `unknown module in ${name}`)),
+          [],
+        ),
+        settings.config?.["exa:disabled"],
+      );
       const location: unknown = settings.config?.["exa:location"] ?? "us-west1";
       const project: unknown = settings.config?.["gcp:project"];
       if (typeof location !== "string" || location.length === 0) throw new Error(`invalid exa:location in ${name}`);
       if (typeof project !== "string" || project.length === 0) throw new Error(`missing gcp:project in ${name}`);
-      return { location, name, project };
+      return {
+        location,
+        name,
+        project,
+        services: Object.fromEntries(
+          Object.entries(modules.services).filter(([key]) => !disabledModules.includes(key)),
+        ),
+        workers: Object.fromEntries(Object.entries(modules.workers).filter(([key]) => !disabledModules.includes(key))),
+      };
     }),
 );
 if (!stacks.some(({ name }) => name === argv[3])) throw new Error(`unknown stack ${argv[3]}`);
@@ -33,7 +49,10 @@ const selected = await automation.LocalWorkspace.selectStack(
     projectName: "exa",
     stackName: "meta",
     program() {
-      runtime.registerStackTransformation(({ opts, props }) => ({ opts: { ...opts, protect: true }, props }));
+      runtime.registerStackTransformation(({ opts, props }) => ({
+        opts: { ...opts, protect: opts.protect ?? true },
+        props,
+      }));
       const stateProvider = new Provider("state", {
         project: "eexxxaa",
         billingProject: "eexxxaa",
@@ -200,15 +219,16 @@ const selected = await automation.LocalWorkspace.selectStack(
               { provider, retainOnDelete: true },
             );
           }
+          const cremaSecrets: readonly string[] = modules.crema;
           for (const secret of new Set([
-            ...modules.crema,
-            ...Object.values(modules.services).flatMap((fields) => fields.secrets),
-            ...Object.values(modules.workers).flatMap((worker) => worker.secrets),
+            ...cremaSecrets,
+            ...Object.values(stack.services).flatMap((fields) => fields.secrets),
+            ...Object.values(stack.workers).flatMap((worker) => worker.secrets),
           ])) {
             new secretmanager.Secret(
               `${stack.name}-${secret}`,
               { secretId: `${stack.name}-${secret}`, replication: { auto: {} } },
-              { dependsOn: secretManager, provider },
+              { dependsOn: secretManager, protect: cremaSecrets.includes(secret), provider },
             );
           }
           const github = new serviceaccount.Account(
@@ -250,25 +270,25 @@ const selected = await automation.LocalWorkspace.selectStack(
             },
             { provider },
           );
-          for (const name of Object.keys(modules.services)) {
+          for (const name of Object.keys(stack.services)) {
             const identity = `${stack.name}-${name === "api" ? name : `${name}-hook`}`;
             const account = new serviceaccount.Account(
               identity,
               { accountId: identity },
-              { dependsOn: service, provider },
+              { dependsOn: service, protect: false, provider },
             );
             new serviceaccount.IAMMember(
               identity,
               { member, role: "roles/iam.serviceAccountUser", serviceAccountId: account.name },
-              { provider },
+              { protect: false, provider },
             );
           }
-          for (const name of Object.keys(modules.workers)) {
+          for (const name of Object.keys(stack.workers)) {
             const identity = `${stack.name}-${name}-worker`;
             const account = new serviceaccount.Account(
               identity,
               { accountId: identity },
-              { dependsOn: service, provider },
+              { dependsOn: service, protect: false, provider },
             );
             for (const [suffix, principal] of [
               ["", member],
@@ -277,7 +297,7 @@ const selected = await automation.LocalWorkspace.selectStack(
               new serviceaccount.IAMMember(
                 `${identity}${suffix}`,
                 { member: principal, role: "roles/iam.serviceAccountUser", serviceAccountId: account.name },
-                { provider },
+                { protect: false, provider },
               );
             }
           }
