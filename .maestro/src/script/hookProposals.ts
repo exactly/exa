@@ -1,4 +1,14 @@
-import { encodeDeployData, erc20Abi, formatUnits, keccak256, pad, slice, toBytes, type Address } from "viem";
+import {
+  encodeDeployData,
+  encodeEventTopics,
+  erc20Abi,
+  formatUnits,
+  keccak256,
+  pad,
+  slice,
+  toBytes,
+  type Address,
+} from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
@@ -43,14 +53,19 @@ anvil("anvil_mine", [1, Number(proposalDelay)]);
 const fromBlock = anvil("eth_blockNumber", []);
 block(account, proposals);
 
+const nonceSet = encodeEventTopics({
+  abi: proposalManagerAbi,
+  eventName: "ProposalNonceSet",
+  args: { account, nonce: (proposals[0]?.nonce ?? 0n) + BigInt(proposals.length) },
+});
+let toBlock = anvil("eth_blockNumber", []);
 for (
   const deadline = Date.now() + 30_000;
-  readContract({ address: proposalManagerAddress, functionName: "nonces", args: [account], abi: proposalManagerAbi }) <
-  (proposals[0]?.nonce ?? 0n) + BigInt(proposals.length);
+  anvil("eth_getLogs", [{ address: proposalManagerAddress, fromBlock, toBlock, topics: nonceSet }]).length === 0;
+  toBlock = anvil("eth_blockNumber", [])
 ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
 }
-const toBlock = anvil("eth_blockNumber", []);
 const transfer = toEventSelector(getAbiItem({ abi: erc20Abi, name: "Transfer" }));
 const logs = anvil("eth_getLogs", [{ fromBlock, toBlock, topics: [transfer, null, pad(account)] }]);
 for (const log of logs) {
