@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft, ArrowRight, Check, CircleHelp, TriangleAlert } from "@tamagui/lucide-icons-2";
-import { Checkbox, ScrollView, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import { parse } from "valibot";
 import { formatUnits } from "viem";
@@ -19,6 +19,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
+import Checkbox from "../shared/Checkbox";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -140,12 +141,7 @@ export default function Amount() {
                   setAcknowledged(!acknowledged);
                 }}
               >
-                <Checkbox
-                  pointerEvents="none"
-                  borderColor="$backgroundBrand"
-                  backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                  checked={acknowledged}
-                >
+                <Checkbox checked={acknowledged}>
                   <Checkbox.Indicator>
                     <Check size={16} color="white" />
                   </Checkbox.Indicator>

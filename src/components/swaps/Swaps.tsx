@@ -21,7 +21,7 @@ import {
   TriangleAlert,
 } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
-import { Checkbox, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
@@ -79,6 +79,7 @@ import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exaConfig from "../../utils/wagmi/exa";
+import Checkbox from "../shared/Checkbox";
 import IconButton from "../shared/IconButton";
 import MarketClosedBanner from "../shared/MarketClosedBanner";
 import { PriceSummary } from "../shared/PriceChart";
@@ -1272,14 +1273,7 @@ export default function Swaps() {
                           setAcknowledged(!acknowledged);
                         }}
                       >
-                        <Checkbox
-                          pointerEvents="none"
-                          borderColor={danger ? "$borderErrorStrong" : "$backgroundBrand"}
-                          backgroundColor={
-                            acknowledged ? (danger ? "$uiErrorSecondary" : "$backgroundBrand") : "transparent"
-                          }
-                          checked={acknowledged}
-                        >
+                        <Checkbox danger={danger} checked={acknowledged}>
                           <Checkbox.Indicator>
                             <Check
                               size={16}

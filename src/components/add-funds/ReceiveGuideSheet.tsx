@@ -3,7 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { ArrowRight, Check, Info } from "@tamagui/lucide-icons-2";
-import { Checkbox, ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
@@ -12,6 +12,7 @@ import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
+import Checkbox from "../shared/Checkbox";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -173,12 +174,7 @@ export default function ReceiveGuideSheet({
             </Button>
             <Pressable role="checkbox" aria-checked={hide} onPress={() => setHide(!hide)}>
               <XStack gap="$s3" alignItems="center" justifyContent="center">
-                <Checkbox
-                  pointerEvents="none"
-                  borderColor={hide ? "$backgroundBrand" : "$uiNeutralSecondary"}
-                  backgroundColor={hide ? "$backgroundBrand" : "transparent"}
-                  checked={hide}
-                >
+                <Checkbox borderColor="$uiNeutralSecondary" checked={hide}>
                   <Checkbox.Indicator>
                     <Check size={16} color="$interactiveOnBaseBrandDefault" />
                   </Checkbox.Indicator>
