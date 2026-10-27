@@ -24,6 +24,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/bridge.js
     env: { network: Anvil2, to: "${output.account}", amount: "4" }
+- assertVisible: completed
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runFlow: ../subflows/assertOnboarding.yaml
 - runFlow:
