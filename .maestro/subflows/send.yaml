@@ -96,6 +96,9 @@ appId: ${APP_ID ?? "app.exactly"}
       - evalScript: ${output.swapSheet = true}
 - assertVisible: Review and send
 - runFlow:
+    when: { true: "${!!destination}" }
+    commands: [{ runFlow: { file: scrollTo.yaml, env: { element: "~2 min" } } }]
+- runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ longPressOn: "Hold to send ${asset}" }]
 - runFlow:
