@@ -1,12 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
-import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { queryOptions, skipToken, useQueries, useQuery } from "@tanstack/react-query";
@@ -16,7 +14,6 @@ import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
-import EducationSheet from "./EducationSheet";
 import ReceiveGuideSheet from "./ReceiveGuideSheet";
 import { presentArticle } from "../../utils/intercom";
 import { lifiChainsOptions, lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
@@ -31,6 +28,7 @@ import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
+import type { CardDetails } from "../../utils/server";
 import type { Credential } from "@exactly/common/validation";
 
 export default function Network() {
@@ -39,8 +37,6 @@ export default function Network() {
   const { t } = useTranslation();
   const { asset: assetParameter } = useLocalSearchParams();
   const asset = typeof assetParameter === "string" ? assetParameter : "";
-  const [nativeShown, setNativeShown] = useState(false);
-  const [othersShown, setOthersShown] = useState(false);
   const [pending, setPending] = useState<{
     chainId: number;
     symbol: string;
@@ -49,6 +45,7 @@ export default function Network() {
   const { data: lifiChains } = useQuery(lifiChainsOptions);
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
+  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const { data: bridgeAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-needed-shown"] });
   const { data: swapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "swap-needed-shown"] });
   const { data: bridgeSwapAcknowledged } = useQuery<boolean>({ queryKey: ["settings", "bridge-swap-needed-shown"] });
@@ -95,7 +92,8 @@ export default function Network() {
     combine: (results) => sorted.filter((c, index) => results[index]?.data),
   });
   if (!asset) return <Redirect href="/add-funds/assets" />;
-  const receivable = isPending || !tokens || supportedAssets.includes(asset) || symbols.has(chain.id);
+  const collateral = supportedAssets.includes(asset);
+  const receivable = isPending || !tokens || collateral || symbols.has(chain.id);
   function navigate(chainId: number, symbol: string) {
     router.push({
       pathname: "/add-funds/add-crypto",
@@ -147,19 +145,23 @@ export default function Network() {
           <YStack gap="s7">
             {receivable && (
               <YStack gap="s4">
-                <XStack gap="s2" alignItems="center">
+                <YStack gap="s2">
                   <Text emphasized primary headline>
                     {t("Native network")}
                   </Text>
-                  <Pressable
-                    role="button"
-                    aria-label={t("Native network")}
-                    hitSlop={15}
-                    onPress={() => setNativeShown(true)}
-                  >
-                    <Info size={16} color="uiBrandSecondary" />
-                  </Pressable>
-                </XStack>
+                  <Text footnote secondary>
+                    {t(
+                      card === null
+                        ? collateral
+                          ? "Deposit {{asset}} on {{chain}} to activate your Exa Card."
+                          : "{{asset}} on {{chain}} won’t activate your Exa Card. Once it arrives, swap it in-app to a collateral asset."
+                        : collateral
+                          ? "{{asset}} on {{chain}} can be used with your Exa Card. It serves as collateral, earns yield and increases your credit limit."
+                          : "{{asset}} on {{chain}} can’t be used with your Exa Card. Once it arrives, swap it in-app to a collateral asset.",
+                      { asset, chain: chain.name },
+                    )}
+                  </Text>
+                </YStack>
                 <AddFundsOption
                   icon={<ChainLogo chainId={chain.id} size={24} />}
                   title={chain.id === optimism.id ? "Optimism" : chain.name}
@@ -171,19 +173,23 @@ export default function Network() {
             )}
             {deployable.length > 0 && (
               <YStack gap="s4">
-                <XStack gap="s2" alignItems="center">
+                <YStack gap="s2">
                   <Text emphasized primary headline>
                     {t("Other networks")}
                   </Text>
-                  <Pressable
-                    role="button"
-                    aria-label={t("Other networks")}
-                    hitSlop={15}
-                    onPress={() => setOthersShown(true)}
-                  >
-                    <Info size={16} color="uiBrandSecondary" />
-                  </Pressable>
-                </XStack>
+                  <Text footnote secondary>
+                    {t(
+                      card === null
+                        ? collateral
+                          ? "{{asset}} on these networks won’t activate your Exa Card. Once it arrives, bridge it in-app to {{chain}}."
+                          : "{{asset}} on these networks won’t activate your Exa Card. Once it arrives, bridge it in-app to {{chain}} and swap it to a collateral asset."
+                        : collateral
+                          ? "{{asset}} on these networks can’t be used with your Exa Card. Once it arrives, bridge it in-app to {{chain}}."
+                          : "{{asset}} on these networks can’t be used with your Exa Card. Once it arrives, bridge it in-app to {{chain}} and swap it to a collateral asset.",
+                      { asset, chain: chain.name },
+                    )}
+                  </Text>
+                </YStack>
                 <YStack gap="s3_5">
                   {deployable.map((c) => (
                     <AddFundsOption
@@ -198,50 +204,7 @@ export default function Network() {
             )}
           </YStack>
         </ScrollView>
-        <EducationSheet
-          open={nativeShown}
-          onClose={() => {
-            setNativeShown(false);
-          }}
-          title={t("Native network")}
-          article="8950801"
-        >
-          <XStack
-            backgroundColor="backgroundStrong"
-            borderRadius="r3"
-            paddingVertical="s5"
-            paddingHorizontal="s3_5"
-            justifyContent="center"
-            alignItems="center"
-            gap="s3"
-          >
-            <ChainLogo size={40} />
-            <Text emphasized title2 primary>
-              {chain.name}
-            </Text>
-          </XStack>
-          <Text subHeadline secondary>
-            {t(
-              "{{chain}} is Exa App's native network. Supported assets received here generate yield and increase your Exa Card credit limit immediately. Other assets need to be swapped to a supported asset first.",
-              { chain: chain.name },
-            )}
-          </Text>
-        </EducationSheet>
-        <EducationSheet
-          open={othersShown}
-          onClose={() => {
-            setOthersShown(false);
-          }}
-          title={t("Other networks")}
-          article="8950801"
-        >
-          <Text subHeadline secondary>
-            {t(
-              "Assets from these networks need to be bridged to {{chain}}. Some may also require a swap to a supported asset to generate yield and increase your Exa Card credit limit. You can do both from your Portfolio.",
-              { chain: chain.name },
-            )}
-          </Text>
-        </EducationSheet>
+
         <ReceiveGuideSheet
           open={pending !== undefined}
           variant={pending?.variant ?? "bridge"}
