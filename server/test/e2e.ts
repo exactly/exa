@@ -64,7 +64,7 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
-      const tls = domain === "localhost" ? undefined : await certificate();
+      const tls = await certificate();
       await database.delete(credentials); // eslint-disable-line drizzle/enforce-delete-with-where -- e2e starts with no users
       const { default: app, close: stop } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");
@@ -90,7 +90,12 @@ describe("e2e", () => {
         hookWorker({ bullmq, database, panda }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
-      const https = tls && serve({ fetch: app.fetch, port: 443, createServer, serverOptions: tls });
+      const https = serve({
+        fetch: app.fetch,
+        port: domain === "localhost" ? 8443 : 443,
+        createServer,
+        serverOptions: tls,
+      });
 
       await expect(
         new Promise((resolve, reject) => {
@@ -100,7 +105,7 @@ describe("e2e", () => {
               Promise.allSettled(workers.map((worker) => worker.close())).then(() => bullmq.quit()),
               segment.close(),
               stop(),
-              ...(https ? [new Promise((closed) => https.close(closed))] : []),
+              new Promise((closed) => https.close(closed)),
             ]).then(resolve, reject);
           };
 
@@ -184,7 +189,7 @@ describe("e2e", () => {
           });
           process.once("SIGTERM", teardown);
 
-          https?.once("error", reject);
+          https.once("error", reject);
           Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
       ).resolves.toBeDefined();
