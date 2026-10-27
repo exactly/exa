@@ -261,6 +261,7 @@ frontend.use(
         "https://cdn.onesignal.com",
         "https://*.ingest.us.sentry.io",
         "https://raw.githubusercontent.com",
+        "https://fastly.jsdelivr.net",
         ...(domain === "localhost" ? ["http://localhost:3000", "http://127.0.0.1:8545", "http://127.0.0.1:9944"] : []),
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://via.intercom.io",
