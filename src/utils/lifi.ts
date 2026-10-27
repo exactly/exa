@@ -39,7 +39,6 @@ import {
 } from "valibot";
 import {
   createPublicClient,
-  encodeDeployData,
   encodeFunctionData,
   erc20Abi,
   fallback,
@@ -59,15 +58,13 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
   alchemyChains,
   allowlists,
+  appPreviewerAbi,
+  appPreviewerCode,
   auditorAddress,
   exaAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
   lifiURL,
-  marketUSDCAddress,
   marketWETHAddress,
   mockSwapperAbi,
-  proposalManagerAddress,
   stocks,
   swapperAddress,
 } from "@exactly/common/generated/chain";
@@ -118,13 +115,10 @@ export const lifiTokensOptions = queryOptions({
   queryFn: async () => {
     if (!lifiURL) {
       const markets = await publicClient.readContract({
-        abi: exaPreviewerAbi,
+        abi: appPreviewerAbi,
         functionName: "markets",
-        code: encodeDeployData({
-          abi: exaPreviewerAbi,
-          bytecode: exaPreviewerCode,
-          args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-        }),
+        code: appPreviewerCode,
+        args: [auditorAddress],
       });
       return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
         const token = {
