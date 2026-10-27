@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
+import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
 import { LibBytes } from "solady/utils/LibBytes.sol";
 import { LibCall } from "solady/utils/LibCall.sol";
 import { LibString } from "solady/utils/LibString.sol";
 
-import { IAuditor, IMarket, MarketData } from "./IExaAccount.sol";
+import { ExaPlugin } from "./ExaPlugin.sol";
+import { IAuditor, IExaAccount, IMarket, IProposalManager, MarketData } from "./IExaAccount.sol";
 
 contract AppPreviewer {
   using LibString for string;
@@ -29,6 +31,23 @@ contract AppPreviewer {
       });
     }
   }
+
+  function proposalManager(address account) external view returns (ProposalManagerPreview memory preview) {
+    if (account.code.length == 0) return preview;
+    try IAccountLoupe(account).getExecutionFunctionConfig(IExaAccount.propose.selector) returns (
+      IAccountLoupe.ExecutionFunctionConfig memory config
+    ) {
+      if (config.plugin.code.length == 0) return preview;
+      try ExaPlugin(payable(config.plugin)).proposalManager() returns (IProposalManager manager) {
+        return ProposalManagerPreview({
+          proposalManager: address(manager),
+          delay: manager.delay(),
+          queueNonce: manager.queueNonces(account),
+          nonce: manager.nonces(account)
+        });
+      } catch { } // solhint-disable-line no-empty-blocks
+    } catch { } // solhint-disable-line no-empty-blocks
+  }
 }
 
 struct MarketPreview {
@@ -39,4 +58,11 @@ struct MarketPreview {
   bool isFrozen;
   uint256 usdPrice;
   string symbol;
+}
+
+struct ProposalManagerPreview {
+  address proposalManager;
+  uint256 delay;
+  uint256 queueNonce;
+  uint256 nonce;
 }
