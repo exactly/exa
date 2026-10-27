@@ -23,7 +23,8 @@ RUN --mount=type=cache,id=nx,target=/usr/src/app/node_modules/.cache/nx \
   npx nx run-many -t build -p server mobile --parallel=2
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
   mv dist server/app && \
-  pnpm deploy --legacy --filter server --prod --ignore-scripts --prefer-offline --allow-unused-patches /prod/server
+  pnpm deploy --legacy --filter server --prod --ignore-scripts --prefer-offline --allow-unused-patches /prod/server && \
+  pnpm deploy --config.inject-workspace-packages --filter indexer --prod --ignore-scripts --prefer-offline /prod/indexer
 
 FROM base AS server
 # hadolint ignore=DL3008
@@ -32,6 +33,7 @@ RUN apt-get update && apt-get install -y dumb-init --no-install-recommends && \
   adduser --group --system server
 WORKDIR /prod/server
 COPY --from=build --chown=server:server /prod/server .
+COPY --from=build --chown=server:server /prod/indexer /prod/indexer
 USER server
 EXPOSE 3000/tcp
 ENTRYPOINT ["dumb-init", "node", "--require=./dist/instrument.cjs"]
