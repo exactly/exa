@@ -55,10 +55,14 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     () =>
       accountMarkets &&
       previews.data &&
-      accountMarkets.map((market) => ({
-        ...market,
-        isFrozen: previews.data.some(({ market: address, isFrozen }) => address === market.market && isFrozen),
-      })),
+      accountMarkets.map((market) => {
+        const preview = previews.data.find(({ market: address }) => address === market.market);
+        return {
+          ...market,
+          isCollateral: market.isCollateral && !preview?.nonCollateral,
+          isFrozen: !!preview?.isFrozen,
+        };
+      }),
     [accountMarkets, previews.data],
   );
   const supportedAssets = useMemo(() => {
