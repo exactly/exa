@@ -307,7 +307,7 @@ export default function lifi(chains: readonly Chain[]) {
         toAmount: String(toAmount),
         toAmountMin: String(toAmount),
         approvalAddress: swapperAddress,
-        executionDuration: 1,
+        executionDuration: fromChain === toChain ? 1 : query.order === "FASTEST" ? 60 : 1200,
         feeCosts: [],
         gasCosts: [
           {
