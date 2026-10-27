@@ -7,6 +7,8 @@ import { useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { Spinner, XStack, YStack } from "tamagui";
 
+import chain from "@exactly/common/generated/chain";
+
 import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
@@ -82,7 +84,7 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
             <IdCard size={24 * PixelRatio.getFontScale()} color="uiBrandSecondary" />
           )}
           <Text emphasized headline color="uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-            {step ? t(step.title) : ""}
+            {step ? t(step.title, { chain: chain.name }) : ""}
           </Text>
         </XStack>
         <Pressable hitSlop={15} onPress={handleStepPress}>
