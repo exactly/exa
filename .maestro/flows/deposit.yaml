@@ -31,8 +31,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Transfer USDT
 - runFlow: ../subflows/sign.yaml
 - assertVisible: Add funds request sent
-- evalScript: '${output.usdt = JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/tokens").body).tokens[31337].find(({ symbol }) => symbol === "USDT").address}'
-- assertTrue: '${Number(JSON.parse(http.post("http://localhost:8545", { body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "eth_call", params: [{ to: output.usdt, data: "0x70a08231" + output.deposit.slice(2).padStart(64, "0") }, "latest"] }) }).body).result) === 1e6}'
+- runScript: { file: ../dist/getBalance.js, env: { asset: USDT, account: "${output.deposit}" } }
+- assertTrue: ${output.balance === 1}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml
