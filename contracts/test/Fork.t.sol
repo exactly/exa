@@ -22,11 +22,7 @@ abstract contract ForkTest is Test {
 
   constructor() {
     setChain("anvil2", ChainData("Anvil2", 1281, "http://127.0.0.1:9944"));
-    // TODO remove after https://github.com/lifinance/create3-factory/issues/14
-    if (block.chainid == 11_155_420) CREATE3_FACTORY = ICreate3Factory(0xcc3f41204a1324DD91F1Dbfc46208535293A371e);
-    // TODO remove after https://github.com/lifinance/create3-factory/issues/18
-    else if (block.chainid == 84_532) CREATE3_FACTORY = ICreate3Factory(0x9f275F6D25232FFf082082a53C62C6426c1cc94C);
-    else CREATE3_FACTORY = ICreate3Factory(0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1);
+    CREATE3_FACTORY = ICreate3Factory(vm.readFile("deploy.json").readChainAddress(".factory.create3"));
     vm.label(address(CREATE3_FACTORY), "CREATE3Factory");
     if (isAnvil()) etchCanonical();
   }
