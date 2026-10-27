@@ -3,6 +3,7 @@ on:
   push: { branches-ignore: [changesets-ghcommit-temp/**] } # cspell:ignore ghcommit
 jobs:
   test:
+    if: github.ref_name != 'beta' || github.event.head_commit.distinct
     environment: test
     runs-on: ubuntu-latest
     env:
@@ -92,6 +93,7 @@ jobs:
           include-hidden-files: true
 
   e2e:
+    if: github.ref_name != 'beta' || github.event.head_commit.distinct
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
