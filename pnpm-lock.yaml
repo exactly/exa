@@ -1187,6 +1187,9 @@ importers:
       '@exactly/common':
         specifier: workspace:^0.0.24
         version: link:../common
+      '@exactly/indexer':
+        specifier: workspace:^0.0.0
+        version: link:../indexer
       '@exactly/plugin':
         specifier: workspace:^1.1.0
         version: link:../contracts
