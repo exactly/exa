@@ -1,16 +1,13 @@
 import React, { useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { Check } from "../../generated/icons/Check";
-import { Info } from "../../generated/icons/Info";
-import { presentArticle } from "../../utils/intercom";
-import reportError from "../../utils/reportError";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
@@ -43,49 +40,30 @@ export default function ReceiveGuideSheet({
   const { t } = useTranslation();
   const { supportedAssets } = useMarkets();
   const [hide, setHide] = useState(false);
-  const learn = (
-    <Text
-      caption2
-      color="uiBrandSecondary"
-      cursor="pointer"
-      onPress={() => {
-        presentArticle("8950805").catch(reportError);
-      }}
-    />
-  );
   const copy = {
     bridge: {
       title: t("Bridge needed after receiving"),
-      step: t("Bridge it to {{asset}} on {{chain}}.", { asset, chain: chain.name }),
-      note: (
-        <Trans
-          i18nKey="{{symbol}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{asset}} on {{chain}}.<learn> Learn more.</learn>"
-          values={{ symbol, asset, network, chain: chain.name }}
-          components={{ learn }}
-        />
+      description: t(
+        "{{asset}} on {{network}} won’t count toward payments, collateral or yield until you bridge it to {{chain}}.",
+        { asset: symbol, network, chain: chain.name },
       ),
+      step: t("Bridge it to {{asset}} on {{chain}}.", { asset, chain: chain.name }),
     },
     swap: {
       title: t("Swap needed after receiving"),
-      step: t("Swap it to a supported asset on {{chain}}.", { chain: chain.name }),
-      note: (
-        <Trans
-          i18nKey="{{asset}} on {{chain}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to swap it to a supported asset.<learn> Learn more.</learn>"
-          values={{ asset: symbol, chain: chain.name }}
-          components={{ learn }}
-        />
+      description: t(
+        "{{asset}} on {{chain}} won’t count toward payments, collateral or yield until you swap it to a collateral asset.",
+        { asset: symbol, chain: chain.name },
       ),
+      step: t("Swap it to a collateral asset on {{chain}}.", { chain: chain.name }),
     },
     bridgeSwap: {
       title: t("Bridge and swap needed after receiving"),
-      step: t("Bridge and swap it to a supported asset on {{chain}}.", { chain: chain.name }),
-      note: (
-        <Trans
-          i18nKey="{{asset}} on {{network}} isn't a supported collateral asset. To earn yield and increase your Exa Card credit limit, you'll need to bridge it to {{chain}} and swap it to a supported asset.<learn> Learn more.</learn>"
-          values={{ asset: symbol, network, chain: chain.name }}
-          components={{ learn }}
-        />
+      description: t(
+        "{{asset}} on {{network}} won’t count toward payments, collateral or yield until you bridge it to {{chain}} and swap it to a collateral asset.",
+        { asset: symbol, network, chain: chain.name },
       ),
+      step: t("Bridge and swap it to a collateral asset on {{chain}}.", { chain: chain.name }),
     },
   }[variant];
   return (
@@ -109,6 +87,9 @@ export default function ReceiveGuideSheet({
           <YStack gap="s5">
             <Text emphasized primary headline>
               {copy.title}
+            </Text>
+            <Text subHeadline secondary>
+              {copy.description}
             </Text>
             <XStack
               backgroundColor="backgroundStrong"
@@ -148,19 +129,10 @@ export default function ReceiveGuideSheet({
               </View>
             </XStack>
             <YStack gap="s4_5">
-              <Step index={1} text={t("Once received, go to your Portfolio.")} />
+              <Step index={1} text={t("Once it arrives, go to your Portfolio.")} />
               <Step index={2} text={t("Find {{asset}} on {{network}} and select it.", { asset: symbol, network })} />
               <Step index={3} text={copy.step} />
             </YStack>
-            <Separator borderColor="borderNeutralSoft" />
-            <XStack gap="s4" alignItems="flex-start">
-              <View>
-                <Info size={16} color="uiInfoSecondary" />
-              </View>
-              <Text caption2 color="uiNeutralPlaceholder" flex={1}>
-                {copy.note}
-              </Text>
-            </XStack>
             <Button
               primary
               width="100%"
