@@ -6,6 +6,7 @@ jobs:
     if: github.ref_name != 'beta' || github.event.head_commit.distinct
     environment: test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       NX_DAEMON: false
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
