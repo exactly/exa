@@ -81,6 +81,8 @@ configI18n(initReactI18next)
     },
     keySeparator: false,
     nsSeparator: false,
+    interpolation: { escapeValue: false },
+    react: { transDefaultProps: { tOptions: { interpolation: { escapeValue: true } }, shouldUnescape: true } },
     saveMissing: __DEV__ || e2e,
     missingKeyHandler: (languages, namespace, key) => {
       if (languages[0] !== "en") console.error("missing translation", languages.join(","), key); // eslint-disable-line no-console -- keys are the english copy
