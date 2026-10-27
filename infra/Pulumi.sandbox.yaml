@@ -1,6 +1,7 @@
 encryptionsalt: v1::v1:AAAAAAAAAAAAAAAb:rYjVO7/uF2+Qv1LhWq5c2S0ZR4rZaQ==
 config:
   gcp:project: exa-dev
+  exa:alertChannel: "#monitoring"
   exa:disabled: [activity, api, block, bridge, chat, manteca, panda, persona]
   exa:subscribeTimeout: 600s
   exa:whatsappPhoneNumberId: "1287864854409817"
