@@ -116,7 +116,6 @@ jobs:
       NX_DAEMON: false
       NX_MAX_CACHE_SIZE: 1GB
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
-      METAMASK_VERSION: 13.52.0
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0, fetch-tags: true }
@@ -140,46 +139,24 @@ jobs:
           path: ~/.nx
           key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
-      - if: matrix.method == 'metamask'
-        run: |
-          curl -fsSLo $RUNNER_TEMP/metamask.zip https://github.com/MetaMask/metamask-extension/releases/download/v$METAMASK_VERSION/metamask-chrome-$METAMASK_VERSION.zip
-          unzip -q $RUNNER_TEMP/metamask.zip -d $RUNNER_TEMP/metamask
-          echo METAMASK=$RUNNER_TEMP/metamask >> "$GITHUB_ENV"
-          echo SE_FORCE_BROWSER_DOWNLOAD=true >> "$GITHUB_ENV"
-      - if: matrix.method == 'brave'
-        run: |
-          curl -fsSLo $RUNNER_TEMP/brave.zip https://github.com/brave/brave-browser/releases/download/v1.98.60/brave-browser-1.98.60-linux-amd64.zip
-          unzip -q $RUNNER_TEMP/brave.zip -d $RUNNER_TEMP/brave
-          echo SE_BROWSER_PATH=$RUNNER_TEMP/brave/brave >> "$GITHUB_ENV"
       - run: echo ::add-matcher::.github/matcher.json
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - if: hashFiles(format('.maestro/generated/{0}.y4m', matrix.flow)) != ''
-        run: echo CAMERA=$PWD/.maestro/generated/${{ matrix.flow }}.y4m >> "$GITHUB_ENV"
-      - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 & echo $! > server.pid
-      - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
+      - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
       - if: matrix.method == 'metamask'
         id: metamask
         uses: actions/cache/restore@v6
         with:
-          path: ${{ runner.temp }}/profile
-          key: metamask-${{ env.METAMASK_VERSION }}-${{ hashFiles('.maestro/**/metamask.yaml') }}
-      - if: matrix.method == 'metamask' && steps.metamask.outputs.cache-hit != 'true'
-        run: maestro test .maestro/subflows/metamask.yaml -e APP_ID=http://localhost:8081 --platform web --headless --screen-size 1920x1080 --browser-args=--force-prefers-reduced-motion --browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"
-      - if: matrix.method == 'metamask' && steps.metamask.outputs.cache-hit != 'true'
+          path: .maestro/node_modules/.cache/metamask
+          key: metamask-${{ hashFiles('.maestro/package.json', '.maestro/subflows/metamask.yaml') }}
+          restore-keys: metamask-
+      - run: GITHUB_STEP_SUMMARY= pnpm nx e2e:${{ matrix.method }} e2e --flow=${{ matrix.flow }} --screen=${{ matrix.screen }} --skip-nx-cache
+      - if: ${{ !cancelled() && matrix.method == 'metamask' && steps.metamask.outputs.cache-hit != 'true' && hashFiles('.maestro/node_modules/.cache/metamask/hash') != '' }}
         uses: actions/cache/save@v6
         with:
-          path: ${{ runner.temp }}/profile
+          path: .maestro/node_modules/.cache/metamask
           key: ${{ steps.metamask.outputs.cache-primary-key }}
-      - run: |
-          for i in {1..420}; do
-            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && curl -f http://localhost:8081 > /dev/null 2>&1 && break
-            { [ $i -eq 420 ] || ! kill -0 $(cat server.pid); } && cat server.log && exit 1
-            sleep 1
-          done
-          CHROME_LOG_FILE=$PWD/chrome.log ${SE_BROWSER_PATH:+xvfb-run -a} maestro test .maestro/flows/${{ matrix.flow }}.yaml -e APP_ID=http://localhost:8081 -e method=${{ matrix.method }} --format junit --output .maestro/junit.xml --platform web ${{ matrix.method != 'brave' && '--headless' || '' }} --screen-size ${{ matrix.screen }} --browser-args=--force-prefers-reduced-motion ${SE_BROWSER_PATH:+--browser-args=--window-size=${SCREEN/x/,} --browser-args=--no-sandbox} ${CAMERA:+--browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$CAMERA} ${METAMASK:+--browser-args=--user-data-dir=$RUNNER_TEMP/profile --browser-args=--load-extension=$METAMASK --browser-args=--no-sandbox "--browser-args=--screen-info={3840x2160}" "--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND"}
-        env: { SCREEN: "${{ matrix.screen }}" }
       - if: always()
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
@@ -203,7 +180,7 @@ jobs:
           report_type: test_results
           disable_search: true
           exclude: node_modules
-          files: .maestro/junit.xml
+          files: .maestro/junit/${{ matrix.flow }}.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: web
           name: ${{ matrix.flow }}
@@ -213,8 +190,8 @@ jobs:
           name: e2e-${{ matrix.flow }}-artifacts
           path: |
             apt.log
-            chrome.log
             server.log
+            .maestro/chrome.log
             server/coverage
             server/node_modules/@exactly/.*
             ~/.maestro/tests

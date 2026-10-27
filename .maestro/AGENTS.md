@@ -2,9 +2,9 @@
 
 - **stack**: maestro 2.11.0, built from source with `patches/*.patch` into `build/` by `pnpm nx maestro e2e`. scripts run on graaljs, bundled from `src/script/` into `dist/`.
 - **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
-- **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
+- **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size, through its signer's target: `e2e:webauthn`, `e2e:metamask` or `e2e:brave`. `package.json` defines them: each waits for the stack and runs the flow with every flag the leg needs, once `brave` or `metamask` has fetched its browser. a leg replays from the nx cache while nothing it runs against changed (this project, the app, the server, the contracts and common), and ci passes `--skip-nx-cache` so every leg runs and reports coverage. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
-- **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the `e2e` job plays it through chrome's fake camera on legs that have one, so each leg scans a single code.
+- **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the signer targets play it through chrome's fake camera on flows that have one, so each leg scans a single code.
 
 ## principles
 
@@ -44,7 +44,7 @@
 - **method**: the `method` env picks a leg's signer. empty is the mock wallet (native only), `metamask` is the metamask extension (web only), `brave` is brave's built-in wallet (web only) and `webauthn` is a passkey on the virtual authenticator from `biometrics.patch`.
 - **one subflow per interaction**: `subflows/signIn.yaml` holds every sign-in branch and `subflows/sign.yaml` every signature approval. they switch on `method` and platform so flows never do.
 - **callers own the rest**: `signIn.yaml` holds method branches only. the greeting, the notifications prompt and anything else after sign-in belong to the caller (`subflows/launch.yaml`).
-- **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet and basic functionality off, or the connect prompt never shows. ci runs it with `--platform web` into a chrome profile it caches by metamask version and onboarding steps. metamask legs start from that profile, where metamask opens its unlock page on its own and `subflows/launch.yaml` unlocks it before `launchApp`. the wallet starts without funds on every run, so a leg funds `output.credential` before metamask sends a transaction. ci passes `--screen-info={3840x2160}` so its popups fit any window.
+- **metamask**: `subflows/metamask.yaml` onboards the extension with a new wallet and basic functionality off, or the connect prompt never shows. the `metamask` script fetches the extension and runs it once with `--platform web` into a chrome profile, again only when the script or the onboarding steps change, and ci caches both. metamask legs start from a copy of that profile, where metamask opens its unlock page on its own and `subflows/launch.yaml` unlocks it before `launchApp`. the wallet starts without funds on every run, so a leg funds `output.credential` before metamask sends a transaction. its legs pass `--screen-info={3840x2160}` so its popups fit any window.
 - **brave**: `subflows/brave.yaml` creates a new wallet in `chrome://wallet` before `launchApp`. headless brave rejects every wallet request, so its leg runs headed under `xvfb-run`. its approval panel is browser ui, not a window, and `windows.patch` follows it while it shows. after a transaction the panel stays open on its status until `pressKey: escape` closes it.
 
 ## selectors
@@ -98,11 +98,11 @@
 
 - **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when `flows/local.yaml` covers it.
 - **fingerprint**: e2e changes must not change the expo fingerprint (`pnpm exec fingerprint fingerprint:generate --platform ios`, then `android`).
-- **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's line from the `e2e` job, with the camera flags on legs that have a feed:
+- **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's row through its signer's target, as ci does:
 
   ```sh
-  CI=true NX_DAEMON=false pnpm nx e2e:web:release mobile
-  .maestro/build/bin/maestro test .maestro/flows/transfer.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/.maestro/generated/transfer.y4m
+  CI=true NX_DAEMON=false pnpm nx e2e:web:release mobile &
+  pnpm nx e2e:webauthn e2e --flow=transfer --screen=760x600
   ```
 
 @../common/AGENTS.md
