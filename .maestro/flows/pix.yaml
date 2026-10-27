@@ -39,6 +39,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - tapOn: Confirm and send
 - assertVisible: Sent to .*
+- assertVisible: .*Test <&> Co
 - runFlow: ../subflows/getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js
@@ -47,14 +48,14 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "50"
       beneficiary: >-
         { "currency": "BRL", "address": { "streetLine1": "123 Test St", "city": "SAO PAULO",
-        "postalCode": "01310100", "country": "BRA" }, "accountOwnerName": "Test User",
+        "postalCode": "01310100", "country": "BRA" }, "accountOwnerName": "Test <&> Co",
         "account": { "pixKey": "52998224725", "documentNumber": "52998224725" }, "bankName": "Test Bank",
         "reference": "exa" }
 - tapOn: Close
 - tapOn: Send
 - tapOn: Bank transfers
 - tapOn: Reals via PIX
-- tapOn: Test User
+- tapOn: Test <&> Co
 - tapOn: "0.00"
 - inputText: "108"
 - tapOn: Continue
@@ -67,7 +68,7 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "20"
       beneficiary: >-
         { "currency": "BRL", "address": { "streetLine1": "123 Test St", "city": "SAO PAULO",
-        "postalCode": "01310100", "country": "BRA" }, "accountOwnerName": "Test User",
+        "postalCode": "01310100", "country": "BRA" }, "accountOwnerName": "Test <&> Co",
         "account": { "pixKey": "52998224725", "documentNumber": "52998224725" }, "bankName": "Test Bank",
         "reference": "exa" }
 - tapOn: Close

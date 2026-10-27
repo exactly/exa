@@ -6,7 +6,7 @@ const height = 480;
 
 mkdirSync("generated", { recursive: true });
 for (const [flow, code] of Object.entries({
-  pix: "00020126330014br.gov.bcb.pix0111529982247255204000053039865406270.005802BR5909Test User6009SAO PAULO61080131010062070503exa63040964",
+  pix: "00020126330014br.gov.bcb.pix0111529982247255204000053039865406270.005802BR5911Test <&> Co6009SAO PAULO61080131010062070503exa6304BF26",
   transfer: "ethereum:0x000000000000000000000000000000000000bEEF@31337",
 })) {
   const { modules } = create(code);
