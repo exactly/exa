@@ -45,6 +45,7 @@ import chain, {
   exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  factories,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
@@ -67,7 +68,6 @@ import pay from "../utils/ramps/pay";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
-import validFactories from "../utils/validFactories";
 import createWallet from "../utils/wallet";
 
 import type * as schema from "../database/schema";
@@ -799,7 +799,7 @@ const legacyEmitters: Partial<Record<number, { factories: Address[]; plugins: Ad
 function discoverEmitters(chainId: number) {
   const legacy = legacyEmitters[chainId] ?? { factories: [], plugins: [] };
   return Promise.all(
-    [...validFactories, ...legacy.factories].map((factory) =>
+    [...factories.versions, ...legacy.factories].map((factory) =>
       publicClient
         .readContract({ address: factory, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" })
         .catch(unlessReverted),
