@@ -86,7 +86,7 @@ export default function GettingStarted() {
                           ? t(
                               "This may be due to missing or incorrect information. Please contact support to resolve it.",
                             )
-                          : t("To enable the Exa Card we need to verify that you are you."),
+                          : t("To enable the Exa Card, we need to verify your identity and that you’re 18 or older."),
                     action: status === "failed" ? t("Contact support") : t("Learn more about KYC process"),
                     onPress: () => {
                       (status === "failed" ? present() : presentArticle("9448693")).catch(reportError);
@@ -151,7 +151,7 @@ function CurrentStep({ id, approved }: { approved: boolean; id: "add-funds" | "c
                   "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
                 )
             : t(
-                "Verifying your identity grants you access to our onchain Exa Card, enabling you to easily spend your crypto.",
+                "Verifying your identity grants you access to our onchain Exa Card, enabling you to easily spend your digital assets. You must be 18 or older to get the card.",
               )}
         </Text>
       </YStack>
