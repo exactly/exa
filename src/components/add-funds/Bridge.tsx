@@ -359,10 +359,10 @@ export default function Bridge() {
   });
 
   const approvalRequired = canReadAllowance && (allowanceData ?? 0n) < sourceAmount;
-  const lifiFeeUSD = (quote?.estimate.feeCosts ?? []).reduce((sum, { amountUSD }) => sum + (Number(amountUSD) || 0), 0);
+  const lifiFeeUSD = (quote?.estimate.feeCosts ?? []).reduce((sum, { amountUSD }) => sum + Number(amountUSD), 0);
   const transactionFeeUSD = (quote?.estimate.gasCosts ?? [])
     .filter(({ type }) => type !== "APPROVE" || approvalRequired)
-    .reduce((sum, { amountUSD }) => sum + (Number(amountUSD) || 0), 0);
+    .reduce((sum, { amountUSD }) => sum + Number(amountUSD), 0);
 
   const nativeGasReserve = useMemo(() => {
     if (!quote?.estimate.gasCosts || !nativeAddress) return 0n;

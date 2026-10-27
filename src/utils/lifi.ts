@@ -19,10 +19,14 @@ import { base58, bech32, bech32m, createBase58check } from "@scure/base";
 import { queryOptions, skipToken, experimental_streamedQuery as streamedQuery } from "@tanstack/react-query";
 import {
   array,
+  assert,
   check,
+  decimal,
+  digits,
   nullish,
   number,
   object,
+  optional,
   parse,
   pipe,
   regex,
@@ -329,13 +333,9 @@ export async function getRoute(
         .filter(([_, value]) => value)
         .map(([key]) => key),
   });
-  if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
-  const chainId = transactionRequest.chainId ?? chain.id;
+  assert(QuoteEstimate, estimate);
   return {
-    chainId,
-    to: parse(AddressSchema, transactionRequest.to),
-    data: parse(Hex, transactionRequest.data),
-    value: transactionRequest.value ? BigInt(transactionRequest.value) : 0n,
+    ...parse(QuoteTransaction, { chainId: chain.id, value: "0", ...transactionRequest }),
     tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
@@ -524,13 +524,9 @@ export async function getRouteFrom({
     quote = await getQuote({ ...request, denyBridges: denied });
   }
   const { estimate, transactionRequest, tool } = quote;
-  if (!transactionRequest?.to || !transactionRequest.data) throw new Error("missing quote transaction data");
-  const chainId = transactionRequest.chainId ?? fromChainId ?? chain.id;
+  assert(QuoteEstimate, estimate);
   return {
-    chainId,
-    to: parse(AddressSchema, transactionRequest.to),
-    data: parse(Hex, transactionRequest.data),
-    value: transactionRequest.value ? BigInt(transactionRequest.value) : 0n,
+    ...parse(QuoteTransaction, { chainId: request.fromChain, value: "0", ...transactionRequest }),
     tool,
     exchange: quote.includedSteps.find(({ type }) => type === "swap")?.tool,
     estimate,
@@ -885,3 +881,18 @@ function decoded(coder: typeof base58, input: string) {
     return new Uint8Array();
   }
 }
+
+const QuoteEstimate = object({
+  fromAmount: pipe(string(), digits()),
+  toAmountMin: pipe(string(), digits()),
+  approvalAddress: AddressSchema,
+  feeCosts: optional(array(object({ amountUSD: pipe(string(), decimal()), percentage: pipe(string(), decimal()) }))),
+  gasCosts: optional(array(object({ amount: pipe(string(), digits()), amountUSD: pipe(string(), decimal()) }))),
+});
+
+const QuoteTransaction = object({
+  chainId: number(),
+  to: AddressSchema,
+  data: Hex,
+  value: pipe(string(), transform(BigInt as (input: string) => bigint)),
+});

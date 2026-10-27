@@ -1165,7 +1165,7 @@ export default function Swaps() {
                   {fromToken && toToken && route && (
                     <SwapDetails
                       exchange={tool}
-                      fee={route.estimate.feeCosts?.reduce((sum, { percentage }) => sum + (Number(percentage) || 0), 0)}
+                      fee={route.estimate.feeCosts?.reduce((sum, { percentage }) => sum + Number(percentage), 0)}
                       slippage={crossChain || routed ? BigInt(bridgeSlippage * 1000) : SLIPPAGE_PERCENT}
                       exchangeRate={getExchangeRate(fromToken.token, toToken.token, fromAmount, toAmount)}
                       fromToken={fromToken.token}
