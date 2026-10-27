@@ -21,7 +21,7 @@ export default defineConfig({
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
       APP_ORIGINS:
-        "http://localhost:8081,http://localhost:3000,https://secondary.example,https://secondary.example:8443",
+        "http://localhost:8081,http://localhost:3000,https://business.localhost,https://secondary.example,https://secondary.example:8443",
       AUTH_SECRET: "auth",
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
