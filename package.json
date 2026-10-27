@@ -597,6 +597,15 @@
           "command": "pnpm dlx serve server/app -l 8081 -snL"
         }
       },
+      "test:spell": {
+        "dependsOn": []
+      },
+      "test:deps": {
+        "dependsOn": []
+      },
+      "test:markdown": {
+        "dependsOn": []
+      },
       "test:changeset": {
         "cache": false
       },
