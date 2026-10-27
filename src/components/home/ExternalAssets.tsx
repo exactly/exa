@@ -10,7 +10,6 @@ import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
-import ExternalAssetsSheet from "./ExternalAssetsSheet";
 import MarketRow from "./MarketRow";
 import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
@@ -32,7 +31,6 @@ export default function ExternalAssets({ assets }: { assets: PortfolioAsset[] })
   const router = useRouter();
   const { address: exaAccount } = useAccount({ config: exaConfig });
   const { data: lifiChains } = useQuery(lifiChainsOptions);
-  const [infoSheetOpen, setInfoSheetOpen] = useState(false);
   const [pendingUnsupported, setPendingUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(
     null,
   );
@@ -51,7 +49,10 @@ export default function ExternalAssets({ assets }: { assets: PortfolioAsset[] })
 
   return (
     <>
-      <AssetSection title={t("Other assets")} onInfoPress={() => setInfoSheetOpen(true)}>
+      <AssetSection
+        title={t("Other assets")}
+        description={t("Can’t be used with your Exa Card. Swap or bridge them in-app to a collateral asset above.")}
+      >
         {assets.map((asset) => {
           if (asset.type === "protocol") {
             return (
@@ -102,7 +103,6 @@ export default function ExternalAssets({ assets }: { assets: PortfolioAsset[] })
           );
         })}
       </AssetSection>
-      <ExternalAssetsSheet open={infoSheetOpen} onClose={() => setInfoSheetOpen(false)} />
       <UnsupportedSheet
         open={pendingUnsupported !== null}
         asset={pendingUnsupported?.asset}

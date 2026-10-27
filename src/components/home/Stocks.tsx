@@ -12,7 +12,6 @@ import { useReadContracts } from "wagmi";
 import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import formatTokenAmount from "../../utils/formatTokenAmount";
-import { presentArticle } from "../../utils/intercom";
 import { stockAbi, toShares } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import { Trend } from "../shared/PriceChart";
@@ -55,9 +54,7 @@ export default function Stocks({
   return (
     <AssetSection
       title={titled ? t("Tokenized stocks") : undefined}
-      onInfoPress={() => {
-        presentArticle("17155255").catch(reportError);
-      }}
+      description={t("Tradable 24/7. These can’t be used with your Exa Card or as collateral.")}
     >
       {assets.map((asset, index) => {
         const shares = toShares(asset.amount ?? 0n, asset.decimals, multipliers?.[index]?.result);
