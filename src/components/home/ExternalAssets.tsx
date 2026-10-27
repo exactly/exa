@@ -11,6 +11,7 @@ import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import ExternalAssetsSheet from "./ExternalAssetsSheet";
+import MarketRow from "./MarketRow";
 import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { lifiChainsOptions } from "../../utils/lifi";
@@ -21,9 +22,9 @@ import exaConfig from "../../utils/wagmi/exa";
 import { Trend } from "../shared/PriceChart";
 import UnsupportedSheet from "../shared/UnsupportedSheet";
 
-import type { ExternalAsset } from "../../utils/usePortfolio";
+import type { ExternalAsset, PortfolioAsset } from "../../utils/usePortfolio";
 
-export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) {
+export default function ExternalAssets({ assets }: { assets: PortfolioAsset[] }) {
   const {
     t,
     i18n: { language },
@@ -38,7 +39,9 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
 
   const crossChainIds = [
     ...new Set(
-      assets.map(({ chainId }) => chainId).filter((chainId) => chainId !== chain.id && alchemyChains.has(chainId)),
+      assets
+        .flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))
+        .filter((chainId) => chainId !== chain.id && alchemyChains.has(chainId)),
     ),
   ];
 
@@ -50,6 +53,21 @@ export default function ExternalAssets({ assets }: { assets: ExternalAsset[] }) 
     <>
       <AssetSection title={t("Other assets")} onInfoPress={() => setInfoSheetOpen(true)}>
         {assets.map((asset) => {
+          if (asset.type === "protocol") {
+            return (
+              <MarketRow
+                key={asset.market}
+                asset={asset.asset}
+                decimals={asset.decimals}
+                floatingDepositAssets={asset.floatingDepositAssets}
+                market={asset.market}
+                symbol={asset.symbol}
+                value={asset.usdValue}
+              >
+                <Trend chainId={chain.id} address={asset.asset} symbol={asset.symbol} />
+              </MarketRow>
+            );
+          }
           const unsupported = isUnsupported(asset.chainId, deployedChains);
           return (
             <AssetRow

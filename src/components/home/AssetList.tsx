@@ -1,16 +1,9 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { selectionAsync } from "expo-haptics";
-import { useRouter } from "expo-router";
-
-import chain from "@exactly/common/generated/chain";
-
-import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import CollateralAssetsSheet from "./CollateralAssetsSheet";
-import formatTokenAmount from "../../utils/formatTokenAmount";
-import reportError from "../../utils/reportError";
+import MarketRow from "./MarketRow";
 import useMarkets from "../../utils/useMarkets";
 import Rate from "../shared/Rate";
 
@@ -21,11 +14,7 @@ export default function AssetList({
   rates: { market: string; rate: bigint }[];
   titled?: boolean;
 }) {
-  const {
-    t,
-    i18n: { language },
-  } = useTranslation();
-  const router = useRouter();
+  const { t } = useTranslation();
   const { markets } = useMarkets();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -46,26 +35,20 @@ export default function AssetList({
             symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             usdValue: Number((market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
           }))
-          .filter((market) => !market.isFrozen || market.floatingDepositAssets > 0n)
+          .filter((market) => !market.nonCollateral && (!market.isFrozen || market.floatingDepositAssets > 0n))
           .sort((a, b) => b.usdValue - a.usdValue)
           .map((market) => (
-            <AssetRow
+            <MarketRow
               key={market.asset}
-              chainId={chain.id}
+              asset={market.asset}
+              decimals={market.decimals}
+              floatingDepositAssets={market.floatingDepositAssets}
+              market={market.market}
               symbol={market.symbol}
-              name={market.symbol}
-              balance={`${formatTokenAmount(market.floatingDepositAssets, market.decimals, language)} ${market.symbol}`}
               value={market.usdValue}
-              onPress={() => {
-                selectionAsync().catch(reportError);
-                router.push({
-                  pathname: "/asset",
-                  params: { chainId: String(chain.id), address: market.asset, market: market.market },
-                });
-              }}
             >
               {market.rate === undefined ? null : <Rate compact rate={market.rate} />}
-            </AssetRow>
+            </MarketRow>
           ))}
       </AssetSection>
       <CollateralAssetsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />

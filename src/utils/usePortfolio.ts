@@ -21,6 +21,7 @@ export type ProtocolAsset = {
   decimals: number;
   floatingDepositAssets: bigint;
   market: Hex;
+  nonCollateral: boolean;
   symbol: string;
   type: "protocol";
   usdPrice: bigint;
@@ -49,19 +50,22 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
 
   const portfolio = useMemo(() => {
-    if (!markets) return { depositMarkets: [], balanceUSD: 0n };
+    if (!markets) return { depositMarkets: [], balanceUSD: 0n, collateralUSD: 0n };
 
     const depositMarkets: { market: string; symbol: string; usdValue: bigint }[] = [];
     let balanceUSD = 0n;
-    for (const { floatingDepositAssets, usdPrice, decimals, market, symbol } of markets) {
+    let collateralUSD = 0n;
+    for (const { floatingDepositAssets, usdPrice, decimals, market, nonCollateral, symbol } of markets) {
       if (floatingDepositAssets <= 0n) continue;
       const usdValue = (floatingDepositAssets * usdPrice) / 10n ** BigInt(decimals);
       if (usdValue <= 0n) continue;
-      depositMarkets.push({ market, symbol: symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3), usdValue });
       balanceUSD += usdValue;
+      if (nonCollateral) continue;
+      depositMarkets.push({ market, symbol: symbol.slice(3) === "WETH" ? "ETH" : symbol.slice(3), usdValue });
+      collateralUSD += usdValue;
     }
 
-    return { balanceUSD, depositMarkets } as const;
+    return { balanceUSD, collateralUSD, depositMarkets } as const;
   }, [markets]);
 
   const rates = useMemo(
@@ -70,8 +74,8 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   );
 
   const averageRate = useMemo(() => {
-    const { depositMarkets, balanceUSD } = portfolio;
-    if (depositMarkets.length === 0 || balanceUSD === 0n || rates.length === 0) return 0n;
+    const { depositMarkets, collateralUSD } = portfolio;
+    if (depositMarkets.length === 0 || collateralUSD === 0n || rates.length === 0) return 0n;
     const rateByMarket = new Map(rates.map(({ market, rate }) => [market, rate]));
 
     let weightedRate = 0n;
@@ -81,7 +85,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
       weightedRate += rate * usdValue;
     }
 
-    return weightedRate / balanceUSD;
+    return weightedRate / collateralUSD;
   }, [portfolio, rates]);
 
   const protocolAssets = useMemo<ProtocolAsset[]>(() => {

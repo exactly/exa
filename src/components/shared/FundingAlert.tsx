@@ -63,7 +63,7 @@ export default function FundingAlert() {
       router.push("/swaps");
     },
   });
-  if (!bytecode || !isKYCFetched || !isKYCApproved || isPending || isBalancesPending || portfolio.balanceUSD > 0n) {
+  if (!bytecode || !isKYCFetched || !isKYCApproved || isPending || isBalancesPending || portfolio.collateralUSD > 0n) {
     return null;
   }
   if (swappable.length > 0) {

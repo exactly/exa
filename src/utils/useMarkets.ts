@@ -61,21 +61,17 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
           ...market,
           isCollateral: market.isCollateral && !preview?.nonCollateral,
           isFrozen: !!preview?.isFrozen,
+          nonCollateral: !!preview?.nonCollateral,
         };
       }),
     [accountMarkets, previews.data],
   );
   const supportedAssets = useMemo(() => {
     if (!markets) return [];
-    const excluded = new Set(["DAI", "WETH"]);
-    const symbols = new Set(
-      markets
-        .filter(({ isFrozen }) => !isFrozen)
-        .map((m) => m.symbol.slice(3))
-        .filter((s) => !excluded.has(s)),
-    );
-    symbols.add("ETH");
-    return [...symbols];
+    return markets
+      .filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
+      .map(({ symbol }) => (symbol === "exaWETH" ? "ETH" : symbol.slice(3)))
+      .filter((symbol) => symbol !== "DAI");
   }, [markets]);
   const timestamp = result.data?.[2] ?? BigInt(Math.floor(Date.now() / 1000)); // eslint-disable-line @eslint-react/purity -- fallback until onchain timestamp loads
   const now = Number(timestamp);

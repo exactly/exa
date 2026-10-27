@@ -89,12 +89,12 @@ export default function Portfolio() {
                 amount={
                   {
                     all: Number(totalBalanceUSD) / 1e18,
-                    collateral: Number(portfolio.balanceUSD) / 1e18,
+                    collateral: Number(portfolio.collateralUSD) / 1e18,
                     stocks: stocks.reduce((sum, asset) => sum + asset.usdValue, 0),
                   }[tab]
                 }
               />
-              {tab !== "stocks" && portfolio.balanceUSD > 0n ? (
+              {tab !== "stocks" && portfolio.collateralUSD > 0n ? (
                 <Rate
                   rate={averageRate}
                   onPress={() => {
@@ -138,8 +138,8 @@ export default function Portfolio() {
             )}
             {tab === "all" ? (
               <ExternalAssets
-                assets={allAssets.filter(
-                  (asset): asset is ExternalAsset => asset.type === "external" && !isStock(asset),
+                assets={allAssets.filter((asset) =>
+                  asset.type === "external" ? !isStock(asset) : asset.nonCollateral,
                 )}
               />
             ) : null}

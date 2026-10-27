@@ -105,7 +105,7 @@ export default function Home() {
     query: { enabled: !!account },
   });
   const {
-    portfolio: { balanceUSD },
+    portfolio: { collateralUSD },
     averageRate,
     allAssets,
     totalBalanceUSD,
@@ -184,19 +184,6 @@ export default function Home() {
     router.push({ pathname: "/swaps", params: { filter: "stocks" } });
   }
 
-  const collateralUSD = useMemo(
-    () =>
-      markets?.reduce(
-        (total, market) =>
-          total +
-          (market.floatingDepositAssets > 0n
-            ? (market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals)
-            : 0n),
-        0n,
-      ) ?? 0n,
-    [markets],
-  );
-
   const overdueMaturity = useMemo(() => {
     let earliest: bigint | undefined;
     for (const { market, fixedBorrowPositions } of markets ?? []) {
@@ -271,7 +258,7 @@ export default function Home() {
               <FundingAlert />
               <YStack gap="$s5">
                 <PortfolioSummary
-                  balanceUSD={balanceUSD}
+                  collateralUSD={collateralUSD}
                   averageRate={averageRate}
                   assets={allAssets}
                   totalBalanceUSD={totalBalanceUSD}

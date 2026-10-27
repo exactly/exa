@@ -36,7 +36,7 @@ export default function Assets() {
   const assets = useMemo(() => {
     if (!markets) return [];
     const available = markets
-      .filter((market) => !market.isFrozen && market.symbol.slice(3) !== "DAI")
+      .filter((market) => !market.isFrozen && !market.nonCollateral && market.symbol.slice(3) !== "DAI")
       .map((market) =>
         market.symbol.slice(3) === "WETH"
           ? { symbol: "ETH", name: "Ether" }
@@ -50,7 +50,9 @@ export default function Assets() {
   }, [markets]);
   const others = useMemo(() => {
     if (!tokens || !markets) return [];
-    const underlying = new Set(markets.map((market) => market.asset.toLowerCase()));
+    const underlying = new Set(
+      markets.filter(({ nonCollateral }) => !nonCollateral).map((market) => market.asset.toLowerCase()),
+    );
     const excluded = new Set(supportedAssets);
     const bySymbol = new Map<string, (typeof tokens)[number]>();
     for (const token of tokens) {

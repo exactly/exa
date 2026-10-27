@@ -21,12 +21,12 @@ import type { PortfolioAsset } from "../../utils/usePortfolio";
 export default function PortfolioSummary({
   assets,
   averageRate,
-  balanceUSD,
+  collateralUSD,
   totalBalanceUSD,
 }: {
   assets: PortfolioAsset[];
   averageRate: bigint;
-  balanceUSD: bigint;
+  collateralUSD: bigint;
   totalBalanceUSD: bigint;
 }) {
   const router = useRouter();
@@ -93,7 +93,7 @@ export default function PortfolioSummary({
               </Text>
               <ChevronRight size={16} color="$uiNeutralSecondary" />
             </XStack>
-          ) : balanceUSD > 0n ? (
+          ) : collateralUSD > 0n ? (
             <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
               {t("{{rate}} APR", {
                 rate: (Number(averageRate) / 1e18).toLocaleString(language, {
