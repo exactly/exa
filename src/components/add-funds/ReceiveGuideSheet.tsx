@@ -10,10 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
 
-import useMarkets from "../../utils/useMarkets";
-import AssetLogo from "../shared/AssetLogo";
-import ChainLogo from "../shared/ChainLogo";
 import Checkbox from "../shared/Checkbox";
+import Conversion from "../shared/Conversion";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -42,7 +40,6 @@ export default function ReceiveGuideSheet({
   variant: "bridge" | "bridgeSwap" | "swap";
 }) {
   const { t } = useTranslation();
-  const { supportedAssets } = useMarkets();
   const [hide, setHide] = useState(false);
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const copy = {
@@ -101,43 +98,7 @@ export default function ReceiveGuideSheet({
             <Text subHeadline secondary>
               {copy.description}
             </Text>
-            <XStack
-              backgroundColor="backgroundStrong"
-              borderRadius="r3"
-              paddingVertical="s5"
-              paddingHorizontal="s3_5"
-              justifyContent="center"
-              alignItems="center"
-              gap="s3_5"
-            >
-              <View position="relative">
-                <AssetLogo symbol={symbol} width={48} height={48} />
-                <View position="absolute" bottom={-4} right={-4}>
-                  <ChainLogo chainId={chainId} size={24} borderRadius="r_0" />
-                </View>
-              </View>
-              <ArrowRight size={24} color="uiNeutralSecondary" />
-              <View position="relative">
-                {variant === "bridge" ? (
-                  <AssetLogo symbol={asset} width={48} height={48} />
-                ) : (
-                  <XStack>
-                    {supportedAssets.map((collateral, index) => (
-                      <XStack
-                        key={collateral}
-                        marginRight={index < supportedAssets.length - 1 ? -16 : 0}
-                        zIndex={index}
-                      >
-                        <AssetLogo symbol={collateral} width={48} height={48} />
-                      </XStack>
-                    ))}
-                  </XStack>
-                )}
-                <View position="absolute" bottom={-4} right={-4}>
-                  <ChainLogo size={24} borderRadius="r_0" />
-                </View>
-              </View>
-            </XStack>
+            <Conversion symbol={symbol} chainId={chainId} target={variant === "bridge" ? asset : undefined} />
             <YStack gap="s4_5">
               <Step index={1} text={t("Once it arrives, go to your Portfolio.")} />
               <Step index={2} text={t("Find {{asset}} on {{network}} and select it.", { asset: symbol, network })} />
