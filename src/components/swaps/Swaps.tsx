@@ -1317,7 +1317,7 @@ export default function Swaps() {
               tokens={selectableTokens}
               networks={tokenSelectionType === "to" && stocks ? undefined : networks}
               onStocks={
-                tokenSelectionType === "to" && tabs
+                tokenSelectionType === "to" && tabs && !stocks
                   ? () => {
                       changeMode("stocks");
                     }

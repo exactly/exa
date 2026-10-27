@@ -143,7 +143,7 @@ export default function TokenSelectModal({
   const marketAssets = useMemo(() => new Set((markets ?? []).map(({ asset }) => `${chain.id}:${asset}`)), [markets]);
 
   const hasStocks = useMemo(
-    () => (!!onStocks || tokens.some((token) => isStock(token))) && !tokens.every((token) => isStock(token)),
+    () => !!onStocks || new Set(tokens.map((token) => isStock(token))).size > 1,
     [onStocks, tokens],
   );
   const filter = (selection === "stocks" ? hasStocks : networks.some(({ id }) => id === selection))
