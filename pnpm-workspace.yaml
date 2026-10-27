@@ -190,11 +190,13 @@ packages:
 patchedDependencies:
   "@lifi/sdk": patches/@lifi__sdk.patch
   "@pimlico/alto": patches/@pimlico__alto.patch
+  "@ponder/utils": patches/@ponder__utils.patch
   "@tamagui/animations-reanimated": patches/@tamagui__animations-reanimated.patch
   "@tamagui/sheet": patches/@tamagui__sheet.patch
   "@tamagui/slider": patches/@tamagui__slider.patch
   embedded-postgres: patches/embedded-postgres.patch
   eslint-config-universe: patches/eslint-config-universe.patch
+  ponder: patches/ponder.patch
   prool@0.2.17: patches/prool@0.2.17.patch
   react-native-wagmi-charts: patches/react-native-wagmi-charts.patch
 peerDependencyRules:

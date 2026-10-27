@@ -337,11 +337,13 @@ overrides:
 patchedDependencies:
   '@lifi/sdk': ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
   '@pimlico/alto': d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276
+  '@ponder/utils': eba45300a1358c73f4ad6622fa7fe038ed3d927179938c14d3988419b4522d42
   '@tamagui/animations-reanimated': cd61cc707eec5fb9b3fbfd9455989aba00e06e7d01f92cbb837c57eb847c53be
   '@tamagui/sheet': a8ddebfbd87169750323e5d05ed2fdd10700a4be6254fdbd9e5886cab1fd3807
   '@tamagui/slider': f38866487df195abff821b17cfaa71e7213d90da6b8a07b0dd742d04b4d3f570
   embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
   eslint-config-universe: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
+  ponder: 24f7f230c6a9ef959e0a61796b7a2f18c861666ff92e0474b791cd0d33c22206
   prool@0.2.17: c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f
   react-native-wagmi-charts: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
 
@@ -1011,7 +1013,7 @@ importers:
         version: 4.13.13
       ponder:
         specifier: ^0.18.2
-        version: 0.18.3(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
+        version: 0.18.3(patch_hash=24f7f230c6a9ef959e0a61796b7a2f18c861666ff92e0474b791cd0d33c22206)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
       viem:
         specifier: 'catalog:'
         version: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
@@ -21516,7 +21518,7 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@ponder/utils@0.3.0(typescript@5.9.3)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))':
+  '@ponder/utils@0.3.0(patch_hash=eba45300a1358c73f4ad6622fa7fe038ed3d927179938c14d3988419b4522d42)(typescript@5.9.3)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))':
     dependencies:
       viem: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
     optionalDependencies:
@@ -32121,7 +32123,7 @@ snapshots:
       path-data-parser: 0.1.0
       points-on-curve: 0.2.0
 
-  ponder@0.18.3(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7):
+  ponder@0.18.3(patch_hash=24f7f230c6a9ef959e0a61796b7a2f18c861666ff92e0474b791cd0d33c22206)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@commander-js/extra-typings': 12.1.0(commander@12.1.0)
@@ -32130,7 +32132,7 @@ snapshots:
       '@escape.tech/graphql-armor-max-depth': 2.4.2
       '@escape.tech/graphql-armor-max-tokens': 2.5.1
       '@hono/node-server': 2.1.5(hono@4.13.13)
-      '@ponder/utils': 0.3.0(typescript@5.9.3)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
+      '@ponder/utils': 0.3.0(patch_hash=eba45300a1358c73f4ad6622fa7fe038ed3d927179938c14d3988419b4522d42)(typescript@5.9.3)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
       abitype: 0.10.3(typescript@5.9.3)(zod@4.6.7)
       ansi-escapes: 7.3.0
       commander: 12.1.0
