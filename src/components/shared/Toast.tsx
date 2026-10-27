@@ -21,9 +21,7 @@ export default function NotificationToast() {
       enterStyle={{ opacity: 0, scale: 0.5, y: -25 }}
       exitStyle={{ opacity: 0, scale: 1, y: -20 }}
       backgroundColor="$backgroundSoft"
-      borderColor={
-        type === "success" ? "$borderSuccessSoft" : type === "error" ? "$borderErrorSoft" : "$borderInformationSoft"
-      }
+      borderColor={{ success: "$borderSuccessSoft", error: "$borderErrorSoft", info: "$borderInformationSoft" }[type]}
       borderWidth={1}
       opacity={1}
       scale={1}
@@ -38,27 +36,25 @@ export default function NotificationToast() {
           justifyContent="center"
           alignItems="center"
           backgroundColor={
-            type === "success"
-              ? "$interactiveBaseSuccessSoftDefault"
-              : type === "error"
-                ? "$interactiveBaseErrorSoftDefault"
-                : "$interactiveBaseInformationSoftDefault"
+            {
+              success: "$interactiveBaseSuccessSoftDefault",
+              error: "$interactiveBaseErrorSoftDefault",
+              info: "$interactiveBaseInformationSoftDefault",
+            }[type]
           }
           borderTopLeftRadius="$r3"
           borderBottomLeftRadius="$r3"
         >
           <InfoIcon
             size={24}
-            color={
-              type === "success" ? "$uiSuccessSecondary" : type === "error" ? "$uiErrorSecondary" : "$uiInfoSecondary"
-            }
+            color={{ success: "$uiSuccessSecondary", error: "$uiErrorSecondary", info: "$uiInfoSecondary" }[type]}
           />
         </View>
         <View padding="$s4">
           <Toast.Title>
             <Text
               footnote
-              color={type === "success" ? "$uiSuccessPrimary" : type === "error" ? "$uiErrorPrimary" : "$uiInfoPrimary"}
+              color={{ success: "$uiSuccessPrimary", error: "$uiErrorPrimary", info: "$uiInfoPrimary" }[type]}
             >
               {toast.title}
             </Text>
