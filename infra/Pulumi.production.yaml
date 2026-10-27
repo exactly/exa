@@ -3,5 +3,6 @@ config:
   gcp:project: eexxxaa
   exa:domain: web.exactly.app
   exa:pokeMinimum: 1
+  exa:sponsorMinimum: 1
   exa:subscribeTimeout: 900s
   exa:whatsappPhoneNumberId: "1287864854409817"
