@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import { ForkTest } from "./Fork.t.sol";
 
+import { Test } from "forge-std/Test.sol";
+
 import { EntryPoint } from "account-abstraction/core/EntryPoint.sol";
 
 import { IPlugin } from "modular-account-libs/interfaces/IPlugin.sol";
@@ -126,6 +128,22 @@ contract ExaAccountFactoryTest is ForkTest {
   function _sorted(address[] memory owners) internal pure returns (address[] memory) {
     return owners;
   }
+}
+
+contract ExaAccountFactoryVersionTest is Test {
+  // solhint-disable func-name-mixedcase
+
+  function test_deployParameters_defaultsFactoryVersionToPluginVersion() external {
+    address plugin = makeAddr("ExaPlugin");
+    vm.etch(plugin, vm.getDeployedCode("ExaPlugin.sol:ExaPlugin"));
+    assertEq(
+      vm.parseJsonString(vm.readFile("deploy.json"), ".factory.version.default"),
+      IPlugin(plugin).pluginMetadata().version,
+      "default factory version != plugin version"
+    );
+  }
+
+  // solhint-enable func-name-mixedcase
 }
 
 contract MockERC4626 is ERC4626 {
