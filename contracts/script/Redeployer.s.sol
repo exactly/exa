@@ -254,12 +254,15 @@ contract Redeployer is BaseScript {
 
   /// @notice Upgrades all factory proxies and deploys versioned factories via CREATE3.
   function deployExaFactories() external {
-    this.deployExaFactory(0x8D493AF799162Ac3f273e8918B2842447f702163);
-    this.deployExaFactory(0x6E1b5A67adD32E8dC034c23b8022b54821ED297b);
-    this.deployExaFactory(0x3427a595eD6E05Cc2D8115e28BAd151cB879616e);
-    this.deployExaFactory(0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668);
-    this.deployExaFactory("1.0.0");
-    this.deployExaFactory("1.1.0");
+    string memory deploy = vm.readFile("deploy.json"); // forge-lint: disable-line(unsafe-cheatcode)
+    address[] memory proxies = vm.parseJsonAddressArray(deploy, ".factory.legacy");
+    for (uint256 i = 0; i < proxies.length; ++i) {
+      this.deployExaFactory(proxies[i]);
+    }
+    string[] memory versions = vm.parseJsonStringArray(deploy, ".factory.versions");
+    for (uint256 i = 0; i < versions.length; ++i) {
+      this.deployExaFactory(versions[i]);
+    }
   }
 
   /// @notice Finds the nonce at which `account` would deploy to `target` via CREATE.
