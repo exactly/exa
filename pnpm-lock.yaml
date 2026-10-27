@@ -342,6 +342,7 @@ patchedDependencies:
   '@tamagui/slider': f38866487df195abff821b17cfaa71e7213d90da6b8a07b0dd742d04b4d3f570
   embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
   eslint-config-universe: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
+  ponder: efa1f0d667126395cb67cec66c8b5a6d858635677cd265241fa8b486a5d1c906
   react-native-wagmi-charts: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
 
 importers:
@@ -1013,7 +1014,7 @@ importers:
         version: 4.13.13
       ponder:
         specifier: ^0.18.2
-        version: 0.18.3(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
+        version: 0.18.3(patch_hash=efa1f0d667126395cb67cec66c8b5a6d858635677cd265241fa8b486a5d1c906)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
       viem:
         specifier: 'catalog:'
         version: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
@@ -32404,7 +32405,7 @@ snapshots:
       path-data-parser: 0.1.0
       points-on-curve: 0.2.0
 
-  ponder@0.18.3(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7):
+  ponder@0.18.3(patch_hash=efa1f0d667126395cb67cec66c8b5a6d858635677cd265241fa8b486a5d1c906)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@commander-js/extra-typings': 12.1.0(commander@12.1.0)

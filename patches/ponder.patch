@@ -1,0 +1,51 @@
+diff --git a/dist/esm/utils/queue.js b/dist/esm/utils/queue.js
+index bfd26a9763ce603e2c9da1e0a5490a8b948e6a71..c9e306653542ca17cfac036e78f6d3a761672d63 100644
+--- a/dist/esm/utils/queue.js
++++ b/dist/esm/utils/queue.js
+@@ -14,6 +14,10 @@ export const createQueue = ({ worker, initialStart = false, browser = true, ..._
+     validateParameters(_parameters);
+     const parameters = _parameters;
+     let queue = [];
++    // Note: `Array.prototype.shift` is O(n) on large arrays, so tasks are read
++    // by index, and the array is compacted once half of it has been read. This
++    // keeps `head` at 0 whenever `queue` is empty.
++    let head = 0;
+     let pending = 0;
+     let timestamp = 0;
+     let requests = 0;
+@@ -38,7 +42,11 @@ export const createQueue = ({ worker, initialStart = false, browser = true, ..._
+                 ? pending < parameters.concurrency
+                 : true) &&
+             queue.length > 0) {
+-            const { task, resolve, reject } = queue.shift();
++            const { task, resolve, reject } = queue[head++];
++            if (head * 2 >= queue.length) {
++                queue = queue.slice(head);
++                head = 0;
++            }
+             requests++;
+             pending++;
+             worker(task)
+@@ -69,7 +77,7 @@ export const createQueue = ({ worker, initialStart = false, browser = true, ..._
+         }
+     };
+     return {
+-        size: () => queue.length,
++        size: () => queue.length - head,
+         pending: () => {
+             if (browser) {
+                 return new Promise((resolve) => setTimeout(() => resolve(pending)));
+@@ -86,11 +94,12 @@ export const createQueue = ({ worker, initialStart = false, browser = true, ..._
+         },
+         clear: (callback) => {
+             if (callback) {
+-                for (const e of queue) {
++                for (const e of queue.slice(head)) {
+                     callback(e);
+                 }
+             }
+             queue = [];
++            head = 0;
+             clearTimeout(timer);
+             timer = undefined;
+         },
