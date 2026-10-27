@@ -75,7 +75,7 @@ const selected = await automation.LocalWorkspace.selectStack(
       const federation = new iam.WorkloadIdentityPoolProvider(
         "github",
         {
-          attributeCondition: `assertion.job_workflow_ref.startsWith('exactly/exa/.github/workflows/server-deploy.yaml@') && assertion.repository_id == '715321557' && assertion.repository_owner_id == '83888950'`,
+          attributeCondition: `assertion.job_workflow_ref == 'exactly/exa/.github/workflows/server-deploy.yaml@' + assertion.ref && (assertion.environment == 'production' ? assertion.ref.startsWith('refs/tags/@exactly/server@') : assertion.ref == 'refs/heads/' + assertion.environment) && assertion.repository_id == '715321557' && assertion.repository_owner_id == '83888950'`,
           attributeMapping: { "attribute.environment": "assertion.environment", "google.subject": "assertion.sub" },
           oidc: { issuerUri: "https://token.actions.githubusercontent.com" },
           workloadIdentityPoolId: pool.workloadIdentityPoolId,
