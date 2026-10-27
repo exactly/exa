@@ -1,17 +1,16 @@
 import React, { type ReactNode } from "react";
 
-import { Info } from "@tamagui/lucide-icons-2/icons/Info";
-import { XStack, YStack } from "tamagui";
+import { YStack } from "tamagui";
 
 import Text from "../shared/Text";
 
 export default function AssetSection({
   children,
-  onInfoPress,
+  description,
   title,
 }: {
   children: ReactNode;
-  onInfoPress: () => void;
+  description: string;
   title?: string;
 }) {
   return (
@@ -22,12 +21,14 @@ export default function AssetSection({
       transform="translateY(0px) enter:translateY(20px)"
     >
       {title ? (
-        <XStack padding="s4" alignItems="center" gap="s2" cursor="pointer" onPress={onInfoPress}>
+        <YStack padding="s4" gap="s2">
           <Text emphasized headline color="uiNeutralPrimary">
             {title}
           </Text>
-          <Info size={16} color="interactiveOnBaseBrandSoft" />
-        </XStack>
+          <Text footnote secondary>
+            {description}
+          </Text>
+        </YStack>
       ) : null}
       <YStack paddingHorizontal="s4" paddingTop="s4" paddingBottom="s4_5" gap="s6">
         {children}
