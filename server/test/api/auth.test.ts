@@ -21,7 +21,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished,
 
 import deriveAddress, * as derive from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress, factories } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import authentication, { Authentication } from "../../api/auth/authentication";
@@ -37,7 +37,6 @@ import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
-import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
 
 import type createSubscribe from "../../workers/subscribe/queue";
@@ -1060,7 +1059,7 @@ describe("authentication", () => {
 
   it("creates a credential with factory using siwe", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
-    const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
+    const factory = factories.versions.find((f) => f !== exaAccountFactoryAddress);
     assert.ok(factory);
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-factory")), 12)));
     const response = await appClient.index.$post(
@@ -1095,7 +1094,7 @@ describe("authentication", () => {
   });
 
   it("signs in when another backend creates the siwe credential first", async () => {
-    const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
+    const factory = factories.versions.find((f) => f !== exaAccountFactoryAddress);
     assert.ok(factory);
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-race")), 12)));
     const publicKey = new Uint8Array(hexToBytes(id));
@@ -1265,7 +1264,7 @@ describe("authentication", () => {
   });
 
   it("returns 400 if factory mismatches existing credential", async () => {
-    const factory = [...validFactories].find((f) => f !== parse(Address, exaAccountFactoryAddress));
+    const factory = factories.versions.find((f) => f !== parse(Address, exaAccountFactoryAddress));
     assert.ok(factory);
     const response = await appClient.index.$post(
       {
@@ -1354,6 +1353,18 @@ describe("registration", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "no registration" }));
+  });
+
+  it("returns 400 for unlisted factory without consuming the challenge", async () => {
+    const response = await registrationAppClient.index.$post(
+      { json: registrationWebauthnAssertion(), query: { factory: getAddress(padHex("0xdead", { size: 20 })) } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toStrictEqual({ code: "bad factory" });
+    await expect(redis.get("session:test-session")).resolves.toBe("test-challenge");
+    expect(verifyRegistrationResponse).not.toHaveBeenCalled();
   });
 
   it("returns 400 without consuming keys outside the session namespace", async () => {
@@ -1583,7 +1594,7 @@ describe("registration", () => {
   it("rejects siwe registration of a second account in the same tenant", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const factory = parse(Address, exaAccountFactoryAddress);
-    const other = [...validFactories].find((f) => f !== factory);
+    const other = factories.versions.find((f) => f !== factory);
     assert.ok(other);
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-second-factory")), 12)));
     const publicKey = new Uint8Array(hexToBytes(id));
