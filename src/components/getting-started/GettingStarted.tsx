@@ -58,7 +58,7 @@ export default function GettingStarted() {
           </View>
         </View>
         <ScrollView flex={1} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-          {isFetched && !error && currentStep && <CurrentStep id={currentStep.id} />}
+          {isFetched && !error && currentStep && <CurrentStep id={currentStep.id} approved={kyc === "approved"} />}
           <YStack backgroundColor="$backgroundSoft" paddingHorizontal="$s5" paddingVertical="$s7" gap="$s6" flex={1}>
             <YStack gap="$s4">
               <Text emphasized headline primary>
@@ -72,7 +72,7 @@ export default function GettingStarted() {
               {steps.map(({ id, status, title }) => (
                 <Step
                   key={id}
-                  title={t(title)}
+                  title={t(title, { chain: chain.name })}
                   status={status}
                   tag={
                     status === "review" ? t("IN REVIEW") : status === "failed" ? t("VERIFICATION FAILED") : undefined
@@ -94,7 +94,12 @@ export default function GettingStarted() {
                   })}
                   {...(id === "add-funds" && {
                     icon: <ArrowDownToLine size={20} strokeWidth={2} color="$uiBrandSecondary" />,
-                    description: t("Your funds serve as collateral to increase your spending limits."),
+                    description:
+                      kyc === "approved"
+                        ? t("Transfer from your bank, or deposit digital assets on {{chain}}.", { chain: chain.name })
+                        : t(
+                            "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
+                          ),
                     action: t("Learn more about collateral"),
                     onPress: () => {
                       presentArticle("8950805").catch(reportError);
@@ -110,7 +115,7 @@ export default function GettingStarted() {
   );
 }
 
-function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-identity" }) {
+function CurrentStep({ id, approved }: { approved: boolean; id: "add-funds" | "create-account" | "verify-identity" }) {
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToastController();
@@ -127,15 +132,24 @@ function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-iden
           )}
         </XStack>
         <Text emphasized title3 color="$uiBrandSecondary">
-          {addFunds ? t("Add funds to your account") : t("Verify your identity")}
+          {addFunds
+            ? approved
+              ? t("Add funds to activate your Exa Card")
+              : t("Add funds on {{chain}}", { chain: chain.name })
+            : t("Verify your identity")}
         </Text>
       </YStack>
       <YStack>
         <Text subHeadline color="$uiNeutralSecondary">
           {addFunds
-            ? t(
-                "Your funds serve as collateral, increasing your spending limits. The more funds you add, the more you can spend with the Exa Card.",
-              )
+            ? approved
+              ? t(
+                  "Bank transfers arrive as USDC automatically. Digital assets need to be sent on {{chain}}. Deposits on other networks won’t count until they’re bridged.",
+                  { chain: chain.name },
+                )
+              : t(
+                  "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
+                )
             : t(
                 "Verifying your identity grants you access to our onchain Exa Card, enabling you to easily spend your crypto.",
               )}

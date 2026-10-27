@@ -65,7 +65,7 @@ export default function Step({
       gap="$s3_5"
     >
       {icon}
-      <YStack gap="$s4_5" flex={1}>
+      <YStack gap="$s4_5" flexGrow={1} flexBasis={0}>
         {tag && (
           <XStack
             alignSelf="flex-start"

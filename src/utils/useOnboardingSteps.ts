@@ -14,7 +14,11 @@ export default function useOnboardingSteps({ kyc, isDeployed }: { isDeployed: bo
       {
         id: "add-funds",
         status: isDeployed ? "completed" : "pending",
-        title: isDeployed ? "Funds added" : "Add funds to your account",
+        title: isDeployed
+          ? "Funds added"
+          : kyc === "approved"
+            ? "Add funds to activate your Exa Card"
+            : "Add funds on {{chain}}",
       },
     ] as const;
     return [...steps].sort((a, b) => precedence[a.status] - precedence[b.status]);
