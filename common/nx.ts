@@ -35,6 +35,10 @@ export async function preTasksExecution(_: unknown, { argv, workspaceRoot }: Pre
   const tests = targets.filter((target) => /^(?:test|e2e)(?::|$)/.test(target)).length;
   if (tests && tests < targets.length) throw new Error(`mixed test and non-test targets: ${targets.join(", ")}`);
   if (tests) process.env.CHAIN_ID = String(anvil.id);
+  if (targets.some((target) => /^e2e(?::|$)/.test(target))) {
+    process.env.APP_DOMAIN ??= "localhost";
+    process.env.EXPO_PUBLIC_ENV ??= "e2e";
+  }
 
   function one(args: Record<string, unknown>) {
     targets.push(

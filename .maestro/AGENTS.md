@@ -101,7 +101,7 @@
 - **local runs**: start a fresh stack for each leg, since a used one fails on mints and greetings, then run the leg's line from the `e2e` job, with the camera flags on legs that have a feed:
 
   ```sh
-  CI=true NX_DAEMON=false CHAIN_ID=31337 APP_DOMAIN=localhost EXPO_PUBLIC_ENV=e2e pnpm nx e2e:web:release mobile
+  CI=true NX_DAEMON=false pnpm nx e2e:web:release mobile
   .maestro/build/bin/maestro test .maestro/flows/transfer.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size 760x600 --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/.maestro/generated/transfer.y4m
   ```
 

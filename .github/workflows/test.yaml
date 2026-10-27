@@ -116,7 +116,6 @@ jobs:
       NX_DAEMON: false
       NX_MAX_CACHE_SIZE: 1GB
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
-      CHAIN_ID: "31337"
       METAMASK_VERSION: 13.52.0
     steps:
       - uses: actions/checkout@v7
@@ -159,7 +158,6 @@ jobs:
       - if: hashFiles(format('.maestro/generated/{0}.y4m', matrix.flow)) != ''
         run: echo CAMERA=$PWD/.maestro/generated/${{ matrix.flow }}.y4m >> "$GITHUB_ENV"
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 & echo $! > server.pid
-        env: { APP_DOMAIN: localhost, EXPO_PUBLIC_ENV: e2e }
       - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e && echo "$PWD/.maestro/build/bin" >> "$GITHUB_PATH"
       - if: matrix.method == 'metamask'
         id: metamask

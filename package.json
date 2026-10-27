@@ -489,11 +489,7 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "expo run:android",
-          "env": {
-            "APP_DOMAIN": "localhost",
-            "EXPO_PUBLIC_ENV": "e2e"
-          }
+          "command": "expo run:android"
         }
       },
       "e2e:ios": {
@@ -516,11 +512,7 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "expo run:ios",
-          "env": {
-            "APP_DOMAIN": "localhost",
-            "EXPO_PUBLIC_ENV": "e2e"
-          }
+          "command": "expo run:ios"
         }
       },
       "e2e:ios:release": {
@@ -569,11 +561,7 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "expo start",
-          "env": {
-            "APP_DOMAIN": "localhost",
-            "EXPO_PUBLIC_ENV": "e2e"
-          }
+          "command": "expo start"
         }
       },
       "e2e:web:release": {
