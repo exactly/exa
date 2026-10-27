@@ -251,6 +251,12 @@ queryClient.setQueryDefaults<boolean>(["settings", "stocks-tab-seen"], {
   gcTime: Infinity,
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
+queryClient.setQueryDefaults<string[]>(["settings", "arrivals"], {
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: ({ queryKey }) => queryClient.getQueryData<string[]>(queryKey) ?? [],
+});
 queryClient.setQueryDefaults(["settings", "bridge-needed-shown"], {
   initialData: false,
   retry: false,

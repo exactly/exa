@@ -189,6 +189,10 @@ export function marketOpen() {
 
 export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
 
+export function isRestricted(country: string | undefined, token: { address: string; chainId: number }) {
+  return restrictedCountries.has(country ?? "") && isStock(token);
+}
+
 export function balancesOptions(account: Address | undefined) {
   return queryOptions({
     queryKey: ["lifi", "balances", account],

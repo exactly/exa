@@ -65,6 +65,7 @@ import {
   classify,
   getAllowTokens,
   getRouteFrom,
+  isRestricted,
   isStock,
   lifiChainsOptions,
   lifiTokensOptions,
@@ -336,7 +337,7 @@ export default function Swaps() {
     toToken,
   ]);
 
-  const locked = !fromToken || !toToken || (restricted && isStock(fromToken.token));
+  const locked = !fromToken || !toToken || isRestricted(country, fromToken.token);
   const processing = chain.id === base.id && isKYCInReview;
   const failed = chain.id === base.id && isKYCFailed;
 
@@ -375,7 +376,7 @@ export default function Swaps() {
         tokenSelectionType === "to"
           ? { token: selected, external }
           : sameToken(selected, toToken?.token)
-            ? fromToken && restricted && isStock(fromToken.token)
+            ? fromToken && isRestricted(country, fromToken.token)
               ? undefined
               : fromToken
             : toToken,

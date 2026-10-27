@@ -24,11 +24,11 @@ import deployedOptions from "../../utils/deployedOptions";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { presentArticle } from "../../utils/intercom";
 import {
+  isRestricted,
   isSendable,
   isStock,
   lifiTokensOptions,
   marketOpen,
-  restrictedCountries,
   statsOptions,
   stockAbi,
   swappable,
@@ -182,7 +182,7 @@ export default function Asset() {
           {(chainId === chain.id || (alchemyChains.get(chainId)?.smartAccount && factory === true)) && (
             <XStack gap="s3">
               {[
-                ...(!token || (stock && restrictedCountries.has(country ?? ""))
+                ...(!token || isRestricted(country, token)
                   ? []
                   : [
                       {
