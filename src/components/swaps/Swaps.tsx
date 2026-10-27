@@ -201,7 +201,7 @@ export default function Swaps() {
           deployedFactories: new Set(
             allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true),
           ),
-          isBaseLoading: !!result?.isFetching && result.data !== true,
+          isBaseLoading: !!result?.isLoading,
         };
       },
       [allowedChains],
