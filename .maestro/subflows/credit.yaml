@@ -3,7 +3,18 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: borrow.yaml
     env: { amount: "69", installments: "4" }
+- tapOn: Go to Requests
+- assertVisible: Protocol borrow
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}", count: "4", amount: "69", receiver: "${output.account}" }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- tapOn: Close
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
 - runFlow: rollover.yaml
+- tapOn: Payments
 - runFlow: { file: repay.yaml, env: { amount: "13", sheet: "true" } }
 - runFlow: { file: repay.yaml, env: { market: ETH } }
 - runFlow: assertPayments.yaml
