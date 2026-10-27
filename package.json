@@ -453,10 +453,7 @@
             "target": "build"
           }
         ],
-        "executor": "nx:run-commands",
-        "options": {
-          "command": "pnpm dlx serve server/app -l 8081 -snL"
-        }
+        "executor": "nx:noop"
       },
       "test:spell": {
         "dependsOn": []
