@@ -398,11 +398,17 @@
             "target": "git:unshallow"
           }
         ],
-        "inputs": [],
+        "inputs": [
+          {
+            "runtime": "git describe --tags --abbrev=7 --match '@exactly/mobile@*'"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*"
+          }
+        ],
         "outputs": [
           "{projectRoot}/src/generated/release.js"
-        ],
-        "cache": false
+        ]
       },
       "generate:version": {
         "dependsOn": [
@@ -412,11 +418,17 @@
             "target": "git:unshallow"
           }
         ],
-        "inputs": [],
+        "inputs": [
+          {
+            "runtime": "git rev-list --count HEAD"
+          },
+          {
+            "dependentTasksOutputFiles": "**/*"
+          }
+        ],
         "outputs": [
           "{projectRoot}/src/generated/versionCode.js"
-        ],
-        "cache": false
+        ]
       },
       "build": {
         "dependsOn": [
