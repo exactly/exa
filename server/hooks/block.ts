@@ -45,6 +45,7 @@ import chain, {
   exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  factories,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
@@ -67,7 +68,6 @@ import pay from "../utils/ramps/pay";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
-import validFactories from "../utils/validFactories";
 import createWallet from "../utils/wallet";
 
 import type * as schema from "../database/schema";
@@ -810,7 +810,7 @@ async function initializedAccounts(accounts: string[], blockNumber?: number) {
     throw new Error("rpc behind block");
   }
   const logs = await publicClient.getLogs({
-    address: [...validFactories],
+    address: [...factories.versions],
     event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
     args: { account: accounts.map((account) => v.parse(Address, account)) },
     toBlock: toBlock ?? "latest",
@@ -823,7 +823,7 @@ async function initializedAccounts(accounts: string[], blockNumber?: number) {
 function discoverEmitters(chainId: number) {
   const legacy = legacyEmitters[chainId] ?? { factories: [], plugins: [] };
   return Promise.all(
-    [...validFactories, ...legacy.factories].map((factory) =>
+    [...factories.versions, ...legacy.factories].map((factory) =>
       publicClient
         .readContract({ address: factory, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" })
         .catch(unlessReverted),
