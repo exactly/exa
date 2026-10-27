@@ -231,9 +231,28 @@ const selected = await automation.LocalWorkspace.selectStack(
           },
           { dependsOn: service, provider },
         );
+        const logging = new projects.IAMCustomRole(
+          `${project}-logging`,
+          {
+            permissions: ["logMetrics", "notificationRules"].flatMap((resource) =>
+              ["create", "delete", "get", "update"].map((permission) => `logging.${resource}.${permission}`),
+            ),
+            roleId: "pulumiLogging",
+            title: "pulumi logging",
+          },
+          { dependsOn: service, provider },
+        );
         const preview = new projects.IAMCustomRole(
           `${project}-preview`,
-          { permissions: ["iam.serviceAccounts.get"], roleId: "pulumiPreview", title: "pulumi preview" },
+          {
+            permissions: [
+              "iam.serviceAccounts.get",
+              "monitoring.notificationChannels.get",
+              "monitoring.notificationChannels.list",
+            ],
+            roleId: "pulumiPreview",
+            title: "pulumi preview",
+          },
           { dependsOn: service, provider },
         );
         for (const stack of projectStacks.filter(({ name }) => name === target.name)) {
@@ -259,6 +278,7 @@ const selected = await automation.LocalWorkspace.selectStack(
           const cremaSecrets: readonly string[] = modules.crema;
           for (const secret of new Set([
             ...cremaSecrets,
+            ...modules.indexer,
             ...Object.values(stack.services).flatMap((fields) => fields.secrets),
             ...Object.values(stack.workers).flatMap((worker) => worker.secrets),
           ])) {
@@ -307,6 +327,16 @@ const selected = await automation.LocalWorkspace.selectStack(
             },
             { provider },
           );
+          const indexer = new serviceaccount.Account(
+            `${stack.name}-indexer`,
+            { accountId: `${stack.name}-indexer` },
+            { dependsOn: service, provider },
+          );
+          new serviceaccount.IAMMember(
+            `${stack.name}-indexer`,
+            { member, role: "roles/iam.serviceAccountUser", serviceAccountId: indexer.name },
+            { provider },
+          );
           for (const name of Object.keys(stack.services)) {
             const identity = `${stack.name}-${name === "api" ? name : `${name}-hook`}`;
             const account = new serviceaccount.Account(
@@ -341,6 +371,8 @@ const selected = await automation.LocalWorkspace.selectStack(
           for (const [name, role] of [
             ["artifact-registry", "roles/artifactregistry.editor"],
             ["compute-network", "roles/compute.networkAdmin"],
+            ["monitoring-alerts", "roles/monitoring.alertPolicyEditor"],
+            ["monitoring-channels", "roles/monitoring.notificationChannelViewer"],
             ["run", "roles/run.developer"],
             ["service-usage", "roles/serviceusage.serviceUsageAdmin"],
           ] as const) {
@@ -387,6 +419,7 @@ const selected = await automation.LocalWorkspace.selectStack(
           );
           new projects.IAMMember(`${stack.name}-parameters`, { member, project, role: parameters.name }, { provider });
           new projects.IAMMember(`${stack.name}-services`, { member, project, role: services.name }, { provider });
+          new projects.IAMMember(`${stack.name}-logging`, { member, project, role: logging.name }, { provider });
           new projects.IAMMember(
             `${stack.name}-worker-pools`,
             { member, project, role: workerPools.name },
