@@ -23,14 +23,13 @@ import { entryPoint06Address, entryPoint07Address } from "viem/account-abstracti
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain, { alchemyChains } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, factories } from "@exactly/common/generated/chain";
 import tenants from "@exactly/common/tenants";
 import { Address, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import publicClient, { captureRequests, Requests } from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
-import validFactories from "../utils/validFactories";
 
 import type * as schema from "../database/schema";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -164,7 +163,7 @@ export default function hook({
               eq(credentials.id, sender),
               inArray(credentials.account, [
                 sender,
-                ...[...validFactories].flatMap((factory) =>
+                ...[...factories.versions, ...factories.legacy].flatMap((factory) =>
                   salts.map((salt) => deriveAddress(factory, { x: padHex(sender), y: zeroHash, salt })),
                 ),
               ]),
