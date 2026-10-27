@@ -9,13 +9,12 @@ import { anvil, gnosis, moonbeamDev } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAddress, factories } from "@exactly/common/generated/chain";
 import { business } from "@exactly/common/tenants";
 
 import database, { credentials } from "../../database";
 import createSponsorHook from "../../hooks/sponsor";
 import publicClient from "../../utils/publicClient";
-import validFactories from "../../utils/validFactories";
 
 import type * as sentry from "@sentry/node";
 
@@ -31,7 +30,7 @@ describe("sponsor hook", () => {
   const tenant = privateKeyToAddress(padHex("0x590a"));
   const tenantAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(tenant), y: zeroHash, salt: business });
   const legacy = privateKeyToAddress(padHex("0x590b"));
-  const legacyFactory = [...validFactories].find((factory) => factory !== exaAccountFactoryAddress) ?? zeroAddress;
+  const legacyFactory = factories.versions.find((factory) => factory !== exaAccountFactoryAddress) ?? zeroAddress;
   const legacyAccount = deriveAddress(legacyFactory, { x: padHex(legacy), y: zeroHash });
   let spans: Map<string, Record<string, unknown>>;
 
