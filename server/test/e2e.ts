@@ -193,6 +193,11 @@ describe("e2e", () => {
       expect(related.status).toBe(200);
       expect(related.headers.get("content-type")).toBe("application/json");
       await expect(related.json()).resolves.toStrictEqual({ origins: [...origins.slice(1), appOrigin] });
+      const missing = await app.request("/missing");
+      const page = await app.request("/+not-found.html");
+      expect(missing.status).toBe(404);
+      expect(missing.headers.get("content-type")).toBe(page.headers.get("content-type"));
+      await expect(missing.text()).resolves.toBe(await page.text());
       for (const origin of origins) {
         const response = await app.request(`${origin}/api/auth/get-session`, { headers: { origin } });
         expect(response.status).toBe(200);

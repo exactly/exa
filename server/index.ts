@@ -411,6 +411,10 @@ frontend.use(
   }),
 );
 app.route("/", frontend);
+app.notFound(async () => {
+  const page = await frontend.request("/+not-found.html");
+  return new Response(page.body, { status: 404, headers: page.headers });
+});
 
 export default app;
 
