@@ -25,6 +25,7 @@ const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
   allow: vi.fn<(bullmq: object) => typeof allow>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
+  closeSecrets: vi.fn<() => Promise<void>>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<(config: Record<string, unknown>) => Handle>(),
   manteca: vi.fn<(key: string, url: string) => object>(),
@@ -51,6 +52,8 @@ beforeEach(() => {
   mocks.alchemy.mockReset().mockReturnValue(alchemy);
   mocks.allow.mockReset().mockReturnValue(allow);
   mocks.bridge.mockReset().mockReturnValue(bridge);
+  mocks.closeSecrets.mockReset().mockResolvedValue();
+  database.$client.end.mockReset().mockResolvedValue();
   mocks.drizzle.mockReset().mockReturnValue(database);
   mocks.hook.mockReset().mockReturnValue({
     app: new Hono().get("/", (c) => c.json({ status: "ok" })),
@@ -70,6 +73,11 @@ beforeEach(() => {
   mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(name === "issuer" ? issuer : account));
   mocks.supervise.mockReset();
   mocks.webhook.mockReset().mockReturnValue(webhook);
+  vi.doMock("@google-cloud/secret-manager", () => ({
+    SecretManagerServiceClient: class {
+      close = mocks.closeSecrets;
+    },
+  }));
   vi.doMock("drizzle-orm/node-postgres", () => ({ drizzle: mocks.drizzle }));
   vi.doMock("ioredis", () => ({
     Redis: class {
@@ -86,6 +94,7 @@ beforeEach(() => {
   vi.doMock("../../hooks/manteca", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/panda", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/persona", () => ({ default: mocks.hook }));
+  vi.doMock("../../hooks/sponsor", () => ({ default: mocks.hook }));
   vi.doMock("../../supervise", async (importOriginal) => ({
     ...(await importOriginal<typeof Supervise>()),
     default: mocks.supervise,
@@ -231,6 +240,13 @@ describe("hook bin", () => {
       name: "chat",
       secrets: ["redis-url", "chat-whatsapp-app-secret", "chat-whatsapp-verify-token"],
     },
+    {
+      accounts: [],
+      config: { database, token: "sponsor-token" },
+      load: () => import("../../hooks/bin/sponsor"),
+      name: "sponsor",
+      secrets: ["sponsor-postgres-url", "sponsor-token"],
+    },
   ])(
     "resolves config before constructing and supervising the $name hook",
     async ({ accounts, config, load, name, secrets }) => {
@@ -249,6 +265,17 @@ describe("hook bin", () => {
       expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith(name, created);
     },
   );
+
+  it("releases the database and secrets when the sponsor hook closes", async () => {
+    await import("../../hooks/bin/sponsor");
+    const handle = await mocks.supervise.mock.calls[0]?.[1];
+    if (!handle) throw new Error("missing sponsor hook");
+
+    await handle.close();
+
+    expect(database.$client.end).toHaveBeenCalledOnce();
+    expect(mocks.closeSecrets).toHaveBeenCalledOnce();
+  });
 
   it.each([
     { accounts: ["executor"], load: () => import("../../hooks/bin/block"), name: "block", role: "executor" },
