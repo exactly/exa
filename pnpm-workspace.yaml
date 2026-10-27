@@ -3,6 +3,7 @@ auditConfig:
     - GHSA-28wg-ghj8-5hjv
     - GHSA-2v37-7h3g-55p8
     - GHSA-395f-4hp3-45gv
+    - GHSA-44jh-23m7-hpcf # cspell:ignore hpcf
     - GHSA-4x5r-pxfx-6jf8 # cspell:ignore pxfx
     - GHSA-52cp-r559-cp3m
     - GHSA-5p4m-2wfm-xmqj # cspell:ignore xmqj
@@ -10,6 +11,7 @@ auditConfig:
     - GHSA-848j-6mx2-7j84
     - GHSA-866g-f22w-33x8
     - GHSA-86w9-cpqp-85rv # cspell:ignore cpqp
+    - GHSA-965c-763c-88jm
     - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
     - GHSA-h67p-54hq-rp68
     - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
@@ -17,6 +19,7 @@ auditConfig:
     - GHSA-mrhx-c7xc-m3w5 # cspell:ignore mrhx
     - GHSA-q84f-53jg-9ppm
     - GHSA-r28c-9q8g-f849
+    - GHSA-r4xp-prcw-77qf # cspell:ignore prcw
     - GHSA-rgw5-rvv9-x895
     - GHSA-vcc3-ghjq-m6fr # cspell:ignore ghjq
     - GHSA-vfj7-8cjw-p6xm
