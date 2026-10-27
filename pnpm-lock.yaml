@@ -1012,6 +1012,9 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.13
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
       ponder:
         specifier: ^0.18.2
         version: 0.18.3(patch_hash=efa1f0d667126395cb67cec66c8b5a6d858635677cd265241fa8b486a5d1c906)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.13)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
@@ -1022,6 +1025,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
       eslint:
         specifier: 'catalog:'
         version: 9.39.4

@@ -14,11 +14,13 @@
   "dependencies": {
     "@exactly/common": "workspace:^0.0.24",
     "hono": "catalog:",
+    "pg": "^8.20.0",
     "ponder": "^0.18.2",
     "viem": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
     "eslint": "catalog:",
     "eslint-config-universe": "^15.0.3",
     "typescript": "catalog:"
