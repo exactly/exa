@@ -7,6 +7,7 @@ export default define({
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["whatsapp-app-secret", "whatsapp-verify-token"],
     },
+    sponsor: { secrets: ["postgres-url", "token"] },
   },
   workers: {
     allow: { signers: ["allower"] },
