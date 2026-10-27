@@ -14,6 +14,11 @@ library JSON {
     return json.keyExists(chainKey) ? json.readAddress(chainKey) : json.readAddress(key.toDefault());
   }
 
+  function readChainAddressArray(string memory json, string memory key) internal view returns (address[] memory) {
+    string memory chainKey = key.toChain();
+    return json.keyExists(chainKey) ? json.readAddressArray(chainKey) : json.readAddressArray(key.toDefault());
+  }
+
   function readChainUint(string memory json, string memory key) internal view returns (uint256) {
     string memory chainKey = key.toChain();
     return json.keyExists(chainKey) ? json.readUint(chainKey) : json.readUint(key.toDefault());
