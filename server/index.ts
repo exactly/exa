@@ -278,6 +278,7 @@ frontend.use(
         "https://cdn.onesignal.com",
         "https://*.ingest.us.sentry.io",
         "https://raw.githubusercontent.com",
+        "https://fastly.jsdelivr.net",
         "https://reference-data-directory.vercel.app", // https://docs.chain.link/data-feeds/price-feeds/addresses
         // #region segment https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/website/javascript/faq#does-segment-support-using-strict-content-security-policy-csp-on-the-page
         "https://api.segment.io",
