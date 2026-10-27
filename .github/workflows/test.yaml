@@ -42,7 +42,7 @@ jobs:
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-
       - run: pip install -r contracts/requirements.txt
       - run: echo ::add-matcher::.github/matcher.json
-      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
+      - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: flock /tmp/apt.lock pnpm nx run-many -t test --parallel=$(git diff --quiet "${NX_KEY##*-}" HEAD -- nx.json package.json pnpm-lock.yaml && echo 3 || echo 5)
@@ -153,7 +153,7 @@ jobs:
           unzip -q $RUNNER_TEMP/brave.zip -d $RUNNER_TEMP/brave
           echo SE_BROWSER_PATH=$RUNNER_TEMP/brave/brave >> "$GITHUB_ENV"
       - run: echo ::add-matcher::.github/matcher.json
-      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
+      - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - if: hashFiles(format('.maestro/generated/{0}.y4m', matrix.flow)) != ''
