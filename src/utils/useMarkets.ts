@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 
 import { multicall3Abi, zeroAddress } from "viem";
-import { useReadContracts } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 
 import chain, {
+  appPreviewerAbi,
+  appPreviewerCode,
+  auditorAddress,
   marketAbi,
   marketUSDCAddress,
   previewerAbi,
@@ -39,11 +42,34 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     ],
     query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
   });
-  const markets = result.data?.[0];
+  const previews = useReadContract({
+    abi: appPreviewerAbi,
+    functionName: "markets",
+    code: appPreviewerCode,
+    args: [auditorAddress],
+    chainId: chain.id,
+    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
+  });
+  const accountMarkets = result.data?.[0];
+  const markets = useMemo(
+    () =>
+      accountMarkets &&
+      previews.data &&
+      accountMarkets.map((market) => ({
+        ...market,
+        isFrozen: previews.data.some(({ market: address, isFrozen }) => address === market.market && isFrozen),
+      })),
+    [accountMarkets, previews.data],
+  );
   const supportedAssets = useMemo(() => {
     if (!markets) return [];
-    const excluded = new Set(["USDC.e", "DAI", "WETH"]);
-    const symbols = new Set(markets.map((m) => m.symbol.slice(3)).filter((s) => !excluded.has(s)));
+    const excluded = new Set(["DAI", "WETH"]);
+    const symbols = new Set(
+      markets
+        .filter(({ isFrozen }) => !isFrozen)
+        .map((m) => m.symbol.slice(3))
+        .filter((s) => !excluded.has(s)),
+    );
     symbols.add("ETH");
     return [...symbols];
   }, [markets]);
@@ -58,12 +84,12 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     timestamp,
     firstMaturity: nextMaturity + MATURITY_INTERVAL * Number(nextMaturity - now < MIN_BORROW_INTERVAL),
     queryKey: result.queryKey,
-    refetch: result.refetch,
+    refetch: () => Promise.all([result.refetch(), previews.refetch()]),
     get isFetching() {
-      return result.isFetching;
+      return result.isFetching || previews.isFetching;
     },
     get isPending() {
-      return result.isPending;
+      return result.isPending || previews.isPending;
     },
   };
 }

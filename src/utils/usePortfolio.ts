@@ -116,7 +116,7 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
       return !markets.some(
         (m) =>
           m.asset === address &&
-          (m.symbol.slice(3) !== "USDC.e" ||
+          (!m.isFrozen ||
             (protocolAssets.some((a) => a.asset === address) &&
               !externalAssets.some((a) => a.address === address && (a.amount ?? 0n) > 0n))),
       );

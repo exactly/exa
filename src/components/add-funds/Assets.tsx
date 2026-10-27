@@ -35,9 +35,8 @@ export default function Assets() {
   const [moreShown, setMoreShown] = useState(false);
   const assets = useMemo(() => {
     if (!markets) return [];
-    const excluded = new Set(["USDC.e", "DAI"]);
     const available = markets
-      .filter((market) => !excluded.has(market.symbol.slice(3)))
+      .filter((market) => !market.isFrozen && market.symbol.slice(3) !== "DAI")
       .map((market) =>
         market.symbol.slice(3) === "WETH"
           ? { symbol: "ETH", name: "Ether" }

@@ -46,7 +46,7 @@ export default function AssetList({
             symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             usdValue: Number((market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
           }))
-          .filter((market) => market.symbol !== "USDC.e" || market.floatingDepositAssets > 0n)
+          .filter((market) => !market.isFrozen || market.floatingDepositAssets > 0n)
           .sort((a, b) => b.usdValue - a.usdValue)
           .map((market) => (
             <AssetRow
