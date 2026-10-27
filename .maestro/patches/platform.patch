@@ -1,4 +1,4 @@
-From 6ca2ac9a4293e8adc872494736c9722f768daec7 Mon Sep 17 00:00:00 2001
+From 87d1823372c7f7169be41674fe4b790fadee83c8 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Fri, 23 Oct 2026 22:08:13 +0000
 Subject: [PATCH] fix: run flows in the browser with --platform web
@@ -9,10 +9,10 @@ Maestro only lists the Chromium device when a flow's config has a url, so `maest
  1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt b/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
-index 064ff51..eab8bef 100644
+index 8f8f544..5b12978 100644
 --- a/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
 +++ b/maestro-cli/src/main/java/maestro/cli/command/TestCommand.kt
-@@ -241,6 +241,11 @@ class TestCommand : Callable<Int> {
+@@ -247,6 +247,11 @@ class TestCommand : Callable<Int> {
                 plan.sequence.flows.any { it.toFile().isWebFlow() }
      }
  
@@ -24,7 +24,7 @@ index 064ff51..eab8bef 100644
      internal fun allFlowsAreWebFlow(plan: ExecutionPlan): Boolean {
          if(plan.flowsToRun.isEmpty() && plan.sequence.flows.isEmpty()) return false
          return (plan.flowsToRun.all { it.toFile().isWebFlow() } && plan.sequence.flows.all { it.toFile().isWebFlow() })
-@@ -331,7 +336,7 @@ class TestCommand : Callable<Int> {
+@@ -337,7 +342,7 @@ class TestCommand : Callable<Int> {
       * Get the list of device IDs that will be used for test execution
       */
      private fun getDeviceIds(plan: ExecutionPlan): List<String> {
@@ -33,7 +33,7 @@ index 064ff51..eab8bef 100644
          val connectedDevices = DeviceService.listConnectedDevices(
              includeWeb = includeWeb,
              host = parent?.host,
-@@ -362,7 +367,7 @@ class TestCommand : Callable<Int> {
+@@ -368,7 +373,7 @@ class TestCommand : Callable<Int> {
          }
  
          val onlySequenceFlows = plan.sequence.flows.isNotEmpty() && plan.flowsToRun.isEmpty() // An edge case

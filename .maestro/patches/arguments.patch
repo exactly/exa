@@ -1,4 +1,4 @@
-From f4e8228f193892f247d25f0a5f9759b66afa694e Mon Sep 17 00:00:00 2001
+From 7bf1a05dd59a096ec0c4abd60cc2bace33bf0f2d Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 15:09:32 +0000
 Subject: [PATCH] feat: add --browser-args to pass arguments to the web browser
@@ -94,10 +94,10 @@ index cc05d69..0856fcd 100644
  
      private data class SelectedDevice(
 diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
-index 1f850dc..8d6f102 100644
+index ddedf17..29a0550 100644
 --- a/maestro-client/src/main/java/maestro/Maestro.kt
 +++ b/maestro-client/src/main/java/maestro/Maestro.kt
-@@ -815,6 +815,7 @@ class Maestro(
+@@ -819,6 +819,7 @@ class Maestro(
              isStudio: Boolean,
              isHeadless: Boolean,
              screenSize: String?,
@@ -105,7 +105,7 @@ index 1f850dc..8d6f102 100644
          ): Maestro {
              // Check that JRE is at least 11
              val version = System.getProperty("java.version")
-@@ -831,6 +832,7 @@ class Maestro(
+@@ -835,6 +836,7 @@ class Maestro(
                  isStudio = isStudio,
                  isHeadless = isHeadless,
                  screenSize = screenSize,
@@ -114,10 +114,10 @@ index 1f850dc..8d6f102 100644
              driver.open()
              return Maestro(driver)
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..cd1ff38 100644
+index 776eb78..71205bc 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -55,7 +55,8 @@ private const val SYNTHETIC_COORDINATE_SPACE_OFFSET = 100000
+@@ -59,7 +59,8 @@ private const val SYNTHETIC_COORDINATE_SPACE_OFFSET = 100000
  class CdpWebDriver(
      val isStudio: Boolean,
      private val isHeadless: Boolean = false,
@@ -127,7 +127,7 @@ index ad651bb..cd1ff38 100644
  ) : Driver {
  
      private lateinit var cdpClient: CdpClient
-@@ -135,6 +136,8 @@ class CdpWebDriver(
+@@ -139,6 +140,8 @@ class CdpWebDriver(
                          addArguments("--window-size=1024,768")
                      }
                  }
@@ -137,7 +137,7 @@ index ad651bb..cd1ff38 100644
          )
  
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 

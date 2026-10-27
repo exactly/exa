@@ -1,4 +1,4 @@
-From 54ad7b28ef2208a3af5eaf506f0805940e12214e Mon Sep 17 00:00:00 2001
+From 9992e68b7335063ae7708ca020684e92afd895ff Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Sun, 18 Oct 2026 22:51:13 +0000
 Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
@@ -29,10 +29,10 @@ Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
 
 diff --git a/maestro-client/src/main/java/maestro/Driver.kt b/maestro-client/src/main/java/maestro/Driver.kt
-index b245edd..7710b18 100644
+index 9d6747b..7c6e2d1 100644
 --- a/maestro-client/src/main/java/maestro/Driver.kt
 +++ b/maestro-client/src/main/java/maestro/Driver.kt
-@@ -116,6 +116,10 @@ interface Driver {
+@@ -117,6 +117,10 @@ interface Driver {
  
      fun setDarkMode(enabled: Boolean)
  
@@ -44,10 +44,10 @@ index b245edd..7710b18 100644
  
      fun queryOnDeviceElements(query: OnDeviceElementQuery): List<TreeNode> {
 diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
-index 1f850dc..61cb889 100644
+index 29a0550..259c5e4 100644
 --- a/maestro-client/src/main/java/maestro/Maestro.kt
 +++ b/maestro-client/src/main/java/maestro/Maestro.kt
-@@ -781,6 +781,18 @@ class Maestro(
+@@ -785,6 +785,18 @@ class Maestro(
          driver.setDarkMode(enabled)
      }
  
@@ -67,7 +67,7 @@ index 1f850dc..61cb889 100644
          driver.setAndroidChromeDevToolsEnabled(enabled)
      }
 diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-index 8211337..6605e57 100644
+index 76b89ee..e5101ab 100644
 --- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 @@ -60,6 +60,7 @@ import java.util.concurrent.CompletableFuture
@@ -128,18 +128,18 @@ index 8211337..6605e57 100644
          private const val WINDOW_UPDATE_TIMEOUT_MS = 750
          private const val MAESTRO_IME_ID = "dev.mobile.maestro/.input.MaestroInputMethodService"
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..8c8fed9 100644
+index 71205bc..b130c19 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -33,6 +33,7 @@ import org.openqa.selenium.chrome.ChromeDriver
+@@ -37,6 +37,7 @@ import org.openqa.selenium.chrome.ChromeDriver
  import org.openqa.selenium.chrome.ChromeDriverService
  import org.openqa.selenium.chrome.ChromeOptions
  import org.openqa.selenium.chromium.ChromiumDriverLogLevel
 +import org.openqa.selenium.chromium.HasCdp
  import org.openqa.selenium.devtools.HasDevTools
- import org.openqa.selenium.devtools.v147.emulation.Emulation
- import org.openqa.selenium.devtools.v147.emulation.model.MediaFeature
-@@ -711,6 +712,30 @@ class CdpWebDriver(
+ import org.openqa.selenium.devtools.v155.emulation.Emulation
+ import org.openqa.selenium.devtools.v155.emulation.model.MediaFeature
+@@ -750,6 +751,30 @@ class CdpWebDriver(
          )
      }
  
@@ -171,10 +171,10 @@ index ad651bb..8c8fed9 100644
          return when (query) {
              is OnDeviceElementQuery.Css -> queryCss(query)
 diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
-index 8af50e6..52448a2 100644
+index 8615998..a9f428d 100644
 --- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
-@@ -549,6 +549,18 @@ class IOSDriver(
+@@ -551,6 +551,18 @@ class IOSDriver(
          }
      }
  
@@ -194,7 +194,7 @@ index 8af50e6..52448a2 100644
          metrics.measured("operation", mapOf("command" to "addMediaToDevice")) {
              val namedSource = NamedSource(
 diff --git a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
-index 5bd3ec7..2eb68a2 100644
+index 2739adb..209a212 100644
 --- a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
 @@ -641,6 +641,14 @@ class WebDriver(
@@ -247,7 +247,7 @@ index 2894584..f5b3f06 100644
          return runCatching {
              localSimulatorUtils.setLocation(deviceId, latitude, longitude)
 diff --git a/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt b/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
-index 2f8c6b2..e90fdfc 100644
+index d324f52..5a2703c 100644
 --- a/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
 +++ b/maestro-ios-driver/src/main/kotlin/util/LocalSimulatorUtils.kt
 @@ -16,6 +16,9 @@ import java.nio.file.Path
@@ -276,7 +276,7 @@ index 2f8c6b2..e90fdfc 100644
      private val dateFormatter by lazy { DateTimeFormatter.ofPattern(LOG_DIR_DATE_FORMAT) }
      private val date = dateFormatter.format(LocalDateTime.now())
  
-@@ -412,6 +421,54 @@ class LocalSimulatorUtils(private val tempFileHandler: TempFileHandler) {
+@@ -420,6 +429,54 @@ class LocalSimulatorUtils(private val tempFileHandler: TempFileHandler) {
          )
      }
  
@@ -368,7 +368,7 @@ index 588942e..0bfbf24 100644
          logger.info("[Start] Uninstall the runner app")
          uninstall(id = LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID)
 diff --git a/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt b/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
-index bf57595..b0907ba 100644
+index 8ffa233..779a018 100644
 --- a/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
 +++ b/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
 @@ -73,6 +73,14 @@ class XCTestIOSDevice(
@@ -387,10 +387,10 @@ index bf57595..b0907ba 100644
          xStart: Double,
          yStart: Double,
 diff --git a/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt b/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
-index fed2ced..3b8e394 100644
+index 5695e39..ea9aa71 100644
 --- a/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
 +++ b/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
-@@ -1216,6 +1216,30 @@ data class ToggleAirplaneModeCommand(
+@@ -1224,6 +1224,30 @@ data class ToggleAirplaneModeCommand(
      }
  }
  
@@ -453,10 +453,10 @@ index 5357d4a..835e70d 100644
          else -> null
      }
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-index 4127338..2cd5902 100644
+index c388689..abcb1b5 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-@@ -446,6 +446,8 @@ class Orchestra(
+@@ -485,6 +485,8 @@ class Orchestra(
              is ToggleDarkModeCommand -> toggleDarkMode()
              is AssertDarkModeCommand -> assertDarkMode(expected = true)
              is AssertLightModeCommand -> assertDarkMode(expected = false)
@@ -465,7 +465,7 @@ index 4127338..2cd5902 100644
              is RetryCommand -> retryCommand(command, config)
              else -> true
          }.also { mutating ->
-@@ -469,6 +471,18 @@ class Orchestra(
+@@ -508,6 +510,18 @@ class Orchestra(
          return true
      }
  

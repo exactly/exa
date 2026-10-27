@@ -1,11 +1,11 @@
-From b5a1d1830b06a752bbe9d4312c2bccabedb25b3b Mon Sep 17 00:00:00 2001
+From b5a37ed4335fc582491ae4c9e96aebcea1e06572 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 22 Oct 2026 23:30:06 +0000
 Subject: [PATCH] fix: run css selectors once per lookup
 
 deepestMatchingElement runs its filter on one node at a time, once for every node of every subtree in the hierarchy, and the css filter queries the page on each run. So a css lookup makes one round trip to the browser per node visit, each with the web script reinjected and a 100 ms pause: a page with a 26-node hierarchy took 186 queries and about 20 s for a single pass, longer than the lookup timeout, so the selector timed out even though it matched. Run the filter once over all the nodes and keep the deepest of the matches.
 ---
- maestro-client/src/main/java/maestro/Filters.kt | 24 ++++++++++++++----------
+ .../src/main/java/maestro/Filters.kt          | 24 +++++++++++--------
  1 file changed, 14 insertions(+), 10 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/Filters.kt b/maestro-client/src/main/java/maestro/Filters.kt
@@ -47,7 +47,7 @@ index f3adf5f..0c4e0f1 100644
          return { nodes ->
              val matchingNodes = runBlocking { maestro.findElementsByOnDeviceQuery(
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 

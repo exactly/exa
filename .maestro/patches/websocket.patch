@@ -1,15 +1,15 @@
-From 18bec159140b1d70994e2f14d03803945ad36d63 Mon Sep 17 00:00:00 2001
+From df7ae263ea68ec27fe74cd3b4fdf16b983f062af Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Tue, 20 Oct 2026 00:51:30 +0000
 Subject: [PATCH] fix: reuse one CDP websocket per target
 
-CdpClient opened and closed a websocket for every evaluate, screenshot, navigation and storage call. Every detach makes Chrome disable the page's WebAuthn domain, which erases its virtual authenticators, and every extra handshake is another chance for the call to drop. Keep one session per target and reconnect only when it is no longer active.
+CdpClient opened and closed a websocket for every evaluate, screenshot and storage call. Every detach makes Chrome disable the page's WebAuthn domain, which erases its virtual authenticators, and every extra handshake is another chance for the call to drop. Keep one session per target and reconnect only when it is no longer active.
 ---
- .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 62 +++++++++----------
- 1 file changed, 30 insertions(+), 32 deletions(-)
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 53 +++++++++----------
+ 1 file changed, 26 insertions(+), 27 deletions(-)
 
 diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
-index 2e8c50d..c8c5ed1 100644
+index 2f8e05f..ca78c8e 100644
 --- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 +++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 @@ -6,6 +6,7 @@ import io.ktor.client.request.*
@@ -82,25 +82,8 @@ index 2e8c50d..c8c5ed1 100644
 +        }
      }
  
-     suspend fun openUrl(url: String, target: CdpTarget) {
-@@ -172,12 +172,11 @@ class CdpClient(
-             }
-         """.trimIndent()
- 
--        httpClient.webSocketSession { url(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) }
--            .use { session ->
--                session.send(Frame.Text(payload))
-+        withSession(target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")) { session ->
-+            session.send(Frame.Text(payload))
- 
--                session.waitForMessage(messageId)
--            }
-+            session.waitForMessage(messageId)
-+        }
-     }
- 
      suspend fun clearDataForOrigin(origin: String, storageTypes: String, target: CdpTarget) {
-@@ -196,16 +195,15 @@ class CdpClient(
+@@ -175,16 +175,15 @@ class CdpClient(
          """.trimIndent()
  
          evalMutex.withLock {
@@ -125,7 +108,7 @@ index 2e8c50d..c8c5ed1 100644
          }
      }
  
-@@ -225,11 +223,11 @@ class CdpClient(
+@@ -204,11 +203,11 @@ class CdpClient(
          return text ?: error("No message with id $messageId received within ${CDP_RESPONSE_TIMEOUT_MS}ms")
      }
  
@@ -143,7 +126,7 @@ index 2e8c50d..c8c5ed1 100644
      }
  
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 

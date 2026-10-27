@@ -1,4 +1,4 @@
-From 9f59c63e53da3f162e00dbb6fe7aff0b15bcefdd Mon Sep 17 00:00:00 2001
+From e3db3dbc2871ad25b29d1bca3a435d83f099e13d Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 16:42:29 +0000
 Subject: [PATCH] fix: report the visible part of web elements
@@ -100,7 +100,7 @@ index 6dc68a9..16ff662 100644
  
        // If this is an <option> element, we only want to include it if the parent <select> element is focused.
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 

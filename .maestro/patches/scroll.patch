@@ -1,4 +1,4 @@
-From 88ee9552a69a8127dc38a06f88f10fee1392c5b7 Mon Sep 17 00:00:00 2001
+From 7b4b7fcfb332203e52249a1a6cd1a48b024adb97 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 16:27:49 +0000
 Subject: [PATCH] fix: scroll web pages with wheel events in scrollUntilVisible
@@ -11,10 +11,10 @@ scrollUntilVisible scrolls by swiping from the center of the screen. On web that
  3 files changed, 23 insertions(+), 1 deletion(-)
 
 diff --git a/maestro-client/src/main/java/maestro/Driver.kt b/maestro-client/src/main/java/maestro/Driver.kt
-index b245edd..3ed3d63 100644
+index 7c6e2d1..1704bb4 100644
 --- a/maestro-client/src/main/java/maestro/Driver.kt
 +++ b/maestro-client/src/main/java/maestro/Driver.kt
-@@ -65,6 +65,8 @@ interface Driver {
+@@ -66,6 +66,8 @@ interface Driver {
  
      fun swipe(elementPoint: Point, direction: SwipeDirection, durationMs: Long)
  
@@ -24,10 +24,10 @@ index b245edd..3ed3d63 100644
  
      fun inputText(text: String)
 diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
-index 1f850dc..fdf0d2f 100644
+index 259c5e4..45d3d33 100644
 --- a/maestro-client/src/main/java/maestro/Maestro.kt
 +++ b/maestro-client/src/main/java/maestro/Maestro.kt
-@@ -201,7 +201,7 @@ class Maestro(
+@@ -205,7 +205,7 @@ class Maestro(
  
          LOGGER.info("Swiping ${swipeDirection.name} from center")
          val center = Point(x = deviceInfo.widthGrid / 2, y = deviceInfo.heightGrid / 2)
@@ -37,10 +37,10 @@ index 1f850dc..fdf0d2f 100644
          waitForAppToSettle(waitToSettleTimeoutMs = waitToSettleTimeoutMs)
      }
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..f335a43 100644
+index 421bbda..b1492ad 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -504,6 +504,26 @@ class CdpWebDriver(
+@@ -585,6 +585,26 @@ class CdpWebDriver(
          }
      }
  
@@ -68,7 +68,7 @@ index ad651bb..f335a43 100644
          return false
      }
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 

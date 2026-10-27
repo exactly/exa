@@ -1,4 +1,4 @@
-From 53026afbfa9c66d1645d05cdf8d6acbe64ea4ebf Mon Sep 17 00:00:00 2001
+From 9f150c6b2ca72e9c87c269b315bf1aa24a354a52 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Fri, 23 Oct 2026 20:56:11 +0000
 Subject: [PATCH] fix: stop waiting for an idle window before taps
@@ -9,10 +9,10 @@ waitForWindowToSettle polls isWindowUpdating until its 750 ms deadline even afte
  1 file changed, 2 insertions(+), 5 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-index 8211337..9c00730 100644
+index e5101ab..e6eb6eb 100644
 --- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-@@ -737,11 +737,8 @@ class AndroidDriver(
+@@ -738,11 +738,8 @@ class AndroidDriver(
                  })
              }.orThrow().isWindowUpdating
  
@@ -27,7 +27,7 @@ index 8211337..9c00730 100644
  
          return hierarchy ?: ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 

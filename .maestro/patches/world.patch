@@ -1,4 +1,4 @@
-From bf35681ed186e2f7bb5c13da1f53aec4b6ba6b50 Mon Sep 17 00:00:00 2001
+From d0af740d3d3a660a122a9ff964cbb343ecd21b66 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:53:52 +0000
 Subject: [PATCH] fix: evaluate web scripts in an isolated world
@@ -9,7 +9,7 @@ Pages that lock down their globals, such as extension pages under LavaMoat, reje
  1 file changed, 12 insertions(+), 7 deletions(-)
 
 diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
-index c8c5ed1..796726b 100644
+index e8ff77d..ae67c15 100644
 --- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 +++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 @@ -90,17 +90,22 @@ class CdpClient(

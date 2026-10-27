@@ -1,4 +1,4 @@
-From 649b8ff0bc7d60cdde645f14a159ea176556d9b3 Mon Sep 17 00:00:00 2001
+From bb99302bd49486c0ac9d4245f20a812b28b8fa13 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:52:08 +0000
 Subject: [PATCH] fix: tap web elements with CDP mouse events
@@ -9,10 +9,10 @@ ChromeDriver's pointer actions run script in the page's main world, so a tap fai
  1 file changed, 11 insertions(+), 13 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..e7ef250 100644
+index 80a8859..5ae9d58 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -425,7 +425,7 @@ class CdpWebDriver(
+@@ -495,7 +495,7 @@ class CdpWebDriver(
      }
  
      override fun tap(point: Point) {
@@ -21,7 +21,7 @@ index ad651bb..e7ef250 100644
  
          if (point.x >= SYNTHETIC_COORDINATE_SPACE_OFFSET && point.y >= SYNTHETIC_COORDINATE_SPACE_OFFSET) {
              tapOnSyntheticCoordinateSpace(point)
-@@ -434,20 +434,18 @@ class CdpWebDriver(
+@@ -504,20 +504,18 @@ class CdpWebDriver(
  
          val pixelsScrolled = scrollToPoint(point)
  

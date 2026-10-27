@@ -1,4 +1,4 @@
-From 4485b2fa6db6cdff6f1f0c7418115a539b02455d Mon Sep 17 00:00:00 2001
+From f8698d42733adcee1fe9dcef647d7131f1aacf71 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 13:35:31 +0000
 Subject: [PATCH] fix: dispatch web swipes as timed touch events
@@ -11,10 +11,10 @@ A swipe from an element, and scrollUntilVisible, scrolled the window instead, wh
  1 file changed, 37 insertions(+), 23 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index ad651bb..b292421 100644
+index b1492ad..80a8859 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -509,29 +509,36 @@ class CdpWebDriver(
+@@ -610,29 +610,36 @@ class CdpWebDriver(
      }
  
      override fun swipe(start: Point, end: Point, durationMs: Long) {
@@ -72,7 +72,7 @@ index ad651bb..b292421 100644
      }
  
      override fun swipe(swipeDirection: SwipeDirection, durationMs: Long) {
-@@ -552,8 +559,14 @@ class CdpWebDriver(
+@@ -653,8 +660,14 @@ class CdpWebDriver(
      }
  
      override fun swipe(elementPoint: Point, direction: SwipeDirection, durationMs: Long) {
@@ -89,16 +89,16 @@ index ad651bb..b292421 100644
      }
  
      override fun backPress() {
-@@ -858,6 +871,7 @@ class CdpWebDriver(
+@@ -985,6 +998,7 @@ class CdpWebDriver(
          private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
          private const val JS_EXECUTION_MAX_ATTEMPTS = 5
          private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
 +        private const val SWIPE_FRAME_MS = 16L
  
-         // The only /json target type that is a real tab; everything else is a browser surface,
-         // an extension worker or an iframe.
+         private val LAUNCH_PAGE_LOAD_TIMEOUT: Duration = Duration.ofSeconds(30)
+ 
 
-base-commit: c8c361be1cc89b2e742f185466a302a22778be6b
+base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
 -- 
 2.43.0
 
