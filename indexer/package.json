@@ -1,0 +1,53 @@
+{
+  "name": "@exactly/indexer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:ponder": "ponder codegen",
+    "test": "nx test indexer",
+    "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}"
+  },
+  "engines": {
+    "node": "^24.14.1"
+  },
+  "dependencies": {
+    "@exactly/common": "workspace:^0.0.24",
+    "hono": "catalog:",
+    "ponder": "^0.18.2",
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "eslint": "catalog:",
+    "eslint-config-universe": "^15.0.3",
+    "typescript": "catalog:"
+  },
+  "nx": {
+    "projectType": "application",
+    "targets": {
+      "prepare": {
+        "dependsOn": [
+          "^prepare",
+          "generate:ponder"
+        ],
+        "executor": "nx:noop"
+      },
+      "generate:ponder": {
+        "dependsOn": [
+          "^prepare"
+        ],
+        "outputs": [
+          "{projectRoot}/ponder-env.d.ts"
+        ]
+      },
+      "test": {
+        "dependsOn": [
+          "test:eslint",
+          "test:ts"
+        ],
+        "executor": "nx:noop"
+      }
+    }
+  }
+}
