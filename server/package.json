@@ -1,6 +1,6 @@
 {
   "name": "@exactly/server",
-  "version": "0.2.131",
+  "version": "0.2.132",
   "private": true,
   "scripts": {
     "build": "pkgroll --clean-dist --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
@@ -84,7 +84,7 @@
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.3",
-    "@exactly/common": "workspace:^0.0.23",
+    "@exactly/common": "workspace:^0.0.24",
     "@exactly/plugin": "workspace:^1.1.0",
     "@mastra/evals": "^1.9.0",
     "@peculiar/x509": "^1.14.3",

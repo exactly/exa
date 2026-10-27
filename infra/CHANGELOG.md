@@ -1,5 +1,11 @@
 # @exactly/infra
 
+## 0.3.1
+
+### Patch Changes
+
+- [#1673](https://github.com/exactly/exa/pull/1673) [`d6afa98`](https://github.com/exactly/exa/commit/d6afa98de7fbae8e522c9b5ad9b0dd8ed01ea8ab) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 lock deploy tokens to trusted refs
+
 ## 0.3.0
 
 ### Minor Changes

@@ -1,5 +1,51 @@
 # @exactly/mobile
 
+## 1.2.39
+
+### Patch Changes
+
+- [#1662](https://github.com/exactly/exa/pull/1662) [`2e5fa94`](https://github.com/exactly/exa/commit/2e5fa94a9209fb6ac6ad11bfd8b0046147f58d5b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 hide non-collateral markets from collateral
+
+- [#1584](https://github.com/exactly/exa/pull/1584) [`1d0156b`](https://github.com/exactly/exa/commit/1d0156ba1d9f9873f07fccbcb26e0051fdeebee0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix zero swap rate
+
+- [#1619](https://github.com/exactly/exa/pull/1619) [`c35eb5c`](https://github.com/exactly/exa/commit/c35eb5c4a5e4a0134e7bb785185443d632844ac9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fill checked checkboxes
+
+- [#1619](https://github.com/exactly/exa/pull/1619) [`dd1228c`](https://github.com/exactly/exa/commit/dd1228cdba8fee9996bb7a4bc8f29b2956c56335) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 highlight input borders on hover
+
+- [#1662](https://github.com/exactly/exa/pull/1662) [`8471834`](https://github.com/exactly/exa/commit/84718342c8729fce10700b8875dbbc503d900d27) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 skip non-collateral markets in credit limit
+
+- [#1563](https://github.com/exactly/exa/pull/1563) [`d4352c4`](https://github.com/exactly/exa/commit/d4352c4a14dc4e6412378688c6e33706fb9f66cd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep repay result after debt clears
+
+- [#1573](https://github.com/exactly/exa/pull/1573) [`d32068e`](https://github.com/exactly/exa/commit/d32068e9025e2be76cc1b5cffe6832e1a14949ed) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 broadcast wallet signed transactions in canonical form
+
+- [#1658](https://github.com/exactly/exa/pull/1658) [`28c19c6`](https://github.com/exactly/exa/commit/28c19c6b2998b74e7290fb294f526448dcc544ed) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ detect frozen markets onchain
+
+- [#1619](https://github.com/exactly/exa/pull/1619) [`fc1ecaf`](https://github.com/exactly/exa/commit/fc1ecaf6b49b32b2d5e8e09e3335d19ec3561316) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ resolve missing tamagui tokens
+
+- [#1599](https://github.com/exactly/exa/pull/1599) [`c113bab`](https://github.com/exactly/exa/commit/c113bab0ae36c05a9a4ade66e29949e65dd9d8c4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix duplicate contacts screen after edit
+
+- [#1616](https://github.com/exactly/exa/pull/1616) [`43f15cd`](https://github.com/exactly/exa/commit/43f15cd56ed80b492308556991b2f930fe2579be) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 skip price history without alchemy key
+
+- [#1597](https://github.com/exactly/exa/pull/1597) [`6394737`](https://github.com/exactly/exa/commit/63947372838cd39b7af7b8d7f7a0759aa825b3c0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 pick default swap tokens on revisit
+
+- [#1573](https://github.com/exactly/exa/pull/1573) [`b59c8e6`](https://github.com/exactly/exa/commit/b59c8e625c47c7e03d16fa1242ea93c0422a0e5d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 remember wallets without batched calls
+
+- [#1619](https://github.com/exactly/exa/pull/1619) [`57044ca`](https://github.com/exactly/exa/commit/57044ca6a789f22c54146a2b2573ac6a217c8b14) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 preserve repay slider border on press
+
+- [#1642](https://github.com/exactly/exa/pull/1642) [`182489c`](https://github.com/exactly/exa/commit/182489c753e3686b3845a7e6ed31c3ed291d8db1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep loan total while balances refresh
+
+- [#1637](https://github.com/exactly/exa/pull/1637) [`348bd9d`](https://github.com/exactly/exa/commit/348bd9d81d584900cda45cfb2c8e02fb18f9cc61) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 reject malformed lifi quotes
+
+- [#1547](https://github.com/exactly/exa/pull/1547) [`4ca7cdf`](https://github.com/exactly/exa/commit/4ca7cdf175fd5d59c443d7663cd92b466395f59c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 prefer fastest bridge quotes
+
+- [#1592](https://github.com/exactly/exa/pull/1592) [`39cf1c6`](https://github.com/exactly/exa/commit/39cf1c6aca87a4ad589ac954e2c76a1101f065c2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix go home on not-found page
+
+- [#1619](https://github.com/exactly/exa/pull/1619) [`c195e10`](https://github.com/exactly/exa/commit/c195e104ddc4a39c458251ae823a75b54e14e51c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 fix toast title and benefit link tokens
+
+- Updated dependencies [[`6d474f3`](https://github.com/exactly/exa/commit/6d474f3fb07d434a753db98948b91b96c11b208f), [`28c19c6`](https://github.com/exactly/exa/commit/28c19c6b2998b74e7290fb294f526448dcc544ed)]:
+  - @exactly/server@0.2.132
+  - @exactly/common@0.0.24
+
 ## 1.2.38
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.24
+
+### Patch Changes
+
+- [#1658](https://github.com/exactly/exa/pull/1658) [`28c19c6`](https://github.com/exactly/exa/commit/28c19c6b2998b74e7290fb294f526448dcc544ed) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ support deployless app previewer
+
 ## 0.0.23
 
 ### Patch Changes
