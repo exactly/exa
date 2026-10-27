@@ -155,7 +155,10 @@ async function checkDone(name: string, data: CheckDebts, attempts = 1, delay = 1
 }
 
 async function checkDoneAt(name: string, maturity: number, window: Window, attempts = 1, delay = 1) {
-  vi.spyOn(Date, "now").mockReturnValue((maturity - (window === "24h" ? 23 * 3600 + 30 * 60 : 57 * 60)) * 1000);
+  const start = performance.now();
+  vi.spyOn(Date, "now").mockImplementation(
+    () => (maturity - (window === "24h" ? 23 * 3600 + 30 * 60 : 57 * 60)) * 1000 + performance.now() - start,
+  );
   let result: Awaited<ReturnType<typeof checkDone>>;
   try {
     result = await checkDone(name, { window }, attempts, delay, false);
