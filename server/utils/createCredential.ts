@@ -7,11 +7,10 @@ import { hexToBytes, isAddress, zeroAddress } from "viem";
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAddress, factories } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import decodePublicKey from "./decodePublicKey";
-import validFactories from "./validFactories";
 import { credentials } from "../database/schema";
 
 import type { IpAddress } from "./sardine";
@@ -55,7 +54,7 @@ export default function createCredential({
             eq(credentials.id, credentialId),
             inArray(
               credentials.account,
-              [...validFactories].map((f) => deriveAddress(f, { x, y, salt })),
+              factories.versions.map((f) => deriveAddress(f, { x, y, salt })),
             ),
           ),
         })
