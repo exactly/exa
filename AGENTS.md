@@ -132,6 +132,7 @@ extracting a value into a variable and extracting logic into a function are the 
   - `common`: shared utilities (`@exactly/common`).
   - `docs`: astro-based documentation (`@exactly/docs`).
   - `infra`: pulumi gcp infrastructure (`@exactly/infra`).
+  - `indexer`: ponder blockchain indexer (`@exactly/indexer`).
   - `.maestro`: end-to-end test scripts (`@exactly/e2e`).
 - **running tasks**: always use `pnpm nx` — never bare `nx`, `npx`, or `pnpm --filter`.
   - `pnpm nx <target> <project>` — run a target for one project (e.g., `pnpm nx dev server`)
