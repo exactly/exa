@@ -1,7 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - extendedWaitUntil: { visible: { id: onboarding-create-wallet }, timeout: 60000 }
-- assertVisible: { css: .riv-animation__wordmark-container--complete } # cspell:ignore wordmark
+- extendedWaitUntil: { visible: { css: .riv-animation__wordmark-container--complete }, timeout: 60000 } # cspell:ignore wordmark
 - tapOn: { id: onboarding-create-wallet }
 - tapOn: { id: onboarding-create-with-srp-button }
 - tapOn: { id: create-password-new, index: 1 }
