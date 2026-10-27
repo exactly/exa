@@ -85,6 +85,7 @@ export default define({
       ],
       shared: ["panda-api-url", "pax-api-url", "persona-api-url", "redis-url", "sardine-api-url"],
     },
+    sponsor: { secrets: ["postgres-url", "token"] },
   },
   workers: {
     allow: { secrets: ["postgres-url"], shared: ["redis-url"], signers: ["allower"], timeout: "300s" },
