@@ -1,4 +1,4 @@
-import { decodeEventLog, erc20Abi, formatUnits, hexToBigInt, hexToNumber, type Address } from "viem";
+import { decodeEventLog, erc20Abi, formatUnits, hexToBigInt, hexToNumber } from "viem";
 import { getAbiItem, isHex, parseUnits, toEventSelector } from "viem/utils";
 
 import { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
@@ -11,7 +11,7 @@ declare const network: string | undefined;
 declare const to: string | undefined;
 declare const amount: string | undefined;
 
-if (!to || !isHex(to)) throw new Error("bad to");
+if (!to) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
 let log = bridge();
@@ -24,34 +24,56 @@ const { transactionId, sendingAssetId, receiver, minAmount, destinationChainId }
   data: log.data,
   topics: log.topics,
 }).args.bridgeData;
-if (destinationChainId !== hexToBigInt(anvil("eth_chainId", [], destination))) throw new Error("bad destination");
+const nonEVM = destination
+  ? (
+      JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/chains").body) as {
+        chains: { chainType: string; id: number; name: string }[];
+      }
+    ).chains.find(({ chainType, name }) => chainType !== "EVM" && name === destination)
+  : undefined;
+if (destinationChainId !== (nonEVM ? BigInt(nonEVM.id) : hexToBigInt(anvil("eth_chainId", [], destination)))) {
+  throw new Error("bad destination");
+}
 const { tokens } = JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/tokens").body) as {
-  tokens: Record<number, { address: Address; symbol: string }[]>;
+  tokens: Record<number, { address: string; decimals: number; symbol: string }[]>;
 };
 const source = tokens[hexToNumber(anvil("eth_chainId", [], network))]?.find(
   ({ address }) => address === sendingAssetId,
 );
-const token = tokens[Number(destinationChainId)]?.find(
-  ({ symbol }) =>
-    (source?.symbol === "USDC.e" && symbol === "USDC") || (source?.symbol === "USDC" && symbol === "USDC.e"),
-)?.address;
-if (!token) throw new Error("bad token");
-const decimals = readContract({ address: token, functionName: "decimals", abi: erc20Abi }, destination);
-const balance = readContract({ address: token, functionName: "balanceOf", abi: erc20Abi, args: [to] }, destination);
-const hash = writeContract(
-  {
-    address: swapperAddress,
-    functionName: "completeBridgeTokensViaMock",
-    abi: mockSwapperAbi,
-    args: [transactionId, token, receiver, minAmount],
-  },
-  destination,
+const token = tokens[Number(destinationChainId)]?.find(({ symbol }) =>
+  nonEVM
+    ? symbol === source?.symbol
+    : (source?.symbol === "USDC.e" && symbol === "USDC") || (source?.symbol === "USDC" && symbol === "USDC.e"),
 );
-const delivered =
-  readContract({ address: token, functionName: "balanceOf", abi: erc20Abi, args: [to] }, destination) - balance;
-const expected = parseUnits(amount, decimals);
-if (delivered < (expected * 98n) / 100n || delivered > (expected * 102n) / 100n) throw new Error("bad delivery");
-activity(token, to, Number(formatUnits(delivered, decimals)), hash, destination);
+if (!token) throw new Error("bad token");
+const expected = parseUnits(amount, token.decimals);
+if (nonEVM) {
+  const { status, toAddress } = JSON.parse(
+    http.get(`http://localhost:3000/e2e/lifi/v1/status?txHash=${log.transactionHash}`).body,
+  ) as { status: string; toAddress?: string };
+  if (status !== "DONE" || toAddress !== to) throw new Error("bad receiver");
+  if (minAmount < (expected * 98n) / 100n || minAmount > (expected * 102n) / 100n) throw new Error("bad amount");
+} else {
+  if (!isHex(to) || !isHex(token.address)) throw new Error("bad address");
+  const balance = readContract(
+    { address: token.address, functionName: "balanceOf", abi: erc20Abi, args: [to] },
+    destination,
+  );
+  const hash = writeContract(
+    {
+      address: swapperAddress,
+      functionName: "completeBridgeTokensViaMock",
+      abi: mockSwapperAbi,
+      args: [transactionId, token.address, receiver, minAmount],
+    },
+    destination,
+  );
+  const delivered =
+    readContract({ address: token.address, functionName: "balanceOf", abi: erc20Abi, args: [to] }, destination) -
+    balance;
+  if (delivered < (expected * 98n) / 100n || delivered > (expected * 102n) / 100n) throw new Error("bad delivery");
+  activity(token.address, to, Number(formatUnits(delivered, token.decimals)), hash, destination);
+}
 
 function bridge() {
   return anvil(
