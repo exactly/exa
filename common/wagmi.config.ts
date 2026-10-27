@@ -1,11 +1,19 @@
 import * as infra from "@account-kit/infra";
 import { defineConfig } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
-import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
 import { isDeepStrictEqual } from "node:util";
-import { getAddress, type Abi, type Chain } from "viem";
+import {
+  encodeAbiParameters,
+  encodePacked,
+  getAddress,
+  getContractAddress,
+  keccak256,
+  slice,
+  type Abi,
+  type Chain,
+} from "viem";
 import * as chains from "viem/chains";
 import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
@@ -121,6 +129,33 @@ export default defineConfig([
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
           const slugs: Record<number, string | undefined> = alchemyNetworks;
+          const admin = getAddress(perChain(deploy.accounts.admin));
+          const create3Factory = getAddress(perChain(deploy.factory.create3));
+          const version = perChain(deploy.factory.version);
+          if (!deploy.factory.versions.includes(version)) throw new Error(`unlisted factory version ${version}`);
+          function factory(v: string) {
+            const salt = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v]));
+            return getContractAddress({
+              from: getContractAddress({
+                opcode: "CREATE2",
+                from: testnet ? getAddress(perChain(deploy.factory.createx)) : create3Factory,
+                salt: testnet
+                  ? keccak256(
+                      encodeAbiParameters(
+                        [{ type: "address" }, { type: "bytes32" }],
+                        [admin, encodePacked(["address", "bytes1", "bytes11"], [admin, "0x00", slice(salt, 0, 11)])],
+                      ),
+                    )
+                  : keccak256(encodePacked(["address", "bytes32"], [admin, salt])),
+                bytecodeHash: "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
+              }),
+              nonce: 1n,
+            });
+          }
+          const factories = {
+            versions: deploy.factory.versions.map((v) => factory(v)),
+            legacy: perChain(deploy.factory.legacy).map((address) => getAddress(address)),
+          };
           const alchemyChains: { id: number; name?: string; source: string }[] = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
@@ -193,17 +228,7 @@ export default defineConfig([
                 weth: loadDeployment("WETH").address,
                 simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
                 swapper: perChain(deploy.accounts.swapper),
-                exaAccountFactory:
-                  chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
-                    ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
-                        execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
-                          env: { ...env, FOUNDRY_PROFILE: "tooling" },
-                          cwd: "../contracts",
-                          encoding: "utf8",
-                        }),
-                      )?.[1]
-                    : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
-                      "0xb29bAFff6E4fd67Cb6a56657237F66CcE468844D"),
+                exaAccountFactory: factory(version),
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;
@@ -227,6 +252,7 @@ export default defineConfig([
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
+              `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
@@ -301,7 +327,7 @@ function loadBroadcast(script: string, id = chainId) {
   ) as { transactions: { contractAddress: string }[] };
 }
 
-function perChain(values: Record<string, string> & { default: string }, id = chainId) {
+function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
   return values[id] ?? values.default;
 }
 
