@@ -5,6 +5,7 @@ import { FullWindowOverlay } from "react-native-screens";
 
 import { getTokens, Sheet, View } from "tamagui";
 
+import { hold } from "../../utils/useAnnouncement";
 import useInsets from "../../utils/useInsets";
 import SheetContext from "../context/SheetContext";
 
@@ -29,6 +30,7 @@ export default function ModalSheet({
   open: boolean;
   scrollsUnderInset?: boolean;
 }) {
+  useEffect(() => (open ? hold() : undefined), [open]);
   return (
     <RequestCloseContext value={dismissible ? onClose : undefined}>
       <Sheet
