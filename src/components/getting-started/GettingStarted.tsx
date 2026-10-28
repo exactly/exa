@@ -13,6 +13,7 @@ import chain from "@exactly/common/generated/chain";
 import Step from "./Step";
 import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
+import { CreditCard } from "../../generated/icons/CreditCard";
 import { IdCard } from "../../generated/icons/IdCard";
 import { newMessage, presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
@@ -34,8 +35,14 @@ export default function GettingStarted() {
   const { status: kyc, error, isFetched } = useKYC();
   const steps = useOnboardingSteps({ kyc, isDeployed: !!bytecode });
   const currentStep = steps.find(({ status }) => status === "pending");
+  const done = !currentStep && kyc === "approved";
+  const header = isFetched && !error ? currentStep : undefined;
   return (
-    <SafeView fullScreen backgroundColor="backgroundBrandSoft" paddingBottom="s0">
+    <SafeView
+      fullScreen
+      backgroundColor={header ? "backgroundBrandSoft" : "backgroundSoft"}
+      {...(!done && { paddingBottom: "s0" })}
+    >
       <View gap="s4_5" fullScreen>
         <View gap="s4_5" padded paddingBottom="s0">
           <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
@@ -58,59 +65,100 @@ export default function GettingStarted() {
           </View>
         </View>
         <ScrollView flex={1} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-          {isFetched && !error && currentStep && <CurrentStep id={currentStep.id} approved={kyc === "approved"} />}
-          <YStack backgroundColor="backgroundSoft" paddingHorizontal="s5" paddingVertical="s7" gap="s6" flex={1}>
-            <YStack gap="s4">
-              <Text emphasized headline primary>
-                {t("Remaining steps")}
-              </Text>
-              <Text footnote secondary>
-                {t("You are almost set to start using the Exa Card.")}
-              </Text>
-            </YStack>
-            <YStack gap="s4">
-              {steps.map(({ id, status, title }) => (
-                <Step
-                  key={id}
-                  title={t(title, { chain: chain.name })}
-                  status={status}
-                  tag={
-                    status === "review" ? t("IN REVIEW") : status === "failed" ? t("VERIFICATION FAILED") : undefined
-                  }
-                  {...(id === "verify-identity" && {
-                    icon: <IdCard size={20} strokeWidth={2} color="uiBrandSecondary" />,
-                    description:
-                      status === "review"
-                        ? t("We’re reviewing the documents you submitted. This usually takes 2 to 3 business days.")
-                        : status === "failed"
-                          ? t(
-                              "This may be due to missing or incorrect information. Please contact support to resolve it.",
-                            )
-                          : t("To enable the Exa Card, we need to verify your identity and that you’re 18 or older."),
-                    action: status === "failed" ? t("Contact support") : t("Learn more about KYC process"),
-                    onPress: () => {
-                      (status === "failed"
-                        ? newMessage(t("My identity verification failed. Can you help me?"))
-                        : presentArticle("9448693")
-                      ).catch(reportError);
-                    },
-                  })}
-                  {...(id === "add-funds" && {
-                    icon: <ArrowDownToLine size={20} strokeWidth={2} color="uiBrandSecondary" />,
-                    description:
-                      kyc === "approved"
-                        ? t("Transfer from your bank, or deposit digital assets on {{chain}}.", { chain: chain.name })
-                        : t(
-                            "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
-                          ),
-                    action: t("Learn more about collateral"),
-                    onPress: () => {
-                      presentArticle("8950805").catch(reportError);
-                    },
-                  })}
-                />
-              ))}
-            </YStack>
+          {header && <CurrentStep id={header.id} approved={kyc === "approved"} />}
+          <YStack
+            backgroundColor="backgroundSoft"
+            paddingHorizontal="s5"
+            paddingTop="s7"
+            paddingBottom={done ? "s5" : "s7"}
+            gap="s6"
+            flex={1}
+          >
+            {done ? (
+              <>
+                <YStack flex={1} justifyContent="center" gap="s4">
+                  <Text emphasized title3 color="uiBrandSecondary" textAlign="center">
+                    {t("Activate your new Exa Card")}
+                  </Text>
+                  <Text subHeadline color="uiNeutralSecondary" textAlign="center">
+                    {t("Almost there! Activate your Exa Card to start spending your onchain assets instantly.")}
+                  </Text>
+                </YStack>
+                <Button
+                  primary
+                  onPress={() => {
+                    router.dismissTo({ pathname: "/card", params: { activate: "true" } });
+                  }}
+                >
+                  <Button.Text>{t("Activate Exa Card")}</Button.Text>
+                  <Button.Icon>
+                    <CreditCard />
+                  </Button.Icon>
+                </Button>
+              </>
+            ) : (
+              <>
+                <YStack gap="s4">
+                  <Text emphasized headline primary>
+                    {t("Remaining steps")}
+                  </Text>
+                  <Text footnote secondary>
+                    {t("You’re almost set to start using the Exa Card")}
+                  </Text>
+                </YStack>
+                <YStack gap="s4">
+                  {steps.map(({ id, status, title }) => (
+                    <Step
+                      key={id}
+                      title={t(title, { chain: chain.name })}
+                      status={status}
+                      tag={
+                        status === "review"
+                          ? t("IN REVIEW")
+                          : status === "failed"
+                            ? t("VERIFICATION FAILED")
+                            : undefined
+                      }
+                      {...(id === "verify-identity" && {
+                        icon: <IdCard size={20} strokeWidth={2} color="uiBrandSecondary" />,
+                        description:
+                          status === "review"
+                            ? t("We’re reviewing the documents you submitted. This usually takes 2 to 3 business days.")
+                            : status === "failed"
+                              ? t(
+                                  "This may be due to missing or incorrect information. Please contact support to resolve it.",
+                                )
+                              : t(
+                                  "To enable the Exa Card, we need to verify your identity and that you’re 18 or older.",
+                                ),
+                        action: status === "failed" ? t("Contact support") : t("Learn more about KYC process"),
+                        onPress: () => {
+                          (status === "failed"
+                            ? newMessage(t("My identity verification failed. Can you help me?"))
+                            : presentArticle("9448693")
+                          ).catch(reportError);
+                        },
+                      })}
+                      {...(id === "add-funds" && {
+                        icon: <ArrowDownToLine size={20} strokeWidth={2} color="uiBrandSecondary" />,
+                        description:
+                          kyc === "approved"
+                            ? t("Transfer from your bank, or deposit digital assets on {{chain}}.", {
+                                chain: chain.name,
+                              })
+                            : t(
+                                "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
+                              ),
+                        action: t("Learn more about collateral"),
+                        onPress: () => {
+                          presentArticle("8950805").catch(reportError);
+                        },
+                      })}
+                    />
+                  ))}
+                </YStack>
+              </>
+            )}
           </YStack>
         </ScrollView>
       </View>
