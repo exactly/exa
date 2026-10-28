@@ -1,9 +1,11 @@
-import React, { createContext, use, useLayoutEffect } from "react";
+import React, { createContext, use, useEffect, useLayoutEffect } from "react";
 import { Keyboard, Modal, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { FullWindowOverlay } from "react-native-screens";
 
 import { Sheet } from "tamagui";
+
+import { hold } from "../../utils/useAnnouncement";
 
 export default function ModalSheet({
   open,
@@ -20,6 +22,7 @@ export default function ModalSheet({
   onClose: () => void;
   open: boolean;
 }) {
+  useEffect(() => (open ? hold() : undefined), [open]);
   return (
     <RequestCloseContext value={dismissible ? onClose : undefined}>
       <Sheet
