@@ -32,8 +32,11 @@ export default function Loans() {
   return (
     <SafeView fullScreen tab backgroundColor="$backgroundSoft">
       <View fullScreen backgroundColor="$backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
         <ScrollView
           ref={loansScrollReference}
+          backgroundColor="transparent"
+          contentContainerStyle={{ flexGrow: 1, backgroundColor: "$backgroundMild" }}
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={
