@@ -175,13 +175,6 @@ queryClient.setQueryDefaults<boolean>(["settings", "card-support-contacted"], {
   gcTime: Infinity,
   queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
 });
-queryClient.setQueryDefaults<boolean>(["settings", "promo-seen"], {
-  initialData: false,
-  retry: false,
-  staleTime: Infinity,
-  gcTime: Infinity,
-  queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) ?? false,
-});
 queryClient.setQueryDefaults<boolean>(["settings", "swap-sheet"], {
   initialData: false,
   retry: false,
