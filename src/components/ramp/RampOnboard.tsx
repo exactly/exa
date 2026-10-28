@@ -55,11 +55,11 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
             />
           </View>
         </View>
-        <ScrollView flex={1}>
-          <View flex={1} gap="$s4_5">
-            <YStack flex={1} padding="$s4" gap="$s6">
-              <YStack flex={1} justifyContent="center">
-                <AssetHero direction={direction} currency={currency || undefined} network={network || undefined} />
+        <View flex={1} gap="$s4_5">
+          <YStack flex={1} padding="$s4" gap="$s6">
+            <YStack flex={1} justifyContent="center">
+              <AssetHero direction={direction} currency={currency || undefined} network={network || undefined} />
+              <ScrollView flexGrow={0} flexShrink={0} maxHeight="100%">
                 <YStack gap="$s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
                     {offramp
@@ -91,10 +91,10 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
                         : t("Transfer from accounts in your name and automatically receive USDC in your Exa account.")}
                   </Text>
                 </YStack>
-              </YStack>
+              </ScrollView>
             </YStack>
-          </View>
-        </ScrollView>
+          </YStack>
+        </View>
 
         <YStack gap="$s4_5">
           <Button
