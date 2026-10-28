@@ -110,11 +110,13 @@ export default async function setup() {
     return Promise.all(
       chains.map(
         ({ rpcUrls }) =>
-          $(shell)`forge script ${args} --unlocked --rpc-url ${rpcUrls.default.http[0]} --broadcast --skip-simulation`,
+          $(shell)`forge script ${args}
+              --unlocked --rpc-url ${rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
       ),
     );
   }
 
+  await $(shell)`forge compiler resolve`;
   await forge("test/mocks/Protocol.s.sol", "--disable-code-size-limit");
 
   const protocol = parse(
@@ -184,13 +186,13 @@ export default async function setup() {
     anvilClient.impersonateAccount({ address: keeper.address }),
   ]);
   await $(shell)`forge script test/mocks/Bob.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
   await Promise.all([
     anvilClient.stopImpersonatingAccount({ address: bob }),
     anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
   ]);
   await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation`;
+      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
   await anvilClient.stopImpersonatingAccount({ address: keeper.address });
 
   const [exaBusinessTenant, refunder, exaPlugin] = await Promise.all([
@@ -239,7 +241,7 @@ export default async function setup() {
       const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
       await Promise.all([
         $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
-            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation`,
+            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
         client.setBalance({ address: privateKeyToAddress(keccak256(toBytes("e2e.ts"))), value: 10n ** 24n }),
       ]);
       if (
