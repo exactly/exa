@@ -32,14 +32,12 @@ import HomeDisclaimer from "./HomeDisclaimer";
 import InstallmentsSheet from "./InstallmentsSheet";
 import PayModeSheet from "./PayModeSheet";
 import PortfolioSummary from "./PortfolioSummary";
-import PromoSheet from "./PromoSheet";
 import SpendingLimitSheet from "./SpendingLimitSheet";
 import StocksIntroSheet from "./StocksIntroSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { balancesOptions, restrictedCountries } from "../../utils/lifi";
-import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
@@ -138,13 +136,10 @@ export default function Home() {
   } = useCardLimit(card?.limit.amount);
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
   const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
-  const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
   const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const stocksAvailable = !!country && !restrictedCountries.has(country);
   const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
-  const promoSheetOpen =
-    isPromoActive() && !promoSeen && !!card && card.status !== "FROZEN" && !spotlightVisible && focused;
   const stocksIntroOpen = isKYCApproved && !stocksIntroShown && stocksAvailable && !spotlightVisible && focused;
   const { mutate: mutateMode } = useMutation({
     ...cardModeMutationOptions,
@@ -345,12 +340,7 @@ export default function Home() {
             }}
             onModeChange={handleModeChange}
           />
-          <PromoSheet
-            open={promoSheetOpen}
-            onClose={() => queryClient.setQueryData(["settings", "promo-seen", PROMO.id], true)}
-            onActionPress={openInstallments}
-          />
-          <ArrivalSheet focused={focused && !spotlightVisible && !promoSheetOpen && !stocksIntroOpen} />
+          <ArrivalSheet focused={focused && !spotlightVisible && !stocksIntroOpen} />
           <StocksIntroSheet
             open={stocksIntroOpen}
             onClose={() => queryClient.setQueryData(["settings", "stocks-intro-shown"], true)}
