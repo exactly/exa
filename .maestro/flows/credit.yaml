@@ -25,6 +25,7 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/purchase.js
     env: { merchant: Coffee Shop, amount: "90", installments: "3", credentialId: "${output.credential}" }
 - runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
+- runScript: { file: ../dist/mint.js, env: { asset: EXA, to: "${output.account}", amount: "100" } }
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/assertHistory.yaml
 - runFlow: ../subflows/storeCoverage.yaml
