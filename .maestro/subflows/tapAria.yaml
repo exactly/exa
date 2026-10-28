@@ -2,8 +2,14 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 # HACK https://github.com/mobile-dev-inc/Maestro/issues/2914
 - runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
+    when: { true: "${maestro.platform != 'web' && typeof index === 'undefined'}" }
     commands: [{ tapOn: "${aria}" }]
 - runFlow:
-    when: { platform: web }
+    when: { true: "${maestro.platform != 'web' && typeof index !== 'undefined'}" }
+    commands: [{ tapOn: { text: "${aria}", index: "${index}" } }]
+- runFlow:
+    when: { platform: web, true: "${typeof index === 'undefined'}" }
     commands: [{ tapOn: { id: "${aria}" } }]
+- runFlow:
+    when: { platform: web, true: "${typeof index !== 'undefined'}" }
+    commands: [{ tapOn: { id: "${aria}", index: "${index}" } }]
