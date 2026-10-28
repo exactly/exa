@@ -55,7 +55,7 @@ catalog:
   "@account-kit/smart-contracts": *aaSDK
   eslint: &eslint ^9.39.4
   "@eslint/js": *eslint
-  "@hono/node-server": ^2.0.12
+  "@hono/node-server": ^2.1.5
   nx: &nx ^23.2.1
   "@nx/esbuild": *nx
   "@nx/eslint": *nx

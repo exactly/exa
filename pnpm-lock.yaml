@@ -252,7 +252,7 @@ catalogs:
 overrides:
   '@fastify/cors@8': ^11.3.1
   '@fastify/websocket@10': ^11.3.4
-  '@hono/node-server': ^2.0.12
+  '@hono/node-server': ^2.1.5
   '@humanfs/node@0.16.7': ^0.16.8
   '@modelcontextprotocol/server@2.0.0': ^2.3.1
   '@opentelemetry/core@<2.8.0': ^2.12.0
@@ -1035,8 +1035,8 @@ importers:
         specifier: ^7.0.0
         version: 7.0.0
       '@hono/node-server':
-        specifier: ^2.0.12
-        version: 2.0.12(hono@4.13.13)
+        specifier: ^2.1.5
+        version: 2.1.5(hono@4.13.13)
       '@hono/sentry':
         specifier: ^1.2.2
         version: 1.2.2(hono@4.13.13)
@@ -3872,11 +3872,11 @@ packages:
       hono-rate-limiter: ^0.4.2
       zod: ^3.25.0 || ^4.0.0
 
-  '@hono/node-server@2.0.12':
-    resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
+  '@hono/node-server@2.1.5':
+    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: ^4
+      hono: ^4 || ^5.0.0-0
 
   '@hono/sentry@1.2.2':
     resolution: {integrity: sha512-027grZBrRGDPor8mRd+QOBcSpUlF07YrTp/WFDXZhbvWZ+1LrZdERUqcdg1gBGDUTanHhd9ucblpNNN6+V1bxg==}
@@ -19630,7 +19630,7 @@ snapshots:
       pkce-challenge: 5.0.1
       zod: 4.6.7
 
-  '@hono/node-server@2.0.12(hono@4.13.13)':
+  '@hono/node-server@2.1.5(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
 
@@ -20120,7 +20120,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.1':
     dependencies:
-      '@hono/node-server': 2.0.12(hono@4.13.13)
+      '@hono/node-server': 2.1.5(hono@4.13.13)
       ajv: 8.20.0
       ajv-formats: 3.0.1
       content-type: 1.0.5
@@ -22584,7 +22584,7 @@ snapshots:
   '@spotlightjs/spotlight@4.11.3(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))':
     dependencies:
       '@hono/mcp': 0.2.4(@modelcontextprotocol/sdk@1.32.1)(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))(hono@4.13.13)(zod@4.6.7)
-      '@hono/node-server': 2.0.12(hono@4.13.13)
+      '@hono/node-server': 2.1.5(hono@4.13.13)
       '@jridgewell/trace-mapping': 0.3.31
       '@modelcontextprotocol/sdk': 1.32.1
       '@sentry/core': 10.71.0
