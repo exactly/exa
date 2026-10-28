@@ -1,10 +1,12 @@
 import "viem/window";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
 import { useMutation } from "@tanstack/react-query";
 import {
   concat,
+  createTestClient,
   createWalletClient,
   hexToNumber,
   http,
@@ -15,7 +17,8 @@ import {
   type EIP1193RequestFn,
   type WalletSendCallsParameters,
 } from "viem";
-import { mnemonicToAccount, nonceManager } from "viem/accounts";
+import { generatePrivateKey, nonceManager, privateKeyToAccount } from "viem/accounts";
+import { anvil } from "viem/chains";
 
 import { dataSuffix } from "@exactly/common/attribution";
 import chain from "@exactly/common/generated/chain";
@@ -23,18 +26,16 @@ import chain from "@exactly/common/generated/chain";
 import publicClient from "./publicClient";
 
 const e2e = process.env.EXPO_PUBLIC_ENV === "e2e";
-const account =
-  Platform.OS !== "web" && e2e
-    ? mnemonicToAccount("test test test test test test test test test test test junk", { nonceManager })
-    : undefined;
-const client = account && createWalletClient({ chain, account, transport: http(), dataSuffix });
 export default e2e;
 
 const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
 
-if (client && !window.ethereum) {
+let client: ReturnType<typeof walletClient> | undefined;
+if (Platform.OS !== "web" && e2e && !window.ethereum) {
   window.ethereum = {
     request: (async ({ method, params }) => {
+      client ??= walletClient().catch(resetClient);
+      const { account, sendTransaction } = await client;
       switch (method) {
         case "eth_chainId":
           return String(chain.id);
@@ -56,7 +57,7 @@ if (client && !window.ethereum) {
           const suffix = isHex(attribution) ? attribution : dataSuffix;
           const hashes = await Promise.all(
             calls.map(({ to, data, value }) =>
-              client.sendTransaction({ to, data, dataSuffix: suffix, value: value && BigInt(value), gas: 6_666_666n }),
+              sendTransaction({ to, data, dataSuffix: suffix, value: value && BigInt(value), gas: 6_666_666n }),
             ),
           );
           return { id: concat([...hashes, numberToHex(chain.id, { size: 32 }), TX_MAGIC_ID]) };
@@ -98,6 +99,25 @@ export function useSubmitCoverage() {
           })
         : Promise.resolve(null),
   });
+}
+
+async function walletClient() {
+  const stored = await AsyncStorage.getItem("e2e.wallet");
+  const key = isHex(stored) ? stored : generatePrivateKey();
+  const account = privateKeyToAccount(key, { nonceManager });
+  if (key !== stored) await AsyncStorage.setItem("e2e.wallet", key);
+  if (chain.id === anvil.id && (await publicClient.getBalance({ address: account.address })) === 0n) {
+    await createTestClient({ chain, mode: "anvil", transport: http() }).setBalance({
+      address: account.address,
+      value: 10n ** 22n,
+    });
+  }
+  return createWalletClient({ chain, account, transport: http(), dataSuffix });
+}
+
+function resetClient(error: unknown): never {
+  client = undefined;
+  throw error;
 }
 
 declare const __coverage__: unknown;
