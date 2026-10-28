@@ -1,3 +1,161 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.16.1
+        version: 12.16.1
+
+packages:
+
+  '@pnpm/exe.android-arm64@12.16.1':
+    resolution: {integrity: sha512-PKf78Ew+i0CBYf0Xc+eMcqQiqyBT+u8XCVg1F5roc98/6wWfdYlWhrUMmEBiKWaJ3JqHxrtt8l1NwZ7qfJt2/Q==}
+    cpu: [arm64]
+    os: [android]
+
+  '@pnpm/exe.android-x64@12.16.1':
+    resolution: {integrity: sha512-xdu7gMbB98pdvhwMeA6612Of515FDlRUtfA/1f7nWPZfPLnEdSRBO2u+1N0XBtQ/ennhPH/lrxB1gC6gnR/cdg==}
+    cpu: [x64]
+    os: [android]
+
+  '@pnpm/exe.darwin-arm64@12.16.1':
+    resolution: {integrity: sha512-pVbmIIbhixiLvADLu1WA3TaW8FZy/D72R1De27WbbFx8/2mxvnsTyFVm4fO9kjpjMY7RzJd48CiQ96p8fO3ebQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pnpm/exe.darwin-x64@12.16.1':
+    resolution: {integrity: sha512-xZvQBFqcZjO7vFKTK3XsJpqY6lnBL9EWSLCzVUPq3kZ94+D96gwJCa76xxGNK8Cj32f4eeM91Qg+yNRR4sRpDw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@pnpm/exe.freebsd-x64@12.16.1':
+    resolution: {integrity: sha512-zTtunfi9mBhRXiXEJYfwiJj0tk7MgTSfqDSRh+Az9FZ9THazVIiQiVNS8jpcsftDOqu7LKNffQdjmgwHDThfUg==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@pnpm/exe.linux-arm64-musl@12.16.1':
+    resolution: {integrity: sha512-BJ3mOmcmQgcUo92Ee/WfEOt1pRiv3y2MMAkhEiYHd85UiPpHTfFhv+SpCbALmfExzXk3UlaRtMYwHlkQymc4VA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-arm64@12.16.1':
+    resolution: {integrity: sha512-JaRd5gNxwdNGBBkrZFt8bknrK4YmHVJBW0JMhUQ0fJ0dEYp6C2GT9ExaCqOO8EwYEyqM+jpKgJIK+8WFaJy3ew==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-ppc64@12.16.1':
+    resolution: {integrity: sha512-FnSV0Jv40S1cMv7vFNWwvu0X567Lec4L4HCRead3CFcD6zQDNbGw81s8N5bcKPahtPD9ApVuhsbmFCx4rw6RMw==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-riscv64@12.16.1':
+    resolution: {integrity: sha512-C1Sww4FN5IttD4atRRhAKmQtSGWVp04ZAKNxO8pfu2bkRPwOW+7v+2DH1Xs1W+kZYYpO86BYDvUcadefF+AgaQ==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-s390x@12.16.1':
+    resolution: {integrity: sha512-kn2fautsTcxIMODoovQVqZyfpDRdNgGkoeVqNdrKqbeBBvrEl+fXLkmZiq5xDht1LMr4sYiCNcsMfNMT6JPFmg==}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-x64-musl@12.16.1':
+    resolution: {integrity: sha512-PM6ccHCOe/O9SsTflTJTYWfwogJZa6EmUvpnwZgiPguJBddh20wDQKgxUPXf48rDsPm9vMsIij0uHswwwbXL8g==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-x64@12.16.1':
+    resolution: {integrity: sha512-RK//8ZLcXGW8A2k8bQOXZDBN1Qu92zN4dYnG1bzj1zoQ1fkZ6jNzZ1AvXtsfGVma795CJtvoaF5bLXf4l/FIUw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.win32-arm64@12.16.1':
+    resolution: {integrity: sha512-Ox3kNNVxtGw6pK7SVejmeOUgHhUTZgAM7NQQ6cU7frPw3ix9+j7d2MGbRg3fyEFAaKWq8ZAZLTQGcDyLnAu+qA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@pnpm/exe.win32-x64@12.16.1':
+    resolution: {integrity: sha512-k+FhRJ0ttphFoFIVB1Sk4v76YJAulafmA/Ly57cysesUhhIzVlApeOShUz0jXubKx317TThlEfpQrukldnqORA==}
+    cpu: [x64]
+    os: [win32]
+
+  pnpm@12.16.1:
+    resolution: {integrity: sha512-CR0d7nknV1Zhsl2rPCrjHK/BxU1rce1qZgDPDByxBDSkR+rhQBXxsj4ua+3u1535SpMuIWTSgyKA3OP7MvZW0Q==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe.android-arm64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.android-x64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.darwin-arm64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.darwin-x64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.freebsd-x64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-arm64-musl@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-arm64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-ppc64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-riscv64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-s390x@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-x64-musl@12.16.1':
+    optional: true
+
+  '@pnpm/exe.linux-x64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.win32-arm64@12.16.1':
+    optional: true
+
+  '@pnpm/exe.win32-x64@12.16.1':
+    optional: true
+
+  pnpm@12.16.1:
+    optionalDependencies:
+      '@pnpm/exe.android-arm64': 12.16.1
+      '@pnpm/exe.android-x64': 12.16.1
+      '@pnpm/exe.darwin-arm64': 12.16.1
+      '@pnpm/exe.darwin-x64': 12.16.1
+      '@pnpm/exe.freebsd-x64': 12.16.1
+      '@pnpm/exe.linux-arm64': 12.16.1
+      '@pnpm/exe.linux-arm64-musl': 12.16.1
+      '@pnpm/exe.linux-ppc64': 12.16.1
+      '@pnpm/exe.linux-riscv64': 12.16.1
+      '@pnpm/exe.linux-s390x': 12.16.1
+      '@pnpm/exe.linux-x64': 12.16.1
+      '@pnpm/exe.linux-x64-musl': 12.16.1
+      '@pnpm/exe.win32-arm64': 12.16.1
+      '@pnpm/exe.win32-x64': 12.16.1
+
+---
 lockfileVersion: '9.0'
 
 settings:
@@ -150,6 +308,7 @@ overrides:
   yauzl: ^3.2.1
   '@anthropic-ai/claude-code': npm:@favware/skip-dependency@1.2.2
   '@bigmi/core': npm:@favware/skip-dependency@1.2.2
+  '@exactly/protocol>solmate': '-'
   '@gnosis.pm/safe-contracts': npm:@favware/skip-dependency@1.2.2
   '@mysten/sui': npm:@favware/skip-dependency@1.2.2
   '@mysten/wallet-standard': npm:@favware/skip-dependency@1.2.2
@@ -161,36 +320,24 @@ overrides:
   '@types/mocha': npm:@favware/skip-dependency@1.2.2
   '@wagmi/connectors': npm:@favware/skip-dependency@1.2.2
   bech32: npm:@favware/skip-dependency@1.2.2
-  bs58: npm:@favware/skip-dependency@1.2.2
   bitcoinjs-lib: npm:@favware/skip-dependency@1.2.2
+  bs58: npm:@favware/skip-dependency@1.2.2
+  debug>supports-color: '-'
   ethereumjs-util: npm:@favware/skip-dependency@1.2.2
   ethereumjs-wallet: npm:@favware/skip-dependency@1.2.2
   hardhat-deploy: npm:@favware/skip-dependency@1.2.2
   hardhat-deploy-ethers: npm:@favware/skip-dependency@1.2.2
+  modular-account>modular-account-libs: '-'
   solidity-coverage: npm:@favware/skip-dependency@1.2.2
 
 patchedDependencies:
-  '@lifi/sdk':
-    hash: ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
-    path: patches/@lifi__sdk.patch
-  '@pimlico/alto':
-    hash: d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276
-    path: patches/@pimlico__alto.patch
-  '@tamagui/sheet':
-    hash: ca92034306a3cd44d5e953ccf3e4de88a8d930bb1eb1e1c75fde8760254d2f55
-    path: patches/@tamagui__sheet.patch
-  '@tamagui/slider':
-    hash: f38866487df195abff821b17cfaa71e7213d90da6b8a07b0dd742d04b4d3f570
-    path: patches/@tamagui__slider.patch
-  embedded-postgres:
-    hash: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
-    path: patches/embedded-postgres.patch
-  eslint-config-universe:
-    hash: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
-    path: patches/eslint-config-universe.patch
-  react-native-wagmi-charts:
-    hash: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
-    path: patches/react-native-wagmi-charts.patch
+  '@lifi/sdk': ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
+  '@pimlico/alto': d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276
+  '@tamagui/sheet': ca92034306a3cd44d5e953ccf3e4de88a8d930bb1eb1e1c75fde8760254d2f55
+  '@tamagui/slider': f38866487df195abff821b17cfaa71e7213d90da6b8a07b0dd742d04b4d3f570
+  embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
+  eslint-config-universe: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
+  react-native-wagmi-charts: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
 
 importers:
 
@@ -204,7 +351,7 @@ importers:
         version: 4.86.1(bufferutil@4.1.0)(debug@4.4.3)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
       '@account-kit/smart-contracts':
         specifier: 'catalog:'
-        version: 4.86.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
+        version: 4.86.1(bufferutil@4.1.0)(debug@4.4.3)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
       '@exactly/common':
         specifier: workspace:^0.0.24
         version: link:common
@@ -517,7 +664,7 @@ importers:
         version: 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)
       '@spotlightjs/spotlight':
         specifier: ^4.11.3
-        version: 4.11.3(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))
+        version: 4.11.3(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))
       '@svgr/core':
         specifier: ^8.1.0
         version: 8.1.0(typescript@5.9.3)
@@ -913,7 +1060,7 @@ importers:
         version: 1.4.2(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/api@1.9.1)
       '@mastra/sentry':
         specifier: ^1.2.14
-        version: 1.2.14(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(zod@4.6.7)
+        version: 1.2.14(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(zod@4.6.7)
       '@onesignal/node-onesignal':
         specifier: ^5.4.0
         version: 5.4.0
@@ -928,10 +1075,10 @@ importers:
         version: 10.71.0
       '@sentry/node':
         specifier: 'catalog:'
-        version: 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
+        version: 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@sentry/profiling-node':
         specifier: 'catalog:'
-        version: 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
+        version: 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@simplewebauthn/server':
         specifier: ^13.3.3
         version: 13.3.3
@@ -958,7 +1105,7 @@ importers:
         version: 3.0.0
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@7.2.0)
+        version: 4.4.3
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(kysely@0.28.17)(pg@8.20.0)
@@ -1019,7 +1166,7 @@ importers:
         version: 1.14.3
       '@pimlico/alto':
         specifier: ^0.0.21
-        version: 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        version: 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@sentry/cli':
         specifier: ^3.6.2
         version: 3.6.2
@@ -1097,7 +1244,7 @@ importers:
         version: 2.27.0(typescript@5.9.3)(vite@8.3.4(@types/node@25.5.0)(esbuild@0.28.1)(terser@5.46.1)(tsx@4.22.4)(yaml@2.9.1))
       prool:
         specifier: ^0.2.17
-        version: 0.2.17(@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3)
+        version: 0.2.17(@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3)
       redis-memory-server:
         specifier: ^0.17.1
         version: 0.17.1
@@ -3484,6 +3631,7 @@ packages:
   '@expo/log-box@55.0.8':
     resolution: {integrity: sha512-WVEuW1XcntUdOpQk8k9cUymM5FHKmEcPr6QO9SVIin3WYk5FbbwHRYr1T6GfwWF0UA2s9w9heeYolesq99vFIw==}
     peerDependencies:
+      '@expo/dom-webview': ^55.0.3
       expo: '*'
       react: '*'
       react-native: '*'
@@ -4056,6 +4204,8 @@ packages:
   '@lifi/sdk@3.7.7':
     resolution: {integrity: sha512-+q7Ux6NDFDB4ykPDTeVr48kq3LaOEswpK2sxniGT+NZFum5L2j3aU360elIjIWUCUtD4UqjXXWcPMSgy9/Fw+w==}
     peerDependencies:
+      '@solana/wallet-adapter-base': ^0.9.0
+      '@solana/web3.js': ^1.98.0
       viem: ^2.21.0
 
   '@lifi/types@17.90.0':
@@ -4149,6 +4299,7 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
+      zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
@@ -4756,6 +4907,7 @@ packages:
   '@opentelemetry/propagator-jaeger@2.12.0':
     resolution: {integrity: sha512-Kz2Vz+NILW7S1WtN4rV1wr76fMtT/RRWvAMFBc91uTIi2dDMXxrfBKNe2KH7yaCfFp1X0xfAuabzuFczvoPB6A==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Package no longer supported. See https://github.com/open-telemetry/opentelemetry-js/pull/7077
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -4850,36 +5002,42 @@ packages:
   '@opentelemetry/sdk-trace-base@1.25.1':
     resolution: {integrity: sha512-C8k4hnEbc5FamuZQ92nTOp8X/diCY56XUTnMiv9UTuJitCzaNNHAVsdm5+HLCdI8SLQsLWIrG38tddMxLVoftw==}
     engines: {node: '>=14'}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@1.30.1':
     resolution: {integrity: sha512-jVPgBbH1gCy2Lb7X0AVQ8XAfgg0pJ4nvl8/IiQA6nxOsPvS+0zMJaFSs2ltXe0J6C8dqjcnpyqINDJmU30+uOg==}
     engines: {node: '>=14'}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.10.0':
     resolution: {integrity: sha512-GuYQQT7QD2EeO8lcZLRQzcbOyhqAzL+6WWTKTU9mSUBYBazkEDl+VrQcXQhbB08OWM9anD1aHleVadzulpOaUQ==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-base@2.12.0':
     resolution: {integrity: sha512-JOERgZCxRM06FEJ5kEWxlSRChah6MmXDx3KwCruqEv/iEyLkTokCSemf2y1w8oIHtfrr8EVTpzebq/31vn2Cpg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.10.0':
     resolution: {integrity: sha512-GZK/G6oZyBLGlH1pUgeDch7D91KoHd2uotUGIkWCPi9GI5T9X0p4L7nNAMDR1BQjkRYoDqo+ddfVx9t5Uhys+Q==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
   '@opentelemetry/sdk-trace-node@2.12.0':
     resolution: {integrity: sha512-9DufH1IlmQMoKAfot5y/FhTP1RnmhLb5K6eKmJO/bvzPjYwPAazoiAUbTZFdPbqxOXN0FEbhZx/e6SB1Og4jmg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
@@ -5348,7 +5506,7 @@ packages:
         optional: true
 
   '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc':
-    resolution: {tarball: https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc}
+    resolution: {gitHosted: true, integrity: sha512-IDkimq4MCCW59JG5wNc9rnNXYnoqPNeu+BI6d7TmQrn6b7w4Cyd17CF8Si8ch4ZTwboDGMpGmr4lo8PJ5pdNXA==, tarball: https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc}
     version: 7.0.0-alpha.3
 
   '@react-native-async-storage/async-storage@2.2.0':
@@ -7632,7 +7790,7 @@ packages:
     engines: {node: '>= 0.6'}
 
   accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96:
-    resolution: {tarball: https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96}
+    resolution: {gitHosted: true, integrity: sha512-NvWO0tyLOCZdxK4eQ+iPimXRPLcCG5sqJspWxd5qyZnCAWfktg/s2wHhenmz6pIqP5A2cb/KKseodXKZy63sCg==, tarball: https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96}
     version: 0.6.0
 
   acorn-import-assertions@1.9.0:
@@ -7686,6 +7844,11 @@ packages:
 
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
+    peerDependencies:
+      ajv: ^8.0.0
+    peerDependenciesMeta:
+      ajv:
+        optional: true
 
   ajv@6.14.0:
     resolution: {integrity: sha512-IWrosm/yrn43eiKqkfkHis7QioDleaXQHdDVPKg0FSwwd/DuvyX79TZnFOnYpB7dcsFAMmtFztZuXPDvSePkFw==}
@@ -8700,6 +8863,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   croner@10.0.1:
     resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
@@ -8717,6 +8881,7 @@ packages:
 
   crypto-js@4.2.0:
     resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
+    deprecated: Active development of CryptoJS has been discontinued. This library is no longer maintained.
 
   cspell-config-lib@9.7.0:
     resolution: {integrity: sha512-pguh8A3+bSJ1OOrKCiQan8bvaaY125de76OEFz7q1Pq309lIcDrkoL/W4aYbso/NjrXaIw6OjkgPMGRBI/IgGg==}
@@ -9021,28 +9186,13 @@ packages:
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
 
   debug@3.2.7:
     resolution: {integrity: sha512-CFjzYYAi4ThfiQvizrFQevTTXHtnCqWfe7x1AhgEscTz6ZbLbfoLRLPugTQyBth6f8ZERVUSyWHFD/7Wu4t1XQ==}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
     engines: {node: '>=6.0'}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
 
   decamelize@1.2.0:
     resolution: {integrity: sha512-z2S+W9X73hAUUki+N+9Za2lBlun89zigOyGrsax+KUQ6wKW4ZoWpEYBkGhQjwAjjDCkWxhY0VKEhk8wzY7F5cA==}
@@ -9814,6 +9964,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -10460,7 +10611,7 @@ packages:
     engines: {node: '>=14'}
 
   forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398}
+    resolution: {gitHosted: true, integrity: sha512-nm0eLdbGRP9DY/keWSyz6nGNGLQeXw5o++DsZK2bkOJWliJZiGptMtQ7utvA7JyO0mxbuGJZkNbtYswALq66qg==, tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398}
     version: 1.15.0
 
   form-data-encoder@2.1.4:
@@ -10508,7 +10659,7 @@ packages:
     resolution: {integrity: sha512-fUY88kXvGiIItgNC7wcTOl0SNRCVXMKSWW2Yzfmn7EKNc+MpCzcz9DhdHcdjbrtN3c6R4H5dTY2jiCpPdysEjA==}
 
   fresh-crypto-lib@https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6:
-    resolution: {tarball: https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6}
+    resolution: {gitHosted: true, integrity: sha512-9f3WvfKlrlLTfC4Z0TjfnCYz/ZexRumY/mGBx4QBRiNaVVx00aJrA+ersfpIpaadnl2zQRatlv480tjc9ShBbw==, tarball: https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6}
     version: 0.0.0
 
   fresh@0.5.2:
@@ -11688,7 +11839,6 @@ packages:
 
   jsonparse@1.3.1:
     resolution: {integrity: sha512-POQXvpdL69+CluYsillJ7SUhKvytYjW9vG/GKpnf+xP8UWgYEM/RaMzHHofbALDiKbbP1W8UEYmgGl39WkPZsg==}
-    engines: {'0': node >= 0.2.0}
 
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
@@ -12658,17 +12808,13 @@ packages:
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
-  modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/52ab7c2b2f1abf327a8612945788f1b0c899ade6:
-    resolution: {tarball: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/52ab7c2b2f1abf327a8612945788f1b0c899ade6}
-    version: 0.7.0
-
   modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953:
-    resolution: {tarball: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953}
+    resolution: {gitHosted: true, integrity: sha512-nvoIGwsRt7LfsuZ5B3TyLOHnNXNsVphE6sGOnrTuzmKa77pAQLMXClfz1fp/vIbmCzMs3zgxmLZEpB3fzqHLjA==, tarball: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953}
     version: 0.7.0
 
   modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb:
-    resolution: {tarball: https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb}
-    version: 1.0.1
+    resolution: {gitHosted: true, integrity: sha512-srHbFjSh7iy8d6vFYRxDtkXduu3gau730cKhi8uCB5nOouvZGEuwWMsvHfYWN0VP6oRid96S6V7LP4iM/bpaLA==, tarball: https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb}
+    version: v1.0.1
 
   module-details-from-path@1.0.4:
     resolution: {integrity: sha512-EGWKgxALGMgzvxYF1UyGTy0HXX/2vHLkw6+NvDKW2jypWbHpjQuj4UMcqQWXHERJhVGKikolT06G3bcKe4fi7w==}
@@ -13232,6 +13378,7 @@ packages:
 
   path-dirname@1.0.2:
     resolution: {integrity: sha512-ALzNPpyNq9AqXMBjeymIjFDAkAFH06mHJH/cSBHAgU0s4vfpBn6b2nf8tiRLvagKD8RbTpq2FKTBg7cl9l3c7Q==}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   path-exists@3.0.0:
     resolution: {integrity: sha512-bpC7GYwiDYQ4wYLe+FA8lhRjhQCMcQGuSgGGqDkg/QerRWw9CmGRT0iSOVRSZJ29NMLZgIzqaljJ63oaL4NIJQ==}
@@ -13772,6 +13919,7 @@ packages:
 
   react-native-quick-crypto@0.7.17:
     resolution: {integrity: sha512-cJzp6oA/dM1lujt+Rwtn46Mgcs3w9F/0oQvNz1jcADc/AXktveAOUTzzKrDMxyg6YPziCYnoqMDzHBo6OLSU1g==}
+    deprecated: 'Security: secret keys are truncated at the first NUL byte, producing low-entropy derived keys. Upgrade to >=1.0.0. See GHSA-wrf3-fwx3-8jrv'
 
   react-native-reanimated-carousel@4.0.3:
     resolution: {integrity: sha512-YZXlvZNghR5shFcI9hTA7h7bEhh97pfUSLZvLBAshpbkuYwJDKmQXejO/199T6hqGq0wCRwR0CWf2P4Vs6A4Fw==}
@@ -14533,6 +14681,7 @@ packages:
 
   sliced@1.0.1:
     resolution: {integrity: sha512-VZBmZP8WU3sMOZm1bdgTadsQbcscK0UM8oKxKVBs4XAhUo2Xxzm/OFMGBkPusxw9xL3Uy8LrzEqGqJhclsr0yA==}
+    deprecated: Unsupported
 
   slugify@1.6.8:
     resolution: {integrity: sha512-HVk9X1E0gz3mSpoi60h/saazLKXKaZThMLU3u/aNwoYn8/xQyX2MGxL0ui2eaokkD7tF+Zo+cKTHUbe1mmmGzA==}
@@ -14847,7 +14996,7 @@ packages:
     engines: {node: '>= 0.4'}
 
   surl@https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a:
-    resolution: {tarball: https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a}
+    resolution: {gitHosted: true, integrity: sha512-DKIsQPjjOnqlUi2/h7oapmNRfwWLNqn6V/tLMUbAiPb0mVnWD1rvLWekMCiEqvP52dn00nhE9vK4sTsrK1AZTQ==, tarball: https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a}
     version: 0.0.0
 
   svg-arc-to-cubic-bezier@3.2.0:
@@ -15621,14 +15770,14 @@ packages:
     engines: {node: '>= 8'}
 
   webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda:
-    resolution: {tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda}
+    resolution: {gitHosted: true, integrity: sha512-yibBPzOEH5biyThe7DG6cYJeP5z5bj4TTvU5F8A8zCq4uJHxABm9AxSbPjhpZmRX9CKgobrFoObcT1wFxqVesg==, tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda}
     version: 0.0.0
 
   webauthn-p256@0.0.10:
     resolution: {integrity: sha512-EeYD+gmIT80YkSIDb2iWq0lq2zbHo1CxHlQTeJ+KkCILWpVy3zASH3ByD4bopzfk0uCwXxLqKGLqp2W4O28VFA==}
 
   webauthn-sol@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2:
-    resolution: {tarball: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2}
+    resolution: {gitHosted: true, integrity: sha512-pTBB+/Emirl8CQgUGY2vXDWPNAt8+wO251JDofOIjoQ/9uGCwzuebMnSE5EvsgqAse9LsSB7EKdM8pBclLAovA==, tarball: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2}
     version: 0.0.0
 
   webcrypto-core@1.8.1:
@@ -15909,6 +16058,8 @@ packages:
 
   zxing-wasm@3.0.1:
     resolution: {integrity: sha512-3CLj6iaGkpqPWXAB4pIWkFOR63MwqGekpMzaROFKto4dFowiPmLlC56KoMoOSXzqOCOpI5DAvMdB8ku2va6fUg==}
+    peerDependencies:
+      '@types/emscripten': '>=1.39.6'
 
 snapshots:
 
@@ -15949,7 +16100,6 @@ snapshots:
       - bufferutil
       - debug
       - encoding
-      - supports-color
       - typescript
       - utf-8-validate
 
@@ -15960,7 +16110,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@account-kit/smart-contracts@4.86.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))':
+  '@account-kit/smart-contracts@4.86.1(bufferutil@4.1.0)(debug@4.4.3)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))':
     dependencies:
       '@aa-sdk/core': 4.86.1(typescript@5.9.3)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
       '@account-kit/infra': 4.86.1(bufferutil@4.1.0)(debug@4.4.3)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
@@ -15970,7 +16120,6 @@ snapshots:
       - bufferutil
       - debug
       - encoding
-      - supports-color
       - typescript
       - utf-8-validate
 
@@ -16045,10 +16194,8 @@ snapshots:
   '@apm-js-collab/tracing-hooks@0.13.0':
     dependencies:
       '@apm-js-collab/code-transformer': 0.18.1
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       module-details-from-path: 1.0.4
-    transitivePeerDependencies:
-      - supports-color
 
   '@astrojs/compiler-binding-android-arm64@0.5.2':
     optional: true
@@ -16144,8 +16291,6 @@ snapshots:
       unist-util-visit: 5.1.0
       unist-util-visit-parents: 6.0.2
       vfile: 6.0.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@astrojs/markdown-satteri@0.3.4':
     dependencies:
@@ -16181,8 +16326,6 @@ snapshots:
       vfile: 6.0.3
     optionalDependencies:
       '@astrojs/markdown-satteri': 0.3.4
-    transitivePeerDependencies:
-      - supports-color
 
   '@astrojs/prism@4.0.2':
     dependencies:
@@ -16227,7 +16370,6 @@ snapshots:
       unist-util-visit: 5.1.0
       vfile: 6.0.3
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   '@astrojs/telemetry@3.3.3':
@@ -16266,12 +16408,10 @@ snapshots:
       '@babel/types': 7.29.0
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/core@7.29.7':
     dependencies:
@@ -16286,12 +16426,10 @@ snapshots:
       '@babel/types': 7.29.8
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/generator@7.29.1':
     dependencies:
@@ -16339,8 +16477,6 @@ snapshots:
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/traverse': 7.29.0
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-create-class-features-plugin@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -16352,8 +16488,6 @@ snapshots:
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/traverse': 7.29.0
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-create-regexp-features-plugin@7.28.5(@babel/core@7.29.0)':
     dependencies:
@@ -16374,22 +16508,18 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-compilation-targets': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       lodash.debounce: 4.0.8
       resolve: 1.22.11
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-define-polyfill-provider@0.6.8(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-compilation-targets': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       lodash.debounce: 4.0.8
       resolve: 1.22.11
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-globals@7.28.0': {}
 
@@ -16399,22 +16529,16 @@ snapshots:
     dependencies:
       '@babel/traverse': 7.29.0
       '@babel/types': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-module-imports@7.28.6':
     dependencies:
       '@babel/traverse': 7.29.0
       '@babel/types': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-module-imports@7.29.7':
     dependencies:
       '@babel/traverse': 7.29.8
       '@babel/types': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-module-transforms@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -16422,8 +16546,6 @@ snapshots:
       '@babel/helper-module-imports': 7.28.6
       '@babel/helper-validator-identifier': 7.28.5
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-module-transforms@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -16431,8 +16553,6 @@ snapshots:
       '@babel/helper-module-imports': 7.28.6
       '@babel/helper-validator-identifier': 7.28.5
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-module-transforms@7.29.7(@babel/core@7.29.7)':
     dependencies:
@@ -16440,8 +16560,6 @@ snapshots:
       '@babel/helper-module-imports': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
       '@babel/traverse': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-optimise-call-expression@7.27.1':
     dependencies:
@@ -16455,8 +16573,6 @@ snapshots:
       '@babel/helper-annotate-as-pure': 7.27.3
       '@babel/helper-wrap-function': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-remap-async-to-generator@7.27.1(@babel/core@7.29.7)':
     dependencies:
@@ -16464,8 +16580,6 @@ snapshots:
       '@babel/helper-annotate-as-pure': 7.27.3
       '@babel/helper-wrap-function': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-replace-supers@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -16473,8 +16587,6 @@ snapshots:
       '@babel/helper-member-expression-to-functions': 7.28.5
       '@babel/helper-optimise-call-expression': 7.27.1
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-replace-supers@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -16482,15 +16594,11 @@ snapshots:
       '@babel/helper-member-expression-to-functions': 7.28.5
       '@babel/helper-optimise-call-expression': 7.27.1
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-skip-transparent-expression-wrappers@7.27.1':
     dependencies:
       '@babel/traverse': 7.29.0
       '@babel/types': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helper-string-parser@7.27.1': {}
 
@@ -16509,8 +16617,6 @@ snapshots:
       '@babel/template': 7.28.6
       '@babel/traverse': 7.29.0
       '@babel/types': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/helpers@7.29.2':
     dependencies:
@@ -16535,16 +16641,12 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-bugfix-firefox-class-in-computed-class-key@7.28.5(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-bugfix-safari-class-field-initializer-scope@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -16572,8 +16674,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/plugin-transform-optional-chaining': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining@7.27.1(@babel/core@7.29.7)':
     dependencies:
@@ -16581,24 +16681,18 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/plugin-transform-optional-chaining': 7.28.6(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-bugfix-v8-static-class-fields-redefine-readonly@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-bugfix-v8-static-class-fields-redefine-readonly@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-proposal-decorators@7.29.0(@babel/core@7.29.0)':
     dependencies:
@@ -16606,8 +16700,6 @@ snapshots:
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/plugin-syntax-decorators': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-proposal-decorators@7.29.0(@babel/core@7.29.7)':
     dependencies:
@@ -16615,8 +16707,6 @@ snapshots:
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/plugin-syntax-decorators': 7.28.6(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-proposal-export-default-from@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -16794,8 +16884,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-remap-async-to-generator': 7.27.1(@babel/core@7.29.0)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-async-generator-functions@7.29.0(@babel/core@7.29.7)':
     dependencies:
@@ -16803,8 +16891,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-remap-async-to-generator': 7.27.1(@babel/core@7.29.7)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-async-to-generator@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -16812,8 +16898,6 @@ snapshots:
       '@babel/helper-module-imports': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-remap-async-to-generator': 7.27.1(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-async-to-generator@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -16821,8 +16905,6 @@ snapshots:
       '@babel/helper-module-imports': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-remap-async-to-generator': 7.27.1(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-block-scoped-functions@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -16849,40 +16931,30 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-class-properties@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-class-properties@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-class-static-block@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-class-static-block@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-classes@7.28.4(@babel/core@7.29.0)':
     dependencies:
@@ -16893,8 +16965,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-replace-supers': 7.28.6(@babel/core@7.29.0)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-classes@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -16905,8 +16975,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-replace-supers': 7.28.6(@babel/core@7.29.0)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-classes@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -16917,8 +16985,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-replace-supers': 7.28.6(@babel/core@7.29.7)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-computed-properties@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -16937,16 +17003,12 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-destructuring@7.28.5(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-dotall-regex@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -16997,16 +17059,12 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/plugin-transform-destructuring': 7.28.5(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-explicit-resource-management@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/plugin-transform-destructuring': 7.28.5(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-exponentiation-operator@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -17039,16 +17097,12 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-for-of@7.27.1(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-function-name@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17056,8 +17110,6 @@ snapshots:
       '@babel/helper-compilation-targets': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-function-name@7.27.1(@babel/core@7.29.7)':
     dependencies:
@@ -17065,8 +17117,6 @@ snapshots:
       '@babel/helper-compilation-targets': 7.28.6
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-json-strings@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -17113,32 +17163,24 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-amd@7.27.1(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-commonjs@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-commonjs@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-systemjs@7.29.4(@babel/core@7.29.0)':
     dependencies:
@@ -17147,8 +17189,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-validator-identifier': 7.28.5
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-systemjs@7.29.4(@babel/core@7.29.7)':
     dependencies:
@@ -17157,24 +17197,18 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-validator-identifier': 7.28.5
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-umd@7.27.1(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-modules-umd@7.27.1(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-module-transforms': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-named-capturing-groups-regex@7.29.0(@babel/core@7.29.0)':
     dependencies:
@@ -17231,8 +17265,6 @@ snapshots:
       '@babel/plugin-transform-destructuring': 7.28.5(@babel/core@7.29.0)
       '@babel/plugin-transform-parameters': 7.27.7(@babel/core@7.29.0)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-object-rest-spread@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -17242,24 +17274,18 @@ snapshots:
       '@babel/plugin-transform-destructuring': 7.28.5(@babel/core@7.29.7)
       '@babel/plugin-transform-parameters': 7.27.7(@babel/core@7.29.7)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-object-super@7.27.1(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-replace-supers': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-object-super@7.27.1(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-replace-supers': 7.28.6(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-optional-catch-binding@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -17276,24 +17302,18 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-optional-chaining@7.28.6(@babel/core@7.29.0)':
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-optional-chaining@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-parameters@7.27.7(@babel/core@7.29.0)':
     dependencies:
@@ -17310,16 +17330,12 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-private-methods@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-private-property-in-object@7.28.6(@babel/core@7.29.0)':
     dependencies:
@@ -17327,8 +17343,6 @@ snapshots:
       '@babel/helper-annotate-as-pure': 7.27.3
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.0)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-private-property-in-object@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -17336,8 +17350,6 @@ snapshots:
       '@babel/helper-annotate-as-pure': 7.27.3
       '@babel/helper-create-class-features-plugin': 7.28.6(@babel/core@7.29.7)
       '@babel/helper-plugin-utils': 7.28.6
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-property-literals@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17358,8 +17370,6 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       '@babel/plugin-transform-react-jsx': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-react-jsx-self@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17379,8 +17389,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/plugin-syntax-jsx': 7.28.6(@babel/core@7.29.0)
       '@babel/types': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-react-pure-annotations@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17429,8 +17437,6 @@ snapshots:
       babel-plugin-polyfill-corejs3: 0.13.0(@babel/core@7.29.0)
       babel-plugin-polyfill-regenerator: 0.6.8(@babel/core@7.29.0)
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-runtime@7.29.0(@babel/core@7.29.7)':
     dependencies:
@@ -17441,8 +17447,6 @@ snapshots:
       babel-plugin-polyfill-corejs3: 0.13.0(@babel/core@7.29.7)
       babel-plugin-polyfill-regenerator: 0.6.8(@babel/core@7.29.7)
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-shorthand-properties@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17459,16 +17463,12 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-spread@7.28.6(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-sticky-regex@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17508,8 +17508,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/plugin-syntax-typescript': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-typescript@7.28.6(@babel/core@7.29.7)':
     dependencies:
@@ -17519,8 +17517,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/helper-skip-transparent-expression-wrappers': 7.27.1
       '@babel/plugin-syntax-typescript': 7.28.6(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/plugin-transform-unicode-escapes@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17641,8 +17637,6 @@ snapshots:
       babel-plugin-polyfill-regenerator: 0.6.8(@babel/core@7.29.0)
       core-js-compat: 3.49.0
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/preset-env@7.29.2(@babel/core@7.29.7)':
     dependencies:
@@ -17717,8 +17711,6 @@ snapshots:
       babel-plugin-polyfill-regenerator: 0.6.8(@babel/core@7.29.7)
       core-js-compat: 3.49.0
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/preset-modules@0.1.6-no-external-plugins(@babel/core@7.29.0)':
     dependencies:
@@ -17743,8 +17735,6 @@ snapshots:
       '@babel/plugin-transform-react-jsx': 7.28.6(@babel/core@7.29.0)
       '@babel/plugin-transform-react-jsx-development': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-transform-react-pure-annotations': 7.27.1(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/preset-typescript@7.27.1(@babel/core@7.29.0)':
     dependencies:
@@ -17754,8 +17744,6 @@ snapshots:
       '@babel/plugin-syntax-jsx': 7.28.6(@babel/core@7.29.0)
       '@babel/plugin-transform-modules-commonjs': 7.28.6(@babel/core@7.29.0)
       '@babel/plugin-transform-typescript': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/preset-typescript@7.28.5(@babel/core@7.29.0)':
     dependencies:
@@ -17765,8 +17753,6 @@ snapshots:
       '@babel/plugin-syntax-jsx': 7.28.6(@babel/core@7.29.0)
       '@babel/plugin-transform-modules-commonjs': 7.28.6(@babel/core@7.29.0)
       '@babel/plugin-transform-typescript': 7.28.6(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/preset-typescript@7.28.5(@babel/core@7.29.7)':
     dependencies:
@@ -17776,8 +17762,6 @@ snapshots:
       '@babel/plugin-syntax-jsx': 7.28.6(@babel/core@7.29.7)
       '@babel/plugin-transform-modules-commonjs': 7.28.6(@babel/core@7.29.7)
       '@babel/plugin-transform-typescript': 7.28.6(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/runtime@7.29.2': {}
 
@@ -17801,9 +17785,7 @@ snapshots:
       '@babel/parser': 7.29.2
       '@babel/template': 7.28.6
       '@babel/types': 7.29.0
-      debug: 4.4.3(supports-color@7.2.0)
-    transitivePeerDependencies:
-      - supports-color
+      debug: 4.4.3
 
   '@babel/traverse@7.29.8':
     dependencies:
@@ -17813,9 +17795,7 @@ snapshots:
       '@babel/parser': 7.29.9
       '@babel/template': 7.29.7
       '@babel/types': 7.29.8
-      debug: 4.4.3(supports-color@7.2.0)
-    transitivePeerDependencies:
-      - supports-color
+      debug: 4.4.3
 
   '@babel/types@7.29.0':
     dependencies:
@@ -18736,8 +18716,6 @@ snapshots:
       eslint: 9.39.4
       string-ts: 2.3.1
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint-react/core@3.0.0(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -18750,8 +18728,6 @@ snapshots:
       eslint: 9.39.4
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint-react/eslint-plugin@3.0.0(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -18768,8 +18744,6 @@ snapshots:
       eslint-plugin-react-x: 3.0.0(eslint@9.39.4)(typescript@5.9.3)
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint-react/shared@3.0.0(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -18778,8 +18752,6 @@ snapshots:
       ts-pattern: 5.9.0
       typescript: 5.9.3
       zod: 4.6.7
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint-react/var@3.0.0(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -18791,8 +18763,6 @@ snapshots:
       eslint: 9.39.4
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint/compat@2.0.3(eslint@9.39.4)':
     dependencies:
@@ -18803,18 +18773,14 @@ snapshots:
   '@eslint/config-array@0.21.2':
     dependencies:
       '@eslint/object-schema': 2.1.7
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       minimatch: 3.1.5
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint/config-array@0.23.3':
     dependencies:
       '@eslint/object-schema': 3.0.3
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       minimatch: 10.2.5
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint/config-helpers@0.4.2':
     dependencies:
@@ -18839,7 +18805,7 @@ snapshots:
   '@eslint/eslintrc@3.3.5':
     dependencies:
       ajv: 6.14.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       espree: 10.4.0
       globals: 14.0.0
       ignore: 5.3.2
@@ -18847,8 +18813,6 @@ snapshots:
       js-yaml: 4.3.2
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint/js@9.39.4': {}
 
@@ -18865,8 +18829,6 @@ snapshots:
       micromark-extension-gfm: 3.0.0
       micromark-extension-math: 3.1.0
       micromark-util-normalize-identifier: 2.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@eslint/mcp@0.3.2':
     dependencies:
@@ -18876,7 +18838,6 @@ snapshots:
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - jiti
-      - supports-color
 
   '@eslint/object-schema@2.1.7': {}
 
@@ -19159,7 +19120,6 @@ snapshots:
       '@openzeppelin/contracts-upgradeable-v4': '@openzeppelin/contracts-upgradeable@4.9.6'
       '@openzeppelin/contracts-v4': '@openzeppelin/contracts@4.9.6'
       solady: 0.1.26
-      solmate: '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc'
 
   '@expo-google-fonts/material-symbols@0.4.27': {}
 
@@ -19195,7 +19155,7 @@ snapshots:
       ci-info: 3.9.0
       compression: 1.8.2
       connect: 3.7.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       dnssd-advertise: 1.1.4
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       expo-server: 55.0.6
@@ -19234,7 +19194,6 @@ snapshots:
       - react
       - react-dom
       - react-server-dom-webpack
-      - supports-color
       - typescript
       - utf-8-validate
 
@@ -19249,7 +19208,7 @@ snapshots:
       '@expo/plist': 0.5.2
       '@expo/sdk-runtime-versions': 1.0.0
       chalk: 4.1.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       getenv: 2.0.0
       glob: 13.0.6
       resolve-from: 5.0.0
@@ -19257,8 +19216,6 @@ snapshots:
       slugify: 1.6.8
       xcode: 3.0.1
       xml2js: 0.6.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@expo/config-types@55.0.5': {}
 
@@ -19276,15 +19233,12 @@ snapshots:
       semver: 7.8.5
       slugify: 1.6.8
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   '@expo/devcert@1.2.1':
     dependencies:
       '@expo/sudo-prompt': 9.3.2
       debug: 3.2.7
-    transitivePeerDependencies:
-      - supports-color
 
   '@expo/devtools@55.0.2(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
     dependencies:
@@ -19302,10 +19256,8 @@ snapshots:
   '@expo/env@2.1.1':
     dependencies:
       chalk: 4.1.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       getenv: 2.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@expo/fingerprint@0.16.6':
     dependencies:
@@ -19313,15 +19265,13 @@ snapshots:
       '@expo/spawn-async': 1.7.2
       arg: 5.0.2
       chalk: 4.1.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       getenv: 2.0.0
       glob: 13.0.6
       ignore: 5.3.2
       minimatch: 10.2.4
       resolve-from: 5.0.0
       semver: 7.7.4
-    transitivePeerDependencies:
-      - supports-color
 
   '@expo/image-utils@0.8.12':
     dependencies:
@@ -19343,7 +19293,6 @@ snapshots:
       '@expo/config': 55.0.11(typescript@5.9.3)
       chalk: 4.1.2
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   '@expo/log-box@55.0.8(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
@@ -19367,7 +19316,7 @@ snapshots:
       '@expo/spawn-async': 1.7.2
       browserslist: 4.28.8
       chalk: 4.1.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       getenv: 2.0.0
       glob: 13.0.6
       hermes-parser: 0.32.1
@@ -19380,7 +19329,6 @@ snapshots:
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - typescript
       - utf-8-validate
 
@@ -19415,7 +19363,6 @@ snapshots:
       metro-transform-worker: 0.83.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   '@expo/osascript@2.4.2':
@@ -19445,13 +19392,12 @@ snapshots:
       '@expo/image-utils': 0.8.12
       '@expo/json-file': 10.0.12
       '@react-native/normalize-colors': 0.83.4
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       resolve-from: 5.0.0
       semver: 7.8.5
       xml2js: 0.6.0
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   '@expo/require-utils@55.0.3(typescript@5.9.3)':
@@ -19461,12 +19407,10 @@ snapshots:
       '@babel/plugin-transform-modules-commonjs': 7.28.6(@babel/core@7.29.0)
     optionalDependencies:
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@expo/router-server@55.0.11(@expo/metro-runtime@55.0.7)(expo-constants@55.0.9)(expo-font@55.0.4)(expo-router@55.0.8)(expo-server@55.0.6)(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       expo-constants: 55.0.9(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(typescript@5.9.3)
       expo-font: 55.0.4(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
@@ -19476,8 +19420,6 @@ snapshots:
       '@expo/metro-runtime': 55.0.7(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       expo-router: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
       react-dom: 19.2.0(react@19.2.0)
-    transitivePeerDependencies:
-      - supports-color
 
   '@expo/schema-utils@55.0.2': {}
 
@@ -19645,14 +19587,10 @@ snapshots:
   '@google-cloud/kms@6.0.0':
     dependencies:
       google-gax: 6.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@google-cloud/secret-manager@7.0.0':
     dependencies:
       google-gax: 6.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@grpc/grpc-js@1.14.5':
     dependencies:
@@ -19933,8 +19871,6 @@ snapshots:
       pirates: 4.0.7
       slash: 3.0.0
       write-file-atomic: 4.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@jest/types@29.6.3':
     dependencies:
@@ -20059,7 +19995,6 @@ snapshots:
       - bufferutil
       - express
       - rxjs
-      - supports-color
       - utf-8-validate
       - workflow
 
@@ -20083,8 +20018,6 @@ snapshots:
       tokenx: 1.6.0
       xxhash-wasm: 1.1.0
       zod: 4.6.7
-    transitivePeerDependencies:
-      - supports-color
 
   '@mastra/observability@1.17.4(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
@@ -20129,16 +20062,15 @@ snapshots:
       zod: 4.6.7
       zod-from-json-schema: 0.5.6
 
-  '@mastra/sentry@1.2.14(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(zod@4.6.7)':
+  '@mastra/sentry@1.2.14(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(zod@4.6.7)':
     dependencies:
       '@mastra/core': 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
       '@mastra/observability': 1.17.4(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)
       '@mastra/otel-exporter': 1.3.12(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
+      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
     transitivePeerDependencies:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
-      - supports-color
       - zod
 
   '@mdx-js/mdx@3.1.1':
@@ -20168,8 +20100,6 @@ snapshots:
       unist-util-stringify-position: 4.0.0
       unist-util-visit: 5.1.0
       vfile: 6.0.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@mermaid-js/parser@1.2.0':
     dependencies:
@@ -20207,8 +20137,6 @@ snapshots:
       raw-body: 3.0.2
       zod: 4.6.7
       zod-to-json-schema: 3.25.2(zod@4.6.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@modelcontextprotocol/server@2.3.1':
     dependencies:
@@ -20341,8 +20269,6 @@ snapshots:
       https-proxy-agent: 7.0.6
       lru-cache: 11.2.7
       socks-proxy-agent: 8.0.5
-    transitivePeerDependencies:
-      - supports-color
 
   '@npmcli/arborist@9.9.1':
     dependencies:
@@ -20380,8 +20306,6 @@ snapshots:
       ssri: 13.0.1
       treeverse: 3.0.0
       walk-up-path: 4.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@npmcli/fs@5.0.0':
     dependencies:
@@ -20428,8 +20352,6 @@ snapshots:
       pacote: 21.5.1
       proc-log: 6.1.0
       semver: 7.8.5
-    transitivePeerDependencies:
-      - supports-color
 
   '@npmcli/name-from-folder@4.0.0': {}
 
@@ -20502,7 +20424,6 @@ snapshots:
       - '@swc/cli'
       - '@swc/core'
       - nx
-      - supports-color
       - verdaccio
 
   '@nx/eslint-plugin@23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1)(typescript@5.9.3)':
@@ -20528,7 +20449,6 @@ snapshots:
       - '@swc/core'
       - eslint
       - nx
-      - supports-color
       - typescript
       - verdaccio
 
@@ -20548,7 +20468,6 @@ snapshots:
       - '@swc/cli'
       - '@swc/core'
       - nx
-      - supports-color
       - verdaccio
 
   '@nx/js@23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)':
@@ -20587,7 +20506,6 @@ snapshots:
       - '@swc-node/register'
       - '@swc/core'
       - nx
-      - supports-color
 
   '@nx/nx-darwin-arm64@23.2.1':
     optional: true
@@ -20856,16 +20774,12 @@ snapshots:
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation-grpc@0.220.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation-http@0.52.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20874,8 +20788,6 @@ snapshots:
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.25.1
       semver: 7.8.5
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation-ioredis@0.42.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20883,8 +20795,6 @@ snapshots:
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/redis-common': 0.36.2
       '@opentelemetry/semantic-conventions': 1.43.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation-pino@0.41.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20892,16 +20802,12 @@ snapshots:
       '@opentelemetry/api-logs': 0.52.1
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation-undici@0.4.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.52.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation@0.200.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20911,8 +20817,6 @@ snapshots:
       import-in-the-middle: 1.15.0
       require-in-the-middle: 7.5.2
       shimmer: 1.2.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20920,8 +20824,6 @@ snapshots:
       '@opentelemetry/api-logs': 0.220.0
       import-in-the-middle: 3.0.0
       require-in-the-middle: 8.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation@0.223.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20929,8 +20831,6 @@ snapshots:
       '@opentelemetry/api-logs': 0.223.0
       import-in-the-middle: 3.0.0
       require-in-the-middle: 8.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation@0.46.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20940,8 +20840,6 @@ snapshots:
       require-in-the-middle: 7.5.2
       semver: 7.8.5
       shimmer: 1.2.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/instrumentation@0.52.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -20952,8 +20850,6 @@ snapshots:
       require-in-the-middle: 7.5.2
       semver: 7.8.5
       shimmer: 1.2.1
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/otlp-exporter-base@0.220.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -21176,8 +21072,6 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.12.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-node': 2.12.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@opentelemetry/sdk-trace-base@1.25.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -21403,7 +21297,7 @@ snapshots:
       esquery: 1.7.0
       typescript: 5.9.3
 
-  '@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@fastify/cors': 11.3.1
       '@fastify/websocket': 11.3.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -21419,7 +21313,7 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
       '@pimlico/opentelemetry-instrumentation-viem': 0.0.4(@opentelemetry/api@1.9.1)
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
+      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@types/bull': 4.10.4
       '@types/node': 18.19.130
       '@types/ws': 8.18.2
@@ -21443,7 +21337,6 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/exporter-trace-otlp-http'
       - bufferutil
-      - supports-color
       - typescript
       - utf-8-validate
 
@@ -21452,7 +21345,6 @@ snapshots:
       '@opentelemetry/instrumentation': 0.200.0(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - '@opentelemetry/api'
-      - supports-color
 
   '@pinojs/redact@0.4.0': {}
 
@@ -21532,7 +21424,6 @@ snapshots:
       '@pulumi/pulumi': 3.259.0(typescript@5.9.3)
       '@types/express': 4.17.25
     transitivePeerDependencies:
-      - supports-color
       - ts-node
       - typescript
 
@@ -21565,8 +21456,6 @@ snapshots:
       upath: 1.2.0
     optionalDependencies:
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@radix-ui/primitive@1.1.3': {}
 
@@ -21775,7 +21664,6 @@ snapshots:
       '@react-native/codegen': 0.83.4(@babel/core@7.29.0)
     transitivePeerDependencies:
       - '@babel/core'
-      - supports-color
 
   '@react-native/babel-preset@0.83.4(@babel/core@7.29.0)':
     dependencies:
@@ -21824,8 +21712,6 @@ snapshots:
       babel-plugin-syntax-hermes-parser: 0.32.0
       babel-plugin-transform-flow-enums: 0.0.2(@babel/core@7.29.0)
       react-refresh: 0.14.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@react-native/codegen@0.83.4(@babel/core@7.29.0)':
     dependencies:
@@ -21840,7 +21726,7 @@ snapshots:
   '@react-native/community-cli-plugin@0.83.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@react-native/dev-middleware': 0.83.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       invariant: 2.2.4
       metro: 0.83.5(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       metro-config: 0.83.5(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -21848,7 +21734,6 @@ snapshots:
       semver: 7.8.5
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   '@react-native/debugger-frontend@0.83.4': {}
@@ -21866,7 +21751,7 @@ snapshots:
       chrome-launcher: 0.15.2
       chromium-edge-launcher: 0.2.0
       connect: 3.7.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       invariant: 2.2.4
       nullthrows: 1.1.1
       open: 7.4.2
@@ -21874,7 +21759,6 @@ snapshots:
       ws: 7.5.11(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   '@react-native/gradle-plugin@0.83.4': {}
@@ -22502,7 +22386,7 @@ snapshots:
       '@sentry/types': 8.9.2
       '@sentry/utils': 8.9.2
 
-  '@sentry/node-core@10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))':
+  '@sentry/node-core@10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@sentry/conventions': 0.16.0
       '@sentry/core': 10.71.0
@@ -22511,6 +22395,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/exporter-trace-otlp-http': 0.223.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
 
@@ -22519,21 +22404,20 @@ snapshots:
       detect-libc: 2.1.2
       node-abi: 3.89.0
 
-  '@sentry/node@10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))':
+  '@sentry/node@10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
       '@sentry/conventions': 0.16.0
       '@sentry/core': 10.71.0
-      '@sentry/node-core': 10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))
+      '@sentry/node-core': 10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))
       '@sentry/opentelemetry': 10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))
       '@sentry/server-utils': 10.71.0
       import-in-the-middle: 3.0.0
     transitivePeerDependencies:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
-      - supports-color
 
   '@sentry/opentelemetry@10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))':
     dependencies:
@@ -22543,15 +22427,14 @@ snapshots:
       '@sentry/conventions': 0.16.0
       '@sentry/core': 10.71.0
 
-  '@sentry/profiling-node@10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))':
+  '@sentry/profiling-node@10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@sentry/core': 10.71.0
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
+      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@sentry/node-cpu-profiler': 2.4.3
     transitivePeerDependencies:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
-      - supports-color
 
   '@sentry/react-native@8.6.0(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
     dependencies:
@@ -22579,8 +22462,6 @@ snapshots:
       '@sentry/conventions': 0.16.0
       '@sentry/core': 10.71.0
       meriyah: 6.1.4
-    transitivePeerDependencies:
-      - supports-color
 
   '@sentry/types@10.46.0':
     dependencies:
@@ -22648,15 +22529,11 @@ snapshots:
       '@sigstore/protobuf-specs': 0.5.2
       make-fetch-happen: 15.0.6
       proc-log: 6.1.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@sigstore/tuf@4.0.2':
     dependencies:
       '@sigstore/protobuf-specs': 0.5.2
       tuf-js: 4.1.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@sigstore/verify@3.1.1':
     dependencies:
@@ -22704,14 +22581,14 @@ snapshots:
 
   '@solidity-parser/parser@0.20.2': {}
 
-  '@spotlightjs/spotlight@4.11.3(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))':
+  '@spotlightjs/spotlight@4.11.3(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))':
     dependencies:
       '@hono/mcp': 0.2.4(@modelcontextprotocol/sdk@1.32.1)(hono-rate-limiter@0.5.3(hono@4.13.13)(unstorage@1.17.5(ioredis@5.10.1)))(hono@4.13.13)(zod@4.6.7)
       '@hono/node-server': 2.0.12(hono@4.13.13)
       '@jridgewell/trace-mapping': 0.3.31
       '@modelcontextprotocol/sdk': 1.32.1
       '@sentry/core': 10.71.0
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
+      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       anser: 2.3.5
       chalk: 5.6.2
       eventsource: 4.1.0
@@ -22729,7 +22606,6 @@ snapshots:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
       - hono-rate-limiter
-      - supports-color
 
   '@standard-schema/spec@1.1.0': {}
 
@@ -22785,7 +22661,6 @@ snapshots:
       cosmiconfig: 8.3.6(typescript@5.9.3)
       snake-case: 3.0.4
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   '@svgr/hast-util-to-babel-ast@8.0.0':
@@ -22800,8 +22675,6 @@ snapshots:
       '@svgr/core': 8.1.0(typescript@5.9.3)
       '@svgr/hast-util-to-babel-ast': 8.0.0
       svg-parser: 2.0.4
-    transitivePeerDependencies:
-      - supports-color
 
   '@svgr/plugin-svgo@8.1.0(@svgr/core@8.1.0(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
@@ -22957,7 +22830,6 @@ snapshots:
       - encoding
       - react
       - react-dom
-      - supports-color
 
   '@tamagui/button@2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -23276,7 +23148,6 @@ snapshots:
       - esbuild
       - react
       - react-dom
-      - supports-color
 
   '@tamagui/get-button-sized@2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -23749,7 +23620,6 @@ snapshots:
       - encoding
       - react
       - react-dom
-      - supports-color
 
   '@tamagui/static@2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -23792,7 +23662,6 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - react-dom
-      - supports-color
 
   '@tamagui/switch-headless@2.7.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
@@ -24048,8 +23917,6 @@ snapshots:
       eslint: 9.39.4
     optionalDependencies:
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@tanstack/form-core@1.28.5':
     dependencies:
@@ -24151,8 +24018,6 @@ snapshots:
   '@types/bull@4.10.4':
     dependencies:
       bull: 4.16.5
-    transitivePeerDependencies:
-      - supports-color
 
   '@types/chai@5.2.3':
     dependencies:
@@ -24293,7 +24158,6 @@ snapshots:
       eslint: 9.39.4
     transitivePeerDependencies:
       - jiti
-      - supports-color
 
   '@types/eslint-plugin-security@3.0.1':
     dependencies:
@@ -24488,8 +24352,6 @@ snapshots:
       natural-compare: 1.4.0
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -24497,29 +24359,23 @@ snapshots:
       '@typescript-eslint/types': 8.57.2
       '@typescript-eslint/typescript-estree': 8.57.2(typescript@5.9.3)
       '@typescript-eslint/visitor-keys': 8.57.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       eslint: 9.39.4
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/project-service@8.56.1(typescript@5.9.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.57.2(typescript@5.9.3)
       '@typescript-eslint/types': 8.57.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/project-service@8.57.2(typescript@5.9.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.57.2(typescript@5.9.3)
       '@typescript-eslint/types': 8.57.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/scope-manager@8.56.1':
     dependencies:
@@ -24544,12 +24400,10 @@ snapshots:
       '@typescript-eslint/types': 8.57.2
       '@typescript-eslint/typescript-estree': 8.57.2(typescript@5.9.3)
       '@typescript-eslint/utils': 8.57.2(eslint@9.39.4)(typescript@5.9.3)
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       eslint: 9.39.4
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/types@8.56.1': {}
 
@@ -24561,14 +24415,12 @@ snapshots:
       '@typescript-eslint/tsconfig-utils': 8.56.1(typescript@5.9.3)
       '@typescript-eslint/types': 8.56.1
       '@typescript-eslint/visitor-keys': 8.56.1
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       minimatch: 10.2.5
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/typescript-estree@8.57.2(typescript@5.9.3)':
     dependencies:
@@ -24576,14 +24428,12 @@ snapshots:
       '@typescript-eslint/tsconfig-utils': 8.57.2(typescript@5.9.3)
       '@typescript-eslint/types': 8.57.2
       '@typescript-eslint/visitor-keys': 8.57.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       minimatch: 10.2.5
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/utils@8.56.1(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -24593,8 +24443,6 @@ snapshots:
       '@typescript-eslint/typescript-estree': 8.56.1(typescript@5.9.3)
       eslint: 9.39.4
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/utils@8.57.2(eslint@9.39.4)(typescript@5.9.3)':
     dependencies:
@@ -24604,8 +24452,6 @@ snapshots:
       '@typescript-eslint/typescript-estree': 8.57.2(typescript@5.9.3)
       eslint: 9.39.4
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@typescript-eslint/visitor-keys@8.56.1':
     dependencies:
@@ -24693,8 +24539,6 @@ snapshots:
       '@noble/curves': 1.9.7
       asn1js: 3.0.10
       viem: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
-    transitivePeerDependencies:
-      - supports-color
 
   '@vitest/coverage-v8@5.0.5(vitest@5.0.5)':
     dependencies:
@@ -24717,8 +24561,6 @@ snapshots:
       '@typescript-eslint/eslint-plugin': 8.57.2(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4)(typescript@5.9.3)
       typescript: 5.9.3
       vitest: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(vite@8.3.4(@types/node@25.5.0)(esbuild@0.28.1)(terser@5.46.1)(tsx@4.22.4)(yaml@2.9.1))
-    transitivePeerDependencies:
-      - supports-color
 
   '@vitest/istanbul-lib-coverage@1.0.2': {}
 
@@ -24887,11 +24729,9 @@ snapshots:
   aes-js@3.0.0:
     optional: true
 
-  agent-base@6.0.2(supports-color@7.2.0):
+  agent-base@6.0.2:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
-    transitivePeerDependencies:
-      - supports-color
+      debug: 4.4.3
 
   agent-base@7.1.4: {}
 
@@ -24948,7 +24788,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - debug
-      - supports-color
       - utf-8-validate
     optional: true
 
@@ -25116,7 +24955,7 @@ snapshots:
       '@typescript-eslint/scope-manager': 8.57.2
       '@typescript-eslint/types': 8.57.2
       astrojs-compiler-sync: 1.1.1(@astrojs/compiler@3.0.1)
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       entities: 7.0.1
       eslint-scope: 8.4.0
       eslint-visitor-keys: 4.2.1
@@ -25124,8 +24963,6 @@ snapshots:
       fast-glob: 3.3.3
       is-glob: 4.0.3
       semver: 7.8.5
-    transitivePeerDependencies:
-      - supports-color
 
   astro-expressive-code@0.44.0(astro@7.3.8(@types/node@25.5.0)(esbuild@0.28.1)(ioredis@5.10.1)(terser@5.46.1)(tsx@4.22.4)(yaml@2.9.1)):
     dependencies:
@@ -25262,25 +25099,14 @@ snapshots:
 
   axe-core@4.11.1: {}
 
-  axios@1.20.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
-    dependencies:
-      follow-redirects: 1.16.1(debug@4.4.3(supports-color@7.2.0))
-      form-data: 4.0.6
-      https-proxy-agent: 5.0.1(supports-color@7.2.0)
-      proxy-from-env: 2.1.0
-    transitivePeerDependencies:
-      - debug
-      - supports-color
-
   axios@1.20.0(debug@4.4.3):
     dependencies:
       follow-redirects: 1.16.1(debug@4.4.3)
       form-data: 4.0.6
-      https-proxy-agent: 5.0.1(supports-color@7.2.0)
+      https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
-      - supports-color
 
   axobject-query@4.1.0: {}
 
@@ -25294,8 +25120,6 @@ snapshots:
       chalk: 4.1.2
       graceful-fs: 4.2.11
       slash: 3.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-literal-to-ast@2.1.0(@babel/core@7.29.0):
     dependencies:
@@ -25303,8 +25127,6 @@ snapshots:
       '@babel/parser': 7.29.9
       '@babel/traverse': 7.29.0
       '@babel/types': 7.29.8
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-const-enum@1.2.0(@babel/core@7.29.7):
     dependencies:
@@ -25312,8 +25134,6 @@ snapshots:
       '@babel/helper-plugin-utils': 7.28.6
       '@babel/plugin-syntax-typescript': 7.28.6(@babel/core@7.29.7)
       '@babel/traverse': 7.29.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-istanbul@6.1.1:
     dependencies:
@@ -25322,8 +25142,6 @@ snapshots:
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-instrument: 5.2.1
       test-exclude: 6.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-istanbul@7.0.1:
     dependencies:
@@ -25332,8 +25150,6 @@ snapshots:
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-instrument: 6.0.3
       test-exclude: 6.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-jest-hoist@29.6.3:
     dependencies:
@@ -25362,8 +25178,6 @@ snapshots:
       '@babel/core': 7.29.0
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.0)
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-corejs2@0.4.17(@babel/core@7.29.7):
     dependencies:
@@ -25371,54 +25185,40 @@ snapshots:
       '@babel/core': 7.29.7
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.7)
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-corejs3@0.13.0(@babel/core@7.29.0):
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.0)
       core-js-compat: 3.49.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-corejs3@0.13.0(@babel/core@7.29.7):
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.7)
       core-js-compat: 3.49.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-corejs3@0.14.2(@babel/core@7.29.0):
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.0)
       core-js-compat: 3.49.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-corejs3@0.14.2(@babel/core@7.29.7):
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.7)
       core-js-compat: 3.49.0
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-regenerator@0.6.8(@babel/core@7.29.0):
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.0)
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-polyfill-regenerator@0.6.8(@babel/core@7.29.7):
     dependencies:
       '@babel/core': 7.29.7
       '@babel/helper-define-polyfill-provider': 0.6.8(@babel/core@7.29.7)
-    transitivePeerDependencies:
-      - supports-color
 
   babel-plugin-react-compiler@1.0.0:
     dependencies:
@@ -25489,7 +25289,7 @@ snapshots:
       babel-plugin-react-native-web: 0.21.2
       babel-plugin-syntax-hermes-parser: 0.32.1
       babel-plugin-transform-flow-enums: 0.0.2(@babel/core@7.29.0)
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       react-refresh: 0.14.2
       resolve-from: 5.0.0
     optionalDependencies:
@@ -25497,7 +25297,6 @@ snapshots:
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@babel/core'
-      - supports-color
 
   babel-preset-jest@29.6.3(@babel/core@7.29.0):
     dependencies:
@@ -25631,15 +25430,13 @@ snapshots:
     dependencies:
       bytes: 3.1.2
       content-type: 2.1.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.1
       qs: 6.16.1
       raw-body: 3.0.2
       type-is: 2.1.0
-    transitivePeerDependencies:
-      - supports-color
 
   boolbase@1.0.0: {}
 
@@ -25731,8 +25528,6 @@ snapshots:
       msgpackr: 1.12.1
       semver: 7.8.5
       uuid: 8.3.2
-    transitivePeerDependencies:
-      - supports-color
 
   bullmq@5.79.0(redis@5.12.1(@opentelemetry/api@1.9.1)):
     dependencies:
@@ -25744,8 +25539,6 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       redis: 5.12.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - supports-color
 
   bundle-name@4.1.0:
     dependencies:
@@ -25876,8 +25669,6 @@ snapshots:
       unified: 11.0.5
     optionalDependencies:
       zod: 4.6.7
-    transitivePeerDependencies:
-      - supports-color
 
   check-dependency-version-consistency@4.1.1:
     dependencies:
@@ -25909,8 +25700,6 @@ snapshots:
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
-    transitivePeerDependencies:
-      - supports-color
 
   chromium-edge-launcher@0.2.0:
     dependencies:
@@ -25920,8 +25709,6 @@ snapshots:
       lighthouse-logger: 1.4.2
       mkdirp: 1.0.4
       rimraf: 3.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   ci-info@2.0.0: {}
 
@@ -26060,8 +25847,6 @@ snapshots:
       on-headers: 1.1.0
       safe-buffer: 5.2.1
       vary: 1.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   compromise@14.16.0:
     dependencies:
@@ -26086,8 +25871,6 @@ snapshots:
       finalhandler: 1.1.2
       parseurl: 1.3.3
       utils-merge: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   content-disposition@1.0.1: {}
 
@@ -26574,11 +26357,9 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  debug@4.4.3(supports-color@7.2.0):
+  debug@4.4.3:
     dependencies:
       ms: 2.1.3
-    optionalDependencies:
-      supports-color: 7.2.0
 
   decamelize@1.2.0: {}
 
@@ -26999,10 +26780,8 @@ snapshots:
 
   esbuild-register@3.6.0(esbuild@0.28.1):
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       esbuild: 0.28.1
-    transitivePeerDependencies:
-      - supports-color
 
   esbuild-wasm@0.27.7: {}
 
@@ -27142,7 +26921,6 @@ snapshots:
       - '@types/eslint'
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
-      - supports-color
       - typescript
 
   eslint-import-context@0.1.9(unrs-resolver@1.11.1):
@@ -27157,12 +26935,10 @@ snapshots:
       debug: 3.2.7
       is-core-module: 2.16.1
       resolve: 1.22.11
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-import-resolver-typescript@4.4.4(eslint-plugin-import@2.32.0)(eslint@9.39.4):
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       eslint: 9.39.4
       eslint-import-context: 0.1.9(unrs-resolver@1.11.1)
       get-tsconfig: 4.13.7
@@ -27172,8 +26948,6 @@ snapshots:
       unrs-resolver: 1.11.1
     optionalDependencies:
       eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.4)
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-module-utils@2.12.1(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@4.4.4)(eslint@9.39.4):
     dependencies:
@@ -27183,8 +26957,6 @@ snapshots:
       eslint: 9.39.4
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 4.4.4(eslint-plugin-import@2.32.0)(eslint@9.39.4)
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-astro@1.7.0(eslint@9.39.4):
     dependencies:
@@ -27197,8 +26969,6 @@ snapshots:
       globals: 16.5.0
       postcss: 8.5.10
       postcss-selector-parser: 7.1.6
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-drizzle@0.2.3(eslint@9.39.4):
     dependencies:
@@ -27244,7 +27014,6 @@ snapshots:
     transitivePeerDependencies:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
-      - supports-color
 
   eslint-plugin-jsdoc@62.8.1(eslint@9.39.4):
     dependencies:
@@ -27252,7 +27021,7 @@ snapshots:
       '@es-joy/resolve.exports': 1.2.0
       are-docs-informative: 0.0.2
       comment-parser: 1.4.5
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       escape-string-regexp: 4.0.0
       eslint: 9.39.4
       espree: 11.2.0
@@ -27263,8 +27032,6 @@ snapshots:
       semver: 7.7.4
       spdx-expression-parse: 4.0.0
       to-valid-identifier: 1.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-jsx-a11y@6.10.2(eslint@9.39.4):
     dependencies:
@@ -27316,7 +27083,6 @@ snapshots:
       eslint: 9.39.4
       natural-orderby: 5.0.0
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   eslint-plugin-prettier@5.5.5(@types/eslint@9.6.1)(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(prettier@3.8.1):
@@ -27352,8 +27118,6 @@ snapshots:
       eslint: 9.39.4
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-react-hooks@5.2.0(eslint@9.39.4):
     dependencies:
@@ -27367,8 +27131,6 @@ snapshots:
       hermes-parser: 0.25.1
       zod: 4.6.7
       zod-validation-error: 4.0.2(zod@4.6.7)
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-react-naming-convention@3.0.0(eslint@9.39.4)(typescript@5.9.3):
     dependencies:
@@ -27385,8 +27147,6 @@ snapshots:
       string-ts: 2.3.1
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-react-native-globals@0.1.2: {}
 
@@ -27407,8 +27167,6 @@ snapshots:
       eslint: 9.39.4
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-react-web-api@3.0.0(eslint@9.39.4)(typescript@5.9.3):
     dependencies:
@@ -27423,8 +27181,6 @@ snapshots:
       eslint: 9.39.4
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-react-x@3.0.0(eslint@9.39.4)(typescript@5.9.3):
     dependencies:
@@ -27442,8 +27198,6 @@ snapshots:
       ts-api-utils: 2.5.0(typescript@5.9.3)
       ts-pattern: 5.9.0
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   eslint-plugin-react@7.37.5(eslint@9.39.4):
     dependencies:
@@ -27489,7 +27243,6 @@ snapshots:
       '@typescript-eslint/utils': 8.56.1(eslint@9.39.4)(typescript@5.9.3)
     transitivePeerDependencies:
       - eslint
-      - supports-color
       - typescript
 
   eslint-plugin-unicorn@64.0.0(eslint@9.39.4):
@@ -27550,7 +27303,7 @@ snapshots:
       '@types/estree': 1.0.8
       ajv: 6.14.0
       cross-spawn: 7.0.6
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       escape-string-regexp: 4.0.0
       eslint-scope: 9.1.2
       eslint-visitor-keys: 5.0.1
@@ -27568,8 +27321,6 @@ snapshots:
       minimatch: 10.2.4
       natural-compare: 1.4.0
       optionator: 0.9.4
-    transitivePeerDependencies:
-      - supports-color
 
   eslint@9.39.4:
     dependencies:
@@ -27588,7 +27339,7 @@ snapshots:
       ajv: 6.14.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       escape-string-regexp: 4.0.0
       eslint-scope: 8.4.0
       eslint-visitor-keys: 4.2.1
@@ -27607,8 +27358,6 @@ snapshots:
       minimatch: 3.1.5
       natural-compare: 1.4.0
       optionator: 0.9.4
-    transitivePeerDependencies:
-      - supports-color
 
   esniff@2.0.1:
     dependencies:
@@ -27770,7 +27519,6 @@ snapshots:
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-build-properties@55.0.10(expo@55.0.9):
@@ -27802,7 +27550,6 @@ snapshots:
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-dev-client@55.0.19(expo@55.0.9)(typescript@5.9.3):
@@ -27814,7 +27561,6 @@ snapshots:
       expo-manifests: 55.0.11(expo@55.0.9)(typescript@5.9.3)
       expo-updates-interface: 55.1.3(expo@55.0.9)
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-dev-launcher@55.0.20(expo@55.0.9)(typescript@5.9.3):
@@ -27824,7 +27570,6 @@ snapshots:
       expo-dev-menu: 55.0.17(expo@55.0.9)
       expo-manifests: 55.0.11(expo@55.0.9)(typescript@5.9.3)
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-dev-menu-interface@55.0.1(expo@55.0.9):
@@ -27897,7 +27642,6 @@ snapshots:
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - expo
-      - supports-color
       - typescript
 
   expo-local-authentication@55.0.9(expo@55.0.9):
@@ -27917,7 +27661,6 @@ snapshots:
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       expo-json-utils: 55.0.0
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-modules-autolinking@55.0.12(typescript@5.9.3):
@@ -27927,7 +27670,6 @@ snapshots:
       chalk: 4.1.2
       commander: 7.2.0
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-modules-core@55.0.18(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0):
@@ -27947,7 +27689,7 @@ snapshots:
       '@react-navigation/native': 7.2.1(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       '@react-navigation/native-stack': 7.14.9(@react-navigation/native@7.2.1(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native-safe-area-context@5.6.2(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native-screens@4.23.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       client-only: 0.0.1
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       escape-string-regexp: 4.0.0
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       expo-constants: 55.0.9(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(typescript@5.9.3)
@@ -27982,7 +27724,6 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
       - expo-font
-      - supports-color
 
   expo-server@55.0.6: {}
 
@@ -28006,13 +27747,11 @@ snapshots:
   expo-system-ui@55.0.11(expo@55.0.9)(react-native-web@0.21.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)):
     dependencies:
       '@react-native/normalize-colors': 0.83.4
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     optionalDependencies:
       react-native-web: 0.21.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-    transitivePeerDependencies:
-      - supports-color
 
   expo-updates-interface@55.1.3(expo@55.0.9):
     dependencies:
@@ -28025,7 +27764,7 @@ snapshots:
       '@expo/spawn-async': 1.7.2
       arg: 4.1.3
       chalk: 4.1.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       expo-eas-client: 55.0.3
       expo-manifests: 55.0.11(expo@55.0.9)(typescript@5.9.3)
@@ -28038,7 +27777,6 @@ snapshots:
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
       resolve-from: 5.0.0
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   expo-web-browser@55.0.10(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)):
@@ -28084,7 +27822,6 @@ snapshots:
       - expo-widgets
       - react-dom
       - react-server-dom-webpack
-      - supports-color
       - typescript
       - utf-8-validate
 
@@ -28103,7 +27840,7 @@ snapshots:
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.2.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       depd: 2.0.0
       encodeurl: 2.0.0
       escape-html: 1.0.3
@@ -28125,8 +27862,6 @@ snapshots:
       statuses: 2.0.2
       type-is: 2.1.0
       vary: 1.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   expressive-code@0.44.0:
     dependencies:
@@ -28301,19 +28036,15 @@ snapshots:
       parseurl: 1.3.3
       statuses: 1.5.0
       unpipe: 1.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   finalhandler@2.1.1:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       encodeurl: 2.0.0
       escape-html: 1.0.3
       on-finished: 2.4.1
       parseurl: 1.3.3
       statuses: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   find-babel-config@2.1.2:
     dependencies:
@@ -28370,13 +28101,9 @@ snapshots:
 
   flow-enums-runtime@0.0.6: {}
 
-  follow-redirects@1.16.1(debug@4.4.3(supports-color@7.2.0)):
-    optionalDependencies:
-      debug: 4.4.3(supports-color@7.2.0)
-
   follow-redirects@1.16.1(debug@4.4.3):
     optionalDependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
 
   fontace@0.4.1:
     dependencies:
@@ -28519,16 +28246,12 @@ snapshots:
       extend: 3.0.2
       https-proxy-agent: 7.0.6
       node-fetch: 3.3.2
-    transitivePeerDependencies:
-      - supports-color
 
   gcp-metadata@9.0.3:
     dependencies:
       gaxios: 7.3.1
       google-logging-utils: 2.0.1
       json-bigint: 1.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   generator-function@2.0.1: {}
 
@@ -28706,8 +28429,6 @@ snapshots:
       gcp-metadata: 9.0.3
       google-logging-utils: 2.0.1
       jws: 4.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   google-gax@6.0.2:
     dependencies:
@@ -28721,8 +28442,6 @@ snapshots:
       proto3-json-serializer: 4.0.2
       protobufjs: 7.6.5
       retry-request: 9.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   google-logging-utils@2.0.1: {}
 
@@ -28932,8 +28651,6 @@ snapshots:
       style-to-js: 1.1.21
       unist-util-position: 5.0.0
       zwitch: 2.0.4
-    transitivePeerDependencies:
-      - supports-color
 
   hast-util-to-html@9.0.5:
     dependencies:
@@ -28966,8 +28683,6 @@ snapshots:
       style-to-js: 1.1.21
       unist-util-position: 5.0.0
       vfile-message: 4.0.3
-    transitivePeerDependencies:
-      - supports-color
 
   hast-util-to-parse5@8.0.1:
     dependencies:
@@ -29106,9 +28821,7 @@ snapshots:
   http-proxy-agent@7.0.2:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3(supports-color@7.2.0)
-    transitivePeerDependencies:
-      - supports-color
+      debug: 4.4.3
 
   http-proxy@1.18.1(debug@4.4.3):
     dependencies:
@@ -29123,19 +28836,15 @@ snapshots:
       quick-lru: 5.1.1
       resolve-alpn: 1.2.1
 
-  https-proxy-agent@5.0.1(supports-color@7.2.0):
+  https-proxy-agent@5.0.1:
     dependencies:
-      agent-base: 6.0.2(supports-color@7.2.0)
-      debug: 4.4.3(supports-color@7.2.0)
-    transitivePeerDependencies:
-      - supports-color
+      agent-base: 6.0.2
+      debug: 4.4.3
 
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3(supports-color@7.2.0)
-    transitivePeerDependencies:
-      - supports-color
+      debug: 4.4.3
 
   httpsnippet@3.0.10:
     dependencies:
@@ -29276,15 +28985,13 @@ snapshots:
     dependencies:
       '@ioredis/commands': 1.5.1
       cluster-key-slot: 1.1.2
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       denque: 2.1.0
       lodash.defaults: 4.2.0
       lodash.isarguments: 3.1.0
       redis-errors: 1.2.0
       redis-parser: 3.0.0
       standard-as-callback: 2.1.0
-    transitivePeerDependencies:
-      - supports-color
 
   ip-address@10.7.4: {}
 
@@ -29528,8 +29235,6 @@ snapshots:
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   istanbul-lib-instrument@6.0.3:
     dependencies:
@@ -29538,8 +29243,6 @@ snapshots:
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 7.7.4
-    transitivePeerDependencies:
-      - supports-color
 
   istanbul-lib-report@3.0.1:
     dependencies:
@@ -29849,8 +29552,6 @@ snapshots:
     dependencies:
       debug: 2.6.9
       marky: 1.3.0
-    transitivePeerDependencies:
-      - supports-color
 
   lightningcss-android-arm64@1.32.0:
     optional: true
@@ -30111,8 +29812,6 @@ snapshots:
       negotiator: 1.0.0
       proc-log: 6.1.0
       ssri: 13.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   makeerror@1.0.12:
     dependencies:
@@ -30148,8 +29847,6 @@ snapshots:
       markdownlint-cli2-formatter-default: 0.0.6(markdownlint-cli2@0.23.1)
       micromatch: 4.0.8
       smol-toml: 1.9.0
-    transitivePeerDependencies:
-      - supports-color
 
   markdownlint@0.41.1:
     dependencies:
@@ -30162,8 +29859,6 @@ snapshots:
       micromark-extension-math: 3.1.0
       micromark-util-types: 2.0.2
       string-width: 8.2.1
-    transitivePeerDependencies:
-      - supports-color
 
   marked@16.4.2: {}
 
@@ -30190,8 +29885,6 @@ snapshots:
       parse-entities: 4.0.2
       stringify-entities: 4.0.4
       unist-util-visit-parents: 6.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-find-and-replace@3.0.2:
     dependencies:
@@ -30214,8 +29907,6 @@ snapshots:
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
       unist-util-stringify-position: 4.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-frontmatter@2.0.1:
     dependencies:
@@ -30225,8 +29916,6 @@ snapshots:
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       micromark-extension-frontmatter: 2.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-gfm-autolink-literal@2.0.1:
     dependencies:
@@ -30243,16 +29932,12 @@ snapshots:
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       micromark-util-normalize-identifier: 2.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-gfm-strikethrough@2.0.0:
     dependencies:
       '@types/mdast': 4.0.4
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-gfm-table@2.0.0:
     dependencies:
@@ -30261,8 +29946,6 @@ snapshots:
       markdown-table: 3.0.4
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-gfm-task-list-item@2.0.0:
     dependencies:
@@ -30270,8 +29953,6 @@ snapshots:
       devlop: 1.1.0
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-gfm@3.1.0:
     dependencies:
@@ -30282,8 +29963,6 @@ snapshots:
       mdast-util-gfm-table: 2.0.0
       mdast-util-gfm-task-list-item: 2.0.0
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-math@3.0.0:
     dependencies:
@@ -30294,8 +29973,6 @@ snapshots:
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
       unist-util-remove-position: 5.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-mdx-expression@2.0.1:
     dependencies:
@@ -30305,8 +29982,6 @@ snapshots:
       devlop: 1.1.0
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-mdx-jsx@3.2.0:
     dependencies:
@@ -30322,8 +29997,6 @@ snapshots:
       stringify-entities: 4.0.4
       unist-util-stringify-position: 4.0.0
       vfile-message: 4.0.3
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-mdx@3.0.0:
     dependencies:
@@ -30332,8 +30005,6 @@ snapshots:
       mdast-util-mdx-jsx: 3.2.0
       mdast-util-mdxjs-esm: 2.0.1
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-mdxjs-esm@2.0.1:
     dependencies:
@@ -30343,8 +30014,6 @@ snapshots:
       devlop: 1.1.0
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
 
   mdast-util-phrasing@4.1.0:
     dependencies:
@@ -30439,8 +30108,6 @@ snapshots:
       flow-enums-runtime: 0.0.6
       hermes-parser: 0.25.1
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-babel-transformer@0.83.3:
     dependencies:
@@ -30448,8 +30115,6 @@ snapshots:
       flow-enums-runtime: 0.0.6
       hermes-parser: 0.32.0
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-babel-transformer@0.83.5:
     dependencies:
@@ -30457,8 +30122,6 @@ snapshots:
       flow-enums-runtime: 0.0.6
       hermes-parser: 0.33.3
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-cache-key@0.81.5:
     dependencies:
@@ -30484,8 +30147,6 @@ snapshots:
       flow-enums-runtime: 0.0.6
       https-proxy-agent: 7.0.6
       metro-core: 0.83.3
-    transitivePeerDependencies:
-      - supports-color
 
   metro-cache@0.83.5:
     dependencies:
@@ -30493,8 +30154,6 @@ snapshots:
       flow-enums-runtime: 0.0.6
       https-proxy-agent: 7.0.6
       metro-core: 0.83.5
-    transitivePeerDependencies:
-      - supports-color
 
   metro-config@0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     dependencies:
@@ -30508,7 +30167,6 @@ snapshots:
       metro-runtime: 0.81.5
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro-config@0.83.3(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30523,7 +30181,6 @@ snapshots:
       yaml: 2.9.1
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro-config@0.83.5(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30538,7 +30195,6 @@ snapshots:
       yaml: 2.9.1
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro-core@0.81.5:
@@ -30570,12 +30226,10 @@ snapshots:
       micromatch: 4.0.8
       nullthrows: 1.1.1
       walker: 1.0.8
-    transitivePeerDependencies:
-      - supports-color
 
   metro-file-map@0.83.3:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       fb-watchman: 2.0.2
       flow-enums-runtime: 0.0.6
       graceful-fs: 4.2.11
@@ -30584,12 +30238,10 @@ snapshots:
       micromatch: 4.0.8
       nullthrows: 1.1.1
       walker: 1.0.8
-    transitivePeerDependencies:
-      - supports-color
 
   metro-file-map@0.83.5:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       fb-watchman: 2.0.2
       flow-enums-runtime: 0.0.6
       graceful-fs: 4.2.11
@@ -30598,8 +30250,6 @@ snapshots:
       micromatch: 4.0.8
       nullthrows: 1.1.1
       walker: 1.0.8
-    transitivePeerDependencies:
-      - supports-color
 
   metro-minify-terser@0.81.5:
     dependencies:
@@ -30646,7 +30296,7 @@ snapshots:
   metro-source-map@0.81.5:
     dependencies:
       '@babel/traverse': 7.29.0
-      '@babel/traverse--for-generate-function-map': '@babel/traverse@7.29.8'
+      '@babel/traverse--for-generate-function-map': '@babel/traverse@7.29.0'
       '@babel/types': 7.29.8
       flow-enums-runtime: 0.0.6
       invariant: 2.2.4
@@ -30655,8 +30305,6 @@ snapshots:
       ob1: 0.81.5
       source-map: 0.5.7
       vlq: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-source-map@0.83.3:
     dependencies:
@@ -30670,8 +30318,6 @@ snapshots:
       ob1: 0.83.3
       source-map: 0.5.7
       vlq: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-source-map@0.83.5:
     dependencies:
@@ -30684,8 +30330,6 @@ snapshots:
       ob1: 0.83.5
       source-map: 0.5.7
       vlq: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-symbolicate@0.81.5:
     dependencies:
@@ -30695,8 +30339,6 @@ snapshots:
       nullthrows: 1.1.1
       source-map: 0.5.7
       vlq: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-symbolicate@0.83.3:
     dependencies:
@@ -30706,8 +30348,6 @@ snapshots:
       nullthrows: 1.1.1
       source-map: 0.5.7
       vlq: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-symbolicate@0.83.5:
     dependencies:
@@ -30717,8 +30357,6 @@ snapshots:
       nullthrows: 1.1.1
       source-map: 0.5.7
       vlq: 1.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-transform-plugins@0.81.5:
     dependencies:
@@ -30728,8 +30366,6 @@ snapshots:
       '@babel/traverse': 7.29.0
       flow-enums-runtime: 0.0.6
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-transform-plugins@0.83.3:
     dependencies:
@@ -30739,8 +30375,6 @@ snapshots:
       '@babel/traverse': 7.29.0
       flow-enums-runtime: 0.0.6
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-transform-plugins@0.83.5:
     dependencies:
@@ -30750,8 +30384,6 @@ snapshots:
       '@babel/traverse': 7.29.0
       flow-enums-runtime: 0.0.6
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   metro-transform-worker@0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10):
     dependencies:
@@ -30770,7 +30402,6 @@ snapshots:
       nullthrows: 1.1.1
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro-transform-worker@0.83.3(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30790,7 +30421,6 @@ snapshots:
       nullthrows: 1.1.1
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro-transform-worker@0.83.5(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30810,7 +30440,6 @@ snapshots:
       nullthrows: 1.1.1
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro@0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30857,7 +30486,6 @@ snapshots:
       yargs: 17.7.2
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro@0.83.3(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30873,7 +30501,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 2.0.0
       connect: 3.7.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       error-stack-parser: 2.1.4
       flow-enums-runtime: 0.0.6
       graceful-fs: 4.2.11
@@ -30904,7 +30532,6 @@ snapshots:
       yargs: 17.7.2
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   metro@0.83.5(bufferutil@4.1.0)(utf-8-validate@5.0.10):
@@ -30920,7 +30547,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 2.0.0
       connect: 3.7.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       error-stack-parser: 2.1.4
       flow-enums-runtime: 0.0.6
       graceful-fs: 4.2.11
@@ -30951,7 +30578,6 @@ snapshots:
       yargs: 17.7.2
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   micromark-core-commonmark@2.0.3:
@@ -31226,7 +30852,7 @@ snapshots:
   micromark@4.0.2:
     dependencies:
       '@types/debug': 4.1.13
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       micromark-core-commonmark: 2.0.3
@@ -31242,8 +30868,6 @@ snapshots:
       micromark-util-subtokenize: 2.1.0
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   micromatch@4.0.8:
     dependencies:
@@ -31353,13 +30977,9 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.3
 
-  modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/52ab7c2b2f1abf327a8612945788f1b0c899ade6: {}
-
   modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953: {}
 
-  modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb:
-    dependencies:
-      modular-account-libs: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/52ab7c2b2f1abf327a8612945788f1b0c899ade6
+  modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb: {}
 
   module-details-from-path@1.0.4: {}
 
@@ -31436,8 +31056,6 @@ snapshots:
       debug: 3.2.7
       iconv-lite: 0.4.24
       sax: 1.6.0
-    transitivePeerDependencies:
-      - supports-color
 
   negotiator@0.6.3: {}
 
@@ -31603,8 +31221,6 @@ snapshots:
       minizlib: 3.1.0
       npm-package-arg: 13.0.2
       proc-log: 6.1.0
-    transitivePeerDependencies:
-      - supports-color
 
   npm-run-path@4.0.1:
     dependencies:
@@ -31633,12 +31249,12 @@ snapshots:
       '@tybys/wasm-util': 0.9.0
       '@yarnpkg/lockfile': 1.1.0
       '@zkochan/js-yaml': 0.0.7
-      agent-base: 6.0.2(supports-color@7.2.0)
+      agent-base: 6.0.2
       ansi-regex: 5.0.1
       ansi-styles: 4.3.0
       argparse: 2.0.1
       asynckit: 0.4.0
-      axios: 1.20.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
+      axios: 1.20.0(debug@4.4.3)
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
@@ -31654,7 +31270,7 @@ snapshots:
       color-convert: 2.0.1
       color-name: 1.1.4
       combined-stream: 1.0.8
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       default-browser: 5.2.1
       default-browser-id: 5.0.0
       defaults: 1.0.4
@@ -31677,7 +31293,7 @@ snapshots:
       fast-wrap-ansi: 0.2.0
       figures: 3.2.0
       flat: 5.0.2
-      follow-redirects: 1.16.1(debug@4.4.3(supports-color@7.2.0))
+      follow-redirects: 1.16.1(debug@4.4.3)
       form-data: 4.0.6
       fs-constants: 1.0.0
       function-bind: 1.1.2
@@ -31689,7 +31305,7 @@ snapshots:
       has-symbols: 1.1.0
       has-tostringtag: 1.0.2
       hasown: 2.0.4
-      https-proxy-agent: 5.0.1(supports-color@7.2.0)
+      https-proxy-agent: 5.0.1
       ieee754: 1.2.1
       ignore: 7.0.5
       inherits: 2.0.4
@@ -31891,8 +31507,6 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.46.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
-    transitivePeerDependencies:
-      - supports-color
 
   optionator@0.9.4:
     dependencies:
@@ -32071,8 +31685,6 @@ snapshots:
       sigstore: 4.1.1
       ssri: 13.0.1
       tar: 7.5.22
-    transitivePeerDependencies:
-      - supports-color
 
   pagefind@1.5.2:
     optionalDependencies:
@@ -32449,8 +32061,6 @@ snapshots:
       lodash.merge: 4.6.2
       needle: 2.9.1
       stream-parser: 0.3.1
-    transitivePeerDependencies:
-      - supports-color
 
   proc-log@4.2.0: {}
 
@@ -32496,7 +32106,7 @@ snapshots:
       kleur: 3.0.3
       sisteransi: 1.0.5
 
-  prool@0.2.17(@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3):
+  prool@0.2.17(@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3):
     dependencies:
       change-case: 5.4.4
       eventemitter3: 5.0.4
@@ -32505,7 +32115,7 @@ snapshots:
       http-proxy: 1.18.1(debug@4.4.3)
       tar: 7.5.22
     optionalDependencies:
-      '@pimlico/alto': 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@pimlico/alto': 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - debug
 
@@ -32766,7 +32376,6 @@ snapshots:
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
       react-native-svg: 15.15.3(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
     transitivePeerDependencies:
-      - supports-color
       - typescript
 
   react-native-svg@15.15.3(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0):
@@ -32827,8 +32436,6 @@ snapshots:
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
       semver: 7.7.3
-    transitivePeerDependencies:
-      - supports-color
 
   react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10):
     dependencies:
@@ -32875,7 +32482,6 @@ snapshots:
       - '@react-native-community/cli'
       - '@react-native/metro-config'
       - bufferutil
-      - supports-color
       - utf-8-validate
 
   react-onesignal@3.5.1: {}
@@ -32977,7 +32583,7 @@ snapshots:
     dependencies:
       camelcase: 6.3.0
       cross-spawn: 7.0.6
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       find-cache-dir: 3.3.2
       find-package-json: 1.2.0
       get-port: 5.1.1
@@ -32987,8 +32593,6 @@ snapshots:
       semver: 7.8.5
       tar: 7.5.22
       tmp: 0.2.7
-    transitivePeerDependencies:
-      - supports-color
 
   redis-parser@3.0.0:
     dependencies:
@@ -32996,11 +32600,9 @@ snapshots:
 
   redis-semaphore@5.7.0(ioredis@5.10.1):
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
     optionalDependencies:
       ioredis: 5.10.1
-    transitivePeerDependencies:
-      - supports-color
 
   redis@5.12.1(@opentelemetry/api@1.9.1):
     dependencies:
@@ -33115,8 +32717,6 @@ snapshots:
       '@types/estree': 1.0.8
       '@types/hast': 3.0.5
       hast-util-to-estree: 3.1.3
-    transitivePeerDependencies:
-      - supports-color
 
   rehype-stringify@10.0.1:
     dependencies:
@@ -33137,8 +32737,6 @@ snapshots:
       mdast-util-directive: 3.1.0
       micromark-extension-directive: 4.0.0
       unified: 11.0.5
-    transitivePeerDependencies:
-      - supports-color
 
   remark-gfm@4.0.1:
     dependencies:
@@ -33148,15 +32746,11 @@ snapshots:
       remark-parse: 11.0.0
       remark-stringify: 11.0.0
       unified: 11.0.5
-    transitivePeerDependencies:
-      - supports-color
 
   remark-mdx@3.1.1:
     dependencies:
       mdast-util-mdx: 3.0.0
       micromark-extension-mdxjs: 3.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   remark-parse@11.0.0:
     dependencies:
@@ -33164,8 +32758,6 @@ snapshots:
       mdast-util-from-markdown: 2.0.3
       micromark-util-types: 2.0.2
       unified: 11.0.5
-    transitivePeerDependencies:
-      - supports-color
 
   remark-rehype@11.1.2:
     dependencies:
@@ -33196,18 +32788,14 @@ snapshots:
 
   require-in-the-middle@7.5.2:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       module-details-from-path: 1.0.4
       resolve: 1.22.11
-    transitivePeerDependencies:
-      - supports-color
 
   require-in-the-middle@8.0.1:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       module-details-from-path: 1.0.4
-    transitivePeerDependencies:
-      - supports-color
 
   require-main-filename@2.0.0: {}
 
@@ -33293,8 +32881,6 @@ snapshots:
     dependencies:
       extend: 3.0.2
       teeny-request: 11.0.1
-    transitivePeerDependencies:
-      - supports-color
 
   retry@0.12.0: {}
 
@@ -33384,13 +32970,11 @@ snapshots:
 
   router@2.2.0:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       depd: 2.0.0
       is-promise: 4.0.0
       parseurl: 1.3.3
       path-to-regexp: 8.4.0
-    transitivePeerDependencies:
-      - supports-color
 
   rtl-detect@1.1.2: {}
 
@@ -33526,12 +33110,10 @@ snapshots:
       on-finished: 2.4.1
       range-parser: 1.2.1
       statuses: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   send@1.2.1:
     dependencies:
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
@@ -33542,8 +33124,6 @@ snapshots:
       on-finished: 2.4.1
       range-parser: 1.2.1
       statuses: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
 
   sentiment@5.0.2: {}
 
@@ -33555,8 +33135,6 @@ snapshots:
       escape-html: 1.0.3
       parseurl: 1.3.3
       send: 0.19.2
-    transitivePeerDependencies:
-      - supports-color
 
   serve-static@2.2.1:
     dependencies:
@@ -33564,8 +33142,6 @@ snapshots:
       escape-html: 1.0.3
       parseurl: 1.3.3
       send: 1.2.1
-    transitivePeerDependencies:
-      - supports-color
 
   server-only@0.0.1: {}
 
@@ -33715,8 +33291,6 @@ snapshots:
       '@sigstore/sign': 4.1.1
       '@sigstore/tuf': 4.0.2
       '@sigstore/verify': 3.1.1
-    transitivePeerDependencies:
-      - supports-color
 
   simple-concat@1.0.1: {}
 
@@ -33779,10 +33353,8 @@ snapshots:
   socks-proxy-agent@8.0.5:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       socks: 2.8.9
-    transitivePeerDependencies:
-      - supports-color
 
   socks@2.8.9:
     dependencies:
@@ -33944,8 +33516,6 @@ snapshots:
   stream-parser@0.3.1:
     dependencies:
       debug: 2.6.9
-    transitivePeerDependencies:
-      - supports-color
 
   stream-replace-string@2.0.0: {}
 
@@ -34260,8 +33830,6 @@ snapshots:
       https-proxy-agent: 7.0.6
       node-fetch: 3.3.2
       stream-events: 1.0.5
-    transitivePeerDependencies:
-      - supports-color
 
   term-size@2.2.1: {}
 
@@ -34399,10 +33967,8 @@ snapshots:
   tuf-js@4.1.0:
     dependencies:
       '@tufjs/models': 4.1.0
-      debug: 4.4.3(supports-color@7.2.0)
+      debug: 4.4.3
       make-fetch-happen: 15.0.6
-    transitivePeerDependencies:
-      - supports-color
 
   tunnel-agent@0.6.0:
     dependencies:
@@ -34479,8 +34045,6 @@ snapshots:
       '@typescript-eslint/utils': 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       eslint: 9.39.4
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
 
   typescript@4.9.5: {}
 
@@ -34883,7 +34447,6 @@ snapshots:
       rxjs: 7.8.2
     transitivePeerDependencies:
       - debug
-      - supports-color
 
   walk-up-path@4.0.0: {}
 
@@ -34928,8 +34491,6 @@ snapshots:
       typedarray-to-buffer: 3.1.5
       utf-8-validate: 5.0.10
       yaeti: 0.0.6
-    transitivePeerDependencies:
-      - supports-color
     optional: true
 
   whatwg-fetch@3.6.20: {}

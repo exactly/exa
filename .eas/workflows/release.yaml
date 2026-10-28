@@ -1,6 +1,6 @@
 name: release
 on: { push: { tags: ["@exactly/mobile@*"] } }
-defaults: { tools: { node: "24.14.1" } }
+defaults: { tools: { node: "24.14.1" }, hooks: { before_install_node_modules: [{ run: npm i -g pnpm@12.16.1 }] } }
 jobs:
   android_build:
     type: build

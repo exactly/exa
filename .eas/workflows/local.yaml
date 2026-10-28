@@ -3,7 +3,9 @@ on:
   push: { branches: ["main"], tags: ["@exactly/mobile@*"] }
   pull_request: { if: "!github.event.pull_request.draft", types: [opened, ready_for_review, reopened, synchronize] }
   workflow_dispatch: {}
-defaults: { tools: { node: "24.14.1" } }
+defaults:
+  tools: { node: "24.14.1", pnpm: "12.16.1" }
+  hooks: { before_install_node_modules: [{ run: npm i -g pnpm@12.16.1 }] }
 concurrency:
   cancel_in_progress: "${{ github.ref_name != 'main' }}"
   group: "${{ workflow.filename }}-${{ github.ref }}"

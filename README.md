@@ -7,7 +7,7 @@
 #### requirements
 
 - [node.js](https://github.com/asdf-vm/asdf-nodejs) v24
-- [pnpm](https://pnpm.io/installation) v10
+- [pnpm](https://pnpm.io/installation) v12
 - [foundry](https://getfoundry.sh)
 - [slither](https://github.com/crytic/slither) (`pip install -r contracts/requirements.txt`)
 - [maestro](https://maestro.mobile.dev) (`brew tap mobile-dev-inc/tap && brew install mobile-dev-inc/tap/maestro`)
