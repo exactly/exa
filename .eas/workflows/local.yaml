@@ -60,12 +60,15 @@ jobs:
     steps:
       - uses: eas/checkout
       - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
-      - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
+      - name: start emulators # cspell:ignore avdmanager sdkmanager setsid swangle
         run: |
           sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
-          avdmanager -s create avd -n e2e -k "system-images;android-35;google_apis;x86_64" --force
-          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+          for port in 5554 5556 5558 5560; do
+            avdmanager -s create avd -n "e2e$port" -k "system-images;android-35;google_apis;x86_64" --force
+            printf '%s\n' "hw.ramSize=4096" "vm.heapSize=1024" >> "$HOME/.android/avd/e2e$port.avd/config.ini"
+            setsid $ANDROID_HOME/emulator/emulator -avd "e2e$port" -port "$port" -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 4096 -wipe-data > "emulator-process-$port.log" 2>&1 &
+            echo "emulator-$port" >> emulators.serial
+          done
       - uses: eas/restore_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
@@ -113,25 +116,26 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: prepare device # cspell:ignore getprop logcat
+      - name: prepare devices # cspell:ignore getprop logcat
         run: |
-          adb wait-for-device
-          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944
-          adb install "${{ steps.repack.outputs.output_path }}"
-          adb logcat -v time > emulator.log 2>&1 &
+          for device in $(cat emulators.serial); do
+            timeout 180 adb -s "$device" wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            adb -s "$device" shell settings put global window_animation_scale 0
+            adb -s "$device" shell settings put global transition_animation_scale 0
+            adb -s "$device" shell settings put global animator_duration_scale 0
+            for tcp in 3000 8545 8969 9944; do adb -s "$device" reverse "tcp:$tcp" "tcp:$tcp"; done
+            adb -s "$device" install "${{ steps.repack.outputs.output_path }}"
+            adb -s "$device" logcat -v time > "$device.log" 2>&1 &
+          done
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro --shard-split $(wc -l < emulators.serial) --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
-        run: | # cspell:ignore pkill
+        run: | # cspell:ignore pgrep pkill
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
@@ -139,6 +143,8 @@ jobs:
           ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F android -n android --build-url ${{ workflow.url }} --git-service github
           wait $!
           pkill -f "adb logcat" || true
+          for device in $(cat emulators.serial); do adb -s "$device" emu kill || true; done
+          for i in {1..30}; do pgrep -f qemu-system > /dev/null || break; sleep 1; done
       - uses: eas/upload_artifact
         if: always()
         with:
@@ -149,8 +155,7 @@ jobs:
             server.log
             server/coverage
             server/node_modules/@exactly/.*
-            emulator.log
-            emulator-process.log
+            emulator-*.log
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
 
@@ -246,18 +251,34 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - uses: eas/start_ios_simulator
-      - name: prepare device
+      - name: start simulators # cspell:ignore apsd bootout bootstatus datamigrator udid
         run: |
-          xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
-          xcrun simctl install booted "${{ steps.repack.outputs.output_path }}"
-          xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
+          for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone 17" >> simulators.udid; done
+          for udid in $(cat simulators.udid); do
+            {
+              xcrun simctl bootstatus "$udid" -b > /dev/null
+              xcrun simctl spawn "$udid" launchctl disable user/foreground/com.apple.apsd
+              xcrun simctl spawn "$udid" launchctl bootout user/foreground/com.apple.apsd || true
+              for i in {1..180}; do xcrun simctl io "$udid" screenshot "$udid.png" > /dev/null 2>&1 && break; [ $i -eq 180 ] && exit 1; sleep 1; done
+              xcrun simctl spawn "$udid" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
+              touch "$udid.ready"
+            } > "simulator-$udid-boot.log" 2>&1 &
+          done
+          for i in {1..300}; do [ -z "$(jobs -rp)" ] && break; sleep 1; done
+          for udid in $(cat simulators.udid); do [ -f "$udid.ready" ] || { echo "simulator $udid failed to start" && exit 1; }; done
+          for i in {1..300}; do pgrep -f com.apple.datamigrator > /dev/null || break; sleep 1; done
+      - name: prepare devices
+        run: |
+          for udid in $(cat simulators.udid); do
+            xcrun simctl install "$udid" "${{ steps.repack.outputs.output_path }}"
+            xcrun simctl spawn "$udid" log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > "simulator-$udid.log" 2>&1 &
+          done
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro --shard-split $(wc -l < simulators.udid) --format junit --output .maestro/junit.xml
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -278,7 +299,7 @@ jobs:
             server.log
             server/coverage
             server/node_modules/@exactly/.*
-            simulator.log
+            simulator-*.log
             simulator-diagnose
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
