@@ -258,6 +258,15 @@ export default function Home() {
               )}
               <PluginUpgrade />
               <FundingAlert />
+              {isKYCApproved && !!bytecode && card === null && (
+                <InfoAlert
+                  title={t("Your Exa Card is ready. Activate it to make your first purchase.")}
+                  actionText={t("Activate Exa Card")}
+                  onPress={() => {
+                    router.push({ pathname: "/card", params: { activate: "true" } });
+                  }}
+                />
+              )}
               <YStack gap="$s5">
                 <PortfolioSummary
                   collateralUSD={collateralUSD}
