@@ -7,7 +7,7 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { Copy, Info, RefreshCw, Share as ShareIcon, X } from "@tamagui/lucide-icons-2";
+import { Copy, Info, RefreshCw, X } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
@@ -29,6 +29,7 @@ import CopyAddressSheet from "../shared/CopyAddressSheet";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
+import ShareButton from "../shared/ShareButton";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -356,19 +357,12 @@ export default function AddCrypto() {
             </Button>
           ) : (
             <XStack alignItems="center" gap="$s3">
-              <Button
-                secondary
-                flex={1}
+              <ShareButton
                 disabled={!address}
                 onPress={() => {
                   share().catch(reportError);
                 }}
-              >
-                <Button.Text>{t("Share")}</Button.Text>
-                <Button.Icon>
-                  <ShareIcon size={18 * fontScale} />
-                </Button.Icon>
-              </Button>
+              />
               <Button primary flex={1} onPress={copy} disabled={!address}>
                 <Button.Text>{t("Copy")}</Button.Text>
                 <Button.Icon>
