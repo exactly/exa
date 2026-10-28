@@ -5,9 +5,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/swap.yaml
 - tapOn: Swap
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Select token } }
-- tapOn: USDC.e
+- tapOn: "(.*, )?USDC\\.e(, .*)?"
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Select token, index: 1 } }
-- tapOn: { text: USDC, index: 0 }
+- tapOn: { text: "(.*, )?USDC(, .*)?", index: 0 }
 - tapOn: { text: "0", index: 0 }
 - inputText: "4"
 - pressKey: enter
@@ -15,7 +15,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/bridge.js
     env: { network: Anvil2, to: "${output.account}", amount: "4" }
-- assertVisible: completed
+- assertVisible: "(Swap )?completed"
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runFlow: ../subflows/assertOnboarding.yaml
 - runFlow:
