@@ -1,8 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
+import useInsets from "../../utils/useInsets";
 import ChainLogo from "../shared/ChainLogo";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -23,6 +24,7 @@ export default function NetworkSheet({
   open: boolean;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
@@ -32,7 +34,7 @@ export default function NetworkSheet({
         paddingHorizontal="$s5"
         paddingTop="$s7"
         $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5">
           <XStack gap="$s3_5" alignItems="center">
