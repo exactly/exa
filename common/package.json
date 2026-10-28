@@ -5,7 +5,7 @@
   "scripts": {
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
     "generate:wagmi": "wagmi generate",
-    "git:unshallow": "git fetch --unshallow || true",
+    "git:unshallow": "git fetch --unshallow --filter=blob:none || true",
     "test": "nx test common",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}"
   },
