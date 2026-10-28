@@ -188,15 +188,20 @@ export default function BenefitsSection({
         borderBottomWidth={1}
         borderColor="$borderNeutralSoft"
       >
-        <View overflow="hidden" alignItems="center" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+        <View
+          height={HEIGHT}
+          overflow="hidden"
+          alignItems="center"
+          onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+        >
           {width === 0 ? undefined : isLoading ? (
-            <Skeleton width={itemWidth - 8} height={160} radius={12} />
+            <Skeleton width={itemWidth - 8} height={HEIGHT} radius={12} />
           ) : (
             <Carousel
               style={styles.overflow}
               containerStyle={styles.overflow}
               width={itemWidth}
-              height={160}
+              height={HEIGHT}
               data={benefits}
               enabled={scrollable}
               loop={scrollable}
@@ -233,3 +238,5 @@ export default function BenefitsSection({
     setSheetOpen(true);
   }
 }
+
+const HEIGHT = 160;
