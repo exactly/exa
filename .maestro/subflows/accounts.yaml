@@ -14,6 +14,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- tapOn: Dollars from Argentina
+- assertVisible: "USD deposit fee: 7.41%"
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - tapOn: Dollars via ACH or WIRE
 - assertVisible: Turn USD transfers to onchain USDC
 - tapOn: Continue

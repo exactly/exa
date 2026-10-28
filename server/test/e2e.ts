@@ -549,7 +549,13 @@ vi.mock("../utils/ramps/manteca", async (importOriginal: () => Promise<typeof ma
             : { onramp: { currencies: original.CurrenciesByExchange.ARGENTINA }, status: "NOT_STARTED" },
         ),
       ),
-      getQuote: vi.fn().mockResolvedValue({ buyRate: "1450", sellRate: "1400" }),
+      getQuote: vi
+        .fn()
+        .mockImplementation((coinPair: string) =>
+          Promise.resolve(
+            coinPair === "USDC_USD" ? { buyRate: "1.08", sellRate: "1.0" } : { buyRate: "1450", sellRate: "1400" },
+          ),
+        ),
       getUser: vi
         .fn()
         .mockImplementation((account: string) =>

@@ -6,7 +6,17 @@ import QRCode from "react-native-qrcode-styled";
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Banknote, Clock, Copy, Percent, QrCode, Repeat, Share as ShareIcon } from "@tamagui/lucide-icons-2";
+import {
+  ArrowLeft,
+  Banknote,
+  Clock,
+  Copy,
+  Percent,
+  QrCode,
+  Repeat,
+  Share as ShareIcon,
+  TriangleAlert,
+} from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
@@ -142,6 +152,18 @@ export default function Ramp() {
   const limitCurrency = limits?.monthly.symbol;
   const minAmount = quote?.buyRate ? Number(quote.buyRate) : undefined;
   const maxAmount = limits?.monthly.available ? Number(limits.monthly.available) : undefined;
+  const fee = minAmount && Number.isFinite(minAmount) && minAmount > 0 ? 1 - 1 / minAmount : undefined;
+  const feeWarning =
+    typedProvider === "manteca" && typedCurrency === "USD" && deposit
+      ? fee === undefined
+        ? t("{{currency}} deposits have a fee", { currency: typedCurrency })
+        : fee >= 0.01
+          ? t("{{currency}} deposit fee: {{fee}}", {
+              currency: typedCurrency,
+              fee: fee.toLocaleString(language, { style: "percent", maximumFractionDigits: 2 }),
+            })
+          : undefined
+      : undefined;
   const methods = t("{{currency}} via {{methods}}", {
     currency: typedCurrency,
     methods: deposits.map((d) => d.displayName).join(` ${t("or")} `),
@@ -222,6 +244,21 @@ export default function Ramp() {
                 )}
               </YStack>
               {deposit && <DepositCard copyToClipboard={copyToClipboard} deposit={deposit} isLoading={isPending} />}
+              {feeWarning && (
+                <XStack
+                  gap="$s4"
+                  alignItems="center"
+                  backgroundColor="$interactiveBaseWarningSoftDefault"
+                  borderRadius="$r3"
+                  paddingHorizontal="$s4"
+                  paddingVertical="$s3"
+                >
+                  <TriangleAlert size={16} color="$uiWarningSecondary" />
+                  <Text caption2 color="$uiWarningSecondary" flex={1} aria-live="polite">
+                    {feeWarning}
+                  </Text>
+                </XStack>
+              )}
               {isPending && !deposit && (
                 <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
                   <Skeleton width="100%" height={40} />

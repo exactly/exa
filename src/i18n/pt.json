@@ -48,6 +48,8 @@
   "{{chain}} is Exa App's native network. Supported assets received here generate yield and increase your Exa Card credit limit immediately. Other assets need to be swapped to a supported asset first.": "{{chain}} é a rede nativa do Exa App. Os ativos suportados recebidos aqui geram rendimento e aumentam o limite de crédito do seu Exa Card imediatamente. Os demais ativos precisam primeiro de um swap para um ativo suportado.",
   "{{count}} installments of_one": "{{count}} parcela de",
   "{{count}} installments of_other": "{{count}} parcelas de",
+  "{{currency}} deposit fee: {{fee}}": "Taxa de depósito em {{currency}}: {{fee}}",
+  "{{currency}} deposits have a fee": "Depósitos em {{currency}} têm uma taxa",
   "{{currency}} from {{network}}": "{{currency}} de {{network}}",
   "{{currency}} from Argentina": "{{currency}} da Argentina",
   "{{currency}} via {{method}}": "{{currency}} via {{method}}",
