@@ -5,13 +5,14 @@ import { useRouter } from "expo-router";
 
 import { Trash2 } from "@tamagui/lucide-icons-2";
 import { useToastController } from "@tamagui/toast";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, deleteExternalAccount } from "../../utils/server";
+import useInsets from "../../utils/useInsets";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -28,6 +29,7 @@ export default function MissingTransferSheet({
   provider: string;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   const router = useRouter();
   const toast = useToastController();
 
@@ -61,7 +63,7 @@ export default function MissingTransferSheet({
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>

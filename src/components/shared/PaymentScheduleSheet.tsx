@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useLocalSearchParams } from "expo-router";
 
 import { X } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { parse } from "valibot";
 
@@ -14,6 +14,7 @@ import AssetLogo from "./AssetLogo";
 import ModalSheet from "./ModalSheet";
 import Loan from "../../utils/Loan";
 import useAsset from "../../utils/useAsset";
+import useInsets from "../../utils/useInsets";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -33,6 +34,7 @@ export default function PaymentScheduleSheet({
     t,
     i18n: { language },
   } = useTranslation();
+  const insets = useInsets();
   const symbol = useMemo(() => {
     if (!market) return;
     return market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3);
@@ -46,7 +48,7 @@ export default function PaymentScheduleSheet({
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s5"
           $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
         >
           <YStack gap="$s7">
             <YStack gap="$s5">

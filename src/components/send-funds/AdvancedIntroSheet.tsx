@@ -2,8 +2,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { ArrowRight } from "@tamagui/lucide-icons-2";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
+import useInsets from "../../utils/useInsets";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -19,6 +20,7 @@ export default function AdvancedIntroSheet({
   open: boolean;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onDismiss}>
       <SafeView
@@ -28,7 +30,7 @@ export default function AdvancedIntroSheet({
         paddingHorizontal="$s5"
         paddingTop="$s7"
         $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" alignItems="center">
           <Text
