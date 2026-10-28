@@ -17,7 +17,7 @@ jobs:
       POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0, fetch-tags: true }
+        with: { fetch-depth: 0, fetch-tags: true, filter: blob:none }
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
@@ -120,7 +120,7 @@ jobs:
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0, fetch-tags: true }
+        with: { fetch-depth: 0, fetch-tags: true, filter: blob:none }
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
