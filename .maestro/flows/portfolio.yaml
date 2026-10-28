@@ -1,9 +1,21 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
-- runFlow:
-    file: ../subflows/mint.yaml
-    env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runScript:
+    file: ../dist/mint.js
+    env: { asset: USDT, to: "${output.account}", amount: "1000" }
+- runFlow: ../subflows/verifyIdentity.yaml
+- tapOn: Swap assets
+- tapOn: { text: "0", index: 0 }
+- inputText: "500"
+- tapOn: Swap USDT for USDC
+- assertVisible: completed
+- runScript:
+    file: ../dist/hookActivity.js
+    env: { account: "${output.account}" }
+- tapOn: Close
+- tapOn: Home
+- extendedWaitUntil: { visible: "^[\\d.,]+% APR$", timeout: 30000 }
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
