@@ -1,4 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
+tags: [broad]
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/eth.yaml
