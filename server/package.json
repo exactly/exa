@@ -40,7 +40,6 @@
     "node": "^24.14.1"
   },
   "dependencies": {
-    "@account-kit/infra": "catalog:",
     "@exactly/lib": "^0.1.0",
     "@google-cloud/kms": "^6.0.0",
     "@google-cloud/secret-manager": "^7.0.0",
@@ -83,6 +82,7 @@
     "viem": "catalog:"
   },
   "devDependencies": {
+    "@account-kit/infra": "catalog:",
     "@eslint/compat": "^2.0.3",
     "@exactly/common": "workspace:^0.0.24",
     "@exactly/plugin": "workspace:^1.1.0",
