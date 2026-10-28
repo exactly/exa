@@ -54,7 +54,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Swap
 - assertVisible: LI.FI
-- tapOn: { id: Select token, index: 1 }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Select token, index: 1 } }
 - tapOn: Search by token name or address
 - inputText: eth
 - tapOn: WETH
