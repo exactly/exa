@@ -12,5 +12,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Upgrade now
 - tapOn: Upgrade Exa Card
 - tapOn: Activate new Exa Card
+- assertVisible: My Exa Card
 - tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
