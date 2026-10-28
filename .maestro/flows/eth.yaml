@@ -7,6 +7,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: With connected wallet
 - tapOn: { text: "0", index: 0 }
 - inputText: "1"
+- pressKey: enter
 - tapOn: Transfer ETH
 - runFlow: ../subflows/sign.yaml
 - pressKey: escape
