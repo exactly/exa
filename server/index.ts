@@ -236,6 +236,17 @@ frontend.use(
     xFrameOptions: false,
     referrerPolicy: "strict-origin-when-cross-origin",
     reportingEndpoints: [{ name: "sentry", url: reportUri }],
+    contentSecurityPolicy: {
+      frameAncestors: [
+        "https://farcaster.xyz",
+        "https://base.app",
+        "https://base.org",
+        "https://base.dev",
+        "https://*.base.app",
+        "https://*.base.org",
+        "https://*.base.dev",
+      ],
+    },
     contentSecurityPolicyReportOnly: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://onesignal.com"],
@@ -358,15 +369,6 @@ frontend.use(
         "https://static.intercomassets.eu",
         "https://static.au.intercomassets.com",
         // #endregion
-      ],
-      frameAncestors: [
-        "https://farcaster.xyz",
-        "https://base.app",
-        "https://base.org",
-        "https://base.dev",
-        "https://*.base.app",
-        "https://*.base.org",
-        "https://*.base.dev",
       ],
       scriptSrcAttr: ["'none'"],
       objectSrc: ["'none'"],
