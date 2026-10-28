@@ -252,14 +252,14 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: start simulators # cspell:ignore apsd bootout bootstatus datamigrator udid
+      - name: start simulators # cspell:ignore bootstatus datamigrator udid
         run: |
           for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone 17" >> simulators.udid; done
           for udid in $(cat simulators.udid); do
+            mkdir -p -m 700 "/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid"
+            cp .eas/disabled.plist "/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid/"
             {
               xcrun simctl bootstatus "$udid" -b > /dev/null
-              xcrun simctl spawn "$udid" launchctl disable user/foreground/com.apple.apsd
-              xcrun simctl spawn "$udid" launchctl bootout user/foreground/com.apple.apsd || true
               for i in {1..180}; do xcrun simctl io "$udid" screenshot "$udid.png" > /dev/null 2>&1 && break; [ $i -eq 180 ] && exit 1; sleep 1; done
               xcrun simctl spawn "$udid" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
               touch "$udid.ready"
