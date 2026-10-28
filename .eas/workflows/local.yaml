@@ -18,7 +18,8 @@ jobs:
       ios_fingerprint_hash: ${{ steps.fingerprint.outputs.ios }}
     steps:
       - uses: eas/checkout
-      - uses: eas/install_node_modules
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm nx generate:version mobile
       - id: fingerprint
         run: |
           for platform in android ios; do
