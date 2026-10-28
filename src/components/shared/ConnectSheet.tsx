@@ -1,7 +1,7 @@
 import React from "react";
 
 import { Fingerprint, Wallet } from "@tamagui/lucide-icons-2";
-import { ScrollView, YStack } from "tamagui";
+import { getTokens, ScrollView, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { base } from "viem/chains";
@@ -12,6 +12,7 @@ import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
 import Button from "./StyledButton";
 import Text from "./Text";
+import useInsets from "../../utils/useInsets";
 
 import type { AuthMethod } from "../../utils/queryClient";
 
@@ -30,6 +31,7 @@ export default function ConnectSheet({
   title: string;
   webAuthnText: string;
 }) {
+  const insets = useInsets();
   const { data: isOwnerAvailable } = useQuery({ queryKey: ["is-owner-available"] });
   return (
     <ModalSheet
@@ -46,7 +48,7 @@ export default function ConnectSheet({
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s5"
           $platform-web={{ paddingVertical: "$s5" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
         >
           <YStack gap="$s7">
             <YStack gap="$s4">

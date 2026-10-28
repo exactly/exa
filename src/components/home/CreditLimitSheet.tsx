@@ -3,10 +3,11 @@ import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { ExternalLink, X } from "@tamagui/lucide-icons-2";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
@@ -14,6 +15,7 @@ import Text from "../shared/Text";
 
 export default function CreditLimitSheet({ onClose, open }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
@@ -21,7 +23,7 @@ export default function CreditLimitSheet({ onClose, open }: { onClose: () => voi
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s4" paddingTop="$s5" paddingHorizontal="$s5">
           <YStack gap="$s4">

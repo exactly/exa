@@ -2,16 +2,18 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { ThumbsUp } from "@tamagui/lucide-icons-2";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
+import useInsets from "../../utils/useInsets";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
 export default function ExternalAssetsSheet({ onClose, open }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
@@ -19,7 +21,7 @@ export default function ExternalAssetsSheet({ onClose, open }: { onClose: () => 
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>

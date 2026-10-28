@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { Snowflake } from "@tamagui/lucide-icons-2";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
+import useInsets from "../../utils/useInsets";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -19,6 +20,7 @@ export default function CardFreezeSheet({
   open: boolean;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onClose}>
       <YStack
@@ -26,7 +28,7 @@ export default function CardFreezeSheet({
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s4" paddingTop="$s5" paddingHorizontal="$s5">
           <Text emphasized headline>
