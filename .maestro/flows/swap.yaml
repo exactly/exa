@@ -10,6 +10,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: USDC, index: 0 }
 - tapOn: { text: "0", index: 0 }
 - inputText: "4"
+- pressKey: enter
 - tapOn: Swap USDC.e for USDC
 - runScript:
     file: ../dist/bridge.js
