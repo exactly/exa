@@ -7,6 +7,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: USDC.e, network: Anvil2, to: "${output.account}", amount: "100" }
 - runFlow: ../subflows/portfolio.yaml
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Deposit } }
 - tapOn: Digital assets
