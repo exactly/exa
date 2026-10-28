@@ -840,15 +840,16 @@ export default function Swaps() {
     if (failure === "account") return t("Contact support");
     if (isInsufficientBalance) return t("Insufficient balance");
     if (insufficientGas) return t("Not enough for network fees");
-    if (rerouting || quoteExpired || (isSimulating && route)) return t("Please wait...");
+    if (quoteExpired || (route ? isSimulating : isRouteFetching || transient)) return t("Please wait...");
     if (failure) return t("Cannot proceed");
     if (fromToken && toToken) {
       return t("Swap {{from}} for {{to}}", { from: fromToken.token.symbol, to: toToken.token.symbol });
     }
     return t("Swap");
   }, [
+    isRouteFetching,
+    transient,
     isSimulating,
-    rerouting,
     quoteExpired,
     route,
     isInsufficientBalance,
