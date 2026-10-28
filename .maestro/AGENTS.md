@@ -4,7 +4,7 @@
 - **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
 - **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size, through its signer's target: `e2e:webauthn`, `e2e:metamask` or `e2e:brave`. `package.json` defines them: each waits for the stack and runs the flow with every flag the leg needs, once `brave` or `metamask` has fetched its browser. a leg replays from the nx cache while nothing it runs against changed (this project, the app, the server, the contracts and common), and ci passes `--skip-nx-cache` so every leg runs and reports coverage. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
-- **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the signer targets play it through chrome's fake camera on flows that have one, so each leg scans a single code.
+- **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the signer targets play it through chrome's fake camera on flows that have one, so each leg scans a single code. native has no camera feed, so the subflow that owns a scan (`transfer.yaml`, `pix.yaml`) runs it and the steps that use what it read on web only.
 - **coverage**: the app keeps its coverage in memory until `subflows/storeCoverage.yaml` submits it, so a step that restarts the app process stores it first, as `assertNotifications.yaml` does. on web, `openLink` is a full navigation that starts it over, so it goes right after launch.
 
 ## principles
@@ -60,7 +60,7 @@
 
 ## platforms
 
-- **no platform branches in flows**: a platform difference lives in the one subflow that owns the interaction (`tapAria.yaml`, `sign.yaml`), never in flow bodies. prefer a step every platform can run over a branch.
+- **no platform branches in flows**: a platform difference lives in the one subflow that owns the interaction (`tapAria.yaml`, `sign.yaml`, the scans in `transfer.yaml` and `pix.yaml`), never in `flows/`. prefer a step every platform can run over a branch.
 - **android**: `eraseText` deletes backward from the caret and a tap leaves the caret where it lands, so never tap and erase a prefilled field; amount fields select their text on focus instead. android 13 and later show a clipboard overlay for a few seconds after each copy. a tap right after a sheet opens can race its slide-in. right after `tapOn: Home` the hierarchy can still hold the previous tab, so wait for a home-only element before scrolling to one both tabs show. on the 320x640 emulator the keyboard covers fields below the focused one, so submit a search with `pressKey: enter` before tapping a result.
 - **ios**: `hideKeyboard` misses the number pad and can fail on text fields too (the beneficiary form in `NewRecipient.tsx`), so use `pressKey: enter` there. a field under a pinned button counts as visible, so `scrollTo` does not scroll to it. a pressable row reads as one label of its texts joined by commas, so match a row's text as `(.*, )?text(, .*)?`.
 
