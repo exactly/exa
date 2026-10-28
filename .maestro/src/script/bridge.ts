@@ -1,4 +1,4 @@
-import { decodeEventLog, erc20Abi, formatUnits, hexToBigInt, hexToNumber, type Address } from "viem";
+import { decodeEventLog, erc20Abi, formatUnits, hexToBigInt, hexToNumber, isAddressEqual, type Address } from "viem";
 import { getAbiItem, isHex, parseUnits, toEventSelector } from "viem/utils";
 
 import { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
@@ -14,16 +14,11 @@ declare const amount: string | undefined;
 if (!to || !isHex(to)) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
-let log = bridge();
-for (const deadline = Date.now() + 30_000; !log; log = bridge()) {
+let transfer = bridge(to);
+for (const deadline = Date.now() + 30_000; !transfer; transfer = bridge(to)) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for bridge");
 }
-const { transactionId, sendingAssetId, receiver, minAmount, destinationChainId } = decodeEventLog({
-  abi: mockSwapperAbi,
-  eventName: "LiFiTransferStarted",
-  data: log.data,
-  topics: log.topics,
-}).args.bridgeData;
+const { transactionId, sendingAssetId, minAmount, destinationChainId } = transfer;
 if (destinationChainId !== hexToBigInt(anvil("eth_chainId", [], destination))) throw new Error("bad destination");
 const { tokens } = JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/tokens").body) as {
   tokens: Record<number, { address: Address; symbol: string }[]>;
@@ -43,7 +38,7 @@ const hash = writeContract(
     address: swapperAddress,
     functionName: "completeBridgeTokensViaMock",
     abi: mockSwapperAbi,
-    args: [transactionId, token, receiver, minAmount],
+    args: [transactionId, token, to, minAmount],
   },
   destination,
 );
@@ -53,8 +48,9 @@ const expected = parseUnits(amount, decimals);
 if (delivered < (expected * 98n) / 100n || delivered > (expected * 102n) / 100n) throw new Error("bad delivery");
 activity(token, to, Number(formatUnits(delivered, decimals)), hash, destination);
 
-function bridge() {
-  return anvil(
+function bridge(account: Address) {
+  let latest;
+  for (const { data, topics } of anvil(
     "eth_getLogs",
     [
       {
@@ -64,5 +60,17 @@ function bridge() {
       },
     ],
     network,
-  ).pop();
+  )) {
+    const { bridgeData } = decodeEventLog({ abi: mockSwapperAbi, eventName: "LiFiTransferStarted", data, topics }).args;
+    if (isAddressEqual(bridgeData.receiver, account)) latest = bridgeData;
+  }
+  if (
+    latest &&
+    !readContract(
+      { address: swapperAddress, functionName: "completed", abi: mockSwapperAbi, args: [latest.transactionId] },
+      destination,
+    )
+  ) {
+    return latest;
+  }
 }
