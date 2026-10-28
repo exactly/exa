@@ -2,7 +2,8 @@
 
 - **stack**: maestro 2.12.0, built from source with `patches/*.patch` into `build/` by `pnpm nx maestro e2e`. scripts run on graaljs, bundled from `src/script/` into `dist/`.
 - **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
-- **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size, through its signer's target: `e2e:webauthn`, `e2e:metamask` or `e2e:brave`. `package.json` defines them: each waits for the stack and runs the flow with every flag the leg needs, once `brave` or `metamask` has fetched its browser. a leg replays from the nx cache while nothing it runs against changed (this project, the app, the server, the contracts and common), and ci passes `--skip-nx-cache` so every leg runs and reports coverage. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
+- **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size, through its signer's target: `e2e:webauthn`, `e2e:metamask` or `e2e:brave`. `package.json` defines them: each waits for the stack and runs the flow with every flag the leg needs, once `brave` or `metamask` has fetched its browser. a leg replays from the nx cache while nothing it runs against changed (this project, the app, the server, the contracts and common), and ci passes `--skip-nx-cache` so every leg runs and reports coverage. eas runs the `broad` flows on ios and android.
+- **tags**: a tag selects the flows of a use case, never a single flow, which runs by its file. `smoke`, `core` and `broad` are levels, quickest first, each holding the one before it. `broad` is what eas runs on ios and android: every flow but `deposit`, which needs metamask, and `external`, which native doesn't run yet.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
 - **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the signer targets play it through chrome's fake camera on flows that have one, so each leg scans a single code. native has no camera feed, so the subflow that owns a scan (`transfer.yaml`, `pix.yaml`) runs it and the steps that use what it read on web only.
 
@@ -24,7 +25,7 @@
 - **happy paths pay nothing for edge cases**: handling a special case (an optional sheet, a fallback, an error path) adds no time to a run that doesn't hit it. a saving elsewhere never pays for it.
 - **measure per step**: read step durations from `commands.json` in maestro's test output (`~/.maestro/tests`, uploaded with each leg's artifacts) or from `maestro.log`, and compare flow and step times on the same base. job and run totals swing by tens of seconds with install and cache times, so never infer a cost or a saving from them.
 - **legs have a fixed cost**: a web leg spends about 3.5 min on setup before maestro starts, so a new leg costs far more than a few steps in an existing one.
-- **native runs in sequence**: `flows/local.yaml` chains its bodies on each platform, so a step added to one of them adds native time too.
+- **native runs in sequence**: eas runs the `broad` flows one after another on each platform, so a step added to one of them adds native time too.
 - **compare like with like**: a local run takes about 1.2x the ci time. compare local with local and ci with ci.
 
 ## maestro timing
@@ -72,7 +73,7 @@
 ## legs
 
 - **one leg per app area**: each web leg covers one area of the app, and legs take similar time. extend an existing leg and its flow before adding a leg.
-- **no step on two legs**: each user path runs on one web leg only, setup aside, even when the copy fits in a leg's slack or `flows/local.yaml` doesn't chain it. to cover it with another signer or browser, move the step to that leg or switch an existing leg's `method`, never copy it.
+- **no step on two legs**: each user path runs on one web leg only, setup aside, even when the copy fits in a leg's slack or eas doesn't run it. to cover it with another signer or browser, move the step to that leg or switch an existing leg's `method`, never copy it.
 - **a new leg is a new check**: a new or renamed matrix row changes a job name the repository ruleset requires, and codecov waits for one more upload (`after_n_builds` in `.github/codecov.yaml`).
 
 ## screen sizes
@@ -96,7 +97,7 @@
 
 ## validation
 
-- **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when `flows/local.yaml` covers it.
+- **every platform**: a change to a flow, a subflow or the app layout is done only when the web legs pass, and the eas ios and android runs too when a `broad` flow covers it.
 - **fingerprint**: e2e changes must not change the expo fingerprint (`pnpm exec fingerprint fingerprint:generate --platform ios`, then `android`).
 - **local runs**: one stack serves any number of runs, and one run takes several flows when they share a signer, a screen size and at most one camera feed. run a leg's row through its signer's target, as ci does:
 

@@ -31,12 +31,12 @@ pnpm ios # for native ios app
 ```bash
 # native
 pnpm nx e2e:ios mobile # or e2e:android
-maestro test .maestro/flows/local.yaml
+maestro test .maestro/flows --include-tags=broad
 
 
 # web
 pnpm nx e2e:web mobile
-maestro test .maestro/flows/local.yaml --platform web -e APP_ID=http://localhost:8081
+maestro test .maestro/flows --include-tags=smoke --platform web -e APP_ID=http://localhost:8081 -e method=webauthn
 ```
 
 ## @exactly/server
