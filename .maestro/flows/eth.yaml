@@ -13,6 +13,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Add funds request sent
 - runScript: { file: ../dist/getBalance.js, env: { asset: ETH, account: "${output.account}" } }
 - assertTrue: ${output.balance === 1}
-- back
-- back
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
