@@ -154,6 +154,7 @@ export const services = Object.fromEntries(
           containers: service.template.containers.map((container) => ({
             ...container,
             ports: { containerPort: 3000 },
+            resources: { ...container.resources, cpuIdle: true, startupCpuBoost: true },
           })),
         },
       },
