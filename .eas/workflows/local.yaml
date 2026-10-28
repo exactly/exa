@@ -54,6 +54,7 @@ jobs:
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
+      MAESTRO_CLI_NO_ANALYTICS: "true"
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
       - uses: eas/checkout
@@ -181,6 +182,7 @@ jobs:
       CHAIN_ID: "31337"
       EXPO_PUBLIC_ENV: e2e
       GIT_BRANCH: "${{ github.ref_name }}"
+      MAESTRO_CLI_NO_ANALYTICS: "true"
       REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
     steps:
       - run: brew install redis

@@ -115,6 +115,7 @@ jobs:
           - { flow: swap, method: webauthn, screen: 740x880 }
           - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
+      MAESTRO_CLI_NO_ANALYTICS: true
       NX_DAEMON: false
       NX_MAX_CACHE_SIZE: 1GB
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
