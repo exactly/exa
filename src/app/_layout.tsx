@@ -298,7 +298,10 @@ function Navigator() {
   useEffect(() => {
     if (!authenticated) {
       if (authenticatedRef.current)
-        queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
+        queryClient.removeQueries({
+          predicate: (query) =>
+            query.getObserversCount() === 0 && !(query.queryKey[0] === "settings" && query.queryKey[1] === "seen"),
+        });
       authenticatedRef.current = false;
       if (!signedRef.current && href.split(/[/#]/)[1])
         queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
