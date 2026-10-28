@@ -3,6 +3,8 @@ cache_path = "cache/build"
 out = "out/build"
 solc_version = "0.8.29"
 evm_version = "cancun"
+additional_compiler_profiles = [{ name = "paris", evm_version = "paris" }]
+compilation_restrictions = [{ paths = "src/BalancePreviewer.sol", evm_version = "paris" }]
 optimizer = true
 optimizer_runs = 416
 deny = "notes"

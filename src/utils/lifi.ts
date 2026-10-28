@@ -63,6 +63,8 @@ import chain, {
   appPreviewerAbi,
   appPreviewerCode,
   auditorAddress,
+  balancePreviewerAbi,
+  balancePreviewerCode,
   exaAddress,
   exaPluginAbi,
   lifiURL,
@@ -735,18 +737,34 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
           }
         }
         const listed = tokensByChain[id] ?? [];
-        const client = await config.getRPCUrls().then((urls) =>
-          createPublicClient({
-            transport: fallback(
-              (urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl, { timeout: 5000, fetchOptions: { signal } })),
-              { retryCount: 3, retryDelay: 300 },
-            ),
-          }),
-        );
+        const transports = await config
+          .getRPCUrls()
+          .then((urls) =>
+            (urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl, { timeout: 5000, fetchOptions: { signal } })),
+          );
+        const client = createPublicClient({ transport: fallback(transports, { retryCount: 3, retryDelay: 300 }) });
+        const deployless = createPublicClient({ transport: fallback(transports, { retryCount: 0 }) });
         return await Promise.all(
           Array.from({ length: Math.ceil(listed.length / 200) }, (_, chunk) =>
             listed.slice(chunk * 200, chunk * 200 + 200),
           ).map(async (calls) => {
+            if (!unsupported.has(id)) {
+              try {
+                const amounts = await deployless.readContract({
+                  abi: balancePreviewerAbi,
+                  functionName: "balances",
+                  code: balancePreviewerCode,
+                  args: [account, calls.map(({ address }) => address.toLowerCase() as Address)],
+                });
+                return calls.flatMap(({ address }, index) => {
+                  const amount = amounts[index] ?? 0n;
+                  return amount > 0n ? [{ address, amount }] : [];
+                });
+              } catch (error) {
+                if (signal.aborted) throw error;
+                unsupported.add(id);
+              }
+            }
             const results = await client.readContract({
               address: multicallAddress as Address,
               abi: multicall3Abi,
@@ -786,7 +804,8 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
     pending.delete(settled);
     if (result) yield result;
   }
-  if (!signal.aborted) for (const { error, ids } of failures.values()) reportError(error, { extra: { chains: ids } });
+  if (!signal.aborted)
+    for (const { error, ids } of failures.values()) reportError(error, { level: "warning", extra: { chains: ids } });
 }
 
 async function rpc(url: string, method: string, params: unknown[], signal: AbortSignal) {
@@ -946,3 +965,5 @@ const QuoteTransaction = object({
 });
 
 type Allowlist = { block: bigint; proposalManager: Address; targets: readonly string[] };
+
+const unsupported = new Set<number>();
