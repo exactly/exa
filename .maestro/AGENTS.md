@@ -27,7 +27,7 @@
 - **happy paths pay nothing for edge cases**: handling a special case (an optional sheet, a fallback, an error path) adds no time to a run that doesn't hit it. a saving elsewhere never pays for it.
 - **measure per step**: read step durations from `commands.json` in maestro's test output (`~/.maestro/tests`, uploaded with each leg's artifacts) or from `maestro.log`, and compare flow and step times on the same base. job and run totals swing by tens of seconds with install and cache times, so never infer a cost or a saving from them.
 - **legs have a fixed cost**: a web leg spends about 3.5 min on setup before maestro starts, so a new leg costs far more than a few steps in an existing one.
-- **native runs in sequence**: eas runs the `broad` flows one after another on each platform, so a step added to one of them adds native time too.
+- **native runs in shards**: eas splits the `broad` flows across four devices on each platform, so a step added to one of them adds to its device's time, and the slowest device sets native time.
 - **compare like with like**: a local run takes about 1.2x the ci time. compare local with local and ci with ci.
 
 ## maestro timing
