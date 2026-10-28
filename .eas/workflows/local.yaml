@@ -68,9 +68,10 @@ jobs:
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
       - uses: eas/install_node_modules
-      - run: tar -cf nx.tar -C ~ .nx
+      - if: ${{ github.ref_name == 'main' }}
+        run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
-        if: ${{ github.ref_type != 'tag' }}
+        if: ${{ github.ref_name == 'main' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
       - name: exa setup
         run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
@@ -188,9 +189,10 @@ jobs:
         with: { key: "nx-ios-e2e-${{ github.sha }}", restore_keys: nx-ios-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
       - uses: eas/install_node_modules
-      - run: tar -cf nx.tar -C ~ .nx
+      - if: ${{ github.ref_name == 'main' }}
+        run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
-        if: ${{ github.ref_type != 'tag' }}
+        if: ${{ github.ref_name == 'main' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
       - name: exa setup
         run: pnpm nx e2e server > server.log 2>&1 &
