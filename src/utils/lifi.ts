@@ -310,7 +310,7 @@ export async function getRoute(
     };
   }
   config.set({ integrator: "exa_app", userId: account });
-  const { estimate, transactionRequest, tool } = await getQuote({
+  const { estimate, transactionRequest, tool } = await requestQuote({
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
@@ -511,12 +511,12 @@ export async function getRouteFrom({
         .map(([key]) => key),
   };
   const denied = [...denyBridges];
-  let quote = await getQuote(denied.length > 0 ? { ...request, denyBridges: denied } : request);
+  let quote = await requestQuote(denied.length > 0 ? { ...request, denyBridges: denied } : request);
   for (let attempt = 0; nativeless && BigInt(quote.transactionRequest?.value ?? 0) > 0n; attempt++) {
     const bridge = quote.includedSteps.find(({ type }) => type === "cross")?.tool;
     if (attempt >= 3 || !bridge || denied.includes(bridge)) throw new Error(nativeFeeRoute);
     denied.push(bridge);
-    quote = await getQuote({ ...request, denyBridges: denied });
+    quote = await requestQuote({ ...request, denyBridges: denied });
   }
   const { estimate, transactionRequest, tool } = quote;
   assert(QuoteEstimate, estimate);
@@ -528,6 +528,14 @@ export async function getRouteFrom({
     toAmount: BigInt(estimate.toAmount),
     wrapped: quote.includedSteps.some((step) => step.tool === "wrapper"),
   };
+}
+
+function requestQuote(request: Parameters<typeof getQuote>[0]) {
+  return getQuote({
+    swapStepTimingStrategies: ["minWaitTime-600-4-300"],
+    routeTimingStrategies: ["minWaitTime-600-4-300"],
+    ...request,
+  });
 }
 
 export function classify(error: unknown) {
