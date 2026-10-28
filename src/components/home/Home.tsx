@@ -37,11 +37,13 @@ import StocksIntroSheet from "./StocksIntroSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
-import { balancesOptions, restrictedCountries } from "../../utils/lifi";
+import { balancesOptions, isStock, restrictedCountries } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
+import useAnnouncement from "../../utils/useAnnouncement";
 import useCardLimit from "../../utils/useCardLimit";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -96,6 +98,7 @@ export default function Home() {
       };
     }, []),
   );
+
   const spotlightRef = useRef<RNView>(null);
 
   const { address: account } = useAccount();
@@ -109,7 +112,9 @@ export default function Home() {
     averageRate,
     allAssets,
     totalBalanceUSD,
+    isBalancesPending,
   } = usePortfolio();
+  const allowlists = useAllowlists();
 
   const { refetch: refetchPendingProposals } = useReadContract({
     abi: exaPreviewerAbi,
@@ -134,13 +139,17 @@ export default function Home() {
     pending: cardLimitPending,
     processing: cardLimitProcessing,
   } = useCardLimit(card?.limit.amount);
-  const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
   const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
-  const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const stocksAvailable = !!country && !restrictedCountries.has(country);
-  const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
-  const stocksIntroOpen = isKYCApproved && !stocksIntroShown && stocksAvailable && !spotlightVisible && focused;
+  const [spotlightVisible, dismissSpotlight] = useAnnouncement("installments-spotlight", !!card && card.mode > 0);
+  const [stocksIntroOpen, dismissStocksIntro] = useAnnouncement(
+    "stocks-intro",
+    isKYCApproved &&
+      stocksAvailable &&
+      !isBalancesPending &&
+      !allAssets.some((asset) => asset.type === "external" && isStock(allowlists, asset)),
+  );
   const { mutate: mutateMode } = useMutation({
     ...cardModeMutationOptions,
     onSuccess: (_data, mode) => {
@@ -164,7 +173,7 @@ export default function Home() {
   }
   function openInstallments() {
     if (!card || card.status === "FROZEN") return;
-    queryClient.setQueryData(["settings", "installments-spotlight"], true);
+    dismissSpotlight();
     const inNowMode = card.mode === 0;
     if (inNowMode && !manualRepaymentAcknowledged) {
       pendingSheetOpenRef.current = true;
@@ -341,11 +350,7 @@ export default function Home() {
             onModeChange={handleModeChange}
           />
           <ArrivalSheet focused={focused && !spotlightVisible && !stocksIntroOpen} />
-          <StocksIntroSheet
-            open={stocksIntroOpen}
-            onClose={() => queryClient.setQueryData(["settings", "stocks-intro-shown"], true)}
-            onActionPress={openStocks}
-          />
+          <StocksIntroSheet open={stocksIntroOpen} onClose={dismissStocksIntro} onActionPress={openStocks} />
           <CreditLimitSheet
             open={creditLimitSheetOpen}
             onClose={() => {
@@ -387,15 +392,13 @@ export default function Home() {
               setVisaSignatureModalOpen(false);
             }}
           />
-          {card && card.mode > 0 && !spotlightShown && focused && (
+          {spotlightVisible && (
             <Spotlight
               label={t("Tap here to change the number of installments")}
               scrollOffset={scrollOffsetRef}
               scrollRef={scrollRef}
               targetRef={spotlightRef}
-              onDismiss={() => {
-                queryClient.setQueryData(["settings", "installments-spotlight"], true);
-              }}
+              onDismiss={dismissSpotlight}
               onPress={() => {
                 setInstallmentsSheetOpen(true);
               }}

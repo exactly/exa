@@ -3,6 +3,7 @@ import { BackHandler, Keyboard, Platform } from "react-native";
 
 import { getTokens, Sheet, View } from "tamagui";
 
+import { hold } from "../../utils/useAnnouncement";
 import useInsets from "../../utils/useInsets";
 import SheetContext from "../context/SheetContext";
 
@@ -36,6 +37,7 @@ export default function ModalSheet({
     const subscription = BackHandler.addEventListener("hardwareBackPress", onBack);
     return () => subscription.remove();
   }, [open, dismissible]);
+  useEffect(() => (open ? hold() : undefined), [open]);
   return (
     <Sheet
       open={open}
