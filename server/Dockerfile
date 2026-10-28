@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y ca-certificates curl git rsync unzip --
   rm -rf /var/lib/apt/lists/* && \
   curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=12.16.1 bash && \
   curl -fsSL https://foundry.paradigm.xyz | bash
-ENV PATH="$PATH:/root/.local/share/pnpm:/root/.foundry/bin"
+ENV PATH="$PATH:/root/.local/share/pnpm/bin:/root/.foundry/bin"
 RUN foundryup -i v1.7.1
 WORKDIR /usr/src/app
 COPY . .
