@@ -11,6 +11,7 @@ import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import AppPreviewer from "@exactly/plugin/out/build/AppPreviewer.sol/AppPreviewer.json" with { type: "json" };
+import BalancePreviewer from "@exactly/plugin/out/build/BalancePreviewer.sol/BalancePreviewer.json" with { type: "json" };
 import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
 import PricePreviewer from "@exactly/plugin/out/build/PricePreviewer.sol/PricePreviewer.json" with { type: "json" };
 import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
@@ -70,6 +71,7 @@ export default defineConfig([
         project: "../contracts",
         include: [
           "AppPreviewer.sol/AppPreviewer.json",
+          "BalancePreviewer.sol/BalancePreviewer.json",
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -194,6 +196,7 @@ export default defineConfig([
                 ),
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
+              `export const balancePreviewerCode: \`0x\${string}\` = "${BalancePreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
