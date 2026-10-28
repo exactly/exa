@@ -47,7 +47,7 @@ jobs:
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - run: flock /tmp/apt.lock pnpm nx run-many -t test --parallel=$(git diff --quiet "${NX_KEY##*-}" HEAD -- nx.json package.json pnpm-lock.yaml && echo 3 || echo 5)
+      - run: flock /tmp/apt.lock pnpm nx run-many -t test --parallel=$(git diff-tree --quiet "${NX_KEY##*-}" HEAD -- nx.json package.json pnpm-lock.yaml && echo 3 || echo 5)
         env: { NX_KEY: "${{ steps.nx.outputs.cache-matched-key }}" }
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
