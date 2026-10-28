@@ -37,7 +37,7 @@
 - **nothing moves forever**: settle compares the bounds of every node, so a continuous animation (carousel, progress bar, looping spinner) makes every tap near it wait the full settle. app animations stop when hidden and respect reduced motion, which ci forces with `--force-prefers-reduced-motion`.
 - **positive checks only**: wait for what should appear next, or read chain state from a script. no sleeps, `waitForAnimationToEnd` or negative visibility asserts unless a measurement proves them necessary.
 - **scroll only as needed**: `subflows/scrollTo.yaml` wraps `scrollUntilVisible`. pass `center` only when the element can end up behind the floating tab bar: centering costs about one swipe, and at the end of a page it keeps swiping for seconds, so use `offset` there. `copyTextFrom` only reads text and never needs centering. the `offset` swipe runs even when the element is already visible, so never repeat such a scroll on a screen that is already scrolled.
-- **keyboard**: `hideKeyboard` is nearly free on web, and with one swipe it beats a slow `scrollTo` under an open keyboard. `pressKey: enter` works on every platform but costs about 0.4 s on ios, 0.7 s on android and 0.8 s on web, so use it only where `hideKeyboard` fails.
+- **keyboard**: `hideKeyboard` is nearly free on web, and with one swipe it beats a slow `scrollTo` under an open keyboard. `pressKey: enter` works on every platform but costs about 0.4 s on ios, 0.7 s on android and 0.8 s on web, so `subflows/hideKeyboard.yaml` presses it only on ios, where `hideKeyboard` fails.
 - **scripts are not free**: graaljs takes seconds to run `mnemonicToAccount` (pbkdf2). compute values once and keep them in `output`, as `subflows/getAccount.yaml` does. a plain rpc call beats a deployless read.
 - **one call stays inline**: a single harness call stays in the flow (`assertTrue: '${http.post(...).ok}'`, as `flows/onboarding.yaml` does), never a new script in `src/script/`.
 - **refresh instead of polling**: pending requests refetch every 30 s, so tap Home to refresh them instead of waiting.
@@ -60,7 +60,7 @@
 
 ## platforms
 
-- **no platform branches in flows**: a platform difference lives in the one subflow that owns the interaction (`tapAria.yaml`, `sign.yaml`), never in flow bodies. prefer a step every platform can run over a branch.
+- **no platform branches in flows**: a platform difference lives in the one subflow that owns the interaction (`tapAria.yaml`, `sign.yaml`, `hideKeyboard.yaml`), never in flow bodies. prefer a step every platform can run over a branch.
 - **android**: `eraseText` deletes backward from the caret and a tap leaves the caret where it lands, so never tap and erase a prefilled field; amount fields select their text on focus instead. android 13 and later show a clipboard overlay for a few seconds after each copy. a tap right after a sheet opens can race its slide-in. right after `tapOn: Home` the hierarchy can still hold the previous tab, so wait for a home-only element before scrolling to one both tabs show. on the 320x640 emulator the keyboard covers fields below the focused one, so submit a search with `pressKey: enter` before tapping a result.
 - **ios**: `hideKeyboard` misses the number pad and can fail on text fields too (the beneficiary form in `NewRecipient.tsx`), so use `pressKey: enter` there. a field under a pinned button counts as visible, so `scrollTo` does not scroll to it.
 
