@@ -7,5 +7,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runScript: { file: ../dist/mint.js, env: { asset: EXA, to: "${output.account}", amount: "100" } }
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/storeCoverage.yaml

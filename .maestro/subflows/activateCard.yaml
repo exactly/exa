@@ -48,6 +48,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: Freeze card, below: "Freeze your card?" }
 - assertNotVisible: "Freeze your card?"
 - waitForAnimationToEnd
+- tapOn: Card
 - tapOn: Home
 - runFlow: { file: scrollTo.yaml, env: { element: Exa Card pay mode } }
 - runFlow: { file: scrollTo.yaml, env: { element: Freeze card, center: true } }
