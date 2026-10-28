@@ -431,7 +431,7 @@ export default function Amount() {
               >
                 <CircleX size={16} color="$uiErrorSecondary" />
                 <Text caption2 color="$uiErrorSecondary" flex={1}>
-                  {t("Insufficient balance. Try a different amount or another asset to pay with.")}
+                  {t("Insufficient balance. Try a different amount.")}
                 </Text>
               </XStack>
             )}

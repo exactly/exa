@@ -437,7 +437,7 @@
   "Installments": "Parcelas",
   "Instant": "Instantâneo",
   "Insufficient balance": "Saldo insuficiente",
-  "Insufficient balance. Try a different amount or another asset to pay with.": "Saldo insuficiente. Tente outro valor ou outro ativo para pagar.",
+  "Insufficient balance. Try a different amount.": "Saldo insuficiente. Tente outro valor.",
   "insufficient funds": "fundos insuficientes",
   "Invalid address": "Endereço inválido",
   "Invalid asset address": "Endereço do ativo inválido",
