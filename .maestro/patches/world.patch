@@ -1,13 +1,39 @@
-From d0af740d3d3a660a122a9ff964cbb343ecd21b66 Mon Sep 17 00:00:00 2001
+From 491025114add44e933c528ed46b60a0ca3f2e133 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:53:52 +0000
 Subject: [PATCH] fix: evaluate web scripts in an isolated world
 
 Pages that lock down their globals, such as extension pages under LavaMoat, reject Maestro's script ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on them can be read. Evaluate in an isolated world instead: it shares the page's DOM but not its globals, and the same world name returns the same context for each document.
----
- .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 19 ++++++++++++-------
- 1 file changed, 12 insertions(+), 7 deletions(-)
 
+The viewport of a cross-origin iframe is read with a WebDriver script, which runs in the page's own world, where the script is no longer injected, so that read carries the script too, like the read inside the iframe already does. A navigation between creating the world and evaluating in it removes the context ("Cannot find context with specified id"), so that error is retried like the other errors of a page that navigates.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt |  5 +++--
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 19 ++++++++++++-------
+ 2 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 6ab6e92..176c587 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -277,7 +277,8 @@ class CdpWebDriver(
+     private fun isRetryableJsError(e: Exception): Boolean {
+         val message = e.message ?: return false
+         return message.contains("getContentDescription") ||
+-            message.contains("navigated or closed")
++            message.contains("navigated or closed") ||
++            message.contains("Cannot find context with specified id")
+     }
+ 
+     private fun scrollToPoint(point: Point): Long {
+@@ -967,7 +968,7 @@ class CdpWebDriver(
+         // Get the iframe's scaled viewport params (accounts for parent viewportWidth/Height scaling)
+         val paramsJson = try {
+             jsExecutor.executeScript(
+-                "return JSON.stringify(window.maestro.getIframeViewportParams(arguments[0]));",
++                "$maestroWebScript\nreturn JSON.stringify(window.maestro.getIframeViewportParams(arguments[0]));",
+                 iframeSrc
+             ) as? String
+         } catch (e: Exception) {
 diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 index e8ff77d..ae67c15 100644
 --- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
