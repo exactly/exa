@@ -34,12 +34,14 @@ jobs:
             /tmp/metro-cache
           key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
+      - id: machine
+        run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT" # cspell:ignore dbus
       - uses: actions/cache/restore@v6
         id: nx
         with:
           path: ~/.nx
-          key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-${{ github.job }}-
+          key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: pip install -r contracts/requirements.txt
       - run: echo ::add-matcher::.github/matcher.json
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
@@ -133,12 +135,14 @@ jobs:
             /tmp/metro-cache
           key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
+      - id: machine
+        run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v6
         id: nx
         with:
           path: ~/.nx
-          key: nx-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
-          restore-keys: nx-${{ runner.os }}-${{ github.job }}-
+          key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-${{ github.sha }}
+          restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: echo ::add-matcher::.github/matcher.json
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
       - run: corepack enable
