@@ -1,4 +1,5 @@
 {
+  "All set! Start spending your onchain assets instantly with your Exa Card.": "¡Todo listo! Empezá a gastar tus activos onchain al instante con tu Exa Card.",
   "{{asset}} on {{chain}} can’t be used with your Exa Card. Once it arrives, swap it in-app to a collateral asset.": "{{asset}} en {{chain}} no puede usarse con tu Exa Card. Cuando llegue, hacé swap en la app a un activo en garantía.",
   "{{asset}} on {{chain}} won’t count toward payments, collateral or yield until you swap it to a collateral asset.": "{{asset}} en {{chain}} no contará para pagos, garantía ni rendimiento hasta que hagás swap a un activo en garantía.",
   "{{asset}} on {{network}} won’t activate your Exa Card until you bridge it to {{chain}} and swap it to a collateral asset.": "{{asset}} en {{network}} no activará tu Exa Card hasta que hagás bridge a {{chain}} y swap a un activo en garantía.",
@@ -15,6 +16,7 @@
   "Activate your card": "Activá tu tarjeta",
   "Activate your new Exa Card": "Activá tu nueva Exa Card",
   "Add funds to your account to start spending with the Exa Card.": "Agregá fondos a tu cuenta para empezar a gastar con la Exa Card.",
+  "Almost there! Activate your Exa Card to start spending your onchain assets instantly.": "¡Ya casi! Activá tu Exa Card para empezar a gastar tus activos onchain al instante.",
   "Add ~{{amount}} {{symbol}} on {{chain}} for network fees.": "Agregá ~{{amount}} {{symbol}} en {{chain}} para comisiones de red.",
   "Add funds on {{chain}}": "Agregá fondos en {{chain}}",
   "Add funds to activate your Exa Card": "Agregá fondos para activar tu Exa Card",
@@ -245,6 +247,7 @@
   "Your card is awaiting activation. Follow the steps to enable it.": "Tu tarjeta está a la espera de activación. Seguí los pasos para habilitarla.",
   "Your card is still being set up. This is taking a bit longer than expected. You can keep waiting or reach out to our support team.": "Tu tarjeta todavía se está configurando. Esto está tardando un poco más de lo esperado. Podés seguir esperando o contactar a nuestro equipo de soporte.",
   "Your card will be temporarily paused. You can unfreeze it anytime.": "Tu tarjeta se pausará temporalmente. Podés descongelarla en cualquier momento.",
+  "Your Exa Card is ready. Activate it to make your first purchase.": "Tu Exa Card está lista. Activala para hacer tu primera compra.",
   "Your limit increase request is under review. We'll let you know once it's been processed.": "Tu solicitud de aumento de límite está en revisión. Te vamos a avisar cuando se haya procesado.",
   "Your password manager does not support passkey backups. Please try a different one": "Tu gestor de contraseñas no admite copias de seguridad de llaves de acceso. Por favor, probá con otro.",
   "Your transactions will show up here once you start using your card.": "Tus transacciones aparecerán aquí cuando empecés a usar tu tarjeta.",
