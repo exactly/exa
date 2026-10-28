@@ -48,7 +48,9 @@ export default function PriceChart({
     }),
     [language],
   );
-  const { data, isError, isPlaceholderData, refetch } = useHistory(token, range);
+  const inverted = useFeed(token, true);
+  const inverse = symbol === "wARS" && inverted !== null;
+  const { data, isError, isPlaceholderData, refetch } = useHistory(token, range, undefined, inverse);
   const closed = !!useFeed(token) && isStock(token) && !marketOpen();
   const { data: onchain } = useQuery({
     ...statsOptions(token.chainId, token.address),
@@ -65,9 +67,10 @@ export default function PriceChart({
     selected === -1 || !point || !first || !last
       ? undefined
       : ((point.timestamp - first.timestamp) / (last.timestamp - first.timestamp || 1)) * width;
-  const value = point?.value ?? Number(token.priceUSD);
+  const value = point?.value ?? (inverse ? 1 / Number(token.priceUSD) : Number(token.priceUSD));
   const digits = decimals(value);
   const price = usd(value, language).slice(1);
+  const amount = (quote: number) => (inverse ? `${usd(quote, language).slice(1)} ${symbol}` : usd(quote, language));
   return (
     <YStack gap="$s4">
       <YStack gap="$s4">
@@ -83,23 +86,30 @@ export default function PriceChart({
           {logo}
         </XStack>
         {point || data === null || isError ? (
-          <XStack alignItems="center" aria-label={`$${price}`}>
-            <Text aria-hidden callout color="$uiNeutralSecondary">
-              $
-            </Text>
+          <XStack alignItems="center" aria-label={amount(value)}>
+            {!inverse && (
+              <Text aria-hidden callout color="$uiNeutralSecondary">
+                $
+              </Text>
+            )}
             <Text aria-hidden largeTitle numberOfLines={1}>
               {price.slice(0, -digits - 1)}
             </Text>
             <Text aria-hidden callout color="$uiNeutralSecondary" alignSelf="flex-start">
               {price.slice(-digits - 1)}
             </Text>
+            {inverse && (
+              <Text aria-hidden callout color="$uiNeutralSecondary">
+                {` ${symbol}`}
+              </Text>
+            )}
           </XStack>
         ) : (
           <Skeleton width={140} height={47} />
         )}
         {data === null || (isError && !points) ? null : base !== undefined && point && !isPlaceholderData ? (
           <Text subHeadline emphasized color={tint(change)}>
-            {`${sign(change)}${usd(Math.abs(point.value - base), language)} (${sign(change)}${percent(Math.abs(change), language)})`}
+            {`${sign(change)}${amount(Math.abs(point.value - base))} (${sign(change)}${percent(Math.abs(change), language)})`}
           </Text>
         ) : (
           <Skeleton width={180} height={21} />
@@ -119,7 +129,7 @@ export default function PriceChart({
         role="img"
         aria-label={
           first && last
-            ? `${usd(last.value, language)}, ${percent(delta(first.value, last.value), language)}, ${t(periods[range])}`
+            ? `${amount(last.value)}, ${percent(delta(first.value, last.value), language)}, ${t(periods[range])}`
             : undefined
         }
         onLayout={({ nativeEvent }) => {
