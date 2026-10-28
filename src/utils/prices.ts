@@ -30,9 +30,9 @@ export function defaultRange(token: { address: string; chainId: number }): keyof
 export function useHistory(
   token: { address: string; chainId: number; symbol: string },
   range: keyof typeof ranges,
-  count = 289,
+  { count = 289, inverse = false } = {},
 ) {
-  const feed = useFeed(token);
+  const feed = useFeed(token, inverse);
   const onchain = useReadContract({
     abi: pricePreviewerAbi,
     functionName: "prices",
@@ -42,7 +42,10 @@ export function useHistory(
     query: {
       enabled: !!feed,
       staleTime: 60_000,
-      placeholderData: keepPreviousData,
+      placeholderData: (previous, query) => {
+        const args = query?.queryKey[1].args;
+        return Array.isArray(args) && args[0] === feed?.address ? previous : undefined;
+      },
       retry: (failures, error) => failures < 3 && !reverted(error),
       meta: { dropError: reverted, warnError: () => true },
       select: ([decimals, updated, prices]) =>
@@ -58,7 +61,7 @@ export function useHistory(
           : null,
     },
   });
-  const fallback = feed === null || reverted(onchain.error);
+  const fallback = !inverse && (feed === null || reverted(onchain.error));
   const alchemy = useQuery({
     queryKey: ["prices", token.chainId, token.address.toLowerCase(), token.symbol, range],
     enabled: fallback,
@@ -96,7 +99,7 @@ export function useHistory(
   return fallback ? alchemy : onchain;
 }
 
-export function useFeed(token?: { address: string; chainId: number; symbol: string }) {
+export function useFeed(token?: { address: string; chainId: number; symbol: string }, inverse = false) {
   const chainId = token?.chainId ?? chain.id;
   const markets = useReadContract({
     abi: pricePreviewerAbi,
@@ -150,7 +153,7 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
               [ens, proxyAddress],
               [path, proxyAddress],
             ].flatMap(([name, address]) => {
-              const asset = name && /^(.+)-usd$/.exec(name)?.[1];
+              const asset = name && (/^(.+)-usd$/.exec(name)?.[1] ?? /^usd-.+$/.exec(name)?.[0]);
               return asset && address
                 ? [[asset, { address: getAddress(address), stablecoin: docs.assetSubClass === "Stablecoin" }] as const]
                 : [];
@@ -161,21 +164,22 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
   });
   if (!token) return null;
   if ((chainId === chain.id && !markets.isFetched) || !feeds.isFetched) return;
+  const symbol = token.symbol.toLowerCase();
+  const alias =
+    new Map([
+      ["usdc.e", "usdc"],
+      ["usdt0", "usdt"],
+      ["wars", "ars"],
+      ["wbtc", "btc"],
+      ["weth", "eth"],
+    ]).get(symbol) ?? symbol;
   const address = getAddress(token.address);
   const market = chainId === chain.id ? markets.data?.find(({ asset }) => asset === address)?.feed : undefined;
   if (address !== zeroAddress && !market && !allowlists[chainId]?.includes(address)) return null;
-  const symbol = token.symbol.toLowerCase();
+  if (inverse) return feeds.data?.[`usd-${alias}`] ?? null;
   const named = isStock(token)
     ? feeds.data?.[`cb${symbol.slice(0, -1)}`]
-    : (feeds.data?.[symbol] ??
-      feeds.data?.[
-        new Map([
-          ["usdc.e", "usdc"],
-          ["usdt0", "usdt"],
-          ["wbtc", "btc"],
-          ["weth", "eth"],
-        ]).get(symbol) ?? symbol
-      ]);
+    : (feeds.data?.[symbol] ?? feeds.data?.[alias]);
   return market ? { address: market, stablecoin: !!named?.stablecoin } : (named ?? null);
 }
 

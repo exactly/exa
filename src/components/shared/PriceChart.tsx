@@ -15,6 +15,7 @@ import { formatDistanceToNowStrict } from "date-fns";
 import Chip from "./Chip";
 import Skeleton from "./Skeleton";
 import Text from "./Text";
+import { ArrowLeftRight } from "../../generated/icons/ArrowLeftRight";
 import { ChartLine } from "../../generated/icons/ChartLine";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { TrendingDown } from "../../generated/icons/TrendingDown";
@@ -52,26 +53,35 @@ export default function PriceChart({
     }),
     [language],
   );
-  const { data, isError, isPlaceholderData, refetch } = useHistory(token, range);
+  const [flipped, setFlipped] = useState(true);
+  const invertible = !!useFeed(token, true);
+  const inverse = invertible && flipped;
+  const { data, isError, isPlaceholderData, refetch } = useHistory(token, range, { inverse: invertible });
   const closed = !!useFeed(token) && isStock(token) && !marketOpen();
   const { data: onchain } = useQuery({
     ...statsOptions(token.chainId, token.address),
     enabled: closed,
     select: ({ priceUSD }) => (priceUSD ? Number(priceUSD) : undefined),
   });
-  const points = data?.points;
+  const points = useMemo(
+    () => (invertible && !inverse ? data?.points.map((p) => ({ ...p, value: 1 / p.value })) : data?.points),
+    [data, invertible, inverse],
+  );
   const first = points?.[0];
   const last = points?.at(-1);
   const point = points?.[selected] ?? last;
   const base = first?.value;
   const change = base !== undefined && point ? delta(base, point.value) : 0;
+  const direction = inverse ? -1 : 1;
   const x =
     selected === -1 || !point || !first || !last
       ? undefined
       : ((point.timestamp - first.timestamp) / (last.timestamp - first.timestamp || 1)) * width;
-  const value = point?.value ?? Number(token.priceUSD);
+  const spot = Number(token.priceUSD);
+  const value = point?.value ?? (inverse && spot > 0 ? 1 / spot : spot);
   const digits = decimals(value);
   const price = usd(value, language).slice(1);
+  const amount = (quote: number) => (inverse ? `${usd(quote, language).slice(1)} ${symbol}` : usd(quote, language));
   return (
     <YStack gap="s4">
       <YStack gap="s4">
@@ -87,23 +97,30 @@ export default function PriceChart({
           {logo}
         </XStack>
         {point || data === null || isError ? (
-          <XStack alignItems="center" aria-label={`$${price}`}>
-            <Text aria-hidden callout color="uiNeutralSecondary">
-              $
-            </Text>
+          <XStack alignItems="center" aria-label={amount(value)}>
+            {!inverse && (
+              <Text aria-hidden callout color="uiNeutralSecondary">
+                $
+              </Text>
+            )}
             <Text aria-hidden largeTitle numberOfLines={1}>
               {price.slice(0, -digits - 1)}
             </Text>
             <Text aria-hidden callout color="uiNeutralSecondary" alignSelf="flex-start">
               {price.slice(-digits - 1)}
             </Text>
+            {inverse && (
+              <Text aria-hidden callout color="uiNeutralSecondary">
+                {` ${symbol}`}
+              </Text>
+            )}
           </XStack>
         ) : (
           <Skeleton width={140} height={47} />
         )}
         {data === null || (isError && !points) ? null : base !== undefined && point && !isPlaceholderData ? (
-          <Text subHeadline emphasized color={tint(change)}>
-            {`${sign(change)}${usd(Math.abs(point.value - base), language)} (${sign(change)}${percent(Math.abs(change), language)})`}
+          <Text subHeadline emphasized color={tint(direction * change)}>
+            {`${sign(change)}${amount(Math.abs(point.value - base))} (${sign(change)}${percent(Math.abs(change), language)})`}
           </Text>
         ) : (
           <Skeleton width={180} height={21} />
@@ -123,7 +140,7 @@ export default function PriceChart({
         role="img"
         aria-label={
           first && last
-            ? `${usd(last.value, language)}, ${percent(delta(first.value, last.value), language)}, ${t(periods[range])}`
+            ? `${amount(last.value)}, ${percent(delta(first.value, last.value), language)}, ${t(periods[range])}`
             : undefined
         }
         onLayout={({ nativeEvent }) => {
@@ -170,15 +187,7 @@ export default function PriceChart({
           <Plot
             points={points}
             width={width}
-            color={
-              theme[
-                last.value > first.value
-                  ? "uiSuccessSecondary"
-                  : last.value < first.value
-                    ? "uiErrorSecondary"
-                    : "uiNeutralSecondary"
-              ].val
-            }
+            color={theme[tint(direction * (last.value - first.value))].val}
             onSelect={setSelected}
           />
         ) : (
@@ -206,6 +215,27 @@ export default function PriceChart({
             </Text>
           </XStack>
         ))}
+        {invertible && (
+          <XStack
+            padding="s3"
+            gap="s2"
+            alignItems="center"
+            borderRadius="r3"
+            cursor="pointer"
+            role="button"
+            aria-label={inverse ? `USD/${symbol}` : `${symbol}/USD`}
+            opacity="press:0.7"
+            onPress={() => {
+              selectionAsync().catch(reportError);
+              setFlipped(!flipped);
+            }}
+          >
+            <ArrowLeftRight size={12} color="uiNeutralSecondary" />
+            <Text footnote color="uiNeutralSecondary">
+              {inverse ? `USD/${symbol}` : `${symbol}/USD`}
+            </Text>
+          </XStack>
+        )}
       </XStack>
       {data && (
         <Text caption2 color="uiNeutralPlaceholder" textAlign="center">
@@ -224,7 +254,7 @@ export function PriceSummary({ token, onPress }: { onPress: () => void; token: T
     i18n: { language },
   } = useTranslation();
   const range = defaultRange(token);
-  const { data, isError } = useHistory(token, range, 2);
+  const { data, isError } = useHistory(token, range, { count: 2 });
   const first = data?.points[0];
   const last = data?.points.at(-1);
   return (
@@ -270,7 +300,7 @@ export function Trend({ chainId, address, symbol }: { address: string; chainId: 
     t,
     i18n: { language },
   } = useTranslation();
-  const { data, isPending } = useHistory({ address, chainId, symbol }, "1D", 2);
+  const { data, isPending } = useHistory({ address, chainId, symbol }, "1D", { count: 2 });
   if (isPending) return <Skeleton height={17} width={70} />;
   const first = data?.points[0];
   const last = data?.points.at(-1);
