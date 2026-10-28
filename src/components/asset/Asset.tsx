@@ -67,7 +67,7 @@ export default function Asset() {
   const navigation = useNavigation();
   const params = safeParse(Search, useLocalSearchParams());
   const { data: tokens } = useQuery(lifiTokensOptions);
-  const { markets, externalAssets, crossChainAssets, isBalancesPending } = usePortfolio();
+  const { markets, externalAssets, crossChainAssets, isExternal, isBalancesPending } = usePortfolio();
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const { address: account } = useAccount({ config: exaConfig });
@@ -94,18 +94,18 @@ export default function Asset() {
     (candidate) =>
       (candidate.chainId as number) === chainId && candidate.address.toLowerCase() === address.toLowerCase(),
   );
+  const held = [...externalAssets, ...crossChainAssets].find(
+    (asset) => asset.chainId === chainId && asset.address.toLowerCase() === address.toLowerCase(),
+  );
   const protocol =
-    chainId === chain.id
+    chainId === chain.id && (params.output.market !== undefined || (!held && !isExternal(chainId, address)))
       ? markets?.find(
           (candidate) =>
-            candidate.market === params.output.market && candidate.asset.toLowerCase() === address.toLowerCase(),
+            candidate.market === (params.output.market ?? candidate.market) &&
+            candidate.asset.toLowerCase() === address.toLowerCase(),
         )
       : undefined;
-  const external = protocol
-    ? undefined
-    : [...externalAssets, ...crossChainAssets].find(
-        (asset) => asset.chainId === chainId && asset.address.toLowerCase() === address.toLowerCase(),
-      );
+  const external = protocol ? undefined : held;
   if (tokens && markets && !isBalancesPending && !token && !protocol && !external) {
     return <Redirect href="/(main)/(home)" />;
   }
