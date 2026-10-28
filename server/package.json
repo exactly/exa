@@ -27,14 +27,14 @@
       "types": "./api/*.ts"
     },
     "./api/bin": "./dist/api/bin.cjs",
+    "./instrument": "./dist/instrument.cjs",
     "./hooks/*/bin": "./dist/hooks/bin/*.cjs",
     "./workers/*/bin": "./dist/workers/*/bin.cjs"
   },
   "files": [
     "app",
     "dist",
-    "generated/release.js",
-    "instrument.cjs"
+    "generated/release.js"
   ],
   "engines": {
     "node": "^24.14.1"
