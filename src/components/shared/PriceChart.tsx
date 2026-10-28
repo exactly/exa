@@ -69,6 +69,7 @@ export default function PriceChart({
   const point = points?.[selected] ?? last;
   const base = first?.value;
   const change = base !== undefined && point ? delta(base, point.value) : 0;
+  const trend = first && last ? delta(first.value, last.value) : 0;
   const x =
     selected === -1 || !point || !first || !last
       ? undefined
@@ -182,15 +183,7 @@ export default function PriceChart({
           <Plot
             points={points}
             width={width}
-            color={
-              theme[
-                last.value > first.value
-                  ? "uiSuccessSecondary"
-                  : last.value < first.value
-                    ? "uiErrorSecondary"
-                    : "uiNeutralSecondary"
-              ].val
-            }
+            color={theme[trend > 0 ? "uiSuccessSecondary" : trend < 0 ? "uiErrorSecondary" : "uiNeutralSecondary"].val}
             onSelect={setSelected}
           />
         ) : (
@@ -287,7 +280,7 @@ export function Trend({ chainId, address, symbol }: { address: string; chainId: 
   const first = data?.points[0];
   const last = data?.points.at(-1);
   if (!first || !last) return null;
-  const change = Number(delta(first.value, last.value).toFixed(precision + 2));
+  const change = delta(first.value, last.value);
   return (
     <XStack gap="s2" alignItems="center">
       {change > 0 ? <TrendingUp size={16} color={tint(change)} /> : null}
@@ -376,7 +369,7 @@ function Change({ from, to, label }: { from: number; label: string; to: number }
 }
 
 function delta(from: number, to: number) {
-  return to / from - 1;
+  return Number((to / from - 1).toFixed(precision + 2)) || 0;
 }
 
 function sign(change: number) {
