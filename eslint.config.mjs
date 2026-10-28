@@ -19,6 +19,11 @@ export default defineConfig([
         {
           paths: [
             {
+              name: "react-native-safe-area-context",
+              importNames: ["useSafeAreaInsets"],
+              message: "Use `useInsets` from utils.",
+            },
+            {
               name: "viem",
               importNames: ["parseEther", "parseGwei", "parseUnits"],
               message: "Use `parseAmount` from utils.",

@@ -1,4 +1,4 @@
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // eslint-disable-line no-restricted-imports -- single entry point for insets
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { useQuery } from "@tanstack/react-query";
