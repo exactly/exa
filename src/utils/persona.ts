@@ -130,7 +130,7 @@ export async function startBridgeKYB(link: string) {
   const { Client } = await import("persona");
   return new Promise<KYCResult>((resolve, reject) => {
     const client = new Client({
-      host: url.origin,
+      host: url.host,
       templateId,
       environmentId,
       referenceId: url.searchParams.get("reference-id") ?? undefined,
