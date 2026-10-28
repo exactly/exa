@@ -8,6 +8,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/onboarding.yaml
 - assertTrue: '${http.post("http://localhost:3000/e2e/platinum", { body: output.credential }).ok}'
 - tapOn: Home
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Upgrade now, center: true } }
 - tapOn: Upgrade now
 - tapOn: Upgrade Exa Card
 - tapOn: Activate new Exa Card
