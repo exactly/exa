@@ -1,6 +1,6 @@
 # end-to-end tests (`e2e`)
 
-- **stack**: maestro, built from source with `patches/*.patch` into `build/` by `pnpm nx maestro e2e`. scripts run on graaljs, bundled from `src/script/` into `dist/`.
+- **stack**: maestro with `patches/*.patch`, put into `build/` by `pnpm nx maestro e2e`: it downloads the build main published to ghcr for the same script and patches, and builds from source when there is none. scripts run on graaljs, bundled from `src/script/` into `dist/`.
 - **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
 - **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size, through its signer's target: `e2e:webauthn`, `e2e:metamask` or `e2e:brave`. `package.json` defines them: each waits for the stack and runs the flow with every flag the leg needs, once `brave` or `metamask` has fetched its browser. a leg replays from the nx cache while nothing it runs against changed (this project, the app, the server, the contracts and common), and ci passes `--skip-nx-cache` so every leg runs and reports coverage. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
 - **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
