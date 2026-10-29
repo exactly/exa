@@ -23,7 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { true: "${!output.introSheet}" }
     commands:
       - tapOn: Turn it on
-      - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
+      - runFlow: { file: tapWhileAria.yaml, env: { aria: Dismiss } }
       - assertVisible: Advanced mode on.
       - evalScript: ${output.introSheet = output.advanced = true}
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
