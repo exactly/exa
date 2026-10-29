@@ -154,3 +154,7 @@ these rules apply to all yaml files in the repository.
 - **sparse comments**: yaml should be self-documenting. avoid unnecessary comments.
 - **cspell directives**: use `# cspell:ignore <word>` for technical terms.
 - **conditional directives**: tools may use special comment syntax (e.g., `# @if`).
+
+## workflows
+
+- **releases run uncached**: a github or eas workflow that releases something restores no cache that other runs save, so a poisoned cache can never reach what ships.
