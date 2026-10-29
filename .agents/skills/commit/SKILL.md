@@ -156,7 +156,13 @@ a cloud session has no access to the developer's key, so signing doesn't apply t
 
 ## history
 
-until a commit reaches `main`, it is still open: fixes go into the commit that introduced the change, folded in while rebasing, never stacked on top as new commits.
+history stays linear: never create merge commits. bring a branch up to date by rebasing it on `main`, and rebuild one that already holds a merge.
+
+until a commit reaches `main`, it is still open: fixes go into the commit that introduced the change, folded in while rebasing, never stacked on top as new commits, not even as `fixup!` commits waiting for a later fold.
+
+each change lands in its final form: no later commit of the same pr, or of a pr stacked on it, changes or removes it.
+
+someone else's open commit is theirs to fold: a fix for it goes in a standalone commit at the bottom of your branch, without a changeset, whose body names the commit it belongs to by its subject.
 
 ## changeset format
 
