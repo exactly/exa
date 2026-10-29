@@ -46,9 +46,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - tapOn: Home
 - extendedWaitUntil: { visible: "^[\\d.,]+% APR$", timeout: 30000 }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Borrow, center: true } }
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
 - tapOn: Home
+- scrollUntilVisible: { element: "Good (morning|afternoon|evening)!", direction: UP }
 - runFlow: ../subflows/storeCoverage.yaml
