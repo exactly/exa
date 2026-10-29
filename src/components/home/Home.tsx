@@ -265,12 +265,7 @@ export default function Home() {
                 />
               )}
               <AnimatedView layout={LinearTransition} gap="s5">
-                <PortfolioSummary
-                  collateralUSD={collateralUSD}
-                  averageRate={averageRate}
-                  assets={allAssets}
-                  totalBalanceUSD={totalBalanceUSD}
-                />
+                <PortfolioSummary averageRate={averageRate} assets={allAssets} totalBalanceUSD={totalBalanceUSD} />
                 <HomeActions />
               </AnimatedView>
             </YStack>

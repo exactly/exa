@@ -101,7 +101,7 @@ export default function Portfolio() {
                   }[tab]
                 }
               />
-              {tab !== "stocks" && portfolio.collateralUSD > 0n ? (
+              {tab !== "stocks" && averageRate !== undefined ? (
                 <Rate
                   rate={averageRate}
                   onPress={() => {
