@@ -1,5 +1,11 @@
 # @exactly/infra
 
+## 0.3.2
+
+### Patch Changes
+
+- [#1694](https://github.com/exactly/exa/pull/1694) [`6a93fac`](https://github.com/exactly/exa/commit/6a93fac6f31915d638ca9591256a3af92522dbde) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 boost cpu while services start
+
 ## 0.3.1
 
 ### Patch Changes

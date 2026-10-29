@@ -1,5 +1,52 @@
 # @exactly/mobile
 
+## 1.2.40
+
+### Patch Changes
+
+- [#1696](https://github.com/exactly/exa/pull/1696) [`33e88b0`](https://github.com/exactly/exa/commit/33e88b0ada7263fb774acccdaf29ecd2f92f65a9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🌐 add missing argentinian spanish strings
+
+- [#1707](https://github.com/exactly/exa/pull/1707) [`4e70b3d`](https://github.com/exactly/exa/commit/4e70b3d56b99587a38e7b40fe12049d476e858e3) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🥅 warn on rejected mini-app add
+
+- [#1688](https://github.com/exactly/exa/pull/1688) [`bde15bf`](https://github.com/exactly/exa/commit/bde15bf21a48fa8403b60d0f25f06eae5441ae44) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep swap tabs hidden while rechecking base
+
+- [#1486](https://github.com/exactly/exa/pull/1486) [`c6fc0f8`](https://github.com/exactly/exa/commit/c6fc0f8ad85b0b004ab2c7739fd11b432dd06be8) Thanks [@franm91](https://github.com/franm91)! - ✨ add card statement
+
+- [#1650](https://github.com/exactly/exa/pull/1650) [`cadce4e`](https://github.com/exactly/exa/commit/cadce4e3fee95ae618ba453ec5d418280051f91f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 handle stale balance and pending swap
+
+- [#1650](https://github.com/exactly/exa/pull/1650) [`320d1d5`](https://github.com/exactly/exa/commit/320d1d56c4723f349108150120e9b2b2d3cd4bf6) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 move lifi disclaimer into swaps scroll
+
+- [#1705](https://github.com/exactly/exa/pull/1705) [`194fa91`](https://github.com/exactly/exa/commit/194fa911ba18e062956e93f2a43889c0eefb4cb5) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 drop pay-with hint from insufficient balance
+
+- [#1625](https://github.com/exactly/exa/pull/1625) [`9e59d88`](https://github.com/exactly/exa/commit/9e59d887df2108c9c83c1221970c7986d586bb04) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 stop escaping interpolated values
+
+- [#1604](https://github.com/exactly/exa/pull/1604) [`805fb04`](https://github.com/exactly/exa/commit/805fb048779beeb1dbb1a5624c5d0909a56d904b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 omit native id from animated view on web
+
+- [#1697](https://github.com/exactly/exa/pull/1697) [`45d8fba`](https://github.com/exactly/exa/commit/45d8fba41b0bbf35d27f7b9bd7bc3e849b2f99f0) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 reserve benefits carousel height
+
+- [#1628](https://github.com/exactly/exa/pull/1628) [`7a5f2b2`](https://github.com/exactly/exa/commit/7a5f2b214c7657448bc5640cf5a3b7e7ff068b22) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix dead disclaimer links
+
+- [#1629](https://github.com/exactly/exa/pull/1629) [`167f990`](https://github.com/exactly/exa/commit/167f9906ff815d538fa78023bf282441e4913be2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 drop text justification
+
+- [#1607](https://github.com/exactly/exa/pull/1607) [`3caa56d`](https://github.com/exactly/exa/commit/3caa56dc6db3a873d64e5b701ab6410ad0a7aa73) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 show skeleton while quoting swap
+
+- [#1618](https://github.com/exactly/exa/pull/1618) [`3a62b82`](https://github.com/exactly/exa/commit/3a62b829363df36eb902b8b38e877e0d0b2456ee) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 respect mini-app safe area insets
+
+- [#1604](https://github.com/exactly/exa/pull/1604) [`b3667f5`](https://github.com/exactly/exa/commit/b3667f59bfb92d818b953adb6708d1282cda7d48) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 patch tamagui animated views native id
+
+- [#1707](https://github.com/exactly/exa/pull/1707) [`14cafe1`](https://github.com/exactly/exa/commit/14cafe19ed5d831c840b554f026b6549da7287f1) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard failed onesignal init
+
+- [#1704](https://github.com/exactly/exa/pull/1704) [`f4e7ac7`](https://github.com/exactly/exa/commit/f4e7ac779e42421d3e30a1107258638148e95bb9) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 match borrows refresh backdrop to header
+
+- [#1688](https://github.com/exactly/exa/pull/1688) [`54b2e5c`](https://github.com/exactly/exa/commit/54b2e5ccfedbaeb461da27d375c16c8ba3e6a887) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 show stocks chip with swap tabs
+
+- [#1617](https://github.com/exactly/exa/pull/1617) [`2f61cc0`](https://github.com/exactly/exa/commit/2f61cc0d3e7314e527d7154a51f450458b79bc7a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 extend scrolls under bottom inset
+
+- [#1715](https://github.com/exactly/exa/pull/1715) [`2fa5492`](https://github.com/exactly/exa/commit/2fa549275c26d57d1120d7645915679e32a4ef94) Thanks [@franm91](https://github.com/franm91)! - 💄 highlight usd deposit fee from argentina
+
+- Updated dependencies [[`3fd8fca`](https://github.com/exactly/exa/commit/3fd8fcae79c72b9113f3e23b39d668e64c866adc), [`523a338`](https://github.com/exactly/exa/commit/523a3389893b508a6686ba7895ee2fb920dc9d35)]:
+  - @exactly/server@0.2.133
+
 ## 1.2.39
 
 ### Patch Changes

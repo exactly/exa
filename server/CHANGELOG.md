@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.2.133
+
+### Patch Changes
+
+- [#1694](https://github.com/exactly/exa/pull/1694) [`3fd8fca`](https://github.com/exactly/exa/commit/3fd8fcae79c72b9113f3e23b39d668e64c866adc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ bundle alchemy chain definitions
+
+- [#1693](https://github.com/exactly/exa/pull/1693) [`523a338`](https://github.com/exactly/exa/commit/523a3389893b508a6686ba7895ee2fb920dc9d35) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 bundle sentry hook
+
 ## 0.2.132
 
 ### Patch Changes
