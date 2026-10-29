@@ -163,19 +163,14 @@ export default function Card() {
         const data = await queryClient
           .fetchQuery<CardSecrets>({ queryKey: ["card", "secrets", cardDetails?.cardId], staleTime: 0 })
           .catch((error: unknown) => {
-            if (error instanceof APIError && error.code === 500) throw error;
+            if (!(error instanceof APIError) || error.code === 500) throw error;
           });
         if (data) {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
       } catch (error) {
-        if (!(error instanceof APIError)) {
-          reportError(error);
-          return;
-        }
-        const { text } = error;
-        if (text !== "not started" && text !== "no kyc") {
+        if (!(error instanceof APIError) || (error.text !== "not started" && error.text !== "no kyc")) {
           reportError(error);
           toast.show(t("An error occurred. Please try again later."), {
             duration: 1000,

@@ -127,7 +127,10 @@ export default function Home() {
   const { isProcessing } = usePendingOperations();
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
-  const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });
+  const { data: card, refetch: refetchCard } = useQuery<CardDetails>({
+    queryKey: ["card", "details"],
+    enabled: !!account && !!bytecode,
+  });
   const {
     increase: increaseLimit,
     usage,
@@ -282,7 +285,22 @@ export default function Home() {
                         setCreditLimitSheetOpen(true);
                       }}
                       onDetailsPress={() => {
-                        setCardDetailsOpen(true);
+                        if (card.displayName) {
+                          setCardDetailsOpen(true);
+                          return;
+                        }
+                        refetchCard()
+                          .then(({ data }) => {
+                            if (data?.displayName) {
+                              setCardDetailsOpen(true);
+                              return;
+                            }
+                            toast.show(t("An error occurred. Please try again later."), {
+                              duration: 1000,
+                              burntOptions: { haptic: "error", preset: "error" },
+                            });
+                          })
+                          .catch(reportError);
                       }}
                       onInstallmentsPress={() => {
                         setInstallmentsSheetOpen(true);

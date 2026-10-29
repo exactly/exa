@@ -116,21 +116,25 @@ type Card = NonNullable<Awaited<ReturnType<typeof getCard>>>;
 async function getSecrets() {
   const { id, secret } = await session();
   const card = await getCard(id);
-  return card && { ...card, secret };
+  if (!card) return card;
+  const { encryptedPan, encryptedCvc } = card;
+  const [pan, cvc] =
+    encryptedPan && encryptedCvc
+      ? await Promise.all([
+          decrypt(encryptedPan.data, encryptedPan.iv, secret),
+          decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
+        ])
+      : [];
+  return { ...card, secret, pan, cvc };
 }
 queryClient.setQueryDefaults(["card", "secrets"], { queryFn: getSecrets });
 export type CardSecrets = Awaited<ReturnType<typeof getSecrets>>;
 
 async function getPIN() {
   const result = await getSecrets();
-  if (!result) return null;
-  const { secret, encryptedPan, encryptedCvc, pin } = result;
-  if (!encryptedPan || !encryptedCvc) return null;
-  const [pan, cvc, decryptedPIN] = await Promise.all([
-    decrypt(encryptedPan.data, encryptedPan.iv, secret),
-    decrypt(encryptedCvc.data, encryptedCvc.iv, secret),
-    pin ? decryptPIN(pin.data, pin.iv, secret) : Promise.resolve(null),
-  ]);
+  if (!result?.pan || !result.cvc) return null;
+  const { secret, pan, cvc, pin } = result;
+  const decryptedPIN = pin ? await decryptPIN(pin.data, pin.iv, secret) : null;
   if (!decryptedPIN) {
     const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
     await setCardPIN(newPIN);
