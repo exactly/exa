@@ -3,7 +3,7 @@
   "version": "1.2.40",
   "title": "Exa App",
   "shortDescription": "What finance should be today",
-  "description": "A Card. A Wallet. A DeFi Protocol. All of it together.",
+  "description": "Get your Visa Signature Exa Credit Card and access to fixed interest loans",
   "main": "./src/index.js",
   "scripts": {
     "start": "expo start",

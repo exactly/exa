@@ -74,7 +74,10 @@ export default function HomeLayout() {
       {Platform.OS === "web" && (
         <Head>
           <title>Exa App</title>
-          <meta name="description" content="Exactly what finance should be today" />
+          <meta
+            name="description"
+            content="Get your Visa Signature Exa Credit Card and access to fixed interest loans"
+          />
         </Head>
       )}
       <NavigationContent>
