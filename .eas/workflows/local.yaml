@@ -185,6 +185,7 @@ jobs:
       GIT_BRANCH: "${{ github.ref_name }}"
       MAESTRO_CLI_NO_ANALYTICS: "true"
       REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
+      SHARP_IGNORE_GLOBAL_LIBVIPS: "true" # cspell:ignore libvips
     steps:
       - run: brew install redis
       - uses: eas/checkout
