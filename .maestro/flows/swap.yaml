@@ -1,17 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
-- openLink: ${APP_ID}/missing
-- tapOn: Go home
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Settings } }
-- tapOn: Logout
-- swipe: { start: "40%,30%", end: "10%,30%" }
-- tapOn: Create new account
-- tapOn: Learn more about passkeys
-- tapOn: Close
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: I already have an account
-- assertVisible: Good (morning|afternoon|evening)!
+- runFlow: ../subflows/logout.yaml
 - runFlow: ../subflows/swap.yaml
 - tapOn: Swap
 - tapOn: { id: Select token, index: 0 }
