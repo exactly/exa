@@ -76,11 +76,13 @@ export function writeContract<
   const from = sliceHex(keccak256(toHex(String(Math.random()))), 12);
   anvil("anvil_impersonateAccount", [from], network);
   anvil("anvil_setBalance", [from, String(10n ** 18n)], network);
-  return anvil(
-    "eth_sendTransaction",
+  const { status, transactionHash } = anvil(
+    "eth_sendTransactionSync",
     [{ from, to: address, data: encodeFunctionData({ functionName, abi, args }) }],
     network,
   );
+  if (status !== "0x1") throw new Error(`${functionName} reverted`);
+  return transactionHash;
 }
 
 declare const output: { id?: number };
@@ -118,10 +120,10 @@ export default function anvil(
   network?: string,
 ): ExactPartial<RpcTransactionReceipt> | null;
 export default function anvil(
-  method: "eth_sendTransaction",
+  method: "eth_sendTransactionSync",
   params: readonly [transaction: TransactionRequest],
   network?: string,
-): Hash;
+): RpcTransactionReceipt;
 export default function anvil(
   method: "anvil_mine",
   params: readonly [count: number, interval: number | undefined],
