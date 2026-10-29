@@ -83,7 +83,12 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { true: "${!!pay}" }
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: Select an asset } }
-      - assertVisible: Search assets
+      - runFlow:
+          when: { true: "${pay === asset}" }
+          commands: [{ assertVisible: Search assets }]
+      - runFlow:
+          when: { true: "${pay !== asset}" }
+          commands: [{ tapOn: Search assets }, { inputText: "${pay}" }, { pressKey: enter }]
       - runFlow: { file: tapAria.yaml, env: { aria: "^${pay}, [\\s\\d,.\\xa0]+ available$" } }
       - assertNotVisible: Search assets
 - tapOn: Review
