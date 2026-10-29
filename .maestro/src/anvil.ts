@@ -78,6 +78,7 @@ export function writeContract<
 }
 
 declare const output: { id?: number };
+const urls: Partial<Record<string, string>> = {};
 
 export default function anvil(method: "eth_blockNumber" | "eth_chainId", params: readonly [], network?: string): Hex;
 export default function anvil(
@@ -127,11 +128,11 @@ export default function anvil(
 ): void;
 export default function anvil(method: string, params: readonly unknown[], network?: string) {
   const url = network
-    ? (
+    ? (urls[network] ??= (
         JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/chains").body) as {
           chains: { metamask: { rpcUrls: string[] }; name: string }[];
         }
-      ).chains.find(({ name }) => name === network)?.metamask.rpcUrls[0]
+      ).chains.find(({ name }) => name === network)?.metamask.rpcUrls[0])
     : "http://localhost:8545";
   if (!url) throw new Error("unknown network");
   output.id ??= 0;
