@@ -70,7 +70,7 @@ appId: ${APP_ID ?? "app.exactly"}
     when: { true: "${!pay}" }
     commands:
       - inputText: "9999"
-      - assertNotVisible: Review
+      - assertVisible: Insufficient balance. Try a different amount.
       - eraseText: 4
 - inputText: ${amount}
 - tapOn: "^Send .+ on .+$"
