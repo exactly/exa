@@ -12,7 +12,7 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - assertVisible: Send anything, anywhere
       - tapOn: "${pay ? 'Turn it on' : 'Not now'}"
-      - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
+      - runFlow: { file: tapWhileAria.yaml, env: { aria: Dismiss } }
       - evalScript: ${output.introSheet = true, output.advanced = !!pay}
 - runFlow:
     when: { true: "${!!pay && !output.advanced}" }

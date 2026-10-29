@@ -15,5 +15,10 @@ appId: ${APP_ID ?? "app.exactly"}
       - retry:
           maxRetries: 3
           commands:
-            - tapOn: { text: "${tap ?? aria}", index: 0 }
+            - runFlow:
+                when: { true: "${typeof tap !== 'undefined'}" }
+                commands: [{ tapOn: { text: "${tap}", index: 0 } }]
+            - runFlow:
+                when: { true: "${typeof tap === 'undefined'}" }
+                commands: [{ tapOn: { id: "${aria}" } }]
             - extendedWaitUntil: { notVisible: { id: "${aria}" }, timeout: 5000 }
