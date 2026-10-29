@@ -6,7 +6,7 @@ import { formatUnits } from "viem";
 
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { floatingDepositRates, withdrawLimit } from "@exactly/lib";
+import { floatingDepositRates, WAD, withdrawLimit } from "@exactly/lib";
 
 import { balancesOptions } from "./lifi";
 import useAccount from "./useAccount";
@@ -68,24 +68,23 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     return { balanceUSD, collateralUSD, depositMarkets } as const;
   }, [markets]);
 
-  const rates = useMemo(
-    () => (rateSnapshot ? floatingDepositRates(rateSnapshot, Number(timestamp)) : []),
-    [rateSnapshot, timestamp],
-  );
+  const rates = useMemo(() => {
+    if (!rateSnapshot || !markets) return [];
+    const reserved = new Set<string>(
+      markets.filter(({ reserveFactor }) => reserveFactor >= WAD).map(({ market }) => market),
+    );
+    return floatingDepositRates(rateSnapshot, Number(timestamp)).filter(({ market }) => !reserved.has(market));
+  }, [markets, rateSnapshot, timestamp]);
 
   const averageRate = useMemo(() => {
     const { depositMarkets, collateralUSD } = portfolio;
-    if (depositMarkets.length === 0 || collateralUSD === 0n || rates.length === 0) return 0n;
     const rateByMarket = new Map(rates.map(({ market, rate }) => [market, rate]));
-
-    let weightedRate = 0n;
-    for (const { market, usdValue } of depositMarkets) {
+    const earning = depositMarkets.flatMap(({ market, usdValue }) => {
       const rate = rateByMarket.get(market);
-      if (rate === undefined || usdValue <= 0n) continue;
-      weightedRate += rate * usdValue;
-    }
-
-    return weightedRate / collateralUSD;
+      return rate === undefined ? [] : [rate * usdValue];
+    });
+    if (earning.length === 0) return;
+    return earning.reduce((sum, value) => sum + value, 0n) / collateralUSD;
   }, [portfolio, rates]);
 
   const protocolAssets = useMemo<ProtocolAsset[]>(() => {
