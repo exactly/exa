@@ -12,6 +12,8 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
+import chain from "@exactly/common/generated/chain";
+
 import AssetList from "./AssetList";
 import ExternalAssets from "./ExternalAssets";
 import Stocks from "./Stocks";
@@ -23,7 +25,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
-import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
+import usePortfolio from "../../utils/usePortfolio";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
 import Rate from "../shared/Rate";
@@ -33,6 +35,8 @@ import Skeleton from "../shared/Skeleton";
 import Tabs from "../shared/Tabs";
 import Text from "../shared/Text";
 import View from "../shared/View";
+
+import type { PortfolioAsset } from "../../utils/usePortfolio";
 
 export default function Portfolio() {
   const { address } = useAccount();
@@ -45,7 +49,16 @@ export default function Portfolio() {
   const { refetch: refetchMarkets } = useMarkets();
   const { refetch: refetchBalances, isFetching: isBalancesFetching } = useQuery(balancesOptions(address));
 
-  const stocks = allAssets.filter((asset): asset is ExternalAsset => asset.type === "external" && isStock(asset));
+  const stocks = allAssets.flatMap<PortfolioAsset>((asset) => {
+    if (asset.type === "external") return isStock(asset) ? [asset] : [];
+    if (tab !== "stocks" || !isStock({ address: asset.asset, chainId: chain.id })) return [];
+    return [
+      {
+        ...asset,
+        usdValue: Number((asset.floatingDepositAssets * asset.usdPrice) / BigInt(10 ** asset.decimals)) / 1e18,
+      },
+    ];
+  });
 
   return (
     <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
