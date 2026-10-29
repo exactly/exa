@@ -18,7 +18,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: External address on Anvil
       - tapOn: Enter receiver address
       - inputText: ${receiver}
-      - hideKeyboard
+      - runFlow: hideKeyboard.yaml
 - tapOn: Review loan terms
 - tapOn: "Confirm and ${receiver ? 'borrow' : 'receive'} USDC"
 - runFlow: sign.yaml
