@@ -50,14 +50,14 @@ appId: ${APP_ID ?? "app.exactly"}
 - waitForAnimationToEnd
 - tapOn: Card
 - tapOn: { text: Home, leftOf: Card }
-- runFlow: { file: scrollTo.yaml, env: { element: Exa Card pay mode } }
-- runFlow: { file: scrollTo.yaml, env: { element: Freeze card, center: true } }
-- tapOn: Freeze card
+- runFlow: { file: scrollTo.yaml, env: { element: Exa Card pay mode, center: true } }
 - tapOn:
     text: Learn more
     rightOf: Exa Card pay mode
 - assertVisible: Change the pay mode before each purchase and pay how you want.
 - tapOn: Close
+- runFlow: { file: scrollTo.yaml, env: { element: Freeze card, center: true } }
+- tapOn: Freeze card
 - runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Later in 1
 - runFlow:
