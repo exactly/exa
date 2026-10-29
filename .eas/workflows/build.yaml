@@ -1,7 +1,7 @@
 name: build
 run_name: ${{ inputs.profile }}
 on: { workflow_dispatch: { inputs: { profile: { type: choice, options: [beta, development], default: beta } } } }
-defaults: { tools: { node: "24.14.1" }, hooks: { before_install_node_modules: [{ run: npm i -g pnpm@12.16.1 }] } }
+defaults: { tools: { node: "24.14.1" }, hooks: { before_install_node_modules: [{ run: corepack enable }] } }
 jobs:
   android_build:
     type: build
