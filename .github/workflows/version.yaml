@@ -14,6 +14,11 @@ jobs:
         with: { node-version: 24, check-latest: true, package-manager-cache: false }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
+      - uses: actions/cache@v6
+        with:
+          path: ~/.local/share/svm
+          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml') }}
+          restore-keys: deps-${{ runner.os }}-${{ github.job }}-
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
         env: { REDISMS_DISABLE_POSTINSTALL: "true" }
