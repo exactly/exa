@@ -28,5 +28,5 @@ tags: [core, broad]
 - runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
 - runScript: { file: ../dist/mint.js, env: { asset: EXA, to: "${output.account}", amount: "100" } }
 - runFlow: ../subflows/credit.yaml
-- runFlow: ../subflows/assertHistory.yaml
+- runFlow: ../subflows/assertPayments.yaml
 - runFlow: ../subflows/storeCoverage.yaml
