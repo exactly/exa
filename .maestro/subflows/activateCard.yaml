@@ -1,13 +1,8 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- tapOn: Card
-- tapOn: Card details
-- waitForAnimationToEnd
-- runFlow:
-    when: { visible: Accept and enable card }
-    commands:
-      - runFlow: { file: scrollTo.yaml, env: { element: Accept and enable card } }
-      - tapOn: Accept and enable card
+- tapOn: Activate Exa Card
+- runFlow: { file: scrollTo.yaml, env: { element: Accept and enable card } }
+- tapOn: Accept and enable card
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
 - tapOn: Close
 - tapOn: Freeze card
