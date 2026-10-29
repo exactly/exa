@@ -412,6 +412,8 @@ const BRIDGE_KYB_TEMPLATE = "itmpl_bridge_kyb";
 
 const sandbox = env.PERSONA_API_KEY !== "persona";
 
+const rain = env.PANDA_API_KEY !== "panda";
+
 vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
   const original = await importOriginal();
   type Panda = ReturnType<typeof original.default>;
@@ -439,64 +441,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         cards.set(id, card);
         return Promise.resolve(card);
       }),
-      createCompanyApplication: vi
-        .fn()
-        .mockImplementation(
-          (
-            externalId: string,
-            {
-              address,
-              initialUser,
-              name,
-              representatives,
-              ultimateBeneficialOwners,
-            }: Parameters<Panda["createCompanyApplication"]>[1],
-          ) => {
-            if (
-              [initialUser, ...representatives, ...ultimateBeneficialOwners].some(
-                ({ countryOfIssue, nationalId }) => countryOfIssue === "US" && !/^\d{9}$/.test(nationalId),
-              )
-            ) {
-              return Promise.reject(
-                new ServiceError(
-                  "Panda",
-                  400,
-                  JSON.stringify({
-                    statusCode: 400,
-                    error: "Bad Request",
-                    message: "National id should be 9-digit SSN if country of issue is US",
-                  }),
-                ),
-              );
-            }
-            const id = crypto.randomUUID();
-            const user: User = {
-              applicationReason: "",
-              applicationStatus: "approved",
-              email: initialUser.email,
-              firstName: initialUser.firstName,
-              id: crypto.randomUUID(),
-              isActive: true,
-              lastName: initialUser.lastName,
-              phoneCountryCode: "+1",
-              phoneNumber: "5551234567",
-            };
-            users.set(user.id, user);
-            members.set(id, [{ companyId: id, id: user.id, walletAddress: initialUser.walletAddress }]);
-            const company: Company = {
-              address,
-              applicationStatus:
-                original.kycStatus.find((status) =>
-                  name.replaceAll(" ", "").toLowerCase().includes(status.toLowerCase()),
-                ) ?? "needsVerification",
-              externalId,
-              id,
-              name,
-            };
-            companies.set(externalId, company);
-            return Promise.resolve(company);
-          },
-        ),
       createUser: vi.fn().mockImplementation(() => {
         const id = `usr_${Math.random().toString(36).slice(2)}`;
         const user: User = {
@@ -514,10 +458,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         return Promise.resolve({ id });
       }),
       getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
-      getCompanyApplication: vi
-        .fn()
-        .mockImplementation((externalId: string) => Promise.resolve(companies.get(externalId))),
-      getCompanyUsers: vi.fn().mockImplementation((companyId: string) => Promise.resolve(members.get(companyId) ?? [])),
       getCards: vi.fn().mockResolvedValue([]),
       getPIN: vi.fn().mockResolvedValue({ pin: null }),
       getProcessorDetails: vi
@@ -546,7 +486,6 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
           encryptedPan: encrypt("4111111111111234"),
         });
       }),
-      getUser: vi.fn().mockImplementation((userId: string) => Promise.resolve(users.get(userId))),
       getApplicationStatus: vi.fn().mockResolvedValue({ id: "pandaId", applicationStatus: "approved" }),
       setPIN: vi.fn().mockResolvedValue({}),
       updateCard: vi.fn().mockImplementation((update: { id: string }) => {
@@ -560,6 +499,73 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         if (!user) return Promise.resolve();
         Object.assign(user, update);
         return Promise.resolve(user);
+      }),
+      ...(!rain && {
+        createCompanyApplication: vi
+          .fn()
+          .mockImplementation(
+            (
+              externalId: string,
+              {
+                address,
+                initialUser,
+                name,
+                representatives,
+                ultimateBeneficialOwners,
+              }: Parameters<Panda["createCompanyApplication"]>[1],
+            ) => {
+              if (
+                [initialUser, ...representatives, ...ultimateBeneficialOwners].some(
+                  ({ countryOfIssue, nationalId }) => countryOfIssue === "US" && !/^\d{9}$/.test(nationalId),
+                )
+              ) {
+                return Promise.reject(
+                  new ServiceError(
+                    "Panda",
+                    400,
+                    JSON.stringify({
+                      statusCode: 400,
+                      error: "Bad Request",
+                      message: "National id should be 9-digit SSN if country of issue is US",
+                    }),
+                  ),
+                );
+              }
+              const id = crypto.randomUUID();
+              const user: User = {
+                applicationReason: "",
+                applicationStatus: "approved",
+                email: initialUser.email,
+                firstName: initialUser.firstName,
+                id: crypto.randomUUID(),
+                isActive: true,
+                lastName: initialUser.lastName,
+                phoneCountryCode: "+1",
+                phoneNumber: "5551234567",
+              };
+              users.set(user.id, user);
+              members.set(id, [{ companyId: id, id: user.id, walletAddress: initialUser.walletAddress }]);
+              const company: Company = {
+                address,
+                applicationStatus:
+                  original.kycStatus.find((status) =>
+                    name.replaceAll(" ", "").toLowerCase().includes(status.toLowerCase()),
+                  ) ?? "needsVerification",
+                externalId,
+                id,
+                name,
+              };
+              companies.set(externalId, company);
+              return Promise.resolve(company);
+            },
+          ),
+        getCompanyApplication: vi
+          .fn()
+          .mockImplementation((externalId: string) => Promise.resolve(companies.get(externalId))),
+        getCompanyUsers: vi
+          .fn()
+          .mockImplementation((companyId: string) => Promise.resolve(members.get(companyId) ?? [])),
+        getUser: vi.fn().mockImplementation((userId: string) => Promise.resolve(users.get(userId))),
       }),
     }),
   };
