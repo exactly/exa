@@ -261,7 +261,7 @@ jobs:
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
       - name: start simulators # cspell:ignore bootstatus datamigrator UICT udid
         run: |
-          for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone 17" >> simulators.udid; done
+          for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone SE (3rd generation)" >> simulators.udid; done
           for udid in $(cat simulators.udid); do
             mkdir -p -m 700 "/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid"
             cp .eas/disabled.plist "/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid/"
