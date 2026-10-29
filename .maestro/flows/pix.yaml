@@ -7,10 +7,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/accounts.yaml
 - tapOn: View accounts
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Euros via SEPA, center: true } }
 - tapOn: Euros via SEPA
 - assertVisible: DE89370400440532013000
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Pounds via Faster Payments } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Pounds via Faster Payments, offset: 1 } }
 - tapOn: Pounds via Faster Payments
 - assertVisible: "040004"
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
@@ -18,6 +19,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: "032180000118359719"
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Reals via PIX
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Show QR Code, center: true } }
 - tapOn: Show QR Code
 - assertVisible: Deposit with PIX
 - tapOn: Close
