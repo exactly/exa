@@ -7,6 +7,7 @@
 - **`foundry.toml`**: configuration file for the foundry toolchain.
 - **`.solhint.json`**: configuration file for the `solhint` linter. nested configs exist for specific directories (e.g., `test/.solhint.json`).
 - **`slither.config.json`**: configuration file for the `slither` static analyzer.
+- **`deploy.json`**: the parameters deploy scripts read per chain, and nothing more. fixtures that only local chains need, like extra allowlist entries, go in the mock scripts under `test/mocks/`.
 
 ## formatting & linting
 
@@ -39,7 +40,7 @@ contracts are automatically formatted by `forge fmt` and linted by `solhint`. th
 - **test file naming**: test files must end with `.t.sol` and mirror the contract name (e.g., `ExaPlugin.sol` -> `ExaPlugin.t.sol`).
 - **test function naming**: test functions must start with `test` and follow `test_[function]_[scenario]()` (e.g., `test_collect_reverts_whenProposalsLeaveNoLiquidity()`).
 - **fuzz testing**: required for inputs. use it extensively for functions with numerical or address inputs. same `test_` prefix as regular tests.
-- **gas snapshots**: always run `pnpm nx snapshot contracts` after changes and commit the resulting `.gas-snapshot` file. failing to do so breaks `test:gas`.
+- **gas snapshots**: run `pnpm nx snapshot contracts` after any change, `deploy.json` and `package.json` included (scripts read them), and commit the whole regenerated `.gas-snapshot`, or `test:gas` fails. entries move far from the change, so never edit them by hand, and give new tests their own contract to keep existing entries in place.
 - **`vm.prank`**: use `vm.prank` to simulate calls from different addresses. avoid changing `msg.sender` through other means.
 
 ## gas optimization
