@@ -3,6 +3,10 @@ import { fileURLToPath } from "node:url";
 import { padHex } from "viem";
 import { defineConfig } from "vitest/config";
 
+if (env.NODE_ENV === "e2e" && env.PERSONA_API_KEY && !env.PERSONA_API_KEY.startsWith("persona_sandbox_")) {
+  throw new Error("persona key is not a sandbox key");
+}
+
 export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
@@ -78,6 +82,10 @@ YQIDAQAB
         APP_DOMAIN: env.APP_DOMAIN ?? "localhost",
         APP_STACK: "localhost",
         DEBUG: "exa:*",
+        ...(env.PERSONA_API_KEY && {
+          PERSONA_API_KEY: env.PERSONA_API_KEY,
+          PERSONA_URL: "https://api.withpersona.com/api/v1",
+        }),
       }),
     },
     ...(env.NODE_ENV === "e2e" && {
