@@ -148,12 +148,16 @@ export default function Home() {
     ...cardModeMutationOptions,
     onSuccess: (_data, mode) => {
       toast.show(mode === 0 ? t("Pay Now selected") : t("Installments selected", { count: mode }), {
+        duration: 1000,
         burntOptions: { haptic: "success", preset: "done" },
       });
     },
     onError: (error, _, context: undefined | { previous?: CardDetails }) => {
       if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
-      toast.show(t("Failed to update pay mode"), { burntOptions: { haptic: "error", preset: "error" } });
+      toast.show(t("Failed to update pay mode"), {
+        duration: 1000,
+        burntOptions: { haptic: "error", preset: "error" },
+      });
       reportError(error);
     },
   });
