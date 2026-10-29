@@ -4,7 +4,7 @@ on:
   pull_request: { if: "!github.event.pull_request.draft", types: [opened, ready_for_review, reopened, synchronize] }
   workflow_dispatch: {}
 defaults:
-  tools: { node: "24.14.1", corepack: true }
+  tools: { node: "24.14.1" }
   hooks: { before_install_node_modules: [{ run: corepack enable }] }
 concurrency:
   cancel_in_progress: "${{ github.ref_name != 'main' }}"
@@ -18,6 +18,7 @@ jobs:
       ios_fingerprint_hash: ${{ steps.fingerprint.outputs.ios }}
     steps:
       - uses: eas/checkout
+      - run: corepack enable
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm nx generate:version mobile
       - id: fingerprint
