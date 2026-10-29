@@ -82,7 +82,7 @@ a core principle is specific capitalization for different contexts. this must be
 
 ## comments
 
-this codebase does not use comments. the only exception is static analysis annotations (`@ts-expect-error`, `eslint-disable`, `slither-disable`, `solhint-disable`, `cspell:ignore`) and `TODO`/`HACK`/`FIXME` markers. everything else—jsdoc, explanatory prose, region markers, inline labels—is noise that masks unclear code. if code needs explanation, rewrite it until it doesn't.
+this codebase does not use comments. the only exception is static analysis annotations (`@ts-expect-error`, `eslint-disable`, `slither-disable`, `solhint-disable`, `cspell:ignore`), the short reason beside any check turned off, and `TODO`/`HACK`/`FIXME` markers. everything else—jsdoc, explanatory prose, region markers, inline labels—is noise that masks unclear code. if code needs explanation, rewrite it until it doesn't.
 
 - **static analysis annotations only**: suppress lint/type errors with the tool's disable comment (`eslint-disable-line`, `@ts-expect-error`, `solhint-disable`, etc.) and `cspell:ignore`. always use same-line form; use next-line or block only when the tool has no same-line variant. use `@ts-expect-error` (never `@ts-ignore`). explanations must be brutally concise, lowercase, and use `--` only when required by the tool.
   - ✅ `console.log("debug"); // eslint-disable-line no-console -- debug output for ci`

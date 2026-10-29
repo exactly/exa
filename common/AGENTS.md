@@ -35,6 +35,7 @@
 - **infer types from schemas**: define schemas once and derive typescript types.
   - ✅ `type User = v.InferOutput<typeof UserSchema>;`
   - ❌ `interface User { ... }` (manually defined)
+- **guard outside data**: data from third parties (lifi, alchemy, bridge, persona, rpc nodes) keeps its guards even when its types mark a field as required or the service always sends it today, since a misbehaving provider must not break the app. check it with a schema where it enters, and never feed bad data from a mock only to cover a guard.
 
 # translations
 
