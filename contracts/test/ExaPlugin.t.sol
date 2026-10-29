@@ -7,10 +7,7 @@ import { Auditor } from "@exactly/protocol/Auditor.sol";
 import { FixedLib, Market } from "@exactly/protocol/Market.sol";
 
 import { MockBalancerVault } from "@exactly/protocol/mocks/MockBalancerVault.sol";
-import { FlashLoanAdapter, IBalancerVaultV3 } from "@exactly/protocol/periphery/FlashLoanAdapter.sol";
-
-import { IERC20 as IERC20v4 } from "@openzeppelin/contracts-v4/interfaces/IERC20.sol";
-import { IERC4626 as IERC4626v4 } from "@openzeppelin/contracts-v4/interfaces/IERC4626.sol";
+import { FlashLoanAdapter, IMorpho } from "@exactly/protocol/periphery/FlashLoanAdapter.sol";
 
 import { PluginManagerInternals } from "modular-account/src/account/PluginManagerInternals.sol";
 import { Call, UpgradeableModularAccount } from "modular-account/src/account/UpgradeableModularAccount.sol";
@@ -1829,7 +1826,7 @@ contract ExaPluginTest is ForkTest {
 
     uint256 exaUSDCBalance = exaUSDC.balanceOf(address(account));
     uint256 propose = exaUSDCBalance.mulWad(0.8e18);
-    (uint256 adjustFactor,,,,) = auditor.markets(Market(address(exaUSDC)));
+    (uint256 adjustFactor,,,,,) = auditor.markets(Market(address(exaUSDC)));
 
     uint256 credit = (exaUSDCBalance - propose).mulWad(adjustFactor) / 2;
     address receiver = address(0x420);
@@ -2616,7 +2613,7 @@ contract ExaPluginTest is ForkTest {
     vm.startPrank(keeper);
     account.poke(exaUSDC);
 
-    (uint256 adjustFactor,,,,) = auditor.markets(Market(address(exaUSDC)));
+    (uint256 adjustFactor,,,,,) = auditor.markets(Market(address(exaUSDC)));
 
     uint256 adjustedCollateral = exaUSDC.maxWithdraw(address(account)).mulWad(adjustFactor);
     uint256 maxDebt = adjustedCollateral.mulWad(adjustFactor);
@@ -3557,7 +3554,7 @@ contract ExaPluginTest is ForkTest {
     account.propose(exaEXA, 1, ProposalType.NONE, abi.encode(address(account)));
   }
 
-  function testFork_repay_whenFlashLoanerHasFees() external {
+  function testFork_repay_withMorphoFlashLoans() external {
     vm.createSelectFork("optimism", 141_227_400);
     account = ExaAccount(payable(0x6120Fb2A9d47f7955298b80363F00C620dB9f6E6));
     issuerChecker = new IssuerChecker(address(this), issuer, 1 minutes, 1 minutes);
@@ -3577,12 +3574,10 @@ contract ExaPluginTest is ForkTest {
       targets,
       1 minutes
     );
-    FlashLoanAdapter adapter =
-      new FlashLoanAdapter(IBalancerVaultV3(0xbA1333333333a1BA1108E8412f11850A5C319bA9), address(this));
+    FlashLoanAdapter adapter = new FlashLoanAdapter(IMorpho(protocol("Morpho")));
 
     usdc = MockERC20(protocol("USDC"));
     exaUSDC = IMarket(protocol("MarketUSDC"));
-    adapter.setWToken(IERC20v4(address(usdc)), IERC4626v4(address(0x41B334E9F2C0ED1f30fD7c351874a6071C53a78E)));
 
     exaPlugin = ExaPlugin(payable(0x3d73D0fb9e63c49ba8e9cd738964D5E08C047f3e));
 

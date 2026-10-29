@@ -217,7 +217,7 @@ contract ExaPreviewerTest is ForkTest {
   function test_collect_reverts_whenProposalsHaveTooMuchDebt() external {
     account.poke(exaUSDC);
 
-    (uint256 adjustFactor,,,,) = auditor.markets(Market(address(exaUSDC)));
+    (uint256 adjustFactor,,,,,) = auditor.markets(Market(address(exaUSDC)));
 
     uint256 adjustedCollateral = exaUSDC.maxWithdraw(address(account)).mulWad(adjustFactor);
     uint256 maxDebt = adjustedCollateral.mulWad(adjustFactor);
@@ -251,7 +251,7 @@ contract ExaPreviewerTest is ForkTest {
   function test_collect_reverts_whenProposalsHaveTooMuchRollDebt() external {
     account.poke(exaUSDC);
 
-    (uint256 adjustFactor,,,,) = auditor.markets(Market(address(exaUSDC)));
+    (uint256 adjustFactor,,,,,) = auditor.markets(Market(address(exaUSDC)));
 
     uint256 adjustedCollateral = exaUSDC.maxWithdraw(address(account)).mulWad(adjustFactor);
     uint256 maxDebt = adjustedCollateral.mulWad(adjustFactor);

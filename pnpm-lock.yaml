@@ -815,8 +815,8 @@ importers:
         specifier: workspace:^1.1.0
         version: link:../contracts
       '@exactly/protocol':
-        specifier: ^0.2.24
-        version: 0.2.24
+        specifier: ^0.2.25
+        version: 0.2.25
       '@nx/eslint-plugin':
         specifier: 'catalog:'
         version: 23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1)(typescript@5.9.3)
@@ -921,8 +921,8 @@ importers:
         version: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
-        specifier: ^0.2.24
-        version: 0.2.24
+        specifier: ^0.2.25
+        version: 0.2.25
       '@hyperlane-xyz/core':
         specifier: ^11.0.0
         version: 11.3.1(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
@@ -3559,8 +3559,8 @@ packages:
     resolution: {integrity: sha512-nfG/SPwGyO5VFgPQHJml8HAPwU2rrpnlRWzWuiEK0dslKLB3vKmab9GvCyWDiSbNsxsuB273dKcBLL5o45ZJsg==}
     engines: {node: '>=20'}
 
-  '@exactly/protocol@0.2.24':
-    resolution: {integrity: sha512-8Pz8E0C78CxqE7FXzILnOAHcchKttbgo0rtiWCgrqzzIo0b/OgVT7kgiIg4tucSLYLk7rgnmQyn9bPC4GmQxfQ==}
+  '@exactly/protocol@0.2.25':
+    resolution: {integrity: sha512-dLAFrY9as2EFhd9LSwT7z2yBN7u23WRxawdsixugzmNiONRDWtTRZHVXj2+g5U6iiB+ITyysBj8NY2L01qBqMA==}
     engines: {node: '>=18'}
 
   '@expo-google-fonts/material-symbols@0.4.27':
@@ -19114,7 +19114,7 @@ snapshots:
 
   '@exactly/lib@0.1.0': {}
 
-  '@exactly/protocol@0.2.24':
+  '@exactly/protocol@0.2.25':
     dependencies:
       '@openzeppelin/contracts': 5.6.1
       '@openzeppelin/contracts-upgradeable': 5.6.1(@openzeppelin/contracts@5.6.1)
