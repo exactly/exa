@@ -1,6 +1,9 @@
 name: test
 on:
   push: { branches-ignore: [changesets-ghcommit-temp/**] } # cspell:ignore ghcommit
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name == 'main' && github.run_id || github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     if: github.ref_name != 'beta' || github.event.head_commit.distinct
