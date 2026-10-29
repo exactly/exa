@@ -311,12 +311,7 @@ export default function Home() {
                 />
               )}
               <YStack gap="s5">
-                <PortfolioSummary
-                  collateralUSD={collateralUSD}
-                  averageRate={averageRate}
-                  assets={allAssets}
-                  totalBalanceUSD={totalBalanceUSD}
-                />
+                <PortfolioSummary averageRate={averageRate} assets={allAssets} totalBalanceUSD={totalBalanceUSD} />
                 <HomeActions />
               </YStack>
             </YStack>
