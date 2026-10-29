@@ -3,7 +3,10 @@ import {
   deploylessCallViaBytecodeBytecode,
   encodeDeployData,
   encodeFunctionData,
+  keccak256,
   parseAbi,
+  sliceHex,
+  toHex,
   type Abi,
   type Address,
   type BlockIdentifier,
@@ -70,9 +73,12 @@ export function writeContract<
     WriteContractParameters,
     "abi" | "address" | "args" | "functionName"
   >;
+  const from = sliceHex(keccak256(toHex(String(Math.random()))), 12);
+  anvil("anvil_impersonateAccount", [from], network);
+  anvil("anvil_setBalance", [from, String(10n ** 18n)], network);
   return anvil(
     "eth_sendTransaction",
-    [{ to: address, data: encodeFunctionData({ functionName, abi, args }) }],
+    [{ from, to: address, data: encodeFunctionData({ functionName, abi, args }) }],
     network,
   );
 }
@@ -119,6 +125,11 @@ export default function anvil(
 export default function anvil(
   method: "anvil_mine",
   params: readonly [count: number, interval: number | undefined],
+  network?: string,
+): void;
+export default function anvil(
+  method: "anvil_impersonateAccount",
+  params: readonly [account: Address],
   network?: string,
 ): void;
 export default function anvil(
