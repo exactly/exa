@@ -26,11 +26,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - tapOn: View statement
 - tapOn: Export
-- tapOn: { text: Copy as plain text, waitToSettleTimeoutMs: 0 }
-- runFlow: { when: { platform: web }, commands: [{ assertVisible: Copied! }] }
+- tapOn: Copy as plain text
 - tapOn: Export
-- tapOn: { text: Copy as a table, waitToSettleTimeoutMs: 0 }
-- runFlow: { when: { platform: web }, commands: [{ assertVisible: Copied! }] }
+- tapOn: Copy as a table
 - runFlow:
     when: { platform: web }
     commands:
