@@ -13,10 +13,10 @@ export default function HTML({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <title>Exa App</title>
-        <meta name="title" content={appMetadata.title} />
+        <meta name="title" content={headline} />
         <meta name="description" content={appMetadata.description} />
         <meta property="og:type" content="website" />
-        <meta property="og:title" content={appMetadata.title} />
+        <meta property="og:title" content={headline} />
         <meta property="og:description" content={appMetadata.description} />
         <meta property="og:image" content="https://assets.exactly.app/og-image.webp" />
         <meta property="og:image:width" content="1200" />
@@ -154,3 +154,4 @@ export default function HTML({ children }: { children: ReactNode }) {
 }
 
 const css = String.raw;
+const headline = "Turn your digital assets into credit.";
