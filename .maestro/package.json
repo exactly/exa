@@ -130,6 +130,9 @@
             "env": "PERSONA_API_KEY"
           },
           {
+            "env": "PANDA_API_KEY"
+          },
+          {
             "input": "default",
             "projects": [
               "@exactly/common",
@@ -165,6 +168,9 @@
             "env": "PERSONA_API_KEY"
           },
           {
+            "env": "PANDA_API_KEY"
+          },
+          {
             "input": "default",
             "projects": [
               "@exactly/common",
@@ -197,6 +203,9 @@
           "default",
           {
             "env": "PERSONA_API_KEY"
+          },
+          {
+            "env": "PANDA_API_KEY"
           },
           {
             "input": "default",
