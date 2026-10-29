@@ -123,6 +123,7 @@ jobs:
       MAESTRO_CLI_NO_ANALYTICS: true
       NX_DAEMON: false
       NX_MAX_CACHE_SIZE: 1GB
+      PERSONA_API_KEY: ${{ matrix.flow == 'business' && secrets.PERSONA_API_KEY || '' }}
       REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
     steps:
       - uses: actions/checkout@v7
