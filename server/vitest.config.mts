@@ -83,6 +83,10 @@ YQIDAQAB
           "http://localhost:8081,https://business.localhost,https://secondary.example,https://secondary.example:8443",
         APP_STACK: "localhost",
         DEBUG: "exa:*",
+        ...(env.PANDA_API_KEY && {
+          PANDA_API_KEY: env.PANDA_API_KEY,
+          PANDA_API_URL: env.PANDA_API_URL ?? "https://api-dev.raincards.xyz/v1",
+        }),
         ...(env.PERSONA_API_KEY && {
           PERSONA_API_KEY: env.PERSONA_API_KEY,
           PERSONA_URL: "https://api.withpersona.com/api/v1",
