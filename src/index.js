@@ -4,6 +4,7 @@ import "./utils/debug";
 import "expo-router/entry";
 
 import "@tamagui/native/setup-burnt";
+import "@tamagui/native/setup-teleport";
 
 import chain from "@exactly/common/generated/chain";
 
