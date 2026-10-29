@@ -11,7 +11,7 @@ tags: [broad]
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Send } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Send } }
 - tapOn: Not now
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Dismiss } }
+- runFlow: { file: ../subflows/tapWhileAria.yaml, env: { aria: Dismiss } }
 - tapOn: Enter ENS or wallet address
 - inputText: "0x000000000000000000000000000000000000dEaD"
 - hideKeyboard
