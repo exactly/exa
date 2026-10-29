@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Search } from "@tamagui/lucide-icons-2";
@@ -10,7 +10,7 @@ import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
 import { lifiChainsOptions } from "../../utils/lifi";
-import usePortfolio from "../../utils/usePortfolio";
+import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
@@ -22,14 +22,26 @@ import type { PortfolioAsset } from "../../utils/usePortfolio";
 
 export default function PaySheet({
   open,
+  ...properties
+}: Omit<ComponentProps<typeof PayOptions>, "markets"> & { open: boolean }) {
+  const { markets } = useMarkets();
+  return (
+    <ModalSheet open={open} onClose={properties.onClose}>
+      <PayOptions {...properties} markets={markets} />
+    </ModalSheet>
+  );
+}
+
+function PayOptions({
   onClose,
   onSelect,
   assets,
+  markets,
 }: {
   assets: PortfolioAsset[];
+  markets: ReturnType<typeof useMarkets>["markets"];
   onClose: () => void;
   onSelect: (address: string, chainId: number) => void;
-  open: boolean;
 }) {
   const {
     t,
@@ -37,7 +49,6 @@ export default function PaySheet({
   } = useTranslation();
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState<number>();
-  const { markets } = usePortfolio();
   const { data: chains } = useQuery(lifiChainsOptions);
   const networks = useMemo(() => {
     const ids = [
@@ -76,151 +87,146 @@ export default function PaySheet({
       assets: matches.filter((asset) => (asset.type === "external" ? asset.chainId : chain.id) === id),
     }));
   }, [assets, query, network]);
-  function close() {
-    setQuery("");
-    setNetwork(undefined);
-    onClose();
-  }
   return (
-    <ModalSheet open={open} onClose={close}>
-      <YStack
-        gap="$s4_5"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingTop="$s7"
-        paddingHorizontal="$s4"
-        paddingBottom="$s7"
-        $platform-android={{ paddingBottom: "$s5" }}
+    <YStack
+      gap="$s4_5"
+      borderTopLeftRadius="$r5"
+      borderTopRightRadius="$r5"
+      backgroundColor="$backgroundSoft"
+      paddingTop="$s7"
+      paddingHorizontal="$s4"
+      paddingBottom="$s7"
+      $platform-android={{ paddingBottom: "$s5" }}
+    >
+      <Text emphasized subHeadline primary textAlign="center">
+        {t("Pay with")}
+      </Text>
+      <XStack
+        alignItems="center"
+        gap="$s2"
+        paddingLeft="$s3_5"
+        borderWidth={1}
+        borderColor="$borderNeutralSoft"
+        borderRadius="$r3"
+        overflow="hidden"
       >
-        <Text emphasized subHeadline primary textAlign="center">
-          {t("Pay with")}
-        </Text>
-        <XStack
-          alignItems="center"
-          gap="$s2"
-          paddingLeft="$s3_5"
-          borderWidth={1}
-          borderColor="$borderNeutralSoft"
-          borderRadius="$r3"
-          overflow="hidden"
+        <Search size={20} color="$uiNeutralPlaceholder" />
+        <Input
+          flex={1}
+          borderWidth={0}
+          backgroundColor="transparent"
+          placeholder={t("Search assets")}
+          placeholderTextColor="$uiNeutralPlaceholder"
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </XStack>
+      {networks.length > 1 && (
+        <ScrollView
+          horizontal
+          flexGrow={0}
+          flexShrink={0}
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Search size={20} color="$uiNeutralPlaceholder" />
-          <Input
-            flex={1}
-            borderWidth={0}
-            backgroundColor="transparent"
-            placeholder={t("Search assets")}
-            placeholderTextColor="$uiNeutralPlaceholder"
-            value={query}
-            onChangeText={setQuery}
-          />
-        </XStack>
-        {networks.length > 1 && (
-          <ScrollView
-            horizontal
-            flexGrow={0}
-            flexShrink={0}
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <XStack gap="$s3" alignItems="center">
-              {networks.map((item) => (
-                <Chip
-                  key={item.id}
-                  icon={<ChainLogo chainId={item.id} size={16} />}
-                  label={item.name}
-                  selected={network === item.id}
-                  onPress={() => {
-                    setNetwork(network === item.id ? undefined : item.id);
-                  }}
-                />
-              ))}
-            </XStack>
-          </ScrollView>
-        )}
-        <ScrollView maxHeight={400} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <YStack gap="$s6" paddingBottom="$s4_5">
-            {groups.map((group) => (
-              <YStack key={group.id} gap="$s5">
-                {groups.length > 1 && (
-                  <Text subHeadline color="$uiNeutralPlaceholder">
-                    {chains?.find((item) => item.id === group.id)?.name ??
-                      alchemyChains.get(group.id)?.name ??
-                      chain.name}
-                  </Text>
-                )}
-                {group.assets.map((asset) => {
-                  const available =
-                    asset.type === "external"
-                      ? (asset.amount ?? 0n)
-                      : markets
-                        ? withdrawLimit(markets, asset.market)
-                        : 0n;
-                  const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
-                  const name =
-                    asset.type === "external"
-                      ? asset.name
-                      : asset.assetName === "Wrapped Ether"
-                        ? "Ether"
-                        : asset.assetName;
-                  const balance = (Number(available) / 10 ** asset.decimals).toLocaleString(language, {
-                    maximumFractionDigits: Math.min(
-                      8,
-                      Math.max(0, asset.decimals - Math.ceil(Math.log10(Math.max(1, usdPrice)))),
-                    ),
-                  });
-                  return (
-                    <XStack
-                      key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
-                      gap="$s3"
-                      alignItems="center"
-                      cursor="pointer"
-                      role="button"
-                      aria-label={t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })}
-                      pressStyle={{ opacity: 0.7 }}
-                      onPress={() => {
-                        onSelect(asset.type === "external" ? asset.address : asset.market, group.id);
-                        close();
-                      }}
-                    >
-                      <AssetLogo
-                        uri={asset.type === "external" ? asset.logoURI : undefined}
-                        symbol={asset.symbol}
-                        width={40}
-                        height={40}
-                        chainId={group.id}
-                        network
-                      />
-                      <YStack gap="$s2" flex={1}>
-                        <Text emphasized callout primary numberOfLines={1}>
-                          {asset.symbol}
-                        </Text>
-                        <Text footnote secondary numberOfLines={1}>
-                          {name}
-                        </Text>
-                      </YStack>
-                      <YStack gap="$s2" alignItems="flex-end">
-                        <Text emphasized callout primary>
-                          {`$${asset.usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                        </Text>
-                        <Text caption secondary>
-                          {balance}
-                        </Text>
-                      </YStack>
-                    </XStack>
-                  );
-                })}
-              </YStack>
+          <XStack gap="$s3" alignItems="center">
+            {networks.map((item) => (
+              <Chip
+                key={item.id}
+                icon={<ChainLogo chainId={item.id} size={16} />}
+                label={item.name}
+                selected={network === item.id}
+                onPress={() => {
+                  setNetwork(network === item.id ? undefined : item.id);
+                }}
+              />
             ))}
-            {groups.length === 0 && (
-              <Text textAlign="center" footnote color="$uiNeutralSecondary">
-                {t("No available assets.")}
-              </Text>
-            )}
-          </YStack>
+          </XStack>
         </ScrollView>
-      </YStack>
-    </ModalSheet>
+      )}
+      <ScrollView maxHeight={400} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <YStack gap="$s6" paddingBottom="$s4_5">
+          {groups.map((group) => (
+            <YStack key={group.id} gap="$s5">
+              {groups.length > 1 && (
+                <Text subHeadline color="$uiNeutralPlaceholder">
+                  {chains?.find((item) => item.id === group.id)?.name ??
+                    alchemyChains.get(group.id)?.name ??
+                    chain.name}
+                </Text>
+              )}
+              {group.assets.map((asset) => {
+                const available =
+                  asset.type === "external"
+                    ? (asset.amount ?? 0n)
+                    : markets
+                      ? withdrawLimit(markets, asset.market)
+                      : 0n;
+                const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
+                const name =
+                  asset.type === "external"
+                    ? asset.name
+                    : asset.assetName === "Wrapped Ether"
+                      ? "Ether"
+                      : asset.assetName;
+                const balance = (Number(available) / 10 ** asset.decimals).toLocaleString(language, {
+                  maximumFractionDigits: Math.min(
+                    8,
+                    Math.max(0, asset.decimals - Math.ceil(Math.log10(Math.max(1, usdPrice)))),
+                  ),
+                });
+                return (
+                  <XStack
+                    key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
+                    gap="$s3"
+                    alignItems="center"
+                    cursor="pointer"
+                    role="button"
+                    aria-label={t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })}
+                    pressStyle={{ opacity: 0.7 }}
+                    onPress={() => {
+                      onSelect(asset.type === "external" ? asset.address : asset.market, group.id);
+                      onClose();
+                    }}
+                  >
+                    <AssetLogo
+                      uri={asset.type === "external" ? asset.logoURI : undefined}
+                      symbol={asset.symbol}
+                      width={40}
+                      height={40}
+                      chainId={group.id}
+                      network
+                    />
+                    <YStack gap="$s2" flex={1}>
+                      <Text emphasized callout primary numberOfLines={1}>
+                        {asset.symbol}
+                      </Text>
+                      <Text footnote secondary numberOfLines={1}>
+                        {name}
+                      </Text>
+                    </YStack>
+                    <YStack gap="$s2" alignItems="flex-end">
+                      <Text emphasized callout primary>
+                        {`$${asset.usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      </Text>
+                      <Text caption secondary>
+                        {balance}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                );
+              })}
+            </YStack>
+          ))}
+          {groups.length === 0 && (
+            <Text textAlign="center" footnote color="$uiNeutralSecondary">
+              {t("No available assets.")}
+            </Text>
+          )}
+        </YStack>
+      </ScrollView>
+    </YStack>
   );
 }
