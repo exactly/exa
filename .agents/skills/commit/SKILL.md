@@ -17,6 +17,8 @@ this project uses [gitmoji](https://gitmoji.dev). the conventional commits speci
 - **scope**: mandatory, lowercase, from allowed list
 - **message**: lowercase, imperative verb first, concise, no filler words, no trailing punctuation
 
+a pull request's title takes the same format, with a single gitmoji and a single scope.
+
 ### allowed scopes
 
 | scope | meaning |
@@ -44,6 +46,8 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 - start with an imperative verb (add, fix, implement, update, remove, refactor, etc.)
 - be keyword-driven: details belong in the commit body, not the subject
 - no periods, no capitalization
+
+a commit explains itself only when its goal isn't obvious from the subject and the diff, like an ignored advisory or a workaround for someone else's bug: then it says why in a few plain lines. an obvious commit explains nothing.
 
 ### examples
 
@@ -279,6 +283,7 @@ the scope comes from the staged files:
 - eas config files (`eas.json`, etc.) → `eas`
 - dependency changes → the project's scope when they touch one project, `dependencies` when they span several
 - config files → use the subproject scope if specific to one, otherwise use the tool/platform name (e.g., `eslint`, `prettier`, `nx`)
+- nx target config (dependencies, inputs, environment) → `nx`, even inside a project's `package.json` and when it speeds up ci
 - everything else → `global`
 
 if files span multiple scopes, split them into separate commits. if the developer prefers a single commit, they pick the primary scope.
@@ -319,12 +324,14 @@ example (given scope `server` and emoji `🐛`):
 
 rules for messages:
 
-- **natural prose, not code** — never carry over identifier casing (`camelCase`, `PascalCase`, `snake_case`) from source code. rewrite identifiers as lowercase prose that reads naturally in a sentence. hyphenate compound terms that function as a single modifier:
+- **natural prose, not code** — never carry over identifiers, paths or file names from source code, nor their casing (`camelCase`, `PascalCase`, `snake_case`), in the subject, the body or the pr title. rewrite them as lowercase prose that reads naturally in a sentence. hyphenate compound terms that function as a single modifier:
   - ✅ `auth endpoint` ❌ `authEndpoint`
+  - ✅ `gas snapshot` ❌ `.gas-snapshot`
   - ✅ `validator hook` ❌ `validatorHook`
   - ✅ `session cookie` ❌ `sessionCookie`
   - ✅ `user profile` ❌ `UserProfile` ❌ `user_profile`
   - ✅ `rate-limit middleware` ❌ `rateLimitMiddleware`
+- **the project's words** — name things the way the code and the docs do, never with outside jargon or a different spelling
 - all lowercase, no trailing punctuation
 - start with an imperative verb (add, fix, implement, update, remove, refactor, replace, extract, etc.)
 - front-load keywords — most important word first after the verb
