@@ -34,17 +34,17 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
                     {t("Your card’s PIN may be required to confirm transactions and ensure security.")}
                   </Text>
                 </YStack>
-                {isPending ? (
-                  <Skeleton width="100%" height={100} />
-                ) : (
-                  <Countdown
-                    pin={card?.details.pin}
-                    error={error}
-                    onRetry={() => {
-                      refetch().catch(reportError);
-                    }}
-                  />
-                )}
+                <Skeleton show={isPending} disableExitAnimation>
+                  <View aria-hidden={isPending}>
+                    <Countdown
+                      pin={card?.details.pin}
+                      error={error}
+                      onRetry={() => {
+                        refetch().catch(reportError);
+                      }}
+                    />
+                  </View>
+                </Skeleton>
                 <XStack alignSelf="center">
                   <Pressable onPress={onClose} hitSlop={20}>
                     <Text emphasized footnote color="$interactiveTextBrandDefault">
@@ -82,11 +82,11 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
   }
 
   useEffect(() => {
-    startTimer();
+    if (pin) startTimer();
     return () => {
       clearInterval(timerRef.current);
     };
-  }, []);
+  }, [pin]);
 
   function handleToggle() {
     if (displayPIN) {
@@ -106,18 +106,19 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
         <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
           {Array.from({ length: pin.length }).map((_, index) => (
             // eslint-disable-next-line @eslint-react/no-array-index-key
-            <Text fontSize={48} mono key={index}>
+            <Text fontSize={48} mono maxFontSizeMultiplier={1} key={index}>
               {displayPIN ? pin[index] : "*"}
             </Text>
           ))}
         </XStack>
       ) : (
-        <Text fontSize={48} mono>
+        <Text fontSize={48} mono maxFontSizeMultiplier={1}>
           {t("N/A")}
         </Text>
       )}
       <Button
         primary
+        disabled={!error && !pin}
         onPress={() => {
           if (error) {
             onRetry();
@@ -126,8 +127,8 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
           handleToggle();
         }}
       >
-        <Button.Text>{error ? t("Retry") : displayPIN ? t("Hide PIN") : t("Show PIN")}</Button.Text>
-        {!error && displayPIN && countdown > 0 && <Button.Text flex={0}>{countdown}</Button.Text>}
+        <Button.Text>{error ? t("Retry") : pin && displayPIN ? t("Hide PIN") : t("Show PIN")}</Button.Text>
+        {!error && !!pin && displayPIN && countdown > 0 && <Button.Text flex={0}>{countdown}</Button.Text>}
       </Button>
     </YStack>
   );
