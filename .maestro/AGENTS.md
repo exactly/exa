@@ -41,7 +41,7 @@
 - **keyboard**: `hideKeyboard` is nearly free on web, and with one swipe it beats a slow `scrollTo` under an open keyboard. `pressKey: enter` works on every platform but costs about 0.4 s on ios, 0.7 s on android and 0.8 s on web, so use it only where `hideKeyboard` fails.
 - **scripts are not free**: graaljs takes seconds to run `mnemonicToAccount` (pbkdf2). compute values once and keep them in `output`, as `subflows/getAccount.yaml` does. a plain rpc call beats a deployless read.
 - **one call stays inline**: a single harness call stays in the flow (`assertTrue: '${http.post(...).ok}'`, as `flows/onboarding.yaml` does), never a new script in `src/script/`.
-- **refresh instead of polling**: pending requests refetch every 30 s, so tap Home to refresh them instead of waiting.
+- **refresh instead of polling**: pending requests and markets refetch every 30 s, so press their tab to refresh them instead of waiting. a tab that wasn't open yet only opens on its first press and shows what was fetched in the last 10 s, so right after a harness write it takes a second press.
 
 ## signers
 
