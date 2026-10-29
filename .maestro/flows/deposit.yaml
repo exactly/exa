@@ -48,6 +48,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
 - assertTrue: ${output.portfolio - output.portfolioBefore === 101}
 - assertTrue: ${output.deposited === 100}
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }

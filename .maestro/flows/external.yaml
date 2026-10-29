@@ -4,6 +4,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDT, to: "${output.account}", amount: "20500" }
+- assertVisible: Swap USDT to a collateral asset on Anvil to activate your Exa Card
+- tapOn: Swap now
+- assertVisible: Swap USDT for USDC
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Manage portfolio
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
 - tapOn: USDT
