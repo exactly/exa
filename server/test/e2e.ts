@@ -126,8 +126,11 @@ describe("e2e", () => {
             },
           },
         });
+        await hook(body);
+      }
+      async function hook(body: string) {
         const t = Date.now();
-        const hook = await app.request("/hooks/persona", {
+        const response = await app.request("/hooks/persona", {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -135,8 +138,20 @@ describe("e2e", () => {
           },
           body,
         });
-        const result = await hook.text();
+        const result = await response.text();
         if (result !== JSON.stringify({ code: "ok" })) throw new Error(result);
+      }
+      async function sandboxRequest<T>(endpoint: `/${string}`, method: "GET" | "POST" = "GET") {
+        const response = await fetch(`${env.PERSONA_URL}${endpoint}`, {
+          method,
+          headers: {
+            authorization: `Bearer ${env.PERSONA_API_KEY}`,
+            "key-inflection": "camel",
+            "persona-version": "2023-01-05",
+          },
+        });
+        if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
+        return response.json() as Promise<T>;
       }
       const hostedFlow = new Hono()
         .get("/widget", (c) => {
@@ -263,6 +278,39 @@ describe("e2e", () => {
           app.post("/e2e/review", async (c) => {
             switch (await c.req.text()) {
               case "persona": {
+                if (sandbox) {
+                  for (const { id } of await database.query.credentials.findMany({ columns: { id: true } })) {
+                    const {
+                      data: [latest],
+                    } = await sandboxRequest<{
+                      data: {
+                        attributes: { status: string };
+                        id: string;
+                        relationships: { inquiryTemplate: { data: { id: string } } };
+                      }[];
+                    }>(`/inquiries?page[size]=1&filter[reference-id]=${id}`);
+                    if (!latest) continue;
+                    if (latest.relationships.inquiryTemplate.data.id === PANDA_BUSINESS_CHECKBOX_TEMPLATE) {
+                      if (latest.attributes.status === "completed") {
+                        await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST").catch((error: unknown) => {
+                          if (!(error instanceof ServiceError && error.status === 409)) throw error; // approved by persona
+                        });
+                      } else if (latest.attributes.status !== "approved") continue;
+                      return c.json({ code: "ok" });
+                    }
+                    if (latest.attributes.status !== "completed") continue;
+                    await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST");
+                    const {
+                      data: [approval],
+                    } = await sandboxRequest<{ data: unknown[] }>(
+                      `/events?page[size]=1&filter[object-id]=${latest.id}&filter[name]=inquiry.approved`,
+                    );
+                    if (!approval) throw new Error("no approval event");
+                    await hook(JSON.stringify({ data: approval }));
+                    return c.json({ code: "ok" });
+                  }
+                  break;
+                }
                 const inquiry = [...inquiries.values()].find(({ status }) => status === "completed");
                 if (!inquiry) break;
                 await deliver(inquiry, "approved");
@@ -348,6 +396,8 @@ type Customer = { status: "active" | "not_started" | "under_review" };
 const customers = vi.hoisted(() => new Map<string, Customer>());
 
 const BRIDGE_KYB_TEMPLATE = "itmpl_bridge_kyb";
+
+const sandbox = env.PERSONA_API_KEY !== "persona";
 
 vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
   const original = await importOriginal();
@@ -522,77 +572,91 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
   const original = await importOriginal();
   return {
     ...original,
-    default: (...parameters: Parameters<typeof original.default>) => ({
-      ...original.default(...parameters),
-      getPendingInquiryTemplate: vi.fn().mockImplementation(async (referenceId: string, scope: string) => {
-        if (scope !== "business") return (await approved(referenceId)) ? undefined : original.PANDA_TEMPLATE;
-        return inquiries.get(`${referenceId}:${original.BUSINESS_TEMPLATE}`)?.status === "approved"
-          ? undefined
-          : original.BUSINESS_TEMPLATE;
-      }),
-      evaluateAccount: vi
-        .fn()
-        .mockImplementation(({ data }: persona.UnknownAccountOutput) =>
-          Promise.resolve(data[0] ? undefined : original.PANDA_TEMPLATE),
-        ),
-      getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
-        const key = `${referenceId}:${templateId}`;
-        const inquiry = inquiries.get(key);
-        if (!inquiry) return Promise.resolve();
-        return Promise.resolve({
-          id: inquiry.id,
-          type: "inquiry" as const,
-          attributes: { status: inquiry.status, "reference-id": inquiry.referenceId },
-        });
-      }),
-      createInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
-        const id = `inq_${Math.random().toString(36).slice(2)}`;
-        inquiries.set(`${referenceId}:${templateId}`, { fields: {}, id, status: "created", referenceId, templateId });
-        return Promise.resolve({
-          data: {
-            id,
-            type: "inquiry" as const,
-            attributes: { status: "created" as const, "reference-id": referenceId },
-          },
-        });
-      }),
-      resumeInquiry: vi.fn().mockImplementation((inquiryId: string) => {
-        for (const inquiry of inquiries.values()) {
-          if (inquiry.id === inquiryId && inquiry.status === "created") {
-            inquiry.status = "pending";
-          }
-        }
-        return Promise.resolve({
-          data: { id: inquiryId, type: "inquiry" as const },
-          meta: { "session-token": "mock-session-token" },
-        });
-      }),
-
-      getDocument: vi.fn().mockResolvedValue({
-        id: "doc_mock",
-        attributes: { "back-photo": null, "front-photo": null, "selfie-photo": null, "id-class": "dl" },
-      }),
-      addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
-      getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
-      getAccount: vi.fn().mockImplementation(async (referenceId: string, scope: string) => {
-        if (scope !== "business") return mockAccount(referenceId);
-        const inquiry = inquiries.get(`${referenceId}:${original.BUSINESS_TEMPLATE}`);
-        if (inquiry?.status !== "approved") return;
-        const { day, month, year, ...fields } = inquiry.fields;
-        return {
-          id: `act_${referenceId}`,
-          type: "account" as const,
-          attributes: {
-            "reference-id": referenceId,
-            fields: { ...fields, ubo_birth_date: `${year}-${month}-${day?.padStart(2, "0")}` },
-          },
-        };
-      }),
-      getUnknownAccount: vi.fn().mockImplementation(async (referenceId: string) => {
-        const found = await mockAccount(referenceId);
-        return { data: found ? [found] : [] };
-      }),
-    }),
+    default: (...parameters: Parameters<typeof original.default>) => {
+      const client = original.default(...parameters);
+      return {
+        ...client,
+        getPendingInquiryTemplate: vi
+          .fn()
+          .mockImplementation(async (referenceId: string, scope: persona.AccountScope) => {
+            if (scope !== "business") return (await approved(referenceId)) ? undefined : original.PANDA_TEMPLATE;
+            if (sandbox) return client.getPendingInquiryTemplate(referenceId, scope);
+            return inquiries.get(`${referenceId}:${original.BUSINESS_TEMPLATE}`)?.status === "approved"
+              ? undefined
+              : original.BUSINESS_TEMPLATE;
+          }),
+        evaluateAccount: vi
+          .fn()
+          .mockImplementation(({ data }: persona.UnknownAccountOutput) =>
+            Promise.resolve(data[0] ? undefined : original.PANDA_TEMPLATE),
+          ),
+        ...(!sandbox && {
+          getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
+            const key = `${referenceId}:${templateId}`;
+            const inquiry = inquiries.get(key);
+            if (!inquiry) return Promise.resolve();
+            return Promise.resolve({
+              id: inquiry.id,
+              type: "inquiry" as const,
+              attributes: { status: inquiry.status, "reference-id": inquiry.referenceId },
+            });
+          }),
+          createInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
+            const id = `inq_${Math.random().toString(36).slice(2)}`;
+            inquiries.set(`${referenceId}:${templateId}`, {
+              fields: {},
+              id,
+              status: "created",
+              referenceId,
+              templateId,
+            });
+            return Promise.resolve({
+              data: {
+                id,
+                type: "inquiry" as const,
+                attributes: { status: "created" as const, "reference-id": referenceId },
+              },
+            });
+          }),
+          resumeInquiry: vi.fn().mockImplementation((inquiryId: string) => {
+            for (const inquiry of inquiries.values()) {
+              if (inquiry.id === inquiryId && inquiry.status === "created") {
+                inquiry.status = "pending";
+              }
+            }
+            return Promise.resolve({
+              data: { id: inquiryId, type: "inquiry" as const },
+              meta: { "session-token": "mock-session-token" },
+            });
+          }),
+        }),
+        getDocument: vi.fn().mockResolvedValue({
+          id: "doc_mock",
+          attributes: { "back-photo": null, "front-photo": null, "selfie-photo": null, "id-class": "dl" },
+        }),
+        addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
+        getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
+        getAccount: vi.fn().mockImplementation(async (referenceId: string, scope: persona.AccountScope) => {
+          if (scope !== "business") return mockAccount(referenceId);
+          if (sandbox) return client.getAccount(referenceId, scope);
+          const inquiry = inquiries.get(`${referenceId}:${original.BUSINESS_TEMPLATE}`);
+          if (inquiry?.status !== "approved") return;
+          const { day, month, year, ...fields } = inquiry.fields;
+          return {
+            id: `act_${referenceId}`,
+            type: "account" as const,
+            attributes: {
+              "reference-id": referenceId,
+              fields: { ...fields, ubo_birth_date: `${year}-${month}-${day?.padStart(2, "0")}` },
+            },
+          };
+        }),
+        getUnknownAccount: vi.fn().mockImplementation(async (referenceId: string) => {
+          const found = await mockAccount(referenceId);
+          return { data: found ? [found] : [] };
+        }),
+      };
+    },
   };
 });
 
@@ -943,8 +1007,8 @@ function widget(templateId: string) {
         <button>Complete the form</button>`,
       html`<h1>Just the basics</h1>
         <p>Nothing fancy, just some information about the cardholder</p>
-        ${field("First name", "authUserName")} ${field("Last name", "authUserLastName")} ${field("Email address", "authUserEmail")}
-        ${field("Weekly spending limit", "weeklyCardLimit")}
+        ${field("First name", "authUserName")} ${field("Last name", "authUserLastName")}
+        ${field("Email address", "authUserEmail")} ${field("Weekly spending limit", "weeklyCardLimit")}
         ${check("agreement", [
           "I accept the ",
           link(
