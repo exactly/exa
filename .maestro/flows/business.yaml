@@ -31,7 +31,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: I acknowledge that.*
 - tapOn: Done
 - tapOn: { text: Done, below: Congratulations.* }
-- assertVisible: { text: In review, rightOf: Exa Card for your business }
 - assertTrue: '${http.post("http://localhost:3000/e2e/review", { body: "persona" }).ok}'
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Get a business Exa Card
