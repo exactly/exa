@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { multicall3Abi, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
@@ -73,6 +73,12 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
       .map(({ symbol }) => (symbol === "exaWETH" ? "ETH" : symbol.slice(3)))
       .filter((symbol) => symbol !== "DAI");
   }, [markets]);
+  const { refetch: refetchAccount } = result;
+  const { refetch: refetchPreviews } = previews;
+  const refetch = useCallback(
+    () => Promise.all([refetchAccount(), refetchPreviews()]),
+    [refetchAccount, refetchPreviews],
+  );
   const timestamp = result.data?.[2] ?? BigInt(Math.floor(Date.now() / 1000)); // eslint-disable-line @eslint-react/purity -- fallback until onchain timestamp loads
   const now = Number(timestamp);
   const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
@@ -84,7 +90,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     timestamp,
     firstMaturity: nextMaturity + MATURITY_INTERVAL * Number(nextMaturity - now < MIN_BORROW_INTERVAL),
     queryKey: result.queryKey,
-    refetch: () => Promise.all([result.refetch(), previews.refetch()]),
+    refetch,
     get isFetching() {
       return result.isFetching || previews.isFetching;
     },
