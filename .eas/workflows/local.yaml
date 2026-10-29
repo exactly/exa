@@ -66,7 +66,7 @@ jobs:
           for device in 5554:33:412:915 5556:34:320:640 5558:35:600:960 5560:36:673:841; do
             IFS=: read -r port api width height <<< "$device"
             avdmanager -s create avd -n "e2e$port" -k "system-images;android-$api;google_apis;x86_64" --force
-            printf '%s\n' "hw.ramSize=4096" "vm.heapSize=1024" "hw.lcd.width=$width" "hw.lcd.height=$height" "hw.lcd.density=160" >> "$HOME/.android/avd/e2e$port.avd/config.ini"
+            printf '%s\n' "hw.ramSize=4096" "vm.heapSize=1024" "hw.lcd.width=$width" "hw.lcd.height=$height" "hw.lcd.density=160" "hw.mainKeys=no" >> "$HOME/.android/avd/e2e$port.avd/config.ini"
             setsid $ANDROID_HOME/emulator/emulator -avd "e2e$port" -port "$port" -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 4096 -wipe-data > "emulator-process-$port.log" 2>&1 &
             echo "emulator-$port" >> emulators.serial
           done
@@ -124,6 +124,13 @@ jobs:
             adb -s "$device" shell settings put global window_animation_scale 0
             adb -s "$device" shell settings put global transition_animation_scale 0
             adb -s "$device" shell settings put global animator_duration_scale 0
+            overlay="cmd overlay enable-exclusive --category com.android.internal"
+            case $device in # cspell:ignore esac gestural systemui threebutton
+              emulator-5554) adb -s "$device" shell "$overlay.systemui.navbar.threebutton && settings put system font_scale 1.3" ;;
+              emulator-5556) adb -s "$device" shell "$overlay.systemui.navbar.gestural && $overlay.display.cutout.emulation.tall" ;;
+              emulator-5558) adb -s "$device" shell "$overlay.systemui.navbar.threebutton" ;;
+              emulator-5560) adb -s "$device" shell "$overlay.systemui.navbar.gestural" ;;
+            esac
             for tcp in 3000 8545 8969 9944; do adb -s "$device" reverse "tcp:$tcp" "tcp:$tcp"; done
             adb -s "$device" install "${{ steps.repack.outputs.output_path }}"
             adb -s "$device" logcat -v time > "$device.log" 2>&1 &
@@ -252,7 +259,7 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: start simulators # cspell:ignore bootstatus datamigrator udid
+      - name: start simulators # cspell:ignore bootstatus datamigrator UICT udid
         run: |
           for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone 17" >> simulators.udid; done
           for udid in $(cat simulators.udid); do
@@ -268,6 +275,7 @@ jobs:
           for i in {1..300}; do [ -z "$(jobs -rp)" ] && break; sleep 1; done
           for udid in $(cat simulators.udid); do [ -f "$udid.ready" ] || { echo "simulator $udid failed to start" && exit 1; }; done
           for i in {1..300}; do pgrep -f com.apple.datamigrator > /dev/null || break; sleep 1; done
+          xcrun simctl spawn "$(sed -n 3p simulators.udid)" defaults write com.apple.UIKit UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
       - name: prepare devices
         run: |
           for udid in $(cat simulators.udid); do
