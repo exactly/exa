@@ -1,0 +1,37 @@
+From a621616d1328abed4ab07e068faee42c78a387ab Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 29 Oct 2026 17:14:44 +0000
+Subject: [PATCH] fix: skip tap screenshots that are never compared
+
+A tap on iOS takes a screenshot before it lands, and another one after it when the view hierarchy did not change, only to compare the two and decide whether to tap again. Only a tap with retryTapIfNoChange taps again, and never after its last attempt, so every other screenshot is never compared and costs about 50 ms on an iPhone SE simulator. Take them only when another attempt can follow, and stop after the last attempt without logging a screenshot check that did not happen.
+---
+ maestro-client/src/main/java/maestro/Maestro.kt | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index ddedf17..3a91957 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -452,9 +452,9 @@ class Maestro(
+         LOGGER.info("Try tapping at ($x, $y) using hierarchy based logic for wait")
+ 
+         val hierarchyBeforeTap = initialHierarchy ?: viewHierarchy()
+-        val screenshotBeforeTap: BufferedImage? = runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) }
+ 
+         val retries = getNumberOfRetries(retryIfNoChange)
++        val screenshotBeforeTap: BufferedImage? = if (retries > 1) runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) } else null
+         repeat(retries) {
+             if (longPress) {
+                 runInterruptible(Dispatchers.IO) { driver.longPress(Point(x, y)) }
+@@ -479,6 +479,8 @@ class Maestro(
+                 return
+             }
+ 
++            if (it == retries - 1) return
++
+             LOGGER.info("Tapping at ($x, $y) using screenshot based logic for wait")
+ 
+             val screenshotAfterTap: BufferedImage? = runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) }
+-- 
+2.43.0
+
