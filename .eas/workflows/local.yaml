@@ -278,8 +278,9 @@ jobs:
           xcrun simctl spawn "$(sed -n 3p simulators.udid)" defaults write com.apple.UIKit UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
       - name: prepare devices
         run: |
+          for udid in $(cat simulators.udid); do xcrun simctl install "$udid" "${{ steps.repack.outputs.output_path }}" & installs="$installs $!"; done
+          for install in $installs; do wait "$install"; done
           for udid in $(cat simulators.udid); do
-            xcrun simctl install "$udid" "${{ steps.repack.outputs.output_path }}"
             xcrun simctl spawn "$udid" log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > "simulator-$udid.log" 2>&1 &
           done
           for i in {1..420}; do
