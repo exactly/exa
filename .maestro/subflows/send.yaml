@@ -55,8 +55,6 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: Select network } }
       - tapOn: { text: "${network}", below: All networks }
-- tapOn: Search assets
-- inputText: ${asset}
 - runFlow:
     when: { true: "${!pay}" }
     commands:
@@ -64,6 +62,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!!pay}" }
     commands:
+      - tapOn: Search assets
+      - inputText: ${asset}
       - runFlow: { file: tapAria.yaml, env: { aria: "^${asset} on .+$" } }
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }
 - runFlow:
