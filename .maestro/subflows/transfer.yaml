@@ -15,7 +15,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertNotVisible: Contacts
 - runFlow: { file: tapAria.yaml, env: { aria: Send settings } }
 - tapOn: Advanced mode
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - evalScript: ${output.advanced = true}
 - runFlow: { file: tapAria.yaml, env: { aria: "0x000000000000000000000000000000000000dEaD" } }
 - assertVisible: Select asset to send

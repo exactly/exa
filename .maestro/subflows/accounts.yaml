@@ -11,7 +11,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: ARS Account details
 - tapOn: Fees and transfer times
 - assertVisible: Max ARS 10,000,000
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - tapOn: Dollars from Argentina

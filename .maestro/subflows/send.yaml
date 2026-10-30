@@ -19,7 +19,7 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: Send settings } }
       - tapOn: Advanced mode
-      - tapOn: Close
+      - runFlow: closeSheet.yaml
       - assertVisible: Advanced mode on.
       - evalScript: ${output.advanced = true}
 - runFlow:

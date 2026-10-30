@@ -23,7 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Got it!
 - runFlow: { file: tapAria.yaml, env: { aria: Payment info } }
 - assertVisible: You can repay early and save on interest. The final amount updates automatically before you confirm.
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - tapOn: View statement
 - tapOn: Export
 - tapOn: Copy as plain text
