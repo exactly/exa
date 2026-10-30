@@ -20,11 +20,7 @@ contract LegacyScript is BaseScript {
   {
     address admin = acct("admin");
     IPlugin ownerPlugin = IPlugin(dependency("webauthn-owner-plugin", "WebauthnOwnerPlugin", "Plugin", 0));
-    bytes memory arguments = vm.parseJsonBytes(
-        vm.readFile(string.concat("broadcast/ExaPlugin.s.sol/", vm.toString(block.chainid), "/run-latest.json")),
-        ".transactions[0].transaction.input"
-      )
-      .slice(vm.getCode("ExaPlugin.sol:ExaPlugin").length);
+    bytes memory arguments = broadcastArguments("ExaPlugin");
     bytes memory v0Code = bytes.concat(
       initCode("@exactly/plugin@0.0.1:contracts/broadcast/Deploy.s.sol/10/run-latest.json", 9 * 32)
         .replace(hex"61012c", hex"610001"),
@@ -60,14 +56,5 @@ contract LegacyScript is BaseScript {
     }
     v0Factory = new ExaAccountFactory(admin, ownerPlugin, v0Plugin, ACCOUNT_IMPL, ENTRYPOINT);
     vm.stopBroadcast();
-  }
-
-  function initCode(string memory path, uint256 argumentsLength) internal returns (bytes memory code) {
-    string[] memory git = new string[](3);
-    git[0] = "git";
-    git[1] = "show";
-    git[2] = path;
-    code = vm.parseJsonBytes(string(vm.ffi(git)), ".transactions[0].transaction.input");
-    code = code.slice(0, code.length - argumentsLength);
   }
 }
