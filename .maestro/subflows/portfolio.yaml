@@ -15,7 +15,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Buy
 - runFlow: { file: tapAria.yaml, env: { aria: Sell } }
 - assertVisible: Swaps
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - assertVisible: Sell
 - runFlow: { file: tapAria.yaml, env: { aria: Send } }
 - assertVisible: Send to
@@ -26,15 +26,15 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
       - assertVisible: Advanced mode on.
       - evalScript: ${output.introSheet = output.advanced = true}
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow: { file: scrollTo.yaml, env: { element: Balance } }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow: { file: scrollTo.yaml, env: { element: ETH } }
 - tapOn: ETH
 - assertVisible: "\\+\\$100\\.00 \\(\\+4\\.17%\\)"
 - runFlow: { file: scrollTo.yaml, env: { element: 1M } }
 - tapOn: 1M
 - assertVisible: "\\+\\$200\\.00 \\(\\+8\\.70%\\)"
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - assertVisible: Collateral assets
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }

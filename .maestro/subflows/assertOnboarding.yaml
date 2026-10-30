@@ -4,13 +4,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Remaining steps
 - assertVisible: Verify your identity
 - runFlow: { file: scrollTo.yaml, env: { element: Funds added } }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - tapOn: Card
 - assertVisible: Your card is awaiting activation. Follow the steps to enable it.
 - tapOn: Get started
 - assertVisible: Remaining steps
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - tapOn: { text: Home, leftOf: Card }
 - tapOn: Swap
 - assertVisible: Swap USDC for .+
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }

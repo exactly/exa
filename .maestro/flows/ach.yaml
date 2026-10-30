@@ -19,7 +19,7 @@ tags: [broad]
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Edit contact } }
 - tapOn: Delete contact
 - assertVisible: You don't have any contacts yet.
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow: ../subflows/storeCoverage.yaml
