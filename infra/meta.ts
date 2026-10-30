@@ -249,6 +249,7 @@ const selected = await automation.LocalWorkspace.selectStack(
           const cremaSecrets: readonly string[] = modules.crema;
           for (const secret of new Set([
             ...cremaSecrets,
+            ...modules.indexer,
             ...Object.values(stack.services).flatMap((fields) => fields.secrets),
             ...Object.values(stack.workers).flatMap((worker) => worker.secrets),
           ])) {
@@ -297,6 +298,16 @@ const selected = await automation.LocalWorkspace.selectStack(
             },
             { provider },
           );
+          const indexer = new serviceaccount.Account(
+            `${stack.name}-indexer`,
+            { accountId: `${stack.name}-indexer` },
+            { dependsOn: service, provider },
+          );
+          new serviceaccount.IAMMember(
+            `${stack.name}-indexer`,
+            { member, role: "roles/iam.serviceAccountUser", serviceAccountId: indexer.name },
+            { provider },
+          );
           for (const name of Object.keys(stack.services)) {
             const identity = `${stack.name}-${name === "api" ? name : `${name}-hook`}`;
             const account = new serviceaccount.Account(
@@ -331,6 +342,9 @@ const selected = await automation.LocalWorkspace.selectStack(
           for (const [name, role] of [
             ["artifact-registry", "roles/artifactregistry.editor"],
             ["compute-network", "roles/compute.networkAdmin"],
+            ["logging", "roles/logging.configWriter"],
+            ["monitoring-alerts", "roles/monitoring.alertPolicyEditor"],
+            ["monitoring-channels", "roles/monitoring.notificationChannelViewer"],
             ["run", "roles/run.developer"],
             ["service-usage", "roles/serviceusage.serviceUsageAdmin"],
           ] as const) {

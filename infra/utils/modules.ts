@@ -1,6 +1,7 @@
 export default define({
   common: ["redis-url", "sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
+  indexer: ["indexer-postgres-url", "indexer-rpc-url"],
   services: {
     api: {
       secrets: [
@@ -87,35 +88,41 @@ export default define({
 function define<
   const Common extends readonly string[],
   const Crema extends readonly string[],
+  const Indexer extends readonly string[],
   const Services extends Configs = Configs,
   const Workers extends Configs = Configs,
 >({
   common,
   crema,
+  indexer,
   services,
   workers,
 }: {
   readonly common: Common;
   readonly crema: Crema;
+  readonly indexer: Indexer;
   readonly services?: Exact<Services>;
   readonly workers?: Exact<Workers>;
 }): {
   readonly crema: Crema;
+  readonly indexer: Indexer;
   readonly services: { readonly [Name in keyof Services]: Module<Name & string, Services[Name], Common> };
   readonly workers: { readonly [Name in keyof Workers]: Module<Name & string, Workers[Name], Common> };
 };
 function define({
   common,
   crema,
+  indexer,
   services = {},
   workers = {},
 }: {
   readonly common: readonly string[];
   readonly crema: readonly string[];
+  readonly indexer: readonly string[];
   readonly services?: Configs;
   readonly workers?: Configs;
 }) {
-  return { crema, services: modules(services, common), workers: modules(workers, common) };
+  return { crema, indexer, services: modules(services, common), workers: modules(workers, common) };
 }
 
 function modules(specs: Configs, common: readonly string[]) {

@@ -42,7 +42,7 @@ jobs:
       - run: pulumi up --stack "$STACK" --cwd infra --refresh --yes --config "exa:rollout=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --config "exa:serverImage=sha-$GITHUB_SHA"
       - run: pulumi stack output --json --cwd infra | jq -r '"## egress\n\n`\(.egressIp)`\n\n## services\n", (.services | to_entries[] | "- \(.key) <\(.value)>")' >> "$GITHUB_STEP_SUMMARY"
   digitalocean:
-    needs: sentry
+    needs: infra
     runs-on: ubuntu-latest
     environment: { name: "${{ inputs.stack }}", url: "https://${{ env.APP_DOMAIN }}" }
     permissions: { contents: read }

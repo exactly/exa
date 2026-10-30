@@ -1157,6 +1157,20 @@ describe("plugin 1.0.0", () => {
       }),
     });
     await withdraw(2n * 10n ** 16n, padHex("0x420", { size: 20 }));
+    const head = Number(await anvilClient.getBlockNumber({ cacheTime: 0 }));
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        assert.ok(
+          Object.values(status).some(({ block }) => block.number >= head),
+          "indexer behind",
+        );
+      },
+      { timeout: 10_000 },
+    );
   });
 
   it("returns withdraws proposed on the manager each plugin had when executing", async () => {

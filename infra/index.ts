@@ -3,6 +3,8 @@ import {
   cloudrunv2,
   compute,
   kms,
+  logging,
+  monitoring,
   parametermanager,
   projects,
   secretmanager,
@@ -31,10 +33,12 @@ const enabled = <Spec>(specs: Readonly<Record<string, Spec>>) =>
   Object.entries(specs).filter(([name]) => !disabled.has(name));
 const project = new Config("gcp").require("project");
 const location = config.get("location") ?? "us-west1";
+const rollout = hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16);
 const run = new projects.Service("run", { service: "run.googleapis.com" });
 const engine = new projects.Service("compute", { service: "compute.googleapis.com" });
 const registry = new projects.Service("artifactregistry", { service: "artifactregistry.googleapis.com" });
 const parameterManager = new projects.Service("parametermanager", { service: "parametermanager.googleapis.com" });
+const monitor = new projects.Service("monitoring", { service: "monitoring.googleapis.com" });
 
 const network = new compute.Network(
   "network",
@@ -187,7 +191,7 @@ const pools = workers.map(({ dependencies, name, template }) => {
       deletionProtection: false,
       location,
       name: `${stack}-${name}-check`,
-      runExecutionToken: hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16),
+      runExecutionToken: rollout,
       template: {
         template: {
           ...template,
@@ -211,6 +215,128 @@ const pools = workers.map(({ dependencies, name, template }) => {
     ),
   };
 });
+
+const indexer = serviceaccount.getAccountOutput({ accountId: `${stack}-indexer` });
+const indexerDeployment = `${stack}-indexer-${config.require("serverImage").slice(0, 16)}`;
+const indexerTimeout = config.getNumber("indexerTimeout") ?? 3600;
+const indexerTemplate = {
+  serviceAccount: indexer.email,
+  vpcAccess: { egress: "ALL_TRAFFIC", networkInterfaces: [{ network: network.id, subnetwork: subnet.id }] },
+};
+const indexerContainer = {
+  image,
+  workingDir: "/prod/indexer",
+  envs: Object.entries({ POSTGRES_URL: "indexer-postgres-url", RPC_URL: "indexer-rpc-url" }).map(([name, secret]) => ({
+    name,
+    valueSource: { secretKeyRef: { secret: `${stack}-${secret}`, version: "latest" } },
+  })),
+};
+const indexerAccess = modules.indexer.map(
+  (secret) =>
+    new secretmanager.SecretIamMember(`indexer-${secret}-access`, {
+      member: interpolate`serviceAccount:${indexer.email}`,
+      role: "roles/secretmanager.secretAccessor",
+      secretId: `projects/${project}/secrets/${stack}-${secret}`,
+    }),
+);
+const indexerPool = new cloudrunv2.WorkerPool(
+  "indexer",
+  {
+    deletionProtection: false,
+    location,
+    name: indexerDeployment,
+    scaling: { manualInstanceCount: 1 },
+    template: {
+      ...indexerTemplate,
+      containers: [
+        {
+          ...indexerContainer,
+          commands: ["dumb-init", "node_modules/.bin/ponder"],
+          args: ["start", "--schema", indexerDeployment, "--log-format", "json"],
+          resources: { limits: { memory: "1Gi" } },
+        },
+      ],
+    },
+  },
+  { dependsOn: [run, gateway, ...indexerAccess] },
+);
+const indexerPromote = new cloudrunv2.Job(
+  "indexer-promote",
+  {
+    deletionProtection: false,
+    location,
+    name: `${stack}-indexer-promote`,
+    runExecutionToken: rollout,
+    template: {
+      template: {
+        ...indexerTemplate,
+        containers: [
+          {
+            ...indexerContainer,
+            commands: ["node", "promote.ts"],
+            args: [indexerDeployment],
+          },
+        ],
+        maxRetries: 0,
+        timeout: `${indexerTimeout}s`,
+      },
+    },
+  },
+  {
+    dependsOn: [run, gateway, ...indexerAccess, indexerPool],
+    customTimeouts: { create: `${indexerTimeout + 600}s`, update: `${indexerTimeout + 600}s` },
+  },
+);
+const indexerChannel = monitoring.getNotificationChannelOutput(
+  { type: "slack", labels: { channel_name: config.require("alertChannel") } },
+  { dependsOn: monitor },
+);
+const indexed = new logging.Metric(
+  "indexer-indexed",
+  {
+    name: `${stack}-indexer-indexed`,
+    filter: `resource.type="cloud_run_worker_pool" AND resource.labels.worker_pool_name="${indexerDeployment}" AND jsonPayload.msg="Indexed block"`,
+    metricDescriptor: { metricKind: "DELTA", valueType: "INT64" },
+  },
+  { dependsOn: indexerPromote },
+);
+new monitoring.AlertPolicy(
+  "indexer-stalled",
+  {
+    displayName: `${stack} indexer stalled`,
+    combiner: "OR",
+    conditions: [
+      {
+        displayName: "no block indexed for 5 min",
+        conditionAbsent: {
+          filter: interpolate`metric.type="logging.googleapis.com/user/${indexed.name}"`,
+          duration: "300s",
+          aggregations: [{ alignmentPeriod: "60s", perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" }],
+        },
+      },
+    ],
+    notificationChannels: [indexerChannel.name],
+  },
+  { dependsOn: monitor },
+);
+new monitoring.AlertPolicy(
+  "indexer-errors",
+  {
+    displayName: `${stack} indexer errors`,
+    combiner: "OR",
+    conditions: [
+      {
+        displayName: "error logged",
+        conditionMatchedLog: {
+          filter: `resource.type="cloud_run_worker_pool" AND resource.labels.worker_pool_name=~"^${stack}-indexer-" AND (jsonPayload.level>=50 OR (log_id("run.googleapis.com/varlog/system") AND severity>=ERROR))`, // cspell:ignore varlog
+        },
+      },
+    ],
+    alertStrategy: { notificationRateLimit: { period: "300s" }, autoClose: "1800s" },
+    notificationChannels: [indexerChannel.name],
+  },
+  { dependsOn: monitor },
+);
 
 const crema = serviceaccount.getAccountOutput({ accountId: `${stack}-crema` });
 const cremaConfig = JSON.stringify({
