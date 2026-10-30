@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -19,7 +19,6 @@ import ExaLogoSignature from "../../assets/images/exa-logo-signature.svg";
 import VisaLogoDark from "../../assets/images/visa-logo-dark.svg";
 import VisaLogoLight from "../../assets/images/visa-logo-light.svg";
 import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
-import { decrypt } from "../../utils/panda";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
@@ -36,157 +35,144 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   const toast = useToastController();
   const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
-  const { data: cardId } = useQuery<CardDetailsData, Error, string | undefined>({
-    queryKey: ["card", "details"],
-    select: (details) => details?.cardId,
-  });
-  const { data: card, isPending } = useQuery<CardSecrets>({
-    queryKey: ["card", "secrets", cardId],
+  const { data: details } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
+  const { data, isPending } = useQuery<CardSecrets>({
+    queryKey: ["card", "secrets", details?.cardId],
     enabled: open,
     staleTime: (query) => (query.state.data ? Infinity : 0),
   });
+  const card = isPending ? { ...placeholder, ...details } : data;
   const banner = card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
-  const [details, setDetails] = useState({ pan: "", cvc: "" });
-  useEffect(() => {
-    if (card?.encryptedPan && card.encryptedCvc) {
-      Promise.all([
-        decrypt(card.encryptedPan.data, card.encryptedPan.iv, card.secret),
-        decrypt(card.encryptedCvc.data, card.encryptedCvc.iv, card.secret),
-      ])
-        .then(([pan, cvc]) => {
-          setDetails({ pan, cvc });
-        })
-        .catch(reportError);
-    }
-  }, [card]);
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
         <ScrollView>
           <View fullScreen flex={1} alignItems="center" width="100%">
             <View gap="$s5" flex={1} padded alignItems="center" width="100%">
-              {isPending ? (
-                <Skeleton height={200} width="100%" />
-              ) : card ? (
-                <YStack
-                  borderRadius="$r3"
-                  borderWidth={1}
-                  borderColor="$borderNeutralSoft"
-                  backgroundColor={
-                    card.productId === BASE_PRODUCT_ID
-                      ? "$baseBlue"
-                      : card.productId === SIGNATURE_PRODUCT_ID
-                        ? "$cardBackground"
-                        : "$uiNeutralPrimary"
-                  }
-                  paddingHorizontal="$s5"
-                  paddingTop="$s9"
-                  paddingBottom="$s9"
-                  justifyContent="space-between"
-                  width="100%"
-                  gap="$s4"
-                >
-                  {banner ? (
-                    <>
-                      <View position="absolute" top="$s4" left="$s5">
-                        <ExaLogoSignature height={20} width={63} />
-                      </View>
-                      <View position="absolute" top="$s4" right="$s5">
-                        <VisaLogoSignature height={40} width={72} />
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View position="absolute" top="$s4" left="$s5">
-                        {theme === "light" ? (
-                          <ExaLogoLight height={20} width={63} />
-                        ) : (
-                          <ExaLogoDark height={20} width={63} />
-                        )}
-                      </View>
-                      <View position="absolute" bottom="$s4" right="$s5">
-                        {theme === "light" ? (
-                          <VisaLogoLight height={40} width={72} />
-                        ) : (
-                          <VisaLogoDark height={40} width={72} />
-                        )}
-                      </View>
-                    </>
-                  )}
-                  <XStack gap="$s4" alignItems="center" flexWrap="wrap">
-                    <Text
-                      headline
-                      letterSpacing={2}
-                      mono
-                      color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
-                    >
-                      {details.pan.match(/.{1,4}/g)?.join(" ") ?? ""}
-                    </Text>
-                    <IconButton
-                      icon={Copy}
-                      size={16}
-                      color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
-                      onPress={() => {
-                        setStringAsync(details.pan)
-                          .then(() => {
-                            toast.show(t("Card number copied!"), {
-                              duration: 1000,
-                              burntOptions: { haptic: "success" },
-                            });
-                          })
-                          .catch(reportError);
-                      }}
-                    />
-                  </XStack>
-                  <XStack gap="$s5" alignItems="center" flexWrap="wrap">
-                    <XStack alignItems="center" gap="$s3">
-                      <Text
-                        caption
-                        color={
-                          card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
-                        }
-                      >
-                        {t("Expires")}
-                      </Text>
+              {card ? (
+                <Skeleton show={isPending} width="100%" disableExitAnimation>
+                  <YStack
+                    aria-hidden={isPending}
+                    borderRadius="$r3"
+                    borderWidth={1}
+                    borderColor="$borderNeutralSoft"
+                    backgroundColor={
+                      card.productId === BASE_PRODUCT_ID
+                        ? "$baseBlue"
+                        : card.productId === SIGNATURE_PRODUCT_ID
+                          ? "$cardBackground"
+                          : "$uiNeutralPrimary"
+                    }
+                    paddingHorizontal="$s5"
+                    paddingTop="$s9"
+                    paddingBottom="$s9"
+                    justifyContent="space-between"
+                    width="100%"
+                    gap="$s4"
+                  >
+                    {banner ? (
+                      <>
+                        <View position="absolute" top="$s4" left="$s5">
+                          <ExaLogoSignature height={20} width={63} />
+                        </View>
+                        <View position="absolute" top="$s4" right="$s5">
+                          <VisaLogoSignature height={40} width={72} />
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View position="absolute" top="$s4" left="$s5">
+                          {theme === "light" ? (
+                            <ExaLogoLight height={20} width={63} />
+                          ) : (
+                            <ExaLogoDark height={20} width={63} />
+                          )}
+                        </View>
+                        <View position="absolute" bottom="$s4" right="$s5">
+                          {theme === "light" ? (
+                            <VisaLogoLight height={40} width={72} />
+                          ) : (
+                            <VisaLogoDark height={40} width={72} />
+                          )}
+                        </View>
+                      </>
+                    )}
+                    <XStack gap="$s4" alignItems="center" flexWrap="wrap">
                       <Text
                         headline
                         letterSpacing={2}
                         mono
                         color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                       >
-                        {`${card.expirationMonth}/${card.expirationYear.length === 4 ? card.expirationYear.slice(-2) : card.expirationYear}`}
+                        {card.pan?.match(/.{1,4}/g)?.join(" ") ?? ""}
                       </Text>
+                      <IconButton
+                        icon={Copy}
+                        disabled={isPending}
+                        size={16}
+                        color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
+                        onPress={() => {
+                          setStringAsync(card.pan ?? "")
+                            .then(() => {
+                              toast.show(t("Card number copied!"), {
+                                duration: 1000,
+                                burntOptions: { haptic: "success" },
+                              });
+                            })
+                            .catch(reportError);
+                        }}
+                      />
                     </XStack>
-                    <XStack alignItems="center" gap="$s3">
+                    <XStack gap="$s5" alignItems="center" flexWrap="wrap">
+                      <XStack alignItems="center" gap="$s3">
+                        <Text
+                          caption
+                          color={
+                            card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
+                          }
+                        >
+                          {t("Expires")}
+                        </Text>
+                        <Text
+                          headline
+                          letterSpacing={2}
+                          mono
+                          color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
+                        >
+                          {`${card.expirationMonth}/${card.expirationYear.length === 4 ? card.expirationYear.slice(-2) : card.expirationYear}`}
+                        </Text>
+                      </XStack>
+                      <XStack alignItems="center" gap="$s3">
+                        <Text
+                          caption
+                          color={
+                            card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
+                          }
+                        >
+                          {t("CVV")}
+                        </Text>
+                        <Text
+                          headline
+                          letterSpacing={2}
+                          mono
+                          color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
+                        >
+                          {card.cvc}
+                        </Text>
+                      </XStack>
+                    </XStack>
+                    <YStack>
                       <Text
-                        caption
-                        color={
-                          card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInverseSecondary" : "$grayscaleLight3"
-                        }
-                      >
-                        {t("CVV")}
-                      </Text>
-                      <Text
+                        emphasized
                         headline
                         letterSpacing={2}
-                        mono
                         color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
                       >
-                        {details.cvc}
+                        {card.displayName}
                       </Text>
-                    </XStack>
-                  </XStack>
-                  <YStack>
-                    <Text
-                      emphasized
-                      headline
-                      letterSpacing={2}
-                      color={card.productId === PLATINUM_PRODUCT_ID ? "$uiNeutralInversePrimary" : "white"}
-                    >
-                      {card.displayName}
-                    </Text>
+                    </YStack>
                   </YStack>
-                </YStack>
+                </Skeleton>
               ) : null}
               {card && alertShown ? (
                 <DismissableAlert
@@ -210,3 +196,12 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
     </ModalSheet>
   );
 }
+
+const placeholder = {
+  productId: "",
+  displayName: "-",
+  expirationMonth: "00",
+  expirationYear: "00",
+  pan: "0000000000000000",
+  cvc: "000",
+};
