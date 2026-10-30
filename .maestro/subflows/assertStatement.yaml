@@ -18,4 +18,4 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: ${merchant}.*
 - assertVisible: Installment 2 of 3
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
