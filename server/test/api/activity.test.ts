@@ -265,7 +265,9 @@ describe.concurrent("authenticated", () => {
           if (cryptomate.success) return { ...cryptomate.output, cardId, lastFour };
           throw new Error("bad test setup");
         })
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+        .toSorted(
+          (a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id, undefined, { numeric: true }),
+        );
       const operation = activity
         .flatMap((item) => ("operations" in item ? item.operations : []))
         .find((item) => "borrow" in item && "installments" in item.borrow);

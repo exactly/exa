@@ -434,7 +434,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         }),
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+        .toSorted(
+          (a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id, undefined, { numeric: true }),
+        );
 
       if (maturity !== undefined && pdf) {
         const purchasesByCard = Map.groupBy(
