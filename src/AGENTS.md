@@ -16,7 +16,7 @@
 - **props**:
   - keep prop interfaces minimal.
   - do not pass entire objects if only a few fields are needed. pass only what's required.
-- **inputs in sheets**: on native, `ModalSheet` content gets its owner's updates one commit late, so on ios a controlled input whose state lives in the sheet's owner can drop typed keys. keep that state in a component inside the sheet. the sheet unmounts its content after it closes, so the next open starts empty without a reset or a `key`.
+- **inputs in sheets**: on ios, a controlled input can drop typed keys when every keystroke re-renders a heavy component, such as the screen that owns the sheet. keep the input's state in a component inside the sheet. the sheet unmounts its content after it closes, so the next open starts empty without a reset or a `key`.
 - **inline prop types**: always define component props inline with destructuring. never extract to separate type definitions.
   - ✅ `function Card({ title, isActive }: { title: string; isActive: boolean })`
   - ❌ `type CardProps = { title: string; isActive: boolean }; function Card({ title, isActive }: CardProps)`
