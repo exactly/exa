@@ -4,17 +4,16 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 
 import { ArrowLeft } from "@tamagui/lucide-icons-2";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { ScrollView, XStack, YStack } from "tamagui";
 
 import HistorySheet from "./HistorySheet";
-import PaymentRow from "./PaymentRow";
+import PaymentList from "./PaymentList";
 import queryClient from "../../utils/queryClient";
 import useMarkets from "../../utils/useMarkets";
 import useStatements from "../../utils/useStatements";
 import IconButton from "../shared/IconButton";
 import RefreshControl from "../shared/RefreshControl";
 import SafeView from "../shared/SafeView";
-import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
@@ -64,27 +63,16 @@ export default function History() {
             {t("Payment history")}
           </Text>
         </XStack>
-        {past === undefined ? (
-          <YStack paddingHorizontal="$s5" paddingBottom="$s5" gap="$s4">
-            <Skeleton height={20} width="100%" />
-            <Skeleton height={20} width="100%" />
-            <Skeleton height={20} width="100%" />
-          </YStack>
-        ) : past.length === 0 ? (
+        {past?.length === 0 ? (
           <YStack alignItems="center" justifyContent="center" paddingVertical="$s7">
             <Text emphasized headline color="$uiNeutralSecondary">
               {t("No payments yet")}
             </Text>
           </YStack>
         ) : (
-          <YStack role="list" paddingHorizontal="$s5" paddingBottom="$s5" gap="$s4">
-            {past.map((maturity, index) => (
-              <React.Fragment key={maturity}>
-                {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
-                <PaymentRow maturity={maturity} onSelect={setSelected} />
-              </React.Fragment>
-            ))}
-          </YStack>
+          <View paddingHorizontal="$s3" paddingBottom="$s5">
+            <PaymentList past={past} onSelect={setSelected} />
+          </View>
         )}
       </ScrollView>
       <HistorySheet maturity={selected} onClose={() => setSelected(undefined)} />
