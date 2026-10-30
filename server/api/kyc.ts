@@ -4,8 +4,30 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { array, literal, metadata, number, object, optional, parse, picklist, pipe, string, union } from "valibot";
-import { getAddress, sha256, verifyMessage } from "viem";
+import {
+  array,
+  fallback,
+  flatten,
+  is,
+  literal,
+  maxLength,
+  metadata,
+  minLength,
+  nullable,
+  nullish,
+  number,
+  object,
+  optional,
+  parse,
+  picklist,
+  pipe,
+  safeParse,
+  string,
+  transform,
+  trim,
+  union,
+} from "valibot";
+import { sha256, verifyMessage } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
@@ -19,15 +41,19 @@ import { Address, Hex } from "@exactly/common/validation";
 import { credentials, walletAddresses } from "../database/schema";
 import { origin } from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
-import { Application, UpdateApplicationRequest as ApplicationUpdate } from "../utils/panda";
+import { Application, UpdateApplicationRequest as ApplicationUpdate, BusinessApplicationError } from "../utils/panda";
 import {
+  BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
+  BUSINESS_TEMPLATE,
   CARD_LIMIT_TEMPLATE,
   CRYPTOMATE_TEMPLATE,
+  PANDA_BUSINESS_CHECKBOX_TEMPLATE,
   PANDA_TEMPLATE,
   parseAccount,
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
+import { IpAddress } from "../utils/sardine";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 
@@ -45,8 +71,8 @@ const canonicalize = import("canonicalize").then(({ default: serialize }) => ser
 const KYCStatusResponse = object({
   code: pipe(string(), metadata({ examples: ["ok"] })),
   legacy: pipe(string(), metadata({ examples: ["ok"] })),
-  status: pipe(string(), metadata({ examples: ["approved", "denied"] })),
   reason: pipe(string(), metadata({ examples: ["", "BAD_SELFIE"] })),
+  status: pipe(string(), metadata({ examples: ["approved", "denied"] })),
 });
 
 const BadRequestCodes = {
@@ -54,6 +80,8 @@ const BadRequestCodes = {
   NOT_STARTED: "not started",
   BAD_REQUEST: "bad request",
 } as const;
+
+const businessSteps = [PANDA_BUSINESS_CHECKBOX_TEMPLATE, BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE] as const;
 
 function buildBaseResponse(example = "string") {
   return object({
@@ -81,7 +109,7 @@ export default function route({
         "query",
         object({
           countryCode: optional(literal("true")),
-          scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+          scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"])),
         }),
         validatorHook(),
       ),
@@ -98,6 +126,44 @@ export default function route({
         const account = parse(Address, credential.account);
         setUser({ id: account });
         setContext("exa", { credential });
+
+        if (scope === "panda-business") {
+          const application = await panda.getCompanyApplication(credentialId);
+          if (!application) return c.json({ code: BadRequestCodes.NOT_STARTED }, 400);
+          const status = application.applicationStatus ?? "unknown";
+          let code = "processing";
+          if (status === "approved") code = "ok";
+          else if (status === "denied" || status === "locked" || status === "canceled") code = "bad kyb";
+          const state = {
+            code,
+            completionLink: application.applicationCompletionLink ?? undefined,
+            reason: application.applicationReason ?? "unknown",
+            status,
+            verificationLink: application.applicationExternalVerificationLink ?? undefined,
+          };
+          if (state.code !== "ok") return c.json(state, state.code === "bad kyb" ? 400 : 200);
+          for (const template of businessSteps) {
+            const inquiry = await persona.getInquiry(credentialId, template);
+            if (!inquiry) return c.json({ code: BadRequestCodes.NOT_STARTED }, 400);
+            switch (inquiry.attributes.status) {
+              case "approved":
+                break;
+              case "created":
+              case "pending":
+              case "expired":
+                return c.json({ code: BadRequestCodes.NOT_STARTED }, 400);
+              case "completed":
+              case "needs_review":
+                return c.json({ code: "processing" }, 400);
+              case "failed":
+              case "declined":
+                return c.json({ code: "bad kyc" }, 400);
+              default:
+                throw new Error("unknown inquiry status");
+            }
+          }
+          return c.json(state, 200);
+        }
 
         if (scope === "cardLimit") {
           const unknownAccount = c.req.valid("query").countryCode
@@ -170,7 +236,8 @@ export default function route({
             const personaAccount = await persona.getAccount(credentialId, scope).catch((error: unknown) => {
               captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
             });
-            const countryCode = personaAccount?.attributes["country-code"];
+            const attributes = personaAccount?.attributes;
+            const countryCode = attributes && "country-code" in attributes ? attributes["country-code"] : undefined;
             countryCode && c.header("User-Country", countryCode);
           }
           return c.json({ code: "ok", legacy: "ok" }, 200);
@@ -203,10 +270,34 @@ export default function route({
       "/",
       auth,
       vValidator(
+        "header",
+        optional(
+          pipe(
+            object({
+              "do-connecting-ip": fallback(optional(IpAddress), () => undefined),
+              "x-forwarded-for": fallback(
+                optional(
+                  pipe(
+                    string(),
+                    transform((value) => value.slice(value.lastIndexOf(",") + 1).trim()),
+                    IpAddress,
+                  ),
+                ),
+                () => undefined,
+              ),
+            }),
+            transform(({ "do-connecting-ip": ip, "x-forwarded-for": forwarded }) => ({
+              ip: ip ?? forwarded,
+            })),
+          ),
+        ),
+        validatorHook({ debug }),
+      ),
+      vValidator(
         "json",
         object({
           redirectURI: optional(string()),
-          scope: optional(picklist(["basic", "bridge", "cardLimit", "manteca"])),
+          scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"])),
         }),
         validatorHook({ debug }),
       ),
@@ -216,12 +307,197 @@ export default function route({
         const scope = payload.scope ?? "basic";
         const redirectURI = payload.redirectURI;
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true },
+          columns: { id: true, account: true, pandaId: true, salt: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
-        setUser({ id: parse(Address, credential.account) });
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
         setContext("exa", { credential });
+
+        if (scope === "panda-business") {
+          const ip = c.req.valid("header")?.ip;
+          if (!ip) {
+            return c.json({ code: BadRequestCodes.BAD_REQUEST, message: ["missing valid client IP address"] }, 400);
+          }
+          try {
+            let application = await panda.getCompanyApplication(credentialId);
+            if (!application) {
+              const inquiry = await persona.getInquiry(credentialId, BUSINESS_TEMPLATE);
+              if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started");
+              if (inquiry.attributes["reference-id"] !== credentialId)
+                throw new BusinessApplicationError("business inquiry does not match credential", "bad request");
+              switch (inquiry.attributes.status) {
+                case "created":
+                case "expired":
+                case "pending":
+                  throw new BusinessApplicationError("business inquiry is not started", "not started");
+                case "failed":
+                case "declined":
+                  throw new BusinessApplicationError("business inquiry failed", "bad kyb");
+                case "completed":
+                case "needs_review":
+                  throw new BusinessApplicationError("business inquiry is not complete", "processing");
+                case "approved":
+                  break;
+              }
+              const personaAccount = await persona.getAccount(credentialId, "business");
+              if (!personaAccount) throw new BusinessApplicationError("business account not started", "not started");
+              if (personaAccount.attributes["reference-id"] !== credentialId)
+                throw new BusinessApplicationError("business account is not complete", "processing");
+              const profile = { ...personaAccount.attributes.fields };
+              for (const [name, value] of Object.entries(inquiry.attributes.fields ?? {})) {
+                const field = name.replaceAll("-", "_");
+                if (
+                  is(nullish(pipe(string(), trim(), maxLength(0))), profile[field]) &&
+                  !is(nullish(pipe(string(), trim(), maxLength(0))), value)
+                )
+                  profile[field] = value;
+              }
+              const result = safeParse(BusinessFields, profile);
+              if (!result.success) {
+                setContext("validation", { flatten: flatten(result.issues) });
+                if (
+                  result.issues.every(
+                    (issue) =>
+                      (issue.kind === "schema" && (issue.received === "null" || issue.input === undefined)) ||
+                      (issue.kind === "validation" && issue.received === "0"),
+                  )
+                )
+                  throw new BusinessApplicationError("business account is not complete", "processing");
+                throw new BusinessApplicationError("invalid business Persona fields", "bad request");
+              }
+              const fields = result.output;
+              const owners = [
+                ...new Set(
+                  Object.keys(profile)
+                    .filter((key) => key.startsWith("ubo_"))
+                    .map((key) => Number(/_(\d+)$/.exec(key)?.[1] ?? 1)),
+                ),
+              ]
+                .toSorted((a, b) => a - b)
+                .flatMap((index) => {
+                  const address = index + 2;
+                  const block = {
+                    birth_date: profile[index === 1 ? "ubo_birth_date" : `ubo_birth_date_${index}`],
+                    city: profile[`city_${address}`],
+                    country_code: profile[`country_code_${address}`],
+                    country_id: profile[`ubo_country_id_${index}`],
+                    email: profile[`ubo_email_${index}`],
+                    id: profile[`ubo_id_${index}`],
+                    last_name: profile[`ubo_last_name_${index}`],
+                    name: profile[`ubo_name_${index}`],
+                    postal_code: profile[`postal_code_${address}`],
+                    street_1: profile[`street_1_${address}`],
+                    street_2: profile[`street_2_${index + 1}`],
+                    subdivision: profile[`subdivision_${address}`],
+                  };
+                  if (Object.values(block).every((value) => is(nullish(pipe(string(), trim(), maxLength(0))), value)))
+                    return [];
+                  const parsed = safeParse(UboFields, block);
+                  if (!parsed.success) {
+                    setContext("validation", { flatten: flatten(parsed.issues) });
+                    if (
+                      parsed.issues.every(
+                        (issue) =>
+                          (issue.kind === "schema" && (issue.received === "null" || issue.input === undefined)) ||
+                          (issue.kind === "validation" && issue.received === "0"),
+                      )
+                    )
+                      throw new BusinessApplicationError("business account is not complete", "processing");
+                    throw new BusinessApplicationError("invalid business Persona fields", "bad request");
+                  }
+                  const ubo = parsed.output;
+                  return [
+                    {
+                      address: {
+                        line1: ubo.street_1,
+                        line2: ubo.street_2,
+                        city: ubo.city,
+                        region: ubo.subdivision,
+                        postalCode: ubo.postal_code,
+                        countryCode: ubo.country_code,
+                      },
+                      birthDate: ubo.birth_date,
+                      countryOfIssue: ubo.country_id,
+                      email: ubo.email,
+                      firstName: ubo.name,
+                      lastName: ubo.last_name,
+                      nationalId: ubo.id,
+                    },
+                  ];
+                });
+              const [owner] = owners;
+              if (!owner) throw new BusinessApplicationError("business account is not complete", "processing");
+              application = await panda.createCompanyApplication(credentialId, {
+                name: fields.business_name,
+                address: {
+                  line1: fields.street_1_2,
+                  line2: fields.street_2,
+                  city: fields.city_2,
+                  region: fields.subdivision_2,
+                  postalCode: fields.postal_code_2,
+                  countryCode: fields.country_code_2,
+                },
+                entity: {
+                  name: fields.business_name,
+                  description: fields.company_description,
+                  industry: fields.company_industry_naics,
+                  registrationNumber: fields.company_registration_number,
+                  taxId: fields.company_tax_id,
+                  website: fields.company_website,
+                },
+                initialUser: { ...owner, ipAddress: ip, walletAddress: account },
+                representatives: [owner],
+                ultimateBeneficialOwners: owners,
+              });
+            }
+            const status = application.applicationStatus;
+            let code = "processing";
+            if (status === "approved") code = "ok";
+            else if (status === "denied" || status === "locked" || status === "canceled") code = "bad kyb";
+            if (code === "ok") {
+              for (const template of businessSteps) {
+                const inquiry = await persona.getInquiry(credentialId, template);
+                if (!inquiry) {
+                  const { data } = await persona.createInquiry(credentialId, template, redirectURI);
+                  return c.json(await generateInquiryTokens(data.id, persona), 200);
+                }
+                switch (inquiry.attributes.status) {
+                  case "created":
+                  case "pending":
+                  case "expired":
+                    return c.json(await generateInquiryTokens(inquiry.id, persona), 200);
+                  case "completed":
+                  case "needs_review":
+                    return c.json({ code: "processing" }, 400);
+                  case "failed":
+                  case "declined":
+                    return c.json({ code: "bad kyc" }, 400);
+                  case "approved":
+                    break;
+                  default:
+                    throw new Error("unknown inquiry status");
+                }
+              }
+            }
+            return c.json(
+              {
+                code,
+                completionLink: application.applicationCompletionLink ?? undefined,
+                type: "panda" as const,
+                verificationLink: application.applicationExternalVerificationLink ?? undefined,
+              },
+              code === "bad kyb" ? 400 : 200,
+            );
+          } catch (error: unknown) {
+            if (error instanceof BusinessApplicationError)
+              return c.json({ code: error.code, message: [error.message] }, 400);
+            if (error instanceof ServiceError && error.status === 400)
+              return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
+            throw error;
+          }
+        }
 
         if (scope === "cardLimit") {
           const cardLimit = await persona.getCardLimitStatus(credentialId);
@@ -720,7 +996,7 @@ async function isLegacy(
       address: account,
       functionName: "getInstalledPlugins",
       abi: upgradeableModularAccountAbi,
-      factory: getAddress(factory),
+      factory: parse(Address, factory),
       factoryData: accountInit({ ...decodePublicKey(publicKey), salt }),
     });
     if (installedPlugin.length === 0) return false;
@@ -734,10 +1010,53 @@ async function isLegacy(
   });
 }
 
-async function generateInquiryTokens(
-  inquiryId: string,
-  persona: ReturnType<typeof createPersona>,
-): Promise<{ inquiryId: string; sessionToken: string }> {
+async function generateInquiryTokens(inquiryId: string, persona: ReturnType<typeof createPersona>) {
   const { meta: sessionTokenMeta } = await persona.resumeInquiry(inquiryId);
-  return { inquiryId, sessionToken: sessionTokenMeta["session-token"] };
+  return { inquiryId, sessionToken: sessionTokenMeta["session-token"], type: "persona" };
 }
+
+const BusinessFields = object({
+  business_name: pipe(string(), trim(), minLength(1)),
+  city_2: pipe(string(), trim(), minLength(1)),
+  company_description: pipe(string(), trim(), minLength(1)),
+  company_industry_naics: pipe(string(), trim(), minLength(1)),
+  company_registration_number: pipe(string(), trim(), minLength(1)),
+  company_tax_id: pipe(string(), trim(), minLength(1)),
+  company_website: pipe(string(), trim(), minLength(1)),
+  country_code_2: pipe(string(), trim(), minLength(1)),
+  postal_code_2: pipe(string(), trim(), minLength(1)),
+  street_1_2: pipe(string(), trim(), minLength(1)),
+  street_2: optional(
+    pipe(
+      nullable(string()),
+      transform((value) => {
+        const trimmed = value?.trim();
+        return trimmed === "" ? undefined : trimmed;
+      }),
+    ),
+  ),
+  subdivision_2: pipe(string(), trim(), minLength(1)),
+});
+
+const UboFields = object({
+  birth_date: pipe(string(), trim(), minLength(1)),
+  city: pipe(string(), trim(), minLength(1)),
+  country_code: pipe(string(), trim(), minLength(1)),
+  country_id: pipe(string(), trim(), minLength(1)),
+  email: pipe(string(), trim(), minLength(1)),
+  id: pipe(string(), trim(), minLength(1)),
+  last_name: pipe(string(), trim(), minLength(1)),
+  name: pipe(string(), trim(), minLength(1)),
+  postal_code: pipe(string(), trim(), minLength(1)),
+  street_1: pipe(string(), trim(), minLength(1)),
+  street_2: optional(
+    pipe(
+      nullable(string()),
+      transform((value) => {
+        const trimmed = value?.trim();
+        return trimmed === "" ? undefined : trimmed;
+      }),
+    ),
+  ),
+  subdivision: pipe(string(), trim(), minLength(1)),
+});
