@@ -434,7 +434,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         }),
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
 
       if (maturity !== undefined && pdf) {
         const purchasesByCard = Map.groupBy(
@@ -857,6 +857,8 @@ function forbid<T extends object>(value: T) {
     /* v8 ignore end */
   });
 }
+
+const collator = new Intl.Collator(undefined, { numeric: true });
 
 export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;

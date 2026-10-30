@@ -10,17 +10,30 @@ import assert from "node:assert";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { safeParse, type InferOutput } from "valibot";
-import { padHex, zeroHash, type Hash } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import {
+  createWalletClient,
+  encodeFunctionData,
+  erc20Abi,
+  hexToBigInt,
+  http,
+  padHex,
+  parseEventLogs,
+  zeroHash,
+  type Hash,
+} from "viem";
+import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import {
+import chain, {
   auditorAbi,
   auditorAddress,
+  exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   marketAbi,
   marketUSDCAddress,
+  upgradeableModularAccountAbi,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
@@ -265,7 +278,9 @@ describe.concurrent("authenticated", () => {
           if (cryptomate.success) return { ...cryptomate.output, cardId, lastFour };
           throw new Error("bad test setup");
         })
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+        .toSorted(
+          (a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id, undefined, { numeric: true }),
+        );
       const operation = activity
         .flatMap((item) => ("operations" in item ? item.operations : []))
         .find((item) => "borrow" in item && "installments" in item.borrow);
@@ -594,6 +609,96 @@ describe.concurrent("authenticated", () => {
         { type: "received", currency: "USDC", amount: 69_420, usdAmount: 69_420 },
         { type: "received", currency: "EXA", amount: 666, usdAmount: 3330 },
       ]);
+    });
+
+    it("sorts same-block deposits by log index", async () => {
+      const owner = createWalletClient({
+        chain,
+        transport: http(),
+        account: privateKeyToAccount(generatePrivateKey()),
+      });
+      const depositor = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+      await Promise.all([
+        anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+        database.insert(credentials).values({
+          id: owner.account.address,
+          publicKey: new Uint8Array(),
+          account: depositor,
+          factory: exaAccountFactoryAddress,
+        }),
+      ]);
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: exaAccountFactoryAddress,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+        }),
+      });
+      const { logs } = await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: depositor,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          args: [
+            [
+              {
+                target: usdcAddress,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: [
+                    {
+                      type: "function",
+                      name: "mint",
+                      inputs: [{ type: "address" }, { type: "uint256" }],
+                      outputs: [],
+                      stateMutability: "nonpayable",
+                    },
+                  ],
+                  functionName: "mint",
+                  args: [depositor, 5_000_000n],
+                }),
+              },
+              {
+                target: usdcAddress,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: "approve",
+                  args: [marketUSDCAddress, 5_000_000n],
+                }),
+              },
+              ...Array.from({ length: 5 }, () => ({
+                target: marketUSDCAddress,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: marketAbi,
+                  functionName: "deposit",
+                  args: [1_000_000n, depositor],
+                }),
+              })),
+            ],
+          ],
+        }),
+      });
+      const deposits = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs });
+
+      expect(new Set(deposits.map(({ logIndex }) => String(logIndex).length))).toStrictEqual(new Set([1, 2]));
+
+      const response = await appClient.index.$get(
+        { query: { include: "received" } },
+        { headers: { "test-credential-id": owner.account.address } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject(
+        deposits.toReversed().map(({ blockNumber, transactionIndex, logIndex }) => ({
+          id: `${chain.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
+          type: "received",
+          currency: "USDC",
+          amount: 1,
+        })),
+      );
     });
 
     it("keeps received events deduplicated when maturity is provided", async () => {
