@@ -1606,7 +1606,11 @@ describe.concurrent("authenticated", () => {
         }),
       });
       const fees = await anvilClient.estimateFeesPerGas();
-      const { logs, status } = await anvilClient.waitForTransactionReceipt({
+      const {
+        blockNumber: block,
+        logs,
+        status: outcome,
+      } = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: depositor,
           abi: upgradeableModularAccountAbi,
@@ -1657,8 +1661,19 @@ describe.concurrent("authenticated", () => {
       });
       const deposits = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs });
 
-      expect(status).toBe("success");
+      expect(outcome).toBe("success");
       expect(new Set(deposits.map(({ logIndex }) => String(logIndex).length))).toStrictEqual(new Set([1, 2]));
+
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+        },
+        { timeout: 30_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "received" } },
@@ -1886,6 +1901,16 @@ describe.concurrent("authenticated", () => {
 
       expect(withdraw.args.shares).toBe(shares);
       expect(withdraw.args.assets).toBeGreaterThan(shares);
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(withdraw.blockNumber));
+        },
+        { timeout: 30_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2066,6 +2091,7 @@ describe.concurrent("authenticated", () => {
       });
       const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
       const { timestamp } = await anvilClient.getBlock({ blockNumber: receipt.blockNumber });
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2190,6 +2216,8 @@ describe.concurrent("authenticated", () => {
         }),
       ]);
 
+      await indexed(receipt.blockNumber);
+
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
         { headers: { "test-credential-id": owner.account.address } },
@@ -2307,6 +2335,8 @@ describe.concurrent("authenticated", () => {
       });
       const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
       const { timestamp } = await anvilClient.getBlock({ blockNumber: receipt.blockNumber });
+
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2427,6 +2457,8 @@ describe.concurrent("authenticated", () => {
           ],
         },
       );
+      assert.ok(receipt);
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2434,7 +2466,7 @@ describe.concurrent("authenticated", () => {
       );
 
       expect(
-        parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] }).map(({ args }) => args),
+        parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs }).map(({ args }) => args),
       ).toStrictEqual([
         {
           caller: collected,
@@ -2445,7 +2477,7 @@ describe.concurrent("authenticated", () => {
         },
       ]);
       expect(
-        parseEventLogs({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", logs: receipt?.logs ?? [] }),
+        parseEventLogs({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", logs: receipt.logs }),
       ).toStrictEqual([]);
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual([]);
@@ -2808,4 +2840,17 @@ function retried(createdAt: number) {
       spend: { ...spendTemplate, amount: 23_253, localAmount: 23_253, localCurrency: "usd" },
     },
   };
+}
+
+async function indexed(block: bigint) {
+  await vi.waitFor(
+    async () => {
+      const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+        string,
+        { block: { number: number } }
+      >;
+      expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+    },
+    { timeout: 30_000 },
+  );
 }
