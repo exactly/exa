@@ -12,6 +12,7 @@ import DeclinedActivity from "./DeclinedActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
+import ShareReceipt from "./ShareReceipt";
 import { ArrowLeft } from "../../../generated/icons/ArrowLeft";
 import { Headphones } from "../../../generated/icons/Headphones";
 import { present } from "../../../utils/intercom";
@@ -82,21 +83,22 @@ export default function ActivityDetails() {
       {item.type === "sent" && <SentActivity item={item} />}
       {item.type === "panda" &&
         (item.status === "declined" ? <DeclinedActivity item={item} /> : <CardActivity item={item} />)}
-      <Button
-        outlined
-        width="100%"
-        alignSelf="flex-end"
-        marginTop="s4"
-        marginBottom="s5"
-        onPress={() => {
-          present().catch(reportError);
-        }}
-      >
-        <Button.Text>{t("Contact support")}</Button.Text>
-        <Button.Icon>
-          <Headphones />
-        </Button.Icon>
-      </Button>
+      <YStack gap="s3" marginTop="s4" marginBottom="s5">
+        {item.type === "sent" && <ShareReceipt item={item} />}
+        <Button
+          outlined
+          width="100%"
+          alignSelf="flex-end"
+          onPress={() => {
+            present().catch(reportError);
+          }}
+        >
+          <Button.Text>{t("Contact support")}</Button.Text>
+          <Button.Icon>
+            <Headphones />
+          </Button.Icon>
+        </Button>
+      </YStack>
     </GradientScrollView>
   );
 }
