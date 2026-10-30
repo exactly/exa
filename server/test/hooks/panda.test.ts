@@ -5,7 +5,7 @@ import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
-import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON } from "@sentry/node";
+import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON, startSpan } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -2872,6 +2872,7 @@ describe("plugin 1.0.0", () => {
     factories.versions.find((address) => address !== exaAccountFactoryAddress),
   );
   const account100 = deriveAddress(factory, { x: padHex(owner100.account.address), y: zeroHash });
+  const authorizedAt = new Date().toISOString();
   let release: Address;
 
   beforeAll(async () => {
@@ -2911,6 +2912,85 @@ describe("plugin 1.0.0", () => {
   });
 
   afterEach(() => Panda.getMutex(account100)?.release());
+
+  it("collects debit", async () => {
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    await expect(collectSpend(`${account100}-debit`, 900, authorizedAt)).resolves.toStrictEqual([200, 9_000_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(feedback).toHaveBeenCalledOnce();
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+    ]);
+  });
+
+  it("collects credit", async () => {
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    await expect(collectSpend(`${account100}-credit`, 10)).resolves.toStrictEqual([200, 100_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(feedback).toHaveBeenCalledOnce();
+  });
+
+  it("fails collection when the trace has no issuer check", async () => {
+    const role = keccak256(toHex("KEEPER_ROLE"));
+    const setRole = async (functionName: "grantRole" | "revokeRole") => {
+      await anvilClient.waitForTransactionReceipt({
+        hash: await anvilClient.writeContract({
+          address: release,
+          abi: exaPluginAbi,
+          functionName,
+          args: [role, keeper.account.address],
+          account: null,
+        }),
+      });
+    };
+    onTestFinished(() => setRole("grantRole"));
+    const { traceCall: trace } = traceClient;
+    const traceCall = vi.spyOn(traceClient, "traceCall").mockImplementationOnce(async (parameters) => {
+      await setRole("revokeRole");
+      return trace(parameters);
+    });
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    const { status } = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: `${account100}-revoked`,
+          spend: { ...authorization.json.body.spend, amount: 902, cardId: `${account100}-debit` },
+        },
+      },
+    });
+
+    expect(status).toBe(569);
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+    ]);
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "ValiError" }),
+      expect.objectContaining({
+        level: "fatal",
+        tags: expect.objectContaining({ "panda.failure": "collection" }) as unknown,
+      }),
+    );
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(feedback).not.toHaveBeenCalled();
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, `${account100}-revoked`) }),
+    ).resolves.toBeUndefined();
+  });
 
   it.each([
     ["debit", 901],
@@ -3018,6 +3098,54 @@ describe("plugin 1.0.0", () => {
           ],
         }),
       });
+    });
+
+    it("skips spends collected before the upgrade", async () => {
+      const exaSend = vi.spyOn(keeper, "exaSend");
+      const feedback = vi.spyOn(sardine, "feedback");
+      sendPushNotificationMock.mockClear();
+
+      const { status, replay } = await startSpan({ name: "replay" }, async (span) => ({
+        status: await appClient.index
+          .$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: `${account100}-debit`,
+                spend: { ...authorization.json.body.spend, amount: 900, cardId: `${account100}-debit`, authorizedAt },
+              },
+            },
+          })
+          .then(({ status: code }) => code),
+        replay: spanToJSON(span).data["panda.replay"],
+      }));
+
+      expect(status).toBe(200);
+      expect(exaSend).not.toHaveBeenCalled();
+      expect(replay).toBe(true);
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(feedback).not.toHaveBeenCalled();
+      await expect(
+        database.query.transactions
+          .findFirst({ where: eq(transactions.id, `${account100}-debit`) })
+          .then((transaction) => transaction?.hashes),
+      ).resolves.toHaveLength(1);
+    });
+
+    it("collects debit", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+      const feedback = vi.spyOn(sardine, "feedback");
+      sendPushNotificationMock.mockClear();
+
+      await expect(collectSpend(`${account100}-upgraded`, 904)).resolves.toStrictEqual([200, 9_040_000n]);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+      expect(feedback).toHaveBeenCalledOnce();
+      expect(traceCall).not.toHaveBeenCalled();
     });
 
     it("authorizes with one trace", async () => {
@@ -4815,6 +4943,27 @@ function usdcToAddress(purchaseReceipt: TransactionReceipt, address: Address) {
 
 function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
+}
+
+async function collectSpend(cardId: string, amount: number, authorizedAt?: string) {
+  const body = {
+    ...authorization.json.body,
+    id: cardId,
+    spend: { ...authorization.json.body.spend, amount, cardId, authorizedAt },
+  };
+
+  return [
+    await appClient.index
+      .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+      .then(({ status }) => status),
+    usdcToCollector(
+      await database.query.transactions
+        .findFirst({ where: eq(transactions.id, cardId) })
+        .then((transaction) =>
+          publicClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+        ),
+    ),
+  ];
 }
 
 async function authorize(cardId: string, amount: number) {

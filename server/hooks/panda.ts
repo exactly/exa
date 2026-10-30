@@ -24,11 +24,13 @@ import {
   encodeFunctionData,
   erc20Abi,
   getContractError,
+  isAddressEqual,
   keccak256,
   maxUint256,
   padHex,
   RawContractError,
   toBytes,
+  toFunctionSelector,
   zeroHash,
   type LocalAccount,
 } from "viem";
@@ -40,6 +42,7 @@ import {
   exaPreviewerAddress,
   factories,
   issuerCheckerAbi,
+  issuerCheckerAddress,
   issuerCheckerPreviewerCode,
   marketAbi,
   proposalManagerAbi,
@@ -110,31 +113,33 @@ export default function hook({
 }) {
   const keys = v.parse(v.array(v.pipe(v.string(), v.trim(), v.nonEmpty("panda webhooks"))), webhookKey.split(","));
   const wallet = createWallet(settler);
-  const overrides = publicClient
-    .readContract({
-      address: exaPreviewerAddress,
-      functionName: "discover",
-      args: [factories.versions],
-      abi: exaPreviewerAbi,
-    })
-    .then(({ issuerCheckers, plugins }) => {
-      const slot = keccak256(
-        encodeAbiParameters(
-          [{ type: "address" }, { type: "bytes32" }],
-          [
-            exaPreviewerAddress,
-            keccak256(
-              encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [keccak256(toBytes("KEEPER_ROLE")), 0n]),
-            ),
-          ],
-        ),
-      );
-      const value = encodeAbiParameters([{ type: "uint256" }], [1n]);
-      return [
-        ...[...new Set(plugins)].map((address) => ({ address, stateDiff: [{ slot, value }] })),
-        ...[...new Set(issuerCheckers)].map((address) => ({ address, code: issuerCheckerPreviewerCode })),
-      ];
-    });
+  const discovered = publicClient.readContract({
+    address: exaPreviewerAddress,
+    functionName: "discover",
+    args: [factories.versions],
+    abi: exaPreviewerAbi,
+  });
+  const previous = discovered.then(({ issuerCheckers }) =>
+    [...new Set(issuerCheckers)].filter((address) => !isAddressEqual(address, issuerCheckerAddress)),
+  );
+  const overrides = discovered.then(({ issuerCheckers, plugins }) => {
+    const slot = keccak256(
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "bytes32" }],
+        [
+          exaPreviewerAddress,
+          keccak256(
+            encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [keccak256(toBytes("KEEPER_ROLE")), 0n]),
+          ),
+        ],
+      ),
+    );
+    const value = encodeAbiParameters([{ type: "uint256" }], [1n]);
+    return [
+      ...[...new Set(plugins)].map((address) => ({ address, stateDiff: [{ slot, value }] })),
+      ...[...new Set(issuerCheckers)].map((address) => ({ address, code: issuerCheckerPreviewerCode })),
+    ];
+  });
   const app = new Hono().post(
     "/",
     vValidator("header", v.object({ signature: v.string() }), async (r, c) => {
@@ -658,7 +663,11 @@ export default function hook({
           getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
 
           try {
-            const { call } = await prepareCollection(card, payload, database, issuer, panda, wallet);
+            const {
+              call,
+              hash: operation,
+              sign,
+            } = await prepareCollection(card, payload, database, issuer, panda, wallet);
             if (!call) {
               const appended = await database
                 .update(transactions)
@@ -702,77 +711,106 @@ export default function hook({
               }
               return c.json({ code: "ok" });
             }
+            const collected = await previous.then((addresses) =>
+              Promise.all(
+                addresses.map((address) =>
+                  publicClient.readContract({
+                    address,
+                    abi: issuerCheckerAbi,
+                    functionName: "collections",
+                    args: [account, operation],
+                  }),
+                ),
+              ),
+            );
+            if (collected.includes(true)) {
+              getActiveSpan()?.setAttributes({ "panda.replay": true });
+              return c.json({ code: "ok" });
+            }
             try {
-              await wallet.exaSend(
-                { name: "collect credit", op: "exa.collect", attributes: { account } },
-                {
-                  address: account,
-                  abi: [
-                    ...exaPluginAbi,
-                    ...issuerCheckerAbi,
-                    ...upgradeableModularAccountAbi,
-                    ...auditorAbi,
-                    ...marketAbi,
-                  ],
-                  ...call,
-                },
-                {
-                  async onHash(hash) {
-                    const body = {
-                      ...(jsonBody as object),
-                      createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
-                    };
-                    const stored = await database
-                      .insert(transactions)
-                      .values({
-                        id: payload.body.id,
-                        cardId: payload.body.spend.cardId,
-                        hashes: [hash],
-                        payload: { bodies: [body], type: "panda" },
-                      })
-                      .onConflictDoUpdate({
-                        target: transactions.id,
-                        set: {
-                          hashes: sql`${transactions.hashes} || ARRAY[${hash}]::text[]`,
-                          payload: sql`jsonb_set(
-                            ${transactions.payload},
-                            '{bodies}',
-                            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([body])}::jsonb
-                          )`,
-                        },
-                        setWhere: sql`${transactions.cardId} = ${payload.body.spend.cardId} AND NOT ${hash} = ANY(${transactions.hashes})`,
-                      })
-                      .returning({ id: transactions.id });
-                    if (stored.length > 0) return;
-                    const tx = await database.query.transactions.findFirst({
-                      columns: { cardId: true },
-                      where: eq(transactions.id, payload.body.id),
-                    });
-                    if (tx?.cardId !== payload.body.spend.cardId) throw new Error("transaction card mismatch");
+              const collect = (collection: NonNullable<typeof call>, ignore?: (reason: string) => Promise<boolean>) =>
+                wallet.exaSend(
+                  { name: "collect credit", op: "exa.collect", attributes: { account } },
+                  {
+                    address: account,
+                    abi: [
+                      ...exaPluginAbi,
+                      ...issuerCheckerAbi,
+                      ...upgradeableModularAccountAbi,
+                      ...auditorAbi,
+                      ...marketAbi,
+                    ],
+                    ...collection,
                   },
-                  onReceipt: (receipt) =>
-                    receipt.status === "reverted"
-                      ? undefined
-                      : webhook
-                          .enqueue(
-                            {
-                              account,
-                              receipt: {
-                                blockNumber: Number(receipt.blockNumber),
-                                transactionHash: receipt.transactionHash,
+                  {
+                    ignore,
+                    async onHash(hash) {
+                      const body = {
+                        ...(jsonBody as object),
+                        createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
+                      };
+                      const stored = await database
+                        .insert(transactions)
+                        .values({
+                          id: payload.body.id,
+                          cardId: payload.body.spend.cardId,
+                          hashes: [hash],
+                          payload: { bodies: [body], type: "panda" },
+                        })
+                        .onConflictDoUpdate({
+                          target: transactions.id,
+                          set: {
+                            hashes: sql`${transactions.hashes} || ARRAY[${hash}]::text[]`,
+                            payload: sql`jsonb_set(
+                              ${transactions.payload},
+                              '{bodies}',
+                              COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([body])}::jsonb
+                            )`,
+                          },
+                          setWhere: sql`${transactions.cardId} = ${payload.body.spend.cardId} AND NOT ${hash} = ANY(${transactions.hashes})`,
+                        })
+                        .returning({ id: transactions.id });
+                      if (stored.length > 0) return;
+                      const tx = await database.query.transactions.findFirst({
+                        columns: { cardId: true },
+                        where: eq(transactions.id, payload.body.id),
+                      });
+                      if (tx?.cardId !== payload.body.spend.cardId) throw new Error("transaction card mismatch");
+                    },
+                    onReceipt: (receipt) =>
+                      receipt.status === "reverted"
+                        ? undefined
+                        : webhook
+                            .enqueue(
+                              {
+                                account,
+                                receipt: {
+                                  blockNumber: Number(receipt.blockNumber),
+                                  transactionHash: receipt.transactionHash,
+                                },
                               },
-                            },
-                            payload.id,
-                          )
-                          .catch((error: unknown) =>
-                            captureException(error, {
-                              level: "error",
-                              tags: { queue: hookName, job: hookName },
-                              extra: { id: payload.id },
-                            }),
-                          ),
-                },
-              );
+                              payload.id,
+                            )
+                            .catch((error: unknown) =>
+                              captureException(error, {
+                                level: "error",
+                                tags: { queue: hookName, job: hookName },
+                                extra: { id: payload.id },
+                              }),
+                            ),
+                  },
+                );
+              await collect(call, async (reason) => {
+                if (reason !== "Unauthorized()") return false;
+                await collect(
+                  await collectionContracts(
+                    wallet.account.address,
+                    account,
+                    encodeFunctionData({ abi: exaPluginAbi, ...call }),
+                  ).then(({ checker }) => sign(checker)),
+                );
+                return true;
+              });
 
               if (
                 payload.action === "created" ||
@@ -1132,17 +1170,18 @@ async function prepareCollection(
       }
     })()) / 100;
   const amount = BigInt(Math.round(usdAmount * 1e6));
-  if (amount === 0n) return { amount, call: null, transaction: null };
-  const call = await (async () => {
-    const authorized = Math.floor(
-      (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
-    );
-    const timestamp =
-      payload.action === "updated" ||
-      (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
-        ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
-        : authorized;
-    const signature = unsigned ? "0x" : await signIssuerOp({ account, amount, timestamp }, issuer); // TODO replace with payload signature
+  const authorized = Math.floor(
+    (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
+  );
+  const timestamp =
+    payload.action === "updated" ||
+    (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
+      ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
+      : authorized;
+  const hash = keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [amount, BigInt(timestamp)]));
+  if (amount === 0n) return { amount, call: null, hash, sign: null, transaction: null };
+  const sign = async (checker?: Hex) => {
+    const signature = unsigned ? "0x" : await signIssuerOp({ account, amount, timestamp }, issuer, checker); // TODO replace with payload signature
     if (payload.body.spend.signature) {
       await startSpan(
         {
@@ -1219,11 +1258,14 @@ async function prepareCollection(
       functionName: "collectInstallments",
       args: [BigInt(firstMaturity), installments.amounts, maxUint256, BigInt(timestamp), signature],
     } as const;
-  })();
+  };
+  const call = await sign();
   setContext("tx", { call });
   return {
     amount,
     call,
+    hash,
+    sign,
     transaction: {
       from: wallet.account.address,
       to: account,
@@ -1246,6 +1288,19 @@ function usdcTransfersToCollectors({ calls, logs }: CallFrame): TransferLog[] {
     ) ?? []),
     ...(calls?.flatMap((call) => usdcTransfersToCollectors(call)) ?? []),
   ];
+}
+
+async function collectionContracts(keeper: Hex, account: Hex, data: Hex) {
+  const frame = frames(
+    await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
+      traceClient.traceCall({ from: keeper, to: account, data }),
+    ),
+  ).find(({ input }) => input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")));
+  return { checker: v.parse(Address, frame?.to), plugin: v.parse(Address, frame?.from) };
+}
+
+function frames(frame: CallFrame): CallFrame[] {
+  return [frame, ...(frame.calls?.flatMap((call) => frames(call)) ?? [])];
 }
 
 type Database = NodePgDatabase<typeof schema>;
