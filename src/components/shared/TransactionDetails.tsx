@@ -31,28 +31,28 @@ export default function TransactionDetails({ chainId, fee, hash }: { chainId?: n
     return found && { name: found.name, explorer: found.metamask.blockExplorerUrls[0] };
   }, [chainId, chains]);
   return (
-    <YStack gap="$s4">
-      <YStack gap="$s4">
+    <YStack gap="s4">
+      <YStack gap="s4">
         <Text emphasized headline>
           {t("Transaction details")}
         </Text>
-        <Separator height={1} borderColor="$borderNeutralSoft" />
+        <Separator height={1} borderColor="borderNeutralSoft" />
       </YStack>
-      <YStack gap="$s3_5">
+      <YStack gap="s3_5">
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Network fee")}
           </Text>
-          <Text callout color={fee ? "$uiNeutralPrimary" : "$uiSuccessSecondary"}>
+          <Text callout color={fee ? "uiNeutralPrimary" : "uiSuccessSecondary"}>
             {fee ?? t("FREE")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Network")}
           </Text>
-          <XStack gap="$s3" alignItems="center">
-            <Text callout color="$uiNeutralPrimary" alignContent="center">
+          <XStack gap="s3" alignItems="center">
+            <Text callout color="uiNeutralPrimary" alignContent="center">
               {network?.name}
             </Text>
             <ChainLogo chainId={chainId} size={20} />
@@ -73,11 +73,11 @@ export default function TransactionDetails({ chainId, fee, hash }: { chainId?: n
                 });
             }}
           >
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("Transaction hash")}
             </Text>
             <XStack
-              gap="$s2"
+              gap="s2"
               alignItems="center"
               cursor="pointer"
               onPress={(event) => {
@@ -89,23 +89,23 @@ export default function TransactionDetails({ chainId, fee, hash }: { chainId?: n
               <Text callout mono textDecorationLine="underline">
                 {shortenHex(hash)}
               </Text>
-              <ExternalLink size={20} color="$uiBrandPrimary" />
+              <ExternalLink size={20} color="uiBrandPrimary" />
             </XStack>
           </XStack>
         )}
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Date")}
           </Text>
-          <Text callout color="$uiNeutralPrimary">
+          <Text callout color="uiNeutralPrimary">
             {format(now, "yyyy-MM-dd")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Time")}
           </Text>
-          <Text callout color="$uiNeutralPrimary">
+          <Text callout color="uiNeutralPrimary">
             {format(now, "HH:mm:ss")}
           </Text>
         </XStack>

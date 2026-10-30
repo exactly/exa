@@ -78,49 +78,49 @@ export default function AssetSelectSheet({
 
   return (
     <ModalSheet open={open} onClose={handleClose} heightPercent={85}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View padded paddingTop="$s4" paddingBottom={0} flex={1} gap="$s4_5">
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <View padded paddingTop="s4" paddingBottom={0} flex={1} gap="s4_5">
           <Text fontSize={15} fontWeight="bold" textAlign="center">
             {displayLabel}
           </Text>
           <View position="relative" zIndex={10}>
             <XStack
-              borderColor="$uiNeutralTertiary"
+              borderColor="uiNeutralTertiary"
               width="100%"
               borderWidth={1}
-              borderRadius="$r3"
-              backgroundColor="$backgroundSoft"
+              borderRadius="r3"
+              backgroundColor="backgroundSoft"
               overflow="hidden"
               alignItems="center"
             >
-              <XStack alignItems="center" gap="$s2" flex={1} paddingHorizontal="$s3">
-                <Search size={18} color="$uiNeutralSecondary" />
+              <XStack alignItems="center" gap="s2" flex={1} paddingHorizontal="s3">
+                <Search size={18} color="uiNeutralSecondary" />
                 <Input
                   placeholder={t("Search tokens")}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  placeholderTextColor="$uiNeutralPlaceholder"
-                  autoCapitalize="none"
+                  placeholderTextColor="uiNeutralPlaceholder"
                   flex={1}
                   borderWidth={0}
-                  borderColor="transparent"
-                  backgroundColor="transparent"
+                  borderColor="transparent focus:transparent focus-visible:transparent"
+                  backgroundColor="transparent focus:transparent"
                   padding={0}
                   minHeight={44}
-                  color="$uiNeutralPrimary"
-                  focusStyle={{ borderColor: "transparent", backgroundColor: "transparent" }}
-                  focusVisibleStyle={{ outlineWidth: 0, borderColor: "transparent", outlineColor: "transparent" }}
+                  color="uiNeutralPrimary"
+                  outlineWidth="focus-visible:0px"
+                  outlineColor="focus-visible:transparent"
+                  autoCapitalize="none"
                 />
               </XStack>
               {groups.length > 1 && (
                 <Pressable role="button" aria-label={t("Filter by network")} onPress={() => setFilterOpen(!filterOpen)}>
-                  <XStack alignItems="center" gap="$s2" paddingHorizontal="$s3">
+                  <XStack alignItems="center" gap="s2" paddingHorizontal="s3">
                     {chainFilter === undefined ? (
-                      <Network size={20} color="$uiNeutralSecondary" />
+                      <Network size={20} color="uiNeutralSecondary" />
                     ) : (
                       <ChainLogo chainId={chainFilter} size={20} />
                     )}
-                    <ChevronDown size={16} color="$uiNeutralSecondary" />
+                    <ChevronDown size={16} color="uiNeutralSecondary" />
                   </XStack>
                 </Pressable>
               )}
@@ -131,17 +131,17 @@ export default function AssetSelectSheet({
                 top="100%"
                 left={0}
                 right={0}
-                marginTop="$s2"
-                backgroundColor="$backgroundSoft"
-                borderRadius="$r3"
+                marginTop="s2"
+                backgroundColor="backgroundSoft"
+                borderRadius="r3"
                 borderWidth={1}
-                borderColor="$borderNeutralSoft"
+                borderColor="borderNeutralSoft"
                 overflow="hidden"
               >
                 <ScrollView maxHeight={360} showsVerticalScrollIndicator={false}>
                   <FilterRow
                     active={chainFilter === undefined}
-                    icon={<Network size={24} color="$uiNeutralPrimary" />}
+                    icon={<Network size={24} color="uiNeutralPrimary" />}
                     label={t("All networks")}
                     onPress={() => {
                       setChainFilter(undefined);
@@ -165,15 +165,15 @@ export default function AssetSelectSheet({
             )}
           </View>
           <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-            <YStack paddingBottom="$s6" gap="$s4">
+            <YStack paddingBottom="s6" gap="s4">
               {filteredGroups.map((group) => (
-                <YStack key={group.chain.id} gap="$s4">
-                  <XStack alignItems="center" paddingHorizontal="$s3">
-                    <Text footnote color="$uiNeutralPlaceholder">
+                <YStack key={group.chain.id} gap="s4">
+                  <XStack alignItems="center" paddingHorizontal="s3">
+                    <Text footnote color="uiNeutralPlaceholder">
                       {group.chain.name}
                     </Text>
                   </XStack>
-                  <YStack gap="$s3">
+                  <YStack gap="s3">
                     {group.assets.map(({ token, balance, usdValue }) => {
                       const isSelected = selected?.chain === group.chain.id && selected.address === token.address;
                       return (
@@ -185,30 +185,30 @@ export default function AssetSelectSheet({
                           }}
                         >
                           <XStack
-                            padding="$s3_5"
+                            padding="s3_5"
                             alignItems="center"
                             justifyContent="space-between"
-                            borderRadius="$r3"
-                            backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
-                            gap="$s3_5"
+                            borderRadius="r3"
+                            backgroundColor={isSelected ? "interactiveBaseBrandSoftDefault" : "transparent"}
+                            gap="s3_5"
                           >
-                            <XStack gap="$s3_5" alignItems="center" flex={1}>
+                            <XStack gap="s3_5" alignItems="center" flex={1}>
                               <AssetLogo symbol={token.symbol} uri={token.logoURI} width={36} height={36} />
                               <YStack flex={1}>
-                                <Text emphasized subHeadline color="$uiNeutralPrimary">
+                                <Text emphasized subHeadline color="uiNeutralPrimary">
                                   {token.symbol}
                                 </Text>
-                                <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
+                                <Text footnote color="uiNeutralSecondary" numberOfLines={1}>
                                   {token.name}
                                 </Text>
                               </YStack>
                             </XStack>
                             {!hideBalances && (
-                              <YStack alignItems="flex-end" gap="$s1">
-                                <Text callout color="$uiNeutralPrimary">
+                              <YStack alignItems="flex-end" gap="s1">
+                                <Text callout color="uiNeutralPrimary">
                                   {`$${usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 </Text>
-                                <Text footnote color="$uiNeutralSecondary">
+                                <Text footnote color="uiNeutralSecondary">
                                   {`${Number(formatUnits(balance, token.decimals)).toLocaleString(language, {
                                     minimumFractionDigits: 0,
                                     maximumFractionDigits: Math.min(
@@ -231,8 +231,8 @@ export default function AssetSelectSheet({
                 </YStack>
               ))}
               {filteredGroups.length === 0 && (
-                <View alignItems="center" paddingVertical="$s8">
-                  <Text footnote color="$uiNeutralSecondary">
+                <View alignItems="center" paddingVertical="s8">
+                  <Text footnote color="uiNeutralSecondary">
                     {searchQuery || chainFilter !== undefined
                       ? t("No assets match your filters.")
                       : t("No assets with balance available to bridge.")}
@@ -261,16 +261,16 @@ function FilterRow({
   return (
     <Pressable role="button" aria-label={label} onPress={onPress}>
       <XStack
-        padding="$s3_5"
+        padding="s3_5"
         alignItems="center"
-        gap="$s3_5"
-        backgroundColor={active ? "$interactiveBaseBrandSoftDefault" : "transparent"}
+        gap="s3_5"
+        backgroundColor={active ? "interactiveBaseBrandSoftDefault" : "transparent"}
       >
         {icon}
-        <Text emphasized subHeadline color="$uiNeutralPrimary" flex={1}>
+        <Text emphasized subHeadline color="uiNeutralPrimary" flex={1}>
           {label}
         </Text>
-        {active && <Check size={16} color="$uiBrandSecondary" />}
+        {active && <Check size={16} color="uiBrandSecondary" />}
       </XStack>
     </Pressable>
   );

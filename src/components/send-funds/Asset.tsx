@@ -217,8 +217,8 @@ export default function AssetSelection() {
 
   return (
     <SafeView fullScreen paddingBottom={0}>
-      <View gap="$s4_5" fullScreen padded paddingBottom={0}>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" paddingBottom={0} fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -240,20 +240,20 @@ export default function AssetSelection() {
         </XStack>
         <XStack
           alignItems="center"
-          gap="$s2"
-          paddingLeft="$s3_5"
+          gap="s2"
+          paddingLeft="s3_5"
           borderWidth={1}
-          borderColor="$borderNeutralSoft"
-          borderRadius="$r3"
+          borderColor="borderNeutralSoft"
+          borderRadius="r3"
           overflow="hidden"
         >
-          <Search size={20} color="$uiNeutralPlaceholder" />
+          <Search size={20} color="uiNeutralPlaceholder" />
           <Input
             flex={1}
             borderWidth={0}
             backgroundColor="transparent"
+            placeholderTextColor="uiNeutralPlaceholder"
             placeholder={t("Search assets")}
-            placeholderTextColor="$uiNeutralPlaceholder"
             value={query}
             onChangeText={setQuery}
           />
@@ -262,7 +262,7 @@ export default function AssetSelection() {
             value={typeof filter === "number" ? filter : undefined}
             open={networks}
             icon={
-              filter === "stocks" ? <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" /> : undefined
+              filter === "stocks" ? <ChartNoAxesCombined size={18} color="interactiveOnBaseBrandSoft" /> : undefined
             }
             onChange={setFilter}
             onOpenChange={setNetworks}
@@ -276,13 +276,13 @@ export default function AssetSelection() {
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <XStack gap="$s3" alignItems="center">
+            <XStack gap="s3" alignItems="center">
               {(advanced ? [...pills.slice(0, 2), "stocks" as const, ...pills.slice(2)] : pills).map((item) =>
                 item === "stocks" ? (
                   <Chip
                     key={item}
                     disabled={!compatible(base.id)}
-                    icon={<ChartNoAxesCombined size={16} color="$uiNeutralPrimary" />}
+                    icon={<ChartNoAxesCombined size={16} color="uiNeutralPrimary" />}
                     label={t("Stocks")}
                     selected={filter === "stocks"}
                     onPress={() => {
@@ -316,7 +316,7 @@ export default function AssetSelection() {
               )}
               {chips.length > pills.length && (
                 <Chip
-                  icon={<Ellipsis size={16} color="$uiNeutralPrimary" />}
+                  icon={<Ellipsis size={16} color="uiNeutralPrimary" />}
                   label={t("More")}
                   selected={false}
                   onPress={() => {
@@ -329,14 +329,14 @@ export default function AssetSelection() {
         )}
         {reachFailed && (
           <XStack
-            gap="$s3"
+            gap="s3"
             alignItems="center"
             justifyContent="space-between"
-            padding="$s3_5"
-            borderRadius="$r3"
-            backgroundColor="$uiNeutralTertiary"
+            padding="s3_5"
+            borderRadius="r3"
+            backgroundColor="uiNeutralTertiary"
           >
-            <Text flex={1} subHeadline color="$uiNeutralSecondary">
+            <Text flex={1} color="uiNeutralSecondary" subHeadline>
               {t("Couldn't load networks. Please try again.")}
             </Text>
             <Text
@@ -345,8 +345,8 @@ export default function AssetSelection() {
               role="button"
               aria-label={t("Retry")}
               cursor="pointer"
-              color="$interactiveBaseBrandDefault"
-              pressStyle={{ opacity: 0.7 }}
+              color="interactiveBaseBrandDefault"
+              opacity="press:0.7"
               onPress={() => {
                 refetchReach().catch(reportError);
               }}
@@ -359,14 +359,14 @@ export default function AssetSelection() {
           flex={1}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.s4.val }}
         >
-          <YStack flex={1} gap="$s6">
+          <YStack flex={1} gap="s6">
             {(owned.length > 0 || isPending || isBalancesPending) && (
-              <YStack gap="$s5">
-                <XStack gap="$s3" alignItems="center">
-                  <BriefcaseBusiness size={16} color="$uiNeutralPlaceholder" />
-                  <Text subHeadline color="$uiNeutralPlaceholder">
+              <YStack gap="s5">
+                <XStack gap="s3" alignItems="center">
+                  <BriefcaseBusiness size={16} color="uiNeutralPlaceholder" />
+                  <Text subHeadline color="uiNeutralPlaceholder">
                     {t("Your assets")}
                   </Text>
                 </XStack>
@@ -467,24 +467,24 @@ export default function AssetSelection() {
               </YStack>
             )}
             {advanced && (
-              <YStack gap="$s5">
-                <XStack gap="$s3" alignItems="center">
-                  <TrendingUp size={16} color="$uiNeutralPlaceholder" />
-                  <Text subHeadline color="$uiNeutralPlaceholder">
+              <YStack gap="s5">
+                <XStack gap="s3" alignItems="center">
+                  <TrendingUp size={16} color="uiNeutralPlaceholder" />
+                  <Text subHeadline color="uiNeutralPlaceholder">
                     {t("Trending last 24h")}
                   </Text>
                 </XStack>
                 {isTokensPending && <Skeleton width="100%" height={40} />}
                 {isTokensError && !tokens && (
                   <XStack
-                    gap="$s3"
+                    gap="s3"
                     alignItems="center"
                     justifyContent="space-between"
-                    padding="$s3_5"
-                    borderRadius="$r3"
-                    backgroundColor="$uiNeutralTertiary"
+                    padding="s3_5"
+                    borderRadius="r3"
+                    backgroundColor="uiNeutralTertiary"
                   >
-                    <Text flex={1} subHeadline color="$uiNeutralSecondary">
+                    <Text flex={1} color="uiNeutralSecondary" subHeadline>
                       {t("Couldn't load trending assets. Please try again.")}
                     </Text>
                     <Text
@@ -493,8 +493,8 @@ export default function AssetSelection() {
                       role="button"
                       aria-label={t("Retry")}
                       cursor="pointer"
-                      color="$interactiveBaseBrandDefault"
-                      pressStyle={{ opacity: 0.7 }}
+                      color="interactiveBaseBrandDefault"
+                      opacity="press:0.7"
                       onPress={() => {
                         refetchTokens().catch(reportError);
                       }}
@@ -589,18 +589,17 @@ function Row({
 }) {
   return (
     <XStack
-      gap="$s3"
+      gap="s3"
       alignItems="center"
-      opacity={disabled ? 0.5 : pending ? 0.7 : 1}
+      opacity={pending ? 0.7 : disabled ? "0.5 press:0.7" : "1 press:0.7"}
       cursor={pending ? "default" : "pointer"}
       role="button"
       aria-label={label}
       aria-busy={pending}
-      pressStyle={pending ? undefined : { opacity: 0.7 }}
       onPress={pending ? undefined : onPress}
     >
       {logo}
-      <YStack gap="$s2" flex={1}>
+      <YStack gap="s2" flex={1}>
         <Text emphasized callout primary numberOfLines={1}>
           {title}
         </Text>
@@ -609,7 +608,7 @@ function Row({
         </Text>
       </YStack>
       {!!value && (
-        <YStack gap="$s2" alignItems="flex-end">
+        <YStack gap="s2" alignItems="flex-end">
           <Text emphasized callout primary>
             {value}
           </Text>

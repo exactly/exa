@@ -39,38 +39,38 @@ export default function PaymentScheduleSheet({
   }, [market]);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+      <ScrollView maxHeight="web:100vh">
         <SafeView
-          borderTopLeftRadius="$r4"
-          borderTopRightRadius="$r4"
-          backgroundColor="$backgroundSoft"
-          paddingHorizontal="$s5"
-          $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          borderTopLeftRadius="r4"
+          borderTopRightRadius="r4"
+          backgroundColor="backgroundSoft"
+          paddingHorizontal="s5"
+          paddingTop="web:s7"
+          paddingBottom="web:s7 android:s5"
         >
-          <YStack gap="$s7">
-            <YStack gap="$s5">
+          <YStack gap="s7">
+            <YStack gap="s5">
               <Text emphasized primary headline>
                 {t("Payment schedule")}
               </Text>
-              <Text subHeadline color="$uiNeutralSecondary">
+              <Text subHeadline color="uiNeutralSecondary">
                 {t(
                   "Unlike monthly payments, our installments are due every 4 weeks, which means payments are aligned with a 28-day cycle rather than the calendar month.",
                 )}
               </Text>
 
               {installments && maturity && market && symbol ? (
-                <YStack gap="$s5">
+                <YStack gap="s5">
                   {Array.from({ length: installments }).map((_, index) => {
                     const due = Number(maturity) + index * MATURITY_INTERVAL;
                     return (
-                      <XStack key={due} gap="$s2" alignItems="center" justifyContent="space-between">
-                        <XStack gap="$s3" alignItems="center">
+                      <XStack key={due} gap="s2" alignItems="center" justifyContent="space-between">
+                        <XStack gap="s3" alignItems="center">
                           <Text emphasized title3>
                             {index + 1}
                           </Text>
                           <AssetLogo symbol={symbol} width={16} height={16} />
-                          <Text title3 color="$uiNeutralPrimary">
+                          <Text title3 color="uiNeutralPrimary">
                             {(Number(installmentsAmount) / 10 ** market.decimals).toLocaleString(language, {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
@@ -90,7 +90,7 @@ export default function PaymentScheduleSheet({
                 </YStack>
               ) : null}
             </YStack>
-            <YStack gap="$s5">
+            <YStack gap="s5">
               <Button onPress={onClose} primary>
                 <Button.Text>{t("Close")}</Button.Text>
                 <Button.Icon>

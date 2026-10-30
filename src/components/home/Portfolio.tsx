@@ -48,8 +48,8 @@ export default function Portfolio() {
   const stocks = allAssets.filter((asset): asset is ExternalAsset => asset.type === "external" && isStock(asset));
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
-      <View padded flexDirection="row" gap="$s3_5" paddingBottom="$s4" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+      <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" alignItems="center">
         <IconButton
           icon={ArrowLeft}
           aria-label={t("Back")}
@@ -61,7 +61,7 @@ export default function Portfolio() {
             }
           }}
         />
-        <Text flex={1} emphasized subHeadline textAlign="center" color="$uiNeutralPrimary">
+        <Text flex={1} textAlign="center" color="uiNeutralPrimary" emphasized subHeadline>
           {t("Portfolio")}
         </Text>
         <IconButton
@@ -73,7 +73,7 @@ export default function Portfolio() {
         />
       </View>
       <ScrollView
-        backgroundColor="$backgroundSoft"
+        backgroundColor="backgroundSoft"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom }}
         refreshControl={
@@ -84,14 +84,14 @@ export default function Portfolio() {
           />
         }
       >
-        <YStack paddingTop="$s5" gap="$s6" alignItems="center">
+        <YStack paddingTop="s5" gap="s6" alignItems="center">
           {isPending ? (
-            <YStack key="portfolio-skeleton" gap="$s4_5" alignItems="center">
+            <YStack key="portfolio-skeleton" gap="s4_5" alignItems="center">
               <Skeleton height={40} width={180} />
               <Skeleton height={20} width={100} />
             </YStack>
           ) : (
-            <YStack key={tab} gap="$s4_5" alignItems="center" transition="default" enterStyle={{ opacity: 0 }}>
+            <YStack key={tab} gap="s4_5" alignItems="center" transition="default" opacity="enter:0">
               <Amount
                 amount={
                   {
@@ -122,15 +122,15 @@ export default function Portfolio() {
           />
         </YStack>
         {isPending ? (
-          <YStack key="list-skeleton" padding="$s4" paddingTop="$s5" gap="$s6">
+          <YStack key="list-skeleton" paddingRight="s4" paddingBottom="s4" paddingLeft="s4" paddingTop="s5" gap="s6">
             {Array.from({ length: 4 }, (_, index) => (
-              <XStack key={index} alignItems="center" gap="$s3_5">
+              <XStack key={index} alignItems="center" gap="s3_5">
                 <Skeleton height={40} width={40} radius="round" />
-                <YStack gap="$s2" flex={1}>
+                <YStack gap="s2" flex={1}>
                   <Skeleton height={15} width={110} />
                   <Skeleton height={12} width={70} />
                 </YStack>
-                <YStack gap="$s2" alignItems="flex-end">
+                <YStack gap="s2" alignItems="flex-end">
                   <Skeleton height={15} width={70} />
                   <Skeleton height={12} width={40} />
                 </YStack>
@@ -153,17 +153,17 @@ export default function Portfolio() {
           </>
         )}
         {tab === "stocks" ? null : (
-          <View padding="$s4">
-            <Text caption2 color="$interactiveOnDisabled">
+          <View padding="s4">
+            <Text caption2 color="interactiveOnDisabled">
               <Trans
                 i18nKey="Performance is variable, not guaranteed, and powered by <protocol>Exactly Protocol</protocol>. Yields depend on protocol performance and network activity. Past performance does not guarantee future results."
                 components={{
                   protocol: (
                     <Text
                       cursor="pointer"
-                      caption2
-                      color="$interactiveOnDisabled"
+                      color="interactiveOnDisabled"
                       textDecorationLine="underline"
+                      caption2
                       aria-label={t("Exactly protocol website")}
                       role="link"
                       onPress={() => {

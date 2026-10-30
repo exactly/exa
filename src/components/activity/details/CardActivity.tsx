@@ -31,34 +31,34 @@ export default function CardActivity({
   const refund = item.usdAmount < 0;
   return (
     <>
-      <YStack gap="$s7" paddingBottom="$s9">
+      <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
             {refund ? (
-              <Import size={48} color="$uiSuccessSecondary" strokeWidth={2} />
+              <Import size={48} color="uiSuccessSecondary" strokeWidth={2} />
             ) : processing ? (
-              <ClockAlert size={48} color="$interactiveOnBaseWarningSoft" strokeWidth={2} />
+              <ClockAlert size={48} color="interactiveOnBaseWarningSoft" strokeWidth={2} />
             ) : item.merchant.icon ? (
-              <Square size={80} borderRadius="$r4" backgroundColor="white">
+              <Square size={80} borderRadius="r4" backgroundColor="white">
                 <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
               </Square>
             ) : (
-              <ShoppingCart size={48} color="$uiNeutralPrimary" strokeWidth={2} />
+              <ShoppingCart size={48} color="uiNeutralPrimary" strokeWidth={2} />
             )}
           </Square>
         </XStack>
-        <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+        <YStack gap="s4_5" justifyContent="center" alignItems="center">
           <Text
             body
-            color={refund ? "$uiNeutralSecondary" : processing ? "$interactiveOnBaseWarningSoft" : "$uiNeutralPrimary"}
+            color={refund ? "uiNeutralSecondary" : processing ? "interactiveOnBaseWarningSoft" : "uiNeutralPrimary"}
           >
             {refund ? t("Refund") : processing ? t("Processing...") : t("Paid")}
-            <Text emphasized primary body $platform-web={{ whiteSpace: "normal" }}>
+            <Text emphasized primary body whiteSpace="web:normal">
               &nbsp;
               {item.merchant.name}
             </Text>
           </Text>
-          <Text title primary color={refund ? "$uiSuccessSecondary" : "$uiNeutralPrimary"}>
+          <Text title primary color={refund ? "uiSuccessSecondary" : "uiNeutralPrimary"}>
             {`$${Math.abs(item.usdAmount).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
           <Text secondary body>
@@ -66,11 +66,11 @@ export default function CardActivity({
           </Text>
         </YStack>
       </YStack>
-      <YStack gap="$s7">
+      <YStack gap="s7">
         {item.type === "panda" ? (
           <>
             {item.operations.map((operation) => (
-              <YStack key={operation.transactionHash} gap="$s7">
+              <YStack key={operation.transactionHash} gap="s7">
                 <PurchaseDetails item={operation} />
                 {item.usdAmount > 0 && <PaymentDetails item={operation} />}
               </YStack>

@@ -39,17 +39,17 @@ export default function Failure({
   return (
     <GradientScrollView variant="error">
       <View flex={1}>
-        <YStack gap="$s7" paddingBottom="$s9">
+        <YStack gap="s7" paddingBottom="s9">
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
-            <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
-              <X size={48} color="$uiErrorSecondary" strokeWidth={2} />
+            <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size={80}>
+              <X size={48} color="uiErrorSecondary" strokeWidth={2} />
             </Square>
           </XStack>
-          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+          <YStack gap="s4_5" justifyContent="center" alignItems="center">
             <Text secondary body>
               {t("Failed")}&nbsp;
-              <Text emphasized primary body color={maturity <= timestamp ? "$uiErrorSecondary" : "$uiNeutralPrimary"}>
+              <Text emphasized primary body color={maturity <= timestamp ? "uiErrorSecondary" : "uiNeutralPrimary"}>
                 {t("Due {{date}}", {
                   date: useMemo(
                     () =>
@@ -63,30 +63,30 @@ export default function Failure({
                 })}
               </Text>
             </Text>
-            <XStack gap="$s2" alignItems="center">
-              <Text title primary color="$uiNeutralPrimary">
+            <XStack gap="s2" alignItems="center">
+              <Text title primary color="uiNeutralPrimary">
                 {(Number(repayAssets) / 1e6).toLocaleString(language, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                   useGrouping: false,
                 })}
               </Text>
-              <Text title primary color="$uiNeutralPrimary">
+              <Text title primary color="uiNeutralPrimary">
                 &nbsp;USDC&nbsp;
               </Text>
               <AssetLogo symbol="USDC" width={28} height={28} />
             </XStack>
             {currency !== "USDC" && (
-              <XStack gap="$s2" alignItems="center">
-                <Text headline primary color="$uiNeutralPrimary">
+              <XStack gap="s2" alignItems="center">
+                <Text headline primary color="uiNeutralPrimary">
                   {t("with")}&nbsp;
                 </Text>
-                <Text title2 primary color="$uiNeutralPrimary">
+                <Text title2 primary color="uiNeutralPrimary">
                   {amount.toLocaleString(language, {
                     maximumFractionDigits: selectedAsset === marketUSDCAddress ? 2 : 8,
                   })}
                 </Text>
-                <Text title2 primary color="$uiNeutralPrimary">
+                <Text title2 primary color="uiNeutralPrimary">
                   &nbsp;{currency}&nbsp;
                 </Text>
                 {currency && <AssetLogo height={22} width={22} symbol={currency} />}
@@ -95,9 +95,9 @@ export default function Failure({
           </YStack>
         </YStack>
         <View flex={2} justifyContent="flex-end">
-          <YStack alignItems="center" gap="$s4">
+          <YStack alignItems="center" gap="s4">
             <Pressable onPress={onClose}>
-              <Text emphasized footnote color="$uiBrandSecondary">
+              <Text emphasized footnote color="uiBrandSecondary">
                 {t("Close")}
               </Text>
             </Pressable>

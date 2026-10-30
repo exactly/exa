@@ -25,24 +25,24 @@ export default function AddFundsOption({
 }) {
   return (
     <YStack
-      padding="$s4_5"
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r5"
+      padding="s4_5"
+      backgroundColor="backgroundSoft"
+      borderRadius="r5"
       borderWidth={1}
-      borderColor="$borderNeutralSoft"
+      borderColor="borderNeutralSoft"
       cursor={disabled ? "default" : "pointer"}
       opacity={disabled ? 0.5 : 1}
       aria-disabled={disabled}
       onPress={disabled ? undefined : onPress}
     >
-      <XStack alignItems="center" gap="$s3_5" justifyContent="space-between">
-        <XStack gap="$s3_5" alignItems="center" flex={1}>
+      <XStack alignItems="center" gap="s3_5" justifyContent="space-between">
+        <XStack gap="s3_5" alignItems="center" flex={1}>
           <View
             width={40}
             height={40}
-            backgroundColor="$interactiveBaseBrandSoftDefault"
-            borderRadius="$r3"
-            padding="$s3"
+            backgroundColor="interactiveBaseBrandSoftDefault"
+            borderRadius="r3"
+            padding="s3"
             alignItems="center"
             justifyContent="center"
           >
@@ -61,21 +61,21 @@ export default function AddFundsOption({
         </XStack>
         {!!badge && (
           <View
-            backgroundColor="$interactiveBaseSuccessDefault"
-            borderRadius="$r2"
-            paddingHorizontal="$s2"
-            paddingVertical="$s1"
+            backgroundColor="interactiveBaseSuccessDefault"
+            borderRadius="r2"
+            paddingHorizontal="s2"
+            paddingVertical="s1"
           >
-            <Text emphasized caption2 color="$interactiveOnBaseSuccessDefault" textTransform="uppercase">
+            <Text emphasized caption2 color="interactiveOnBaseSuccessDefault" textTransform="uppercase">
               {badge}
             </Text>
           </View>
         )}
         <View>
           {loading ? (
-            <Spinner size="small" color="$uiBrandSecondary" />
+            <Spinner size="small" color="uiBrandSecondary" />
           ) : (
-            <ChevronRight size={24} color="$uiBrandSecondary" />
+            <ChevronRight size={24} color="uiBrandSecondary" />
           )}
         </View>
       </XStack>

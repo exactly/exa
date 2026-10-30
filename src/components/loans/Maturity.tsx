@@ -39,14 +39,7 @@ export default function Maturity() {
   if (!market || !amount || !installments || (markets && !asset)) return <Redirect href="/loan" />;
   return (
     <SafeView fullScreen paddingBottom={0}>
-      <View
-        padded
-        flexDirection="row"
-        gap="$s3_5"
-        paddingBottom="$s4"
-        justifyContent="space-between"
-        alignItems="center"
-      >
+      <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}
           aria-label={t("Back")}
@@ -70,18 +63,18 @@ export default function Maturity() {
         />
       </View>
       <ScrollView
-        backgroundColor="$backgroundMild"
+        backgroundColor="backgroundMild"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
       >
-        <YStack gap="$s4" justifyContent="space-between">
-          <YStack gap="$s4" padding="$s4">
-            <YStack gap="$s4_5">
-              <YStack gap="$s4_5">
+        <YStack gap="s4" justifyContent="space-between">
+          <YStack gap="s4" padding="s4">
+            <YStack gap="s4_5">
+              <YStack gap="s4_5">
                 <Text primary emphasized body>
                   {t("Select first due date")}
                 </Text>
-                <YStack gap="$s3">
+                <YStack gap="s3">
                   {Array.from({ length: MAX_INSTALLMENTS }).map((_, index) => {
                     const option = firstMaturity + index * MATURITY_INTERVAL;
                     const selected = option === Number(maturity);
@@ -94,33 +87,34 @@ export default function Maturity() {
                           router.setParams({ maturity: String(option) });
                         }}
                         flex={1}
-                        gap="$s4"
+                        gap="s4"
                         minHeight={60}
                         backgroundColor={
                           selected
-                            ? "$interactiveBaseBrandSoftDefault"
+                            ? "interactiveBaseBrandSoftDefault"
                             : invalid
-                              ? "$interactiveDisabled"
-                              : "$backgroundSoft"
+                              ? "interactiveDisabled"
+                              : "backgroundSoft"
                         }
-                        borderRadius="$r4"
+                        borderRadius="r4"
                         alignItems="center"
-                        padding="$s4"
-                        paddingVertical="$s4_5"
+                        paddingRight="s4"
+                        paddingLeft="s4"
+                        paddingVertical="s4_5"
                         cursor={invalid ? "not-allowed" : "pointer"}
                       >
                         <XStack
-                          backgroundColor={selected ? "$interactiveBaseBrandDefault" : "$backgroundStrong"}
+                          backgroundColor={selected ? "interactiveBaseBrandDefault" : "backgroundStrong"}
                           width={20}
                           height={20}
                           borderRadius={12}
                           alignItems="center"
                           justifyContent="center"
                         >
-                          {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
+                          {selected && <Check size={12} color="interactiveOnBaseBrandDefault" />}
                         </XStack>
                         <YStack>
-                          <Text headline color={invalid ? "$interactiveOnDisabled" : "$uiNeutralPrimary"}>
+                          <Text headline color={invalid ? "interactiveOnDisabled" : "uiNeutralPrimary"}>
                             {new Date(option * 1000).toLocaleDateString(language, {
                               year: "numeric",
                               month: "short",
@@ -128,7 +122,7 @@ export default function Maturity() {
                             })}
                           </Text>
                           {invalid ? (
-                            <Text footnote color="$uiNeutralPlaceholder">
+                            <Text footnote color="uiNeutralPlaceholder">
                               {t("Available for {{count}} installments or less", { count: MAX_INSTALLMENTS - index })}
                             </Text>
                           ) : null}
@@ -143,10 +137,10 @@ export default function Maturity() {
         </YStack>
       </ScrollView>
       <YStack
-        gap="$s4"
-        padding="$s4"
-        paddingBottom={insets.bottom + getTokens().space.$s4.val}
-        backgroundColor="$backgroundSoft"
+        gap="s4"
+        padding="s4"
+        paddingBottom={insets.bottom + getTokens().space.s4.val}
+        backgroundColor="backgroundSoft"
       >
         <LoanSummary market={market} amount={amount} installments={installments} maturity={maturity} />
         <Button

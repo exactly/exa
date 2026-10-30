@@ -26,44 +26,48 @@ export default function ErrorDialog({
   const aspectRatio = useAspectRatio();
   return (
     <AlertDialog open={open}>
-      <AlertDialog.Portal $platform-web={{ aspectRatio, justifySelf: "center" }}>
+      <AlertDialog.Portal aspectRatio={`web:${aspectRatio}`} justifySelf="web:center">
         <AlertDialog.Overlay
           onPress={onClose}
           key="overlay"
           backgroundColor="black"
-          opacity={0.5}
+          opacity="0.5 enter:0 exit:0"
           transition="default"
-          enterStyle={{ opacity: 0 }}
-          exitStyle={{ opacity: 0 }}
         />
         <AlertDialog.Content
-          $platform-web={{ backgroundColor: "transparent" }}
-          key="content"
-          transition={["default", { opacity: { overshootClamping: true } }]}
-          enterStyle={{ x: 0, y: -20, opacity: 0, scale: 0.9 }}
-          exitStyle={{ x: 0, y: 10, opacity: 0, scale: 0.95 }}
-          x={0}
-          y={0}
-          scale={1}
-          opacity={1}
+          backgroundColor="web:transparent"
+          transition={{ preset: "default", opacity: { preset: "default", spring: { overshootClamping: true } } }}
+          x="0 enter:0 exit:0"
+          y="0 enter:-20px exit:10px"
+          scale="1 enter:0.9 exit:0.95"
+          opacity="1 enter:0 exit:0"
           borderWidth={0}
-          margin="$s5"
+          margin="s5"
+          key="content"
         >
-          <YStack backgroundColor="$backgroundSoft" borderRadius="$r6" padding="$s5" paddingTop="$s5" gap="$s5">
-            <XStack alignItems="center" gap="$s3" justifyContent="flex-start">
+          <YStack
+            backgroundColor="backgroundSoft"
+            borderRadius="r6"
+            paddingRight="s5"
+            paddingBottom="s5"
+            paddingLeft="s5"
+            paddingTop="s5"
+            gap="s5"
+          >
+            <XStack alignItems="center" gap="s3" justifyContent="flex-start">
               <AlertDialog.Title>
                 <Text emphasized headline>
                   {title}
                 </Text>
               </AlertDialog.Title>
             </XStack>
-            <YStack gap="$s6">
-              <YStack gap="$s5">
+            <YStack gap="s6">
+              <YStack gap="s5">
                 <Text secondary subHeadline>
                   {description}
                 </Text>
               </YStack>
-              <YStack gap="$s3">
+              <YStack gap="s3">
                 {onContact && (
                   <Button onPress={onContact} secondary width="100%">
                     <Button.Text>{t("Contact support")}</Button.Text>

@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, YStack } from "tamagui";
 
 import ARS from "../../assets/images/ars.svg";
@@ -29,12 +29,11 @@ import View from "../shared/View";
 export default function RampWelcome({ direction }: { direction: "offramp" | "onramp" }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
   const beginKYC = useBeginKYC();
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
-        <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" fullScreen padded>
+        <View flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -45,7 +44,7 @@ export default function RampWelcome({ direction }: { direction: "offramp" | "onr
           />
         </View>
         <ScrollView flex={1}>
-          <YStack flex={1} padding="$s4" gap="$s6" justifyContent="center">
+          <YStack flex={1} padding="s4" gap="s6" justifyContent="center">
             <View width="100%" aspectRatio={1}>
               <View position="absolute" width="100%" height="100%">
                 <ThemedSvg xml={background} width="100%" height="100%" />
@@ -60,15 +59,15 @@ export default function RampWelcome({ direction }: { direction: "offramp" | "onr
                 );
               })}
             </View>
-            <YStack gap="$s6">
-              <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
+            <YStack gap="s6">
+              <Text title emphasized textAlign="center" color="interactiveTextBrandDefault">
                 {t(
                   direction === "offramp"
                     ? "Send money in dollars, euros, and more"
                     : "Receive money in dollars, euros, and more",
                 )}
               </Text>
-              <Text footnote textAlign="center" color="$uiNeutralSecondary">
+              <Text footnote textAlign="center" color="uiNeutralSecondary">
                 {t(
                   direction === "offramp"
                     ? "Send USDC from Exa App to bank accounts in supported currencies."
@@ -101,10 +100,7 @@ export default function RampWelcome({ direction }: { direction: "offramp" | "onr
                 }
               },
               onError(error) {
-                toast.show(t("Error verifying identity"), {
-                  duration: 1000,
-                  burntOptions: { haptic: "error", preset: "error" },
-                });
+                toast.error(t("Error verifying identity"), { duration: 1000 });
                 reportError(error);
               },
             });

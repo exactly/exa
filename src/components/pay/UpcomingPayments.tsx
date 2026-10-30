@@ -64,18 +64,18 @@ export default function UpcomingPayments({
   if (payments.length === 0) {
     if (!showEmpty) return null;
     return (
-      <View backgroundColor="$backgroundSoft" borderRadius="$r3" padding="$s4" gap="$s5">
+      <View backgroundColor="backgroundSoft" borderRadius="r3" padding="s4" gap="s5">
         <Text emphasized headline>
           {t("Upcoming payments")}
         </Text>
-        <YStack alignItems="center" justifyContent="center" gap="$s4_5">
-          <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
+        <YStack alignItems="center" justifyContent="center" gap="s4_5">
+          <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
             💳
           </Text>
-          <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
+          <Text textAlign="center" color="uiBrandSecondary" emphasized headline>
             {t("No payments due")}
           </Text>
-          <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
+          <Text textAlign="center" color="uiNeutralSecondary" subHeadline>
             {t("When you pay later with your card or borrow, your payments will show up here.")}
           </Text>
         </YStack>
@@ -83,13 +83,13 @@ export default function UpcomingPayments({
     );
   }
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" overflow="hidden">
-      <XStack padding="$s4">
+    <View backgroundColor="backgroundSoft" borderRadius="r3" overflow="hidden">
+      <XStack padding="s4">
         <Text emphasized headline>
           {t("Upcoming payments")}
         </Text>
       </XStack>
-      <YStack role="list" paddingHorizontal="$s4" paddingBottom="$s4" paddingTop="$s3_5" gap="$s4">
+      <YStack role="list" paddingHorizontal="s4" paddingBottom="s4" paddingTop="s3_5" gap="s4">
         {payments.map(([maturity, { amount, discount }], index) => {
           const processing = isProcessing(maturity);
           const maturityDate = new Date(Number(maturity) * 1000);
@@ -105,30 +105,30 @@ export default function UpcomingPayments({
           })}`;
           return (
             <React.Fragment key={String(maturity)}>
-              {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
+              {index > 0 && <Separator borderColor="borderNeutralSoft" />}
               <XStack
                 aria-label={formattedDate}
                 role="button"
                 aria-disabled={processing}
                 cursor="pointer"
                 alignItems="center"
-                gap="$s3"
+                gap="s3"
                 onPress={() => {
                   if (processing) return;
                   selectionAsync().catch(reportError);
                   onSelect(maturity);
                 }}
               >
-                <YStack flex={1} gap="$s2">
-                  <Text emphasized subHeadline color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                <YStack flex={1} gap="s2">
+                  <Text emphasized subHeadline color={processing ? "interactiveTextDisabled" : "uiNeutralPrimary"}>
                     {formattedDate}
                   </Text>
                   {processing ? (
-                    <Text footnote color="$interactiveTextDisabled">
+                    <Text footnote color="interactiveTextDisabled">
                       {t("Processing")}
                     </Text>
                   ) : discount >= 0.001 ? (
-                    <Text emphasized footnote color="$uiSuccessSecondary">
+                    <Text emphasized footnote color="uiSuccessSecondary">
                       {t("{{percent}} OFF", {
                         percent: discount.toLocaleString(language, {
                           style: "percent",
@@ -139,15 +139,15 @@ export default function UpcomingPayments({
                     </Text>
                   ) : null}
                 </YStack>
-                <Text sensitive emphasized title3 color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                <Text sensitive emphasized title3 color={processing ? "interactiveTextDisabled" : "uiNeutralPrimary"}>
                   {formattedAmount}
                 </Text>
-                <ChevronRight size={20} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
+                <ChevronRight size={20} color={processing ? "iconDisabled" : "interactiveBaseBrandDefault"} />
               </XStack>
             </React.Fragment>
           );
         })}
-        <Text caption color="$uiNeutralSecondary">
+        <Text caption color="uiNeutralSecondary">
           <Text emphasized>{t("You must repay each installment manually before its due date.")} </Text>
           {t("If not, a {{rate}} penalty is added every day the payment is late.", {
             rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {

@@ -6,8 +6,8 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
-import { useToastController } from "@tamagui/toast";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { toast } from "@tamagui/toast";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
@@ -28,7 +28,6 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
   const {
     currency: currencyParameter,
     network: networkParameter,
@@ -73,10 +72,7 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
           }}
           onError={() => {
             setTOSLink(undefined);
-            toast.show(t("Something went wrong. Please try again."), {
-              duration: 1000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
+            toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
           }}
         />
       </SafeView>
@@ -85,9 +81,9 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
 
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
-        <View gap="$s4_5">
-          <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" fullScreen padded>
+        <View gap="s4_5">
+          <View flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -102,12 +98,12 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
           </View>
         </View>
         <ScrollView flex={1}>
-          <YStack flex={1} gap="$s5" padding="$s4">
-            <YStack gap="$s5">
+          <YStack flex={1} gap="s5" padding="s4">
+            <YStack gap="s5">
               <Text title3 emphasized>
                 {t("Open your {{provider}} virtual account", { provider: isBridge ? "Bridge" : "Manteca" })}
               </Text>
-              <Text color="$uiNeutralSecondary" subHeadline>
+              <Text color="uiNeutralSecondary" subHeadline>
                 {offramp
                   ? t(
                       "Bridge provides a United States virtual account, converts your USDC to {{currency}}, and sends the funds to bank accounts.",
@@ -124,7 +120,7 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
                       )}
               </Text>
             </YStack>
-            <YStack gap="$s4_5">
+            <YStack gap="s4_5">
               {feeRows.map(({ label, value, caption }) => (
                 <FeeRow key={label} label={label} value={value} caption={caption} />
               ))}
@@ -132,9 +128,9 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
           </YStack>
         </ScrollView>
 
-        <YStack gap="$s4_5">
+        <YStack gap="s4_5">
           {isBridge ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
-          <XStack alignItems="center" gap="$s4" justifyContent="flex-start">
+          <XStack alignItems="center" gap="s4" justifyContent="flex-start">
             <XStack
               cursor="pointer"
               onPress={() => {
@@ -144,14 +140,14 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
               <View
                 width={16}
                 height={16}
-                backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                borderColor="$backgroundBrand"
+                backgroundColor={acknowledged ? "backgroundBrand" : "transparent"}
+                borderColor="backgroundBrand"
                 borderWidth={1}
-                borderRadius="$r2"
+                borderRadius="r2"
                 justifyContent="center"
                 alignItems="center"
               >
-                {acknowledged && <Check size="$iconSize.xs" color="white" />}
+                {acknowledged && <Check size={getTokens().iconSize.xs.val} color="white" />}
               </View>
             </XStack>
             <XStack alignItems="center" cursor="pointer">
@@ -161,7 +157,7 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
                   components={{
                     terms: (
                       <Text
-                        color="$interactiveTextBrandDefault"
+                        color="interactiveTextBrandDefault"
                         cursor="pointer"
                         onPress={() => {
                           openBrowser(termsURL).catch(reportError);
@@ -196,18 +192,18 @@ function FeeRow({ label, value, caption }: { caption?: string; label: string; va
   const { t } = useTranslation();
   return (
     <YStack>
-      <XStack justifyContent="space-between" alignItems="center" gap="$s4">
+      <XStack justifyContent="space-between" alignItems="center" gap="s4">
         <Text headline>{label}</Text>
-        <Text emphasized headline color="$uiSuccessSecondary">
+        <Text emphasized headline color="uiSuccessSecondary">
           {t("Free")}
         </Text>
       </XStack>
       {caption || value ? (
-        <XStack justifyContent="space-between" alignItems="center" gap="$s4">
-          <Text footnote color="$uiNeutralSecondary" flex={1}>
+        <XStack justifyContent="space-between" alignItems="center" gap="s4">
+          <Text footnote color="uiNeutralSecondary" flex={1}>
             {caption}
           </Text>
-          <Text emphasized footnote strikeThrough color="$uiNeutralSecondary" textAlign="right">
+          <Text emphasized footnote strikeThrough color="uiNeutralSecondary" textAlign="right">
             {value}
           </Text>
         </XStack>

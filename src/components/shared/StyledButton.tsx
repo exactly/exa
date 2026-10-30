@@ -2,11 +2,11 @@ import type React from "react";
 import { use, useMemo, type ComponentPropsWithoutRef } from "react";
 
 import type { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
-import { createStyledContext, Spinner, styled, withStaticProperties, XStack, YStack } from "tamagui";
+import { createStyledContext, getTokens, Spinner, styled, withStaticProperties, XStack, YStack } from "tamagui";
 
 import Text from "./Text";
 
-const ButtonContext = createStyledContext<{
+type ButtonContextValue = {
   danger?: boolean;
   dangerSecondary?: boolean;
   disabled?: boolean;
@@ -15,7 +15,9 @@ const ButtonContext = createStyledContext<{
   primary?: boolean;
   secondary?: boolean;
   transparent?: boolean;
-}>({
+};
+
+const ButtonContext = createStyledContext<ButtonContextValue>({
   primary: false,
   secondary: false,
   disabled: false,
@@ -26,12 +28,8 @@ const ButtonContext = createStyledContext<{
   loading: false,
 });
 
-const pressable = (hover: object, press: object) => ({
-  hoverStyle: hover,
-  pressStyle: press,
-  "$group-column-hover": hover,
-  "$group-column-press": press,
-});
+const pressable = (base: string, hover: string, press: string) =>
+  `${base} hover:${hover} press:${press} group-hover/column:${hover} group-press/column:${press}`;
 
 const ButtonFrame = styled(XStack, {
   name: "Button",
@@ -40,84 +38,74 @@ const ButtonFrame = styled(XStack, {
   flexDirection: "row",
   alignItems: "center",
   justifyContent: "space-between",
-  borderRadius: "$r3",
+  borderRadius: "r3",
   borderWidth: 0,
   userSelect: "none",
-  gap: "$s3",
-  paddingHorizontal: "$s4",
+  gap: "s3",
+  paddingHorizontal: "s4",
   minHeight: 64,
   variants: {
     primary: {
       true: {
-        backgroundColor: "$interactiveBaseBrandDefault",
-        ...pressable(
-          { backgroundColor: "$interactiveBaseBrandHover" },
-          { backgroundColor: "$interactiveBaseBrandPressed" },
+        backgroundColor: pressable(
+          "interactiveBaseBrandDefault",
+          "interactiveBaseBrandHover",
+          "interactiveBaseBrandPressed",
         ),
       },
     },
     secondary: {
       true: {
-        backgroundColor: "$interactiveBaseBrandSoftDefault",
-        ...pressable(
-          { backgroundColor: "$interactiveBaseBrandSoftHover" },
-          { backgroundColor: "$interactiveBaseBrandSoftPressed" },
+        backgroundColor: pressable(
+          "interactiveBaseBrandSoftDefault",
+          "interactiveBaseBrandSoftHover",
+          "interactiveBaseBrandSoftPressed",
         ),
       },
     },
     danger: {
       true: {
-        backgroundColor: "$interactiveBaseErrorDefault",
-        ...pressable(
-          { backgroundColor: "$interactiveBaseErrorHover" },
-          { backgroundColor: "$interactiveBaseErrorPressed" },
+        backgroundColor: pressable(
+          "interactiveBaseErrorDefault",
+          "interactiveBaseErrorHover",
+          "interactiveBaseErrorPressed",
         ),
       },
     },
     dangerSecondary: {
       true: {
-        backgroundColor: "$interactiveBaseErrorSoftDefault",
-        ...pressable(
-          { backgroundColor: "$interactiveBaseErrorSoftHover" },
-          { backgroundColor: "$interactiveBaseErrorSoftPressed" },
+        backgroundColor: pressable(
+          "interactiveBaseErrorSoftDefault",
+          "interactiveBaseErrorSoftHover",
+          "interactiveBaseErrorSoftPressed",
         ),
       },
     },
     outlined: {
       true: {
-        backgroundColor: "transparent",
-        borderColor: "$interactiveBaseBrandDefault",
+        backgroundColor: pressable("transparent", "interactiveBaseBrandSoftDefault", "interactiveBaseBrandSoftHover"),
+        borderColor: "interactiveBaseBrandDefault",
         borderWidth: 1,
-        color: "$interactiveBaseBrandDefault",
-        ...pressable(
-          { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
-          { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
+        color: pressable(
+          "interactiveBaseBrandDefault",
+          "interactiveOnBaseBrandDefault",
+          "interactiveOnBaseBrandDefault",
         ),
       },
     },
     transparent: {
       true: {
-        backgroundColor: "transparent",
-        borderColor: "transparent",
-        color: "$interactiveBaseBrandDefault",
-        ...pressable(
-          { backgroundColor: "$interactiveBaseBrandSoftDefault", color: "$interactiveOnBaseBrandDefault" },
-          { backgroundColor: "$interactiveBaseBrandSoftHover", color: "$interactiveOnBaseBrandDefault" },
-        ),
-        disabledStyle: {
-          backgroundColor: "transparent",
-          borderColor: "transparent",
-          color: "$interactiveOnDisabled",
-        },
+        backgroundColor: `${pressable("transparent", "interactiveBaseBrandSoftDefault", "interactiveBaseBrandSoftHover")} disabled:transparent`,
+        borderColor: "transparent disabled:transparent",
+        color: `${pressable("interactiveBaseBrandDefault", "interactiveOnBaseBrandDefault", "interactiveOnBaseBrandDefault")} disabled:interactiveOnDisabled`,
       },
     },
     loading: { true: {} }, // HACK satisfy prop type
     disabled: {
       true: {
-        backgroundColor: "$interactiveDisabled",
+        backgroundColor: pressable("interactiveDisabled", "interactiveDisabled", "interactiveDisabled"),
         borderColor: "transparent",
         cursor: "not-allowed",
-        ...pressable({ backgroundColor: "$interactiveDisabled" }, { backgroundColor: "$interactiveDisabled" }),
       },
     },
   } as const,
@@ -126,13 +114,13 @@ const ButtonFrame = styled(XStack, {
 const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
   const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent } = use(ButtonContext.context);
   const color = useMemo(() => {
-    if (disabled) return "$interactiveOnDisabled";
-    if (primary) return "$interactiveOnBaseBrandDefault";
-    if (secondary) return "$interactiveOnBaseBrandSoft";
-    if (danger) return "$interactiveOnBaseErrorDefault";
-    if (dangerSecondary) return "$interactiveOnBaseErrorSoft";
-    if (outlined) return "$interactiveBaseBrandDefault";
-    if (transparent) return "$interactiveBaseBrandDefault";
+    if (disabled) return "interactiveOnDisabled";
+    if (primary) return "interactiveOnBaseBrandDefault";
+    if (secondary) return "interactiveOnBaseBrandSoft";
+    if (danger) return "interactiveOnBaseErrorDefault";
+    if (dangerSecondary) return "interactiveOnBaseErrorSoft";
+    if (outlined) return "interactiveBaseBrandDefault";
+    if (transparent) return "interactiveBaseBrandDefault";
   }, [disabled, primary, secondary, danger, dangerSecondary, outlined, transparent]);
   return (
     <Text
@@ -150,19 +138,19 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
 
 const ButtonIcon = (properties: { children: React.ReactElement<ComponentPropsWithoutRef<typeof ArrowRight>> }) => {
   const { children } = properties;
-  const { size = "$iconSize.md", strokeWidth = 2.5, ...iconProperties } = children.props;
+  const { size = getTokens().iconSize.md.val, strokeWidth = 2.5, ...iconProperties } = children.props;
   const IconComponent = children.type as React.ComponentType<ComponentPropsWithoutRef<typeof ArrowRight>>;
   const { primary, secondary, disabled, danger, dangerSecondary, outlined, transparent, loading } = use(
     ButtonContext.context,
   );
   const color = useMemo(() => {
-    if (disabled) return "$interactiveOnDisabled";
-    if (primary) return "$interactiveOnBaseBrandDefault";
-    if (secondary) return "$interactiveOnBaseBrandSoft";
-    if (danger) return "$interactiveOnBaseErrorDefault";
-    if (dangerSecondary) return "$interactiveOnBaseErrorSoft";
-    if (outlined) return "$interactiveBaseBrandDefault";
-    if (transparent) return "$interactiveBaseBrandDefault";
+    if (disabled) return "interactiveOnDisabled";
+    if (primary) return "interactiveOnBaseBrandDefault";
+    if (secondary) return "interactiveOnBaseBrandSoft";
+    if (danger) return "interactiveOnBaseErrorDefault";
+    if (dangerSecondary) return "interactiveOnBaseErrorSoft";
+    if (outlined) return "interactiveBaseBrandDefault";
+    if (transparent) return "interactiveBaseBrandDefault";
   }, [primary, secondary, disabled, danger, dangerSecondary, outlined, transparent]);
   if (loading) return <Spinner width={size} height={size} color={color} />;
   return <IconComponent {...iconProperties} size={size} strokeWidth={strokeWidth} color={color} />;
@@ -172,7 +160,7 @@ const ButtonColumnFrame = styled(YStack, {
   name: "ButtonColumn",
   context: ButtonContext,
   alignItems: "center",
-  gap: "$s3_5",
+  gap: "s3_5",
   cursor: "pointer",
   group: "column",
   pointerEvents: "box-only",
@@ -198,7 +186,7 @@ function ButtonColumn({
   loading,
   disabled,
   ...properties
-}: ComponentPropsWithoutRef<typeof ButtonColumnFrame>) {
+}: ButtonContextValue & Omit<ComponentPropsWithoutRef<typeof ButtonColumnFrame>, keyof ButtonContextValue>) {
   const context = { primary, secondary, danger, dangerSecondary, outlined, transparent, loading, disabled };
   return (
     <ButtonContext.context value={context}>
@@ -213,7 +201,7 @@ function ButtonLabel(properties: ComponentPropsWithoutRef<typeof Text>) {
     <Text
       footnote
       numberOfLines={1}
-      color={disabled ? "$interactiveOnDisabled" : "$interactiveBaseBrandDefault"}
+      color={disabled ? "interactiveOnDisabled" : "interactiveBaseBrandDefault"}
       textAlign="center"
       {...properties}
     />

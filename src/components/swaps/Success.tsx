@@ -57,7 +57,7 @@ export default function Success({
     i18n: { language },
   } = useTranslation();
   return (
-    <View fullScreen backgroundColor="$backgroundSoft">
+    <View fullScreen backgroundColor="backgroundSoft">
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
@@ -69,8 +69,8 @@ export default function Success({
         colors={[completed ? theme.uiSuccessSecondary.val : theme.uiInfoSecondary.val, theme.backgroundSoft.val]}
       />
       <SafeView flex={1} backgroundColor="transparent">
-        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
-          <YStack gap="$s7" paddingBottom="$s9">
+        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="s4">
+          <YStack gap="s7" paddingBottom="s9">
             <IconButton
               alignSelf="flex-start"
               icon={X}
@@ -82,30 +82,30 @@ export default function Success({
             />
             <XStack justifyContent="center" alignItems="center">
               <Square
-                borderRadius="$r4"
+                borderRadius="r4"
                 backgroundColor={
-                  completed ? "$interactiveBaseSuccessSoftDefault" : "$interactiveBaseInformationSoftDefault"
+                  completed ? "interactiveBaseSuccessSoftDefault" : "interactiveBaseInformationSoftDefault"
                 }
                 size={80}
               >
                 {completed ? (
-                  <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />
+                  <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />
                 ) : (
-                  <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />
+                  <ExaSpinner backgroundColor="transparent" color="uiInfoSecondary" />
                 )}
               </Square>
             </XStack>
-            <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+            <YStack gap="s4_5" justifyContent="center" alignItems="center">
               <Text secondary body>
                 <Trans
                   i18nKey={completed ? "Swap <em>completed</em>" : "Swap request <em>sent</em>"}
                   components={{ em: <Text secondary body emphasized /> }}
                 />
               </Text>
-              <Text title primary color="$uiNeutralPrimary">
+              <Text title primary color="uiNeutralPrimary">
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <AssetLogo
                   uri={fromToken.logoURI}
                   symbol={fromToken.symbol}
@@ -117,11 +117,11 @@ export default function Success({
                   {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
               </XStack>
-              <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
-              <Text title primary color="$uiNeutralPrimary">
+              <ArrowDown size={24} color="interactiveBaseBrandDefault" />
+              <Text title primary color="uiNeutralPrimary">
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <AssetLogo
                   uri={toToken.logoURI}
                   symbol={toToken.symbol}
@@ -137,7 +137,7 @@ export default function Success({
           </YStack>
           <TransactionDetails chainId={chainId} fee={fee} hash={hash} />
         </ScrollView>
-        <YStack alignItems="center" gap="$s4" padding="$s4">
+        <YStack alignItems="center" gap="s4" padding="s4">
           {!completed && (
             <Button
               primary
@@ -159,7 +159,7 @@ export default function Success({
               onClose();
             }}
           >
-            <Text emphasized footnote color="$uiBrandSecondary">
+            <Text emphasized footnote color="uiBrandSecondary">
               {t("Close")}
             </Text>
           </Pressable>

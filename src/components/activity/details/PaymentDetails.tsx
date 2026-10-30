@@ -19,9 +19,9 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
     i18n: { language },
   } = useTranslation();
   return (
-    <YStack gap="$s4">
-      <YStack gap="$s4">
-        <XStack gap="$s3" alignItems="center">
+    <YStack gap="s4">
+      <YStack gap="s4">
+        <XStack gap="s3" alignItems="center">
           <Text emphasized headline>
             {t("Payment details")}
           </Text>
@@ -30,33 +30,33 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
               presentArticle("11498255").catch(reportError);
             }}
           >
-            <CircleHelp size={18} color="$uiNeutralPrimary" />
+            <CircleHelp size={18} color="uiNeutralPrimary" />
           </Pressable>
         </XStack>
-        <Separator height={1} borderColor="$borderNeutralSoft" />
+        <Separator height={1} borderColor="borderNeutralSoft" />
       </YStack>
-      <YStack gap="$s3_5">
+      <YStack gap="s3_5">
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Mode")}
           </Text>
-          <XStack alignItems="center" gap="$s2">
+          <XStack alignItems="center" gap="s2">
             <Text primary callout>
               {item.mode > 0 ? t("Pay Later") : t("Card")}
             </Text>
             {item.mode > 0 ? (
-              <CalendarClock size={20} color="$uiBrandPrimary" />
+              <CalendarClock size={20} color="uiBrandPrimary" />
             ) : (
-              <CreditCard size={20} color="$uiBrandPrimary" />
+              <CreditCard size={20} color="uiBrandPrimary" />
             )}
           </XStack>
         </XStack>
         {item.mode > 0 && (
           <XStack justifyContent="space-between">
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("Fixed rate APR")}
             </Text>
-            <Text callout color="$uiNeutralPrimary">
+            <Text callout color="uiNeutralPrimary">
               {(item as CreditActivity).borrow.rate.toLocaleString(language, {
                 style: "percent",
                 minimumFractionDigits: 2,
@@ -67,16 +67,16 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
         )}
         {item.mode !== 0 && (
           <XStack justifyContent="space-between">
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("Installments")}
             </Text>
             <XStack alignItems="center">
-              <Text emphasized callout color="$uiNeutralPrimary">
+              <Text emphasized callout color="uiNeutralPrimary">
                 {item.mode === 1 && `1x`}
                 {item.mode > 1 && `${(item as InstallmentsActivity).borrow.installments.length}x`}
                 &nbsp;
               </Text>
-              <Text callout color="$uiNeutralPrimary">
+              <Text callout color="uiNeutralPrimary">
                 {item.mode === 1 &&
                   (item.usdAmount + item.borrow.fee).toLocaleString(language, {
                     minimumFractionDigits: 2,
@@ -96,10 +96,10 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
           </XStack>
         )}
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Total")}
           </Text>
-          <Text callout color="$uiNeutralPrimary">
+          <Text callout color="uiNeutralPrimary">
             {item.mode === 0 &&
               `${Math.abs(item.usdAmount).toLocaleString(language, { maximumFractionDigits: 2 })} USDC`}
             {item.mode === 1 &&

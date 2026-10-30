@@ -56,23 +56,23 @@ export default function Calculator() {
   );
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
-      <View fullScreen backgroundColor="$backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+      <View fullScreen backgroundColor="backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           backgroundColor="transparent"
-          contentContainerStyle={{ backgroundColor: "$backgroundMild" }}
+          contentContainerStyle={{ backgroundColor: "backgroundMild" }}
           showsVerticalScrollIndicator={false}
           flex={1}
         >
           <View
-            backgroundColor="$backgroundSoft"
-            padded
+            backgroundColor="backgroundSoft"
             flexDirection="row"
-            gap="$s3_5"
-            paddingBottom="$s4"
+            gap="s3_5"
+            paddingBottom="s4"
             justifyContent="space-between"
             alignItems="center"
+            padded
           >
             <Pressable
               accessibilityLabel={t("Go back")}
@@ -85,7 +85,7 @@ export default function Calculator() {
                 }
               }}
             >
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+              <ArrowLeft size={24} color="uiNeutralPrimary" />
             </Pressable>
             <Text subHeadline emphasized>
               {t("Installments calculator")}
@@ -97,11 +97,11 @@ export default function Calculator() {
                 presentArticle("11541409").catch(reportError);
               }}
             >
-              <CircleHelp color="$uiNeutralSecondary" />
+              <CircleHelp color="uiNeutralSecondary" />
             </Pressable>
           </View>
-          <View backgroundColor="$backgroundSoft" paddingHorizontal="$s4" paddingBottom="$s4" paddingTop="$s3">
-            <XStack gap="$s4" alignItems="center">
+          <View backgroundColor="backgroundSoft" paddingHorizontal="s4" paddingBottom="s4" paddingTop="s3">
+            <XStack gap="s4" alignItems="center">
               <YStack flexShrink={1}>
                 <Text emphasized subHeadline>
                   {t("Enter a purchase amount")}
@@ -112,22 +112,18 @@ export default function Calculator() {
               </YStack>
               <XStack
                 flex={1}
-                backgroundColor="$backgroundSoft"
-                borderColor="$borderNeutralSoft"
-                borderRadius="$r2"
+                backgroundColor="backgroundSoft"
+                borderColor="borderNeutralSoft focus:borderBrandStrong focus-visible:borderBrandStrong"
+                borderRadius="r2"
                 borderWidth={1}
                 alignItems="center"
-                gap="$s2"
-                paddingHorizontal="$s3"
+                gap="s2"
+                paddingHorizontal="s3"
                 overflow="hidden"
-                focusStyle={{ borderColor: "$borderBrandStrong" }}
-                focusVisibleStyle={{
-                  outlineWidth: 0,
-                  borderColor: "$borderBrandStrong",
-                  outlineColor: "$borderBrandStrong",
-                }}
+                outlineWidth="focus-visible:0px"
+                outlineColor="focus-visible:borderBrandStrong"
               >
-                <Text subHeadline color="$uiNeutralPlaceholder">
+                <Text subHeadline color="uiNeutralPlaceholder">
                   $
                 </Text>
                 <AmountInput
@@ -150,24 +146,24 @@ export default function Calculator() {
               </XStack>
             </XStack>
           </View>
-          <YStack paddingTop="$s6" paddingBottom="$s7" paddingHorizontal="$s4" gap="$s4_5">
-            <YStack gap="$s3">
+          <YStack paddingTop="s6" paddingBottom="s7" paddingHorizontal="s4" gap="s4_5">
+            <YStack gap="s3">
               {rates?.installments.map(({ count, payments, rate, total }) => {
                 const isBestRate = bestRateIndex === count - 1;
                 return (
                   <XStack
                     key={count}
-                    backgroundColor="$backgroundSoft"
-                    borderRadius="$r3"
-                    paddingHorizontal="$s4"
-                    paddingVertical="$s4_5"
+                    backgroundColor="backgroundSoft"
+                    borderRadius="r3"
+                    paddingHorizontal="s4"
+                    paddingVertical="s4_5"
                     alignItems="center"
-                    gap="$s3_5"
+                    gap="s3_5"
                   >
-                    <YStack flex={1} gap="$s3" justifyContent="center">
+                    <YStack flex={1} gap="s3" justifyContent="center">
                       {payments ? (
                         <Text headline>
-                          <Text headline color="$uiNeutralSecondary">
+                          <Text headline color="uiNeutralSecondary">
                             {count}x{" "}
                           </Text>
                           $
@@ -179,9 +175,9 @@ export default function Calculator() {
                       ) : (
                         <Skeleton height={23} width={120} />
                       )}
-                      <XStack gap="$s3" alignItems="center">
+                      <XStack gap="s3" alignItems="center">
                         {payments ? (
-                          <Text footnote color={isBestRate ? "$interactiveOnBaseSuccessSoft" : "$uiNeutralSecondary"}>
+                          <Text footnote color={isBestRate ? "interactiveOnBaseSuccessSoft" : "uiNeutralSecondary"}>
                             {t("{{rate}} APR", {
                               rate: (Number(rate) / 1e18).toLocaleString(language, {
                                 style: "percent",
@@ -195,12 +191,12 @@ export default function Calculator() {
                         )}
                         {isBestRate && (
                           <YStack
-                            backgroundColor="$interactiveBaseSuccessDefault"
+                            backgroundColor="interactiveBaseSuccessDefault"
                             borderRadius={4}
-                            paddingHorizontal="$s2"
-                            paddingVertical="$s1"
+                            paddingHorizontal="s2"
+                            paddingVertical="s1"
                           >
-                            <Text caption2 emphasized color="$interactiveOnBaseSuccessDefault">
+                            <Text caption2 emphasized color="interactiveOnBaseSuccessDefault">
                               {t("BEST APR")}
                             </Text>
                           </YStack>
@@ -223,7 +219,7 @@ export default function Calculator() {
               })}
             </YStack>
             {rates && (
-              <Text caption color="$uiNeutralSecondary">
+              <Text caption color="uiNeutralSecondary">
                 {t("First due date: {{date}} - then every 28 days.", {
                   date: firstMaturityLabel,
                 })}

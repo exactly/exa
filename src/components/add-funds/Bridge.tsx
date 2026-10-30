@@ -12,7 +12,7 @@ import { Clock } from "@tamagui/lucide-icons-2/icons/Clock";
 import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { getAlchemyPaymasterAddress } from "@account-kit/infra";
@@ -88,7 +88,6 @@ export default function Bridge() {
     sourceChain: Array.isArray(rawParameters.sourceChain) ? rawParameters.sourceChain[0] : rawParameters.sourceChain,
     sourceToken: Array.isArray(rawParameters.sourceToken) ? rawParameters.sourceToken[0] : rawParameters.sourceToken,
   };
-  const toast = useToastController();
   const {
     t,
     i18n: { language },
@@ -689,12 +688,9 @@ export default function Bridge() {
       }
     },
     onSuccess: () => {
-      toast.show(
+      toast.success(
         bridgePreview?.operation === "swap" ? t("Swap transaction submitted") : t("Bridge transaction submitted"),
-        {
-          duration: 1000,
-          burntOptions: { haptic: "success", preset: "done" },
-        },
+        { duration: 1000 },
       );
       const accounts = senderAddress ? [senderAddress] : [];
       if (account && account.toLowerCase() !== senderAddress?.toLowerCase()) accounts.push(account);
@@ -713,11 +709,11 @@ export default function Bridge() {
         resetBridgeMutation();
         return;
       }
-      toast.show(
+      toast.error(
         bridgePreview?.operation === "swap"
           ? t("Swap failed. Please try again.")
           : t("Bridge failed. Please try again."),
-        { duration: 1000, burntOptions: { haptic: "error", preset: "error" } },
+        { duration: 1000 },
       );
     },
     onSettled: () => {
@@ -757,10 +753,7 @@ export default function Bridge() {
       setBridgeStatus(t("Transfer transaction submitted"));
     },
     onSuccess: async () => {
-      toast.show(t("Transfer transaction submitted"), {
-        duration: 1000,
-        burntOptions: { haptic: "success", preset: "done" },
-      });
+      toast.success(t("Transfer transaction submitted"), { duration: 1000 });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: balancesOptions(senderAddress).queryKey }),
         queryClient.invalidateQueries({
@@ -778,10 +771,7 @@ export default function Bridge() {
         resetTransferMutation();
         return;
       }
-      toast.show(t("Transfer failed. Please try again."), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Transfer failed. Please try again."), { duration: 1000 });
     },
     onSettled: () => {
       setBridgeStatus(undefined);
@@ -868,8 +858,8 @@ export default function Bridge() {
         <View
           padded
           flexDirection="row"
-          gap="$s3_5"
-          paddingBottom="$s4"
+          gap="s3_5"
+          paddingBottom="s4"
           justifyContent="space-between"
           alignItems="center"
         >
@@ -901,15 +891,15 @@ export default function Bridge() {
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <View padded>
-            <YStack gap="$s5">
+            <YStack gap="s5">
               {isLoadingAssets && (
                 <View
                   borderWidth={1}
-                  borderColor="$borderNeutralSoft"
-                  backgroundColor="$backgroundSoft"
-                  borderRadius="$r3"
-                  padding="$s4"
-                  gap="$s3"
+                  borderColor="borderNeutralSoft"
+                  backgroundColor="backgroundSoft"
+                  borderRadius="r3"
+                  padding="s4"
+                  gap="s3"
                 >
                   <Skeleton height={20} width="60%" />
                   <Skeleton height={16} width="80%" />
@@ -919,16 +909,16 @@ export default function Bridge() {
               {!isLoadingAssets && assetGroups.length === 0 && (
                 <View
                   borderWidth={1}
-                  borderColor="$borderWarningStrong"
-                  backgroundColor="$interactiveBaseWarningSoftDefault"
-                  borderRadius="$r3"
-                  padding="$s4"
-                  gap="$s3"
+                  borderColor="borderWarningStrong"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  padding="s4"
+                  gap="s3"
                 >
-                  <Text emphasized callout color="$interactiveOnBaseWarningSoft">
+                  <Text emphasized callout color="interactiveOnBaseWarningSoft">
                     {t("No external assets detected")}
                   </Text>
-                  <Text footnote color="$interactiveOnBaseWarningSoft">
+                  <Text footnote color="interactiveOnBaseWarningSoft">
                     {t("Top up an external wallet supported by LI.FI to unlock bridging into {{chain}}.", {
                       chain: chain.name,
                     })}
@@ -958,43 +948,43 @@ export default function Bridge() {
               {!isTransfer && !isSourcesPending && assetGroups.length > 0 && destinationTokens.length === 0 && (
                 <View
                   borderWidth={1}
-                  borderColor="$borderWarningStrong"
-                  backgroundColor="$interactiveBaseWarningSoftDefault"
-                  borderRadius="$r3"
-                  padding="$s4"
-                  gap="$s3"
+                  borderColor="borderWarningStrong"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  padding="s4"
+                  gap="s3"
                 >
-                  <Text emphasized callout color="$interactiveOnBaseWarningSoft">
+                  <Text emphasized callout color="interactiveOnBaseWarningSoft">
                     {t("Something went wrong. Please try again.")}
                   </Text>
                 </View>
               )}
               {insufficientBalance && !isCapabilitiesLoading && (
-                <Text caption2 color="$interactiveOnBaseWarningSoft">
+                <Text caption2 color="interactiveOnBaseWarningSoft">
                   {feeMessage}
                 </Text>
               )}
               {destinationToken && (
                 <YStack
                   borderWidth={1}
-                  borderColor={destinationModalOpen ? "$borderBrandStrong" : "$borderNeutralSoft"}
-                  backgroundColor="$backgroundSoft"
-                  borderRadius="$r3"
-                  padding="$s4_5"
-                  gap="$s3"
+                  borderColor={destinationModalOpen ? "borderBrandStrong" : "borderNeutralSoft"}
+                  backgroundColor="backgroundSoft"
+                  borderRadius="r3"
+                  padding="s4_5"
+                  gap="s3"
                 >
                   <XStack alignItems="center" justifyContent="space-between">
-                    <YStack gap="$s1">
-                      <Text emphasized subHeadline color="$uiNeutralPrimary">
+                    <YStack gap="s1">
+                      <Text emphasized subHeadline color="uiNeutralPrimary">
                         {t("Receive on")}
                       </Text>
-                      <Text footnote color="$uiNeutralSecondary">
+                      <Text footnote color="uiNeutralSecondary">
                         {t("Exa Account")} | {shortenHex(account ?? zeroAddress, 4, 6)}
                       </Text>
                     </YStack>
                   </XStack>
                   {!isTransfer && (
-                    <YStack gap="$s3_5">
+                    <YStack gap="s3_5">
                       <Pressable
                         onPress={() => {
                           if (destinationTokens.length > 0) setDestinationModalOpen(true);
@@ -1002,8 +992,8 @@ export default function Bridge() {
                         hitSlop={10}
                         style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1, width: "100%" })}
                       >
-                        <XStack gap="$s3_5" alignItems="center" justifyContent="space-between" flex={1}>
-                          <XStack gap="$s3_5" alignItems="center" flex={1}>
+                        <XStack gap="s3_5" alignItems="center" justifyContent="space-between" flex={1}>
+                          <XStack gap="s3_5" alignItems="center" flex={1}>
                             <View width={40} height={40} position="relative">
                               <AssetLogo
                                 symbol={destinationToken.symbol}
@@ -1017,7 +1007,7 @@ export default function Bridge() {
                                 right={0}
                                 borderWidth={1}
                                 borderColor="white"
-                                borderRadius="$r_0"
+                                borderRadius="r_0"
                                 overflow="hidden"
                               >
                                 <ChainLogo size={20} />
@@ -1034,7 +1024,7 @@ export default function Bridge() {
                                   textAlign="left"
                                   flex={1}
                                   width="100%"
-                                  color="$uiNeutralSecondary"
+                                  color="uiNeutralSecondary"
                                 >
                                   {toAmount === undefined
                                     ? "—"
@@ -1052,7 +1042,7 @@ export default function Bridge() {
                                 {!!account && sourceAmount > 0n && !insufficientBalance && isBridgeQuoteLoading ? (
                                   <Skeleton height={16} width={100} />
                                 ) : (
-                                  <Text callout color="$uiNeutralPlaceholder">
+                                  <Text callout color="uiNeutralPlaceholder">
                                     {toAmount === undefined
                                       ? "—"
                                       : `≈$${Number(
@@ -1067,7 +1057,7 @@ export default function Bridge() {
                                         })}`}
                                   </Text>
                                 )}
-                                <Text footnote color="$uiNeutralSecondary" textAlign="right">
+                                <Text footnote color="uiNeutralSecondary" textAlign="right">
                                   {t("Balance: {{value}}", {
                                     value: `$${Number(
                                       formatUnits(
@@ -1098,7 +1088,7 @@ export default function Bridge() {
                 canShowBridgeQuote &&
                 sourceAmount > 0n &&
                 !insufficientBalance && (
-                  <YStack gap="$s3_5">
+                  <YStack gap="s3_5">
                     {quote.estimate.toAmountMin && (
                       <QuoteRow
                         label={t("Minimum received")}
@@ -1120,15 +1110,15 @@ export default function Bridge() {
                   </YStack>
                 )}
               {statusMessage && (
-                <XStack gap="$s3" alignItems="center">
-                  <Spinner color="$uiBrandSecondary" size="small" />
-                  <Text footnote color="$uiNeutralSecondary">
+                <XStack gap="s3" alignItems="center">
+                  <Spinner color="uiBrandSecondary" size="small" />
+                  <Text footnote color="uiNeutralSecondary">
                     {statusMessage}
                   </Text>
                 </XStack>
               )}
               {bridgeQuoteError && senderAddress && account && sourceAmount > 0n && !insufficientBalance && (
-                <Text caption2 color="$interactiveOnBaseWarningSoft">
+                <Text caption2 color="interactiveOnBaseWarningSoft">
                   {t("Unable to fetch a bridge quote right now. Please adjust the amount or try again later.")}
                 </Text>
               )}
@@ -1137,7 +1127,7 @@ export default function Bridge() {
                 !isNativeSource &&
                 sourceAmount > 0n &&
                 !insufficientBalance && (
-                  <Text caption2 color="$interactiveOnBaseWarningSoft">
+                  <Text caption2 color="interactiveOnBaseWarningSoft">
                     {t("Unable to simulate a transfer right now. Please adjust the amount or try again later.")}
                   </Text>
                 )}
@@ -1146,19 +1136,19 @@ export default function Bridge() {
         </ScrollView>
         <View padded>
           <YStack
-            gap="$s4"
+            gap="s4"
             borderTopWidth={quote?.estimate.approvalAddress ? 1 : 0}
-            borderColor="$borderNeutralSoft"
-            paddingTop="$s3"
+            borderColor="borderNeutralSoft"
+            paddingTop="s3"
           >
             {quote?.estimate.approvalAddress && (
               <YStack>
-                <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3">
+                <XStack gap="s4" alignItems="flex-start" paddingTop="s3">
                   <View>
-                    <Clock size={16} width={16} height={16} color="$uiInfoSecondary" />
+                    <Clock size={16} width={16} height={16} color="uiInfoSecondary" />
                   </View>
                   <XStack flex={1}>
-                    <Text caption2 color="$uiNeutralPlaceholder">
+                    <Text caption2 color="uiNeutralPlaceholder">
                       {t("Bridging assets may take up to 10 minutes.")}
                     </Text>
                   </XStack>
@@ -1166,12 +1156,12 @@ export default function Bridge() {
               </YStack>
             )}
             {!isExaSender && (isTransfer || !!quote) && (
-              <XStack gap="$s4" alignItems="flex-start">
+              <XStack gap="s4" alignItems="flex-start">
                 <View>
-                  <Wallet size={16} width={16} height={16} color="$uiInfoSecondary" />
+                  <Wallet size={16} width={16} height={16} color="uiInfoSecondary" />
                 </View>
                 <XStack flex={1}>
-                  <Text caption2 color="$uiNeutralPlaceholder">
+                  <Text caption2 color="uiNeutralPlaceholder">
                     {t("You must confirm the transactions on your external wallet.")}
                   </Text>
                 </XStack>
@@ -1273,11 +1263,11 @@ export default function Bridge() {
 
 function QuoteRow({ label, value }: { label: string; value: string }) {
   return (
-    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="$s2">
-      <Text caption color="$uiNeutralSecondary">
+    <XStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap="s2">
+      <Text caption color="uiNeutralSecondary">
         {label}
       </Text>
-      <Text caption color="$uiNeutralPrimary" textAlign="right" flexShrink={1}>
+      <Text caption color="uiNeutralPrimary" textAlign="right" flexShrink={1}>
         {value}
       </Text>
     </XStack>
@@ -1306,32 +1296,32 @@ function ProcessingScreen({
   return (
     <GradientScrollView variant={status === "error" ? "error" : status === "success" ? "success" : "neutral"}>
       <View flex={1}>
-        <YStack gap="$s7" paddingBottom="$s9">
+        <YStack gap="s7" paddingBottom="s9">
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
-          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+          <YStack gap="s4_5" justifyContent="center" alignItems="center">
             <Square
               size={80}
-              borderRadius="$r4"
+              borderRadius="r4"
               backgroundColor={
                 status === "error"
-                  ? "$interactiveBaseErrorSoftDefault"
+                  ? "interactiveBaseErrorSoftDefault"
                   : status === "success"
-                    ? "$interactiveBaseSuccessSoftDefault"
-                    : "$backgroundStrong"
+                    ? "interactiveBaseSuccessSoftDefault"
+                    : "backgroundStrong"
               }
             >
-              {pending && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
-              {status === "success" && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-              {status === "error" && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+              {pending && <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />}
+              {status === "success" && <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />}
+              {status === "error" && <X size={48} color="uiErrorSecondary" strokeWidth={2} />}
             </Square>
-            <YStack gap="$s3" justifyContent="center" alignItems="center">
+            <YStack gap="s3" justifyContent="center" alignItems="center">
               <Text secondary body>
                 {title}
               </Text>
             </YStack>
-            <XStack gap="$s3" alignItems="center">
+            <XStack gap="s3" alignItems="center">
               <AssetLogo symbol={symbol} uri={logoURI} width={32} height={32} />
-              <Text title primary color="$uiNeutralPrimary">
+              <Text title primary color="uiNeutralPrimary">
                 {amount}
               </Text>
             </XStack>
@@ -1342,7 +1332,7 @@ function ProcessingScreen({
         </YStack>
       </View>
       {!pending && (
-        <YStack flex={2} justifyContent="flex-end" gap="$s5" alignItems="center" paddingBottom="$s6">
+        <YStack flex={2} justifyContent="flex-end" gap="s5" alignItems="center" paddingBottom="s6">
           {status === "success" && (
             <Button primary width="100%" onPress={onClose}>
               <Button.Text>{t("View requests")}</Button.Text>
@@ -1352,7 +1342,7 @@ function ProcessingScreen({
             </Button>
           )}
           <Pressable onPress={onClose}>
-            <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
+            <Text emphasized footnote color="uiBrandSecondary" textAlign="center">
               {t("Close")}
             </Text>
           </Pressable>

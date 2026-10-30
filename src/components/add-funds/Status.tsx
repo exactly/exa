@@ -8,7 +8,7 @@ import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Headset } from "@tamagui/lucide-icons-2/icons/Headset";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, Spinner, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -35,7 +35,6 @@ import View from "../shared/View";
 export default function Status() {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
 
   const { currency, network, status, pending, provider, direction } = useLocalSearchParams<{
     currency?: string;
@@ -128,10 +127,7 @@ export default function Status() {
           }}
           onError={() => {
             setOpenKYC(false);
-            toast.show(t("Something went wrong. Please try again."), {
-              duration: 1000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
+            toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
           }}
         />
       </SafeView>
@@ -140,7 +136,7 @@ export default function Status() {
 
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
+      <View gap="s4_5" fullScreen padded>
         {needsMoreInfo ? (
           <View alignItems="flex-start">
             <IconButton
@@ -154,20 +150,20 @@ export default function Status() {
           </View>
         ) : null}
         <ScrollView flex={1}>
-          <View flex={1} gap="$s4_5">
-            <YStack flex={1} padding="$s4" gap="$s6">
+          <View flex={1} gap="s4_5">
+            <YStack flex={1} padding="s4" gap="s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
                   {needsMoreInfo ? (
-                    <Image source={documents} contentFit="contain" width="100%" height="100%" paddingHorizontal="$s7" />
+                    <Image source={documents} contentFit="contain" width="100%" height="100%" paddingHorizontal="s7" />
                   ) : isOnboarding || needsSupport ? (
                     <ThemedSvg xml={faceId} width="100%" height="100%" />
                   ) : (
                     <ThemedSvg xml={denied} width="100%" height="100%" />
                   )}
                 </View>
-                <YStack gap="$s4" alignSelf="center">
-                  <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
+                <YStack gap="s4" alignSelf="center">
+                  <Text title emphasized textAlign="center" color="interactiveTextBrandDefault">
                     {needsMoreInfo
                       ? t("Bridge needs more information")
                       : needsSupport
@@ -177,9 +173,9 @@ export default function Status() {
                           : t("Verification failed")}
                   </Text>
                   <Text
-                    color={needsSupport || needsMoreInfo ? "$uiNeutralSecondary" : "$uiNeutralPlaceholder"}
-                    footnote
+                    color={needsSupport || needsMoreInfo ? "uiNeutralSecondary" : "uiNeutralPlaceholder"}
                     textAlign="center"
+                    footnote
                   >
                     {needsMoreInfo
                       ? t("Bridge needs a few more details before creating your account.")
@@ -204,7 +200,7 @@ export default function Status() {
               </Button.Icon>
             </Button>
           ) : needsSupport ? (
-            <YStack gap="$s4" alignItems="center">
+            <YStack gap="s4" alignItems="center">
               <Button
                 width="100%"
                 onPress={() => {
@@ -218,7 +214,7 @@ export default function Status() {
                 </Button.Icon>
               </Button>
               <Pressable onPress={handleClose}>
-                <Text emphasized footnote color="$interactiveTextBrandDefault">
+                <Text emphasized footnote color="interactiveTextBrandDefault">
                   {t("Close")}
                 </Text>
               </Pressable>
@@ -234,7 +230,7 @@ export default function Status() {
         ) : (
           <Button disabled primary>
             <Button.Text>{t("Verifying...")}</Button.Text>
-            <Spinner color="$interactiveOnDisabled" />
+            <Spinner color="interactiveOnDisabled" />
           </Button>
         )}
       </View>

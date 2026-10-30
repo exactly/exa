@@ -23,15 +23,6 @@ module.exports = function config(api) {
           },
         },
       ],
-      [
-        "@tamagui/babel-plugin",
-        {
-          config: "tamagui.config.ts",
-          components: ["tamagui"],
-          disableExtraction: process.env.NODE_ENV !== "production",
-          logTimings: true,
-        },
-      ],
       () => {
         let expo = Object.getOwnPropertyDescriptor(globalThis, "expo");
         return {

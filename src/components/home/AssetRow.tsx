@@ -37,33 +37,32 @@ export default function AssetRow({
   return (
     <XStack
       alignItems="center"
-      gap="$s3_5"
+      gap="s3_5"
       cursor={pending ? "default" : "pointer"}
-      pressStyle={pending ? undefined : { opacity: 0.7 }}
-      opacity={pending ? 0.7 : 1}
+      opacity={pending ? 0.7 : "1 press:0.7"}
       onPress={pending ? undefined : onPress}
     >
       <YStack opacity={opacity}>
         <AssetLogo network chainId={chainId} symbol={symbol} uri={uri} width={40} height={40} />
       </YStack>
-      <YStack gap="$s2" flex={1} opacity={opacity}>
-        <Text callout color="$uiNeutralPrimary" numberOfLines={1}>
+      <YStack gap="s2" flex={1} opacity={opacity}>
+        <Text callout color="uiNeutralPrimary" numberOfLines={1}>
           {name}
         </Text>
-        <Text sensitive footnote color="$uiNeutralSecondary" numberOfLines={1}>
+        <Text sensitive footnote color="uiNeutralSecondary" numberOfLines={1}>
           {balance}
         </Text>
       </YStack>
-      <YStack gap="$s2" alignItems="flex-end" opacity={opacity}>
-        <Text sensitive emphasized title3 color="$uiNeutralPrimary" textAlign="right">
+      <YStack gap="s2" alignItems="flex-end" opacity={opacity}>
+        <Text sensitive emphasized title3 color="uiNeutralPrimary" textAlign="right">
           {`$${value.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </Text>
         {children}
       </YStack>
       {pending ? (
-        <Spinner size="small" color="$interactiveOnBaseBrandSoft" />
+        <Spinner size="small" color="interactiveOnBaseBrandSoft" />
       ) : disabled ? (
-        <Info size={16} color="$interactiveOnBaseBrandSoft" />
+        <Info size={16} color="interactiveOnBaseBrandSoft" />
       ) : null}
     </XStack>
   );

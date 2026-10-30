@@ -24,7 +24,7 @@ export default function QR() {
   }, [invalid]);
 
   return (
-    <View fullScreen position="relative" backgroundColor="$backgroundSoft">
+    <View fullScreen position="relative" backgroundColor="backgroundSoft">
       <Scanner
         onClose={() => {
           if (router.canGoBack()) router.back();
@@ -55,12 +55,12 @@ export default function QR() {
           position="absolute"
           bottom={bottom + 72}
           alignSelf="center"
-          backgroundColor="$interactiveBaseErrorDefault"
-          borderRadius="$r3"
-          paddingHorizontal="$s4"
-          paddingVertical="$s3"
+          backgroundColor="interactiveBaseErrorDefault"
+          borderRadius="r3"
+          paddingHorizontal="s4"
+          paddingVertical="s3"
         >
-          <Text emphasized footnote color="$interactiveOnBaseErrorDefault">
+          <Text emphasized footnote color="interactiveOnBaseErrorDefault">
             {t("Couldn't read this QR code. Make sure it's a valid address.")}
           </Text>
         </View>

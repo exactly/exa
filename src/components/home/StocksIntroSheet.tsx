@@ -30,32 +30,32 @@ export default function StocksIntroSheet({
     <ModalSheet open={open} onClose={onClose} heightPercent={90}>
       <SafeView
         paddingTop={0}
+        borderTopLeftRadius="r4"
+        borderTopRightRadius="r4"
+        backgroundColor="backgroundSoft"
         fullScreen
-        borderTopLeftRadius="$r4"
-        borderTopRightRadius="$r4"
-        backgroundColor="$backgroundSoft"
       >
-        <View fullScreen padded gap="$s4">
+        <View fullScreen padded gap="s4">
           <IconButton
             alignSelf="flex-end"
+            color="uiNeutralSecondary"
             icon={X}
-            color="$uiNeutralSecondary"
             aria-label={t("Close")}
             onPress={onClose}
           />
-          <YStack flex={1} alignItems="center" gap="$s9">
+          <YStack flex={1} alignItems="center" gap="s9">
             <Image source={stocks} contentFit="contain" width="100%" maxWidth={296} aspectRatio={1} flexShrink={1} />
-            <YStack alignItems="center" gap="$s5" maxWidth={300}>
+            <YStack alignItems="center" gap="s5" maxWidth={300}>
               <Text
                 pill
                 caption2
                 textTransform="uppercase"
-                color="$interactiveOnBaseSuccessDefault"
-                backgroundColor="$interactiveBaseSuccessDefault"
+                color="interactiveOnBaseSuccessDefault"
+                backgroundColor="interactiveBaseSuccessDefault"
               >
                 {t("NEW")} - {t("Tokenized stocks")}
               </Text>
-              <YStack gap="$s4">
+              <YStack gap="s4">
                 <Text emphasized title centered>
                   {t("Invest in companies you know")}
                 </Text>
@@ -65,7 +65,7 @@ export default function StocksIntroSheet({
               </YStack>
             </YStack>
           </YStack>
-          <YStack gap="$s5">
+          <YStack gap="s5">
             <Button
               primary
               onPress={() => {

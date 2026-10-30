@@ -39,7 +39,7 @@ export default function GradientScrollView({
         colors={gradientColors}
       />
       <ScrollView
-        padding="$s4"
+        padding="s4"
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={stickyHeader ? [0] : undefined}
         stickyHeaderHiddenOnScroll={stickyHeader}
@@ -47,7 +47,7 @@ export default function GradientScrollView({
           flexGrow: 1,
           flexDirection: "column",
           justifyContent: "space-between",
-          gap: "$s4_5",
+          gap: "s4_5",
           paddingBottom: insets.bottom,
         }}
       >
@@ -61,26 +61,26 @@ const StyledGradient = styled(LinearGradient, {});
 
 const VARIANTS = {
   error: {
-    backgroundColor: "$backgroundSoft",
-    textColor: "$uiErrorPrimary",
+    backgroundColor: "backgroundSoft",
+    textColor: "uiErrorPrimary",
     gradientColors: ["uiErrorSecondary", "backgroundSoft"] as const,
     gradientOpacity: 0.2,
   },
   success: {
-    backgroundColor: "$backgroundSoft",
-    textColor: "$uiSuccessPrimary",
+    backgroundColor: "backgroundSoft",
+    textColor: "uiSuccessPrimary",
     gradientColors: ["uiSuccessSecondary", "backgroundSoft"] as const,
     gradientOpacity: 0.2,
   },
   info: {
-    backgroundColor: "$backgroundSoft",
-    textColor: "$uiInfoPrimary",
+    backgroundColor: "backgroundSoft",
+    textColor: "uiInfoPrimary",
     gradientColors: ["uiInfoSecondary", "backgroundSoft"] as const,
     gradientOpacity: 0.2,
   },
   neutral: {
-    backgroundColor: "$backgroundSoft",
-    textColor: "$uiNeutralPrimary",
+    backgroundColor: "backgroundSoft",
+    textColor: "uiNeutralPrimary",
     gradientColors: ["backgroundStrong", "backgroundSoft"] as const,
     gradientOpacity: 0.8,
   },

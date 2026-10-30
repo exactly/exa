@@ -21,8 +21,6 @@ import {
 import type { Href } from "expo-router";
 import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
 
-import { ToastProvider } from "@tamagui/toast";
-
 import { sdk } from "@farcaster/miniapp-sdk";
 import {
   ErrorBoundary,
@@ -252,29 +250,27 @@ export default wrap(function RootLayout() {
     <WagmiProvider config={exaConfig}>
       <QueryClientProvider client={queryClient}>
         <IsRestoringProvider value={restoring}>
-          <ToastProvider native="mobile">
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <SafeAreaProvider>
-                <ThemeProvider>
-                  <ErrorBoundary
-                    onError={() => {
-                      SplashScreen.hideAsync().catch(reportError);
-                    }}
-                    fallback={(data) => (
-                      <Error
-                        resetError={() => {
-                          data.resetError();
-                        }}
-                      />
-                    )}
-                  >
-                    <Navigator />
-                  </ErrorBoundary>
-                </ThemeProvider>
-              </SafeAreaProvider>
-            </GestureHandlerRootView>
-            {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
-          </ToastProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+              <ThemeProvider>
+                <ErrorBoundary
+                  onError={() => {
+                    SplashScreen.hideAsync().catch(reportError);
+                  }}
+                  fallback={(data) => (
+                    <Error
+                      resetError={() => {
+                        data.resetError();
+                      }}
+                    />
+                  )}
+                >
+                  <Navigator />
+                </ErrorBoundary>
+              </ThemeProvider>
+            </SafeAreaProvider>
+          </GestureHandlerRootView>
+          {devtools && <ReactQueryDevtools initialIsOpen={false} client={queryClient} />}
         </IsRestoringProvider>
       </QueryClientProvider>
     </WagmiProvider>

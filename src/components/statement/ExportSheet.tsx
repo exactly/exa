@@ -9,7 +9,7 @@ import { Download } from "@tamagui/lucide-icons-2/icons/Download";
 import { LetterText } from "@tamagui/lucide-icons-2/icons/LetterText";
 import { Table } from "@tamagui/lucide-icons-2/icons/Table";
 import { Upload } from "@tamagui/lucide-icons-2/icons/Upload";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
@@ -39,7 +39,6 @@ export default function ExportSheet({
     t,
     i18n: { language },
   } = useTranslation();
-  const toast = useToastController();
 
   const money = (value: number) => value.toLocaleString(language, { style: "currency", currency: "USD" });
   const number = (value: number) =>
@@ -117,7 +116,7 @@ export default function ExportSheet({
   function copy(value: string) {
     setStringAsync(value)
       .then(() => {
-        toast.show(t("Copied!"), { duration: 1000, burntOptions: { haptic: "success" } });
+        toast.success(t("Copied!"), { duration: 1000 });
       })
       .catch(reportError);
     onClose();
@@ -127,9 +126,7 @@ export default function ExportSheet({
     onClose();
     downloadStatement(maturity).catch((error: unknown) => {
       reportError(error);
-      toast.show(t("Couldn't download your statement. Please try again."), {
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Couldn't download your statement. Please try again."));
     });
   }
 
@@ -137,37 +134,36 @@ export default function ExportSheet({
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
         paddingTop={0}
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-web={{ paddingBottom: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="web:s7 android:s5"
       >
-        <XStack gap="$s4" alignItems="center" paddingTop="$s6" paddingBottom="$s4_5" paddingHorizontal="$s5">
+        <XStack gap="s4" alignItems="center" paddingTop="s6" paddingBottom="s4_5" paddingHorizontal="s5">
           <XStack
             width={48}
             height={48}
             alignItems="center"
             justifyContent="center"
-            borderRadius="$r4"
-            backgroundColor="$backgroundStrong"
+            borderRadius="r4"
+            backgroundColor="backgroundStrong"
           >
-            <Upload size={32} color="$uiSuccessSecondary" />
+            <Upload size={32} color="uiSuccessSecondary" />
           </XStack>
-          <YStack flex={1} gap="$s2">
-            <Text body color="$uiNeutralSecondary">
+          <YStack flex={1} gap="s2">
+            <Text body color="uiNeutralSecondary">
               <Trans
                 i18nKey="Export <strong>statement</strong>"
-                components={{ strong: <Text body emphasized color="$uiNeutralPrimary" /> }}
+                components={{ strong: <Text body emphasized color="uiNeutralPrimary" /> }}
               />
             </Text>
-            <Text caption color="$uiNeutralSecondary">
+            <Text caption color="uiNeutralSecondary">
               {period}
             </Text>
           </YStack>
         </XStack>
-        <Separator borderColor="$borderNeutralSoft" />
-        <YStack gap="$s4_5" paddingTop="$s4_5" paddingHorizontal="$s5">
+        <Separator borderColor="borderNeutralSoft" />
+        <YStack gap="s4_5" paddingTop="s4_5" paddingHorizontal="s5">
           <Option
             icon={LetterText}
             label={t("Copy as plain text")}
@@ -176,7 +172,7 @@ export default function ExportSheet({
               copy(text());
             }}
           />
-          <Separator borderColor="$borderNeutralSoft" />
+          <Separator borderColor="borderNeutralSoft" />
           <Option
             icon={Table}
             label={t("Copy as a table")}
@@ -187,7 +183,7 @@ export default function ExportSheet({
           />
           {Platform.OS === "web" && (
             <>
-              <Separator borderColor="$borderNeutralSoft" />
+              <Separator borderColor="borderNeutralSoft" />
               <Option icon={Download} label={t("Download PDF")} onPress={download} />
             </>
           )}
@@ -209,19 +205,19 @@ function Option({
   onPress: () => void;
 }) {
   return (
-    <XStack gap="$s3" alignItems="center" cursor="pointer" role="button" aria-label={label} onPress={onPress}>
-      <Icon size={20} color="$uiNeutralPrimary" />
+    <XStack gap="s3" alignItems="center" cursor="pointer" role="button" aria-label={label} onPress={onPress}>
+      <Icon size={20} color="uiNeutralPrimary" />
       <YStack flex={1}>
-        <Text subHeadline color="$uiNeutralPrimary">
+        <Text subHeadline color="uiNeutralPrimary">
           {label}
         </Text>
         {description && (
-          <Text footnote color="$uiNeutralSecondary">
+          <Text footnote color="uiNeutralSecondary">
             {description}
           </Text>
         )}
       </YStack>
-      <ChevronRight size={20} color="$interactiveBaseBrandDefault" />
+      <ChevronRight size={20} color="interactiveBaseBrandDefault" />
     </XStack>
   );
 }

@@ -40,14 +40,14 @@ export default function Breakdown({
     new Date(value * 1000).toLocaleDateString(language, { year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <YStack gap="$s5">
-      <YStack gap="$s2">
+    <YStack gap="s5">
+      <YStack gap="s2">
         <XStack justifyContent="space-between" alignItems="center">
           <Text emphasized title3>
             {t("Summary")}
           </Text>
           <XStack
-            gap="$s2"
+            gap="s2"
             alignItems="center"
             cursor="pointer"
             onPress={() => {
@@ -55,19 +55,19 @@ export default function Breakdown({
               router.navigate({ pathname: "/statement", params: { maturity: String(maturity) } });
             }}
           >
-            <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
+            <Text emphasized subHeadline color="interactiveBaseBrandDefault">
               {t("View statement")}
             </Text>
-            <FileText size={20} color="$interactiveBaseBrandDefault" />
+            <FileText size={20} color="interactiveBaseBrandDefault" />
           </XStack>
         </XStack>
-        <Text footnote color="$uiNeutralSecondary">
+        <Text footnote color="uiNeutralSecondary">
           {t("{{start}} to {{end}}", { start: day(maturity - MATURITY_INTERVAL), end: day(maturity) })}
         </Text>
       </YStack>
 
       {isLoading ? (
-        <YStack gap="$s3">
+        <YStack gap="s3">
           <Skeleton height={44} width="100%" radius={12} />
           <Skeleton height={44} width="100%" radius={12} />
           <Skeleton height={44} width="100%" radius={12} />
@@ -83,51 +83,51 @@ export default function Breakdown({
           }}
         />
       ) : (
-        <YStack gap="$s4">
+        <YStack gap="s4">
           {cards.map((card) => (
-            <XStack key={card.id} gap="$s3" alignItems="center">
-              <CreditCard size={16} color="$uiNeutralSecondary" />
-              <Text flex={1} subHeadline color="$uiNeutralPrimary">
+            <XStack key={card.id} gap="s3" alignItems="center">
+              <CreditCard size={16} color="uiNeutralSecondary" />
+              <Text flex={1} color="uiNeutralPrimary" subHeadline>
                 {t("**** {{lastFour}} installments", { lastFour: card.lastFour })}
               </Text>
-              <Text sensitive emphasized subHeadline color="$uiNeutralPrimary">
+              <Text sensitive emphasized subHeadline color="uiNeutralPrimary">
                 {money(card.total)}
               </Text>
             </XStack>
           ))}
-          <Separator borderColor="$borderNeutralSoft" />
+          <Separator borderColor="borderNeutralSoft" />
           {paid > 0 && (
             <>
-              <XStack gap="$s3" alignItems="center">
-                <Coins size={16} color="$uiNeutralSecondary" />
-                <YStack flex={1} gap="$s1">
-                  <Text subHeadline color="$uiNeutralPrimary">
+              <XStack gap="s3" alignItems="center">
+                <Coins size={16} color="uiNeutralSecondary" />
+                <YStack flex={1} gap="s1">
+                  <Text subHeadline color="uiNeutralPrimary">
                     {t("Payments")}
                   </Text>
                   {discount >= 0.01 && (
-                    <Text footnote color="$uiSuccessSecondary">
+                    <Text footnote color="uiSuccessSecondary">
                       {t("{{amount}} discount", { amount: money(discount) })}
                     </Text>
                   )}
                 </YStack>
-                <Text sensitive emphasized subHeadline color="$uiNeutralPrimary">
+                <Text sensitive emphasized subHeadline color="uiNeutralPrimary">
                   {money(-paid)}
                 </Text>
               </XStack>
-              <Separator borderColor="$borderNeutralSoft" />
+              <Separator borderColor="borderNeutralSoft" />
             </>
           )}
-          <XStack gap="$s3" alignItems="center">
-            <ReceiptText size={16} color="$uiNeutralSecondary" />
-            <YStack flex={1} gap="$s1">
-              <Text emphasized subHeadline color="$uiNeutralPrimary">
+          <XStack gap="s3" alignItems="center">
+            <ReceiptText size={16} color="uiNeutralSecondary" />
+            <YStack flex={1} gap="s1">
+              <Text emphasized subHeadline color="uiNeutralPrimary">
                 {t("Total due")}
               </Text>
-              <Text footnote color="$uiNeutralSecondary">
+              <Text footnote color="uiNeutralSecondary">
                 {day(maturity)}
               </Text>
             </YStack>
-            <Text sensitive emphasized title3 color="$uiNeutralPrimary">
+            <Text sensitive emphasized title3 color="uiNeutralPrimary">
               {money(due)}
             </Text>
           </XStack>
@@ -137,10 +137,10 @@ export default function Breakdown({
       <Text
         emphasized
         subHeadline
-        color="$interactiveBaseBrandDefault"
+        color="interactiveBaseBrandDefault"
         cursor="pointer"
         alignSelf="center"
-        paddingVertical="$s3"
+        paddingVertical="s3"
         onPress={onBack}
       >
         {t("Back")}

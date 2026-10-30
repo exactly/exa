@@ -8,8 +8,8 @@ import { useRouter } from "expo-router";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { useToastController } from "@tamagui/toast";
-import { ScrollView, Spinner, XStack, YStack } from "tamagui";
+import { toast } from "@tamagui/toast";
+import { getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
 
@@ -28,7 +28,6 @@ const scrollContentContainerStyle = { flexGrow: 1, paddingTop: 50 };
 
 export default function VisaSignatureSheet({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
-  const toast = useToastController();
   const router = useRouter();
 
   const [acknowledged, setAcknowledged] = useState(true);
@@ -44,16 +43,10 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
     mutationFn: setCardStatus,
     onSuccess: async () => {
       await queryClient.resetQueries({ queryKey: ["card", "details"] });
-      toast.show(t("Card upgraded successfully"), {
-        duration: 1000,
-        burntOptions: { haptic: "success" },
-      });
+      toast.success(t("Card upgraded successfully"), { duration: 1000 });
     },
     onError: () => {
-      toast.show(t("Error upgrading card"), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Error upgrading card"), { duration: 1000 });
     },
   });
 
@@ -72,15 +65,15 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
   }, [isSuccess, onSuccess, onClose]);
   return (
     <ModalSheet key={open ? "open" : "closed"} open={open} onClose={close} disableDrag heightPercent={90}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="black">
-        <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={close} />
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="black" fullScreen>
+        <View position="absolute" top="s5" right="s5" zIndex={100_000}>
+          <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={close} />
         </View>
-        <ScrollView contentContainerStyle={scrollContentContainerStyle} $platform-web={{ maxHeight: "100vh" }}>
+        <ScrollView contentContainerStyle={scrollContentContainerStyle} maxHeight="web:100vh">
           <YStack
             flex={1}
-            padding="$s5"
-            gap="$s5"
+            padding="s5"
+            gap="s5"
             justifyContent={isSuccess || isIdle || isError ? "space-between" : "center"}
           >
             <View flex={1} justifyContent="center" alignItems="center">
@@ -102,7 +95,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
             </View>
             {(isIdle || isError) && (
               <>
-                <YStack flex={1} gap="$s5" alignItems="center" justifyContent="center">
+                <YStack flex={1} gap="s5" alignItems="center" justifyContent="center">
                   <Text emphasized title color="white" textAlign="center">
                     {t("Level up your Exa Card")}
                   </Text>
@@ -110,12 +103,12 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
                     {t("Move from Visa Platinum to Visa Signature and unlock premium benefits and perks.")}
                   </Text>
                 </YStack>
-                <YStack gap="$s5">
-                  <YStack gap="$s4_5">
+                <YStack gap="s5">
+                  <YStack gap="s4_5">
                     <XStack
                       cursor="pointer"
                       alignItems="center"
-                      gap="$s4"
+                      gap="s4"
                       flex={1}
                       justifyContent="flex-start"
                       onPress={() => {
@@ -126,14 +119,14 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
                         <View
                           width={16}
                           height={16}
-                          backgroundColor={acknowledged ? "$backgroundBrand" : "transparent"}
-                          borderColor="$backgroundBrand"
+                          backgroundColor={acknowledged ? "backgroundBrand" : "transparent"}
+                          borderColor="backgroundBrand"
                           borderWidth={1}
-                          borderRadius="$r2"
+                          borderRadius="r2"
                           justifyContent="center"
                           alignItems="center"
                         >
-                          {acknowledged && <Check size="$iconSize.xs" color="white" />}
+                          {acknowledged && <Check size={getTokens().iconSize.xs.val} color="white" />}
                         </View>
                       </XStack>
                       <Text color="white" caption flex={1}>
@@ -157,7 +150,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
                       </Button.Icon>
                     </Button>
                   </YStack>
-                  <Text onPress={close} color="$interactiveBaseBrandDefault" emphasized footnote alignSelf="center">
+                  <Text onPress={close} color="interactiveBaseBrandDefault" alignSelf="center" emphasized footnote>
                     {t("I’ll upgrade later")}
                   </Text>
                 </YStack>
@@ -175,7 +168,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
 function Pending() {
   const { t } = useTranslation();
   return (
-    <YStack flex={1} gap="$s5" alignItems="center">
+    <YStack flex={1} gap="s5" alignItems="center">
       <Spinner color="white" size="large" width={40} height={40} />
       <Text emphasized title3 color="white" textAlign="center">
         {t("Deactivating current Exa Card")}
@@ -188,9 +181,9 @@ function Success({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
   return (
     <YStack flex={1} justifyContent="space-between" alignItems="center">
-      <YStack gap="$s5" alignItems="center">
-        <Check size={40} color="$backgroundBrand" />
-        <YStack gap="$s3_5">
+      <YStack gap="s5" alignItems="center">
+        <Check size={40} color="backgroundBrand" />
+        <YStack gap="s3_5">
           <Text emphasized title3 color="white" textAlign="center">
             {t("Upgrade successful")}
           </Text>

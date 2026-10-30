@@ -41,17 +41,17 @@ export default function TimeoutSheet({
   return (
     <ModalSheet open={open} onClose={dismiss} disableDrag>
       <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s7"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
-        <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
+        <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Taking longer than usual")}
           </Text>
-          <Text subHeadline color="$uiNeutralSecondary">
+          <Text subHeadline color="uiNeutralSecondary">
             {contacted
               ? t(
                   "Thanks for reaching out. Our team will reply soon. You can keep waiting while your card finishes setting up.",
@@ -61,7 +61,7 @@ export default function TimeoutSheet({
                 )}
           </Text>
         </YStack>
-        <YStack gap="$s5" paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack gap="s5" paddingHorizontal="s5" paddingBottom="s7">
           <Button primary width="100%" onPress={contacted ? dismiss : contact}>
             <Button.Text>{contacted ? t("Keep waiting") : t("Contact support")}</Button.Text>
             {!contacted && (
@@ -72,10 +72,10 @@ export default function TimeoutSheet({
           </Button>
           <Text
             cursor="pointer"
+            color="interactiveBaseBrandDefault"
+            textAlign="center"
             emphasized
             footnote
-            color="$interactiveBaseBrandDefault"
-            textAlign="center"
             onPress={contacted ? contact : dismiss}
           >
             {contacted ? t("Contact support again") : t("Keep waiting")}

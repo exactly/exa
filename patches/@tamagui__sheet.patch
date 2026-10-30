@@ -1,105 +1,149 @@
+diff --git a/dist/cjs/SheetImplementationCustom.cjs b/dist/cjs/SheetImplementationCustom.cjs
+index 61a64ba..f5f33a2 100644
+--- a/dist/cjs/SheetImplementationCustom.cjs
++++ b/dist/cjs/SheetImplementationCustom.cjs
+@@ -555,7 +555,7 @@ const SheetImplementationCustom = (0, import_core.createRefComponent)(function S
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]);
+ 	const animatedStyle = (0, import_core.useAnimatedNumberStyle)(animatedNumber, getAnimatedNumberStyle);
+-	const [isFullyClosed, setIsFullyClosed] = import_react.default.useState(false);
++	const [isFullyClosed, setIsFullyClosed] = import_react.default.useState(!open);
+ 	if (open && isFullyClosed) setIsFullyClosed(false);
+ 	const hasEverOpened = import_react.default.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+diff --git a/dist/cjs/SheetImplementationCustom.native.cjs b/dist/cjs/SheetImplementationCustom.native.cjs
+index 532ff70..feffe5b 100644
+--- a/dist/cjs/SheetImplementationCustom.native.cjs
++++ b/dist/cjs/SheetImplementationCustom.native.cjs
+@@ -579,8 +579,15 @@ var SheetImplementationCustom = (0, import_core.createRefComponent)(function She
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]);
+ 	var animatedStyle = (0, import_core.useAnimatedNumberStyle)(animatedNumber, getAnimatedNumberStyle);
+-	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(false);
+-	if (open && isFullyClosed) setIsFullyClosed(false);
++	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(!open);
++	if (open && isFullyClosed) {
++		setIsFullyClosed(false);
++		if (unmountChildrenWhenHidden) {
++			at.current = hiddenSize;
++			setFrameSize(0);
++			setDisableAnimation(true);
++		}
++	}
+ 	var hasEverOpened = import_react.default.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+ 	var isVisuallyActive = open || hasEverOpened.current && !isFullyClosed;
 diff --git a/dist/cjs/SheetImplementationCustom.native.js b/dist/cjs/SheetImplementationCustom.native.js
-index 31076e3c58598391693303370d4183c2f1361fab..b70fb39a86b1813be6ccd221aadb252a3bc70e58 100644
+index 47a3546..abc2de8 100644
 --- a/dist/cjs/SheetImplementationCustom.native.js
 +++ b/dist/cjs/SheetImplementationCustom.native.js
-@@ -326,8 +326,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
-     if (hasntMeasured && screenSize && frameSize) {
-       at.current = screenSize;
-       animatedNumber.setValue(screenSize, {
--        type: "timing",
--        duration: 0
-+        type: "direct"
-       }, function () {
-         syncAnimatedPosition(screenSize);
-         setTimeout(function () {
-@@ -559,6 +558,11 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
-       clearTimeout(opacityFallbackTimer.current);
-       opacityFallbackTimer.current = null;
-     }
-+    if (unmountChildrenWhenHidden) {
-+      at.current = hiddenSize;
-+      setFrameSize(0);
-+      setDisableAnimation(true);
-+    }
-   }
-   var forcedContentHeight = hasFit ? void 0 : snapPointsMode === "percent" ? `${maxSnapPoint}${import_constants.isWeb ? modal ? "dvh" : "%" : "%"}` : maxSnapPoint;
-   var setHasScrollView = import_react.default.useCallback(function (val) {
-@@ -648,7 +652,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
-     var mountedContents = shouldMountChildren ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(ContainerComponent, {
-       children: contents
-     }) : null;
--    var modalContents = /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
-+    var modalContents = mountedContents == null ? null : /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
-       stackZIndex: zIndex,
-       ...portalProps,
-       children: mountedContents && RNGHRoot ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(RNGHRoot, {
+@@ -579,8 +579,15 @@ var SheetImplementationCustom = (0, import_core.createRefComponent)(function She
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]);
+ 	var animatedStyle = (0, import_core.useAnimatedNumberStyle)(animatedNumber, getAnimatedNumberStyle);
+-	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(false);
+-	if (open && isFullyClosed) setIsFullyClosed(false);
++	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(!open);
++	if (open && isFullyClosed) {
++		setIsFullyClosed(false);
++		if (unmountChildrenWhenHidden) {
++			at.current = hiddenSize;
++			setFrameSize(0);
++			setDisableAnimation(true);
++		}
++	}
+ 	var hasEverOpened = import_react.default.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+ 	var isVisuallyActive = open || hasEverOpened.current && !isFullyClosed;
+diff --git a/dist/esm/SheetImplementationCustom.mjs b/dist/esm/SheetImplementationCustom.mjs
+index ac82d69..d21505a 100644
+--- a/dist/esm/SheetImplementationCustom.mjs
++++ b/dist/esm/SheetImplementationCustom.mjs
+@@ -518,7 +518,7 @@ const SheetImplementationCustom = createRefComponent(function SheetImplementatio
+ 		"worklet";
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]));
+-	const [isFullyClosed, setIsFullyClosed] = React.useState(false);
++	const [isFullyClosed, setIsFullyClosed] = React.useState(!open);
+ 	if (open && isFullyClosed) setIsFullyClosed(false);
+ 	const hasEverOpened = React.useRef(open);
+ 	if (open) hasEverOpened.current = true;
 diff --git a/dist/esm/SheetImplementationCustom.native.js b/dist/esm/SheetImplementationCustom.native.js
-index f613eee0d967b62a3c26a632cbfc2756fba59d92..0b1aadfb74fd36f98d2542a3ac65edc77647b5b8 100644
+index b1a239f..33fd081 100644
 --- a/dist/esm/SheetImplementationCustom.native.js
 +++ b/dist/esm/SheetImplementationCustom.native.js
-@@ -285,8 +285,7 @@ var SheetImplementationCustom = /* @__PURE__ */React.forwardRef(function SheetIm
-     if (hasntMeasured && screenSize && frameSize) {
-       at.current = screenSize;
-       animatedNumber.setValue(screenSize, {
--        type: "timing",
--        duration: 0
-+        type: "direct"
-       }, function () {
-         syncAnimatedPosition(screenSize);
-         setTimeout(function () {
-@@ -510,6 +509,11 @@ var SheetImplementationCustom = /* @__PURE__ */React.forwardRef(function SheetIm
-       clearTimeout(opacityFallbackTimer.current);
-       opacityFallbackTimer.current = null;
-     }
-+    if (unmountChildrenWhenHidden) {
-+      at.current = hiddenSize;
-+      setFrameSize(0);
-+      setDisableAnimation(true);
-+    }
-   }
-   var forcedContentHeight = hasFit ? void 0 : snapPointsMode === "percent" ? `${maxSnapPoint}${isWeb ? modal ? "dvh" : "%" : "%"}` : maxSnapPoint;
-   var setHasScrollView = React.useCallback(function (val) {
-@@ -596,7 +600,7 @@ var SheetImplementationCustom = /* @__PURE__ */React.forwardRef(function SheetIm
-     var mountedContents = shouldMountChildren ? /* @__PURE__ */jsx(ContainerComponent, {
-       children: contents
-     }) : null;
--    var modalContents = /* @__PURE__ */jsx(Portal, {
-+    var modalContents = mountedContents == null ? null : /* @__PURE__ */jsx(Portal, {
-       stackZIndex: zIndex,
-       ...portalProps,
-       children: mountedContents && RNGHRoot ? /* @__PURE__ */jsx(RNGHRoot, {
+@@ -541,8 +541,15 @@ var SheetImplementationCustom = createRefComponent(function SheetImplementationC
+ 		"worklet";
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]));
+-	var [isFullyClosed, setIsFullyClosed] = React.useState(false);
+-	if (open && isFullyClosed) setIsFullyClosed(false);
++	var [isFullyClosed, setIsFullyClosed] = React.useState(!open);
++	if (open && isFullyClosed) {
++		setIsFullyClosed(false);
++		if (unmountChildrenWhenHidden) {
++			at.current = hiddenSize;
++			setFrameSize(0);
++			setDisableAnimation(true);
++		}
++	}
+ 	var hasEverOpened = React.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+ 	var isVisuallyActive = open || hasEverOpened.current && !isFullyClosed;
+diff --git a/dist/jsx/SheetImplementationCustom.mjs b/dist/jsx/SheetImplementationCustom.mjs
+index ac82d69..d21505a 100644
+--- a/dist/jsx/SheetImplementationCustom.mjs
++++ b/dist/jsx/SheetImplementationCustom.mjs
+@@ -518,7 +518,7 @@ const SheetImplementationCustom = createRefComponent(function SheetImplementatio
+ 		"worklet";
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]));
+-	const [isFullyClosed, setIsFullyClosed] = React.useState(false);
++	const [isFullyClosed, setIsFullyClosed] = React.useState(!open);
+ 	if (open && isFullyClosed) setIsFullyClosed(false);
+ 	const hasEverOpened = React.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+diff --git a/dist/jsx/SheetImplementationCustom.native.cjs b/dist/jsx/SheetImplementationCustom.native.cjs
+index 532ff70..feffe5b 100644
+--- a/dist/jsx/SheetImplementationCustom.native.cjs
++++ b/dist/jsx/SheetImplementationCustom.native.cjs
+@@ -579,8 +579,15 @@ var SheetImplementationCustom = (0, import_core.createRefComponent)(function She
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]);
+ 	var animatedStyle = (0, import_core.useAnimatedNumberStyle)(animatedNumber, getAnimatedNumberStyle);
+-	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(false);
+-	if (open && isFullyClosed) setIsFullyClosed(false);
++	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(!open);
++	if (open && isFullyClosed) {
++		setIsFullyClosed(false);
++		if (unmountChildrenWhenHidden) {
++			at.current = hiddenSize;
++			setFrameSize(0);
++			setDisableAnimation(true);
++		}
++	}
+ 	var hasEverOpened = import_react.default.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+ 	var isVisuallyActive = open || hasEverOpened.current && !isFullyClosed;
 diff --git a/dist/jsx/SheetImplementationCustom.native.js b/dist/jsx/SheetImplementationCustom.native.js
-index 31076e3c58598391693303370d4183c2f1361fab..b70fb39a86b1813be6ccd221aadb252a3bc70e58 100644
+index 47a3546..abc2de8 100644
 --- a/dist/jsx/SheetImplementationCustom.native.js
 +++ b/dist/jsx/SheetImplementationCustom.native.js
-@@ -326,8 +326,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
-     if (hasntMeasured && screenSize && frameSize) {
-       at.current = screenSize;
-       animatedNumber.setValue(screenSize, {
--        type: "timing",
--        duration: 0
-+        type: "direct"
-       }, function () {
-         syncAnimatedPosition(screenSize);
-         setTimeout(function () {
-@@ -559,6 +558,11 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
-       clearTimeout(opacityFallbackTimer.current);
-       opacityFallbackTimer.current = null;
-     }
-+    if (unmountChildrenWhenHidden) {
-+      at.current = hiddenSize;
-+      setFrameSize(0);
-+      setDisableAnimation(true);
-+    }
-   }
-   var forcedContentHeight = hasFit ? void 0 : snapPointsMode === "percent" ? `${maxSnapPoint}${import_constants.isWeb ? modal ? "dvh" : "%" : "%"}` : maxSnapPoint;
-   var setHasScrollView = import_react.default.useCallback(function (val) {
-@@ -648,7 +652,7 @@ var SheetImplementationCustom = /* @__PURE__ */import_react.default.forwardRef(f
-     var mountedContents = shouldMountChildren ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(ContainerComponent, {
-       children: contents
-     }) : null;
--    var modalContents = /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
-+    var modalContents = mountedContents == null ? null : /* @__PURE__ */(0, import_jsx_runtime.jsx)(import_portal.Portal, {
-       stackZIndex: zIndex,
-       ...portalProps,
-       children: mountedContents && RNGHRoot ? /* @__PURE__ */(0, import_jsx_runtime.jsx)(RNGHRoot, {
+@@ -579,8 +579,15 @@ var SheetImplementationCustom = (0, import_core.createRefComponent)(function She
+ 		return { transform: [{ translateY: frameSize === 0 ? hiddenSize : val }] };
+ 	}, [frameSize]);
+ 	var animatedStyle = (0, import_core.useAnimatedNumberStyle)(animatedNumber, getAnimatedNumberStyle);
+-	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(false);
+-	if (open && isFullyClosed) setIsFullyClosed(false);
++	var [isFullyClosed, setIsFullyClosed] = import_react.default.useState(!open);
++	if (open && isFullyClosed) {
++		setIsFullyClosed(false);
++		if (unmountChildrenWhenHidden) {
++			at.current = hiddenSize;
++			setFrameSize(0);
++			setDisableAnimation(true);
++		}
++	}
+ 	var hasEverOpened = import_react.default.useRef(open);
+ 	if (open) hasEverOpened.current = true;
+ 	var isVisuallyActive = open || hasEverOpened.current && !isFullyClosed;

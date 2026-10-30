@@ -19,7 +19,7 @@ import ThemedSvg from "../shared/ThemedSvg";
 
 function ExaBanner() {
   return (
-    <View style={StyleSheet.absoluteFill} backgroundColor="$backgroundBrand">
+    <View style={StyleSheet.absoluteFill} backgroundColor="backgroundBrand">
       <ThemedSvg xml={exaPromo} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
     </View>
   );
@@ -41,43 +41,43 @@ export default function PromoSheet({
   const { promoEnd, refund } = getPromoMonths(language);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <SafeView paddingTop={0} borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="$backgroundSoft">
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="backgroundSoft">
         <YStack>
           <View
-            borderRadius="$r5"
+            borderRadius="r5"
             borderWidth={4}
-            borderColor="$backgroundSoft"
+            borderColor="backgroundSoft"
             overflow="hidden"
             aspectRatio={195 / 112}
           >
             <ExaBanner />
-            <View position="absolute" top="$s3" right="$s3">
+            <View position="absolute" top="s3" right="s3">
               <IconButton icon={X} aria-label={t("Close")} onPress={onClose} color="white" />
             </View>
           </View>
         </YStack>
-        <YStack gap="$s5" paddingVertical="$s5" paddingHorizontal="$s5">
-          <YStack gap="$s5" alignItems="center" paddingHorizontal="$s6" paddingBottom="$s5">
+        <YStack gap="s5" paddingVertical="s5" paddingHorizontal="s5">
+          <YStack gap="s5" alignItems="center" paddingHorizontal="s6" paddingBottom="s5">
             <XStack
               alignSelf="center"
-              backgroundColor="$interactiveBaseSuccessDefault"
+              backgroundColor="interactiveBaseSuccessDefault"
               minHeight={20}
-              borderRadius="$r2"
+              borderRadius="r2"
               alignItems="center"
               justifyContent="center"
-              paddingHorizontal="$s2"
+              paddingHorizontal="s2"
             >
               <Text
-                color="$interactiveOnBaseSuccessDefault"
-                caption2
+                color="interactiveOnBaseSuccessDefault"
                 textTransform="uppercase"
-                emphasized
                 textAlign="center"
+                caption2
+                emphasized
               >
                 {t("Limited-time offer")}
               </Text>
             </XStack>
-            <Text emphasized title color="$interactiveTextBrandDefault" textAlign="center">
+            <Text emphasized title color="interactiveTextBrandDefault" textAlign="center">
               {t("Pay Later at 0% interest")}
             </Text>
             <Text footnote secondary textAlign="center">
@@ -91,7 +91,7 @@ export default function PromoSheet({
               )}
             </Text>
           </YStack>
-          <YStack gap="$s5">
+          <YStack gap="s5">
             <Button
               onPress={() => {
                 onClose();
@@ -106,13 +106,13 @@ export default function PromoSheet({
             </Button>
             <Text
               cursor="pointer"
+              color="interactiveBaseBrandDefault"
+              textAlign="center"
               onPress={() => {
                 presentArticle("14424639").catch(reportError);
               }}
               emphasized
               footnote
-              color="$interactiveBaseBrandDefault"
-              textAlign="center"
             >
               {t("Learn more about the promo")}
             </Text>

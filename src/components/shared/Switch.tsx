@@ -6,16 +6,19 @@ const SwitchFrame = styled(View, {
   name: "Switch",
   context: SwitchContext,
   "aria-hidden": true,
-  width: "$s8",
-  height: "$s5",
-  borderRadius: "$r_0",
-  padding: "$s1",
-  transition: "default",
-  animateOnly: ["backgroundColor"],
+  width: "s8",
+  height: "s5",
+  borderRadius: "r_0",
+  padding: "s1",
+  transition: { preset: "default", properties: "backgroundColor" },
   variants: {
     checked: {
-      true: { backgroundColor: "$backgroundBrandMild" },
-      false: { backgroundColor: "$backgroundStrong" },
+      true: {
+        backgroundColor: "backgroundBrandMild",
+      },
+      false: {
+        backgroundColor: "backgroundStrong",
+      },
     },
   } as const,
 });
@@ -23,15 +26,20 @@ const SwitchFrame = styled(View, {
 const SwitchThumb = styled(View, {
   name: "SwitchThumb",
   context: SwitchContext,
-  width: "$s4_5",
-  height: "$s4_5",
-  borderRadius: "$r_0",
-  transition: "default",
-  animateOnly: ["transform", "backgroundColor"],
+  width: "s4_5",
+  height: "s4_5",
+  borderRadius: "r_0",
+  transition: { preset: "default", properties: "transform, backgroundColor" },
   variants: {
     checked: {
-      true: { backgroundColor: "$backgroundBrand", x: "$s5" },
-      false: { backgroundColor: "$backgroundSoft", x: 0 },
+      true: {
+        backgroundColor: "backgroundBrand",
+        x: "s5",
+      },
+      false: {
+        backgroundColor: "backgroundSoft",
+        x: 0,
+      },
     },
   } as const,
 });

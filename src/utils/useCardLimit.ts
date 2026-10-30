@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAfter, subDays } from "date-fns";
@@ -13,7 +13,6 @@ import type { CardActivity, KYCStatus } from "./server";
 
 export default function useCardLimit(amount?: number, open = false) {
   const { t } = useTranslation();
-  const toast = useToastController();
   const { data: spent = 0 } = useQuery<CardActivity[], Error, number>({
     queryKey: ["activity", "card"],
     select: selectSpending,
@@ -35,10 +34,7 @@ export default function useCardLimit(amount?: number, open = false) {
         return { status: "error" } as const;
       })
       .then((result) => {
-        if (result.status === "error")
-          toast.show(t("Something went wrong. Please try again."), {
-            burntOptions: { haptic: "error", preset: "error" },
-          });
+        if (result.status === "error") toast.error(t("Something went wrong. Please try again."));
       })
       .catch(reportError);
   }

@@ -18,21 +18,21 @@ export default function RepayActivity({ item }: { item: Extract<ActivityItem, { 
   } = useTranslation();
   return (
     <>
-      <YStack gap="$s7" paddingBottom="$s9">
+      <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
-            <ArrowUpFromLine size={48} color="$interactiveOnBaseErrorSoft" strokeWidth={2} />
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+            <ArrowUpFromLine size={48} color="interactiveOnBaseErrorSoft" strokeWidth={2} />
           </Square>
         </XStack>
-        <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+        <YStack gap="s4_5" justifyContent="center" alignItems="center">
           <Text primary body emphasized textAlign="center">
             {t("Debt payment")}
           </Text>
-          <Text title primary color="$uiErrorSecondary">
+          <Text title primary color="uiErrorSecondary">
             {`$${usdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
-          <XStack gap="$s3" alignItems="center">
-            <Text emphasized subHeadline color="$uiNeutralSecondary">
+          <XStack gap="s3" alignItems="center">
+            <Text emphasized subHeadline color="uiNeutralSecondary">
               {amount.toLocaleString(language, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
               &nbsp;
               {currency}
@@ -41,7 +41,7 @@ export default function RepayActivity({ item }: { item: Extract<ActivityItem, { 
           </XStack>
         </YStack>
       </YStack>
-      <YStack flex={1} gap="$s7">
+      <YStack flex={1} gap="s7">
         <TransactionDetails item={item} />
       </YStack>
     </>

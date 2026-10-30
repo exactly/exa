@@ -94,7 +94,7 @@ export default function HomeActions() {
     }
   };
   return (
-    <XStack gap="$s3" justifyContent="space-between" width="100%">
+    <XStack gap="s3" justifyContent="space-between" width="100%">
       {actions
         .filter(({ title }) => !labels[title])
         .map(({ title }) => (
@@ -141,6 +141,7 @@ export default function HomeActions() {
             disabled={disabled}
             loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
             flex={1}
+            flexBasis={0}
             aria-label={title}
             role="button"
             aria-disabled={disabled}
@@ -149,7 +150,7 @@ export default function HomeActions() {
               setColumn(nativeEvent.layout.width);
             }}
           >
-            <Button width="100%" padding="$s3_5" justifyContent="center" minHeight="auto">
+            <Button width="100%" padding="s3_5" justifyContent="center" minHeight="auto">
               <Button.Icon>
                 <Icon />
               </Button.Icon>

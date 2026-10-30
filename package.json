@@ -141,7 +141,6 @@
     "@nx/js": "catalog:",
     "@spotlightjs/spotlight": "^4.11.3",
     "@svgr/core": "^8.1.0",
-    "@tamagui/babel-plugin": "catalog:",
     "@types/babel__core": "^7.20.5",
     "@types/d3-shape": "3.1.8",
     "@types/fast-text-encoding": "^1.0.3",

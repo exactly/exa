@@ -53,33 +53,33 @@ export default function ActivityItem({
   return (
     <XStack
       height={height}
-      gap="$s4"
+      gap="s4"
       alignItems="center"
-      paddingHorizontal="$s4"
-      paddingTop="$s3"
-      paddingBottom={isLast ? "$s4" : "$s3"}
+      paddingHorizontal="s4"
+      paddingTop="s3"
+      paddingBottom={isLast ? "s4" : "s3"}
       cursor="pointer"
+      backgroundColor="backgroundMild"
+      {...stackProps}
       onPress={() => {
         if (["card", "received", "sent", "repay", "panda"].includes(item.type)) {
           router.push({ pathname: "/activity-details", params: { id: item.id } });
         }
       }}
-      backgroundColor="$backgroundMild"
-      {...stackProps}
     >
       <YStack
         width={40}
         height={40}
-        backgroundColor="$backgroundStrong"
-        borderRadius="$r3"
+        backgroundColor="backgroundStrong"
+        borderRadius="r3"
         justifyContent="center"
         alignItems="center"
       >
         {getActivityIcon(item, processing, refund)}
       </YStack>
-      <YStack flex={1} gap="$s2">
-        <XStack justifyContent="space-between" alignItems="center" gap="$s4">
-          <YStack gap="$s2" flexShrink={1}>
+      <YStack flex={1} gap="s2">
+        <XStack justifyContent="space-between" alignItems="center" gap="s4">
+          <YStack gap="s2" flexShrink={1}>
             <Text primary subHeadline numberOfLines={1}>
               {getActivityTitle(item, t)}
             </Text>
@@ -87,9 +87,7 @@ export default function ActivityItem({
               secondary
               caption
               numberOfLines={1}
-              color={
-                processing ? "$interactiveOnBaseWarningSoft" : declined ? "$uiErrorSecondary" : "$uiNeutralSecondary"
-              }
+              color={processing ? "interactiveOnBaseWarningSoft" : declined ? "uiErrorSecondary" : "uiNeutralSecondary"}
             >
               {declined
                 ? t("Payment failed")
@@ -115,15 +113,15 @@ export default function ActivityItem({
             </Text>
           </YStack>
           {"usdAmount" in item ? (
-            <YStack gap="$s2">
+            <YStack gap="s2">
               <XStack alignItems="center" justifyContent="flex-end">
                 <Text
                   sensitive
                   emphasized
                   subHeadline
                   textAlign="right"
+                  color="uiNeutralPrimary"
                   strikeThrough={declined}
-                  color="$uiNeutralPrimary"
                 >
                   {`$${Math.abs(item.usdAmount).toLocaleString(language, {
                     style: "decimal",
@@ -148,25 +146,25 @@ export default function ActivityItem({
 function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
   switch (item.type) {
     case "card":
-      return <ShoppingCart color="$uiNeutralPrimary" />;
+      return <ShoppingCart color="uiNeutralPrimary" />;
     case "received":
-      return <ArrowDownToLine color="$interactiveOnBaseSuccessSoft" />;
+      return <ArrowDownToLine color="interactiveOnBaseSuccessSoft" />;
     case "sent":
-      return <ArrowUpFromLine color="$interactiveOnBaseErrorSoft" />;
+      return <ArrowUpFromLine color="interactiveOnBaseErrorSoft" />;
     case "repay":
-      return <CircleDollarSign color="$interactiveOnBaseErrorSoft" />;
+      return <CircleDollarSign color="interactiveOnBaseErrorSoft" />;
     case "panda":
-      if (refund) return <Import color="$uiSuccessSecondary" />;
-      if (processing) return <ClockAlert color="$interactiveOnBaseWarningSoft" />;
+      if (refund) return <Import color="uiSuccessSecondary" />;
+      if (processing) return <ClockAlert color="interactiveOnBaseWarningSoft" />;
       if (item.merchant.icon)
         return (
-          <Square size={40} borderRadius="$r3" backgroundColor="white">
+          <Square size={40} borderRadius="r3" backgroundColor="white">
             <Image source={{ uri: item.merchant.icon }} width={26} height={26} contentFit="contain" />
           </Square>
         );
-      return <ShoppingCart color="$uiNeutralPrimary" />;
+      return <ShoppingCart color="uiNeutralPrimary" />;
     default:
-      return <SquareDashed color="$uiNeutralPrimary" />;
+      return <SquareDashed color="uiNeutralPrimary" />;
   }
 }
 

@@ -75,9 +75,9 @@ export default function Assets() {
   }, [tokens, markets, supportedAssets]);
   const visibleOthers = others.slice(0, 4);
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
-      <View gap="$s6" fullScreen padded paddingBottom={0}>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+      <View gap="s6" paddingBottom={0} fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -103,19 +103,19 @@ export default function Assets() {
         <ScrollView
           flex={1}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.s4.val }}
         >
-          <YStack gap="$s7">
-            <YStack gap="$s4">
-              <XStack gap="$s2" alignItems="center">
+          <YStack gap="s7">
+            <YStack gap="s4">
+              <XStack gap="s2" alignItems="center">
                 <Text emphasized primary headline>
                   {t("Supported assets")}
                 </Text>
                 <Pressable hitSlop={15} onPress={() => setCollateralShown(true)}>
-                  <Info size={16} color="$uiBrandSecondary" />
+                  <Info size={16} color="uiBrandSecondary" />
                 </Pressable>
               </XStack>
-              <YStack gap="$s3_5">
+              <YStack gap="s3_5">
                 {isPending
                   ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} width="100%" height={82} />)
                   : assets.map(({ symbol, name }) => (
@@ -132,16 +132,16 @@ export default function Assets() {
               </YStack>
             </YStack>
             {others.length > 0 && (
-              <YStack gap="$s4">
-                <XStack gap="$s2" alignItems="center">
+              <YStack gap="s4">
+                <XStack gap="s2" alignItems="center">
                   <Text emphasized primary headline>
                     {t("Other assets")}
                   </Text>
                   <Pressable hitSlop={15} onPress={() => setOtherShown(true)}>
-                    <Info size={16} color="$uiBrandSecondary" />
+                    <Info size={16} color="uiBrandSecondary" />
                   </Pressable>
                 </XStack>
-                <YStack gap="$s3_5">
+                <YStack gap="s3_5">
                   {visibleOthers.map((token) => (
                     <AddFundsOption
                       key={token.address}
@@ -155,7 +155,7 @@ export default function Assets() {
                   ))}
                   {others.length > 4 && (
                     <AddFundsOption
-                      icon={<Search size={24} color="$iconBrandDefault" />}
+                      icon={<Search size={24} color="iconBrandDefault" />}
                       title={t("More assets")}
                       onPress={() => setMoreShown(true)}
                     />
@@ -174,12 +174,12 @@ export default function Assets() {
           article="8950805"
         >
           <XStack
-            backgroundColor="$backgroundMild"
-            borderRadius="$r4"
-            padding="$s4_5"
+            backgroundColor="backgroundMild"
+            borderRadius="r4"
+            padding="s4_5"
             justifyContent="center"
             flexWrap="wrap"
-            gap="$s3_5"
+            gap="s3_5"
           >
             {isPending
               ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} height={40} width={40} radius="round" />)

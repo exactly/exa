@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import SVG, { Defs, Mask, Rect } from "react-native-svg";
 
-import { Theme, View, YStack, type ScrollView } from "tamagui";
+import { Theme, View, YStack, type ScrollView, type TamaguiElement } from "tamagui";
 
 import Text from "./Text";
 
@@ -32,7 +32,7 @@ export default function Spotlight({
   onPress?: () => void;
   scrollOffset?: React.RefObject<number>;
   scrollRef?: React.RefObject<null | ScrollView>;
-  targetRef: React.RefObject<null | RNView>;
+  targetRef: React.RefObject<null | RNView | TamaguiElement>;
 }) {
   const { t } = useTranslation();
   const { width: screenWidth, height: windowHeight } = useWindowDimensions();
@@ -131,10 +131,10 @@ export default function Spotlight({
           top={tooltipTop}
           left={tooltipLeft}
           width={200}
-          backgroundColor="$backgroundSoft"
-          borderRadius="$r3"
-          padding="$s4"
-          shadowColor="$uiNeutralSecondary"
+          backgroundColor="backgroundSoft"
+          borderRadius="r3"
+          padding="s4"
+          shadowColor="uiNeutralSecondary"
           shadowOffset={{ width: 0, height: 2 }}
           shadowOpacity={0.15}
           shadowRadius={8}
@@ -149,7 +149,7 @@ export default function Spotlight({
             left={arrowLeft}
             width={12}
             height={12}
-            backgroundColor="$backgroundSoft"
+            backgroundColor="backgroundSoft"
             borderRadius={2}
             transform={[{ rotate: "45deg" }]}
           />

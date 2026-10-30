@@ -15,24 +15,24 @@ export default function ExternalAssetsSheet({ onClose, open }: { onClose: () => 
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s7"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
-        <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
+        <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Other assets")}
           </Text>
-          <Text subHeadline color="$uiNeutralSecondary">
+          <Text subHeadline color="uiNeutralSecondary">
             {t(
               "Assets you can hold, but they can't be used as backing. You can swap or bridge them to supported collateral assets on {{chain}} network to increase your credit limit.",
               { chain: chain.name },
             )}
           </Text>
         </YStack>
-        <YStack paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack paddingHorizontal="s5" paddingBottom="s7">
           <Button primary width="100%" onPress={onClose}>
             <Button.Text>{t("Got it!")}</Button.Text>
             <Button.Icon>

@@ -10,7 +10,7 @@ import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -54,7 +54,6 @@ export default function Review() {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
-  const toast = useToastController();
   const { currency, provider, contactId, amount: amountParameter } = useLocalSearchParams();
   const [openReference, setOpenReference] = useState(false);
   const currencyString = typeof currency === "string" ? currency : "";
@@ -128,10 +127,7 @@ export default function Review() {
     },
     onError: (error) => {
       reportError(error);
-      toast.show(t("Transfer failed"), {
-        duration: 3000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Transfer failed"), { duration: 3000 });
     },
   });
 
@@ -144,7 +140,7 @@ export default function Review() {
   if (transfer.isPending || transfer.isSuccess) {
     const sent = transfer.isSuccess;
     return (
-      <View fullScreen backgroundColor="$backgroundSoft">
+      <View fullScreen backgroundColor="backgroundSoft">
         {sent && (
           <StyledGradient
             locations={[0.5, 1]}
@@ -158,21 +154,21 @@ export default function Review() {
           />
         )}
         <SafeView fullScreen backgroundColor="transparent">
-          <View gap="$s5" fullScreen padded justifyContent="space-between">
-            <YStack flex={1} justifyContent="center" alignItems="center" gap="$s5">
+          <View gap="s5" justifyContent="space-between" fullScreen padded>
+            <YStack flex={1} justifyContent="center" alignItems="center" gap="s5">
               <Square
-                borderRadius="$r4"
+                borderRadius="r4"
                 size={80}
-                backgroundColor={sent ? "$interactiveBaseSuccessSoftDefault" : "$backgroundStrong"}
+                backgroundColor={sent ? "interactiveBaseSuccessSoftDefault" : "backgroundStrong"}
               >
                 {sent ? (
-                  <Check size={32} color="$uiSuccessSecondary" strokeWidth={2.5} />
+                  <Check size={32} color="uiSuccessSecondary" strokeWidth={2.5} />
                 ) : (
-                  <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />
+                  <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
                 )}
               </Square>
 
-              <YStack gap="$s3" alignItems="center">
+              <YStack gap="s3" alignItems="center">
                 <Text headline primary>
                   <Trans
                     i18nKey={sent ? "Sent to <em>{{recipient}}</em>" : "Sending to <em>{{recipient}}</em>"}
@@ -183,9 +179,9 @@ export default function Review() {
                 <Text title emphasized primary>
                   {`${symbol}${Number(formatUnits(amount, 6)).toFixed(2)}`}
                 </Text>
-                <XStack gap="$s2" alignItems="center">
+                <XStack gap="s2" alignItems="center">
                   <AssetLogo symbol="USDC" width={16} height={16} />
-                  <Text footnote color="$uiNeutralSecondary">
+                  <Text footnote color="uiNeutralSecondary">
                     {usdcAmount === undefined ? "—" : Number(formatUnits(usdcAmount, 6)).toFixed(2)}
                   </Text>
                 </XStack>
@@ -193,7 +189,7 @@ export default function Review() {
             </YStack>
 
             {sent ? (
-              <YStack gap="$s3" alignItems="center">
+              <YStack gap="s3" alignItems="center">
                 <Button
                   onPress={() => {
                     router.dismissTo("/activity");
@@ -207,9 +203,9 @@ export default function Review() {
                 </Button>
                 <Text
                   cursor="pointer"
+                  color="uiBrandSecondary"
                   emphasized
                   footnote
-                  color="$uiBrandSecondary"
                   onPress={() => {
                     router.dismissTo("/(main)/(home)");
                   }}
@@ -220,17 +216,17 @@ export default function Review() {
             ) : (
               <XStack
                 width="100%"
-                backgroundColor="$backgroundStrong"
-                paddingHorizontal="$s4"
-                paddingVertical="$s4"
-                borderRadius="$r3"
+                backgroundColor="backgroundStrong"
+                paddingHorizontal="s4"
+                paddingVertical="s4"
+                borderRadius="r3"
                 justifyContent="space-between"
                 alignItems="center"
               >
-                <Text footnote color="$uiNeutralSecondary">
+                <Text footnote color="uiNeutralSecondary">
                   {t("Processing transfer...")}
                 </Text>
-                <ExaSpinner backgroundColor="transparent" color="$uiNeutralSecondary" containerSize={24} size={16} />
+                <ExaSpinner backgroundColor="transparent" color="uiNeutralSecondary" size={16} containerSize={24} />
               </XStack>
             )}
           </View>
@@ -240,9 +236,9 @@ export default function Review() {
   }
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s5" fullScreen padded>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild">
+      <View gap="s5" fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -276,7 +272,7 @@ export default function Review() {
             <ReviewRow
               label={t("To")}
               value={
-                <YStack alignItems="flex-end" gap="$s1">
+                <YStack alignItems="flex-end" gap="s1">
                   <Text emphasized primary>
                     {recipient?.ownerName ?? "—"}
                   </Text>
@@ -300,14 +296,14 @@ export default function Review() {
               <ReviewRow
                 label={t("Reference")}
                 value={
-                  <XStack gap="$s2" alignItems="center" flex={1} justifyContent="flex-end">
+                  <XStack gap="s2" alignItems="center" flex={1} justifyContent="flex-end">
                     <Text emphasized primary flexShrink={1} textAlign="right">
                       {reference}
                     </Text>
                     <IconButton
                       icon={Info}
                       size={16}
-                      color="$interactiveBaseBrandDefault"
+                      color="interactiveBaseBrandDefault"
                       aria-label={t("More info")}
                       onPress={() => {
                         setOpenReference(true);
@@ -320,11 +316,11 @@ export default function Review() {
             <ReviewRow
               label={t("Transfer fee")}
               value={
-                <XStack gap="$s2" alignItems="center">
-                  <Text emphasized strikeThrough color="$uiNeutralSecondary">
+                <XStack gap="s2" alignItems="center">
+                  <Text emphasized strikeThrough color="uiNeutralSecondary">
                     {rail ? bridgeRails[rail].fee : bridgeFee(currencyString)}
                   </Text>
-                  <Text emphasized color="$uiSuccessSecondary">
+                  <Text emphasized color="uiSuccessSecondary">
                     {t("Free")}
                   </Text>
                 </XStack>
@@ -333,7 +329,7 @@ export default function Review() {
             <ReviewRow
               label={t("Total")}
               value={
-                <XStack gap="$s2" alignItems="center">
+                <XStack gap="s2" alignItems="center">
                   <AssetLogo symbol="USDC" width={20} height={20} />
                   <Text emphasized primary>
                     {usdcAmount === undefined ? "—" : Number(formatUnits(usdcAmount, 6)).toFixed(2)}
@@ -345,8 +341,8 @@ export default function Review() {
         </ScrollView>
 
         {missingTransfer && (
-          <XStack gap="$s3" alignItems="flex-start">
-            <TriangleAlert size={16} color="$uiErrorSecondary" />
+          <XStack gap="s3" alignItems="flex-start">
+            <TriangleAlert size={16} color="uiErrorSecondary" />
             <Text secondary caption flex={1}>
               {t(
                 "The transfer details saved for this contact aren't available. To send to them, delete the contact and add their account details again.",
@@ -384,13 +380,13 @@ export default function Review() {
 function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <XStack
-      paddingVertical="$s4"
+      paddingVertical="s4"
       borderBottomWidth={1}
-      borderBottomColor="$borderNeutralSoft"
+      borderBottomColor="borderNeutralSoft"
       justifyContent="space-between"
       alignItems="flex-start"
     >
-      <Text color="$uiNeutralPlaceholder">{label}</Text>
+      <Text color="uiNeutralPlaceholder">{label}</Text>
       {value}
     </XStack>
   );

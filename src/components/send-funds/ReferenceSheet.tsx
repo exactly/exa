@@ -27,23 +27,23 @@ export default function ReferenceSheet({
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s7"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
-        <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
+        <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Reference")}
           </Text>
-          <Text subHeadline color="$uiNeutralSecondary">
+          <Text subHeadline color="uiNeutralSecondary">
             {t(
               "The reference is saved with this contact. To use a different one, delete the contact and add it again.",
             )}
           </Text>
         </YStack>
-        <YStack gap="$s4" paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack gap="s4" paddingHorizontal="s5" paddingBottom="s7">
           <Button primary width="100%" onPress={onClose}>
             <Button.Text>{t("Got it!")}</Button.Text>
             <Button.Icon>
@@ -54,9 +54,9 @@ export default function ReferenceSheet({
             emphasized
             footnote
             textAlign="center"
-            color="$interactiveTextBrandDefault"
+            color="interactiveTextBrandDefault"
             cursor="pointer"
-            pressStyle={{ opacity: 0.7 }}
+            opacity="press:0.7"
             onPress={() => {
               onClose();
               router.replace({ pathname: "/send-funds/recipients", params: { currency, provider } });

@@ -24,24 +24,23 @@ export default function ContactSheet({
   return (
     <ModalSheet open={!!contact} onClose={onClose}>
       <SafeView
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingHorizontal="$s5"
-        paddingTop="$s7"
-        $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingHorizontal="s5"
+        paddingTop="s7 web:s7"
+        paddingBottom="web:s7 android:s5"
       >
-        <YStack gap="$s5">
+        <YStack gap="s5">
           <Text emphasized headline primary>
             {t("Edit contact")}
           </Text>
           {contact && (
-            <XStack gap="$s3" alignItems="center">
-              <View borderRadius="$r_0" overflow="hidden">
+            <XStack gap="s3" alignItems="center">
+              <View borderRadius="r_0" overflow="hidden">
                 <Blocky seed={contact.address} />
               </View>
-              <YStack gap="$s2" flex={1}>
+              <YStack gap="s2" flex={1}>
                 {!!contact.ens && (
                   <Text title3 primary>
                     {contact.ens}
@@ -53,7 +52,7 @@ export default function ContactSheet({
               </YStack>
             </XStack>
           )}
-          <YStack gap="$s4_5" paddingTop="$s3_5">
+          <YStack gap="s4_5" paddingTop="s3_5">
             <Button primary onPress={onClose}>
               <Button.Text>{t("Done")}</Button.Text>
               <Button.Icon>
@@ -64,9 +63,9 @@ export default function ContactSheet({
               emphasized
               footnote
               textAlign="center"
-              color="$uiErrorSecondary"
+              color="uiErrorSecondary"
               cursor="pointer"
-              pressStyle={{ opacity: 0.7 }}
+              opacity="press:0.7"
               role="button"
               aria-label={t("Delete contact")}
               onPress={onDelete}

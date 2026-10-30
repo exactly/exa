@@ -83,20 +83,20 @@ export default function RepayAmountSelector({
 
   return (
     <YStack
-      gap="$s3"
-      borderRadius="$r3"
-      backgroundColor="$backgroundSoft"
-      paddingTop="$s3"
-      paddingBottom="$s3"
-      paddingHorizontal="$s4"
+      gap="s3"
+      borderRadius="r3"
+      backgroundColor="backgroundSoft"
+      paddingTop="s3"
+      paddingBottom="s3"
+      paddingHorizontal="s4"
     >
       <XStack justifyContent="flex-end" alignItems="center">
         <Text
           emphasized
           subHeadline
-          color="$uiBrandSecondary"
-          onPress={handleMaxPress}
+          color="uiBrandSecondary"
           cursor="pointer"
+          onPress={handleMaxPress}
           role="button"
           aria-label={t("Set maximum repay amount")}
           hitSlop={15}
@@ -104,30 +104,34 @@ export default function RepayAmountSelector({
           {t("Max")}
         </Text>
       </XStack>
-      <YStack gap="$s4">
+      <YStack gap="s4">
         <YStack maxWidth="80%" minWidth="60%" alignSelf="center">
           <XStack
             justifyContent="center"
             alignSelf="center"
             alignItems="center"
-            hitSlop={15}
             flexShrink={1}
-            gap="$s2"
+            gap="s2"
             maxWidth="80%"
             height={60}
+            hitSlop={15}
           >
             <AssetLogo symbol="USDC" width={32} height={32} />
             <AmountInput
               aria-label={t("Repay amount")}
               alignSelf="center"
-              backgroundColor="$backgroundSoft"
+              backgroundColor="backgroundSoft"
               borderBottomLeftRadius={0}
               borderBottomRightRadius={0}
               borderWidth={0}
-              color="$uiNeutralPrimary"
+              color="uiNeutralPrimary"
               cursor="pointer"
               flex={1}
               height="auto"
+              fontSize={34}
+              fontWeight="400"
+              letterSpacing={-0.2}
+              textAlign="center"
               decimals={6}
               onBlur={() => {
                 setFocused(false);
@@ -140,36 +144,32 @@ export default function RepayAmountSelector({
               }}
               placeholder="0"
               selectTextOnFocus
-              fontSize={34}
-              fontWeight="400"
-              letterSpacing={-0.2}
-              textAlign="center"
               value={displayValue}
             />
           </XStack>
-          <Separator height={1} borderColor={focused ? "$borderBrandStrong" : "$borderNeutralSoft"} />
+          <Separator height={1} borderColor={focused ? "borderBrandStrong" : "borderNeutralSoft"} />
         </YStack>
-        <YStack justifyContent="space-between" flexWrap="wrap" alignItems="flex-start" gap="$s3">
+        <YStack justifyContent="space-between" flexWrap="wrap" alignItems="flex-start" gap="s3">
           <Slider
             onValueChange={handleSliderChange}
             value={[Number(clampedValue) / 1e6]}
             width="100%"
+            height={7}
             min={0}
             max={Number(totalPositionRepay) / 1e6}
             step={sliderStep}
           >
-            <Slider.Track backgroundColor="$backgroundBrandMild">
-              <Slider.TrackActive backgroundColor="$uiBrandSecondary" />
+            <Slider.Track backgroundColor="backgroundBrandMild" borderRadius={100_000} overflow="hidden">
+              <Slider.TrackActive backgroundColor="uiBrandSecondary" />
             </Slider.Track>
             <Slider.Thumb
               circular
               index={0}
-              size={20}
-              backgroundColor="$uiBrandSecondary"
-              borderColor="$borderBrandStrong"
+              width={20}
+              height={20}
+              backgroundColor="uiBrandSecondary hover:uiBrandSecondary press:uiBrandSecondary"
+              borderColor="borderBrandStrong hover:borderBrandStrong press:borderBrandStrong"
               hitSlop={10}
-              hoverStyle={{ backgroundColor: "$uiBrandSecondary", borderColor: "$borderBrandStrong" }}
-              pressStyle={{ backgroundColor: "$uiBrandSecondary", borderColor: "$borderBrandStrong" }}
               aria-label={t("Repay amount slider")}
               aria-valuetext={`${(Number(clampedValue) / 1e6).toLocaleString(language, {
                 minimumFractionDigits: 2,
@@ -178,13 +178,13 @@ export default function RepayAmountSelector({
             />
           </Slider>
           {maxReached && (
-            <Text caption color="$uiNeutralSecondary" aria-live="polite">
+            <Text caption color="uiNeutralSecondary" aria-live="polite">
               {canPayFullDebt ? t("Full repayment selected.") : t("Maximum amount selected.")}
             </Text>
           )}
         </YStack>
         {balancerBalance !== undefined && positionValue > balancerBalance && (
-          <Text caption color="$uiNeutralPlaceholder" aria-live="polite">
+          <Text caption color="uiNeutralPlaceholder" aria-live="polite">
             {t("Limit {{amount}} per repay. Please split larger amounts into smaller payments.", {
               amount: `$${(Number(balancerBalance) / 1e6).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             })}

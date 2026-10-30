@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
@@ -45,7 +45,6 @@ import type { Credential } from "@exactly/common/validation";
 
 export default function PluginUpgrade() {
   const { t } = useTranslation();
-  const toast = useToastController();
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
@@ -175,20 +174,14 @@ export default function PluginUpgrade() {
     },
     onSuccess(result) {
       if (result === "pending") {
-        toast.show(t("Your account has pending requests. Try upgrading again in a moment."), {
-          duration: 3000,
-          burntOptions: { haptic: "warning" },
-        });
+        toast.warning(t("Your account has pending requests. Try upgrading again in a moment."), { duration: 3000 });
         return;
       }
-      toast.show(t("Account upgraded!"), { duration: 1000, burntOptions: { haptic: "success" } });
+      toast.success(t("Account upgraded!"), { duration: 1000 });
     },
     onError(error) {
       if (!reportError(error).authKnown) {
-        toast.show(t("Error upgrading account"), {
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
+        toast.error(t("Error upgrading account"), { duration: 1000 });
       }
     },
   });

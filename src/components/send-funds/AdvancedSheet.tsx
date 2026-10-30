@@ -23,24 +23,23 @@ export default function AdvancedSheet({
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingHorizontal="$s5"
-        paddingTop="$s7"
-        $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingHorizontal="s5"
+        paddingTop="s7 web:s7"
+        paddingBottom="web:s7 android:s5"
       >
-        <YStack gap="$s5">
+        <YStack gap="s5">
           <XStack
-            gap="$s4"
+            gap="s4"
             alignItems="center"
             justifyContent="space-between"
             cursor="pointer"
+            opacity="press:0.7"
             role="switch"
             aria-label={t("Advanced mode")}
             aria-checked={advanced}
-            pressStyle={{ opacity: 0.7 }}
             onPress={() => {
               onChange(!advanced);
             }}
@@ -52,7 +51,7 @@ export default function AdvancedSheet({
               <Switch.Thumb />
             </Switch>
           </XStack>
-          <Separator borderColor="$borderNeutralSoft" />
+          <Separator borderColor="borderNeutralSoft" />
           <Text subHeadline secondary>
             {t(
               "Send any asset to any network, even ones you don't hold. We'll handle the swap or bridge and show the full cost before you confirm.",
@@ -63,10 +62,10 @@ export default function AdvancedSheet({
             subHeadline
             brand
             centered
-            paddingTop="$s3_5"
-            role="button"
+            paddingTop="s3_5"
             cursor="pointer"
-            pressStyle={{ opacity: 0.7 }}
+            opacity="press:0.7"
+            role="button"
             onPress={onClose}
           >
             {t("Close")}

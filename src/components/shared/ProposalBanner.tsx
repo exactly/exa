@@ -15,21 +15,21 @@ function ProposalBanner() {
   const { count } = usePendingOperations();
   return count > 0 ? (
     <View
-      backgroundColor="$interactiveBaseInformationSoftDefault"
+      backgroundColor="interactiveBaseInformationSoftDefault"
       display="flex"
       flexDirection="row"
       justifyContent="space-between"
-      paddingVertical="$s3"
-      paddingHorizontal="$s4"
+      paddingVertical="s3"
+      paddingHorizontal="s4"
       cursor="pointer"
       onPress={() => {
         router.push("/pending-proposals");
       }}
     >
-      <Text emphasized footnote color="$interactiveOnBaseInformationSoft">
+      <Text emphasized footnote color="interactiveOnBaseInformationSoft">
         {t("Pending requests → {{count}}", { count })}
       </Text>
-      <ChevronRight size={16} color="$interactiveOnBaseInformationSoft" />
+      <ChevronRight size={16} color="interactiveOnBaseInformationSoft" />
     </View>
   ) : null;
 }

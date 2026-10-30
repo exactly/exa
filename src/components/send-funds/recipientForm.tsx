@@ -191,20 +191,20 @@ export function Field({
 }) {
   const { t } = useTranslation();
   return (
-    <YStack gap="$s2">
-      <XStack gap="$s2" alignItems="baseline">
+    <YStack gap="s2">
+      <XStack gap="s2" alignItems="baseline">
         <Text footnote emphasized primary>
           {label}
         </Text>
         {optional && (
-          <Text footnote color="$uiNeutralPlaceholder">
+          <Text footnote color="uiNeutralPlaceholder">
             ({t("optional")})
           </Text>
         )}
       </XStack>
       {children}
       {error && (
-        <Text footnote color="$uiErrorSecondary">
+        <Text footnote color="uiErrorSecondary">
           {t(error)}
         </Text>
       )}
@@ -225,10 +225,10 @@ export function TextField({
 }) {
   return (
     <XStack
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
       borderWidth={1}
-      borderColor="$borderNeutralSoft"
+      borderColor="borderNeutralSoft"
       alignItems="center"
       overflow="hidden"
     >
@@ -244,8 +244,8 @@ export function TextField({
         minHeight={multiline ? 96 : undefined}
       />
       <View
-        backgroundColor="$interactiveBaseBrandSoftDefault"
-        padding="$s3_5"
+        backgroundColor="interactiveBaseBrandSoftDefault"
+        padding="s3_5"
         alignSelf="stretch"
         justifyContent="center"
         alignItems="center"
@@ -258,7 +258,7 @@ export function TextField({
             .catch(reportError);
         }}
       >
-        <ClipboardPaste size={24} color="$iconBrandDefault" />
+        <ClipboardPaste size={24} color="iconBrandDefault" />
       </View>
     </XStack>
   );
@@ -279,10 +279,10 @@ export function SelectField({
 }) {
   return (
     <XStack
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
       borderWidth={1}
-      borderColor="$borderNeutralSoft"
+      borderColor="borderNeutralSoft"
       alignItems="center"
       cursor={disabled ? "default" : "pointer"}
       opacity={disabled ? 0.5 : 1}
@@ -291,17 +291,17 @@ export function SelectField({
       role="button"
       aria-disabled={disabled}
     >
-      <Text flex={1} padding="$s3" color={value ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"}>
+      <Text flex={1} padding="s3" color={value ? "uiNeutralPrimary" : "uiNeutralPlaceholder"}>
         {(displayValue ?? value) || placeholder}
       </Text>
       <View
-        backgroundColor="$interactiveBaseBrandSoftDefault"
-        padding="$s3_5"
+        backgroundColor="interactiveBaseBrandSoftDefault"
+        padding="s3_5"
         alignSelf="stretch"
         justifyContent="center"
         alignItems="center"
       >
-        <ChevronDown size={24} color="$iconBrandDefault" />
+        <ChevronDown size={24} color="iconBrandDefault" />
       </View>
     </XStack>
   );
@@ -320,49 +320,49 @@ export function OptionField({
 }) {
   const { t } = useTranslation();
   return (
-    <YStack gap="$s4" role="radiogroup" aria-label={t(label)}>
+    <YStack gap="s4" role="radiogroup" aria-label={t(label)}>
       {options.map(({ value: option, label: name, icon: Icon, time, fee }) => {
         const selected = value === option;
         return (
           <XStack
             key={option}
-            gap="$s3_5"
+            gap="s3_5"
             alignItems="center"
-            padding="$s4_5"
-            backgroundColor="$backgroundSoft"
-            borderRadius="$r5"
+            padding="s4_5"
+            backgroundColor="backgroundSoft"
+            borderRadius="r5"
             borderWidth={1}
-            borderColor={selected ? "$borderBrandStrong" : "$borderNeutralSoft"}
+            borderColor={selected ? "borderBrandStrong" : "borderNeutralSoft"}
             cursor="pointer"
-            pressStyle={{ opacity: 0.7 }}
+            opacity="press:0.7"
             role="radio"
             aria-checked={selected}
             onPress={() => {
               onChange(option);
             }}
           >
-            <YStack flex={1} gap="$s3_5">
-              <XStack gap="$s3" alignItems="center">
-                {Icon && <Icon size={24} color="$iconBrandDefault" />}
+            <YStack flex={1} gap="s3_5">
+              <XStack gap="s3" alignItems="center">
+                {Icon && <Icon size={24} color="iconBrandDefault" />}
                 <Text emphasized headline primary>
                   {t(name)}
                 </Text>
               </XStack>
-              <XStack gap="$s6">
+              <XStack gap="s6">
                 {time && (
                   <OptionDetail label={t("Estimated time")}>
-                    <Text footnote color="$uiNeutralSecondary">
+                    <Text footnote color="uiNeutralSecondary">
                       {t(time)}
                     </Text>
                   </OptionDetail>
                 )}
                 {fee && (
                   <OptionDetail label={t("Fees")}>
-                    <XStack gap="$s2" alignItems="center">
-                      <Text footnote strikeThrough color="$uiNeutralSecondary">
+                    <XStack gap="s2" alignItems="center">
+                      <Text footnote strikeThrough color="uiNeutralSecondary">
                         {fee}
                       </Text>
-                      <Text footnote emphasized color="$uiSuccessSecondary">
+                      <Text footnote emphasized color="uiSuccessSecondary">
                         {t("Free")}
                       </Text>
                     </XStack>
@@ -373,14 +373,14 @@ export function OptionField({
             <View
               width={24}
               height={24}
-              borderRadius="$r_0"
+              borderRadius="r_0"
               borderWidth={1}
-              borderColor={selected ? "$borderBrandStrong" : "$borderNeutralSoft"}
+              borderColor={selected ? "borderBrandStrong" : "borderNeutralSoft"}
               alignItems="center"
               justifyContent="center"
             >
               {selected && (
-                <View width={12} height={12} borderRadius="$r_0" backgroundColor="$interactiveBaseBrandDefault" />
+                <View width={12} height={12} borderRadius="r_0" backgroundColor="interactiveBaseBrandDefault" />
               )}
             </View>
           </XStack>
@@ -439,8 +439,8 @@ export function FieldInput({
 
 function OptionDetail({ label, children }: { children: React.ReactNode; label: string }) {
   return (
-    <YStack gap="$s1">
-      <Text caption2 color="$uiNeutralPlaceholder">
+    <YStack gap="s1">
+      <Text caption2 color="uiNeutralPlaceholder">
         {label}
       </Text>
       {children}

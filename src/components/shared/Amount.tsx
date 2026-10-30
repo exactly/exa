@@ -52,14 +52,7 @@ export default function Amount({
       >
         {`$${formatted}`}
       </Text>
-      <Text
-        aria-hidden
-        fontSize={17}
-        lineHeight={17}
-        color={color}
-        maxFontSizeMultiplier={1}
-        $platform-ios={{ marginBottom: 4 }}
-      >
+      <Text aria-hidden fontSize={17} lineHeight="17px" color={color} marginBottom="ios:4px" maxFontSizeMultiplier={1}>
         $
       </Text>
       <Text
@@ -69,7 +62,7 @@ export default function Amount({
         numberOfLines={1}
         fontSize={36}
         color={wholeColor}
-        lineHeight={36}
+        lineHeight="36px"
       >
         {whole}
       </Text>
@@ -77,12 +70,11 @@ export default function Amount({
         aria-hidden
         sensitive
         fontSize={17}
-        lineHeight={17}
+        lineHeight="17px"
         color={color}
-        maxFontSizeMultiplier={1}
         alignSelf="flex-start"
-        marginTop={2}
-        $platform-ios={{ marginTop: 0 }}
+        marginTop="2px ios:0px"
+        maxFontSizeMultiplier={1}
       >
         {decimal}
       </Text>
@@ -91,7 +83,7 @@ export default function Amount({
 }
 
 const palette = {
-  neutral: { color: "$uiNeutralSecondary", wholeColor: undefined },
-  danger: { color: "$uiErrorTertiary", wholeColor: "$uiErrorSecondary" },
-  success: { color: "$uiSuccessTertiary", wholeColor: "$uiSuccessSecondary" },
+  neutral: { color: "uiNeutralSecondary", wholeColor: "uiNeutralPrimary" },
+  danger: { color: "uiErrorTertiary", wholeColor: "uiErrorSecondary" },
+  success: { color: "uiSuccessTertiary", wholeColor: "uiSuccessSecondary" },
 };

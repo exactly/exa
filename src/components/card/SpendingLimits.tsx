@@ -33,20 +33,20 @@ export default function SpendingLimits({
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
             <View flex={1} padded>
-              <YStack gap="$s4_5">
-                <YStack gap="$s4">
+              <YStack gap="s4_5">
+                <YStack gap="s4">
                   <Text emphasized headline primary>
                     {t("Spending limits")}
                   </Text>
-                  <Text color="$uiNeutralSecondary" subHeadline>
+                  <Text color="uiNeutralSecondary" subHeadline>
                     {t("Track your spending and see how much you’ve spent with your Exa Card so far.")}
                   </Text>
                 </YStack>
-                <YStack paddingBottom="$s4">
+                <YStack paddingBottom="s4">
                   <SpendingLimit title={t("Weekly")} limit={limit} spent={spent} />
                 </YStack>
                 {processing ? (
@@ -73,7 +73,7 @@ export default function SpendingLimits({
                 )}
                 <XStack alignSelf="center">
                   <Pressable onPress={onClose} hitSlop={20}>
-                    <Text emphasized footnote color="$interactiveTextBrandDefault">
+                    <Text emphasized footnote color="interactiveTextBrandDefault">
                       {t("Close")}
                     </Text>
                   </Pressable>

@@ -205,7 +205,7 @@ export default function Amount() {
     chains?.find((item) => item.id === destinationChain)?.name ??
     alchemyChains.get(destinationChain)?.name ??
     chain.name;
-  const color = exceeds ? "$uiErrorSecondary" : amount > 0n ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder";
+  const color = exceeds ? "uiErrorSecondary" : amount > 0n ? "uiNeutralPrimary" : "uiNeutralPlaceholder";
   const size = room && digits ? Math.min(56, Math.max(20, Math.floor((probe * room * 0.9) / (digits + unit)))) : 56;
 
   function change(text: string) {
@@ -234,8 +234,8 @@ export default function Amount() {
 
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -278,7 +278,7 @@ export default function Amount() {
             setRoom(nativeEvent.layout.width);
           }}
         >
-          <YStack flex={1} gap="$s6" alignItems="center" justifyContent="center">
+          <YStack flex={1} gap="s6" alignItems="center" justifyContent="center">
             <Text
               aria-hidden
               position="absolute"
@@ -304,7 +304,7 @@ export default function Amount() {
               {mode === "usd" ? "$" : (destination?.symbol ?? "")}
             </Text>
             <XStack
-              gap="$s2"
+              gap="s2"
               alignItems="center"
               justifyContent="center"
               maxWidth="100%"
@@ -314,7 +314,7 @@ export default function Amount() {
               }}
             >
               {mode === "usd" && (
-                <Text fontSize={size} lineHeight={64} color={color}>
+                <Text fontSize={size} lineHeight="64px" color={color}>
                   $
                 </Text>
               )}
@@ -334,52 +334,52 @@ export default function Amount() {
                 textAlign="center"
                 maxWidth="100%"
                 color={color}
-                placeholderTextColor="$uiNeutralPlaceholder"
+                placeholderTextColor="uiNeutralPlaceholder"
               />
               {mode === "token" && !!destination && (
-                <Text fontSize={size} lineHeight={64} color={color}>
+                <Text fontSize={size} lineHeight="64px" color={color}>
                   {destination.symbol}
                 </Text>
               )}
             </XStack>
             <XStack
-              gap="$s3"
+              gap="s3"
               alignItems="center"
               cursor="pointer"
+              opacity="press:0.7"
               hitSlop={12}
               role="button"
               aria-label={t("Switch amount currency")}
-              pressStyle={{ opacity: 0.7 }}
               onPress={() => {
                 selectionAsync().catch(reportError);
                 setMode(mode === "usd" ? "token" : "usd");
               }}
             >
-              <ArrowDownUp size={20} color="$interactiveBaseBrandDefault" />
-              <Text title3 color="$uiNeutralPlaceholder">
+              <ArrowDownUp size={20} color="interactiveBaseBrandDefault" />
+              <Text title3 color="uiNeutralPlaceholder">
                 {mode === "usd"
                   ? `${Number(formatUnits(destinationAmount, destinationDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
                   : `$${Number(formatUnits(usdAmount, 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
             </XStack>
           </YStack>
-          <YStack gap="$s3" marginTop="$s4_5">
+          <YStack gap="s3" marginTop="s4_5">
             {advanced && (
               <>
-                <Text emphasized subHeadline primary paddingHorizontal="$s4">
+                <Text emphasized subHeadline primary paddingHorizontal="s4">
                   {t("Pay with")}
                 </Text>
                 <XStack
-                  gap="$s3"
-                  padding="$s4"
+                  gap="s3"
+                  padding="s4"
                   alignItems="center"
                   borderWidth={1}
-                  borderColor="$borderNeutralStrong"
-                  borderRadius="$r3"
+                  borderColor="borderNeutralStrong"
+                  borderRadius="r3"
                   cursor="pointer"
+                  opacity="press:0.7"
                   role="button"
                   aria-label={t("Select an asset")}
-                  pressStyle={{ opacity: 0.7 }}
                   onPress={() => {
                     setPayOpen(true);
                   }}
@@ -394,13 +394,13 @@ export default function Amount() {
                         chainId={payChain}
                         network
                       />
-                      <YStack gap="$s2" flex={1}>
+                      <YStack gap="s2" flex={1}>
                         <Text callout primary>
                           {paySymbol}
                         </Text>
                         <Text footnote secondary>
                           {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
-                          <Text footnote color="$uiNeutralPlaceholder">
+                          <Text footnote color="uiNeutralPlaceholder">
                             {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
                           </Text>
                         </Text>
@@ -408,42 +408,42 @@ export default function Amount() {
                     </>
                   ) : (
                     <>
-                      <View width={32} height={32} borderRadius="$r_0" backgroundColor="$interactiveDisabled" />
+                      <View width={32} height={32} borderRadius="r_0" backgroundColor="interactiveDisabled" />
                       <Text flex={1} callout primary>
                         {t("Select an asset")}
                       </Text>
                     </>
                   )}
-                  <ChevronRight size={20} color="$interactiveBaseBrandDefault" />
+                  <ChevronRight size={20} color="interactiveBaseBrandDefault" />
                 </XStack>
               </>
             )}
             {exceeds && (
               <XStack
-                gap="$s4"
+                gap="s4"
                 alignItems="center"
-                backgroundColor="$interactiveBaseErrorSoftDefault"
-                borderRadius="$r3"
-                paddingHorizontal="$s4"
-                paddingVertical="$s3_5"
+                backgroundColor="interactiveBaseErrorSoftDefault"
+                borderRadius="r3"
+                paddingHorizontal="s4"
+                paddingVertical="s3_5"
               >
-                <CircleX size={16} color="$uiErrorSecondary" />
-                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                <CircleX size={16} color="uiErrorSecondary" />
+                <Text caption2 color="uiErrorSecondary" flex={1}>
                   {t("Insufficient balance. Try a different amount.")}
                 </Text>
               </XStack>
             )}
             {unpriced && (
               <XStack
-                gap="$s4"
+                gap="s4"
                 alignItems="center"
-                backgroundColor="$interactiveBaseErrorSoftDefault"
-                borderRadius="$r3"
-                paddingHorizontal="$s4"
-                paddingVertical="$s3_5"
+                backgroundColor="interactiveBaseErrorSoftDefault"
+                borderRadius="r3"
+                paddingHorizontal="s4"
+                paddingVertical="s3_5"
               >
-                <CircleX size={16} color="$uiErrorSecondary" />
-                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                <CircleX size={16} color="uiErrorSecondary" />
+                <Text caption2 color="uiErrorSecondary" flex={1}>
                   {t("Price unavailable for {{symbol}}. Choose another asset to send.", {
                     symbol: destination.symbol,
                   })}
@@ -452,30 +452,30 @@ export default function Amount() {
             )}
             {unpricedPay && (
               <XStack
-                gap="$s4"
+                gap="s4"
                 alignItems="center"
-                backgroundColor="$interactiveBaseErrorSoftDefault"
-                borderRadius="$r3"
-                paddingHorizontal="$s4"
-                paddingVertical="$s3_5"
+                backgroundColor="interactiveBaseErrorSoftDefault"
+                borderRadius="r3"
+                paddingHorizontal="s4"
+                paddingVertical="s3_5"
               >
-                <CircleX size={16} color="$uiErrorSecondary" />
-                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                <CircleX size={16} color="uiErrorSecondary" />
+                <Text caption2 color="uiErrorSecondary" flex={1}>
                   {t("Price unavailable for {{symbol}}. Choose another asset to pay with.", { symbol: paySymbol })}
                 </Text>
               </XStack>
             )}
             {unavailable && (
               <XStack
-                gap="$s4"
+                gap="s4"
                 alignItems="center"
-                backgroundColor="$interactiveBaseErrorSoftDefault"
-                borderRadius="$r3"
-                paddingHorizontal="$s4"
-                paddingVertical="$s3_5"
+                backgroundColor="interactiveBaseErrorSoftDefault"
+                borderRadius="r3"
+                paddingHorizontal="s4"
+                paddingVertical="s3_5"
               >
-                <CircleX size={16} color="$uiErrorSecondary" />
-                <Text caption2 color="$uiErrorSecondary" flex={1}>
+                <CircleX size={16} color="uiErrorSecondary" />
+                <Text caption2 color="uiErrorSecondary" flex={1}>
                   {isTokensError
                     ? t("Couldn't load asset details. Please try again.")
                     : t("This asset is no longer available on {{network}}. Choose another asset to send.", {

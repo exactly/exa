@@ -85,35 +85,35 @@ function getProposal(proposal: Proposal, t: TFunction): ProposalWithMetadata {
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <Coins color="$interactiveOnBaseInformationSoft" />,
+        icon: <Coins color="interactiveOnBaseInformationSoft" />,
         decoded: decodeBorrowAtMaturity(data),
       };
     case ProposalType.RepayAtMaturity:
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <Coins color="$interactiveOnBaseInformationSoft" />,
+        icon: <Coins color="interactiveOnBaseInformationSoft" />,
         decoded: decodeRepayAtMaturity(data),
       };
     case ProposalType.CrossRepayAtMaturity:
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <Coins color="$interactiveOnBaseInformationSoft" />,
+        icon: <Coins color="interactiveOnBaseInformationSoft" />,
         decoded: decodeCrossRepayAtMaturity(data),
       };
     case ProposalType.RollDebt:
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <RefreshCw color="$interactiveOnBaseInformationSoft" />,
+        icon: <RefreshCw color="interactiveOnBaseInformationSoft" />,
         decoded: decodeRollDebt(data),
       };
     case ProposalType.Swap:
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <ArrowLeftRight color="$interactiveOnBaseInformationSoft" />,
+        icon: <ArrowLeftRight color="interactiveOnBaseInformationSoft" />,
         decoded: undefined,
       };
     case ProposalType.Redeem:
@@ -121,14 +121,14 @@ function getProposal(proposal: Proposal, t: TFunction): ProposalWithMetadata {
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <ArrowUpRight color="$interactiveOnBaseInformationSoft" />,
+        icon: <ArrowUpRight color="interactiveOnBaseInformationSoft" />,
         decoded: { receiver: decodeWithdraw(data) },
       };
     default:
       return {
         ...proposal,
         label: getProposalLabel(proposalType, t),
-        icon: <SearchSlash color="$interactiveOnBaseInformationSoft" />,
+        icon: <SearchSlash color="interactiveOnBaseInformationSoft" />,
         decoded: undefined,
       };
   }
@@ -145,7 +145,7 @@ export default function PendingProposals() {
   return (
     <SafeView fullScreen>
       <View fullScreen padded>
-        <View flexDirection="row" gap="$s3_5" paddingBottom="$s4" justifyContent="space-between" alignItems="center">
+        <View flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
           <Pressable
             onPress={() => {
               if (router.canGoBack()) {
@@ -155,10 +155,10 @@ export default function PendingProposals() {
               }
             }}
           >
-            <ArrowLeft size={24} color="$uiNeutralPrimary" />
+            <ArrowLeft size={24} color="uiNeutralPrimary" />
           </Pressable>
           <View flexDirection="row" alignItems="center">
-            <Text color="$uiNeutralSecondary" fontSize={15} fontWeight="bold">
+            <Text color="uiNeutralSecondary" fontSize={15} fontWeight="bold">
               {t("Pending requests")}
             </Text>
           </View>
@@ -167,7 +167,7 @@ export default function PendingProposals() {
               presentArticle("10752721").catch(reportError);
             }}
           >
-            <CircleHelp color="$uiNeutralPrimary" />
+            <CircleHelp color="uiNeutralPrimary" />
           </Pressable>
         </View>
         <ScrollView
@@ -176,11 +176,11 @@ export default function PendingProposals() {
         >
           <View flex={1}>
             {count === 0 && (
-              <YStack alignItems="center" justifyContent="center" gap="$s4" paddingTop="$s4">
-                <Text textAlign="center" color="$uiNeutralSecondary" emphasized headline>
+              <YStack alignItems="center" justifyContent="center" gap="s4" paddingTop="s4">
+                <Text textAlign="center" color="uiNeutralSecondary" emphasized headline>
                   🙌
                 </Text>
-                <Text textAlign="center" color="$uiNeutralSecondary" footnote>
+                <Text textAlign="center" color="uiNeutralSecondary" footnote>
                   {t("There are no pending requests!")}
                 </Text>
               </YStack>
@@ -193,8 +193,8 @@ export default function PendingProposals() {
             })}
           </View>
         </ScrollView>
-        <View paddingHorizontal="$s8">
-          <Text color="$uiNeutralPlaceholder" caption2 textAlign="center">
+        <View paddingHorizontal="s8">
+          <Text color="uiNeutralPlaceholder" textAlign="center" caption2>
             {t("Each request takes about 1 minute to complete and is processed in order.")}
           </Text>
         </View>
@@ -244,12 +244,12 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
   const maturityDisplay = renderMaturity();
 
   return (
-    <XStack gap="$s4" paddingVertical="$s3">
+    <XStack gap="s4" paddingVertical="s3">
       <View
         width={40}
         height={40}
-        borderRadius="$r3"
-        backgroundColor="$interactiveBaseInformationSoftDefault"
+        borderRadius="r3"
+        backgroundColor="interactiveBaseInformationSoftDefault"
         justifyContent="center"
         alignItems="center"
       >
@@ -261,7 +261,7 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
             {label}
           </Text>
           {maturityDisplay && (
-            <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
+            <Text footnote maxFontSizeMultiplier={1} color="uiNeutralSecondary" numberOfLines={1}>
               {maturityDisplay}
             </Text>
           )}
@@ -298,23 +298,23 @@ function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, Ro
   });
   // TODO map values to other supported mutations
   return (
-    <XStack gap="$s4" paddingVertical="$s3">
+    <XStack gap="s4" paddingVertical="s3">
       <View
         width={40}
         height={40}
-        borderRadius="$r3"
-        backgroundColor="$interactiveBaseInformationSoftDefault"
+        borderRadius="r3"
+        backgroundColor="interactiveBaseInformationSoftDefault"
         justifyContent="center"
         alignItems="center"
       >
-        <Shuffle color="$interactiveOnBaseInformationSoft" />
+        <Shuffle color="interactiveOnBaseInformationSoft" />
       </View>
       <XStack justifyContent="space-between" flex={1}>
         <YStack flex={1}>
           <Text subHeadline maxFontSizeMultiplier={1} numberOfLines={1}>
             {t("Bridge")}
           </Text>
-          <Text footnote maxFontSizeMultiplier={1} color="$uiNeutralSecondary" numberOfLines={1}>
+          <Text footnote maxFontSizeMultiplier={1} color="uiNeutralSecondary" numberOfLines={1}>
             {sourceChainName} → {chain.name}
           </Text>
         </YStack>

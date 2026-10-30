@@ -20,10 +20,10 @@ export default function InfoSheet({
 }) {
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <YStack flex={1} padding="$s4" gap="$s4">
+            <YStack flex={1} padding="s4" gap="s4">
               <Text headline emphasized>
                 {title}
               </Text>

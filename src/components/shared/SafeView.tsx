@@ -14,7 +14,7 @@ export default function SafeView({ children, ...rest }: ViewProperties) {
       paddingBottom={insets.bottom}
       paddingLeft={insets.left}
       paddingRight={insets.right}
-      backgroundColor="$backgroundMild"
+      backgroundColor="backgroundMild"
       {...rest}
     >
       {children}

@@ -11,7 +11,7 @@ import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
 import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -59,7 +59,6 @@ export default function Pay() {
   } = useTranslation();
   const router = useRouter();
   const { address } = useAccount();
-  const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
@@ -133,16 +132,16 @@ export default function Pay() {
   );
 
   return (
-    <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View fullScreen backgroundColor={empty ? "$backgroundSoft" : "$backgroundMild"}>
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
+    <SafeView fullScreen tab backgroundColor="backgroundSoft">
+      <View fullScreen backgroundColor={empty ? "backgroundSoft" : "backgroundMild"}>
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
           contentContainerStyle={{
             flexGrow: 1,
             paddingBottom: use(TabBarContext),
-            backgroundColor: empty ? "$backgroundSoft" : "$backgroundMild",
+            backgroundColor: empty ? "backgroundSoft" : "backgroundMild",
           }}
           showsVerticalScrollIndicator={false}
           flex={1}
@@ -152,9 +151,9 @@ export default function Pay() {
             <Empty />
           ) : (
             <XStack
-              backgroundColor="$backgroundSoft"
-              paddingHorizontal="$s4"
-              paddingVertical="$s3"
+              backgroundColor="backgroundSoft"
+              paddingHorizontal="s4"
+              paddingVertical="s3"
               justifyContent="space-between"
               alignItems="center"
             >
@@ -163,7 +162,7 @@ export default function Pay() {
               </Text>
               <IconButton
                 icon={hidden ? EyeOff : Eye}
-                color="$uiNeutralSecondary"
+                color="uiNeutralSecondary"
                 aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
                 onPress={() => {
                   queryClient.setQueryData(["settings", "sensitive"], !hidden);
@@ -179,7 +178,7 @@ export default function Pay() {
                 t={t}
                 onInfoPress={() => setInfoType("total")}
               />
-              <View padded paddingTop="$s5" gap="$s5">
+              <View padded paddingTop="s5" gap="s5">
                 {firstMaturity && exaUSDC && (
                   <FirstMaturityCard
                     maturity={firstMaturity[0]}
@@ -194,10 +193,7 @@ export default function Pay() {
                     onRollover={() => {
                       if (rolloverIntroShown) {
                         if (!isLatestPlugin) {
-                          toast.show(t("Upgrade account to rollover"), {
-                            duration: 1000,
-                            burntOptions: { haptic: "error", preset: "error" },
-                          });
+                          toast.error(t("Upgrade account to rollover"), { duration: 1000 });
                           return;
                         }
                         router.navigate({ pathname: "/roll-debt", params: { maturity: String(firstMaturity[0]) } });
@@ -216,7 +212,7 @@ export default function Pay() {
                 onClose={() => setRolloverIntroMaturity(undefined)}
               />
               <InfoSheet open={infoType === "total"} onClose={() => setInfoType(null)} title={t("Total outstanding")}>
-                <Text body color="$uiNeutralSecondary">
+                <Text body color="uiNeutralSecondary">
                   {t("This total includes all your purchases, loans, interest, and any applicable late fees.")}
                 </Text>
                 <Button primary onPress={() => setInfoType(null)}>
@@ -231,7 +227,7 @@ export default function Pay() {
                 onClose={() => setInfoType(null)}
                 title={t("Early repayment discount")}
               >
-                <Text body color="$uiNeutralSecondary">
+                <Text body color="uiNeutralSecondary">
                   {t(
                     "You can repay early and save on interest. The final amount updates automatically before you confirm.",
                   )}
@@ -250,7 +246,7 @@ export default function Pay() {
                 <Text
                   footnote
                   emphasized
-                  color="$interactiveTextBrandDefault"
+                  color="interactiveTextBrandDefault"
                   cursor="pointer"
                   textAlign="center"
                   onPress={() => setInfoType(null)}
@@ -259,12 +255,12 @@ export default function Pay() {
                 </Text>
               </InfoSheet>
               <InfoSheet open={infoType === "fees"} onClose={() => setInfoType(null)} title={t("Late payment fees")}>
-                <Text body color="$uiNeutralSecondary">
+                <Text body color="uiNeutralSecondary">
                   {t(
                     "Late fees are charged daily after the due date. The rate applies to your full balance (principal + interest) and keeps adding up until you pay.",
                   )}
                 </Text>
-                <Text emphasized body color="$uiNeutralSecondary">
+                <Text emphasized body color="uiNeutralSecondary">
                   {t("Example: On a $100 balance, a 0.45% daily fee adds $0.45 per day.")}
                 </Text>
                 <Button
@@ -281,7 +277,7 @@ export default function Pay() {
                 <Text
                   footnote
                   emphasized
-                  color="$interactiveTextBrandDefault"
+                  color="interactiveTextBrandDefault"
                   cursor="pointer"
                   textAlign="center"
                   onPress={() => setInfoType(null)}
@@ -292,15 +288,15 @@ export default function Pay() {
             </>
           )}
           {!empty && (
-            <YStack paddingHorizontal="$s4" paddingTop={hasPayments ? "$s4" : "$s6"} paddingBottom="$s6" gap="$s6">
+            <YStack paddingHorizontal="s4" paddingTop={hasPayments ? "s4" : "s6"} paddingBottom="s6" gap="s6">
               {!hasPayments && (
                 <View
-                  backgroundColor="$backgroundSoft"
-                  borderRadius="$r3"
-                  paddingHorizontal="$s4"
-                  paddingTop="$s4"
-                  paddingBottom="$s5"
-                  shadowColor="$backgroundStrong"
+                  backgroundColor="backgroundSoft"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingTop="s4"
+                  paddingBottom="s5"
+                  shadowColor="backgroundStrong"
                   shadowOffset={{ width: 0, height: 6 }}
                   shadowOpacity={0.6}
                   shadowRadius={28}
@@ -334,16 +330,16 @@ function TotalOutstandingCard({
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
-    <View backgroundColor="$backgroundSoft" paddingHorizontal="$s6" paddingTop="$s4" paddingBottom="$s5" gap="$s4">
-      <XStack gap="$s3" justifyContent="space-between" alignItems="center">
-        <XStack gap="$s2" alignItems="center">
+    <View backgroundColor="backgroundSoft" paddingHorizontal="s6" paddingTop="s4" paddingBottom="s5" gap="s4">
+      <XStack gap="s3" justifyContent="space-between" alignItems="center">
+        <XStack gap="s2" alignItems="center">
           <Text emphasized headline>
             {t("Total outstanding")}
           </Text>
           <IconButton
             icon={Info}
             size={16}
-            color="$interactiveBaseBrandDefault"
+            color="interactiveBaseBrandDefault"
             aria-label={t("Total outstanding info")}
             onPress={onInfoPress}
           />
@@ -352,7 +348,7 @@ function TotalOutstandingCard({
       <XStack justifyContent="space-between" alignItems="center">
         <Amount amount={amount} />
         {count > 0 && (
-          <Text body color="$uiNeutralSecondary">
+          <Text body color="uiNeutralSecondary">
             {t("in {{count}} payments", { count })}
           </Text>
         )}
@@ -398,65 +394,65 @@ function FirstMaturityCard({
 
   return (
     <View
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
       overflow="hidden"
-      shadowColor="$uiNeutralSecondary"
+      shadowColor="uiNeutralSecondary"
       shadowOffset={{ width: 0, height: 2 }}
       shadowOpacity={0.15}
       shadowRadius={8}
     >
-      <YStack padding="$s4" gap="$s1">
-        <XStack gap="$s3" alignItems="center">
-          <XStack gap="$s2" alignItems="center" flex={1}>
-            <Text emphasized headline color={isOverdue ? "$uiErrorSecondary" : "$uiNeutralPrimary"}>
+      <YStack padding="s4" gap="s1">
+        <XStack gap="s3" alignItems="center">
+          <XStack gap="s2" alignItems="center" flex={1}>
+            <Text emphasized headline color={isOverdue ? "uiErrorSecondary" : "uiNeutralPrimary"}>
               {isOverdue
                 ? t("{{time}} past due", { time: timeDistance })
                 : t("Due in {{time}}", { time: timeDistance })}
             </Text>
           </XStack>
-          <XStack gap="$s1" alignItems="center" cursor="pointer" onPress={onViewStatement}>
-            <Text emphasized footnote color="$interactiveBaseBrandDefault">
+          <XStack gap="s1" alignItems="center" cursor="pointer" onPress={onViewStatement}>
+            <Text emphasized footnote color="interactiveBaseBrandDefault">
               {t("View statement")}
             </Text>
-            <FileText size={16} color="$interactiveBaseBrandDefault" />
+            <FileText size={16} color="interactiveBaseBrandDefault" />
           </XStack>
         </XStack>
-        <Text caption color="$uiNeutralSecondary">
+        <Text caption color="uiNeutralSecondary">
           {maturityDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
           {` - ${maturityDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
         </Text>
       </YStack>
-      <XStack padding="$s4" gap="$s3_5" alignItems="center">
+      <XStack padding="s4" gap="s3_5" alignItems="center">
         <Amount
           amount={Number(previewValue) / 10 ** assetDecimals}
           status={isOverdue ? "danger" : "success"}
           flex={1}
         />
-        <YStack alignItems="flex-end" gap="$s3">
+        <YStack alignItems="flex-end" gap="s3">
           {processing ? (
-            <Text emphasized subHeadline color="$interactiveTextDisabled">
+            <Text emphasized subHeadline color="interactiveTextDisabled">
               {t("Processing")}
             </Text>
           ) : isOverdue ? (
             <>
-              <Text sensitive body color="$uiErrorSecondary">
+              <Text sensitive body color="uiErrorSecondary">
                 {penaltyPercent.toLocaleString(language, {
                   style: "percent",
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
               </Text>
-              <Text emphasized subHeadline color="$uiErrorSecondary">
+              <Text emphasized subHeadline color="uiErrorSecondary">
                 {t("Late payment fee")}
               </Text>
             </>
           ) : discount >= 0.001 ? (
             <>
-              <Text sensitive body strikeThrough color="$uiNeutralSecondary">
+              <Text sensitive body strikeThrough color="uiNeutralSecondary">
                 {`$${originalAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <Text emphasized subHeadline color="$uiSuccessSecondary">
+              <Text emphasized subHeadline color="uiSuccessSecondary">
                 {t("{{percent}} OFF", {
                   percent: discount.toLocaleString(language, {
                     style: "percent",
@@ -471,13 +467,13 @@ function FirstMaturityCard({
         <IconButton
           icon={Info}
           size={16}
-          color="$interactiveBaseBrandDefault"
+          color="interactiveBaseBrandDefault"
           aria-label={t("Payment info")}
           onPress={onInfoPress}
         />
       </XStack>
-      <View padding="$s4">
-        <XStack gap="$s3">
+      <View padding="s4">
+        <XStack gap="s3">
           <Button primary flex={1} disabled={processing} onPress={onPay}>
             <Button.Text>{t("Pay")}</Button.Text>
             <Button.Icon>

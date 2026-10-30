@@ -21,16 +21,16 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
             <View flex={1} padded>
-              <YStack gap="$s4_5">
-                <YStack gap="$s4">
+              <YStack gap="s4_5">
+                <YStack gap="s4">
                   <Text emphasized headline primary>
                     {t("View Exa Card PIN number")}
                   </Text>
-                  <Text color="$uiNeutralSecondary" subHeadline>
+                  <Text color="uiNeutralSecondary" subHeadline>
                     {t("Your card’s PIN may be required to confirm transactions and ensure security.")}
                   </Text>
                 </YStack>
@@ -47,7 +47,7 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
                 </Skeleton>
                 <XStack alignSelf="center">
                   <Pressable onPress={onClose} hitSlop={20}>
-                    <Text emphasized footnote color="$interactiveTextBrandDefault">
+                    <Text emphasized footnote color="interactiveTextBrandDefault">
                       {t("Close")}
                     </Text>
                   </Pressable>
@@ -101,9 +101,9 @@ function Countdown({ pin, error, onRetry }: { error: unknown; onRetry: () => voi
   }
 
   return (
-    <YStack gap="$s4">
+    <YStack gap="s4">
       {!error && pin ? (
-        <XStack flexWrap="wrap" justifyContent="center" gap="$s5">
+        <XStack flexWrap="wrap" justifyContent="center" gap="s5">
           {Array.from({ length: pin.length }).map((_, index) => (
             // eslint-disable-next-line @eslint-react/no-array-index-key
             <Text fontSize={48} mono maxFontSizeMultiplier={1} key={index}>

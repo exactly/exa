@@ -28,14 +28,14 @@ export default function CreditLine() {
   const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { markets, firstMaturity } = useMarkets({ enabled: !!bytecode });
   return (
-    <YStack backgroundColor="$backgroundSoft" borderRadius="$r3">
-      <XStack padding="$s4">
+    <YStack backgroundColor="backgroundSoft" borderRadius="r3">
+      <XStack padding="s4">
         <Text emphasized body primary>
           {t("Available funding")}
         </Text>
       </XStack>
-      <YStack padding="$s4" paddingTop={0}>
-        <XStack alignItems="center" gap="$s2">
+      <YStack padding="s4" paddingTop={0}>
+        <XStack alignItems="center" gap="s2">
           <AssetLogo symbol="USDC" width={20} height={20} />
           <Text emphasized title2 sensitive>
             {(markets ? Number(formatUnits(borrowLimit(markets, marketUSDCAddress), 6)) : 0).toLocaleString(language, {
@@ -44,9 +44,9 @@ export default function CreditLine() {
             })}
           </Text>
         </XStack>
-        <Separator height={1} borderColor="$borderNeutralSoft" marginVertical="$s4" />
-        <YStack gap="$s5">
-          <YStack gap="$s2">
+        <Separator height={1} borderColor="borderNeutralSoft" marginVertical="s4" />
+        <YStack gap="s5">
+          <YStack gap="s2">
             <XStack alignItems="center" flexWrap="wrap">
               <Text secondary footnote>
                 {t("Next due date:")}{" "}

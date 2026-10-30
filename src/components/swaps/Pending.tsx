@@ -45,7 +45,7 @@ export default function Pending({
     i18n: { language },
   } = useTranslation();
   return (
-    <View fullScreen backgroundColor="$backgroundSoft">
+    <View fullScreen backgroundColor="backgroundSoft">
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
@@ -57,15 +57,15 @@ export default function Pending({
         colors={[theme.backgroundStrong.val, theme.backgroundSoft.val]}
       />
       <SafeView flex={1} backgroundColor="transparent">
-        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
-          <YStack gap="$s7" paddingBottom="$s9">
+        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="s4">
+          <YStack gap="s7" paddingBottom="s9">
             <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="$r4" backgroundColor="$backgroundStrong" size={80}>
-                <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />
+              <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+                <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
               </Square>
             </XStack>
-            <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+            <YStack gap="s4_5" justifyContent="center" alignItems="center">
               <Text secondary body>
                 <Trans
                   i18nKey="Processing <em>swap request</em>"
@@ -82,10 +82,10 @@ export default function Pending({
                     : t("Funds are on their way to {{network}}. This can take a few minutes.", { network })}
                 </Text>
               ) : null}
-              <Text title primary color="$uiNeutralPrimary">
+              <Text title primary color="uiNeutralPrimary">
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <AssetLogo
                   uri={fromToken.logoURI}
                   symbol={fromToken.symbol}
@@ -97,11 +97,11 @@ export default function Pending({
                   {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
               </XStack>
-              <ArrowDown size={24} color="$interactiveBaseBrandDefault" />
-              <Text title primary color="$uiNeutralPrimary">
+              <ArrowDown size={24} color="interactiveBaseBrandDefault" />
+              <Text title primary color="uiNeutralPrimary">
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <AssetLogo
                   uri={toToken.logoURI}
                   symbol={toToken.symbol}

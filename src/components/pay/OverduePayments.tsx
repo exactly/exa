@@ -65,13 +65,13 @@ export default function OverduePayments({
   );
   if (payments.length === 0) return null;
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" overflow="hidden">
-      <XStack padding="$s4">
+    <View backgroundColor="backgroundSoft" borderRadius="r3" overflow="hidden">
+      <XStack padding="s4">
         <Text emphasized headline>
           {t("Overdue payments")}
         </Text>
       </XStack>
-      <YStack role="list" paddingHorizontal="$s4" paddingBottom="$s4" paddingTop="$s3_5" gap="$s4">
+      <YStack role="list" paddingHorizontal="s4" paddingBottom="s4" paddingTop="s3_5" gap="s4">
         {payments.map(([maturity, { amount, discount }], index) => {
           const processing = isProcessing(maturity);
           const formattedDate = new Date(Number(maturity) * 1000).toLocaleDateString(language, {
@@ -86,25 +86,25 @@ export default function OverduePayments({
           })}`;
           return (
             <React.Fragment key={String(maturity)}>
-              {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
+              {index > 0 && <Separator borderColor="borderNeutralSoft" />}
               <XStack
                 aria-label={formattedDate}
                 role="button"
                 aria-disabled={processing}
                 cursor="pointer"
                 alignItems="center"
-                gap="$s3"
+                gap="s3"
                 onPress={() => {
                   if (processing) return;
                   selectionAsync().catch(reportError);
                   onSelect(maturity);
                 }}
               >
-                <YStack flex={1} gap="$s2">
-                  <Text emphasized subHeadline color={processing ? "$interactiveTextDisabled" : "$uiNeutralPrimary"}>
+                <YStack flex={1} gap="s2">
+                  <Text emphasized subHeadline color={processing ? "interactiveTextDisabled" : "uiNeutralPrimary"}>
                     {formattedDate}
                   </Text>
-                  <Text emphasized footnote color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                  <Text emphasized footnote color={processing ? "interactiveTextDisabled" : "uiErrorSecondary"}>
                     {processing
                       ? t("Processing")
                       : `+${Math.abs(discount).toLocaleString(language, {
@@ -114,15 +114,15 @@ export default function OverduePayments({
                         })}`}
                   </Text>
                 </YStack>
-                <Text sensitive emphasized title3 color={processing ? "$interactiveTextDisabled" : "$uiErrorSecondary"}>
+                <Text sensitive emphasized title3 color={processing ? "interactiveTextDisabled" : "uiErrorSecondary"}>
                   {formattedAmount}
                 </Text>
-                <ChevronRight size={20} color={processing ? "$iconDisabled" : "$interactiveBaseBrandDefault"} />
+                <ChevronRight size={20} color={processing ? "iconDisabled" : "interactiveBaseBrandDefault"} />
               </XStack>
             </React.Fragment>
           );
         })}
-        <Text caption color="$uiNeutralSecondary">
+        <Text caption color="uiNeutralSecondary">
           <Text emphasized>{t("You must repay each installment manually before its due date.")} </Text>
           {t("If not, a {{rate}} penalty is added every day the payment is late.", {
             rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {

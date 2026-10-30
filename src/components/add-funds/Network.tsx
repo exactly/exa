@@ -114,9 +114,9 @@ export default function Network() {
     navigate(chainId, symbol);
   }
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
-      <View gap="$s6" fullScreen padded paddingBottom={0}>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+      <View gap="s6" paddingBottom={0} fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -142,12 +142,12 @@ export default function Network() {
         <ScrollView
           flex={1}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.s4.val }}
         >
-          <YStack gap="$s7">
+          <YStack gap="s7">
             {receivable && (
-              <YStack gap="$s4">
-                <XStack gap="$s2" alignItems="center">
+              <YStack gap="s4">
+                <XStack gap="s2" alignItems="center">
                   <Text emphasized primary headline>
                     {t("Native network")}
                   </Text>
@@ -157,7 +157,7 @@ export default function Network() {
                     hitSlop={15}
                     onPress={() => setNativeShown(true)}
                   >
-                    <Info size={16} color="$uiBrandSecondary" />
+                    <Info size={16} color="uiBrandSecondary" />
                   </Pressable>
                 </XStack>
                 <AddFundsOption
@@ -170,8 +170,8 @@ export default function Network() {
               </YStack>
             )}
             {deployable.length > 0 && (
-              <YStack gap="$s4">
-                <XStack gap="$s2" alignItems="center">
+              <YStack gap="s4">
+                <XStack gap="s2" alignItems="center">
                   <Text emphasized primary headline>
                     {t("Other networks")}
                   </Text>
@@ -181,10 +181,10 @@ export default function Network() {
                     hitSlop={15}
                     onPress={() => setOthersShown(true)}
                   >
-                    <Info size={16} color="$uiBrandSecondary" />
+                    <Info size={16} color="uiBrandSecondary" />
                   </Pressable>
                 </XStack>
-                <YStack gap="$s3_5">
+                <YStack gap="s3_5">
                   {deployable.map((c) => (
                     <AddFundsOption
                       key={c.id}
@@ -207,13 +207,13 @@ export default function Network() {
           article="8950801"
         >
           <XStack
-            backgroundColor="$backgroundStrong"
-            borderRadius="$r3"
-            paddingVertical="$s5"
-            paddingHorizontal="$s3_5"
+            backgroundColor="backgroundStrong"
+            borderRadius="r3"
+            paddingVertical="s5"
+            paddingHorizontal="s3_5"
             justifyContent="center"
             alignItems="center"
-            gap="$s3"
+            gap="s3"
           >
             <ChainLogo size={40} />
             <Text emphasized title2 primary>

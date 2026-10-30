@@ -104,9 +104,9 @@ export default function SendAmount() {
   if (!fiatCurrency || !contactString || providerString !== "bridge") return <Redirect href="/send-funds" />;
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s5" fullScreen padded>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild">
+      <View gap="s5" fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -125,13 +125,13 @@ export default function SendAmount() {
         </XStack>
 
         <ScrollView flex={1}>
-          <YStack flex={1} gap="$s5">
-            <YStack gap="$s2">
+          <YStack flex={1} gap="s5">
+            <YStack gap="s2">
               <Text title3 emphasized primary>
                 {t("How much do you want to send?")}
               </Text>
-              <XStack gap="$s2" alignItems="center">
-                <Text footnote color="$uiNeutralPlaceholder">
+              <XStack gap="s2" alignItems="center">
+                <Text footnote color="uiNeutralPlaceholder">
                   {t("Available: {{amount}} USDC", {
                     amount: Number(formatUnits(available, 6)).toLocaleString(language, {
                       minimumFractionDigits: 2,
@@ -139,24 +139,24 @@ export default function SendAmount() {
                     }),
                   })}
                 </Text>
-                <Info size={14} color="$uiNeutralPlaceholder" />
+                <Info size={14} color="uiNeutralPlaceholder" />
               </XStack>
             </YStack>
 
             <YStack
-              backgroundColor="$backgroundSoft"
-              borderRadius="$r3"
-              paddingTop="$s6"
-              paddingBottom="$s5"
-              paddingHorizontal="$s4"
-              gap="$s4"
+              backgroundColor="backgroundSoft"
+              borderRadius="r3"
+              paddingTop="s6"
+              paddingBottom="s5"
+              paddingHorizontal="s4"
+              gap="s4"
               alignItems="center"
             >
               <form.Field name="amount" validators={{ onChange: pipe(string(), nonEmpty("empty amount")) }}>
                 {({ state: { value }, handleChange }) => (
-                  <YStack gap="$s2" minWidth="60%" maxWidth="80%" alignSelf="center">
-                    <XStack alignItems="baseline" gap="$s2" justifyContent="center">
-                      <Text title color={hasError ? "$interactiveBaseErrorDefault" : "$uiNeutralPlaceholder"}>
+                  <YStack gap="s2" minWidth="60%" maxWidth="80%" alignSelf="center">
+                    <XStack alignItems="baseline" gap="s2" justifyContent="center">
+                      <Text title color={hasError ? "interactiveBaseErrorDefault" : "uiNeutralPlaceholder"}>
                         {symbol}
                       </Text>
                       <AmountInput
@@ -176,28 +176,26 @@ export default function SendAmount() {
                         borderWidth={0}
                         backgroundColor="transparent"
                         textAlign="center"
-                        color={hasError ? "$interactiveBaseErrorDefault" : "$uiNeutralPrimary"}
+                        color={hasError ? "interactiveBaseErrorDefault" : "uiNeutralPrimary"}
                         minWidth={120}
                       />
                     </XStack>
                     <Separator
                       height={1}
-                      borderColor={
-                        hasError ? "$borderErrorStrong" : focused ? "$borderBrandStrong" : "$borderNeutralSoft"
-                      }
+                      borderColor={hasError ? "borderErrorStrong" : focused ? "borderBrandStrong" : "borderNeutralSoft"}
                     />
                   </YStack>
                 )}
               </form.Field>
 
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <AssetLogo symbol="USDC" width={14} height={14} />
-                <Text footnote color={hasError ? "$uiErrorSecondary" : "$uiNeutralPlaceholder"}>
+                <Text footnote color={hasError ? "uiErrorSecondary" : "uiNeutralPlaceholder"}>
                   ≈ {Number(formatUnits(usdcRequired, 6)).toFixed(2)} USDC
                 </Text>
               </XStack>
 
-              <XStack gap="$s4" justifyContent="center" flexWrap="wrap" alignItems="center">
+              <XStack gap="s4" justifyContent="center" flexWrap="wrap" alignItems="center">
                 {PERCENT_CHIPS.map((percent) => {
                   const chipAmount = (availableInTargetCurrency * BigInt(percent)) / 100n;
                   const chipValue = Number(formatUnits(chipAmount, 6)).toFixed(2);
@@ -219,15 +217,15 @@ export default function SendAmount() {
             </YStack>
 
             {quoteError && !missingTransfer ? (
-              <XStack gap="$s3" alignItems="center">
-                <TriangleAlert size={16} color="$uiErrorSecondary" />
+              <XStack gap="s3" alignItems="center">
+                <TriangleAlert size={16} color="uiErrorSecondary" />
                 <Text secondary caption flex={1}>
                   {t("Couldn't load the exchange rate. Please try again.")}
                 </Text>
               </XStack>
             ) : hasError ? (
-              <XStack gap="$s3" alignItems="center">
-                <TriangleAlert size={16} color="$uiErrorSecondary" />
+              <XStack gap="s3" alignItems="center">
+                <TriangleAlert size={16} color="uiErrorSecondary" />
                 <Text secondary caption flex={1}>
                   {insufficient
                     ? t("You don't have enough USDC for this amount.")
@@ -238,31 +236,31 @@ export default function SendAmount() {
           </YStack>
         </ScrollView>
 
-        <YStack paddingTop="$s4" borderTopWidth={1} borderTopColor="$borderNeutralSoft" gap="$s3">
+        <YStack paddingTop="s4" borderTopWidth={1} borderTopColor="borderNeutralSoft" gap="s3">
           <SummaryRow
-            icon={<CircleDollarSign size={16} color="$uiNeutralPlaceholder" />}
+            icon={<CircleDollarSign size={16} color="uiNeutralPlaceholder" />}
             label={t("Minimum amount")}
             value={`${MINIMUM_USDC} USDC`}
           />
           <SummaryRow
-            icon={<Calendar size={16} color="$uiNeutralPlaceholder" />}
+            icon={<Calendar size={16} color="uiNeutralPlaceholder" />}
             label={t("Delivery time")}
             value={t(rail ? bridgeRails[rail].time : currencyString === "BRL" ? "Instant" : DELIVERY_TIME)}
           />
           <SummaryRow
-            icon={<ArrowLeftRight size={16} color="$uiNeutralPlaceholder" />}
+            icon={<ArrowLeftRight size={16} color="uiNeutralPlaceholder" />}
             label={t("Exchange rate")}
             value={rate ? `1 ${currencyString} = ${Number(formatUnits((WAD * WAD) / rate, 18)).toFixed(2)} USDC` : "—"}
           />
           <SummaryRow
-            icon={<Percent size={16} color="$uiNeutralPlaceholder" />}
+            icon={<Percent size={16} color="uiNeutralPlaceholder" />}
             label={t("Bridge transfer fee")}
             value={
               <>
-                <Text emphasized strikeThrough color="$uiNeutralSecondary">
+                <Text emphasized strikeThrough color="uiNeutralSecondary">
                   {rail ? bridgeRails[rail].fee : bridgeFee(currencyString)}
                 </Text>{" "}
-                <Text emphasized color="$uiSuccessSecondary">
+                <Text emphasized color="uiSuccessSecondary">
                   {t("Free")}
                 </Text>
               </>
@@ -308,25 +306,19 @@ function PercentChip({
   return (
     <View
       borderWidth={1}
-      borderColor={selected ? (danger ? "$borderErrorStrong" : "$borderBrandStrong") : "$borderNeutralSoft"}
+      borderColor={selected ? (danger ? "borderErrorStrong" : "borderBrandStrong") : "borderNeutralSoft"}
       backgroundColor={
-        selected
-          ? danger
-            ? "$interactiveBaseErrorSoftDefault"
-            : "$interactiveBaseBrandSoftDefault"
-          : "$backgroundMild"
+        selected ? (danger ? "interactiveBaseErrorSoftDefault" : "interactiveBaseBrandSoftDefault") : "backgroundMild"
       }
-      borderRadius="$r_0"
-      paddingHorizontal="$s4"
-      paddingVertical="$s2"
+      borderRadius="r_0"
+      paddingHorizontal="s4"
+      paddingVertical="s2"
       cursor="pointer"
       onPress={onPress}
     >
       <Text
         footnote
-        color={
-          selected ? (danger ? "$interactiveOnBaseErrorSoft" : "$interactiveOnBaseBrandSoft") : "$uiNeutralSecondary"
-        }
+        color={selected ? (danger ? "interactiveOnBaseErrorSoft" : "interactiveOnBaseBrandSoft") : "uiNeutralSecondary"}
       >
         {percent}%
       </Text>
@@ -336,9 +328,9 @@ function PercentChip({
 
 function SummaryRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
-    <XStack alignItems="center" gap="$s2">
+    <XStack alignItems="center" gap="s2">
       {icon}
-      <Text footnote color="$uiNeutralPlaceholder">
+      <Text footnote color="uiNeutralPlaceholder">
         {label} <Text emphasized>{value}</Text>
       </Text>
     </XStack>

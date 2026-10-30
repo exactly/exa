@@ -1,14 +1,10 @@
-import { Easing } from "react-native-reanimated";
-
 import { createAnimations } from "@tamagui/animations-reanimated";
-import { config } from "@tamagui/config/v3";
 import { createFont, createTamagui, createTokens } from "tamagui";
 
 import { isBase } from "@exactly/common/generated/chain";
 
 const space = {
   s0: 0,
-  true: 0,
   s1: 2,
   s2: 4,
   s3: 8,
@@ -224,11 +220,41 @@ const tokens = createTokens({
     primaryLight9: "#12A594",
   },
   space,
-  radius: { r0: 0, true: 4, r1: 2, r2: 4, r3: 8, r4: 12, r5: 16, r6: 20, r_0: 9999 },
-  size: { ...space, ...config.tokens.size },
+  radius: { 0: 0, r0: 0, r1: 2, r2: 4, r2_5: 5.5, r3: 8, r4: 12, r5: 16, r6: 20, r_0: 9999 },
+  size: {
+    ...space,
+    0: 0,
+    0.25: 2,
+    0.5: 4,
+    0.75: 8,
+    1: 20,
+    1.5: 24,
+    2: 28,
+    2.5: 32,
+    3: 36,
+    3.5: 40,
+    4: 44,
+    4.5: 48,
+    5: 52,
+    6: 64,
+    7: 74,
+    8: 84,
+    9: 94,
+    10: 104,
+    11: 124,
+    12: 144,
+    13: 164,
+    14: 184,
+    15: 204,
+    16: 224,
+    17: 224,
+    18: 244,
+    19: 264,
+    20: 284,
+  },
   iconSize: { xs: 12, sm: 14, md: 20, lg: 24, xl: 32, xxl: 48 },
   iconStroke: { xs: 1, sm: 1.2, md: 1.4, lg: 1.6, xl: 2, xxl: 2.2 },
-  zIndex: config.tokens.zIndex,
+  zIndex: { 0: 0, 1: 100, 2: 200, 3: 300, 4: 400, 5: 500 },
 });
 
 const baseLight = {
@@ -282,7 +308,24 @@ const baseLight = {
   iconDisabled: tokens.color.baseGray50,
 };
 
-const sizes = config.fonts.body.size;
+const sizes = {
+  1: 11,
+  2: 12,
+  3: 13,
+  4: 14,
+  5: 16,
+  6: 18,
+  7: 20,
+  8: 23,
+  9: 30,
+  10: 46,
+  11: 55,
+  12: 62,
+  13: 72,
+  14: 92,
+  15: 114,
+  16: 134,
+};
 const body = createFont({
   family: "SplineSans-Regular",
   face: {
@@ -291,17 +334,13 @@ const body = createFont({
     700: { normal: "SplineSans-SemiBold" },
   },
   size: sizes,
-  lineHeight: Object.fromEntries(
-    Object.entries(sizes).map(([k, v]) => [k, Math.round(Number(v) * 1.3)]),
-  ) as typeof sizes,
-  letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Number(v) * -0.002])) as typeof sizes,
-  weight: { regular: 400, semibold: 600, bold: 700 },
+  lineHeight: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Math.round(v * 1.3)])) as typeof sizes,
+  letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, v * -0.002])) as typeof sizes,
+  weight: { regular: "400", semibold: "600", bold: "700" },
 });
 
 const tamagui = createTamagui({
-  ...config,
   tokens,
-  defaultProps: { Text: { fontFamily: "$body" } } as Record<string, object>,
   groups: { column: { pseudo: true }, portfolio: { pseudo: true } },
   fonts: {
     body,
@@ -309,7 +348,7 @@ const tamagui = createTamagui({
     mono: createFont({
       family: "SplineSansMono-Medium",
       face: { 500: { normal: "SplineSansMono-Medium" } },
-      weight: { medium: 500 },
+      weight: { medium: "500" },
       size: sizes,
     }),
   },
@@ -317,15 +356,16 @@ const tamagui = createTamagui({
     bouncy: { type: "spring", damping: 9, mass: 0.9, stiffness: 150 },
     lazy: { type: "spring", damping: 18, stiffness: 50 },
     slow: { type: "spring", damping: 15, stiffness: 40 },
-    default: { type: "timing", duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) },
+    default: { type: "timing", duration: 512, easing: "cubic-bezier(0.7, 0, 0.3, 1)" },
     quick: { type: "spring", damping: 25, mass: 1.2, stiffness: 250 },
     tooltip: { type: "spring", damping: 10, mass: 0.9, stiffness: 100 },
   }),
   settings: {
-    ...config.settings,
     addThemeClassName: "html",
+    defaultFont: "body",
     defaultPosition: "relative",
     fastSchemeChange: false,
+    shouldAddPrefersColorThemes: true,
     styleCompat: "legacy",
   },
   themes: {
@@ -468,15 +508,14 @@ const tamagui = createTamagui({
       borderInformationStrong: tokens.color.feedbackInformationLight6,
       color: "",
       background: "transparent",
-      backgroundColor: "",
-      backgroundHover: "",
-      backgroundPress: "",
-      backgroundFocus: "",
-      borderColor: "transparent",
-      borderColorFocus: "transparent",
-      borderColorHover: "transparent",
-      borderColorPress: "transparent",
-      outlineColor: "",
+      "background-focus": "",
+      "background-hover": "",
+      "background-press": "",
+      "border-color": "transparent",
+      "border-color-focus": "transparent",
+      "border-color-hover": "transparent",
+      "border-color-press": "transparent",
+      "outline-color": "",
       ...(isBase ? baseLight : {}),
     },
     dark: {
@@ -618,15 +657,14 @@ const tamagui = createTamagui({
       borderInformationStrong: tokens.color.feedbackInformationDark6,
       color: "",
       background: "transparent",
-      backgroundColor: "",
-      backgroundHover: "",
-      backgroundPress: "",
-      backgroundFocus: "",
-      borderColor: "transparent",
-      borderColorFocus: "transparent",
-      borderColorHover: "transparent",
-      borderColorPress: "transparent",
-      outlineColor: "",
+      "background-focus": "",
+      "background-hover": "",
+      "background-press": "",
+      "border-color": "transparent",
+      "border-color-focus": "transparent",
+      "border-color-hover": "transparent",
+      "border-color-press": "transparent",
+      "outline-color": "",
     },
   },
 });

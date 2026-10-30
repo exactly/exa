@@ -55,14 +55,7 @@ export default function Amount() {
   if (!market || (markets && !asset)) return <Redirect href="/loan" />;
   return (
     <SafeView fullScreen paddingBottom={0}>
-      <View
-        padded
-        flexDirection="row"
-        gap="$s3_5"
-        paddingBottom="$s4"
-        justifyContent="space-between"
-        alignItems="center"
-      >
+      <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}
           aria-label={t("Back")}
@@ -83,20 +76,20 @@ export default function Amount() {
         />
       </View>
       <ScrollView
-        backgroundColor="$backgroundMild"
+        backgroundColor="backgroundMild"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom }}
       >
-        <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
-          <YStack gap="$s4">
-            <YStack gap="$s6">
-              <YStack gap="$s3_5">
+        <YStack padding="s4" gap="s4" flex={1} justifyContent="space-between">
+          <YStack gap="s4">
+            <YStack gap="s6">
+              <YStack gap="s3_5">
                 <Text primary emphasized body>
                   {t("Select amount")}
                 </Text>
                 {markets && asset && (
-                  <XStack alignItems="center" gap="$s2">
-                    <Text footnote color="$uiNeutralPlaceholder">
+                  <XStack alignItems="center" gap="s2">
+                    <Text footnote color="uiNeutralPlaceholder">
                       {t("Available funding")}
                       {": "}
                       {Number(formatUnits(borrowAvailable, asset.decimals)).toLocaleString(language, {
@@ -107,7 +100,7 @@ export default function Amount() {
                     <IconButton
                       icon={CircleHelp}
                       size={16}
-                      color="$uiNeutralSecondary"
+                      color="uiNeutralSecondary"
                       aria-label={t("Available funding info")}
                       onPress={() => {
                         presentArticle("11550408").catch(reportError);
@@ -127,8 +120,8 @@ export default function Amount() {
               />
 
               {insufficient && (
-                <XStack gap="$s3" flex={1} alignItems="center">
-                  <TriangleAlert size={16} color="$uiErrorSecondary" />
+                <XStack gap="s3" flex={1} alignItems="center">
+                  <TriangleAlert size={16} color="uiErrorSecondary" />
                   <Text secondary caption flex={1}>
                     {t("You’re trying to borrow more than your collateral allows. Please enter a lower amount.")}
                   </Text>
@@ -136,10 +129,10 @@ export default function Amount() {
               )}
             </YStack>
           </YStack>
-          <YStack gap="$s4_5">
+          <YStack gap="s4_5">
             {warning && !insufficient && (
               <XStack
-                gap="$s3"
+                gap="s3"
                 flex={1}
                 alignItems="center"
                 cursor="pointer"

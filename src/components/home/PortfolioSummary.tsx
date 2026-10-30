@@ -50,7 +50,7 @@ export default function PortfolioSummary({
 
   return (
     <YStack
-      gap="$s5"
+      gap="s5"
       cursor="pointer"
       group="portfolio"
       onPress={() => {
@@ -62,11 +62,11 @@ export default function PortfolioSummary({
         <Text emphasized headline>
           {t("Portfolio")}
         </Text>
-        <XStack alignItems="center" gap="$s1" $group-portfolio-press={{ opacity: 0.7 }}>
-          <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
+        <XStack alignItems="center" gap="s1" opacity="group-press/portfolio:0.7">
+          <Text emphasized subHeadline color="interactiveBaseBrandDefault">
             {t("Manage portfolio")}
           </Text>
-          <ChevronRight size={16} color="$interactiveBaseBrandDefault" />
+          <ChevronRight size={16} color="interactiveBaseBrandDefault" />
         </XStack>
       </XStack>
       <XStack justifyContent="space-between" alignItems="center" width="100%">
@@ -75,26 +75,26 @@ export default function PortfolioSummary({
           {country === "US" && processingBalance ? (
             <XStack
               borderWidth={1}
-              borderColor="$borderNeutralSoft"
-              borderRadius="$r_0"
-              padding="$s3"
+              borderColor="borderNeutralSoft"
+              borderRadius="r_0"
+              padding="s3"
               cursor="pointer"
+              gap="s2"
+              alignItems="center"
               hitSlop={20}
               onPress={() => {
                 router.push("/activity");
               }}
-              gap="$s2"
-              alignItems="center"
             >
               <Text emphasized subHeadline secondary>
                 {t("Processing balance {{amount}}", {
                   amount: `$${processingBalance.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 })}
               </Text>
-              <ChevronRight size={16} color="$uiNeutralSecondary" />
+              <ChevronRight size={16} color="uiNeutralSecondary" />
             </XStack>
           ) : collateralUSD > 0n ? (
-            <Text emphasized subHeadline color="$interactiveBaseBrandDefault">
+            <Text emphasized subHeadline color="interactiveBaseBrandDefault">
               {t("{{rate}} APR", {
                 rate: (Number(averageRate) / 1e18).toLocaleString(language, {
                   style: "percent",
@@ -123,8 +123,8 @@ export default function PortfolioSummary({
             ))}
             {extra > 0 && (
               <View
-                backgroundColor="$backgroundMild"
-                borderRadius="$r_0"
+                backgroundColor="backgroundMild"
+                borderRadius="r_0"
                 width={32}
                 height={32}
                 alignItems="center"

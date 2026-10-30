@@ -34,20 +34,20 @@ export default function CopyAddressSheet({
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <ScrollView showsVerticalScrollIndicator={false} $platform-web={{ maxHeight: "100vh" }}>
+      <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
-          borderTopLeftRadius="$r4"
-          borderTopRightRadius="$r4"
-          backgroundColor="$backgroundSoft"
-          paddingHorizontal="$s5"
-          $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          borderTopLeftRadius="r4"
+          borderTopRightRadius="r4"
+          backgroundColor="backgroundSoft"
+          paddingHorizontal="s5"
+          paddingTop="web:s7"
+          paddingBottom="web:s7 android:s5"
         >
-          <YStack gap="$s7">
-            <YStack gap="$s5">
-              <XStack gap="$s3" alignItems="center">
-                <CheckCircle size={24} color="$uiSuccessSecondary" />
-                <Text emphasized headline color="$uiSuccessSecondary">
+          <YStack gap="s7">
+            <YStack gap="s5">
+              <XStack gap="s3" alignItems="center">
+                <CheckCircle size={24} color="uiSuccessSecondary" />
+                <Text emphasized headline color="uiSuccessSecondary">
                   {t("Address copied")}
                 </Text>
               </XStack>
@@ -59,17 +59,17 @@ export default function CopyAddressSheet({
               {overrideAddress ?? accountAddress}
             </Text>
             <XStack
-              gap="$s4"
+              gap="s4"
               alignItems="flex-start"
               borderTopWidth={1}
-              borderTopColor="$borderNeutralSoft"
-              paddingTop="$s4_5"
+              borderTopColor="borderNeutralSoft"
+              paddingTop="s4_5"
             >
               <View>
-                <AlertTriangle size={16} width={16} height={16} color="$uiWarningSecondary" />
+                <AlertTriangle size={16} width={16} height={16} color="uiWarningSecondary" />
               </View>
               <XStack flex={1}>
-                <Text caption2 color="$uiNeutralPlaceholder">
+                <Text caption2 color="uiNeutralPlaceholder">
                   {asset
                     ? t(
                         "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.",
@@ -80,9 +80,9 @@ export default function CopyAddressSheet({
                       })}
                   <Text
                     cursor="pointer"
+                    color="uiBrandSecondary"
                     emphasized
                     caption2
-                    color="$uiBrandSecondary"
                     onPress={() => {
                       presentArticle("8950801").catch(reportError);
                     }}

@@ -7,7 +7,7 @@ import { setStringAsync } from "expo-clipboard";
 import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
 import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
 import { ShoppingCart } from "@tamagui/lucide-icons-2/icons/ShoppingCart";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { Separator, Square, View, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
@@ -30,7 +30,6 @@ registerLocale(es);
 registerLocale(pt);
 
 export default function DeclinedActivity({ item }: { item: PandaActivity }) {
-  const toast = useToastController();
   const {
     t,
     i18n: { language },
@@ -48,25 +47,25 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
   );
   return (
     <>
-      <YStack gap="$s7" paddingBottom="$s7">
+      <YStack gap="s7" paddingBottom="s7">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="$r4" backgroundColor={item.merchant.icon ? "white" : "$backgroundStrong"} size={80}>
+          <Square borderRadius="r4" backgroundColor={item.merchant.icon ? "white" : "backgroundStrong"} size={80}>
             {item.merchant.icon ? (
               <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
             ) : (
-              <ShoppingCart size={48} color="$uiNeutralPrimary" strokeWidth={2} />
+              <ShoppingCart size={48} color="uiNeutralPrimary" strokeWidth={2} />
             )}
           </Square>
         </XStack>
-        <YStack gap="$s4_5" justifyContent="center" alignItems="center">
-          <Text body color="$uiErrorSecondary">
+        <YStack gap="s4_5" justifyContent="center" alignItems="center">
+          <Text body color="uiErrorSecondary">
             {t("Failed")}
-            <Text emphasized primary body $platform-web={{ whiteSpace: "normal" }}>
+            <Text emphasized primary body whiteSpace="web:normal">
               &nbsp;
               {item.merchant.name}
             </Text>
           </Text>
-          <Text title strikeThrough color="$uiErrorSecondary">
+          <Text title strikeThrough color="uiErrorSecondary">
             {amount}
           </Text>
           {location ? (
@@ -76,79 +75,76 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
           ) : null}
         </YStack>
       </YStack>
-      <YStack gap="$s7">
-        <XStack borderRadius="$r3" backgroundColor="$interactiveBaseErrorSoftDefault" overflow="hidden">
+      <YStack gap="s7">
+        <XStack borderRadius="r3" backgroundColor="interactiveBaseErrorSoftDefault" overflow="hidden">
           <View
-            padding="$s4"
-            backgroundColor="$interactiveBaseErrorDefault"
+            padding="s4"
+            backgroundColor="interactiveBaseErrorDefault"
             justifyContent="center"
             alignItems="center"
             alignSelf="stretch"
           >
-            <AlertTriangle size={32} color="$interactiveOnBaseErrorDefault" />
+            <AlertTriangle size={32} color="interactiveOnBaseErrorDefault" />
           </View>
-          <View padding="$s4" flex={1} justifyContent="center">
-            <Text subHeadline color="$interactiveOnBaseErrorSoft">
+          <View padding="s4" flex={1} justifyContent="center">
+            <Text subHeadline color="interactiveOnBaseErrorSoft">
               {t("There was an error when processing your payment: {{reason}}", {
                 reason: t(item.reason ?? "transaction declined"),
               })}
             </Text>
           </View>
         </XStack>
-        <YStack gap="$s4">
-          <YStack gap="$s4">
+        <YStack gap="s4">
+          <YStack gap="s4">
             <Text emphasized headline>
               {t("Purchase details")}
             </Text>
-            <Separator height={1} borderColor="$borderNeutralSoft" />
+            <Separator height={1} borderColor="borderNeutralSoft" />
           </YStack>
-          <YStack gap="$s3_5">
+          <YStack gap="s3_5">
             <XStack justifyContent="space-between">
-              <Text emphasized footnote color="$uiNeutralSecondary">
+              <Text emphasized footnote color="uiNeutralSecondary">
                 {t("Amount")}
               </Text>
-              <Text callout color="$uiNeutralPrimary">
+              <Text callout color="uiNeutralPrimary">
                 {amount}
               </Text>
             </XStack>
             <XStack justifyContent="space-between">
-              <Text emphasized footnote color="$uiNeutralSecondary">
+              <Text emphasized footnote color="uiNeutralSecondary">
                 {t("ID")}
               </Text>
               <Pressable
                 onPress={() => {
                   setStringAsync(item.id)
                     .then(() => {
-                      toast.show(t("Operation ID copied!"), {
-                        duration: 1000,
-                        burntOptions: { haptic: "success" },
-                      });
+                      toast.success(t("Operation ID copied!"), { duration: 1000 });
                     })
                     .catch(reportError);
                 }}
                 hitSlop={15}
               >
-                <XStack gap="$s3">
-                  <Text callout color="$uiNeutralPrimary">
+                <XStack gap="s3">
+                  <Text callout color="uiNeutralPrimary">
                     {shortenHex(item.id)}
                   </Text>
-                  <Copy size={20} color="$uiNeutralPrimary" />
+                  <Copy size={20} color="uiNeutralPrimary" />
                 </XStack>
               </Pressable>
             </XStack>
             <XStack justifyContent="space-between">
-              <Text emphasized footnote color="$uiNeutralSecondary">
+              <Text emphasized footnote color="uiNeutralSecondary">
                 {t("Date")}
               </Text>
-              <Text callout color="$uiNeutralPrimary">
+              <Text callout color="uiNeutralPrimary">
                 {format(item.timestamp, "yyyy-MM-dd")}
               </Text>
             </XStack>
             <XStack justifyContent="space-between">
-              <Text emphasized footnote color="$uiNeutralSecondary">
+              <Text emphasized footnote color="uiNeutralSecondary">
                 {t("Time")}
               </Text>
-              <Text callout color="$uiNeutralPrimary">
+              <Text callout color="uiNeutralPrimary">
                 {format(item.timestamp, "HH:mm:ss")}
               </Text>
             </XStack>

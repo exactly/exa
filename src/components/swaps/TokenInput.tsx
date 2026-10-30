@@ -112,41 +112,41 @@ export default function TokenInput({
   return (
     <YStack
       borderWidth={1}
-      borderColor={isDanger ? "$borderErrorStrong" : isActive ? "$borderBrandStrong" : "$borderNeutralSoft"}
-      borderRadius="$r3"
-      padding="$s3_5"
-      gap="$s2"
-      backgroundColor="$backgroundSoft"
+      borderColor={isDanger ? "borderErrorStrong" : isActive ? "borderBrandStrong" : "borderNeutralSoft"}
+      borderRadius="r3"
+      padding="s3_5"
+      gap="s2"
+      backgroundColor="backgroundSoft"
     >
       <XStack alignItems="center" justifyContent="space-between">
-        <YStack gap="$s1">
-          <Text emphasized subHeadline color="$uiNeutralPrimary">
+        <YStack gap="s1">
+          <Text emphasized subHeadline color="uiNeutralPrimary">
             {label}
           </Text>
           {subLabel ? (
-            <Text footnote color="$uiNeutralSecondary">
+            <Text footnote color="uiNeutralSecondary">
               {subLabel}
             </Text>
           ) : null}
         </YStack>
         {canUseMax ? (
           <View
-            paddingVertical="$s2"
-            paddingHorizontal="$s3"
-            borderRadius="$r2"
-            backgroundColor="$interactiveBaseBrandSoftDefault"
-            onPress={useMax}
+            paddingVertical="s2"
+            paddingHorizontal="s3"
+            borderRadius="r2"
+            backgroundColor="interactiveBaseBrandSoftDefault"
             cursor="pointer"
-            pressStyle={{ opacity: 0.85 }}
+            opacity="press:0.85"
+            onPress={useMax}
           >
-            <Text emphasized footnote color="$interactiveOnBaseBrandSoft">
+            <Text emphasized footnote color="interactiveOnBaseBrandSoft">
               {t("MAX")}
             </Text>
           </View>
         ) : null}
       </XStack>
-      <YStack gap="$s3_5">
-        <XStack gap="$s3_5" alignItems="center">
+      <YStack gap="s3_5">
+        <XStack gap="s3_5" alignItems="center">
           <View
             aria-label={t("Select token")}
             onPress={onTokenSelect}
@@ -179,19 +179,19 @@ export default function TokenInput({
                     onFocus={onFocus}
                     disabled={disabled}
                     cursor={disabled ? undefined : "pointer"}
-                    placeholder={token ? formatUnits(amount, token.decimals) : String(amount)}
-                    color={isDanger ? "$uiErrorSecondary" : isActive ? "$uiNeutralPrimary" : "$uiNeutralPlaceholder"}
+                    color={isDanger ? "uiErrorSecondary" : isActive ? "uiNeutralPrimary" : "uiNeutralPlaceholder"}
                     fontSize={28}
                     fontWeight="bold"
                     letterSpacing={-0.2}
                     textAlign="left"
-                    enterKeyHint="done"
-                    inputAccessoryViewID={id}
-                    borderWidth="$s0"
+                    borderWidth="s0"
                     numberOfLines={1}
                     flex={1}
                     width="100%"
                     opacity={loading ? 0 : 1}
+                    placeholder={token ? formatUnits(amount, token.decimals) : String(amount)}
+                    enterKeyHint="done"
+                    inputAccessoryViewID={id}
                     aria-hidden={loading}
                   />
                   {loading && (
@@ -203,16 +203,16 @@ export default function TokenInput({
                     <InputAccessoryView nativeID={id}>
                       <XStack
                         justifyContent="flex-end"
-                        paddingHorizontal="$s4"
-                        paddingVertical="$s3"
-                        backgroundColor="$backgroundSoft"
+                        paddingHorizontal="s4"
+                        paddingVertical="s3"
+                        backgroundColor="backgroundSoft"
                         borderTopWidth={1}
-                        borderColor="$borderNeutralSoft"
+                        borderColor="borderNeutralSoft"
                       >
                         <Text
                           emphasized
                           callout
-                          color="$interactiveOnBaseBrandSoft"
+                          color="interactiveOnBaseBrandSoft"
                           role="button"
                           hitSlop={8}
                           onPress={() => Keyboard.dismiss()}
@@ -231,7 +231,7 @@ export default function TokenInput({
                   <Skeleton height={16} width={120} />
                 </View>
               ) : (
-                <Text callout color="$uiNeutralPlaceholder">
+                <Text callout color="uiNeutralPlaceholder">
                   {`${valueUSD > 0 ? "≈" : ""}$${valueUSD.toLocaleString(language, {
                     style: "decimal",
                     minimumFractionDigits: 2,
@@ -240,13 +240,13 @@ export default function TokenInput({
                 </Text>
               )}
               {token ? (
-                <YStack alignItems="flex-end" gap="$s1">
-                  <Text footnote color="$uiNeutralSecondary" numberOfLines={1}>
+                <YStack alignItems="flex-end" gap="s1">
+                  <Text footnote color="uiNeutralSecondary" numberOfLines={1}>
                     {t("Balance: {{value}}", {
                       value: `$${balanceUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     })}
                   </Text>
-                  <Text caption color="$uiNeutralPlaceholder" numberOfLines={1}>
+                  <Text caption color="uiNeutralPlaceholder" numberOfLines={1}>
                     {`${balanceAmount} ${token.symbol}`}
                   </Text>
                 </YStack>
