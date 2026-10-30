@@ -20,9 +20,6 @@ export default function PaymentRow({ maturity, onSelect }: { maturity: number; o
     <Button
       transparent
       aria-label={label}
-      gap="$s3"
-      minHeight={0}
-      paddingHorizontal={0}
       onPress={() => {
         selectionAsync().catch(reportError);
         onSelect(maturity);

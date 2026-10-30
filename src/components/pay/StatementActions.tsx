@@ -24,7 +24,7 @@ export default function StatementActions({
   return (
     <YStack>
       <Action icon={AlignJustify} label={t("Breakdown")} onPress={onBreakdown} />
-      <Separator borderColor="$borderNeutralSoft" />
+      <Separator borderColor="$borderNeutralSoft" marginHorizontal="$s4" />
       <Action
         icon={FileText}
         label={t("View statement")}
@@ -39,15 +39,7 @@ export default function StatementActions({
 
 function Action({ icon: Icon, label, onPress }: { icon: typeof FileText; label: string; onPress: () => void }) {
   return (
-    <Button
-      transparent
-      gap="$s3"
-      minHeight={0}
-      paddingHorizontal={0}
-      paddingVertical="$s4"
-      aria-label={label}
-      onPress={onPress}
-    >
+    <Button transparent aria-label={label} onPress={onPress}>
       <Icon size={20} color="$uiNeutralSecondary" />
       <Button.Text color="$uiNeutralPrimary">{label}</Button.Text>
       <Button.Icon>
