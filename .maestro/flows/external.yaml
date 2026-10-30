@@ -28,7 +28,7 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "100"
       asset: USDT
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }
@@ -40,11 +40,11 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookActivity.js
     env: { account: "${output.account}" }
 - tapOn: Close
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - extendedWaitUntil: { visible: "^[\\d.,]+% APR$", timeout: 30000 }
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/storeCoverage.yaml
