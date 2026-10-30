@@ -175,13 +175,13 @@ describe("bridge utils", () => {
     it("returns new customer", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      const result = await bridge.createCustomer(createCustomerPayload);
+      const result = await bridge.createCustomer(createCustomerPayload, "customer-request-1");
 
       expect(result).toStrictEqual({ id: "cust-new", status: "not_started" });
     });
 
     it.each([
-      ["personal", () => bridge.createCustomer(createCustomerPayload)],
+      ["personal", () => bridge.createCustomer(createCustomerPayload, "customer-request-1")],
       ["business", () => bridge.createCustomer(businessCustomerPayload, "customer-request-1")],
     ])("throws EMAIL_ALREADY_EXISTS when the %s email is taken", async (_name, create) => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(409, "A customer with this email already exists"));
@@ -198,7 +198,9 @@ describe("bridge utils", () => {
         fetchError(400, "invalid_parameters: residential_address is not valid"),
       );
 
-      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(bridge.ErrorCodes.INVALID_ADDRESS);
+      await expect(bridge.createCustomer(createCustomerPayload, "customer-request-1")).rejects.toThrow(
+        bridge.ErrorCodes.INVALID_ADDRESS,
+      );
       expect(captureException).toHaveBeenLastCalledWith(
         expect.objectContaining({ message: "invalid_parameters: residential_address is not valid" }),
         expect.objectContaining({ level: "warning" }),
@@ -208,7 +210,7 @@ describe("bridge utils", () => {
     it("throws on other errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(400, "bad request"));
 
-      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow("bad request");
+      await expect(bridge.createCustomer(createCustomerPayload, "customer-request-1")).rejects.toThrow("bad request");
     });
   });
 
