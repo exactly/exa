@@ -2,7 +2,7 @@ import { iam, kms, orgpolicy, projects, Provider, secretmanager, serviceaccount,
 import { automation, interpolate, runtime } from "@pulumi/pulumi";
 import { readdir } from "node:fs/promises";
 import process, { argv, stdout } from "node:process";
-import { array, optional, parse, picklist } from "valibot";
+import { array, object, optional, parse, picklist, string } from "valibot";
 
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
@@ -43,7 +43,8 @@ const stacks = await Promise.all(
       };
     }),
 );
-if (!stacks.some(({ name }) => name === argv[3])) throw new Error(`unknown stack ${argv[3]}`);
+const target = stacks.find(({ name }) => name === argv[3]);
+if (!target) throw new Error(`unknown stack ${argv[3]}`);
 const selected = await automation.LocalWorkspace.selectStack(
   {
     projectName: "exa",
@@ -199,7 +200,7 @@ const selected = await automation.LocalWorkspace.selectStack(
           },
           { dependsOn: service, provider },
         );
-        for (const stack of projectStacks) {
+        for (const stack of projectStacks.filter(({ name }) => name === target.name)) {
           const keyRing = new kms.KeyRing(
             `${stack.name}-signers`,
             { location: stack.location, name: `${stack.name}-signers` },
@@ -383,11 +384,18 @@ const selected = await automation.LocalWorkspace.selectStack(
     workDir: import.meta.dirname,
   },
 );
+const owners = stacks.map(({ name }) => name).toSorted((a, b) => b.length - a.length);
+const state = await selected.exportStack();
+const { resources } = parse(object({ resources: optional(array(object({ urn: string() })), []) }), state.deployment);
 try {
   await selected[argv[2]]({
-    exclude: stacks
-      .filter(({ name }) => name !== argv[3])
-      .flatMap(({ name }) => [`urn:pulumi:meta::exa::**::${name}`, `urn:pulumi:meta::exa::**::${name}-*`]),
+    exclude: resources
+      .map(({ urn }) => urn)
+      .filter((urn) => {
+        const name = urn.slice(urn.lastIndexOf("::") + 2);
+        const owner = owners.find((stack) => name === stack || name.startsWith(`${stack}-`));
+        return owner !== undefined && owner !== target.name;
+      }),
     onOutput: (output) => stdout.write(output),
   });
 } catch (error: unknown) {
