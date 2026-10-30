@@ -14,7 +14,9 @@ contract DeployExaBusinessTenant is BaseScript {
       CREATEX.deployCreate3(_salt(), abi.encodePacked(type(AccessManager).creationCode, abi.encode(acct("admin"))))
     );
 
-    if (isAnvil()) return manager;
+    if (isAnvil() || block.chainid == getChain("optimism").chainId || block.chainid == getChain("base").chainId) {
+      return manager;
+    }
 
     address safe = vm.readFile("deploy.json").readAddress(".accounts.admin.default");
     bytes memory data = abi.encodeCall(ISafe.getOwners, ());
