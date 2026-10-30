@@ -154,6 +154,7 @@ export default function Recipients() {
                       recipient={recipient}
                       fallbackBank={method ? t("Via {{method}}", { method: t(method) }) : t("Bank account")}
                       deleting={deleteMutation.isPending && deleteMutation.variables === recipient.id}
+                      bottomInset={insets.bottom}
                       onSelect={() => {
                         if (recipient.addressValid === false) {
                           toast.show(t("This contact needs review before you can send."), {
@@ -192,10 +193,12 @@ function RecipientRow({
   recipient,
   fallbackBank,
   deleting,
+  bottomInset,
   onSelect,
   onEdit,
   onDelete,
 }: {
+  bottomInset: number;
   deleting: boolean;
   fallbackBank: string;
   onDelete: () => void;
@@ -259,7 +262,7 @@ function RecipientRow({
           paddingTop="$s6"
           paddingHorizontal="$s5"
           paddingBottom="$s7"
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-android={{ paddingBottom: Math.max(bottomInset, getTokens().space.$s5.val) }}
         >
           <Button
             primary

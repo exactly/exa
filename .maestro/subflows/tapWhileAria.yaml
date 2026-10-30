@@ -7,7 +7,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - retry:
           maxRetries: 3
           commands:
-            - tapOn: "${tap ?? aria}"
+            - tapOn: { text: "${tap ?? aria}", index: 0 }
             - extendedWaitUntil: { notVisible: "${aria}", timeout: 5000 }
 - runFlow:
     when: { platform: web }
@@ -15,5 +15,5 @@ appId: ${APP_ID ?? "app.exactly"}
       - retry:
           maxRetries: 3
           commands:
-            - tapOn: "${tap ?? aria}"
+            - tapOn: { text: "${tap ?? aria}", index: 0 }
             - extendedWaitUntil: { notVisible: { id: "${aria}" }, timeout: 5000 }

@@ -36,7 +36,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - evalScript: ${output.downloadStart = Date.now()}
       - tapOn: Download PDF
       - assertTrue: '${http.get("http://localhost:3000/e2e/download?since=" + output.downloadStart).ok}'
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow: { file: scrollTo.yaml, env: { element: See all, offset: 1 } }
 - tapOn: See all
 - assertVisible: Payment history
@@ -44,7 +44,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Due [A-Z][a-z]+ \d{1,2}, \d{4}
 - tapOn: View statement
 - assertVisible: Installment \d of 3
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - tapOn: { text: Home, leftOf: Card }
 - waitForAnimationToEnd

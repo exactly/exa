@@ -2,8 +2,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Check } from "@tamagui/lucide-icons-2";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
+import useInsets from "../../utils/useInsets";
 import Blocky from "../shared/Blocky";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -21,6 +22,7 @@ export default function ContactSheet({
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={!!contact} onClose={onClose}>
       <SafeView
@@ -30,7 +32,7 @@ export default function ContactSheet({
         paddingHorizontal="$s5"
         paddingTop="$s7"
         $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5">
           <Text emphasized headline primary>

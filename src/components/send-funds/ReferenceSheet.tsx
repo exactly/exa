@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 
 import { ThumbsUp } from "@tamagui/lucide-icons-2";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
+import useInsets from "../../utils/useInsets";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -22,6 +23,7 @@ export default function ReferenceSheet({
   provider: string;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   const router = useRouter();
 
   return (
@@ -31,7 +33,7 @@ export default function ReferenceSheet({
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>

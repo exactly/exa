@@ -76,7 +76,7 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
 - assertVisible: Swap USDC for EXA
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }

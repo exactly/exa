@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Headphones } from "@tamagui/lucide-icons-2";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
 import { newMessage } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -25,6 +26,7 @@ export default function TimeoutSheet({
   submittedAt: number;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   const { data: contacted } = useQuery<boolean>({ queryKey: ["settings", "card-support-contacted"] });
   const key = `${submittedAt}:${signal}`;
   const [dismissedKey, setDismissedKey] = useState<null | string>(null);
@@ -45,7 +47,7 @@ export default function TimeoutSheet({
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>

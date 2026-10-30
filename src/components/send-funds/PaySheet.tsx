@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Search } from "@tamagui/lucide-icons-2";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -10,6 +10,7 @@ import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
 import { lifiChainsOptions } from "../../utils/lifi";
+import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
@@ -35,6 +36,7 @@ export default function PaySheet({
     t,
     i18n: { language },
   } = useTranslation();
+  const insets = useInsets();
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState<number>();
   const { markets } = usePortfolio();
@@ -91,7 +93,7 @@ export default function PaySheet({
         paddingTop="$s7"
         paddingHorizontal="$s4"
         paddingBottom="$s7"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <Text emphasized subHeadline primary textAlign="center">
           {t("Pay with")}

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Headphones } from "@tamagui/lucide-icons-2";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
@@ -11,6 +11,7 @@ import Button from "./StyledButton";
 import Text from "./Text";
 import { newMessage, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 
 import type { ExternalAsset } from "../../utils/usePortfolio";
 
@@ -31,6 +32,7 @@ export default function UnsupportedSheet({
     t,
     i18n: { language },
   } = useTranslation();
+  const insets = useInsets();
   const pendingMessageRef = useRef<null | string>(null);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
@@ -39,7 +41,7 @@ export default function UnsupportedSheet({
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>
