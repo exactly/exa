@@ -87,7 +87,15 @@ export default function bridge(key: string, url: string) {
   };
 
   async function agreementLink(redirectUri?: string) {
-    const response = await request(AgreementLinkResponse, `/customers/tos_links`, {}, undefined, "POST", 10_000);
+    const response = await request(
+      AgreementLinkResponse,
+      `/customers/tos_links`,
+      {},
+      undefined,
+      "POST",
+      10_000,
+      crypto.randomUUID(),
+    );
     const link = new URL(response.url);
     if (redirectUri) link.searchParams.set("redirect_uri", redirectUri);
     return String(link);
@@ -102,7 +110,7 @@ export default function bridge(key: string, url: string) {
     if (anyOf.success) return anyOf.output.any_of.some((child) => containsRequirement(child, targets));
     return false;
   }
-  async function createCustomer(customer: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
+  async function createCustomer(customer: InferInput<typeof CreateCustomer>, idempotencyKey: string) {
     return await withRetry(() => request(NewCustomer, "/customers", {}, customer, "POST", 15_000, idempotencyKey), {
       retryCount: 2,
       shouldRetry: ({ error }) => {
@@ -355,6 +363,7 @@ export default function bridge(key: string, url: string) {
       })(),
       "POST",
       10_000,
+      crypto.randomUUID(),
     )
       .catch((error: unknown) => {
         if (error instanceof ServiceError && typeof error.cause === "string") {
@@ -387,6 +396,7 @@ export default function bridge(key: string, url: string) {
       data,
       "POST",
       10_000,
+      crypto.randomUUID(),
     );
   }
   async function createOfframpTransfer(
@@ -404,28 +414,39 @@ export default function bridge(key: string, url: string) {
     }
     const paymentRail = rail ?? PaymentRailByBridgeCurrency[CurrencyToBridge[currency]];
     if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
-    return await createTransfer({
-      on_behalf_of: customerId,
-      client_reference_id: account,
-      source: { currency: "usdc", payment_rail: supportedChain },
-      destination: {
-        currency: CurrencyToBridge[currency],
-        payment_rail: paymentRail,
-        external_account_id: externalAccountId,
-        ach_reference: paymentRail === "ach" ? reference : undefined,
-        wire_message: paymentRail === "wire" ? reference : undefined,
-        sepa_reference: paymentRail === "sepa" ? reference : undefined,
-        spei_reference: paymentRail === "spei" ? reference : undefined,
-        reference: paymentRail === "pix" || paymentRail === "faster_payments" ? reference : undefined,
+    return await createTransfer(
+      {
+        on_behalf_of: customerId,
+        client_reference_id: account,
+        source: { currency: "usdc", payment_rail: supportedChain },
+        destination: {
+          currency: CurrencyToBridge[currency],
+          payment_rail: paymentRail,
+          external_account_id: externalAccountId,
+          ach_reference: paymentRail === "ach" ? reference : undefined,
+          wire_message: paymentRail === "wire" ? reference : undefined,
+          sepa_reference: paymentRail === "sepa" ? reference : undefined,
+          spei_reference: paymentRail === "spei" ? reference : undefined,
+          reference: paymentRail === "pix" || paymentRail === "faster_payments" ? reference : undefined,
+        },
+        features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
       },
-      features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-    });
+      crypto.randomUUID(),
+    );
   }
-  async function createTransfer(data: InferInput<typeof CreateTransfer>, idempotencyKey?: string) {
+  async function createTransfer(data: InferInput<typeof CreateTransfer>, idempotencyKey: string) {
     return await request(Transfer, "/transfers", {}, data, "POST", 15_000, idempotencyKey);
   }
   async function createVirtualAccount(customerId: string, data: InferInput<typeof CreateVirtualAccount>) {
-    return await request(VirtualAccount, `/customers/${customerId}/virtual_accounts`, {}, data, "POST", 10_000);
+    return await request(
+      VirtualAccount,
+      `/customers/${customerId}/virtual_accounts`,
+      {},
+      data,
+      "POST",
+      10_000,
+      crypto.randomUUID(),
+    );
   }
   // eslint-disable-next-line unicorn/consistent-function-scoping
   async function encodeFile(file: File) {
@@ -518,18 +539,21 @@ export default function bridge(key: string, url: string) {
       throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
     }
 
-    const transfer = await createTransfer({
-      on_behalf_of: customer.id,
-      client_reference_id: account,
-      source: { currency: "usdc", payment_rail: supportedChain },
-      destination: {
-        currency: CurrencyToBridge[currency],
-        payment_rail: paymentRail,
-        to_address: toAddress,
-        blockchain_memo: memo,
+    const transfer = await createTransfer(
+      {
+        on_behalf_of: customer.id,
+        client_reference_id: account,
+        source: { currency: "usdc", payment_rail: supportedChain },
+        destination: {
+          currency: CurrencyToBridge[currency],
+          payment_rail: paymentRail,
+          to_address: toAddress,
+          blockchain_memo: memo,
+        },
+        features: { flexible_amount: true, allow_any_from_address: true },
       },
-      features: { flexible_amount: true, allow_any_from_address: true },
-    }).catch((error: unknown) => {
+      crypto.randomUUID(),
+    ).catch((error: unknown) => {
       if (
         error instanceof ServiceError &&
         typeof error.cause === "string" &&
@@ -1462,21 +1486,26 @@ export default function bridge(key: string, url: string) {
       10_000,
     );
   }
-  async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
+  async function request<
+    TInput,
+    TOutput,
+    TIssue extends BaseIssue<unknown>,
+    TMethod extends "DELETE" | "GET" | "PATCH" | "POST" | "PUT" = "GET",
+  >(
     schema: BaseSchema<TInput, TOutput, TIssue>,
     path: `/${string}`,
     headers = {},
     body?: unknown,
-    method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+    method?: TMethod,
     timeout = 10_000,
-    idempotencyKey?: string,
+    ...[idempotencyKey]: TMethod extends "POST" ? [idempotencyKey: string] : []
   ) {
     const response = await fetch(`${url}${path}`, {
-      method,
+      method: method ?? "GET",
       headers: {
         ...headers,
         "api-key": key,
-        ...(method === "POST" && { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() }),
+        ...(idempotencyKey && { "Idempotency-Key": idempotencyKey }),
         accept: "application/json",
         "content-type": "application/json",
       },
