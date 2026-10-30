@@ -1,12 +1,17 @@
 import { env } from "node:process";
 import { createConfig, factory } from "ponder";
 import { getAbiItem } from "viem";
-import { anvil } from "viem/chains";
+import { anvil, optimism } from "viem/chains";
 
 import chain, {
+  auditorAbi,
+  auditorAddress,
   exaAccountFactoryAbi,
+  exaPluginAbi,
   factories,
   factoryChains,
+  marketAbi,
+  proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 
@@ -34,5 +39,18 @@ export default createConfig({
       startBlock,
     },
     ExaAccountFactory: { chain: chain.name, abi: exaAccountFactoryAbi, address: addresses, startBlock },
+    ExaPlugin: { chain: chain.name, abi: exaPluginAbi, startBlock },
+    Market: {
+      chain: chain.name,
+      abi: marketAbi,
+      address: factory({
+        address: auditorAddress,
+        event: getAbiItem({ abi: auditorAbi, name: "MarketListed" }),
+        parameter: "market",
+        startBlock: { [optimism.id]: 78_310_663 }[chain.id],
+      }),
+      startBlock,
+    },
+    ProposalManager: { chain: chain.name, abi: proposalManagerAbi, startBlock },
   },
 });
