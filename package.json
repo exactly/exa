@@ -78,6 +78,7 @@
     "expo-camera": "~55.0.9",
     "expo-clipboard": "~55.0.8",
     "expo-constants": "~55.0.9",
+    "expo-file-system": "~55.0.12",
     "expo-font": "~55.0.4",
     "expo-haptics": "~55.0.9",
     "expo-image": "~55.0.5",
