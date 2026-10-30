@@ -84,5 +84,23 @@ YQIDAQAB
       disableConsoleIntercept: true,
       reporters: [["default", { summary: false }], "junit"],
     }),
+    deps: {
+      optimizer: {
+        ssr: {
+          enabled: true,
+          include: [
+            "@account-kit/infra",
+            "@wagmi/core",
+            "viem",
+            "viem/account-abstraction",
+            "viem/accounts",
+            "viem/actions",
+            "viem/chains",
+            "viem/siwe",
+            "viem/utils",
+          ],
+        },
+      },
+    },
   },
 });
