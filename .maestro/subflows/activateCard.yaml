@@ -4,7 +4,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: scrollTo.yaml, env: { element: Accept and enable card } }
 - tapOn: Accept and enable card
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - tapOn: Freeze card
 - assertVisible: Freeze your card?
 - tapOn: Cancel
@@ -13,7 +13,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: { text: '\*', above: Show PIN }
 - tapOn: Show PIN
 - assertVisible: { text: '\d', above: Hide PIN }
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - tapOn: Weekly spending limit
 - tapOn: Close
 - assertNotVisible: Spending limits
@@ -51,7 +51,7 @@ appId: ${APP_ID ?? "app.exactly"}
     text: Learn more
     rightOf: Exa Card pay mode
 - assertVisible: Change the pay mode before each purchase and pay how you want.
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Later in 1
 - runFlow:
@@ -75,7 +75,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Credit limit
 - assertVisible: If you hold more than one asset, your limit is a weighted average across all of them. Any outstanding Pay Later balance also reduces your available credit limit.
-- tapOn: Close
+- runFlow: closeSheet.yaml
 - tapOn: Now
 - tapOn: Spending limit
 - assertVisible: If your balance doesn’t cover a transaction, other assets in your wallet can make up the difference.
