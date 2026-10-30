@@ -19,8 +19,6 @@ import {
 import { publicKeyToAddress } from "viem/accounts";
 import { parseUnits } from "viem/utils";
 
-import { proposalManagerAddress } from "@exactly/common/generated/chain";
-
 import { readContract } from "./anvil";
 
 export function activity(asset: Address, toAddress: Address, value: number, hash: Hash = zeroHash, network?: string) {
@@ -72,6 +70,7 @@ export function block(
     proposalType: number;
     unlock: bigint;
   }[],
+  proposalManager: Address,
 ) {
   const payload = JSON.stringify({
     type: "GRAPHQL",
@@ -90,7 +89,7 @@ export function block(
               [{ type: "uint8" }, { type: "uint256" }, { type: "bytes" }, { type: "uint256" }],
               [proposalType, amount, data, unlock],
             ),
-            account: { address: proposalManagerAddress },
+            account: { address: proposalManager },
           })),
         },
       },
