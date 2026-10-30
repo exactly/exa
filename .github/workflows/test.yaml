@@ -108,6 +108,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { flow: activity, method: webauthn, screen: 700x618 }
           - { flow: ach, method: webauthn, screen: 500x780 }
           - { flow: business, method: webauthn, screen: 500x900, app: "https://business.localhost" }
           - { flow: credit, method: webauthn, screen: 500x963 }

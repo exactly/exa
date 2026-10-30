@@ -2,6 +2,12 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/transfer.yaml
+- tapOn: Activity
+- tapOn: Sent
+- assertVisible: '69[\s\xa0]USDC'
+- assertVisible: '.+dEaD'
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - tapOn: Send
 - tapOn: Digital assets
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Scan QR code } }
