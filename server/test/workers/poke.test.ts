@@ -19,7 +19,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockIns
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  auditorAbi,
+  auditors,
   exaAccountFactoryAddress,
+  marketAbi,
+  marketWETHAddress,
   previewerAbi,
   previewerAddress,
   usdcAddress,
@@ -543,10 +547,13 @@ describe("poke worker", () => {
     await job.remove();
   });
 
-  it("deploys without poking on other chains", async () => {
+  it("deploys and pokes other chains without queuing credit", async () => {
+    const deposit = parseEther("5");
     const network = NETWORKS.get("ANVIL");
     if (!network) throw new Error("missing anvil");
+    await anvilClient.setBalance({ address: account, value: deposit });
     const readContract = vi.spyOn(publicClient, "readContract");
+    const add = vi.spyOn(Queue.prototype, "add");
     const id = chain.id;
     Object.assign(chain, { id: 1 });
 
@@ -556,9 +563,86 @@ describe("poke worker", () => {
       Object.assign(chain, { id });
     }
 
-    expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
     expect(readContract).not.toHaveBeenCalled();
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("deploys without poking on networks without the protocol", async () => {
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
+    vi.spyOn(auditors, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no auditor
+    const readContract = vi.spyOn(publicClient, "readContract");
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, origin: "activity" });
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(readContract).not.toHaveBeenCalled();
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n });
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips accounts the firewall has not allowed", async () => {
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
+    const simulateContract = publicClient.simulateContract;
+    vi.spyOn(publicClient, "simulateContract").mockImplementation((parameters) =>
+      parameters.functionName === "pokeETH"
+        ? Promise.reject(
+            new BaseError("not allowed", {
+              cause: new ContractFunctionRevertedError({
+                abi: auditorAbi,
+                data: encodeErrorResult({ abi: auditorAbi, errorName: "NotAllowed", args: [account] }),
+                functionName: "pokeETH",
+              }),
+            }),
+          )
+        : simulateContract(parameters as never),
+    );
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, origin: "activity" });
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n });
+    expect(credits(add)).toStrictEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("pokes the remaining assets when a market is frozen", async () => {
+    const usdcDeposit = 2_000_000n;
+    await mint(token, account, parseEther("2"));
+    await mint(token2, account, usdcDeposit);
+    const simulateContract = publicClient.simulateContract;
+    vi.spyOn(publicClient, "simulateContract").mockImplementation((parameters) =>
+      parameters.functionName === "poke" && parameters.args?.[0] === marketWETHAddress
+        ? Promise.reject(
+            new BaseError("frozen", {
+              cause: new ContractFunctionRevertedError({
+                abi: marketAbi,
+                data: encodeErrorResult({ abi: marketAbi, errorName: "MarketFrozen" }),
+                functionName: "poke",
+              }),
+            }),
+          )
+        : simulateContract(parameters as never),
+    );
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, assets: [token, token2], origin: "activity" });
+
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n });
+    expect(await getMarket(account, token2)).toMatchObject({
+      floatingDepositAssets: usdcDeposit - 1n,
+      isCollateral: true,
+    });
+    expect(credits(add)).toHaveLength(1);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("deploys activity accounts funded with unsupported assets without queuing credit", async () => {

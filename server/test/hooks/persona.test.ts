@@ -13,7 +13,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { auditors, exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -26,9 +26,9 @@ import createSardine from "../../utils/sardine";
 import ServiceError from "../../utils/ServiceError";
 
 import type createAllow from "../../workers/allow/queue";
-import type * as C from "@exactly/common/generated/chain";
 
 const allow = {
+  backfill: vi.fn<ReturnType<typeof createAllow>["backfill"]>(),
   close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
   enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
 };
@@ -49,21 +49,10 @@ const personaHook = createPersonaHook({
 });
 const app = personaHook.app;
 const appClient = testClient(app);
-const mocks = vi.hoisted(() => ({ firewall: vi.fn<(address: string | undefined) => string | undefined>() }));
 
 vi.mock("@sentry/node", { spy: true });
-vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
-  const original = await importOriginal<typeof C>();
-  return {
-    ...original,
-    get firewallAddress() {
-      return mocks.firewall(original.firewallAddress);
-    },
-  };
-});
 
 beforeEach(() => {
-  mocks.firewall.mockReset().mockImplementation((address) => address);
   allow.close.mockReset().mockResolvedValue();
   allow.enqueue.mockReset().mockResolvedValue();
 });
@@ -126,14 +115,18 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      salt: zeroAddress,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -260,14 +253,18 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      salt: zeroAddress,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -414,14 +411,18 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory: exaAccountFactoryAddress,
-      salt: zeroAddress,
-      publicKey: "0x",
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory: exaAccountFactoryAddress,
+          publicKey: "0x",
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).toHaveBeenCalledWith({
       accountPurpose: "business",
       annualSalary: "100000",
@@ -487,16 +488,6 @@ describe("persona hook", () => {
     expect(panda.createUser).toHaveBeenCalledOnce();
   });
 
-  it("skips allow without a firewall deployment", async () => {
-    mocks.firewall.mockReset();
-
-    const response = await postInquiry();
-
-    expect(response.status).toBe(200);
-    expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createUser).toHaveBeenCalledOnce();
-  });
-
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -506,7 +497,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(auditors.size);
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -948,14 +939,18 @@ describe("business representative", () => {
       200_000,
       "evt_representative_123",
     );
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      salt,
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...auditors.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          salt,
+          source: null,
+        },
+      ]),
+    );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).not.toHaveBeenCalled();
     await expect(
@@ -1118,7 +1113,7 @@ describe("business representative", () => {
       undefined,
       "evt_representative_123",
     );
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(auditors.size);
     expect(captureException).not.toHaveBeenCalled();
     await expect(
       database.query.cards.findMany({
@@ -1223,31 +1218,6 @@ describe("business representative", () => {
     await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
       [],
     );
-  });
-
-  it("skips allow without a firewall deployment", async () => {
-    mocks.firewall.mockReset();
-    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
-    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
-    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
-
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: representativePayload({ referenceId, status: "approved" }),
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "business-user",
-      SIGNATURE_PRODUCT_ID,
-      undefined,
-      "evt_representative_123",
-    );
-    await expect(
-      database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
-    ).resolves.toStrictEqual([{ id: "business-card" }]);
   });
 });
 
