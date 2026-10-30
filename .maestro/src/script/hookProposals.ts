@@ -13,11 +13,12 @@ import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
   auditorAddress,
+  exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerCode,
   marketUSDCAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
+  upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
 
@@ -36,7 +37,14 @@ if (count !== undefined && !(Number.isSafeInteger(Number(count)) && Number(count
 if (receiver !== undefined && !isAddress(receiver)) throw new Error("bad receiver");
 if ((receiver ?? beneficiary) !== undefined && !amount) throw new Error("bad amount");
 
-const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
+const [plugin] = readContract({
+  address: account,
+  functionName: "getInstalledPlugins",
+  abi: upgradeableModularAccountAbi,
+});
+if (!plugin) throw new Error("no plugin");
+const proposalManager = readContract({ address: plugin, functionName: "proposalManager", abi: exaPluginAbi });
+const proposalDelay = readContract({ address: proposalManager, functionName: "delay", abi: proposalManagerAbi });
 let proposals = pending(account);
 for (const deadline = Date.now() + 30_000; proposals.length < Number(count ?? "1"); proposals = pending(account)) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for queued proposals");
@@ -61,7 +69,7 @@ const nonceSet = encodeEventTopics({
 let toBlock = anvil("eth_blockNumber", []);
 for (
   const deadline = Date.now() + 30_000;
-  anvil("eth_getLogs", [{ address: proposalManagerAddress, fromBlock, toBlock, topics: nonceSet }]).length === 0;
+  anvil("eth_getLogs", [{ address: proposalManager, fromBlock, toBlock, topics: nonceSet }]).length === 0;
   toBlock = anvil("eth_blockNumber", [])
 ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
@@ -89,7 +97,7 @@ function pending(address: Address) {
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+      args: [auditorAddress, marketUSDCAddress],
     }),
     functionName: "pendingProposals",
     args: [address],

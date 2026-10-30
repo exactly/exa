@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
+import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
+
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { LibString } from "solady/utils/LibString.sol";
 
+import { ExaPlugin } from "./ExaPlugin.sol";
 import {
   FixedPool,
   IAuditor,
@@ -23,12 +26,10 @@ contract ExaPreviewer {
 
   IAuditor public immutable AUDITOR;
   ICollectableMarket public immutable EXA_USDC;
-  IProposalManager public immutable PROPOSAL_MANAGER;
 
-  constructor(IAuditor auditor, ICollectableMarket exaUSDC, IProposalManager proposalManager) {
+  constructor(IAuditor auditor, ICollectableMarket exaUSDC) {
     AUDITOR = auditor;
     EXA_USDC = exaUSDC;
-    PROPOSAL_MANAGER = proposalManager;
   }
 
   function assets() external view returns (Asset[] memory assets_) {
@@ -58,14 +59,17 @@ contract ExaPreviewer {
   }
 
   function pendingProposals(address account) external view returns (PendingProposal[] memory proposals) {
-    uint256 queueNonce = PROPOSAL_MANAGER.queueNonces(account);
-    uint256 nonce = PROPOSAL_MANAGER.nonces(account);
-    uint256 delay = PROPOSAL_MANAGER.delay();
+    if (account.code.length == 0) return proposals;
+    IProposalManager proposalManager = _proposalManager(account);
+    if (address(proposalManager) == address(0)) return proposals;
+    uint256 queueNonce = proposalManager.queueNonces(account);
+    uint256 nonce = proposalManager.nonces(account);
+    uint256 delay = proposalManager.delay();
     proposals = new PendingProposal[](queueNonce - nonce);
     for (uint256 i = nonce; i < queueNonce; ++i) {
       // slither-disable-next-line calls-loop
       (uint256 amount, IMarket market, uint256 timestamp, ProposalType proposalType, bytes memory data) =
-        PROPOSAL_MANAGER.proposals(account, i);
+        proposalManager.proposals(account, i);
       proposals[i - nonce] = PendingProposal({
         nonce: i,
         unlock: timestamp + delay,
@@ -84,7 +88,7 @@ contract ExaPreviewer {
     bytes calldata signature
   ) external {
     IExaAccount(msg.sender).collectCredit(maturity, amount, maxRepay, timestamp, signature);
-    _checkLiquidity(IExaAccount(msg.sender));
+    _checkLiquidity(msg.sender);
   }
 
   function collectCollateral(
@@ -96,12 +100,12 @@ contract ExaPreviewer {
     bytes calldata signature
   ) external {
     IExaAccount(msg.sender).collectCollateral(amount, collateral, maxAmountIn, timestamp, route, signature);
-    _checkLiquidity(IExaAccount(msg.sender));
+    _checkLiquidity(msg.sender);
   }
 
   function collectDebit(uint256 amount, uint256 timestamp, bytes calldata signature) external {
     IExaAccount(msg.sender).collectDebit(amount, timestamp, signature);
-    _checkLiquidity(IExaAccount(msg.sender));
+    _checkLiquidity(msg.sender);
   }
 
   function collectInstallments(
@@ -112,7 +116,7 @@ contract ExaPreviewer {
     bytes calldata signature
   ) external {
     IExaAccount(msg.sender).collectInstallments(firstMaturity, amounts, maxRepay, timestamp, signature);
-    _checkLiquidity(IExaAccount(msg.sender));
+    _checkLiquidity(msg.sender);
   }
 
   function utilizations() external view returns (Utilizations memory) {
@@ -141,8 +145,19 @@ contract ExaPreviewer {
     });
   }
 
-  function _checkLiquidity(IExaAccount account) internal view {
-    PROPOSAL_MANAGER.checkLiquidity(address(account));
+  function _checkLiquidity(address account) internal view {
+    _proposalManager(account).checkLiquidity(account);
+  }
+
+  function _proposalManager(address account) internal view returns (IProposalManager proposalManager) {
+    try IAccountLoupe(account).getExecutionFunctionConfig(IExaAccount.propose.selector) returns (
+      IAccountLoupe.ExecutionFunctionConfig memory config
+    ) {
+      if (config.plugin.code.length == 0) return proposalManager;
+      try ExaPlugin(payable(config.plugin)).proposalManager() returns (IProposalManager manager) {
+        return manager;
+      } catch { } // solhint-disable-line no-empty-blocks
+    } catch { } // solhint-disable-line no-empty-blocks
   }
 }
 

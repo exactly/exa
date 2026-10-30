@@ -8,36 +8,20 @@ import { ArrowRight, Calendar, CirclePercent, Siren } from "@tamagui/lucide-icon
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-
-import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
-
 import calendarRollover from "../../assets/images/calendar-rollover.svg";
 import queryClient from "../../utils/queryClient";
-import useAccount from "../../utils/useAccount";
+import useProposalManager from "../../utils/useProposalManager";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
-import type { Credential } from "@exactly/common/validation";
-
 export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: string; onClose: () => void }) {
   const router = useRouter();
-  const { address } = useAccount();
   const { t } = useTranslation();
   const toast = useToastController();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { refetchOnMount: true, enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager();
   const [open, setOpen] = useState(false);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
 
@@ -52,7 +36,7 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
   }, [onClose]);
 
   const navigate = useCallback(() => {
-    if (!isLatestPlugin) {
+    if (!proposalManager) {
       toast.show(t("Upgrade account to rollover"), {
         duration: 1000,
         burntOptions: { haptic: "error", preset: "error" },
@@ -62,7 +46,7 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
     close();
     router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [isLatestPlugin, close, router, displayMaturity, toast, t]);
+  }, [proposalManager, close, router, displayMaturity, toast, t]);
 
   return (
     <ModalSheet open={open} onClose={close}>

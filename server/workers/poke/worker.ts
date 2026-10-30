@@ -93,7 +93,7 @@ export default function worker({
             code: encodeDeployData({
               abi: exaPreviewerAbi,
               bytecode: exaPreviewerCode,
-              args: [auditor, zeroAddress, zeroAddress],
+              args: [auditor, zeroAddress],
             }),
             functionName: "assets",
             abi: exaPreviewerAbi,
