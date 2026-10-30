@@ -6,6 +6,7 @@ import { FixedLib } from "@exactly/protocol/utils/FixedLib.sol";
 
 import { Call, IStandardExecutor } from "modular-account-libs/interfaces/IStandardExecutor.sol";
 
+import { LibBytes } from "solady/utils/LibBytes.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
@@ -15,7 +16,7 @@ import { OwnersLib } from "webauthn-owner-plugin/OwnersLib.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
 import { ExaAccountFactory } from "../../src/ExaAccountFactory.sol";
-import { ExaPlugin } from "../../src/ExaPlugin.sol";
+import { ExaPlugin, Parameters } from "../../src/ExaPlugin.sol";
 import { CrossRepayData, IExaAccount, IMarket, ProposalType, RepayData, RollDebtData } from "../../src/IExaAccount.sol";
 import { IssuerChecker } from "../../src/IssuerChecker.sol";
 import { ProposalManager } from "../../src/ProposalManager.sol";
@@ -25,6 +26,7 @@ import { MockSwapper } from "./MockSwapper.sol";
 contract BobScript is BaseScript {
   using SafeTransferLib for address;
   using OwnersLib for address[];
+  using LibBytes for bytes;
   using LibString for address;
   using LibString for uint256;
 
@@ -39,6 +41,8 @@ contract BobScript is BaseScript {
   IssuerChecker internal issuerChecker;
   ExaAccountFactory public factory;
 
+  address internal admin;
+  address internal keeper;
   address public bob;
   uint256 public bobKey = 0xb0b;
   IExaAccount public bobAccount;
@@ -52,13 +56,15 @@ contract BobScript is BaseScript {
     exaUSDC = IMarket(protocol("MarketUSDC"));
     exaWETH = IMarket(protocol("MarketWETH"));
     previewer = Previewer(protocol("Previewer"));
+    admin = acct("admin");
+    keeper = acct("keeper");
 
     proposalManager = ProposalManager(broadcast("ProposalManager"));
     issuerChecker = IssuerChecker(broadcast("IssuerChecker"));
     exaPlugin = ExaPlugin(payable(broadcast("ExaPlugin")));
     factory = ExaAccountFactory(
       payable(create3Address(
-          acct("admin"), keccak256(abi.encode(exaPlugin.pluginMetadata().name, exaPlugin.pluginMetadata().version))
+          admin, keccak256(abi.encode(exaPlugin.pluginMetadata().name, exaPlugin.pluginMetadata().version))
         ))
     );
     vm.label(address(exaPlugin), "ExaPlugin");
@@ -73,7 +79,7 @@ contract BobScript is BaseScript {
     domainSeparator = issuerChecker.DOMAIN_SEPARATOR();
   }
 
-  function run() external {
+  function run() external returns (ExaPlugin release) {
     address[] memory owners = new address[](1);
     owners[0] = bob;
 
@@ -86,7 +92,7 @@ contract BobScript is BaseScript {
     amounts[2] = 11e6;
     amounts[3] = 10e6;
 
-    vm.startBroadcast(acct("keeper"));
+    vm.startBroadcast(keeper);
     bobAccount = IExaAccount(factory.createAccount(0, owners.toPublicKeys()));
     vm.label(address(bobAccount), "bobAccount");
     address(bob).safeTransferETH(1 ether);
@@ -172,6 +178,64 @@ contract BobScript is BaseScript {
     );
     vm.broadcast(bob);
     IStandardExecutor(address(bobAccount)).executeBatch(calls);
+
+    IssuerChecker checker = IssuerChecker(_deploy("IssuerChecker", _arguments("IssuerChecker")));
+    string[] memory targets =
+      vm.split(vm.parseJsonString(_deployment("ProposalManager"), ".transactions[0].arguments[5]"), ",");
+    ProposalManager releaseProposalManager =
+      ProposalManager(_deploy("ProposalManager", 32 * (8 + targets.length), _arguments("ProposalManager")));
+    _deploy("Refunder", abi.encode(admin, exaUSDC, checker, keeper));
+    _deploy("ExaPreviewer", abi.encode(protocol("Auditor"), exaUSDC, releaseProposalManager));
+    Parameters memory parameters = abi.decode(_arguments("ExaPlugin"), (Parameters));
+    parameters.issuerChecker = checker;
+    parameters.proposalManager = releaseProposalManager;
+    release = ExaPlugin(payable(_deploy("ExaPlugin", abi.encode(parameters))));
+
+    vm.startBroadcast(admin);
+    ExaAccountFactory(
+      payable(create3(
+          admin,
+          keccak256(abi.encode(release.pluginMetadata().name, release.pluginMetadata().version)),
+          abi.encodePacked(
+            type(ExaAccountFactory).creationCode,
+            abi.encode(admin, factory.WEBAUTHN_OWNER_PLUGIN(), release, factory.IMPL(), factory.ENTRYPOINT())
+          )
+        ))
+    )
+    .addStake{ value: 0.1 ether }(
+      1 days, 0.1 ether
+    );
+    releaseProposalManager.grantRole(keccak256("PROPOSER_ROLE"), address(release));
+    release.allowPlugin(address(exaPlugin), true);
+    vm.stopBroadcast();
+  }
+
+  function _deploy(string memory name, bytes memory arguments) internal returns (address) {
+    return _deploy(name, arguments.length, arguments);
+  }
+
+  function _deploy(string memory name, uint256 length, bytes memory arguments) internal returns (address) {
+    bytes memory initCode = vm.parseJsonBytes(_deployment(name), ".transactions[0].transaction.input");
+    vm.broadcast(acct("deployer"));
+    return CREATE3_FACTORY.deploy(
+      keccak256(abi.encode(name, "1.0.0")), bytes.concat(initCode.slice(0, initCode.length - length), arguments)
+    );
+  }
+
+  function _deployment(string memory name) internal returns (string memory) {
+    string[] memory git = new string[](3);
+    git[0] = "git";
+    git[1] = "show";
+    git[2] = string.concat("@exactly/plugin@1.0.0:contracts/broadcast/", name, ".s.sol/10/run-latest.json");
+    return string(vm.ffi(git));
+  }
+
+  function _arguments(string memory name) internal view returns (bytes memory) {
+    return vm.parseJsonBytes(
+        vm.readFile(string.concat("broadcast/", name, ".s.sol/", block.chainid.toString(), "/run-latest.json")),
+        ".transactions[0].transaction.input"
+      )
+      .slice(vm.getCode(string.concat(name, ".sol:", name)).length);
   }
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
