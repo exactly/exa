@@ -6,21 +6,17 @@ import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { Square, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-
-import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import IconButton from "./IconButton";
 import View from "./View";
-import useAccount from "../../utils/useAccount";
+import useProposalManager from "../../utils/useProposalManager";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 
-import type { Credential, Hex } from "@exactly/common/validation";
+import type { Hex } from "@exactly/common/validation";
 
 export default function Success({
   amount,
@@ -43,18 +39,9 @@ export default function Success({
     t,
     i18n: { language },
   } = useTranslation();
-  const { address } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager();
   return (
-    <GradientScrollView variant={isLatestPlugin ? "info" : "success"}>
+    <GradientScrollView variant={proposalManager ? "info" : "success"}>
       <View flex={1}>
         <YStack gap="$s5" justifyContent="space-between">
           <YStack>
@@ -64,7 +51,7 @@ export default function Success({
                 <Square
                   borderRadius="$r4"
                   backgroundColor={
-                    isLatestPlugin ? "$interactiveBaseInformationSoftDefault" : "$interactiveBaseSuccessSoftDefault"
+                    proposalManager ? "$interactiveBaseInformationSoftDefault" : "$interactiveBaseSuccessSoftDefault"
                   }
                   size={80}
                 >
@@ -73,7 +60,7 @@ export default function Success({
               </XStack>
               <YStack gap="$s4_5" justifyContent="center" alignItems="center">
                 <Text secondary body>
-                  {isLatestPlugin ? t("Processing") : t("Paid")}&nbsp;
+                  {proposalManager ? t("Processing") : t("Paid")}&nbsp;
                   <Text
                     emphasized
                     primary

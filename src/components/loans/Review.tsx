@@ -11,21 +11,19 @@ import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { parse } from "valibot";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, type Address, type Hex } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
 
-import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { exaPluginAddress, previewerAddress } from "@exactly/common/generated/chain";
+import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadPreviewerPreviewBorrowAtMaturity,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import ProposalType from "@exactly/common/ProposalType";
@@ -39,6 +37,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import useInstallments from "../../utils/useInstallments";
+import useProposalManager from "../../utils/useProposalManager";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
@@ -49,8 +48,6 @@ import ExaSpinner from "../shared/Spinner";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
-
-import type { Credential } from "@exactly/common/validation";
 
 export default function Review() {
   const router = useRouter();
@@ -74,7 +71,6 @@ export default function Review() {
   const symbol = assetMarket?.symbol.slice(3) === "WETH" ? "ETH" : assetMarket?.symbol.slice(3);
   const singleInstallment = count === 1;
 
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
 
   const { data: borrow, isPending: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
@@ -193,14 +189,7 @@ export default function Review() {
       ? t("Funding request sent")
       : t("Funding request processing");
 
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager();
 
   if (!market || !amount || !count || !maturity || !receiver || (markets && !assetMarket))
     return <Redirect href="/loan" />;
@@ -418,7 +407,7 @@ export default function Review() {
     );
   }
   return (
-    <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
+    <GradientScrollView variant={error ? "error" : success ? (proposalManager ? "info" : "success") : "neutral"}>
       <View flex={1}>
         <YStack gap="$s7" paddingBottom="$s9">
           <IconButton
@@ -441,15 +430,15 @@ export default function Review() {
                 error
                   ? "$interactiveBaseErrorSoftDefault"
                   : success
-                    ? isLatestPlugin
+                    ? proposalManager
                       ? "$interactiveBaseInformationSoftDefault"
                       : "$interactiveBaseSuccessSoftDefault"
                     : "$backgroundStrong"
               }
             >
               {processing && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
-              {success && isLatestPlugin && <Check size={48} color="$uiInfoSecondary" strokeWidth={2} />}
-              {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
+              {success && !!proposalManager && <Check size={48} color="$uiInfoSecondary" strokeWidth={2} />}
+              {success && !proposalManager && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
               {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>

@@ -18,6 +18,7 @@ import ProposalType, {
 } from "@exactly/common/ProposalType";
 
 import useAccount from "./useAccount";
+import useProposalManager from "./useProposalManager";
 import exa from "./wagmi/exa";
 
 import type { RouteFrom } from "./lifi";
@@ -33,7 +34,7 @@ export default function usePendingOperations() {
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+      args: [auditorAddress, marketUSDCAddress, useProposalManager() ?? proposalManagerAddress],
     }),
     chainId: chain.id,
     args: exaAccount ? [exaAccount] : undefined,
