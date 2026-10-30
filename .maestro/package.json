@@ -114,7 +114,7 @@
         ]
       },
       "e2e:webauthn": {
-        "command": "mkdir -p junit && curl -fs --fail-early --retry 420 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--no-sandbox",
+        "command": "mkdir -p junit && curl -fs --fail-early --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=webauthn --platform web --headless --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--no-sandbox",
         "dependsOn": [
           "maestro",
           "generate:camera"
@@ -140,7 +140,7 @@
         ]
       },
       "e2e:metamask": {
-        "command": "d=$(mktemp -d) && cp -a node_modules/.cache/metamask/profile/. $d && mkdir -p junit && curl -fs --fail-early --retry 420 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=metamask --platform web --headless --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--user-data-dir=$d --browser-args=--load-extension=$PWD/node_modules/.cache/metamask/extension --browser-args=--no-sandbox --browser-args=--screen-info={3840x2160} '--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND'",
+        "command": "d=$(mktemp -d) && cp -a node_modules/.cache/metamask/profile/. $d && mkdir -p junit && curl -fs --fail-early --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=metamask --platform web --headless --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--user-data-dir=$d --browser-args=--load-extension=$PWD/node_modules/.cache/metamask/extension --browser-args=--no-sandbox --browser-args=--screen-info={3840x2160} '--browser-args=--host-resolver-rules=MAP *.infura.io ~NOTFOUND, MAP *.metamask.io ~NOTFOUND'",
         "dependsOn": [
           "maestro",
           "generate:camera",
@@ -170,7 +170,7 @@
         ]
       },
       "e2e:brave": {
-        "command": "mkdir -p junit && curl -fs --fail-early --retry 420 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log SE_BROWSER_PATH=$PWD/node_modules/.cache/brave/brave xvfb-run -a build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=brave --platform web --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--window-size=$(echo {args.screen} | tr x ,) --browser-args=--no-sandbox",
+        "command": "mkdir -p junit && curl -fs --fail-early --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null localhost:3000/api/auth/authentication -o /dev/null localhost:8081 && CHROME_LOG_FILE=$PWD/chrome.log SE_BROWSER_PATH=$PWD/node_modules/.cache/brave/brave xvfb-run -a build/bin/maestro test flows/{args.flow}.yaml -e APP_ID=http://localhost:8081 -e method=brave --platform web --screen-size {args.screen} --format junit --output junit/{args.flow}.xml --browser-args=--force-prefers-reduced-motion --browser-args=--use-fake-ui-for-media-stream --browser-args=--use-fake-device-for-media-stream --browser-args=--use-file-for-fake-video-capture=$PWD/generated/{args.flow}.y4m --browser-args=--window-size=$(echo {args.screen} | tr x ,) --browser-args=--no-sandbox",
         "dependsOn": [
           "maestro",
           "generate:camera",
