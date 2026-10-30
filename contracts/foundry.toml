@@ -65,6 +65,9 @@ cache_path = "cache/snapshot"
 out = "out/snapshot"
 skip = ["script/**"]
 
+[profile.snapshot.fuzz]
+runs = 64
+
 [profile.tooling]
 cache_path = "cache/tooling"
 out = "out/tooling"
