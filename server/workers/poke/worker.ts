@@ -107,12 +107,13 @@ export default function worker({
               })),
           );
           const hasETH = balances.some(({ asset, balance }) => asset === ETH && balance > 0n);
+          const isPending = (asset: Address) => !job.data.pending || job.data.pending.includes(asset);
           const pending: Address[] = [];
           let poked = false;
           for (const [index, { asset, balance }] of balances.entries()) {
             if (hasETH && asset === WETH) continue;
             if (balance === 0n) {
-              pending.push(asset);
+              if (isPending(asset)) pending.push(asset);
               continue;
             }
             const receipt = await wallet.exaSend(
@@ -135,12 +136,12 @@ export default function worker({
             if (job.data.origin === "activity") {
               await job.updateData({
                 ...job.data,
-                assets: [
+                pending: [
                   ...pending,
                   ...balances
                     .slice(index + 1)
                     .map(({ asset: remaining }) => remaining)
-                    .filter((remaining) => !(hasETH && remaining === WETH)),
+                    .filter((remaining) => isPending(remaining) && !(hasETH && remaining === WETH)),
                 ],
               });
             }
@@ -149,7 +150,7 @@ export default function worker({
             await credit.enqueue(job.data.account, `poke-${job.id}-${job.attemptsStarted}`);
           }
           if (job.data.origin === "activity" && pending.length > 0) {
-            await job.updateData({ ...job.data, assets: pending });
+            await job.updateData({ ...job.data, pending });
             throw new Error(NO_BALANCE);
           }
           if (job.data.origin === "allow" && poked) {

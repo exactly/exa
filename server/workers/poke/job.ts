@@ -9,6 +9,7 @@ export type Job = {
   chainId: number;
   factory: Address;
   origin: "activity" | "allow";
+  pending?: Address[];
   publicKey: Hex;
   sentryBaggage?: string;
   sentryTrace?: string;
