@@ -5,7 +5,7 @@ import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
-import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON } from "@sentry/node";
+import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON, startSpan } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { v5 } from "uuid";
@@ -2882,6 +2882,7 @@ describe("plugin 1.0.0", () => {
     factories.versions.find((address) => address !== exaAccountFactoryAddress),
   );
   const account100 = deriveAddress(factory, { x: padHex(owner100.account.address), y: zeroHash });
+  const authorizedAt = new Date().toISOString();
   let release: Address;
 
   beforeAll(async () => {
@@ -2921,6 +2922,149 @@ describe("plugin 1.0.0", () => {
   });
 
   afterEach(() => Panda.getMutex(account100)?.release());
+
+  it("collects debit", async () => {
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    await expect(collectSpend(`${account100}-debit`, 900, authorizedAt)).resolves.toStrictEqual([200, 9_000_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(feedback).toHaveBeenCalledOnce();
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+    ]);
+  });
+
+  it("collects credit", async () => {
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    await expect(collectSpend(`${account100}-credit`, 10)).resolves.toStrictEqual([200, 100_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(feedback).toHaveBeenCalledOnce();
+  });
+
+  it("fails collection when the trace has no issuer check", async () => {
+    const role = keccak256(toHex("KEEPER_ROLE"));
+    const setRole = async (functionName: "grantRole" | "revokeRole") => {
+      await anvilClient.waitForTransactionReceipt({
+        hash: await anvilClient.writeContract({
+          address: release,
+          abi: exaPluginAbi,
+          functionName,
+          args: [role, keeper.account.address],
+          account: null,
+        }),
+      });
+    };
+    onTestFinished(() => setRole("grantRole"));
+    const { traceCall: trace } = traceClient;
+    const traceCall = vi.spyOn(traceClient, "traceCall").mockImplementationOnce(async (parameters) => {
+      await setRole("revokeRole");
+      return trace(parameters);
+    });
+    const feedback = vi.spyOn(sardine, "feedback");
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+    sendPushNotificationMock.mockClear();
+
+    const { status } = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: `${account100}-revoked`,
+          spend: { ...authorization.json.body.spend, amount: 902, cardId: `${account100}-debit` },
+        },
+      },
+    });
+
+    expect(status).toBe(569);
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+    ]);
+    const merchant = {
+      name: authorization.json.body.spend.merchantName,
+      category: authorization.json.body.spend.merchantCategory,
+      city: authorization.json.body.spend.merchantCity,
+      country: authorization.json.body.spend.merchantCountry,
+    };
+    expect(track).toHaveBeenCalledWith({
+      userId: account100,
+      event: "TransactionRejected",
+      properties: {
+        cardMode: 0,
+        declinedReason: "collection:created:collectDebit:bad address",
+        id: `${account100}-revoked`,
+        reasonName: "ValiError",
+        source: null,
+        updated: false,
+        usdAmount: 9.02,
+        merchant,
+      },
+    });
+    expect(track).toHaveBeenCalledWith({
+      userId: account100,
+      event: "PandaCollectionFailed",
+      properties: {
+        action: "created",
+        amount: 902,
+        authorizedAmount: authorization.json.body.spend.authorizedAmount,
+        cardMode: 0,
+        functionName: "collectDebit",
+        id: `${account100}-revoked`,
+        knownTransaction: false,
+        merchant,
+        reason: "bad address",
+        reasonName: "ValiError",
+        settlement: false,
+        source: null,
+        usdAmount: 9.02,
+        webhookId: authorization.json.id,
+      },
+    });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ name: "ValiError", message: "bad address" }),
+      {
+        level: "fatal",
+        fingerprint: ["{{ default }}", "panda.collection", "created", "collectDebit", "unknown"],
+        tags: {
+          unhandled: true,
+          "panda.failure": "collection",
+          "panda.function": "collectDebit",
+          "panda.reason": "bad address",
+          "panda.reasonName": "ValiError",
+          "panda.settlement": "false",
+        },
+        contexts: {
+          tx: { call: { functionName: "collectDebit", args: [9_020_000n, expect.any(BigInt), expect.any(String)] } },
+          pandaCollection: {
+            action: "created",
+            cardId: `${account100}-debit`,
+            transactionId: `${account100}-revoked`,
+            amount: 902,
+            authorizedAmount: authorization.json.body.spend.authorizedAmount,
+            authorizationMethod: null,
+            knownTransaction: false,
+            reason: "bad address",
+            reasonName: "ValiError",
+            webhookId: authorization.json.id,
+          },
+        },
+      },
+    );
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(feedback).not.toHaveBeenCalled();
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, `${account100}-revoked`) }),
+    ).resolves.toBeUndefined();
+  });
 
   it.each([
     ["debit", 901],
@@ -2968,66 +3112,116 @@ describe("plugin 1.0.0", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  describe("after upgrade", () => {
-    beforeAll(async () => {
-      await anvilClient.waitForTransactionReceipt({
-        hash: await owner100.writeContract({
-          address: account100,
-          abi: upgradeableModularAccountAbi,
-          functionName: "executeBatch",
-          args: [
-            [
-              {
-                target: account100,
-                value: 0n,
-                data: encodeFunctionData({
-                  abi: upgradeableModularAccountAbi,
-                  functionName: "uninstallPlugin",
-                  args: [
-                    release,
-                    encodeAbiParameters(
-                      [
-                        {
-                          type: "tuple",
-                          components: [
-                            { name: "serializedManifest", type: "bytes" },
-                            { name: "forceUninstall", type: "bool" },
-                            { name: "callbackGasLimit", type: "uint256" },
-                          ],
-                        },
-                      ],
-                      [{ serializedManifest: "0x", forceUninstall: false, callbackGasLimit: 0n }],
-                    ),
-                    "0x",
-                  ],
-                }),
-              },
-              {
-                target: account100,
-                value: 0n,
-                data: encodeFunctionData({
-                  abi: upgradeableModularAccountAbi,
-                  functionName: "installPlugin",
-                  args: [
-                    exaPluginAddress,
-                    keccak256(
-                      encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
-                        await publicClient.readContract({
-                          address: exaPluginAddress,
-                          abi: exaPluginAbi,
-                          functionName: "pluginManifest",
-                        }),
-                      ]),
-                    ),
-                    "0x",
-                    [],
-                  ],
-                }),
-              },
-            ],
+  const swap = async (from: Hex, to: Hex) => {
+    await anvilClient.waitForTransactionReceipt({
+      hash: await owner100.writeContract({
+        address: account100,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            {
+              target: account100,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: upgradeableModularAccountAbi,
+                functionName: "uninstallPlugin",
+                args: [
+                  from,
+                  encodeAbiParameters(
+                    [
+                      {
+                        type: "tuple",
+                        components: [
+                          { name: "serializedManifest", type: "bytes" },
+                          { name: "forceUninstall", type: "bool" },
+                          { name: "callbackGasLimit", type: "uint256" },
+                        ],
+                      },
+                    ],
+                    [{ serializedManifest: "0x", forceUninstall: false, callbackGasLimit: 0n }],
+                  ),
+                  "0x",
+                ],
+              }),
+            },
+            {
+              target: account100,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: upgradeableModularAccountAbi,
+                functionName: "installPlugin",
+                args: [
+                  to,
+                  keccak256(
+                    encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                      await publicClient.readContract({
+                        address: to,
+                        abi: exaPluginAbi,
+                        functionName: "pluginManifest",
+                      }),
+                    ]),
+                  ),
+                  "0x",
+                  [],
+                ],
+              }),
+            },
           ],
-        }),
-      });
+        ],
+      }),
+    });
+  };
+
+  describe("after upgrade", () => {
+    beforeAll(() => swap(release, exaPluginAddress));
+
+    it("skips spends collected before the upgrade", async () => {
+      const exaSend = vi.spyOn(keeper, "exaSend");
+      const feedback = vi.spyOn(sardine, "feedback");
+      sendPushNotificationMock.mockClear();
+
+      const { status, replay } = await startSpan({ name: "replay" }, async (span) => ({
+        status: await appClient.index
+          .$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: `${account100}-debit`,
+                spend: { ...authorization.json.body.spend, amount: 900, cardId: `${account100}-debit`, authorizedAt },
+              },
+            },
+          })
+          .then(({ status: code }) => code),
+        replay: spanToJSON(span).data["panda.replay"],
+      }));
+
+      expect(status).toBe(200);
+      expect(exaSend).not.toHaveBeenCalled();
+      expect(replay).toBe(true);
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(feedback).not.toHaveBeenCalled();
+      await expect(
+        database.query.transactions
+          .findFirst({ where: eq(transactions.id, `${account100}-debit`) })
+          .then((transaction) => transaction?.hashes),
+      ).resolves.toHaveLength(1);
+    });
+
+    it("collects debit", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+      const feedback = vi.spyOn(sardine, "feedback");
+      sendPushNotificationMock.mockClear();
+
+      await expect(collectSpend(`${account100}-upgraded`, 904)).resolves.toStrictEqual([200, 9_040_000n]);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+      expect(feedback).toHaveBeenCalledOnce();
+      expect(traceCall).not.toHaveBeenCalled();
     });
 
     it("authorizes with one trace", async () => {
@@ -3064,6 +3258,72 @@ describe("plugin 1.0.0", () => {
       });
 
       expect([created.status, replayed.status]).toStrictEqual([200, 558]);
+    });
+
+    it("skips spends collected before a rollback", async () => {
+      const id = `${account100}-rollback`;
+      const json = {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 905,
+            cardId: `${account100}-upgraded`,
+            authorizedAt: new Date().toISOString(),
+          },
+        },
+      } as const;
+      const created = await appClient.index.$post({ ...authorization, json });
+      await publicClient.waitForTransactionReceipt({
+        hash: await database.query.transactions
+          .findFirst({ where: eq(transactions.id, id) })
+          .then((transaction) => transaction?.hashes[0] as Hex),
+        confirmations: 0,
+      });
+      const allow = async (allowed: boolean) => {
+        await anvilClient.waitForTransactionReceipt({
+          hash: await anvilClient.writeContract({
+            address: exaPluginAddress,
+            abi: exaPluginAbi,
+            functionName: "allowPlugin",
+            args: [release, allowed],
+            account: null,
+          }),
+        });
+      };
+      onTestFinished(() => allow(false));
+      await allow(true);
+      await swap(exaPluginAddress, release);
+      const shares = () =>
+        publicClient.readContract({
+          address: marketUSDCAddress,
+          abi: marketAbi,
+          functionName: "balanceOf",
+          args: [account100],
+        });
+      const before = await shares();
+      const feedback = vi.spyOn(sardine, "feedback");
+      feedback.mockClear();
+      sendPushNotificationMock.mockClear();
+
+      const { status, replay } = await startSpan({ name: "replay" }, async (span) => ({
+        status: await appClient.index.$post({ ...authorization, json }).then(({ status: code }) => code),
+        replay: spanToJSON(span).data["panda.replay"],
+      }));
+
+      expect([created.status, status]).toStrictEqual([200, 200]);
+      await expect(shares()).resolves.toBe(before);
+      expect(replay).toBe(true);
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(feedback).not.toHaveBeenCalled();
+      await expect(
+        database.query.transactions
+          .findFirst({ where: eq(transactions.id, id) })
+          .then((transaction) => transaction?.hashes),
+      ).resolves.toHaveLength(1);
     });
   });
 });
@@ -4825,6 +5085,27 @@ function usdcToAddress(purchaseReceipt: TransactionReceipt, address: Address) {
 
 function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
+}
+
+async function collectSpend(cardId: string, amount: number, authorizedAt?: string) {
+  const body = {
+    ...authorization.json.body,
+    id: cardId,
+    spend: { ...authorization.json.body.spend, amount, cardId, authorizedAt },
+  };
+
+  return [
+    await appClient.index
+      .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+      .then(({ status }) => status),
+    usdcToCollector(
+      await database.query.transactions
+        .findFirst({ where: eq(transactions.id, cardId) })
+        .then((transaction) =>
+          publicClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+        ),
+    ),
+  ];
 }
 
 async function authorize(cardId: string, amount: number) {
