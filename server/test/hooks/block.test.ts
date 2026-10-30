@@ -62,6 +62,7 @@ import chain, {
   exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  factories,
   issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
@@ -178,8 +179,11 @@ describe("initialization", () => {
     expect(options.webhook_url).toBe(
       `${appOrigin}/hooks/block?query=${createHash("sha256").update(options.graphql_query.query).digest("hex")}`,
     );
+    const { plugins, managers } = await factoryEmitters();
     expect(options.graphql_query.query).toContain(
-      `addresses: ${JSON.stringify([exaPluginAddress, proposalManagerAddress, marketUSDCAddress].toSorted())}`,
+      `addresses: ${JSON.stringify(
+        [...new Set([exaPluginAddress, proposalManagerAddress, marketUSDCAddress, ...plugins, ...managers])].toSorted(),
+      )}`,
     );
     expect(options.graphql_query.query).toContain(`"${withdrawTopic}" # Withdraw`);
     expect(options.graphql_query.query).toMatch(/transaction \{\s+hash\s+\}/);
@@ -197,6 +201,7 @@ describe("initialization", () => {
   });
 
   it("watches a plugin whose proposal manager read reverts", async () => {
+    const { plugins } = await factoryEmitters();
     const { readContract } = publicClient;
     vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
       parameters.functionName === "proposalManager"
@@ -208,7 +213,9 @@ describe("initialization", () => {
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
 
     expect(options.graphql_query.query).toContain(
-      `addresses: ${JSON.stringify([exaPluginAddress, proposalManagerAddress, marketUSDCAddress].toSorted())}`,
+      `addresses: ${JSON.stringify(
+        [...new Set([exaPluginAddress, proposalManagerAddress, marketUSDCAddress, ...plugins])].toSorted(),
+      )}`,
     );
   });
 
@@ -227,9 +234,20 @@ describe("initialization", () => {
     const options = vi.mocked(createWebhook).mock.lastCall?.[0];
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
 
+    const { plugins, managers } = await factoryEmitters();
     expect(options.graphql_query.query).toContain(
       `addresses: ${JSON.stringify(
-        [exaPluginAddress, proposalManagerAddress, marketUSDCAddress, legacyFactoryPlugin, ...legacyPlugins].toSorted(),
+        [
+          ...new Set([
+            exaPluginAddress,
+            proposalManagerAddress,
+            marketUSDCAddress,
+            legacyFactoryPlugin,
+            ...legacyPlugins,
+            ...plugins,
+            ...managers,
+          ]),
+        ].toSorted(),
       )}`,
     );
   });
@@ -4043,6 +4061,20 @@ const legacyPlugins = [
   getAddress("0x2Bbaf52f13513CE325066D387c1dA1F260c26887"),
   getAddress("0x87aF7e4892e47a7De34dF689bA5f3bCccED3e5DE"),
 ] as const;
+
+async function factoryEmitters() {
+  const plugins = await Promise.all(
+    factories.versions.map((address) =>
+      publicClient.readContract({ address, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" }),
+    ),
+  );
+  const managers = await Promise.all(
+    plugins.map((address) =>
+      publicClient.readContract({ address, abi: exaPluginAbi, functionName: "proposalManager" }),
+    ),
+  );
+  return { plugins, managers };
+}
 
 function spyZadd() {
   return vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
