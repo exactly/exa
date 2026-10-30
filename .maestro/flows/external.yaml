@@ -34,7 +34,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow: ../subflows/verifyIdentity.yaml
-- tapOn: Swap assets
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Swap } }
+- tapOn: { id: Select token, index: 1 }
+- tapOn: { text: USDC, index: 0 }
 - tapOn: { text: "0", index: 0 }
 - inputText: "20000"
 - assertVisible: "High price impact: you receive 2\\.2% less value than you pay\\."
