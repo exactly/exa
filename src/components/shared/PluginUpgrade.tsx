@@ -141,12 +141,13 @@ export default function PluginUpgrade() {
         const resolutions: Hex[] = [];
         for (const { nonce } of proposals) {
           const execution = encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
-          const block = await simulate(address, [...resolutions, execution]);
-          resolutions.push(
-            block?.calls.at(-1)?.status === "success"
-              ? execution
-              : encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] }),
-          );
+          const skip = encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] });
+          const block = await simulate(address, [...resolutions, execution, skip]);
+          const executed = block?.calls.at(-2)?.status === "success";
+          const consumed = block?.calls.at(-1)?.status === "failure";
+          if (executed && !consumed)
+            reportError(new Error("upgrade skipped executable proposal"), { level: "warning" });
+          resolutions.push(executed && consumed ? execution : skip);
         }
         calls = [
           ...resolutions.map((data) => ({ target: address, value: 0n, data })),
