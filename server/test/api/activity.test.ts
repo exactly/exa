@@ -635,7 +635,7 @@ describe.concurrent("authenticated", () => {
           args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
         }),
       });
-      const { logs } = await anvilClient.waitForTransactionReceipt({
+      const { blockNumber: block, logs } = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: depositor,
           abi: upgradeableModularAccountAbi,
@@ -684,6 +684,17 @@ describe.concurrent("authenticated", () => {
       const deposits = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs });
 
       expect(new Set(deposits.map(({ logIndex }) => String(logIndex).length))).toStrictEqual(new Set([1, 2]));
+
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+        },
+        { timeout: 10_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "received" } },
