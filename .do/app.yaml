@@ -88,6 +88,11 @@ services:
       - key: DEBUG
         scope: RUN_TIME
         value: ${{ env.DEBUG }}
+      # @if ${{ env.DISABLED_MODULES }}
+      - key: DISABLED_MODULES
+        scope: RUN_TIME
+        value: ${{ env.DISABLED_MODULES }}
+      # @endif
       - key: INTERCOM_IDENTITY_KEY
         scope: RUN_TIME
         type: SECRET
