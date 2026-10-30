@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBytecode, useReadContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -18,6 +18,7 @@ import {
 
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useProposalManager from "../../utils/useProposalManager";
 import Button from "../shared/StyledButton";
 
 import type { Credential } from "@exactly/common/validation";
@@ -53,7 +54,7 @@ export default function HomeActions() {
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager();
   const { refetch: fetchProposals, isPending } = useReadContract({
     chainId: chain.id,
     functionName: "proposals",
@@ -74,11 +75,11 @@ export default function HomeActions() {
     ],
     address: installedPlugins?.[0],
     args: account ? [account] : undefined,
-    query: { enabled: !!account && !!installedPlugins?.[0] && !isLatestPlugin },
+    query: { enabled: !!account && !!installedPlugins?.[0] && proposalManager === null },
   });
 
   const handleSend = async () => {
-    if (isLatestPlugin) {
+    if (proposalManager) {
       router.push("/send-funds");
     } else {
       if (isPending) return;
@@ -136,7 +137,7 @@ export default function HomeActions() {
             primary={key === "deposit"}
             secondary={key !== "deposit"}
             disabled={disabled}
-            loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
+            loading={key === "send" && !proposalManager && isPending && !!bytecode}
             flex={1}
             aria-label={title}
             role="button"

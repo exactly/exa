@@ -11,7 +11,7 @@ import {
 } from "viem";
 import { useReadContracts, type UseWriteContractReturnType } from "wagmi";
 
-import chain, { proposalManagerAddress } from "@exactly/common/generated/chain";
+import chain, { exaPluginAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   exaPluginAbi,
@@ -84,7 +84,6 @@ export default function useSimulateProposal({
     refetch: refetchReads,
   } = useReadContracts({
     contracts: [
-      { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
       { address: proposalManagerAddress, abi: proposalManagerAbi, functionName: "delay" },
       {
         address: proposalManagerAddress,
@@ -112,14 +111,76 @@ export default function useSimulateProposal({
         ],
         functionName: "getBlockNumber",
       },
+      { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
     ] as const,
     allowFailure: false,
     query: {
       enabled: enabled && !!account,
-      refetchInterval: ({ state: { data } }) => (poll && data && data[2] > data[3] ? 5000 : false),
+      refetchInterval: ({ state: { data } }) => (poll && data && data[1] > data[2] ? 5000 : false),
     },
   });
-  const [plugins, delay, nonce, executed, timestamp, blockNumber] = isFetchedAfterMount ? (reads ?? []) : [];
+  const plugins = isFetchedAfterMount ? reads?.[5] : undefined;
+  const isLatestPlugin = plugins === undefined || plugins[0] === exaPluginAddress;
+  const {
+    data: [manager] = [],
+    error: pluginError,
+    refetch: refetchPlugin,
+  } = useReadContracts({
+    contracts: [
+      { address: plugins?.[0], abi: exaPluginAbi, functionName: "proposalManager", chainId: chain.id },
+    ] as const,
+    query: { enabled: enabled && !isLatestPlugin },
+  });
+  const proposalManager = manager?.result;
+  const {
+    data: managerReads,
+    error: managerError,
+    isFetchedAfterMount: isManagerFetchedAfterMount,
+    refetch: refetchManager,
+  } = useReadContracts({
+    contracts: [
+      { address: proposalManager, abi: proposalManagerAbi, functionName: "delay" },
+      {
+        address: proposalManager,
+        abi: proposalManagerAbi,
+        functionName: "queueNonces",
+        args: account ? [account] : undefined,
+      },
+      {
+        address: proposalManager,
+        abi: proposalManagerAbi,
+        functionName: "nonces",
+        args: account ? [account] : undefined,
+      },
+      { address: multicall3Address, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+      {
+        address: multicall3Address,
+        abi: [
+          {
+            type: "function",
+            name: "getBlockNumber",
+            inputs: [],
+            outputs: [{ type: "uint256" }],
+            stateMutability: "view",
+          },
+        ],
+        functionName: "getBlockNumber",
+      },
+    ] as const,
+    allowFailure: false,
+    query: {
+      enabled: enabled && !!account && !!proposalManager,
+      refetchInterval: ({ state: { data } }) => (poll && data && data[1] > data[2] ? 5000 : false),
+    },
+  });
+  const [delay, nonce, executed, timestamp, blockNumber] =
+    (isLatestPlugin || manager?.status === "failure"
+      ? isFetchedAfterMount
+        ? reads
+        : undefined
+      : isManagerFetchedAfterMount
+        ? managerReads
+        : undefined) ?? [];
   const proposalData =
     proposal.proposalType === ProposalType.BorrowAtMaturity
       ? encodeBorrowAtMaturity(proposal)
@@ -205,6 +266,8 @@ export default function useSimulateProposal({
   const queued = enabled && nonce !== undefined && executed !== undefined && nonce > executed;
   const error =
     readsError ??
+    pluginError ??
+    managerError ??
     settled.simulation.error ??
     (settled.propose?.status === "failure" ? settled.propose.error : null) ??
     (settled.execute?.status === "failure" ? settled.execute.error : null);
@@ -218,7 +281,13 @@ export default function useSimulateProposal({
     delay,
     queued,
     refetch: () =>
-      Promise.all([refetchReads(), simulation.error && simulation.refetch(), retry.error && retry.refetch()]),
+      Promise.all([
+        refetchReads(),
+        pluginError && refetchPlugin(),
+        proposalManager && refetchManager(),
+        simulation.error && simulation.refetch(),
+        retry.error && retry.refetch(),
+      ]),
   };
 }
 
