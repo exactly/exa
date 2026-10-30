@@ -14,3 +14,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/awaitDeployment.js
     env: { account: "${output.account}", network: Anvil2 }
+- runFlow:
+    file: tapWhileAria.yaml
+    env: { aria: "^USDC.e on its way from .+ to Anvil2, .+$", tap: Home }

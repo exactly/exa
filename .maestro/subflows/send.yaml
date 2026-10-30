@@ -113,15 +113,20 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!pay}" }
     commands: [{ assertVisible: Sent to .* }]
+- runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- tapOn: Home
 - runFlow:
     when: { true: "${!!destination}" }
     commands:
+      - runFlow:
+          when: { true: "${maestro.platform != 'web'}" }
+          commands: [{ assertVisible: "^${asset} on its way from .+ to ${destination}, about \\d+ min$" }]
+      - runFlow:
+          when: { platform: web }
+          commands: [{ assertVisible: { id: "^${asset} on its way from .+ to ${destination}, about \\d+ min$" } }]
       - runScript:
           file: ../dist/bridge.js
           env: { destination: "${destination}", to: "${to}", amount: "${amount}" }
-      - assertVisible: Funds delivered on ${destination}
-- runFlow: { file: tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
