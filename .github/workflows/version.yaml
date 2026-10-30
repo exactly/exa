@@ -9,6 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
+      - uses: actions/create-github-app-token@v3
+        id: github
+        with:
+          client-id: Iv23liuyLJGozoujn17O # cspell:ignore Iv23liuyLJGozoujn17O
+          private-key: ${{ secrets.EXA_VERSION_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with: { node-version: 24, check-latest: true, package-manager-cache: false }
@@ -23,13 +30,6 @@ jobs:
             .reverse()
             .join(", "))' >> $GITHUB_OUTPUT
           rm status.json
-      - uses: actions/create-github-app-token@v3
-        id: github
-        with:
-          client-id: Iv23liuyLJGozoujn17O # cspell:ignore Iv23liuyLJGozoujn17O
-          private-key: ${{ secrets.EXA_VERSION_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
       - id: changesets
         uses: changesets/action@v1
         with:
