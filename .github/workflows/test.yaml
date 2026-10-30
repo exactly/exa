@@ -30,13 +30,14 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: contracts/requirements.txt
-      - uses: actions/cache@v6
+      - uses: actions/cache/restore@v6
+        id: dependencies
         with:
           path: |
             ~/.local/share/svm
             /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
-          restore-keys: deps-${{ runner.os }}-${{ github.job }}-
+          key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
       - id: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT" # cspell:ignore dbus
       - uses: actions/cache/restore@v6
@@ -55,6 +56,13 @@ jobs:
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
+      - uses: actions/cache/save@v6
+        if: github.ref_name == 'main' && steps.dependencies.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.local/share/svm
+            /tmp/metro-cache
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
 
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
@@ -134,7 +142,8 @@ jobs:
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
-      - uses: actions/cache@v6
+      - uses: actions/cache/restore@v6
+        id: dependencies
         with:
           path: |
             ~/.local/share/svm
@@ -177,6 +186,13 @@ jobs:
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
+      - uses: actions/cache/save@v6
+        if: github.ref_name == 'main' && steps.dependencies.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.local/share/svm
+            /tmp/metro-cache
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
