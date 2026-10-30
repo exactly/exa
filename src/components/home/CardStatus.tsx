@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Platform, Pressable, StyleSheet, type View as RNView } from "react-native";
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   interpolate,
   interpolateColor,
+  LinearTransition,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
@@ -29,6 +32,7 @@ import { isPromoted } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { setCardStatus, type CardDetails } from "../../utils/server";
+import AnimatedView from "../shared/AnimatedView";
 import Switch from "../shared/Switch";
 import Text from "../shared/Text";
 
@@ -83,17 +87,13 @@ export default function CardStatus({
   const frozen = (isSettingCardStatus ? optimisticCardStatus : card?.status) === "FROZEN";
   const Art = card?.productId === BASE_PRODUCT_ID ? BaseArt : DefaultArt;
   return (
-    <YStack
-      key="card-status"
+    <AnimatedView
+      entering={FadeIn}
+      exiting={FadeOut}
+      layout={LinearTransition}
       backgroundColor="$backgroundSoft"
       borderRadius="$r3"
       overflow="hidden"
-      opacity={1}
-      transform={[{ translateY: 0 }]}
-      transition="default"
-      animateOnly={["opacity", "transform"]}
-      enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
-      exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
     >
       <XStack padding="$s4" justifyContent="space-between" alignItems="center">
         <Text headline emphasized>
@@ -204,87 +204,65 @@ export default function CardStatus({
             </AnimatePresence>
           </XStack>
         </Pressable>
-        <AnimatePresence>
-          {frozen && (
-            <YStack
-              key="freeze-toggle"
-              transition="default"
-              animateOnly={["opacity", "transform"]}
-              enterStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
-              exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
+        {frozen && (
+          <AnimatedView entering={FadeIn} exiting={FadeOut}>
+            <XStack
+              role="switch"
+              aria-checked={frozen}
+              aria-label={t("Freeze card")}
+              aria-disabled={isSettingCardStatus}
+              justifyContent="space-between"
+              paddingVertical="$s4"
+              alignItems="center"
+              cursor="pointer"
+              onPress={() => {
+                if (isSettingCardStatus) return;
+                selectionAsync().catch(reportError);
+                changeCardStatus("ACTIVE");
+              }}
             >
-              <XStack
-                role="switch"
-                aria-checked={frozen}
-                aria-label={t("Freeze card")}
-                aria-disabled={isSettingCardStatus}
-                justifyContent="space-between"
-                paddingVertical="$s4"
-                alignItems="center"
-                cursor="pointer"
-                onPress={() => {
-                  if (isSettingCardStatus) return;
-                  selectionAsync().catch(reportError);
-                  changeCardStatus("ACTIVE");
-                }}
-              >
-                <XStack alignItems="center" gap="$s3">
-                  <Square size={24}>
-                    {isSettingCardStatus ? (
-                      <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
-                    ) : (
-                      <Snowflake size={24} color="$interactiveBaseBrandDefault" />
-                    )}
-                  </Square>
-                  <Text subHeadline color="$uiNeutralPrimary">
-                    {t("Freeze card")}
-                  </Text>
-                </XStack>
-                <Switch checked={frozen}>
-                  <Switch.Thumb />
-                </Switch>
+              <XStack alignItems="center" gap="$s3">
+                <Square size={24}>
+                  {isSettingCardStatus ? (
+                    <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
+                  ) : (
+                    <Snowflake size={24} color="$interactiveBaseBrandDefault" />
+                  )}
+                </Square>
+                <Text subHeadline color="$uiNeutralPrimary">
+                  {t("Freeze card")}
+                </Text>
               </XStack>
-            </YStack>
-          )}
-          {!frozen && (
-            <YStack
-              key="pay-mode"
-              transition="default"
-              animateOnly={["opacity", "transform"]}
-              enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
-              exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
-            >
-              <PayModeToggle
-                spotlightRef={spotlightRef}
-                mode={mode}
-                onInstallmentsPress={onInstallmentsPress}
-                onModeChange={onModeChange}
-              />
-            </YStack>
-          )}
-        </AnimatePresence>
-      </YStack>
-      <AnimatePresence>
-        {!frozen && (
-          <YStack
-            key="limit-paginator"
-            transition="default"
-            animateOnly={["opacity", "transform"]}
-            enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
-            exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
-          >
-            <LimitPaginator
-              collateral={collateral}
-              creditLimit={creditLimit}
-              mode={mode}
-              onCreditLimitInfoPress={onCreditLimitInfoPress}
-              onSpendingLimitInfoPress={onSpendingLimitInfoPress}
-              spendingLimit={spendingLimit}
-            />
-          </YStack>
+              <Switch checked={frozen}>
+                <Switch.Thumb />
+              </Switch>
+            </XStack>
+          </AnimatedView>
         )}
-      </AnimatePresence>
-    </YStack>
+        {!frozen && (
+          <AnimatedView entering={FadeIn} exiting={FadeOut}>
+            <PayModeToggle
+              spotlightRef={spotlightRef}
+              mode={mode}
+              onInstallmentsPress={onInstallmentsPress}
+              onModeChange={onModeChange}
+            />
+          </AnimatedView>
+        )}
+      </YStack>
+      {!frozen && (
+        <AnimatedView entering={FadeIn} exiting={FadeOut}>
+          <LimitPaginator
+            collateral={collateral}
+            creditLimit={creditLimit}
+            mode={mode}
+            onCreditLimitInfoPress={onCreditLimitInfoPress}
+            onSpendingLimitInfoPress={onSpendingLimitInfoPress}
+            spendingLimit={spendingLimit}
+          />
+        </AnimatedView>
+      )}
+    </AnimatedView>
   );
 }
 

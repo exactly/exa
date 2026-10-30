@@ -1,16 +1,22 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { ArrowRight } from "@tamagui/lucide-icons-2";
 import { XStack, YStack } from "tamagui";
 
+import AnimatedView from "../shared/AnimatedView";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
 
 export default function VisaSignatureBanner({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
   return (
-    <XStack
+    <AnimatedView
+      entering={FadeIn}
+      exiting={FadeOut}
+      layout={LinearTransition}
+      flexDirection="row"
       backgroundColor="$backgroundBanner"
       borderRadius="$r4"
       alignItems="center"
@@ -42,6 +48,6 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
           contentFit="cover"
         />
       </YStack>
-    </XStack>
+    </AnimatedView>
   );
 }

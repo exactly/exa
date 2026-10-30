@@ -1,11 +1,12 @@
 import React, { use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { View as RNView } from "react-native";
+import { LinearTransition } from "react-native-reanimated";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { useToastController } from "@tamagui/toast";
-import { AnimatePresence, ScrollView, YStack } from "tamagui";
+import { ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -56,6 +57,7 @@ import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
+import AnimatedView from "../shared/AnimatedView";
 import FundingAlert from "../shared/FundingAlert";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -256,7 +258,7 @@ export default function Home() {
               )}
               <PluginUpgrade />
               <FundingAlert />
-              <YStack gap="$s5">
+              <AnimatedView layout={LinearTransition} gap="$s5">
                 <PortfolioSummary
                   collateralUSD={collateralUSD}
                   averageRate={averageRate}
@@ -264,40 +266,38 @@ export default function Home() {
                   totalBalanceUSD={totalBalanceUSD}
                 />
                 <HomeActions />
-              </YStack>
+              </AnimatedView>
             </YStack>
             {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
               <View paddingHorizontal="$s4" gap="$s5">
-                <AnimatePresence>
-                  {card && (
-                    <CardStatus
-                      collateral={collateralUSD}
-                      creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
-                      spotlightRef={spotlightRef}
-                      mode={card.mode}
-                      onCardPress={() => {
-                        router.push("/card");
-                      }}
-                      onCreditLimitInfoPress={() => {
-                        setCreditLimitSheetOpen(true);
-                      }}
-                      onDetailsPress={() => {
-                        setCardDetailsOpen(true);
-                      }}
-                      onInstallmentsPress={() => {
-                        setInstallmentsSheetOpen(true);
-                      }}
-                      onLearnMorePress={() => {
-                        setPayModeSheetOpen(true);
-                      }}
-                      onModeChange={handleModeChange}
-                      onSpendingLimitInfoPress={() => {
-                        setSpendingLimitSheetOpen(true);
-                      }}
-                      spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
-                    />
-                  )}
-                </AnimatePresence>
+                {card && (
+                  <CardStatus
+                    collateral={collateralUSD}
+                    creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
+                    spotlightRef={spotlightRef}
+                    mode={card.mode}
+                    onCardPress={() => {
+                      router.push("/card");
+                    }}
+                    onCreditLimitInfoPress={() => {
+                      setCreditLimitSheetOpen(true);
+                    }}
+                    onDetailsPress={() => {
+                      setCardDetailsOpen(true);
+                    }}
+                    onInstallmentsPress={() => {
+                      setInstallmentsSheetOpen(true);
+                    }}
+                    onLearnMorePress={() => {
+                      setPayModeSheetOpen(true);
+                    }}
+                    onModeChange={handleModeChange}
+                    onSpendingLimitInfoPress={() => {
+                      setSpendingLimitSheetOpen(true);
+                    }}
+                    spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
+                  />
+                )}
                 {card?.productId === PLATINUM_PRODUCT_ID && (
                   <VisaSignatureBanner
                     onPress={() => {
@@ -305,28 +305,28 @@ export default function Home() {
                     }}
                   />
                 )}
-                <AnimatePresence>
-                  {isKYCFetched && (!isKYCApproved || !bytecode) && (
-                    <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
-                  )}
-                </AnimatePresence>
+                {isKYCFetched && (!isKYCApproved || !bytecode) && (
+                  <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
+                )}
               </View>
             )}
             {isKYCFetched && (
-              <BenefitsSection
-                onExaPress={() => {
-                  if (card && card.status !== "FROZEN") openInstallments();
-                  else router.push("/card");
-                }}
-                onStocksPress={stocksAvailable ? openStocks : undefined}
-              />
+              <AnimatedView layout={LinearTransition}>
+                <BenefitsSection
+                  onExaPress={() => {
+                    if (card && card.status !== "FROZEN") openInstallments();
+                    else router.push("/card");
+                  }}
+                  onStocksPress={stocksAvailable ? openStocks : undefined}
+                />
+              </AnimatedView>
             )}
-            <View paddingHorizontal="$s4" gap="$s5">
+            <AnimatedView layout={LinearTransition} paddingHorizontal="$s4" gap="$s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
-            </View>
+            </AnimatedView>
           </View>
           <CardDetailsSheet
             open={cardDetailsOpen}
