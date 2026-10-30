@@ -60,7 +60,6 @@ import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
-import FundingAlert from "../shared/FundingAlert";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
@@ -302,7 +301,6 @@ export default function Home() {
                   }}
                 />
               )}
-              <FundingAlert />
               {!business && isKYCApproved && !!bytecode && card === null && (
                 <InfoAlert
                   title={t("Your Exa Card is ready. Activate it to make your first purchase.")}
