@@ -1,6 +1,7 @@
 const { getExpoTransformer, getReactNativeTransformer } = require("react-native-svg-transformer");
 const reactNativeSvgTransformer = require("react-native-svg-transformer/expo");
 
+const { readFileSync } = require("node:fs");
 const path = require("node:path");
 
 const rawTransformer = getExpoTransformer() ?? getReactNativeTransformer();
@@ -12,11 +13,12 @@ module.exports = function config() {
   /** @type {import('metro-config').InputConfigT} */
   const merged = {
     ...base,
-    cacheVersion: JSON.stringify(
-      Object.entries(process.env)
+    cacheVersion: JSON.stringify({
+      babel: readFileSync(path.join(__dirname, "babel.config.cjs"), "utf8"),
+      env: Object.entries(process.env)
         .filter(([key]) => key.startsWith("EXPO_PUBLIC_"))
         .toSorted(),
-    ),
+    }),
     resolver: {
       ...base.resolver,
       extraNodeModules: { crypto: require.resolve("react-native-quick-crypto") },
