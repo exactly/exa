@@ -34,9 +34,10 @@ jobs:
         id: dependencies
         with:
           path: |
+            ~/.cache/pnpm/lockfile-verified.jsonl
             ~/.local/share/svm
             /tmp/metro-cache
-          key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
           restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
       - id: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT" # cspell:ignore dbus
@@ -60,6 +61,7 @@ jobs:
         if: github.ref_name == 'main' && steps.dependencies.outputs.cache-hit != 'true'
         with:
           path: |
+            ~/.cache/pnpm/lockfile-verified.jsonl
             ~/.local/share/svm
             /tmp/metro-cache
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
@@ -144,9 +146,10 @@ jobs:
         id: dependencies
         with:
           path: |
+            ~/.cache/pnpm/lockfile-verified.jsonl
             ~/.local/share/svm
             /tmp/metro-cache
-          key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
           restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
       - id: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT"
@@ -190,6 +193,7 @@ jobs:
         if: github.ref_name == 'main' && matrix.flow == 'portfolio' && steps.dependencies.outputs.cache-hit != 'true'
         with:
           path: |
+            ~/.cache/pnpm/lockfile-verified.jsonl
             ~/.local/share/svm
             /tmp/metro-cache
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
