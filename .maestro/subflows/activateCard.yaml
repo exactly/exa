@@ -48,7 +48,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: Freeze card, below: "Freeze your card?" }
 - assertNotVisible: "Freeze your card?"
 - waitForAnimationToEnd
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: { file: scrollTo.yaml, env: { element: Exa Card pay mode } }
 - runFlow: { file: scrollTo.yaml, env: { element: Freeze card, center: true } }
 - tapOn: Freeze card
@@ -76,7 +76,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - pressKey: enter
       - assertVisible: \$0\.00
       - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Go back } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: { file: scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Credit limit
 - assertVisible: If you hold more than one asset, your limit is a weighted average across all of them. Any outstanding Pay Later balance also reduces your available credit limit.

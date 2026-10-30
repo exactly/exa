@@ -121,7 +121,7 @@ appId: ${APP_ID ?? "app.exactly"}
           env: { destination: "${destination}", to: "${to}", amount: "${amount}" }
       - assertVisible: Funds delivered on ${destination}
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }

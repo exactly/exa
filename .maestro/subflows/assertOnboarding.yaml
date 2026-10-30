@@ -10,7 +10,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Get started
 - assertVisible: Remaining steps
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - tapOn: Swap
 - assertVisible: Swap USDC for .+
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }

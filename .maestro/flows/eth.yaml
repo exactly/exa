@@ -7,12 +7,12 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: With connected wallet
 - tapOn: { text: "0", index: 0 }
 - inputText: "1"
+- pressKey: enter
 - tapOn: Transfer ETH
-- runFlow: ../subflows/sign.yaml
-- pressKey: escape
+- runFlow: { file: ../subflows/sign.yaml, env: { transaction: true } }
 - assertVisible: Add funds request sent
 - runScript: { file: ../dist/getBalance.js, env: { asset: ETH, account: "${output.account}" } }
 - assertTrue: ${output.balance === 1}
-- back
-- back
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/storeCoverage.yaml
