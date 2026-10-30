@@ -189,6 +189,7 @@ patchedDependencies:
   "@tamagui/slider": patches/@tamagui__slider.patch
   embedded-postgres: patches/embedded-postgres.patch
   eslint-config-universe: patches/eslint-config-universe.patch
+  prool@0.2.17: patches/prool@0.2.17.patch
   react-native-wagmi-charts: patches/react-native-wagmi-charts.patch
 peerDependencyRules:
   allowedVersions:

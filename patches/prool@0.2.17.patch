@@ -1,0 +1,37 @@
+diff --git a/dist/processes/execa.js b/dist/processes/execa.js
+index f528a7536e53146c5729b0681cfcede93e753ca1..9a05a34a9429d3ebf5a20bc19d86074d123145ca 100644
+--- a/dist/processes/execa.js
++++ b/dist/processes/execa.js
+@@ -53,7 +53,6 @@ export function execa(parameters) {
+             child.on('close', () => child.removeAllListeners());
+             child.on('exit', (code, signal) => {
+                 emitter.emit('exit', code, signal);
+-                child.removeAllListeners();
+                 if (status === 'starting')
+                     reject(new Error(`Failed to start process "${name}": ${errorMessages.length > 0
+                         ? `\n\n${errorMessages.join('\n')}`
+@@ -62,7 +61,6 @@ export function execa(parameters) {
+             return promise;
+         },
+         async stop() {
+-            process.removeAllListeners();
+             await stop(process);
+         },
+     };
+diff --git a/src/processes/execa.ts b/src/processes/execa.ts
+index 585b21d7e5b0b07028d5f9f68c01f81a83508808..3c42778316d2d0228e88ab388d9bd5a766c29fd2 100644
+--- a/src/processes/execa.ts
++++ b/src/processes/execa.ts
+@@ -96,4 +96,3 @@ export function execa(parameters: execa.Parameters): execa.ReturnType {
+-        child.removeAllListeners()
+         if (status === 'starting')
+           reject(
+             new Error(
+@@ -109,7 +108,6 @@ export function execa(parameters: execa.Parameters): execa.ReturnType {
+       return promise
+     },
+     async stop() {
+-      process.removeAllListeners()
+       await stop(process)
+     },
+   }
