@@ -1,5 +1,5 @@
-import React from "react";
-import { Platform } from "react-native";
+import React, { useEffect, useEffectEvent } from "react";
+import { BackHandler, Platform } from "react-native";
 
 import { Sheet } from "tamagui";
 
@@ -18,6 +18,15 @@ export default function ModalSheet({
   onClose: () => void;
   open: boolean;
 }) {
+  const onBack = useEffectEvent(() => {
+    onClose();
+    return true;
+  });
+  useEffect(() => {
+    if (!open || !dismissible) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBack);
+    return () => subscription.remove();
+  }, [open, dismissible]);
   return (
     <Sheet
       open={open}
