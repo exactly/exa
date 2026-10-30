@@ -20,6 +20,7 @@ import {
   hexToBigInt,
   http,
   padHex,
+  parseEther,
   parseEventLogs,
   publicActions,
   toHex,
@@ -40,11 +41,16 @@ import chain, {
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
+  mockSwapperAbi,
+  proposalManagerAbi,
+  swapperAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
+  wethAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
 import deploy from "@exactly/plugin/deploy.json";
@@ -52,6 +58,7 @@ import deploy from "@exactly/plugin/deploy.json";
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import authenticate from "../../middleware/auth";
+import { signIssuerOp } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
@@ -1264,7 +1271,7 @@ describe.concurrent("authenticated", () => {
           args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
         }),
       });
-      const { logs } = await anvilClient.waitForTransactionReceipt({
+      const { blockNumber: block, logs } = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: depositor,
           abi: upgradeableModularAccountAbi,
@@ -1313,6 +1320,17 @@ describe.concurrent("authenticated", () => {
       const deposits = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs });
 
       expect(new Set(deposits.map(({ logIndex }) => String(logIndex).length))).toStrictEqual(new Set([1, 2]));
+
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+        },
+        { timeout: 10_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "received" } },
@@ -1532,6 +1550,16 @@ describe.concurrent("authenticated", () => {
 
       expect(withdraw.args.shares).toBe(shares);
       expect(withdraw.args.assets).toBeGreaterThan(shares);
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(withdraw.blockNumber));
+        },
+        { timeout: 10_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -1551,6 +1579,319 @@ describe.concurrent("authenticated", () => {
           timestamp: new Date(Number(timestamp) * 1000).toISOString(),
         },
       ]);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("returns weth withdraws executed by the account in one batch", async () => {
+      const owner = createWalletClient({
+        chain,
+        transport: http(),
+        account: privateKeyToAccount(generatePrivateKey()),
+      });
+      const withdrawer = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+      const receivers = [padHex("0x420", { size: 20 }), padHex("0x421", { size: 20 })] as const;
+      await Promise.all([
+        anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+        database.insert(credentials).values({
+          id: owner.account.address,
+          publicKey: new Uint8Array(),
+          account: withdrawer,
+          factory: exaAccountFactoryAddress,
+        }),
+      ]);
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: exaAccountFactoryAddress,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.sendTransaction({ to: wethAddress, value: parseEther("0.106") }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: wethAddress,
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [
+            await anvilClient.readContract({
+              address: exaPluginAddress,
+              abi: exaPluginAbi,
+              functionName: "flashLoaner",
+            }),
+            parseEther("0.006"),
+          ],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: wethAddress,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [marketWETHAddress, parseEther("0.1")],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: marketWETHAddress,
+          abi: marketAbi,
+          functionName: "deposit",
+          gas: 6_666_666n,
+          args: [parseEther("0.1"), withdrawer],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: withdrawer,
+          abi: upgradeableModularAccountAbi,
+          functionName: "execute",
+          gas: 6_666_666n,
+          args: [
+            auditorAddress,
+            0n,
+            encodeFunctionData({ abi: auditorAbi, functionName: "enterMarket", args: [marketWETHAddress] }),
+          ],
+        }),
+      });
+      const { timestamp: now } = await anvilClient.getBlock();
+      const maturity = now - (now % 2_419_200n) + 2_419_200n;
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: withdrawer,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          gas: 6_666_666n,
+          args: [
+            (
+              [
+                [
+                  marketWETHAddress,
+                  parseEther("0.01"),
+                  ProposalType.Withdraw,
+                  encodeAbiParameters([{ type: "address" }], [receivers[0]]),
+                ],
+                [
+                  marketWETHAddress,
+                  parseEther("0.005"),
+                  ProposalType.BorrowAtMaturity,
+                  encodeAbiParameters(
+                    [
+                      {
+                        type: "tuple",
+                        components: [
+                          { name: "maturity", type: "uint256" },
+                          { name: "maxAssets", type: "uint256" },
+                          { name: "receiver", type: "address" },
+                        ],
+                      },
+                    ],
+                    [{ maturity, maxAssets: parseEther("0.006"), receiver: withdrawer }],
+                  ),
+                ],
+                [
+                  marketWETHAddress,
+                  parseEther("0.006"),
+                  ProposalType.RepayAtMaturity,
+                  encodeAbiParameters(
+                    [
+                      {
+                        type: "tuple",
+                        components: [
+                          { name: "maturity", type: "uint256" },
+                          { name: "positionAssets", type: "uint256" },
+                        ],
+                      },
+                    ],
+                    [{ maturity, positionAssets: parseEther("0.006") }],
+                  ),
+                ],
+                [
+                  marketWETHAddress,
+                  parseEther("0.02"),
+                  ProposalType.Withdraw,
+                  encodeAbiParameters([{ type: "address" }], [receivers[1]]),
+                ],
+              ] as const
+            ).map((args) => ({
+              target: withdrawer,
+              value: 0n,
+              data: encodeFunctionData({ abi: exaPluginAbi, functionName: "propose", args }),
+            })),
+          ],
+        }),
+      });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      const receipt = await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: withdrawer,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          gas: 6_666_666n,
+          args: [
+            [0n, 1n, 2n, 3n].map((nonce) => ({
+              target: withdrawer,
+              value: 0n,
+              data: encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] }),
+            })),
+          ],
+        }),
+      });
+      const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
+      const { timestamp } = await anvilClient.getBlock({ blockNumber: receipt.blockNumber });
+      await indexed(receipt.blockNumber);
+
+      const response = await appClient.index.$get(
+        { query: { include: "sent" } },
+        { headers: { "test-credential-id": owner.account.address } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(withdraws.map(({ args: { receiver, assets } }) => ({ receiver, assets }))).toStrictEqual([
+        { receiver: exaPluginAddress, assets: parseEther("0.01") },
+        { receiver: exaPluginAddress, assets: expect.any(BigInt) as bigint },
+        { receiver: exaPluginAddress, assets: parseEther("0.02") },
+      ]);
+      await expect(response.json()).resolves.toStrictEqual(
+        withdraws
+          .filter((_, index) => index !== 1)
+          .map(({ logIndex }, index) => ({
+            id: `${chain.id}:${receipt.blockNumber}:${receipt.transactionIndex}:${logIndex}`,
+            type: "sent",
+            currency: "WETH",
+            amount: 0.01 * (index + 1),
+            usdAmount: 25 * (index + 1),
+            receiver: receivers[index],
+            transactionHash: receipt.transactionHash,
+            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+          }))
+          .toReversed(),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("omits weth collected by the plugin", async () => {
+      const owner = createWalletClient({
+        chain,
+        transport: http(),
+        account: privateKeyToAccount(generatePrivateKey()),
+      });
+      const collected = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+      await Promise.all([
+        anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+        database.insert(credentials).values({
+          id: owner.account.address,
+          publicKey: new Uint8Array(),
+          account: collected,
+          factory: exaAccountFactoryAddress,
+        }),
+      ]);
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: exaAccountFactoryAddress,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.sendTransaction({ to: wethAddress, value: parseEther("0.05") }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: wethAddress,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [marketWETHAddress, parseEther("0.05")],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: marketWETHAddress,
+          abi: marketAbi,
+          functionName: "deposit",
+          gas: 6_666_666n,
+          args: [parseEther("0.05"), collected],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: collected,
+          abi: upgradeableModularAccountAbi,
+          functionName: "execute",
+          gas: 6_666_666n,
+          args: [
+            collected,
+            0n,
+            encodeFunctionData({
+              abi: exaPluginAbi,
+              functionName: "propose",
+              args: [
+                marketWETHAddress,
+                parseEther("0.01"),
+                ProposalType.Withdraw,
+                encodeAbiParameters([{ type: "address" }], [padHex("0x420", { size: 20 })]),
+              ],
+            }),
+          ],
+        }),
+      });
+      const amount = 10_000_000n;
+      const maxAmountIn = await anvilClient.readContract({
+        address: swapperAddress,
+        abi: mockSwapperAbi,
+        functionName: "getAmountIn",
+        args: [wethAddress, amount, usdcAddress],
+      });
+      const { timestamp } = await anvilClient.getBlock();
+      const receipt = await wallet(privateKeyToAccount(padHex("0x69"))).exaSend(
+        { name: "collect collateral", op: "exa.collect" },
+        {
+          address: collected,
+          abi: exaPluginAbi,
+          functionName: "collectCollateral",
+          args: [
+            amount,
+            marketWETHAddress,
+            maxAmountIn,
+            timestamp,
+            encodeFunctionData({
+              abi: mockSwapperAbi,
+              functionName: "swapExactAmountOut",
+              args: [wethAddress, maxAmountIn, usdcAddress, amount, exaPluginAddress],
+            }),
+            await signIssuerOp(
+              { account: collected, amount, timestamp: Number(timestamp) },
+              privateKeyToAccount(padHex("0x420")),
+            ),
+          ],
+        },
+      );
+      assert.ok(receipt);
+      await indexed(receipt.blockNumber);
+
+      const response = await appClient.index.$get(
+        { query: { include: "sent" } },
+        { headers: { "test-credential-id": owner.account.address } },
+      );
+
+      expect(
+        parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs }).map(({ args }) => args),
+      ).toStrictEqual([
+        {
+          caller: collected,
+          receiver: exaPluginAddress,
+          owner: collected,
+          assets: maxAmountIn,
+          shares: expect.any(BigInt) as bigint,
+        },
+      ]);
+      expect(
+        parseEventLogs({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", logs: receipt.logs }),
+      ).toStrictEqual([]);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([]);
       expect(captureException).not.toHaveBeenCalled();
     });
   });
@@ -1898,4 +2239,17 @@ function retried(createdAt: number) {
       spend: { ...spendTemplate, amount: 23_253, localAmount: 23_253, localCurrency: "usd" },
     },
   };
+}
+
+async function indexed(block: bigint) {
+  await vi.waitFor(
+    async () => {
+      const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+        string,
+        { block: { number: number } }
+      >;
+      expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+    },
+    { timeout: 10_000 },
+  );
 }
