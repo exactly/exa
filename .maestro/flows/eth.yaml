@@ -14,5 +14,5 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript: { file: ../dist/getBalance.js, env: { asset: ETH, account: "${output.account}" } }
 - assertTrue: ${output.balance === 1}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/storeCoverage.yaml

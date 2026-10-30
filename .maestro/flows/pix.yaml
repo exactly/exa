@@ -26,6 +26,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: ../subflows/pix.yaml
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/assertBenefits.yaml
 - runFlow: ../subflows/storeCoverage.yaml
