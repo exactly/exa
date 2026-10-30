@@ -159,7 +159,7 @@ export default function RepayAmountSelector({
             max={Number(totalPositionRepay) / 1e6}
             step={sliderStep}
           >
-            <Slider.Track backgroundColor="backgroundBrandMild" borderRadius={100_000} overflow="hidden">
+            <Slider.Track height="100%" backgroundColor="backgroundBrandMild" borderRadius="r_0" overflow="hidden">
               <Slider.TrackActive backgroundColor="uiBrandSecondary" />
             </Slider.Track>
             <Slider.Thumb
