@@ -147,7 +147,7 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
-          ./codecov upload-coverage --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F android -n android --build-url ${{ workflow.url }} --git-service github &
+          ./codecov upload-coverage --plugin noop --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F android -n android --build-url ${{ workflow.url }} --git-service github &
           ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F android -n android --build-url ${{ workflow.url }} --git-service github
           wait $!
           pkill -f "adb logcat" || true
@@ -261,7 +261,7 @@ jobs:
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
       - name: start simulators # cspell:ignore bootstatus datamigrator UICT udid
         run: |
-          for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone 17" >> simulators.udid; done
+          for i in 1 2 3 4; do xcrun simctl create "e2e$i" "iPhone SE (3rd generation)" >> simulators.udid; done
           for udid in $(cat simulators.udid); do
             mkdir -p -m 700 "/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid"
             cp .eas/disabled.plist "/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid/"
@@ -278,8 +278,9 @@ jobs:
           xcrun simctl spawn "$(sed -n 3p simulators.udid)" defaults write com.apple.UIKit UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
       - name: prepare devices
         run: |
+          for udid in $(cat simulators.udid); do xcrun simctl install "$udid" "${{ steps.repack.outputs.output_path }}" & installs="$installs $!"; done
+          for install in $installs; do wait "$install"; done
           for udid in $(cat simulators.udid); do
-            xcrun simctl install "$udid" "${{ steps.repack.outputs.output_path }}"
             xcrun simctl spawn "$udid" log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > "simulator-$udid.log" 2>&1 &
           done
           for i in {1..420}; do
@@ -294,7 +295,7 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -Os https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
-          ./codecov upload-coverage --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F ios -n ios --build-url ${{ workflow.url }} --git-service github &
+          ./codecov upload-coverage --plugin noop --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F ios -n ios --build-url ${{ workflow.url }} --git-service github &
           ./codecov do-upload --report-type test_results --disable-search -f .maestro/junit.xml -F ios -n ios --build-url ${{ workflow.url }} --git-service github
           wait $!
           pkill -f "log stream" || true
