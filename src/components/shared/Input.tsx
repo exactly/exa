@@ -8,6 +8,8 @@ export default styled(Input, {
   letterSpacing: "4",
   height: "4",
   padding: "s3",
+  paddingStart: "s3",
+  paddingEnd: "s3",
   borderColor: "borderBrandStrong hover:borderBrandStrong focus:borderBrandStrong focus-visible:borderBrandStrong",
   color: "uiNeutralPrimary",
   borderRadius: "r3",
