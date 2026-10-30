@@ -34,7 +34,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, credentialId),
-        columns: { publicKey: true, account: true, factory: true },
+        columns: { publicKey: true, account: true, factory: true, salt: true },
       });
       if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
       setUser({ id: parse(Address, credential.account) });
@@ -42,6 +42,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         {
           credentialId,
           factory: parse(Address, credential.factory),
+          salt: parse(Address, credential.salt),
           ...decodePublicKey(credential.publicKey),
         } satisfies InferOutput<typeof Credential>,
         200,
