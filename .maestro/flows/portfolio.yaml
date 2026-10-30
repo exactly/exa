@@ -15,11 +15,11 @@ tags: [broad]
     env: { asset: USDC.e, network: Anvil2, to: "${output.account}", amount: "100" }
 - tapOn: Manage portfolio
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: "(.*, )?USDC\\.e(, .*)?" } }
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Borrow, center: true } }
 - tapOn: Borrow
 - assertVisible: Explore funding options
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
 - tapOn: { text: Home, leftOf: Card }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Deposit } }
 - tapOn: Digital assets

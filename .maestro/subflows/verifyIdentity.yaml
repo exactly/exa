@@ -74,7 +74,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - repeat: { times: 6, commands: [{ tapOn: square }] }
       - tapOn: Continue
       - tapOn: Done
-      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow:
     when: { visible: Getting Started }
     commands:
