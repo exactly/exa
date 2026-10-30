@@ -100,6 +100,7 @@ jobs:
 
   e2e:
     if: github.ref_name != 'beta' || github.event.head_commit.distinct
+    permissions: { actions: read, contents: read }
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -130,14 +131,14 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
       - id: script
-        run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
+        run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: |
             ~/.local/share/svm
             .maestro/build
             /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch', 'contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
           restore-keys: deps-${{ runner.os }}-${{ github.job }}-
       - id: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT"
@@ -152,6 +153,9 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
+      - if: github.ref_name == 'main'
+        run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 600 gh run watch -i 10 "$run" > /dev/null || true; done
+        env: { GH_TOKEN: "${{ github.token }}" }
       - if: matrix.method == 'metamask'
         id: metamask
         uses: actions/cache/restore@v6
@@ -205,22 +209,3 @@ jobs:
             ~/.maestro/tests
             .maestro/screenshots
           include-hidden-files: true
-
-  maestro:
-    if: github.ref_name == 'main'
-    runs-on: ubuntu-latest
-    permissions: { contents: read, packages: write }
-    env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/maestro
-    steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0, fetch-tags: true, filter: blob:none, persist-credentials: false }
-      - uses: actions/setup-node@v7
-        with: { node-version: "^24.14.1" }
-      - uses: oras-project/setup-oras@v1 # cspell:ignore oras
-      - run: corepack enable
-      - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e
-      - uses: docker/login-action@v4
-        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
-      - run: oras manifest fetch "$IMAGE:$(cat .maestro/build/hash)" > /dev/null || { tar -czf maestro.tgz --exclude hash -C .maestro/build . && oras push "$IMAGE:$(cat .maestro/build/hash)" maestro.tgz:application/vnd.oci.image.layer.v1.tar+gzip; }
