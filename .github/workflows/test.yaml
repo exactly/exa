@@ -140,8 +140,6 @@ jobs:
         with: { version: v1.7.1, cache: false }
       - id: script
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
-        with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - uses: actions/cache/restore@v6
         id: dependencies
         with:
@@ -163,6 +161,8 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
+      - uses: actions/cache@v6
+        with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - if: github.ref_name == 'main'
         run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 600 gh run watch -i 10 "$run" > /dev/null || true; done
         env: { GH_TOKEN: "${{ github.token }}" }
