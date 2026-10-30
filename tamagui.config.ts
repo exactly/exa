@@ -218,6 +218,7 @@ const tokens = createTokens({
     primaryLight7: "#83CDC1",
     primaryLight8: "#53B9AB",
     primaryLight9: "#12A594",
+    shadow: "#000000",
   },
   space,
   radius: { 0: 0, r0: 0, r1: 2, r2: 4, r2_5: 5.5, r3: 8, r4: 12, r5: 16, r6: 20, r_0: 9999 },

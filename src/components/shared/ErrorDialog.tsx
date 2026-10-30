@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { Platform } from "react-native";
 
 import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
@@ -42,6 +43,15 @@ export default function ErrorDialog({
           scale="1 enter:0.9 exit:0.95"
           opacity="1 enter:0 exit:0"
           borderWidth={0}
+          elevate={false}
+          {...(Platform.OS !== "web" && {
+            shadowColor: "shadow",
+            shadowOpacity: 1,
+            shadowRadius: "s5",
+            shadowOffset: { width: 0, height: 12 },
+            elevation: 24,
+          })}
+          padding={0}
           margin="s5"
           key="content"
         >
