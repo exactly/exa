@@ -3,14 +3,14 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
-import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
-import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { getTokens, ScrollView, YStack } from "tamagui";
 
 import { parse } from "valibot";
 
 import LoanSummary from "./LoanSummary";
+import { ArrowLeft } from "../../generated/icons/ArrowLeft";
+import { ArrowRight } from "../../generated/icons/ArrowRight";
+import { CircleHelp } from "../../generated/icons/CircleHelp";
 import { presentArticle } from "../../utils/intercom";
 import Loan from "../../utils/Loan";
 import reportError from "../../utils/reportError";
@@ -33,14 +33,7 @@ export default function Installments() {
   if (!market || !amount || (markets && !asset)) return <Redirect href="/loan" />;
   return (
     <SafeView fullScreen paddingBottom={0}>
-      <View
-        padded
-        flexDirection="row"
-        gap="$s3_5"
-        paddingBottom="$s4"
-        justifyContent="space-between"
-        alignItems="center"
-      >
+      <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}
           aria-label={t("Back")}
@@ -61,14 +54,14 @@ export default function Installments() {
         />
       </View>
       <ScrollView
-        backgroundColor="$backgroundMild"
+        backgroundColor="backgroundMild"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1 }}
       >
-        <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
-          <YStack gap="$s4">
-            <YStack gap="$s6">
-              <YStack gap="$s4_5">
+        <YStack padding="s4" gap="s4" flex={1} justifyContent="space-between">
+          <YStack gap="s4">
+            <YStack gap="s6">
+              <YStack gap="s4_5">
                 <Text primary emphasized body>
                   {t("Select your funding installment plan")}
                 </Text>
@@ -86,10 +79,10 @@ export default function Installments() {
         </YStack>
       </ScrollView>
       <YStack
-        gap="$s4"
-        padding="$s4"
-        paddingBottom={insets.bottom + getTokens().space.$s4.val}
-        backgroundColor="$backgroundSoft"
+        gap="s4"
+        padding="s4"
+        paddingBottom={insets.bottom + getTokens().space.s4.val}
+        backgroundColor="backgroundSoft"
       >
         {installments ? <LoanSummary market={market} amount={amount} installments={installments} /> : null}
         <Button

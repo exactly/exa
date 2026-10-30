@@ -9,7 +9,6 @@ import { isBase } from "@exactly/common/generated/chain";
 
 import tamagui from "../../../tamagui.config";
 import NotificationToast from "../shared/Toast";
-import SafeToastViewport from "../shared/ToastViewport";
 
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useColorScheme();
@@ -18,7 +17,6 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     <TamaguiProvider config={tamagui} defaultTheme={dark ? "dark" : "light"}>
       {children}
       <NotificationToast />
-      <SafeToastViewport />
       <StatusBar style={dark ? "light" : "dark"} />
     </TamaguiProvider>
   );

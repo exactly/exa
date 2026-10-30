@@ -1,8 +1,8 @@
 import React, { type ReactNode } from "react";
 
-import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { XStack, YStack } from "tamagui";
 
+import { Info } from "../../generated/icons/Info";
 import Text from "../shared/Text";
 
 export default function AssetSection({
@@ -16,20 +16,20 @@ export default function AssetSection({
 }) {
   return (
     <YStack
-      paddingVertical="$s3"
+      paddingVertical="s3"
       transition="default"
-      enterStyle={{ opacity: 0, transform: [{ translateY: 20 }] }}
-      transform={[{ translateY: 0 }]}
+      opacity="enter:0"
+      transform="translateY(0px) enter:translateY(20px)"
     >
       {title ? (
-        <XStack padding="$s4" alignItems="center" gap="$s2" cursor="pointer" onPress={onInfoPress}>
-          <Text emphasized headline color="$uiNeutralPrimary">
+        <XStack padding="s4" alignItems="center" gap="s2" cursor="pointer" onPress={onInfoPress}>
+          <Text emphasized headline color="uiNeutralPrimary">
             {title}
           </Text>
-          <Info size={16} color="$interactiveOnBaseBrandSoft" />
+          <Info size={16} color="interactiveOnBaseBrandSoft" />
         </XStack>
       ) : null}
-      <YStack paddingHorizontal="$s4" paddingTop="$s4" paddingBottom="$s4_5" gap="$s6">
+      <YStack paddingHorizontal="s4" paddingTop="s4" paddingBottom="s4_5" gap="s6">
         {children}
       </YStack>
     </YStack>

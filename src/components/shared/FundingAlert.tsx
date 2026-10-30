@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 
 import { useMutation } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
@@ -25,7 +25,6 @@ import type { Swap } from "../swaps/Swaps";
 export default function FundingAlert() {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
   const { address: account } = useAccount();
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { approved: isKYCApproved, isFetched: isKYCFetched } = useKYC();
@@ -54,10 +53,7 @@ export default function FundingAlert() {
     },
     onError: (error) => {
       reportError(error);
-      toast.show(t("An error occurred. Please try again later."), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
     },
     onSuccess: () => {
       router.push("/swaps");

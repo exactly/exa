@@ -14,6 +14,7 @@
     "prepare": "GITHUB_STEP_SUMMARY= NX_DAEMON=false NX_ISOLATE_PLUGINS=false nx run-many -t prepare",
     "prepare:generated": "mkdir -p src/generated",
     "generate:expo": "expo customize tsconfig.json",
+    "generate:icons": "rm -rf src/generated/icons && tamagui icons add $(grep -rhoE --include='*.ts' --include='*.tsx' --exclude-dir=generated 'generated/icons/[A-Za-z0-9]+' src | cut -d/ -f3) --from node_modules/lucide-static/icons --out src/generated/icons",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
     "generate:version": "echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
     "e2e:iphone": "maestro start-device --platform=ios --os-version=26 --device-locale=es-419",
@@ -54,9 +55,8 @@
     "@sentry/react-native": "^8.6.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@tamagui/animations-reanimated": "catalog:",
-    "@tamagui/config": "catalog:",
     "@tamagui/core": "catalog:",
-    "@tamagui/lucide-icons-2": "catalog:",
+    "@tamagui/helpers-icon": "catalog:",
     "@tamagui/native": "catalog:",
     "@tamagui/toast": "catalog:",
     "@tanstack/query-async-storage-persister": "^5.95.2",
@@ -140,7 +140,7 @@
     "@nx/js": "catalog:",
     "@spotlightjs/spotlight": "^4.11.3",
     "@svgr/core": "^8.1.0",
-    "@tamagui/babel-plugin": "catalog:",
+    "@tamagui/cli": "catalog:",
     "@types/babel__core": "^7.20.5",
     "@types/d3-shape": "3.1.8",
     "@types/fast-text-encoding": "^1.0.3",
@@ -160,6 +160,7 @@
     "expo-doctor": "^1.18.14",
     "gitmojis": "^3.15.0",
     "hono-rate-limiter": "^0.5.3",
+    "lucide-static": "1.49.0",
     "markdownlint-cli2": "^0.23.1",
     "metro-config": "^0.81.0",
     "nx": "catalog:",
@@ -237,6 +238,7 @@
         "dependsOn": [
           "^prepare",
           "generate:expo",
+          "generate:icons",
           "generate:release",
           "generate:version"
         ],
@@ -248,6 +250,22 @@
         ],
         "outputs": [
           "{projectRoot}/expo-env.d.ts"
+        ]
+      },
+      "generate:icons": {
+        "inputs": [
+          {
+            "runtime": "grep -rhoE --include='*.ts' --include='*.tsx' --exclude-dir=generated 'generated/icons/[A-Za-z0-9]+' src | sort -u"
+          },
+          {
+            "externalDependencies": [
+              "@tamagui/cli",
+              "lucide-static"
+            ]
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/src/generated/icons"
         ]
       },
       "generate:release": {

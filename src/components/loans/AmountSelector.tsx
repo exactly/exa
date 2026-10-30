@@ -31,14 +31,14 @@ export default function AmountSelector({
 
   return (
     <YStack
-      gap="$s3"
-      borderRadius="$r3"
-      backgroundColor="$backgroundSoft"
-      paddingTop="$s6"
-      paddingBottom="$s5"
-      paddingHorizontal="$s4"
+      gap="s3"
+      borderRadius="r3"
+      backgroundColor="backgroundSoft"
+      paddingTop="s6"
+      paddingBottom="s5"
+      paddingHorizontal="s4"
     >
-      <YStack gap="$s6">
+      <YStack gap="s6">
         <YStack maxWidth="80%" minWidth="60%" alignSelf="center">
           <XStack
             justifyContent="center"
@@ -46,7 +46,7 @@ export default function AmountSelector({
             alignItems="center"
             hitSlop={15}
             flexShrink={1}
-            gap="$s2"
+            gap="s2"
             maxWidth="80%"
             height={60}
           >
@@ -72,7 +72,7 @@ export default function AmountSelector({
                 setFocused(false);
               }}
               value={input ?? (value > 0n && selectedMarket ? formatUnits(value, selectedMarket.decimals) : "")}
-              color={warning ? "$interactiveBaseErrorDefault" : "$uiNeutralPrimary"}
+              color={warning ? "interactiveBaseErrorDefault" : "uiNeutralPrimary"}
               alignSelf="center"
               borderWidth={0}
               fontSize={34}
@@ -80,7 +80,7 @@ export default function AmountSelector({
               letterSpacing={-0.2}
               cursor="pointer"
               textAlign="center"
-              backgroundColor="$backgroundSoft"
+              backgroundColor="backgroundSoft"
               borderBottomLeftRadius={0}
               borderBottomRightRadius={0}
               flex={1}
@@ -88,10 +88,10 @@ export default function AmountSelector({
           </XStack>
           <Separator
             height={1}
-            borderColor={warning ? "$borderErrorStrong" : focused ? "$borderBrandStrong" : "$borderNeutralSoft"}
+            borderColor={warning ? "borderErrorStrong" : focused ? "borderBrandStrong" : "borderNeutralSoft"}
           />
         </YStack>
-        <XStack gap="$s4" justifyContent="center" flexWrap="wrap" alignItems="center">
+        <XStack gap="s4" justifyContent="center" flexWrap="wrap" alignItems="center">
           {Array.from({ length: 4 }).map((_, index) => {
             const percentage = index === 0 ? 5 : index * 25;
             const amount = (borrowAvailable * BigInt(percentage)) / 100n;
@@ -101,19 +101,19 @@ export default function AmountSelector({
               <XStack
                 key={percentage}
                 borderWidth={1}
-                borderRadius="$r_0"
+                borderRadius="r_0"
                 alignItems="center"
                 justifyContent="center"
-                paddingVertical="$s2"
-                paddingHorizontal="$s4"
-                borderColor={selected ? (danger ? "$borderErrorStrong" : "$borderBrandStrong") : "$borderNeutralSoft"}
+                paddingVertical="s2"
+                paddingHorizontal="s4"
+                borderColor={selected ? (danger ? "borderErrorStrong" : "borderBrandStrong") : "borderNeutralSoft"}
                 cursor="pointer"
                 backgroundColor={
                   selected
                     ? danger
-                      ? "$interactiveBaseErrorSoftDefault"
-                      : "$interactiveBaseBrandSoftDefault"
-                    : "$backgroundMild"
+                      ? "interactiveBaseErrorSoftDefault"
+                      : "interactiveBaseBrandSoftDefault"
+                    : "backgroundMild"
                 }
                 onPress={() => {
                   if (!selectedMarket) return;
@@ -125,9 +125,9 @@ export default function AmountSelector({
                   color={
                     selected
                       ? danger
-                        ? "$interactiveOnBaseErrorSoft"
-                        : "$interactiveOnBaseBrandSoft"
-                      : "$uiNeutralSecondary"
+                        ? "interactiveOnBaseErrorSoft"
+                        : "interactiveOnBaseBrandSoft"
+                      : "uiNeutralSecondary"
                   }
                   footnote
                   textAlign="center"

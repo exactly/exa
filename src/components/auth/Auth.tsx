@@ -7,9 +7,6 @@ import Carousel from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
-import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
-import { LogIn } from "@tamagui/lucide-icons-2/icons/LogIn";
-import { UserPlus } from "@tamagui/lucide-icons-2/icons/UserPlus";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -23,6 +20,9 @@ import Pagination from "./Pagination";
 import calendar from "../../assets/images/calendar.webp";
 import creditCard from "../../assets/images/credit-card.webp";
 import earnArrow from "../../assets/images/earn-arrow.webp";
+import { Headphones } from "../../generated/icons/Headphones";
+import { LogIn } from "../../generated/icons/LogIn";
+import { UserPlus } from "../../generated/icons/UserPlus";
 import { loginUnidentified, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
@@ -122,12 +122,12 @@ export default function Auth() {
   const loading = loadingAuth || loadingContext || loadingOwner;
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="backgroundSoft">
       {!loadingContext && !embeddingContext && (
         <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch" zIndex={1}>
           <IconButton
             icon={Headphones}
-            color="$uiNeutralSecondary"
+            color="uiNeutralSecondary"
             aria-label={t("Contact support")}
             onPress={() => {
               loginUnidentified().then(present).catch(reportError);
@@ -152,7 +152,7 @@ export default function Auth() {
         )}
       </View>
       <View padded flexDirection="column" alignSelf="stretch" alignItems="center" justifyContent="flex-end">
-        <View flexDirection="column" alignSelf="stretch" gap="$s6">
+        <View flexDirection="column" alignSelf="stretch" gap="s6">
           <View flexDirection="row" justifyContent="center">
             <Pagination
               length={pages.length}
@@ -161,7 +161,7 @@ export default function Auth() {
               isScrolling={isScrolling}
             />
           </View>
-          <View gap="$s3" paddingHorizontal="$s5" opacity={measured ? 1 : 0}>
+          <View gap="s3" paddingHorizontal="s5" opacity={measured ? 1 : 0}>
             <View>
               {pages.map((page) => (
                 <Text
@@ -170,7 +170,7 @@ export default function Auth() {
                   title
                   centered
                   fontSize={title.size}
-                  lineHeight={title.size * 1.3}
+                  lineHeight={`${title.size * 1.3}px`}
                   position="absolute"
                   left={0}
                   right={0}
@@ -197,7 +197,7 @@ export default function Auth() {
                 title
                 centered
                 fontSize={title.size}
-                lineHeight={title.size * 1.3}
+                lineHeight={`${title.size * 1.3}px`}
                 height={Math.max(title.size * 2.6 * fontScale, ...Object.values(title.heights))}
               >
                 {t(currentItem.title)}
@@ -232,7 +232,7 @@ export default function Auth() {
               </Text>
             </View>
           </View>
-          <View alignItems="stretch" alignSelf="stretch" gap="$s3">
+          <View alignItems="stretch" alignSelf="stretch" gap="s3">
             <View flexDirection="row" alignSelf="stretch">
               <Button
                 primary

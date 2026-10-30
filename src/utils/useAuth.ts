@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 
 import { useMutation } from "@tanstack/react-query";
 import { getConnection, switchChain } from "@wagmi/core";
@@ -20,7 +20,6 @@ import type { TFunction } from "i18next";
 
 export default function useAuth(onDomainError: () => void, onSuccess?: (credential: Credential) => unknown) {
   const { t } = useTranslation();
-  const toast = useToastController();
   const { mutateAsync: connectExa } = useConnect();
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
@@ -41,28 +40,21 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
     },
     onSuccess,
     onError: (error: unknown, { method, register }) => {
-      handleError(error, toast, onDomainError, t, method === "siwe" || !register);
+      handleError(error, onDomainError, t, method === "siwe" || !register);
     },
   });
   return { signIn, ...mutation };
 }
 
-function handleError(
-  error: unknown,
-  toast: ReturnType<typeof useToastController>,
-  onDomainError: () => void,
-  t: TFunction,
-  auth: boolean,
-) {
+function handleError(error: unknown, onDomainError: () => void, t: TFunction, auth: boolean) {
   if (
     error instanceof Error &&
     (("code" in error && error.code === "ERR_BIOMETRIC") || error.message.includes("Biometrics must be enabled"))
   ) {
     if (!auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
-    toast.show(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
+    toast.error(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
       duration: 3000,
-      burntOptions: { haptic: "error", preset: "error" },
     });
     return;
   }
@@ -71,17 +63,13 @@ function handleError(
     const cancelled = bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     if (!cancelled && !auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
-    toast.show(t("Authentication cancelled"), {
-      duration: 1000,
-      burntOptions: { haptic: "error", preset: "error" },
-    });
+    toast.error(t("Authentication cancelled"), { duration: 1000 });
     return;
   }
   if (error instanceof APIError && error.text === "backup eligibility required") {
     reportError(error, { level: "warning" });
-    toast.show(t("Your password manager does not support passkey backups. Please try a different one"), {
+    toast.error(t("Your password manager does not support passkey backups. Please try a different one"), {
       duration: 1000,
-      burntOptions: { haptic: "error", preset: "error" },
     });
     return;
   }
@@ -91,10 +79,7 @@ function handleError(
   ) {
     onDomainError();
   } else {
-    toast.show(t("Something went wrong. Please try again."), {
-      duration: 1000,
-      burntOptions: { haptic: "error", preset: "error" },
-    });
+    toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
   }
   if (auth && queryClient.getQueryState(["auth"])?.error === error) return;
   reportError(error);

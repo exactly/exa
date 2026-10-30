@@ -39,13 +39,11 @@ export default function ModalSheet({
         modal
         {...(Platform.OS === "web" ? {} : { containerComponent: SheetWindow, portalProps: { passThrough: true } })}
       >
-        <Sheet.Overlay
-          backgroundColor="#00000090"
-          transition="default"
-          enterStyle={{ opacity: 0 }}
-          exitStyle={{ opacity: 0 }}
-        />
-        <Sheet.Frame className={Platform.OS === "web" ? "sheet-frame" : undefined}>{children}</Sheet.Frame>
+        <Sheet.Overlay backgroundColor="#00000090" transition="default" opacity="1 enter:0 exit:0" />
+        <Sheet.Container className={Platform.OS === "web" ? "sheet-frame" : undefined}>
+          <Sheet.Background />
+          {children}
+        </Sheet.Container>
       </Sheet>
     </RequestCloseContext>
   );

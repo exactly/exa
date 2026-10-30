@@ -3,8 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
-import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
 import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +12,8 @@ import DeclinedActivity from "./DeclinedActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
+import { ArrowLeft } from "../../../generated/icons/ArrowLeft";
+import { Headphones } from "../../../generated/icons/Headphones";
 import { present } from "../../../utils/intercom";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
@@ -56,8 +56,8 @@ export default function ActivityDetails() {
     return (
       <SafeView fullScreen padded>
         <Back />
-        <YStack flex={1} justifyContent="center" alignItems="center" gap="$s4">
-          <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
+        <YStack flex={1} justifyContent="center" alignItems="center" gap="s4">
+          <Text textAlign="center" subHeadline color="uiNeutralSecondary">
             {t("Couldn't load this activity. Please try again.")}
           </Text>
           <Button
@@ -86,8 +86,8 @@ export default function ActivityDetails() {
         outlined
         width="100%"
         alignSelf="flex-end"
-        marginTop="$s4"
-        marginBottom="$s5"
+        marginTop="s4"
+        marginBottom="s5"
         onPress={() => {
           present().catch(reportError);
         }}

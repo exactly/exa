@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { XStack, YStack } from "tamagui";
 
 import EmptyMessage from "./EmptyMessage";
 import PaymentList from "./PaymentList";
+import { ChevronRight } from "../../generated/icons/ChevronRight";
 import useStatements from "../../utils/useStatements";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -18,20 +18,20 @@ export default function PaymentHistory({ onSelect }: { onSelect: (maturity: numb
   const past = useStatements();
   return (
     <View
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
-      shadowColor="$backgroundStrong"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
+      shadowColor="backgroundStrong"
       shadowOffset={{ width: 0, height: 6 }}
       shadowOpacity={0.6}
       shadowRadius={28}
     >
-      <XStack padding="$s4" alignItems="center" justifyContent="space-between">
+      <XStack padding="s4" alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
           {t("Payment history")}
         </Text>
         {past?.length !== 0 && (
           <XStack
-            gap="$s2"
+            gap="s2"
             alignItems="center"
             cursor="pointer"
             role="button"
@@ -40,10 +40,10 @@ export default function PaymentHistory({ onSelect }: { onSelect: (maturity: numb
               router.push("/payment-history");
             }}
           >
-            <Text emphasized footnote color="$interactiveBaseBrandDefault">
+            <Text emphasized footnote color="interactiveBaseBrandDefault">
               {t("See all")}
             </Text>
-            <ChevronRight size={16} color="$interactiveBaseBrandDefault" />
+            <ChevronRight size={16} color="interactiveBaseBrandDefault" />
           </XStack>
         )}
       </XStack>
@@ -54,7 +54,7 @@ export default function PaymentHistory({ onSelect }: { onSelect: (maturity: numb
           description={t("Once you make a payment, you’ll see it here.")}
         />
       ) : (
-        <YStack paddingBottom="$s4">
+        <YStack paddingBottom="s4">
           <PaymentList past={past} limit={4} onSelect={onSelect} />
         </YStack>
       )}

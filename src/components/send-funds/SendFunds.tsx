@@ -3,10 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
-import { Banknote } from "@tamagui/lucide-icons-2/icons/Banknote";
-import { Blocks } from "@tamagui/lucide-icons-2/icons/Blocks";
-import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +10,10 @@ import { base } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 
+import { ArrowLeft } from "../../generated/icons/ArrowLeft";
+import { Banknote } from "../../generated/icons/Banknote";
+import { Blocks } from "../../generated/icons/Blocks";
+import { CircleHelp } from "../../generated/icons/CircleHelp";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -70,7 +70,7 @@ export default function SendFunds() {
     }
     if (!providers) return null;
     return (
-      <YStack gap="$s3_5">
+      <YStack gap="s3_5">
         {Object.entries(providers).flatMap(([providerKey, provider]) => {
           if (!("offramp" in provider)) return [];
           return provider.offramp.currencies
@@ -96,10 +96,10 @@ export default function SendFunds() {
   }
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
-      <View gap="$s6" fullScreen padded paddingBottom={0}>
-        <YStack gap="$s4_5">
-          <XStack flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+      <View gap="s6" fullScreen padded paddingBottom={0}>
+        <YStack gap="s4_5">
+          <XStack flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -124,12 +124,12 @@ export default function SendFunds() {
             />
           </XStack>
         </YStack>
-        <ScrollView flex={1} contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}>
-          <YStack flex={1} gap="$s3_5">
+        <ScrollView flex={1} contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.s4.val }}>
+          <YStack flex={1} gap="s3_5">
             {type !== "fiat" && (
               <>
                 <AddFundsOption
-                  icon={<Blocks size={24} color="$iconBrandDefault" />}
+                  icon={<Blocks size={24} color="iconBrandDefault" />}
                   title={t("Digital assets")}
                   subtitle={t("USDC, ETH, stocks, and more")}
                   onPress={() => {
@@ -138,7 +138,7 @@ export default function SendFunds() {
                 />
                 {hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
-                    icon={<Banknote size={24} color="$iconBrandDefault" />}
+                    icon={<Banknote size={24} color="iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("Pesos, dollars, or euros")}
                     disabled={isKYCApproved && !hasFiat}

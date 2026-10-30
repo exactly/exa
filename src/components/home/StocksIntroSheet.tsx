@@ -1,11 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
-import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { YStack } from "tamagui";
 
 import stocks from "../../assets/images/stocks.webp";
+import { ArrowRight } from "../../generated/icons/ArrowRight";
+import { X } from "../../generated/icons/X";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
@@ -31,31 +31,31 @@ export default function StocksIntroSheet({
       <SafeView
         paddingTop={0}
         fullScreen
-        borderTopLeftRadius="$r4"
-        borderTopRightRadius="$r4"
-        backgroundColor="$backgroundSoft"
+        borderTopLeftRadius="r4"
+        borderTopRightRadius="r4"
+        backgroundColor="backgroundSoft"
       >
-        <View fullScreen padded gap="$s4">
+        <View fullScreen padded gap="s4">
           <IconButton
             alignSelf="flex-end"
             icon={X}
-            color="$uiNeutralSecondary"
+            color="uiNeutralSecondary"
             aria-label={t("Close")}
             onPress={onClose}
           />
-          <YStack flex={1} alignItems="center" gap="$s9">
+          <YStack flex={1} alignItems="center" gap="s9">
             <Image source={stocks} contentFit="contain" width="100%" maxWidth={296} aspectRatio={1} flexShrink={1} />
-            <YStack alignItems="center" gap="$s5" maxWidth={300}>
+            <YStack alignItems="center" gap="s5" maxWidth={300}>
               <Text
                 pill
                 caption2
                 textTransform="uppercase"
-                color="$interactiveOnBaseSuccessDefault"
-                backgroundColor="$interactiveBaseSuccessDefault"
+                color="interactiveOnBaseSuccessDefault"
+                backgroundColor="interactiveBaseSuccessDefault"
               >
                 {t("NEW")} - {t("Tokenized stocks")}
               </Text>
-              <YStack gap="$s4">
+              <YStack gap="s4">
                 <Text emphasized title centered>
                   {t("Invest in companies you know")}
                 </Text>
@@ -65,7 +65,7 @@ export default function StocksIntroSheet({
               </YStack>
             </YStack>
           </YStack>
-          <YStack gap="$s5">
+          <YStack gap="s5">
             <Button
               primary
               onPress={() => {

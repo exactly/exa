@@ -1,12 +1,12 @@
 import React, { type ComponentPropsWithoutRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChevronDown } from "@tamagui/lucide-icons-2/icons/ChevronDown";
 import { XStack } from "tamagui";
 
 import ChainLogo from "./ChainLogo";
 import SelectSheet from "./SelectSheet";
 import View from "./View";
+import { ChevronDown } from "../../generated/icons/ChevronDown";
 
 export default function NetworkFilter({
   chains,
@@ -28,13 +28,13 @@ export default function NetworkFilter({
   return (
     <XStack
       alignItems="center"
-      gap="$s2"
-      padding="$s3_5"
-      backgroundColor="$backgroundMild"
+      gap="s2"
+      padding="s3_5"
+      backgroundColor="backgroundMild"
       cursor="pointer"
       role="button"
       aria-label={t("Select network")}
-      pressStyle={{ opacity: 0.7 }}
+      opacity="press:0.7"
       {...properties}
       onPress={() => {
         onOpenChange(true);
@@ -46,7 +46,7 @@ export default function NetworkFilter({
         ) : (
           <ChainLogo chainId={value ?? sole?.id} size={size} />
         ))}
-      <ChevronDown size={size + 2} color="$uiNeutralPrimary" />
+      <ChevronDown size={size + 2} color="uiNeutralPrimary" />
     </XStack>
   );
 }

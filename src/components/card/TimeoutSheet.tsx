@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
 import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
+import { Headphones } from "../../generated/icons/Headphones";
 import { newMessage } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -41,17 +41,17 @@ export default function TimeoutSheet({
   return (
     <ModalSheet open={open} onClose={dismiss} disableDrag>
       <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s7"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
-        <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
+        <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t("Taking longer than usual")}
           </Text>
-          <Text subHeadline color="$uiNeutralSecondary">
+          <Text subHeadline color="uiNeutralSecondary">
             {contacted
               ? t(
                   "Thanks for reaching out. Our team will reply soon. You can keep waiting while your card finishes setting up.",
@@ -61,7 +61,7 @@ export default function TimeoutSheet({
                 )}
           </Text>
         </YStack>
-        <YStack gap="$s5" paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack gap="s5" paddingHorizontal="s5" paddingBottom="s7">
           <Button primary width="100%" onPress={contacted ? dismiss : contact}>
             <Button.Text>{contacted ? t("Keep waiting") : t("Contact support")}</Button.Text>
             {!contacted && (
@@ -74,7 +74,7 @@ export default function TimeoutSheet({
             cursor="pointer"
             emphasized
             footnote
-            color="$interactiveBaseBrandDefault"
+            color="interactiveBaseBrandDefault"
             textAlign="center"
             onPress={contacted ? contact : dismiss}
           >

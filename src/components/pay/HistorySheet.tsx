@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { Check } from "@tamagui/lucide-icons-2/icons/Check";
-import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
-import { Headset } from "@tamagui/lucide-icons-2/icons/Headset";
 import { Separator, Square, XStack, YStack } from "tamagui";
 
 import Breakdown from "./Breakdown";
 import StatementActions from "./StatementActions";
+import { Check } from "../../generated/icons/Check";
+import { FileText } from "../../generated/icons/FileText";
+import { Headset } from "../../generated/icons/Headset";
 import { present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import statement from "../../utils/statement";
@@ -49,13 +49,13 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
   return (
     <ModalSheet open={maturity !== undefined} onClose={close}>
       <SafeView
-        borderTopLeftRadius="$r4"
-        borderTopRightRadius="$r4"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r4"
+        borderTopRightRadius="r4"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
         {displayMaturity !== undefined && breakdownOpen ? (
-          <YStack paddingHorizontal="$s5" $platform-web={{ paddingVertical: "$s7" }}>
+          <YStack paddingHorizontal="s5" paddingVertical="web:s7">
             <Breakdown
               maturity={displayMaturity}
               onBack={() => {
@@ -66,15 +66,15 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
           </YStack>
         ) : (
           <YStack>
-            <XStack gap="$s4" alignItems="center" paddingHorizontal="$s5" paddingTop="$s6" paddingBottom="$s4_5">
-              <Square size="$s8" borderRadius="$r4" backgroundColor="$backgroundStrong">
+            <XStack gap="s4" alignItems="center" paddingHorizontal="s5" paddingTop="s6" paddingBottom="s4_5">
+              <Square size="s8" borderRadius="r4" backgroundColor="backgroundStrong">
                 {paidAt ? (
-                  <Check size={32} color="$uiSuccessSecondary" />
+                  <Check size={32} color="uiSuccessSecondary" />
                 ) : (
-                  <FileText size={32} color="$uiNeutralSecondary" />
+                  <FileText size={32} color="uiNeutralSecondary" />
                 )}
               </Square>
-              <YStack flex={1} gap="$s3_5">
+              <YStack flex={1} gap="s3_5">
                 {displayMaturity !== undefined && (
                   <Text body secondary>
                     <Trans
@@ -93,15 +93,15 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
               <IconButton
                 icon={Headset}
                 aria-label={t("Support")}
-                color="$interactiveBaseBrandDefault"
+                color="interactiveBaseBrandDefault"
                 onPress={() => {
                   present().catch(reportError);
                 }}
               />
             </XStack>
-            <Separator borderColor="$borderNeutralSoft" />
+            <Separator borderColor="borderNeutralSoft" />
             {displayMaturity !== undefined && (
-              <YStack paddingHorizontal="$s3" paddingBottom="$s4_5">
+              <YStack paddingHorizontal="s3" paddingBottom="s4_5">
                 <StatementActions
                   maturity={displayMaturity}
                   onBreakdown={() => {

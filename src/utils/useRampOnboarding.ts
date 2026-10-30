@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -15,7 +15,6 @@ import { getKYCStatus, getRampProviders, origin } from "./server";
 export default function useRampOnboarding(direction: "offramp" | "onramp" = "onramp") {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
   const { currency, network, provider } = useLocalSearchParams();
   const offramp = direction === "offramp";
   const isBridge = provider === "bridge";
@@ -88,15 +87,12 @@ export default function useRampOnboarding(direction: "offramp" | "onramp" = "onr
         signedAgreementId = new URL(url).searchParams.get("signed_agreement_id") ?? undefined;
       } catch {} // eslint-disable-line no-empty
       if (!signedAgreementId) {
-        toast.show(t("Something went wrong. Please try again."), {
-          duration: 1000,
-          burntOptions: { haptic: "error" },
-        });
+        toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
         return;
       }
       handleBridgeOnboarding(signedAgreementId).catch(reportError);
     },
-    [handleBridgeOnboarding, t, toast],
+    [handleBridgeOnboarding, t],
   );
 
   const handleContinue = useCallback(async () => {

@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { selectionAsync } from "expo-haptics";
 
-import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-
+import { ChevronRight } from "../../generated/icons/ChevronRight";
 import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
 
@@ -25,11 +24,11 @@ export default function PaymentRow({ maturity, onSelect }: { maturity: number; o
         onSelect(maturity);
       }}
     >
-      <Button.Text emphasized={false} color="$uiNeutralPrimary">
+      <Button.Text emphasized={false} color="uiNeutralPrimary">
         {label}
       </Button.Text>
       <Button.Icon>
-        <ChevronRight size={20} color="$interactiveBaseBrandDefault" />
+        <ChevronRight size={20} color="interactiveBaseBrandDefault" />
       </Button.Icon>
     </Button>
   );

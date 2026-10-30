@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
-import { List } from "@tamagui/lucide-icons-2/icons/List";
 import { Separator, YStack } from "tamagui";
 
+import { ChevronRight } from "../../generated/icons/ChevronRight";
+import { FileText } from "../../generated/icons/FileText";
+import { List } from "../../generated/icons/List";
 import Button from "../shared/StyledButton";
 
 export default function StatementActions({
@@ -24,7 +24,7 @@ export default function StatementActions({
   return (
     <YStack>
       <Action icon={List} label={t("Breakdown")} onPress={onBreakdown} />
-      <Separator borderColor="$borderNeutralSoft" marginHorizontal="$s4" />
+      <Separator borderColor="borderNeutralSoft" marginHorizontal="s4" />
       <Action
         icon={FileText}
         label={t("View statement")}
@@ -40,12 +40,12 @@ export default function StatementActions({
 function Action({ icon: Icon, label, onPress }: { icon: typeof FileText; label: string; onPress: () => void }) {
   return (
     <Button transparent aria-label={label} onPress={onPress}>
-      <Icon size={20} color="$uiNeutralPrimary" />
-      <Button.Text emphasized={false} color="$uiNeutralPrimary">
+      <Icon size={20} color="uiNeutralPrimary" />
+      <Button.Text emphasized={false} color="uiNeutralPrimary">
         {label}
       </Button.Text>
       <Button.Icon>
-        <ChevronRight size={20} color="$interactiveBaseBrandDefault" />
+        <ChevronRight size={20} color="interactiveBaseBrandDefault" />
       </Button.Icon>
     </Button>
   );

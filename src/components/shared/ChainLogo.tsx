@@ -14,7 +14,7 @@ import { lifiChainsOptions } from "../../utils/lifi";
 export default function ChainLogo({
   chainId,
   size,
-  borderRadius = "$r_0",
+  borderRadius = "r_0",
 }: {
   borderRadius?: RadiusTokens;
   chainId?: number;
@@ -32,11 +32,11 @@ export default function ChainLogo({
         width={size}
         height={size}
         borderRadius={borderRadius}
-        backgroundColor="$backgroundStrong"
+        backgroundColor="backgroundStrong"
         alignItems="center"
         justifyContent="center"
       >
-        <Text fontSize={size * 0.4} fontWeight="bold" color="$uiNeutralSecondary">
+        <Text fontSize={size * 0.4} fontWeight="bold" color="uiNeutralSecondary">
           {name ? name.slice(0, 2).toUpperCase() : "—"}
         </Text>
       </YStack>

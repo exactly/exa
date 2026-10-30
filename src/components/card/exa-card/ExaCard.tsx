@@ -25,7 +25,7 @@ export default function ExaCard({
 }) {
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   return (
-    <YStack width="100%" borderRadius="$r4" borderWidth={0}>
+    <YStack width="100%" borderRadius="r4" borderWidth={0}>
       <Pressable onPress={onPress}>
         <View
           zIndex={3}
@@ -33,17 +33,17 @@ export default function ExaCard({
             card?.productId === PLATINUM_PRODUCT_ID
               ? "black"
               : card?.productId === BASE_PRODUCT_ID
-                ? "$baseBlue"
-                : "$cardBackground"
+                ? "baseBlue"
+                : "cardBackground"
           }
           borderColor={
             card?.productId === PLATINUM_PRODUCT_ID
               ? "black"
               : card?.productId === BASE_PRODUCT_ID
-                ? "$baseBlue"
-                : "$cardBackground"
+                ? "baseBlue"
+                : "cardBackground"
           }
-          borderRadius="$r4"
+          borderRadius="r4"
           borderWidth={1}
           overflow="hidden"
         >

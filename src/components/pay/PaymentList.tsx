@@ -19,7 +19,7 @@ export default function PaymentList({
       <YStack>
         {Array.from({ length: limit ?? 3 }, (_, index) => (
           <React.Fragment key={index}>
-            {index > 0 && <Separator borderColor="$borderNeutralSoft" marginHorizontal="$s4" />}
+            {index > 0 && <Separator borderColor="borderNeutralSoft" marginHorizontal="s4" />}
             <Skeleton height={64} width="100%" radius={8} />
           </React.Fragment>
         ))}
@@ -30,7 +30,7 @@ export default function PaymentList({
     <YStack role="list">
       {past.slice(0, limit).map((maturity, index) => (
         <React.Fragment key={maturity}>
-          {index > 0 && <Separator borderColor="$borderNeutralSoft" marginHorizontal="$s4" />}
+          {index > 0 && <Separator borderColor="borderNeutralSoft" marginHorizontal="s4" />}
           <PaymentRow maturity={maturity} onSelect={onSelect} />
         </React.Fragment>
       ))}

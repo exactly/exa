@@ -2,12 +2,12 @@ import React from "react";
 import type { ComponentPropsWithoutRef, ComponentType } from "react";
 import { Pressable } from "react-native";
 
-import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
-import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Spinner, View, XStack } from "tamagui";
 
 import Text from "./Text";
+import { AlertTriangle } from "../../generated/icons/AlertTriangle";
+import { ChevronRight } from "../../generated/icons/ChevronRight";
+import { Info } from "../../generated/icons/Info";
 
 export default function InfoAlert({
   title,
@@ -27,11 +27,11 @@ export default function InfoAlert({
   const { bg, iconBg, icon: variantIcon, color, text } = variants[variant];
   const Icon = icon ?? variantIcon;
   return (
-    <XStack borderRadius="$r3" backgroundColor={bg} overflow="hidden">
-      <View padding="$s4" backgroundColor={iconBg} justifyContent="center" alignItems="center" alignSelf="stretch">
+    <XStack borderRadius="r3" backgroundColor={bg} overflow="hidden">
+      <View padding="s4" backgroundColor={iconBg} justifyContent="center" alignItems="center" alignSelf="stretch">
         <Icon size={32} color={color} />
       </View>
-      <View gap="$s2" padding="$s4" flex={1}>
+      <View gap="s2" padding="s4" flex={1}>
         <Text subHeadline color={text}>
           {title}
         </Text>
@@ -42,7 +42,7 @@ export default function InfoAlert({
           }}
         >
           {actionText && (
-            <XStack gap="$s1" alignItems="center">
+            <XStack gap="s1" alignItems="center">
               <Text emphasized subHeadline color={text}>
                 {actionText}
               </Text>
@@ -57,24 +57,24 @@ export default function InfoAlert({
 
 const variants = {
   error: {
-    bg: "$interactiveBaseErrorSoftDefault",
-    iconBg: "$interactiveBaseErrorDefault",
+    bg: "interactiveBaseErrorSoftDefault",
+    iconBg: "interactiveBaseErrorDefault",
     icon: AlertTriangle,
-    color: "$interactiveOnBaseErrorDefault",
-    text: "$interactiveOnBaseErrorSoft",
+    color: "interactiveOnBaseErrorDefault",
+    text: "interactiveOnBaseErrorSoft",
   },
   info: {
-    bg: "$interactiveBaseInformationSoftDefault",
-    iconBg: "$interactiveBaseInformationDefault",
+    bg: "interactiveBaseInformationSoftDefault",
+    iconBg: "interactiveBaseInformationDefault",
     icon: Info,
-    color: "$interactiveOnBaseInformationDefault",
-    text: "$interactiveOnBaseInformationSoft",
+    color: "interactiveOnBaseInformationDefault",
+    text: "interactiveOnBaseInformationSoft",
   },
   warning: {
-    bg: "$interactiveBaseWarningSoftDefault",
-    iconBg: "$interactiveBaseWarningDefault",
+    bg: "interactiveBaseWarningSoftDefault",
+    iconBg: "interactiveBaseWarningDefault",
     icon: AlertTriangle,
-    color: "$interactiveOnBaseWarningDefault",
-    text: "$interactiveOnBaseWarningSoft",
+    color: "interactiveOnBaseWarningDefault",
+    text: "interactiveOnBaseWarningSoft",
   },
 } as const;

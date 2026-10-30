@@ -3,10 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
-import { ArrowUpRight } from "@tamagui/lucide-icons-2/icons/ArrowUpRight";
-import { HandCoins } from "@tamagui/lucide-icons-2/icons/HandCoins";
-import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +15,10 @@ import {
   useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 
+import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
+import { ArrowUpRight } from "../../generated/icons/ArrowUpRight";
+import { HandCoins } from "../../generated/icons/HandCoins";
+import { Repeat } from "../../generated/icons/Repeat";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import Button from "../shared/StyledButton";
@@ -94,7 +94,7 @@ export default function HomeActions() {
     }
   };
   return (
-    <XStack gap="$s3" justifyContent="space-between" width="100%">
+    <XStack gap="s3" justifyContent="space-between" width="100%">
       {actions
         .filter(({ title }) => !labels[title])
         .map(({ title }) => (
@@ -141,6 +141,7 @@ export default function HomeActions() {
             disabled={disabled}
             loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
             flex={1}
+            flexBasis={0}
             aria-label={title}
             role="button"
             aria-disabled={disabled}
@@ -149,7 +150,7 @@ export default function HomeActions() {
               setColumn(nativeEvent.layout.width);
             }}
           >
-            <Button width="100%" padding="$s3_5" justifyContent="center" minHeight="auto">
+            <Button width="100%" padding="s3_5" justifyContent="center" minHeight="auto">
               <Button.Icon>
                 <Icon />
               </Button.Icon>

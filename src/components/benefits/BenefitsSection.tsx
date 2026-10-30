@@ -36,7 +36,7 @@ import type { CardDetails } from "../../utils/server";
 
 function ExaBackground() {
   return (
-    <View style={StyleSheet.absoluteFill} backgroundColor="$backgroundBrand">
+    <View style={StyleSheet.absoluteFill} backgroundColor="backgroundBrand">
       <ThemedSvg xml={exaPromo} width="100%" height="100%" preserveAspectRatio="xMaxYMid meet" />
     </View>
   );
@@ -61,8 +61,8 @@ function RasterBackground({ source }: { source: ComponentProps<typeof Image>["so
 
 function IllustrationBackground({ source }: { source: ComponentProps<typeof Image>["source"] }) {
   return (
-    <View style={StyleSheet.absoluteFill} backgroundColor="$uiBrandSecondary">
-      <Image source={source} position="absolute" top="$s3_5" right="$s3_5" width={136} height={136} />
+    <View style={StyleSheet.absoluteFill} backgroundColor="uiBrandSecondary">
+      <Image source={source} position="absolute" top="s3_5" right="s3_5" width={136} height={136} />
     </View>
   );
 }
@@ -182,11 +182,11 @@ export default function BenefitsSection({
   return (
     <>
       <View
-        backgroundColor="$backgroundSoft"
-        paddingVertical="$s4_5"
+        backgroundColor="backgroundSoft"
+        paddingVertical="s4_5"
         borderTopWidth={1}
         borderBottomWidth={1}
-        borderColor="$borderNeutralSoft"
+        borderColor="borderNeutralSoft"
       >
         <View
           height={HEIGHT}
@@ -210,7 +210,7 @@ export default function BenefitsSection({
               withAnimation={{ type: "timing", config: { duration: 512, easing: Easing.bezier(0.7, 0, 0.3, 1) } }}
               onConfigurePanGesture={(gesture) => gesture.activeOffsetX([-10, 10]).failOffsetY([-5, 5])}
               renderItem={({ item }) => (
-                <View paddingHorizontal="$s2">
+                <View paddingHorizontal="s2">
                   <BenefitCard benefit={item} onPress={() => open(item)} />
                 </View>
               )}

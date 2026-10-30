@@ -1,0 +1,39 @@
+diff --git a/dist/cjs/helpers/mainThreadPressEvents.native.cjs b/dist/cjs/helpers/mainThreadPressEvents.native.cjs
+index 17c7b4e..c8566c3 100644
+--- a/dist/cjs/helpers/mainThreadPressEvents.native.cjs
++++ b/dist/cjs/helpers/mainThreadPressEvents.native.cjs
+@@ -27,7 +27,7 @@ var import_native = require("@tamagui/native");
+ var import_react = require("react");
+ function useMainThreadPressEvents(events, viewProps) {
+ 	var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true, debugName = arguments.length > 3 ? arguments[3] : void 0;
+-	var usePressability = require("react-native").usePressability;
++	var usePressability = require("react-native").usePressability ?? require("react-native/Libraries/Pressability/usePressability").default;
+ 	var initialized = (0, import_react.useRef)(false);
+ 	var ownsResponder = (0, import_react.useRef)(false);
+ 	var pressActive = (0, import_react.useRef)(false);
+diff --git a/dist/cjs/helpers/mainThreadPressEvents.native.js b/dist/cjs/helpers/mainThreadPressEvents.native.js
+index 788c69a..68c651e 100644
+--- a/dist/cjs/helpers/mainThreadPressEvents.native.js
++++ b/dist/cjs/helpers/mainThreadPressEvents.native.js
+@@ -27,7 +27,7 @@ var import_native = require("@tamagui/native");
+ var import_react = require("react");
+ function useMainThreadPressEvents(events, viewProps) {
+ 	var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true, debugName = arguments.length > 3 ? arguments[3] : void 0;
+-	var usePressability = require("react-native").usePressability;
++	var usePressability = require("react-native").usePressability ?? require("react-native/Libraries/Pressability/usePressability").default;
+ 	var initialized = (0, import_react.useRef)(false);
+ 	var ownsResponder = (0, import_react.useRef)(false);
+ 	var pressActive = (0, import_react.useRef)(false);
+diff --git a/dist/esm/helpers/mainThreadPressEvents.native.js b/dist/esm/helpers/mainThreadPressEvents.native.js
+index f6e42ee..adf6eca 100644
+--- a/dist/esm/helpers/mainThreadPressEvents.native.js
++++ b/dist/esm/helpers/mainThreadPressEvents.native.js
+@@ -3,7 +3,7 @@ import { useRef } from "react";
+ 
+ function useMainThreadPressEvents(events, viewProps) {
+ 	var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true, debugName = arguments.length > 3 ? arguments[3] : void 0;
+-	var usePressability = require("react-native").usePressability;
++	var usePressability = require("react-native").usePressability ?? require("react-native/Libraries/Pressability/usePressability").default;
+ 	var initialized = useRef(false);
+ 	var ownsResponder = useRef(false);
+ 	var pressActive = useRef(false);

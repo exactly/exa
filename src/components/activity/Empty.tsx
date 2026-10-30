@@ -11,11 +11,11 @@ import View from "../shared/View";
 export default function Empty() {
   const { t } = useTranslation();
   return (
-    <View fullScreen padding="$s5" alignItems="center" justifyContent="center" backgroundColor="$backgroundSoft">
-      <YStack gap="$s6" alignItems="center" justifyContent="center">
-        <Image source={activityEmpty} contentFit="contain" width="100%" aspectRatio={1} paddingHorizontal="$s7" />
-        <YStack alignItems="center" justifyContent="center" gap="$s6">
-          <Text emphasized title color="$interactiveTextBrandDefault" textAlign="center">
+    <View fullScreen padding="s5" alignItems="center" justifyContent="center" backgroundColor="backgroundSoft">
+      <YStack gap="s6" alignItems="center" justifyContent="center">
+        <Image source={activityEmpty} contentFit="contain" width="100%" aspectRatio={1} paddingHorizontal="s7" />
+        <YStack alignItems="center" justifyContent="center" gap="s6">
+          <Text emphasized title color="interactiveTextBrandDefault" textAlign="center">
             {t("No activity yet")}
           </Text>
           <Text footnote secondary textAlign="center">

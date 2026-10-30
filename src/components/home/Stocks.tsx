@@ -45,9 +45,9 @@ export default function Stocks({
   if (assets.length === 0) {
     if (titled) return null;
     return pending ? (
-      <Spinner color="$interactiveOnBaseBrandSoft" padding="$s6" />
+      <Spinner color="interactiveOnBaseBrandSoft" padding="s6" />
     ) : (
-      <Text footnote color="$uiNeutralSecondary" textAlign="center" padding="$s6">
+      <Text footnote color="uiNeutralSecondary" textAlign="center" padding="s6">
         {t("You don't hold any tokenized stocks yet.")}
       </Text>
     );

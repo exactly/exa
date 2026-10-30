@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import HistorySheet from "./HistorySheet";
 import PaymentList from "./PaymentList";
+import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import queryClient from "../../utils/queryClient";
 import useMarkets from "../../utils/useMarkets";
 import useStatements from "../../utils/useStatements";
@@ -31,14 +31,14 @@ export default function History() {
     ]);
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="backgroundSoft">
       <View
         padded
         flexDirection="row"
-        gap="$s3_5"
-        paddingBottom="$s4"
+        gap="s3_5"
+        paddingBottom="s4"
         alignItems="center"
-        backgroundColor="$backgroundSoft"
+        backgroundColor="backgroundSoft"
       >
         <IconButton
           icon={ArrowLeft}
@@ -53,24 +53,24 @@ export default function History() {
         />
       </View>
       <ScrollView
-        backgroundColor="$backgroundSoft"
+        backgroundColor="backgroundSoft"
         showsVerticalScrollIndicator={false}
         flex={1}
         refreshControl={<RefreshControl onRefresh={refresh} />}
       >
-        <XStack paddingHorizontal="$s5" paddingBottom="$s5" alignItems="center">
+        <XStack paddingHorizontal="s5" paddingBottom="s5" alignItems="center">
           <Text emphasized title3>
             {t("Payment history")}
           </Text>
         </XStack>
         {past?.length === 0 ? (
-          <YStack alignItems="center" justifyContent="center" paddingVertical="$s7">
-            <Text emphasized headline color="$uiNeutralSecondary">
+          <YStack alignItems="center" justifyContent="center" paddingVertical="s7">
+            <Text emphasized headline color="uiNeutralSecondary">
               {t("No payments yet")}
             </Text>
           </YStack>
         ) : (
-          <YStack paddingHorizontal="$s3" paddingBottom="$s5">
+          <YStack paddingHorizontal="s3" paddingBottom="s5">
             <PaymentList past={past} onSelect={setSelected} />
           </YStack>
         )}

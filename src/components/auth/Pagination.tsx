@@ -55,7 +55,7 @@ function PaginationComponent({
   }, [scrollOffset, progress, isScrolling, index, length, activeColor]);
 
   return (
-    <AnimatedView style={[styles.dot, rContainerStyle]} backgroundColor="$uiNeutralTertiary">
+    <AnimatedView style={[styles.dot, rContainerStyle]} backgroundColor="uiNeutralTertiary">
       <AnimatedView style={[StyleSheet.absoluteFill, rFillStyle]} />
     </AnimatedView>
   );
@@ -82,7 +82,7 @@ function Pagination({
 }) {
   const theme = useTheme();
   return (
-    <XStack alignItems="center" justifyContent="center" gap="$s2">
+    <XStack alignItems="center" justifyContent="center" gap="s2">
       {Array.from({ length }).map((_, index) => (
         <PaginationComponent
           key={index} // eslint-disable-line @eslint-react/no-array-index-key

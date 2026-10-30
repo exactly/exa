@@ -13,8 +13,8 @@ import View from "../shared/View";
 export default function Empty() {
   const { t } = useTranslation();
   return (
-    <View fullScreen padding="$s5" alignItems="center" justifyContent="center" backgroundColor="$backgroundSoft">
-      <YStack gap="$s6" alignItems="center" justifyContent="center">
+    <View fullScreen padding="s5" alignItems="center" justifyContent="center" backgroundColor="backgroundSoft">
+      <YStack gap="s6" alignItems="center" justifyContent="center">
         <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
           <View style={StyleSheet.absoluteFill}>
             <ThemedSvg xml={exaCardBlob} width="100%" height="100%" />
@@ -23,8 +23,8 @@ export default function Empty() {
             <ThemedSvg xml={exaCard} width="100%" height="100%" />
           </View>
         </View>
-        <YStack alignItems="center" justifyContent="center" gap="$s6">
-          <Text emphasized title color="$interactiveTextBrandDefault" textAlign="center">
+        <YStack alignItems="center" justifyContent="center" gap="s6">
+          <Text emphasized title color="interactiveTextBrandDefault" textAlign="center">
             {t("No payments pending")}
           </Text>
           <Text footnote secondary textAlign="center">

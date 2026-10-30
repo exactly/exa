@@ -1,7 +1,5 @@
 import React from "react";
 
-import { Fingerprint } from "@tamagui/lucide-icons-2/icons/Fingerprint";
-import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { ScrollView, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +11,8 @@ import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
 import Button from "./StyledButton";
 import Text from "./Text";
+import { Fingerprint } from "../../generated/icons/Fingerprint";
+import { Wallet } from "../../generated/icons/Wallet";
 
 import type { AuthMethod } from "../../utils/queryClient";
 
@@ -42,15 +42,15 @@ export default function ConnectSheet({
     >
       <ScrollView>
         <SafeView
-          borderTopLeftRadius="$r4"
-          borderTopRightRadius="$r4"
-          backgroundColor="$backgroundSoft"
-          paddingHorizontal="$s5"
-          $platform-web={{ paddingVertical: "$s5" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          borderTopLeftRadius="r4"
+          borderTopRightRadius="r4"
+          backgroundColor="backgroundSoft"
+          paddingHorizontal="s5"
+          paddingTop="web:s5"
+          paddingBottom="web:s5 android:s5"
         >
-          <YStack gap="$s7">
-            <YStack gap="$s4">
+          <YStack gap="s7">
+            <YStack gap="s4">
               <Text primary title3 textAlign="left">
                 {title}
               </Text>
@@ -58,7 +58,7 @@ export default function ConnectSheet({
                 {description}
               </Text>
             </YStack>
-            <YStack gap="$s4" alignItems="stretch">
+            <YStack gap="s4" alignItems="stretch">
               {chain.id === base.id ? null : (
                 <Button
                   primary
