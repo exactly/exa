@@ -14,6 +14,7 @@ const noise = Uint8Array.from(
 mkdirSync("generated", { recursive: true });
 for (const [flow, pixels] of Object.entries({
   ach: noise,
+  activity: noise,
   credit: noise,
   external: noise,
   onboarding: noise,
