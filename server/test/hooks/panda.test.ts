@@ -2630,6 +2630,23 @@ describe("plugin 1.0.0", () => {
 
   afterEach(() => Panda.getMutex(account100)?.release());
 
+  it("collects debit", async () => {
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+
+    await expect(collectSpend(`${account100}-debit`, 900)).resolves.toStrictEqual([200, 9_000_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+    ]);
+  });
+
+  it("collects credit", async () => {
+    await expect(collectSpend(`${account100}-credit`, 10)).resolves.toStrictEqual([200, 100_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["debit", 901],
     ["credit", 11],
@@ -2736,6 +2753,15 @@ describe("plugin 1.0.0", () => {
           ],
         }),
       });
+    });
+
+    it("collects debit", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+
+      await expect(collectSpend(`${account100}-upgraded`, 900)).resolves.toStrictEqual([200, 9_000_000n]);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(traceCall).not.toHaveBeenCalled();
     });
 
     it("authorizes with one trace", async () => {
@@ -4430,6 +4456,27 @@ function usdcToAddress(purchaseReceipt: TransactionReceipt, address: Address) {
 
 function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
+}
+
+async function collectSpend(cardId: string, amount: number) {
+  const body = {
+    ...authorization.json.body,
+    id: cardId,
+    spend: { ...authorization.json.body.spend, amount, cardId },
+  };
+
+  return [
+    await appClient.index
+      .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+      .then(({ status }) => status),
+    usdcToCollector(
+      await database.query.transactions
+        .findFirst({ where: eq(transactions.id, cardId) })
+        .then((transaction) =>
+          publicClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+        ),
+    ),
+  ];
 }
 
 async function authorize(cardId: string, amount: number) {
