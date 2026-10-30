@@ -4,6 +4,12 @@ env:
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: { file: ../subflows/transfer.yaml, env: { max: "true" } }
+- tapOn: Activity
+- tapOn: Sent
+- assertVisible: '${output.sent}[\s\xa0]USDC'
+- assertVisible: '.+dEaD'
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - tapOn: Send
 - tapOn: Digital assets
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Scan QR code } }
