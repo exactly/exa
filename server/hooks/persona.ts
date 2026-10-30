@@ -278,11 +278,15 @@ export default function hook({
         const credential = await database.query.credentials.findFirst({
           columns: { pandaId: true },
           where: eq(credentials.id, referenceId),
-          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
+          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 2 } },
         });
         if (!credential) {
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "ok" }, 200);
+        }
+        if (credential.cards.length > 1) {
+          captureException(new Error("multiple cards"), { level: "error", contexts: { credential: { referenceId } } });
+          return c.json({ code: "multiple cards" }, 200);
         }
         await persona.updateCardLimit(referenceId, limitUsd).catch((error: unknown) => {
           captureException(error, {
