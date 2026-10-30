@@ -55,7 +55,6 @@ import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import Banner from "../business/Banner";
 import TabBarContext from "../context/TabBarContext";
-import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -364,7 +363,6 @@ export default function Card() {
                       }}
                     />
                   )}
-                <FundingAlert />
                 <PluginUpgrade />
                 <ExaCard
                   revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
