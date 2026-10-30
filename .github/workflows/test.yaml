@@ -154,7 +154,7 @@ jobs:
         id: nx
         with:
           path: ~/.nx
-          key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-${{ github.sha }}
+          key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-a0334881e8fde48fab2ab7915cdecc637e5666d6
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: echo ::add-matcher::.github/matcher.json
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
@@ -162,8 +162,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
       - uses: oras-project/setup-oras@v2 # cspell:ignore oras
+        if: github.run_attempt > 1
         continue-on-error: true
       - id: maestro
+        if: github.run_attempt > 1
         run: |
           d=$(mktemp -d)
           trap 'rm -rf "$d"' EXIT
@@ -176,7 +178,7 @@ jobs:
           fi
       - uses: actions/cache/restore@v6
         id: cache
-        if: steps.maestro.outputs.cache == 'true'
+        if: github.run_attempt == 1 || steps.maestro.outputs.cache == 'true'
         with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - if: github.ref_name == 'main'
         run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 600 gh run watch -i 10 "$run" > /dev/null || true; done
