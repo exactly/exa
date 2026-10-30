@@ -40,6 +40,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
+import useProposalManager from "../../utils/useProposalManager";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
@@ -122,7 +123,7 @@ export default function Repay() {
   });
 
   const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
-    address: proposalManagerAddress,
+    address: useProposalManager() ?? proposalManagerAddress,
     chainId: chain.id,
   });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
