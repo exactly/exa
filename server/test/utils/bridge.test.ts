@@ -3,7 +3,7 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/core";
 import { eq } from "drizzle-orm";
-import { parse, safeParse } from "valibot";
+import { parse, safeParse, type InferOutput } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { optimism, optimismSepolia } from "viem/chains";
@@ -94,6 +94,20 @@ describe("bridge utils", () => {
       await expect(bridge.getCustomer("cust-123")).rejects.toThrow("internal error");
     });
 
+    it("preserves associated person requirements without throwing", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({ ...activeCustomer, status: "awaiting_ubo", endorsements: [associatedPersonEndorsement] }),
+      );
+
+      const result = await bridge.getCustomer("cust-123");
+
+      expect(result).toStrictEqual({
+        ...activeCustomer,
+        status: "awaiting_ubo",
+        endorsements: [associatedPersonEndorsement],
+      });
+    });
+
     it("preserves unknown issues and missing requirements without throwing", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         fetchResponse({
@@ -161,17 +175,18 @@ describe("bridge utils", () => {
     it("returns new customer", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      const result = await bridge.createCustomer(createCustomerPayload);
+      const result = await bridge.createCustomer(createCustomerPayload, "customer-request-1");
 
       expect(result).toStrictEqual({ id: "cust-new", status: "not_started" });
     });
 
-    it("throws EMAIL_ALREADY_EXISTS when email is taken", async () => {
+    it.each([
+      ["personal", () => bridge.createCustomer(createCustomerPayload, "customer-request-1")],
+      ["business", () => bridge.createCustomer(businessCustomerPayload, "customer-request-1")],
+    ])("throws EMAIL_ALREADY_EXISTS when the %s email is taken", async (_name, create) => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(409, "A customer with this email already exists"));
 
-      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(
-        bridge.ErrorCodes.EMAIL_ALREADY_EXISTS,
-      );
+      await expect(create()).rejects.toThrow(bridge.ErrorCodes.EMAIL_ALREADY_EXISTS);
       expect(captureException).toHaveBeenLastCalledWith(
         expect.objectContaining({ message: "A customer with this email already exists" }),
         expect.objectContaining({ level: "error" }),
@@ -183,7 +198,9 @@ describe("bridge utils", () => {
         fetchError(400, "invalid_parameters: residential_address is not valid"),
       );
 
-      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow(bridge.ErrorCodes.INVALID_ADDRESS);
+      await expect(bridge.createCustomer(createCustomerPayload, "customer-request-1")).rejects.toThrow(
+        bridge.ErrorCodes.INVALID_ADDRESS,
+      );
       expect(captureException).toHaveBeenLastCalledWith(
         expect.objectContaining({ message: "invalid_parameters: residential_address is not valid" }),
         expect.objectContaining({ level: "warning" }),
@@ -193,7 +210,292 @@ describe("bridge utils", () => {
     it("throws on other errors", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(400, "bad request"));
 
-      await expect(bridge.createCustomer(createCustomerPayload)).rejects.toThrow("bad request");
+      await expect(bridge.createCustomer(createCustomerPayload, "customer-request-1")).rejects.toThrow("bad request");
+    });
+  });
+
+  describe("business onboarding", () => {
+    afterEach(() => database.update(credentials).set({ bridgeId: null }).where(eq(credentials.id, "cred-1")));
+
+    it("creates the business customer from an approved persona inquiry and stores the bridge id", async () => {
+      const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(businessInquiry);
+      const getAccount = vi.spyOn(persona, "getAccount");
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ id: "customer-1", status: "not_started" }));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(getInquiry).toHaveBeenCalledExactlyOnceWith("cred-1", Persona.BUSINESS_TEMPLATE);
+      expect(getAccount).not.toHaveBeenCalled();
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers",
+        expect.objectContaining({
+          body: JSON.stringify({
+            business_legal_name: "Example LLC",
+            client_reference_id: "cred-1",
+            email: "business@example.com",
+            endorsements: ["base", "sepa"],
+            signed_agreement_id: "agreement-1",
+            type: "business",
+          }),
+          headers: {
+            "api-key": "bridge",
+            "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/) as string,
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+      const updated = await database.query.credentials.findFirst({ where: eq(credentials.id, "cred-1") });
+      expect(updated).toMatchObject({ bridgeId: "customer-1" });
+    });
+
+    it("trims a padded required field", async () => {
+      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+        ...businessInquiry,
+        attributes: {
+          ...businessInquiry.attributes,
+          fields: { ...businessInquiry.attributes.fields, "business-name": " Example LLC " },
+        },
+      });
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ id: "customer-1", status: "not_started" }));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers",
+        expect.objectContaining({
+          body: JSON.stringify({ ...businessCustomerPayload, client_reference_id: "cred-1" }),
+        }),
+      );
+    });
+
+    it("rejects a missing business inquiry", async () => {
+      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      const getAccount = vi.spyOn(persona, "getAccount");
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).rejects.toMatchObject({ message: "business inquiry not started", code: "not started" });
+      expect(getAccount).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects a mismatched business inquiry reference id", async () => {
+      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+        ...businessInquiry,
+        attributes: { ...businessInquiry.attributes, "reference-id": "other-credential" },
+      });
+      const getAccount = vi.spyOn(persona, "getAccount");
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).rejects.toMatchObject({ message: "business inquiry does not match credential", code: "bad request" });
+      expect(getAccount).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["created", "business inquiry is not started", "not started"],
+      ["expired", "business inquiry is not started", "not started"],
+      ["pending", "business inquiry is not started", "not started"],
+      ["failed", "business inquiry failed", "bad kyb"],
+      ["declined", "business inquiry failed", "bad kyb"],
+      ["completed", "business inquiry is not complete", "processing"],
+      ["needs_review", "business inquiry is not complete", "processing"],
+    ] as const)("rejects a %s business inquiry", async (status, message, code) => {
+      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+        ...businessInquiry,
+        attributes: { ...businessInquiry.attributes, status },
+      });
+      const getAccount = vi.spyOn(persona, "getAccount");
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).rejects.toMatchObject({ message, code });
+      expect(getAccount).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("rejects a business inquiry without fields", async () => {
+      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+        ...businessInquiry,
+        attributes: { "reference-id": "cred-1", status: "approved" },
+      });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).rejects.toMatchObject({ name: "ValiError", issues: [{ expected: "Object", received: "undefined" }] });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a blank business-name", "business-name", " ", "0"],
+      ["a null business-name", "business-name", null, "null"],
+      ["a blank primary-contact-email", "primary-contact-email", " ", '""'],
+      ["an invalid primary-contact-email", "primary-contact-email", "business", '"business"'],
+      ["a null primary-contact-email", "primary-contact-email", null, "null"],
+      ["a non-string business-name", "business-name", 123, "123"],
+    ] as const)("rejects %s", async (_name, field, value, received) => {
+      vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+        ...businessInquiry,
+        attributes: { ...businessInquiry.attributes, fields: { ...businessInquiry.attributes.fields, [field]: value } },
+      });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).rejects.toMatchObject({ name: "ValiError", issues: [{ path: [{ key: field }], received }] });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("throws ALREADY_ONBOARDED when the business credential has a customer", async () => {
+      const createCustomer = vi.spyOn(ramp, "createCustomer");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.ALREADY_ONBOARDED);
+      expect(createCustomer).not.toHaveBeenCalled();
+    });
+
+    it("throws NOT_SUPPORTED_CHAIN_ID for unsupported chain", async () => {
+      chainMock.id = 1;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.onboarding({
+          accountType: "business",
+          acceptedTermsId: "agreement-1",
+          credentialId: "cred-1",
+          customerId: null,
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "bridge not supported chain id" }),
+        expect.objectContaining({ level: "error" }),
+      );
+    });
+
+    it("creates a business customer with the caller idempotency key", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ id: "customer-1", status: "not_started" }));
+
+      await expect(bridge.createCustomer(businessCustomerPayload, "customer-request-1")).resolves.toStrictEqual({
+        id: "customer-1",
+        status: "not_started",
+      });
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers",
+        expect.objectContaining({
+          body: JSON.stringify(businessCustomerPayload),
+          headers: {
+            "api-key": "bridge",
+            "Idempotency-Key": "customer-request-1",
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    });
+
+    it("requests a kyc link with the encoded redirect url", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://verify.bridge.test/session" }));
+
+      await expect(bridge.getKYCLink("customer/1", "https://app.test/kyc?step=business&next=/home")).resolves.toBe(
+        "https://verify.bridge.test/session",
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/customer/1/kyc_link?redirect_uri=https%3A%2F%2Fapp.test%2Fkyc%3Fstep%3Dbusiness%26next%3D%2Fhome",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("creates an agreement link with the redirect url", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(fetchResponse({ url: "https://bridge.test/agreement?session=one" }));
+
+      await expect(bridge.agreementLink("https://app.test/return?provider=bridge")).resolves.toBe(
+        "https://bridge.test/agreement?session=one&redirect_uri=https%3A%2F%2Fapp.test%2Freturn%3Fprovider%3Dbridge",
+      );
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+        "https://bridge.test/customers/tos_links",
+        expect.objectContaining({
+          body: undefined,
+          headers: {
+            "api-key": "bridge",
+            "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/) as string,
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+    });
+
+    it("rejects an invalid business customer response", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(fetchResponse({ id: 1, status: "not_started" }));
+
+      await expect(bridge.createCustomer(businessCustomerPayload, "customer-request-1")).rejects.toThrow(
+        /Invalid type/,
+      );
     });
   });
 
@@ -201,7 +503,7 @@ describe("bridge utils", () => {
     it("returns NOT_AVAILABLE for unsupported chain id", async () => {
       chainMock.id = 1;
 
-      const result = await bridge.getProvider({ credentialId: "cred-1" });
+      const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
       expect(result).toStrictEqual({
         status: "NOT_AVAILABLE",
@@ -218,15 +520,19 @@ describe("bridge utils", () => {
       it("throws when customer not found", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchError(404, "not_found"));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-bad" })).rejects.toThrow(
-          bridge.ErrorCodes.BAD_BRIDGE_ID,
-        );
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-bad" }),
+        ).rejects.toThrow(bridge.ErrorCodes.BAD_BRIDGE_ID);
       });
 
       it("returns NOT_AVAILABLE when customer is offboarded", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "offboarded" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "NOT_AVAILABLE",
@@ -242,7 +548,11 @@ describe("bridge utils", () => {
       it("returns ONBOARDING when customer is rejected", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "rejected" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -259,7 +569,11 @@ describe("bridge utils", () => {
       it("returns ONBOARDING when customer is paused", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "paused" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -278,7 +592,11 @@ describe("bridge utils", () => {
           fetchResponse({ ...activeCustomer, status: "under_review" }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -291,7 +609,11 @@ describe("bridge utils", () => {
       it("returns ONBOARDING when customer is incomplete", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "incomplete" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -301,12 +623,196 @@ describe("bridge utils", () => {
         });
       });
 
+      it("returns ONBOARDING with kycLink when business has not started kyb", async () => {
+        const customer = {
+          ...activeCustomer,
+          id: "4140f117-1a4e-4b44-8e70-884063536b66",
+          status: "not_started",
+          endorsements: [
+            {
+              name: "base",
+              status: "incomplete",
+              additional_requirements: ["kyc_approval"],
+              requirements: {
+                complete: [],
+                pending: [],
+                missing: {
+                  all_of: [
+                    "business_type",
+                    "business_description",
+                    "address_of_incorporation",
+                    "address_of_operation",
+                    "kyb_review",
+                    "tax_identification_number",
+                    { any_of: ["control_person_ownership_attestation", "business_ownership_documents"] },
+                    "source_of_funds_questionnaire",
+                    "associated_persons",
+                    "proof_of_address",
+                    { any_of: ["business_website", "proof_of_nature_of_business_document"] },
+                    { any_of: ["business_website", "proof_of_nature_of_business_document_verification"] },
+                    "business_formation_document",
+                    "post_processing",
+                  ],
+                },
+                issues: [],
+              },
+            },
+          ],
+        };
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse(customer))
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+        vi.mocked(captureException).mockClear();
+
+        const result = await bridge.getProvider({
+          accountType: "business",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        expect(fetchSpy.mock.calls[1]?.[0]).toBe(
+          "https://bridge.test/customers/4140f117-1a4e-4b44-8e70-884063536b66/kyc_link",
+        );
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bridge user onboarding"), {
+          contexts: { bridgeUser: customer },
+          level: "warning",
+        });
+      });
+
+      it("returns ONBOARDING with kycLink when business misses only a business requirement", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(
+            fetchResponse({
+              ...activeCustomer,
+              status: "incomplete",
+              endorsements: [
+                {
+                  name: "base",
+                  status: "incomplete",
+                  requirements: {
+                    complete: [],
+                    pending: [],
+                    missing: { all_of: ["kyb_review", "business_formation_document"] },
+                    issues: [],
+                  },
+                },
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
+
+        const result = await bridge.getProvider({
+          accountType: "business",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+          kycLink: "https://kyc.bridge.xyz/link",
+        });
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        expect(fetchSpy.mock.calls[1]?.[0]).toBe("https://bridge.test/customers/cust-123/kyc_link");
+      });
+
+      it.each([
+        {
+          id: "1cdd82f1-eb59-48a3-af5a-fb671026fae2",
+          persons: ["4a74646f-3d01-4b5b-aa4b-5568327b4799", "c72c5709-dbb1-4ffa-9d49-444e68d2233a"],
+          issues: ["high_risk_business_activities", "tax_identification_number_fake_pattern"],
+        },
+        {
+          id: "2fd8a9f1-67bd-4c41-8265-ad2b47db1f11",
+          persons: [
+            "c7f2eb58-5482-4c93-98f8-a60859404967",
+            "7ed5aa2f-8264-4d4d-ac9a-f6e65ff7bdaf",
+            "d53c30fe-4894-4ef2-878b-0172f6ac7e1e",
+          ],
+          issues: ["suspicious_primary_purpose", "tax_identification_number_fake_pattern"],
+        },
+      ])(
+        "returns ONBOARDING without kycLink when business $id waits on owners and review",
+        async ({ id, persons, issues }) => {
+          const customer = {
+            ...activeCustomer,
+            id,
+            status: "awaiting_ubo",
+            endorsements: [
+              {
+                name: "base",
+                status: "incomplete",
+                additional_requirements: ["kyc_approval"],
+                requirements: {
+                  complete: [],
+                  pending: [],
+                  missing: {
+                    all_of: [
+                      "kyb_review",
+                      "sof_questionnaire_review",
+                      ...persons.map((person) => ({
+                        object_type: "associated_person",
+                        object_id: person,
+                        all_of: [
+                          "tax_identification_number",
+                          "date_of_birth",
+                          "address_of_residence",
+                          "government_id_document",
+                          "min_age_18",
+                        ],
+                      })),
+                      "manual_review",
+                      "post_processing",
+                    ],
+                  },
+                  issues,
+                },
+              },
+            ],
+          };
+          const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse(customer));
+          vi.mocked(captureException).mockClear();
+
+          const result = await bridge.getProvider({
+            accountType: "business",
+            credentialId: "cred-1",
+            customerId: "cust-1",
+          });
+
+          expect(result).toStrictEqual({
+            status: "ONBOARDING",
+            onramp: { currencies: onboardingCurrencies },
+            offramp: { currencies: onboardingCurrencies },
+            kycLink: undefined,
+          });
+          expect(fetchSpy).toHaveBeenCalledOnce();
+          expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bridge user onboarding"), {
+            contexts: { bridgeUser: customer },
+            level: "warning",
+          });
+        },
+      );
+
       it("returns ONBOARDING without kycLink when endorsements are empty", async () => {
         const fetchSpy = vi
           .spyOn(globalThis, "fetch")
           .mockResolvedValueOnce(fetchResponse({ ...activeCustomer, status: "incomplete" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -324,7 +830,11 @@ describe("bridge utils", () => {
             fetchResponse({ ...activeCustomer, status: "incomplete", endorsements: [endorsement("base", "approved")] }),
           );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -350,7 +860,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -376,7 +890,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -402,7 +920,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -428,7 +950,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -454,7 +980,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -480,7 +1010,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -506,7 +1040,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -537,7 +1075,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -570,7 +1112,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -600,7 +1144,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -625,7 +1171,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -655,7 +1203,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -685,7 +1235,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -715,7 +1267,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -745,7 +1299,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -777,7 +1333,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -804,6 +1362,7 @@ describe("bridge utils", () => {
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
         await bridge.getProvider({
+          accountType: "consumer",
           credentialId: "cred-1",
           customerId: "cust-1",
           redirectURL: "https://app.example.com/callback",
@@ -836,7 +1395,7 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" });
 
         const kycCall = fetchSpy.mock.calls[1]?.[0] as string;
         expect(kycCall).not.toContain("redirect_uri");
@@ -859,7 +1418,11 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "not-a-valid-url" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -893,7 +1456,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -921,7 +1488,11 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchError(500, "bridge kyc error"));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -952,7 +1523,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result.status).toBe("ONBOARDING");
         expect(result.kycLink).toBeUndefined();
@@ -979,7 +1554,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -1010,7 +1589,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -1053,7 +1636,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1097,6 +1682,7 @@ describe("bridge utils", () => {
 
         await expect(
           bridge.getProvider({
+            accountType: "consumer",
             credentialId: "cred-1",
             customerId: "cust-1",
             redirectURL: "https://app.example.com/callback",
@@ -1134,7 +1720,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ONBOARDING",
           onramp: { currencies: onboardingCurrencies },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1150,7 +1738,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "GBP"] },
           offramp: { currencies: [...baseCurrencies, "USD", "GBP"] },
@@ -1166,7 +1756,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
           offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
@@ -1187,7 +1779,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
           offramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
@@ -1204,7 +1798,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
@@ -1221,7 +1817,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1236,7 +1834,11 @@ describe("bridge utils", () => {
       it("returns the four crypto offramp options regardless of endorsements", async () => {
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ ...activeCustomer, endorsements: [] }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result.offramp.currencies).toStrictEqual([
           { currency: "USDC", network: "BASE" },
@@ -1258,7 +1860,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
           offramp: { currencies: [...baseCurrencies, "USD", "BRL"] },
@@ -1278,7 +1882,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ACTIVE",
@@ -1305,7 +1913,11 @@ describe("bridge utils", () => {
           }),
         );
 
-        const result = await bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" });
+        const result = await bridge.getProvider({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+        });
 
         expect(result).toStrictEqual({
           status: "ACTIVE",
@@ -1325,7 +1937,9 @@ describe("bridge utils", () => {
           fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1340,7 +1954,9 @@ describe("bridge utils", () => {
           fetchResponse({ ...activeCustomer, endorsements: [endorsement("base", "approved")] }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1351,7 +1967,8 @@ describe("bridge utils", () => {
 
       it("returns ACTIVE with futureRequirement when a future requirement falls within the window", async () => {
         const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
-        vi.spyOn(globalThis, "fetch")
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
           .mockResolvedValueOnce(
             fetchResponse({
               ...activeCustomer,
@@ -1365,12 +1982,15 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
           futureRequirement: { url: "https://kyc.bridge.xyz/link", date },
         });
+        expect(fetchSpy.mock.calls[1]?.[0]).toBe("https://bridge.test/customers/cust-123/kyc_link");
       });
 
       it("returns ACTIVE without futureRequirement when future requirement has pending items", async () => {
@@ -1387,7 +2007,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1410,7 +2032,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1441,7 +2065,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toMatchObject({
           futureRequirement: { url: "https://kyc.bridge.xyz/link", date: earlier },
         });
       });
@@ -1466,7 +2092,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toMatchObject({
           futureRequirement: { url: "https://kyc.bridge.xyz/link", date: inWindow },
         });
       });
@@ -1491,7 +2119,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toMatchObject({
           futureRequirement: { url: "https://kyc.bridge.xyz/link", date: cleanDate },
         });
       });
@@ -1517,7 +2147,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toMatchObject({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toMatchObject({
           futureRequirement: { url: "https://kyc.bridge.xyz/link", date: sepaDate },
         });
       });
@@ -1540,7 +2172,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1562,7 +2196,9 @@ describe("bridge utils", () => {
           }),
         );
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1591,7 +2227,9 @@ describe("bridge utils", () => {
           )
           .mockResolvedValueOnce(fetchError(500, "boom"));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1", customerId: "cust-1" })).resolves.toStrictEqual({
+        await expect(
+          bridge.getProvider({ accountType: "consumer", credentialId: "cred-1", customerId: "cust-1" }),
+        ).resolves.toStrictEqual({
           status: "ACTIVE",
           onramp: { currencies: [...baseCurrencies, "USD"] },
           offramp: { currencies: [...baseCurrencies, "USD"] },
@@ -1605,7 +2243,7 @@ describe("bridge utils", () => {
       it("throws when persona account not found", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
-        await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
           bridge.ErrorCodes.NO_PERSONA_ACCOUNT,
         );
       });
@@ -1614,7 +2252,9 @@ describe("bridge utils", () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
-        await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
+          bridge.ErrorCodes.NO_DOCUMENT,
+        );
       });
 
       it("returns NOT_AVAILABLE when country is denylisted", async () => {
@@ -1624,7 +2264,7 @@ describe("bridge utils", () => {
           attributes: { ...personaAccount.attributes, "country-code": "ID" },
         });
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(result).toStrictEqual({
           onramp: { currencies: [] },
@@ -1638,7 +2278,7 @@ describe("bridge utils", () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -1658,7 +2298,7 @@ describe("bridge utils", () => {
           },
         });
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -1678,7 +2318,7 @@ describe("bridge utils", () => {
           },
         });
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(result).toStrictEqual({
           status: "ONBOARDING",
@@ -1695,7 +2335,7 @@ describe("bridge utils", () => {
           id_class: { value: "wp" },
         });
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(result).toStrictEqual({
           onramp: { currencies: [] },
@@ -1718,7 +2358,7 @@ describe("bridge utils", () => {
           id_class: { value: "unknown_type" },
         });
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(result).toStrictEqual({
           onramp: { currencies: [] },
@@ -1740,7 +2380,7 @@ describe("bridge utils", () => {
           attributes: { ...enabledPersonaAccount.attributes, "country-code": "INVALID" },
         });
 
-        await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
           bridge.ErrorCodes.NO_COUNTRY_ALPHA3,
         );
       });
@@ -1755,7 +2395,7 @@ describe("bridge utils", () => {
           },
         });
 
-        await expect(bridge.getProvider({ credentialId: "cred-1" })).rejects.toThrow(
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
           bridge.ErrorCodes.NO_SOCIAL_SECURITY_NUMBER,
         );
       });
@@ -1764,11 +2404,44 @@ describe("bridge utils", () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1" })).resolves.toStrictEqual({
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
           status: "NOT_STARTED",
           tosLink: "https://tos.link/agree",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
           offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+      });
+
+      it("returns NOT_STARTED with a business tos link when no customer exists", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        await expect(bridge.getProvider({ accountType: "business", credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+        expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://bridge.test/customers/tos_links");
+      });
+
+      it("appends the redirect URL with the provider param to the business tos link", async () => {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        const result = await bridge.getProvider({
+          accountType: "business",
+          credentialId: "cred-1",
+          redirectURL: "https://app.example.com/callback",
+        });
+
+        expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://bridge.test/customers/tos_links");
+        expect(result).toMatchObject({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree?redirect_uri=https%3A%2F%2Fapp.example.com%2Fcallback%3Fprovider%3Dbridge",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
         });
       });
 
@@ -1779,7 +2452,7 @@ describe("bridge utils", () => {
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
         expect(result).toStrictEqual({
@@ -1797,7 +2470,7 @@ describe("bridge utils", () => {
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
         expect(result).toStrictEqual({
@@ -1815,7 +2488,7 @@ describe("bridge utils", () => {
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        const result = await bridge.getProvider({ credentialId: "cred-1" });
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
         expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
         expect(result).toStrictEqual({
@@ -1833,6 +2506,7 @@ describe("bridge utils", () => {
           .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({
+          accountType: "consumer",
           credentialId: "cred-1",
           redirectURL: "https://app.example.com/callback",
         });
@@ -1852,6 +2526,7 @@ describe("bridge utils", () => {
         );
 
         const result = await bridge.getProvider({
+          accountType: "consumer",
           credentialId: "cred-1",
           redirectURL: "https://app.example.com/callback",
         });
@@ -1867,7 +2542,7 @@ describe("bridge utils", () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        await expect(bridge.getProvider({ credentialId: "cred-1" })).resolves.toStrictEqual({
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
           status: "NOT_STARTED",
           tosLink: "https://tos.link/agree",
           onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
@@ -1880,7 +2555,12 @@ describe("bridge utils", () => {
   describe("onboarding", () => {
     it("throws ALREADY_ONBOARDED when customerId exists", async () => {
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: "cust-1", acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: "cust-1",
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.ALREADY_ONBOARDED);
     });
 
@@ -1888,7 +2568,12 @@ describe("bridge utils", () => {
       chainMock.id = 1;
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
       expect(captureException).toHaveBeenCalledWith(
         expect.objectContaining({ message: "bridge not supported chain id" }),
@@ -1900,7 +2585,12 @@ describe("bridge utils", () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_PERSONA_ACCOUNT);
     });
 
@@ -1909,7 +2599,12 @@ describe("bridge utils", () => {
       vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
     });
 
@@ -1921,7 +2616,12 @@ describe("bridge utils", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.DENYLISTED_COUNTRY);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(captureException).toHaveBeenCalledWith(
@@ -1938,7 +2638,12 @@ describe("bridge utils", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(captureException).toHaveBeenCalledWith(
@@ -1961,7 +2666,12 @@ describe("bridge utils", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(captureException).toHaveBeenCalledWith(
@@ -1984,7 +2694,12 @@ describe("bridge utils", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(captureException).toHaveBeenCalledWith(
@@ -2004,7 +2719,12 @@ describe("bridge utils", () => {
       });
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT_FILE);
     });
 
@@ -2021,7 +2741,12 @@ describe("bridge utils", () => {
       });
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_DOCUMENT);
     });
 
@@ -2035,7 +2760,12 @@ describe("bridge utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
     });
 
@@ -2049,7 +2779,12 @@ describe("bridge utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
     });
 
@@ -2062,7 +2797,12 @@ describe("bridge utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_COUNTRY_ALPHA3);
     });
 
@@ -2079,7 +2819,12 @@ describe("bridge utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(blobResponse()).mockResolvedValueOnce(blobResponse());
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
     });
 
@@ -2100,7 +2845,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       const createCall = fetchSpy.mock.calls[2];
       const body = JSON.parse(createCall?.[1]?.body as string) as {
@@ -2120,7 +2870,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       const createCall = fetchSpy.mock.calls[2];
       const { residential_address: address } = JSON.parse(createCall?.[1]?.body as string) as {
@@ -2141,7 +2896,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       const createCall = fetchSpy.mock.calls[2];
       const body = JSON.parse(createCall?.[1]?.body as string) as { endorsements: string[] };
@@ -2160,7 +2920,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       const createCall = fetchSpy.mock.calls[2];
       const body = JSON.parse(createCall?.[1]?.body as string) as { endorsements: string[] };
@@ -2179,7 +2944,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       const createCall = fetchSpy.mock.calls[2];
       const body = JSON.parse(createCall?.[1]?.body as string) as { endorsements: string[] };
@@ -2198,7 +2968,12 @@ describe("bridge utils", () => {
         .mockRejectedValueOnce(timeout)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-retry", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       expect(captureException).toHaveBeenCalledWith(timeout, { level: "warning" });
       const updated = await database.query.credentials.findFirst({
@@ -2217,7 +2992,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchError(500, "internal server error"))
         .mockResolvedValueOnce(fetchResponse({ id: "cust-retry-500", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       expect(captureException).toHaveBeenCalledWith(expect.any(Error), { level: "warning" });
       const updated = await database.query.credentials.findFirst({
@@ -2240,7 +3020,12 @@ describe("bridge utils", () => {
         .mockRejectedValueOnce(timeout);
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow("signal timed out");
       expect(fetchSpy).toHaveBeenCalledTimes(5);
     });
@@ -2255,7 +3040,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchError(400, '{"message":"A customer with this email already exists"}'));
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow(bridge.ErrorCodes.EMAIL_ALREADY_EXISTS);
       expect(fetchSpy).toHaveBeenCalledTimes(3);
     });
@@ -2269,7 +3059,12 @@ describe("bridge utils", () => {
         .mockResolvedValueOnce(fetchResponse({ id: "taken-bridge-id", status: "not_started" }));
 
       await expect(
-        bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" }),
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
       ).rejects.toThrow("Failed query");
     });
 
@@ -2284,7 +3079,12 @@ describe("bridge utils", () => {
         .mockRejectedValueOnce(timeout)
         .mockResolvedValueOnce(fetchResponse({ id: "cust-idem", status: "not_started" }));
 
-      await bridge.onboarding({ credentialId: "cred-1", customerId: null, acceptedTermsId: "terms-1" });
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
 
       const firstKey = (fetchSpy.mock.calls[2]?.[1]?.headers as Record<string, string>)["Idempotency-Key"];
       const retryKey = (fetchSpy.mock.calls[3]?.[1]?.headers as Record<string, string>)["Idempotency-Key"];
@@ -4927,6 +5727,20 @@ const activeCustomer = {
   endorsements: [] as ReturnType<typeof endorsement>[],
 };
 
+const associatedPersonEndorsement = {
+  name: "base" as const,
+  status: "incomplete" as const,
+  requirements: {
+    complete: [
+      "business_name",
+      { associated_person: "person-1", items: ["first_name", "last_name", "selfie_verification"] },
+    ],
+    pending: [{ associated_person: "person-2", items: ["government_id_verification"] }],
+    missing: null,
+    issues: [],
+  },
+};
+
 const activeCustomerWithBaseEndorsement = {
   ...activeCustomer,
   endorsements: [endorsement("base", "approved")],
@@ -5056,3 +5870,22 @@ const createCustomerPayload = {
     { type: "passport" as const, issuing_country: "AR", number: "AB123456", image_front: "data:image/jpg;base64,abc" },
   ],
 };
+
+const businessCustomerPayload: Parameters<typeof ramp.createCustomer>[0] = {
+  business_legal_name: "Example LLC",
+  client_reference_id: "business-1",
+  email: "business@example.com",
+  endorsements: ["base", "sepa"],
+  signed_agreement_id: "agreement-1",
+  type: "business",
+};
+
+const businessInquiry = {
+  id: "inquiry-1",
+  type: "inquiry",
+  attributes: {
+    fields: { "business-name": "Example LLC", "primary-contact-email": "business@example.com" },
+    "reference-id": "cred-1",
+    status: "approved",
+  },
+} satisfies InferOutput<typeof Persona.Inquiry>;

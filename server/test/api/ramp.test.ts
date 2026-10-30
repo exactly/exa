@@ -5,24 +5,31 @@ import "../mocks/manteca";
 import "../mocks/persona";
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/core";
+import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { business } from "@exactly/common/tenants";
 import { Address } from "@exactly/common/validation";
 
 import route from "../../api/ramp";
 import database, { credentials } from "../../database";
 import authenticate from "../../middleware/auth";
+import { BusinessApplicationError } from "../../utils/panda";
 import createPersona, * as Persona from "../../utils/persona";
 import createBridge, * as Bridge from "../../utils/ramps/bridge";
 import createManteca, * as Manteca from "../../utils/ramps/manteca";
+import ServiceError from "../../utils/ServiceError";
+
+vi.mock("@sentry/core", { spy: true });
 
 const bridge = Object.assign(
   createBridge(
@@ -65,19 +72,20 @@ describe("ramp api", () => {
     await database.insert(credentials).values([
       { id: "ramp-test", publicKey: new Uint8Array(hexToBytes(owner)), account, factory, pandaId: "rampPandaId" },
       {
+        ...bridgeCredential,
         id: "ramp-bridge",
         publicKey: new Uint8Array(hexToBytes(owner)),
         account: deriveAddress(factory, { x: padHex(privateKeyToAddress(padHex("0xbee"))), y: zeroHash }),
         factory,
         pandaId: "bridgePandaId",
-        bridgeId: "bridge-customer-123",
       },
     ]);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    await setBridgeCredential();
   });
 
   describe("get", () => {
@@ -160,6 +168,30 @@ describe("ramp api", () => {
           offramp: { currencies: [] },
           status: "NOT_AVAILABLE",
         },
+      });
+    });
+
+    it("passes the business account type without a bridge customer", async () => {
+      await setBridgeCredential({ bridgeId: null, salt: business });
+      const mantecaSpy = vi.spyOn(manteca, "getProvider");
+      const bridgeSpy = vi.spyOn(bridge, "getProvider").mockResolvedValue({
+        onramp: { currencies: [] },
+        offramp: { currencies: [] },
+        status: "NOT_STARTED",
+        tosLink: "https://bridge.test/agreement?session=one",
+      });
+
+      const response = await appClient.index.$get({ query: {} }, { headers: { "test-credential-id": "ramp-bridge" } });
+
+      expect(response.status).toBe(200);
+      expect(mantecaSpy).not.toHaveBeenCalled();
+      expect(bridgeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ accountType: "business", customerId: null }),
+        persona,
+      );
+      await expect(response.json()).resolves.toMatchObject({
+        manteca: { onramp: { currencies: [] }, status: "NOT_AVAILABLE" },
+        bridge: { tosLink: "https://bridge.test/agreement?session=one" },
       });
     });
 
@@ -414,6 +446,7 @@ describe("ramp api", () => {
         );
 
         expect(response.status).toBe(200);
+        expect(bridge.getCustomer).toHaveBeenCalledWith("bridge-customer-123");
         await expect(response.json()).resolves.toStrictEqual({
           quote: { buyRate: "1.00", sellRate: "1.00" },
           depositInfo: [
@@ -1068,7 +1101,7 @@ describe("ramp api", () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
         expect(bridge.onboarding).toHaveBeenCalledWith(
-          { credentialId: "ramp-test", customerId: null, acceptedTermsId: "terms_123" },
+          { accountType: "consumer", acceptedTermsId: "terms_123", credentialId: "ramp-test", customerId: null },
           database,
           persona,
         );
@@ -1085,10 +1118,113 @@ describe("ramp api", () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
         expect(bridge.onboarding).toHaveBeenCalledWith(
-          { credentialId: "ramp-bridge", customerId: "bridge-customer-123", acceptedTermsId: "terms_456" },
+          {
+            accountType: "consumer",
+            acceptedTermsId: "terms_456",
+            credentialId: "ramp-bridge",
+            customerId: "bridge-customer-123",
+          },
           database,
           persona,
         );
+      });
+
+      it("onboards a business credential", async () => {
+        await setBridgeCredential({ bridgeId: null, salt: business });
+        const onboarding = vi.spyOn(bridge, "onboarding").mockResolvedValue();
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(onboarding).toHaveBeenCalledWith(
+          { accountType: "business", acceptedTermsId: "terms_789", credentialId: "ramp-bridge", customerId: null },
+          database,
+          persona,
+        );
+      });
+
+      it("rejects onboarding for a business credential without bridge", async () => {
+        await setBridgeCredential({ bridgeId: null, salt: business });
+        const onboarding = vi.spyOn(manteca, "onboarding");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "manteca" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(onboarding).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when the business profile is not approved", async () => {
+        await setBridgeCredential({ bridgeId: null, salt: business });
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(
+          new BusinessApplicationError("business account is not complete", "processing"),
+        );
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "processing" });
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it.each([bridge.ErrorCodes.EMAIL_ALREADY_EXISTS, bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID])(
+        "returns 400 for %s",
+        async (code) => {
+          await setBridgeCredential({ bridgeId: null, salt: business });
+          vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(code));
+
+          const response = await appClient.index.$post(
+            { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code });
+          expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error(code), {
+            level: "error",
+            contexts: { credential: expect.objectContaining({ bridgeId: null, salt: business }) as unknown },
+          });
+        },
+      );
+
+      it("returns 400 when bridge rejects the business payload as unprocessable", async () => {
+        await setBridgeCredential({ bridgeId: null, salt: business });
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(
+          new ServiceError("bridge", 422, "invalid_parameters", "UnprocessableEntityError", "invalid agreement"),
+        );
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ status: 422 }), {
+          level: "error",
+          contexts: { credential: expect.objectContaining({ bridgeId: null, salt: business }) as unknown },
+        });
+      });
+
+      it("returns 400 when the bridge terms are missing", async () => {
+        const response = await app.request("/", {
+          method: "POST",
+          headers: { "content-type": "application/json", "test-credential-id": "ramp-test" },
+          body: JSON.stringify({ provider: "bridge" }),
+        });
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toMatchObject({ code: "bad onboarding", legacy: "bad onboarding" });
       });
 
       it("returns 400 when already onboarded", async () => {
@@ -1853,6 +1989,8 @@ const bridgeCustomer = {
   endorsements: [],
 };
 
+const bridgeCredential = { bridgeId: bridgeCustomer.id, salt: zeroAddress };
+
 const externalAccount = {
   addressValid: true,
   bankName: "Test Bank",
@@ -1860,3 +1998,7 @@ const externalAccount = {
   id: "ext-acc-1",
   ownerName: "John Doe",
 };
+
+function setBridgeCredential(values: { bridgeId?: null | string; salt?: string } = bridgeCredential) {
+  return database.update(credentials).set(values).where(eq(credentials.id, "ramp-bridge"));
+}
