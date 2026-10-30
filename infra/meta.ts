@@ -460,7 +460,9 @@ try {
         const owner = owners.find((stack) => name === stack || name.startsWith(`${stack}-`));
         return owner !== undefined && owner !== target.name;
       }),
-    onOutput: (output) => stdout.write(output),
+    ...(argv[4] === "--json"
+      ? { onEvent: (event: automation.EngineEvent) => stdout.write(`${JSON.stringify(event)}\n`) }
+      : { onOutput: (output: string) => stdout.write(output) }),
   });
 } catch (error: unknown) {
   console.error(error instanceof Error ? error.message : error); // eslint-disable-line no-console
