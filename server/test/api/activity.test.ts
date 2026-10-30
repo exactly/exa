@@ -15,7 +15,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import {
+import chain, {
   auditorAbi,
   auditorAddress,
   exaAccountFactoryAddress,
@@ -26,6 +26,7 @@ import {
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import authenticate from "../../middleware/auth";
+import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";
 
 function httpSerialize<T>(object: T): T {
@@ -265,7 +266,9 @@ describe.concurrent("authenticated", () => {
           if (cryptomate.success) return { ...cryptomate.output, cardId, lastFour };
           throw new Error("bad test setup");
         })
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id));
+        .toSorted(
+          (a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id, undefined, { numeric: true }),
+        );
       const operation = activity
         .flatMap((item) => ("operations" in item ? item.operations : []))
         .find((item) => "borrow" in item && "installments" in item.borrow);
@@ -972,6 +975,51 @@ describe.concurrent("authenticated", () => {
       });
     });
   });
+});
+
+it("sorts by timestamp, then numerically by block, transaction and log index", async () => {
+  const getContractEvents = publicClient.getContractEvents;
+  vi.spyOn(publicClient, "getContractEvents").mockImplementation((parameters) =>
+    parameters.eventName === "Deposit"
+      ? Promise.resolve(
+          [
+            [99n, 0, 0],
+            [100n, 9, 0],
+            [9n, 0, 0],
+            [100n, 10, 9],
+            [100n, 10, 10],
+          ].map(([blockNumber, transactionIndex, logIndex]) => ({
+            address: marketUSDCAddress,
+            args: { caller: account, owner: account, assets: 1_000_000n, shares: 1_000_000n },
+            blockNumber,
+            transactionHash: zeroHash,
+            transactionIndex,
+            logIndex,
+          })) as never,
+        )
+      : getContractEvents(parameters as never),
+  );
+  vi.spyOn(publicClient, "getBlock").mockImplementation((parameters) =>
+    Promise.resolve({
+      number: parameters?.blockNumber,
+      timestamp: parameters?.blockNumber === 9n ? 1_700_000_001n : 1_700_000_000n,
+    } as never),
+  );
+
+  const response = await appClient.index.$get(
+    { query: { include: "received" } },
+    { headers: { "test-credential-id": "bob" } },
+  );
+
+  expect(response.status).toBe(200);
+  const activity = (await response.json()) as { id: string }[];
+  expect(activity.map(({ id }) => id)).toStrictEqual([
+    `${chain.id}:9:0:0`,
+    `${chain.id}:100:10:10`,
+    `${chain.id}:100:10:9`,
+    `${chain.id}:100:9:0`,
+    `${chain.id}:99:0:0`,
+  ]);
 });
 
 vi.mock("@sentry/node", { spy: true });
