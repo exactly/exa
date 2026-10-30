@@ -12,13 +12,7 @@ export default function CollateralAssetsSheet({ onClose, open }: { onClose: () =
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
-      >
+      <YStack gap="$s7" borderTopLeftRadius="$r5" borderTopRightRadius="$r5" backgroundColor="$backgroundSoft">
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>
             {t("Assets backing your credit")}
@@ -29,7 +23,7 @@ export default function CollateralAssetsSheet({ onClose, open }: { onClose: () =
             )}
           </Text>
         </YStack>
-        <YStack paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack paddingHorizontal="$s5">
           <Button primary width="100%" onPress={onClose}>
             <Button.Text>{t("Got it!")}</Button.Text>
             <Button.Icon>

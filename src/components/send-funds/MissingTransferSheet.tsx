@@ -56,13 +56,7 @@ export default function MissingTransferSheet({
 
   return (
     <ModalSheet open={open} onClose={cancel} disableDrag dismissible={false}>
-      <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
-      >
+      <YStack gap="$s7" borderTopLeftRadius="$r5" borderTopRightRadius="$r5" backgroundColor="$backgroundSoft">
         <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
           <Text emphasized headline>
             {t("We can't load this contact")}
@@ -73,7 +67,7 @@ export default function MissingTransferSheet({
             )}
           </Text>
         </YStack>
-        <YStack gap="$s4" paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack gap="$s4" paddingHorizontal="$s5">
           <Button
             danger
             width="100%"

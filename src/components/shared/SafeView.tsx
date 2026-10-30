@@ -1,7 +1,8 @@
-import React from "react";
+import React, { use } from "react";
 
 import View from "./View";
 import useInsets from "../../utils/useInsets";
+import SheetContext from "../context/SheetContext";
 
 import type { ViewProperties } from "./View";
 
@@ -11,7 +12,7 @@ export default function SafeView({ children, ...rest }: ViewProperties) {
   return (
     <View
       paddingTop={insets.top}
-      paddingBottom={insets.bottom}
+      paddingBottom={use(SheetContext) ? 0 : insets.bottom}
       paddingLeft={insets.left}
       paddingRight={insets.right}
       backgroundColor="$backgroundMild"

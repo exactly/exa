@@ -35,7 +35,6 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
         paddingTop={0}
-        $platform-web={{ paddingBottom: "$s4" }}
         fullScreen
         borderTopLeftRadius="$r4"
         borderTopRightRadius="$r4"
@@ -45,7 +44,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
           <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
         <ScrollView $platform-web={{ maxHeight: "100vh" }}>
-          <YStack gap="$s3" paddingHorizontal="$s5" paddingVertical="$s7">
+          <YStack gap="$s3" paddingHorizontal="$s5" paddingTop="$s7">
             <YStack gap="$s3" paddingBottom="$s4">
               <XStack alignItems="center" gap="$s3">
                 <LogoComponent width={32} height={32} />

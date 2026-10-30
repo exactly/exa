@@ -55,7 +55,7 @@ export default function PromoSheet({
             </View>
           </View>
         </YStack>
-        <YStack gap="$s5" paddingVertical="$s5" paddingHorizontal="$s5">
+        <YStack gap="$s5" paddingTop="$s5" paddingHorizontal="$s5">
           <YStack gap="$s5" alignItems="center" paddingHorizontal="$s6" paddingBottom="$s5">
             <XStack
               alignSelf="center"

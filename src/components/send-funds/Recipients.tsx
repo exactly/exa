@@ -258,8 +258,6 @@ function RecipientRow({
           backgroundColor="$backgroundSoft"
           paddingTop="$s6"
           paddingHorizontal="$s5"
-          paddingBottom="$s7"
-          $platform-android={{ paddingBottom: "$s5" }}
         >
           <Button
             primary

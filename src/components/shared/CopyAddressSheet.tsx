@@ -38,8 +38,7 @@ export default function CopyAddressSheet({
           borderTopRightRadius="$r4"
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s5"
-          $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-web={{ paddingTop: "$s7" }}
         >
           <YStack gap="$s7">
             <YStack gap="$s5">
