@@ -23,7 +23,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runScript:
     file: ../dist/purchase.js
-    env: { merchant: Coffee Shop, amount: "90", installments: "3", credentialId: "${output.credential}" }
+    env: { merchant: Coffee Shop, amount: "90", mode: "3", credentialId: "${output.credential}" }
 - runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/assertHistory.yaml

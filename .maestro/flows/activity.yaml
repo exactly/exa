@@ -1,0 +1,53 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runFlow: ../subflows/verifyIdentity.yaml
+- tapOn: Card
+- tapOn: Card details
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
+- tapOn: Accept and enable card
+- tapOn: Close
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Bakery, amount: "12.34", mode: "0", credentialId: "${output.credential}" }
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Electronics, amount: "56.78", mode: "0", declinedReason: invalid pin, credentialId: "${output.credential}" }
+- tapOn: Home
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Later in 1, center: true } }
+- tapOn: Later in 1
+- tapOn: { text: Close, below: How installment repayment works }
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Bookstore, amount: "23.45", mode: "1", credentialId: "${output.credential}" }
+- tapOn: Tap here to change the number of installments
+- tapOn: { text: "3", below: Set installments }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Furniture, amount: "34.56", mode: "3", credentialId: "${output.credential}" }
+- tapOn: Activity
+- tapOn: Received
+- assertVisible: '420[\s\xa0]USDC'
+- assertVisible: Transaction details
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Bakery
+- assertVisible: Paid
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Payment failed
+- assertVisible: Failed
+- assertVisible: 'There was an error when processing your payment: invalid pin'
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Bookstore
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Installments } }
+- assertVisible: { text: '1x\xa0', rightOf: Installments }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Furniture
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Installments } }
+- assertVisible: { text: '3x\xa0', rightOf: Installments }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- repeat: { times: 2, commands: [{ tapOn: Home }] }
+- runFlow: ../subflows/storeCoverage.yaml
