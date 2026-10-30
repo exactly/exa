@@ -736,9 +736,10 @@ export function declineMessage(reason?: null | string) {
 export function signIssuerOp(
   { account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number },
   issuer: LocalAccount,
+  verifyingContract: Hex = issuerCheckerAddress,
 ) {
   return issuer.signTypedData({
-    domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
+    domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract },
     types: {
       Collection: [
         { name: "account", type: "address" },
