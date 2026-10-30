@@ -221,12 +221,13 @@ async function start(dump = false) {
     return () => Promise.resolve();
   }
 
-  const [exaBusinessTenant, refunder, exaPlugin] = await Promise.all([
+  const [exaBusinessTenant, refunder, exaPlugin, release] = await Promise.all([
     readFile("node_modules/@exactly/plugin/broadcast/ExaBusinessTenant.s.sol/31337/run-latest.json", "utf8"),
     readFile("node_modules/@exactly/plugin/broadcast/Refunder.s.sol/31337/run-latest.json", "utf8"),
     readFile("node_modules/@exactly/plugin/broadcast/ExaPlugin.s.sol/31337/run-latest.json", "utf8"),
+    readFile("node_modules/@exactly/plugin/broadcast/Bob.s.sol/31337/run-latest.json", "utf8"),
   ]).then(
-    ([exaBusinessTenant_, refunder_, exaPlugin_]) =>
+    ([exaBusinessTenant_, refunder_, exaPlugin_, bob_]) =>
       [
         parse(object({ returns: object({ manager: object({ value: Address }) }) }), JSON.parse(exaBusinessTenant_))
           .returns.manager.value,
@@ -234,6 +235,8 @@ async function start(dump = false) {
           .transactions[0].contractAddress,
         parse(object({ transactions: tuple([object({ contractAddress: Address })]) }), JSON.parse(exaPlugin_))
           .transactions[0].contractAddress,
+        parse(object({ returns: object({ release: object({ value: Address }) }) }), JSON.parse(bob_)).returns.release
+          .value,
       ] as const,
   );
 
@@ -294,7 +297,7 @@ async function start(dump = false) {
 
   for (const address of signers) {
     await anvilClient.setBalance({ address, value: 10n ** 24n });
-    for (const contract of [exaPlugin, refunder]) {
+    for (const contract of [exaPlugin, release, refunder]) {
       await anvilClient.waitForTransactionReceipt({
         hash: await anvilClient.writeContract({
           address: contract,
