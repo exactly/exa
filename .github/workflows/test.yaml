@@ -184,10 +184,10 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
       - uses: actions/cache/save@v6
-        if: github.ref_name == 'main'
+        if: github.ref_name == 'main' && matrix.flow == 'portfolio'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
       - uses: actions/cache/save@v6
-        if: github.ref_name == 'main' && steps.dependencies.outputs.cache-hit != 'true'
+        if: github.ref_name == 'main' && matrix.flow == 'portfolio' && steps.dependencies.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.local/share/svm
