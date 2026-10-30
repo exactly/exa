@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
-import { numeric, pgSchema, text } from "drizzle-orm/pg-core";
 import assert from "node:assert";
-import { padHex, zeroHash } from "viem";
+import { padHex, zeroHash, type Hex } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +9,7 @@ import { exaAccountFactoryAbi, exaAccountFactoryAddress, exaPluginAddress } from
 
 import anvilClient from "./anvilClient";
 import database from "../database";
+import { accounts, plugins } from "../database/indexer";
 
 const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
@@ -37,7 +37,10 @@ describe("indexer", () => {
     ]);
 
     await expect(
-      database.select().from(accounts).where(eq(accounts.address, account.toLowerCase())),
+      database
+        .select()
+        .from(accounts)
+        .where(eq(accounts.address, account.toLowerCase() as Hex)),
     ).resolves.toStrictEqual([
       {
         address: account.toLowerCase(),
@@ -48,7 +51,10 @@ describe("indexer", () => {
       },
     ]);
     await expect(
-      database.select().from(plugins).where(eq(plugins.account, account.toLowerCase())),
+      database
+        .select()
+        .from(plugins)
+        .where(eq(plugins.account, account.toLowerCase() as Hex)),
     ).resolves.toStrictEqual([
       {
         account: account.toLowerCase(),
@@ -59,24 +65,3 @@ describe("indexer", () => {
     ]);
   });
 });
-
-const indexer = pgSchema("indexer");
-
-const accounts = indexer
-  .view("accounts", {
-    address: text("address").notNull(),
-    factory: text("factory").notNull(),
-    owner: text("owner"),
-    block: numeric("block", { mode: "bigint" }).notNull(),
-    timestamp: numeric("timestamp", { mode: "bigint" }).notNull(),
-  })
-  .existing();
-
-const plugins = indexer
-  .view("plugins", {
-    account: text("account").notNull(),
-    address: text("address").notNull(),
-    block: numeric("block", { mode: "bigint" }).notNull(),
-    timestamp: numeric("timestamp", { mode: "bigint" }).notNull(),
-  })
-  .existing();

@@ -1,7 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
-import { arrayOverlaps, eq } from "drizzle-orm";
+import { and, arrayOverlaps, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -34,7 +34,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { decodeFunctionData, zeroHash, type Log } from "viem";
+import { decodeFunctionData, zeroHash } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
@@ -42,16 +42,14 @@ import chain, {
   exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerAddress,
-  marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
-  proposalManagerAbi,
-  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
+import * as indexer from "../database/indexer";
 import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
@@ -105,21 +103,22 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
       const account = parse(Address, credential.account);
       setUser({ id: account });
 
+      const owner = account.toLowerCase() as Hex;
       const [markets, plugins] = await Promise.all([
         publicClient
           .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
           .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
         !ignore("repay") || !ignore("sent") || !ignore("received")
-          ? publicClient
-              .getContractEvents({
-                abi: upgradeableModularAccountAbi,
-                eventName: "PluginInstalled",
-                address: account,
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              })
-              .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
+          ? Promise.all([
+              database
+                .select({ plugin: indexer.accounts.owner })
+                .from(indexer.accounts)
+                .where(eq(indexer.accounts.address, owner)),
+              database
+                .select({ plugin: indexer.plugins.address })
+                .from(indexer.plugins)
+                .where(eq(indexer.plugins.account, owner)),
+            ]).then(([owners, installed]) => new Set([...owners, ...installed].flatMap(({ plugin }) => plugin ?? [])))
           : Promise.resolve(forbid(new Set<Hex>())),
       ]);
 
@@ -131,167 +130,106 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 
       const repayPromise =
         !ignore("repay") || !ignore("received")
-          ? publicClient.getContractEvents({
-              abi: marketAbi,
-              eventName: "RepayAtMaturity",
-              address: [...markets.keys()],
-              args: { caller: [...plugins, debtManagerAddress], borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
+          ? database
+              .select()
+              .from(indexer.repays)
+              .where(
+                and(
+                  eq(indexer.repays.account, owner),
+                  inArray(indexer.repays.caller, [...plugins, debtManagerAddress.toLowerCase() as Hex]),
+                  inArray(indexer.repays.market, [...markets.keys()]),
+                ),
+              )
+              .orderBy(indexer.repays.block, indexer.repays.logIndex)
           : Promise.resolve(forbid([]));
 
       const [deposits, repays, withdraws, borrows] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
-              publicClient
-                .getContractEvents({
-                  abi: marketAbi,
-                  eventName: "Deposit",
-                  address: [...markets.keys()],
-                  args: { caller: account, owner: account },
-                  toBlock: "latest",
-                  fromBlock: 0n,
-                  strict: true,
-                })
-                .then((logs) =>
-                  logs.map((log) =>
-                    parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                      typeof DepositActivity
-                    >),
+              database
+                .select()
+                .from(indexer.deposits)
+                .where(
+                  and(
+                    eq(indexer.deposits.account, owner),
+                    eq(indexer.deposits.caller, owner),
+                    inArray(indexer.deposits.market, [...markets.keys()]),
                   ),
-                ),
+                )
+                .orderBy(indexer.deposits.block, indexer.deposits.logIndex),
               repayPromise,
             ]).then(([deposit, repay]) =>
-              deposit.filter(
-                ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
-              ),
+              deposit
+                .filter(({ hash }) => !repay.some(({ hash: repayHash }) => repayHash === hash))
+                .map((row) => parse(DepositActivity, { ...row, market: market(row.market) })),
             ),
         ignore("repay")
           ? []
-          : repayPromise.then((logs) =>
-              logs
-                .filter(({ args }) => maturity === undefined || Number(args.maturity) === maturity)
-                .map((log) =>
-                  parse(RepayActivity, {
-                    ...log,
-                    market: market(log.address),
-                  } satisfies InferInput<typeof RepayActivity>),
-                ),
+          : repayPromise.then((rows) =>
+              rows
+                .filter((row) => maturity === undefined || Number(row.maturity) === maturity)
+                .map((row) => parse(RepayActivity, { ...row, market: market(row.market) })),
             ),
         ignore("sent")
           ? []
           : Promise.all([
-              publicClient.getContractEvents({
-                abi: marketAbi,
-                eventName: "Withdraw",
-                address: [...markets.keys()],
-                args: { caller: account, owner: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
-              plugins.size > 0
-                ? publicClient.getContractEvents({
-                    abi: exaPluginAbi,
-                    eventName: "ProposalManagerSet",
-                    address: [...plugins],
-                    toBlock: "latest",
-                    fromBlock: 0n,
-                    strict: true,
-                  })
-                : [],
-            ]).then(([withdraw, managers]) => {
-              const proposals = () =>
-                publicClient.getContractEvents({
-                  abi: proposalManagerAbi,
-                  eventName: "Proposed",
-                  address: [...new Set(managers.map(({ args }) => args.proposalManager))],
-                  args: { account, market: marketWETHAddress },
-                  toBlock: "latest",
-                  fromBlock: 0n,
-                  strict: true,
-                });
-              let proposed: ReturnType<typeof proposals> | undefined;
-              return Promise.all(
-                withdraw.map(async (log) => {
-                  const receiver = log.args.receiver.toLowerCase() as Hex;
-                  if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
-                    return log;
-                  }
-                  if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
-                    const manager = managers
-                      .findLast(
-                        ({ address, blockNumber, logIndex }) =>
-                          address.toLowerCase() === receiver &&
-                          (blockNumber < log.blockNumber ||
-                            (blockNumber === log.blockNumber && logIndex < log.logIndex)),
-                      )
-                      ?.args.proposalManager.toLowerCase();
-                    if (manager) proposed ??= proposals();
-                    const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
-                    if (data === "0x3ccfd60b") return log;
-                    const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
-                    if (functionName !== "executeProposal") return;
-                    const proposal = await proposed?.then((logs) =>
-                      logs.find(
-                        ({ address, args: { nonce } }) => address.toLowerCase() === manager && nonce === args[0],
-                      ),
-                    );
-                    if (!proposal) return;
-                    return {
-                      ...log,
-                      args: {
-                        caller: account,
-                        receiver: decodeWithdraw(proposal.args.data),
-                        owner: account,
-                        assets: proposal.args.amount,
-                        shares: -1n,
-                      },
-                    } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
-                  }
-                }),
-              ).then((logs) =>
-                logs
-                  .filter((log) => !!log)
-                  .map((log) =>
-                    parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                      typeof WithdrawActivity
-                    >),
+              database
+                .select()
+                .from(indexer.withdraws)
+                .where(
+                  and(
+                    eq(indexer.withdraws.account, owner),
+                    eq(indexer.withdraws.caller, owner),
+                    inArray(indexer.withdraws.market, [...markets.keys()]),
                   ),
-              );
-            }),
+                )
+                .orderBy(indexer.withdraws.block, indexer.withdraws.logIndex),
+              database
+                .select()
+                .from(indexer.proposals)
+                .where(
+                  and(
+                    eq(indexer.proposals.account, owner),
+                    eq(indexer.proposals.market, marketWETHAddress.toLowerCase() as Hex),
+                  ),
+                ),
+            ]).then(([withdraw, proposed]) =>
+              withdraw
+                .map((row) => {
+                  if (!collectors.has(row.receiver) && !plugins.has(row.receiver) && row.receiver !== owner) return row;
+                  if (row.market !== marketWETHAddress.toLowerCase() || !plugins.has(row.receiver)) return;
+                  if (row.input === null || row.input === "0x3ccfd60b") return row;
+                  const { functionName, args } = decodeFunctionData({ data: row.input, abi: exaPluginAbi });
+                  if (functionName !== "executeProposal") return;
+                  const proposal = proposed.find(({ manager, nonce }) => manager === row.manager && nonce === args[0]);
+                  if (!proposal) return;
+                  return { ...row, receiver: decodeWithdraw(proposal.data), assets: proposal.amount };
+                })
+                .filter((row) => !!row)
+                .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market) })),
+            ),
         ignore("card")
           ? undefined
-          : publicClient
-              .getContractEvents({
-                abi: marketAbi,
-                eventName: "BorrowAtMaturity",
-                address: marketUSDCAddress,
-                args: { borrower: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              })
-              .then((logs) =>
-                logs.reduce((map, { args, transactionHash, blockNumber }) => {
-                  const data = map.get(transactionHash);
-                  if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
-                  data.events.push(args);
+          : database
+              .select()
+              .from(indexer.borrows)
+              .where(
+                and(
+                  eq(indexer.borrows.account, owner),
+                  eq(indexer.borrows.market, marketUSDCAddress.toLowerCase() as Hex),
+                ),
+              )
+              .orderBy(indexer.borrows.block, indexer.borrows.logIndex)
+              .then((rows) =>
+                rows.reduce((map, { hash, timestamp, maturity: m, assets, fee }) => {
+                  const data = map.get(hash);
+                  if (!data) return map.set(hash, { timestamp, events: [{ maturity: m, assets, fee }] });
+                  data.events.push({ maturity: m, assets, fee });
                   return map;
-                }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
+                }, new Map<Hash, { events: { assets: bigint; fee: bigint; maturity: bigint }[]; timestamp: bigint }>()),
               ),
       ]);
-      const blocks = await Promise.all(
-        [
-          ...new Set(
-            [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? [])].map(({ blockNumber }) => blockNumber),
-          ),
-        ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
-      );
-      const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
       const purchases =
         !ignore("card") && borrows && maturity !== undefined
           ? await (() => {
@@ -335,7 +273,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 if (filtered.length === 0) return null;
                 return {
                   events: maturity !== undefined && b.events.length > 1 ? b.events : filtered,
-                  timestamp: b.blockNumber && timestamps.get(b.blockNumber),
+                  timestamp: b.timestamp,
                 };
               }),
             });
@@ -402,7 +340,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 ...(payload as object),
                 hash,
                 events,
-                blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
+                blockTimestamp: borrow?.timestamp,
               },
             );
             if (cryptomate.success) {
@@ -448,14 +386,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             });
           }),
         ),
-        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
-          const timestamp = timestamps.get(blockNumber);
-          if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
-          captureException(new Error("block not found"), {
-            level: "error",
-            contexts: { event: { ...event, timestamp } },
-          });
-        }),
+        ...deposits,
+        ...repays,
+        ...withdraws,
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted(
@@ -819,30 +752,32 @@ export const InstallmentsActivity = pipe(
 );
 
 export const OnchainActivity = object({
-  args: object({ assets: bigint() }),
+  assets: bigint(),
   market: object({ decimals: number(), symbol: string(), usdPrice: bigint() }),
-  blockNumber: bigint(),
-  transactionHash: Hash,
+  block: bigint(),
+  timestamp: bigint(),
+  hash: Hash,
   transactionIndex: number(),
   logIndex: number(),
 });
 
 function transformActivity({
-  args: { assets: value },
+  assets: value,
   market: { decimals, symbol, usdPrice },
-  blockNumber,
-  transactionHash,
+  block,
+  timestamp,
+  hash,
   transactionIndex,
   logIndex,
 }: InferOutput<typeof OnchainActivity>) {
   const baseUnit = 10 ** decimals;
   return {
-    id: `${chain.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
+    id: `${chain.id}:${block}:${transactionIndex}:${logIndex}`,
     currency: symbol,
     amount: Number(value) / baseUnit,
     usdAmount: Number((value * usdPrice) / WAD) / baseUnit,
-    blockNumber,
-    transactionHash,
+    timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+    transactionHash: hash,
   };
 }
 
@@ -852,19 +787,19 @@ export const DepositActivity = pipe(
 );
 
 export const RepayActivity = pipe(
-  object({ ...OnchainActivity.entries, args: object({ assets: bigint(), positionAssets: bigint() }) }),
+  object({ ...OnchainActivity.entries, positionAssets: bigint() }),
   transform((activity) => ({
     ...transformActivity(activity),
-    positionAmount: Number(activity.args.positionAssets) / 10 ** activity.market.decimals,
+    positionAmount: Number(activity.positionAssets) / 10 ** activity.market.decimals,
     type: "repay" as const,
   })),
 );
 
 export const WithdrawActivity = pipe(
-  object({ ...OnchainActivity.entries, args: object({ assets: bigint(), receiver: Address }) }),
+  object({ ...OnchainActivity.entries, receiver: Address }),
   transform((activity) => ({
     ...transformActivity(activity),
-    receiver: activity.args.receiver,
+    receiver: activity.receiver,
     type: "sent" as const,
   })),
 );
