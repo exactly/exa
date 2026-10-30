@@ -133,13 +133,14 @@ jobs:
       - id: script
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
+        with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.local/share/svm
-            .maestro/build
             /tmp/metro-cache
-          key: deps-${{ runner.os }}-${{ github.job }}-${{ steps.script.outputs.hash }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
-          restore-keys: deps-${{ runner.os }}-${{ github.job }}-
+          key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml') }}
+          restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
       - id: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v6
