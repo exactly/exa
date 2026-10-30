@@ -336,7 +336,7 @@ const body = createFont({
   size: sizes,
   lineHeight: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Math.round(v * 1.3)])) as typeof sizes,
   letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, v * -0.002])) as typeof sizes,
-  weight: { regular: "400", semibold: "600", bold: "700" },
+  weight: { regular: "400", semibold: "600" },
 });
 
 const tamagui = createTamagui({
