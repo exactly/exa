@@ -3,6 +3,10 @@ import { fileURLToPath } from "node:url";
 import { padHex } from "viem";
 import { defineConfig } from "vitest/config";
 
+if (env.NODE_ENV === "e2e" && env.PERSONA_API_KEY && !env.PERSONA_API_KEY.startsWith("persona_sandbox_")) {
+  throw new Error("persona key is not a sandbox key");
+}
+
 export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
@@ -20,7 +24,8 @@ export default defineConfig({
     env: {
       ALCHEMY_BLOCK_KEY: "block",
       ALCHEMY_WEBHOOKS_KEY: "webhooks",
-      APP_ORIGINS: "http://localhost:8081,https://secondary.example,https://secondary.example:8443",
+      APP_ORIGINS:
+        "http://localhost:8081,http://localhost:3000,https://business.localhost,https://secondary.example,https://secondary.example:8443",
       AUTH_SECRET: "auth",
       BRIDGE_API_KEY: "bridge",
       BRIDGE_API_URL: "https://bridge.test",
@@ -77,6 +82,14 @@ YQIDAQAB
         APP_DOMAIN: env.APP_DOMAIN ?? "localhost",
         APP_STACK: "localhost",
         DEBUG: "exa:*",
+        ...(env.PANDA_API_KEY && {
+          PANDA_API_KEY: env.PANDA_API_KEY,
+          PANDA_API_URL: "https://api-dev.raincards.xyz/v1",
+        }),
+        ...(env.PERSONA_API_KEY && {
+          PERSONA_API_KEY: env.PERSONA_API_KEY,
+          PERSONA_URL: "https://api.withpersona.com/api/v1",
+        }),
       }),
     },
     ...(env.NODE_ENV === "e2e" && {

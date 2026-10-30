@@ -255,11 +255,14 @@ frontend.use(
         "'self'",
         "https://li.quest",
         "https://*.g.alchemy.com",
+        "https://assets.exactly.app",
         "https://assets.smold.app",
         "https://api.onesignal.com",
         "https://cdn.onesignal.com",
         "https://*.ingest.us.sentry.io",
         "https://raw.githubusercontent.com",
+        "https://fastly.jsdelivr.net",
+        ...(domain === "localhost" ? ["http://localhost:3000", "http://127.0.0.1:8545", "http://127.0.0.1:9944"] : []),
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://via.intercom.io",
         "https://api.intercom.io",
@@ -288,6 +291,9 @@ frontend.use(
       ],
       childSrc: [
         "'self'",
+        "https://inquiry.withpersona.com",
+        "https://bridge.withpersona.com",
+        ...(domain === "localhost" ? ["http://localhost:3000"] : []),
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://intercom-sheets.com",
         "https://www.intercom-reporting.com",
@@ -360,6 +366,8 @@ frontend.use(
         // #endregion
       ],
       frameAncestors: [
+        "'self'",
+        ...(domain === "localhost" ? ["https://business.localhost"] : []),
         "https://farcaster.xyz",
         "https://base.app",
         "https://base.org",
@@ -403,6 +411,10 @@ frontend.use(
   }),
 );
 app.route("/", frontend);
+app.notFound(async () => {
+  const page = await frontend.request("/+not-found.html");
+  return new Response(page.body, { status: 404, headers: page.headers });
+});
 
 export default app;
 

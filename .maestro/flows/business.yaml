@@ -1,0 +1,58 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: { file: ../subflows/launch.yaml, env: { landing: Add your business details } }
+- tapOn: Continue
+- tapOn: { id: Close }
+- tapOn: Company name
+- inputText: "Exa Approved\t54\t541511\tBrazil\t1\t1"
+- pressKey: Enter
+- tapOn: .*edit address manually
+- tapOn: Street address
+- inputText: "Rua 1\t\tNatal\tRN\t59000000\tSoftware\thttps://exa.app\ta@e2e.exa"
+- pressKey: Enter
+- tapOn: UBO's name
+- inputText: "Ana\tLee\tJan\t1\t1990\tBrazil\t12345678909\tBrazil\t"
+- pressKey: Enter
+- tapOn: .*edit address manually
+- tapOn: Street address
+- inputText: "Rua 1\t\tNatal\tRN\t59000000\ta@e2e.exa\t\t+5584987654321"
+- pressKey: Enter
+- tapOn: { text: Done, below: Congratulations.* }
+- assertVisible: { text: In review, above: Business profile }
+- assertTrue: '${http.post("http://localhost:3000/e2e/review", { body: "persona" }).ok}'
+- tapOn: Business profile
+- assertVisible: { text: Complete, rightOf: Business profile }
+- tapOn: { text: Start verification, below: Get an Exa Card for your business }
+- tapOn: { id: Close }
+- tapOn: { text: "I accept the ", point: "10%,50%" }
+- tapOn: "I accept the, and the "
+- tapOn: I certify that.*
+- tapOn: I acknowledge that.*
+- tapOn: Done
+- tapOn: { text: Done, below: Congratulations.* }
+- tapOn: { text: Continue, below: Get an Exa Card for your business }
+- tapOn: { id: Close }
+- tapOn: Complete the form
+- tapOn: First name
+- inputText: "Ana\tLee\ta@e2e.exa\t1000"
+- tapOn: { text: "I accept the ", point: "10%,50%" }
+- tapOn: Continue
+- tapOn: { text: Done, below: Congratulations.* }
+- assertVisible: { text: Complete, rightOf: Exa Card for your business }
+- tapOn: { text: Start verification, below: Enable USD and EUR transfers }
+- tapOn: Business type
+- inputText: "LLC\t123456789"
+- pressKey: Enter
+- tapOn: Done
+- assertVisible: { text: In review, rightOf: USD and EUR transfers }
+- assertTrue: '${http.post("http://localhost:3000/e2e/review", { body: "bridge" }).ok}'
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Deposit
+- tapOn: Bank transfers
+- assertVisible: Euros via SEPA
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Card
+- assertVisible: Freeze card
+- tapOn: Home
+- runFlow: ../subflows/storeCoverage.yaml

@@ -12,11 +12,13 @@ export default function useBusiness(poll = false) {
   const profile = useQuery<KYCStatus>({
     queryKey: ["kyc", "status"],
     enabled: business,
+    refetchOnMount: poll ? "always" : true,
     refetchInterval: (query) => (poll && waiting(profileStep(query.state.data)) ? 30_000 : false),
   });
   const application = useQuery<KYCStatus>({
     queryKey: ["kyc", "panda-business"],
     enabled: business,
+    refetchOnMount: poll ? "always" : true,
     refetchInterval: (query) => {
       const state = safeParse(KYB, query.state.data);
       return poll && waiting(cardStep(state.success ? state.output : undefined)) ? 30_000 : false;
@@ -26,6 +28,7 @@ export default function useBusiness(poll = false) {
     queryKey: ["ramp", "providers", redirectURL],
     queryFn: () => getRampProviders(undefined, redirectURL),
     enabled: business,
+    refetchOnMount: poll ? "always" : true,
     refetchInterval: (query) => (poll && waiting(transfersStep(query.state.data?.bridge)) ? 30_000 : false),
   });
   const kyb = safeParse(KYB, application.data);
