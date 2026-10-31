@@ -1,0 +1,74 @@
+name: infra/preview
+on:
+  pull_request: { paths: [.github/workflows/infra-preview.yaml, infra/**] }
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions: { contents: read, id-token: write }
+    strategy:
+      fail-fast: false
+      matrix: { stack: [production, base, base-sepolia, sandbox] }
+    env:
+      PULUMI_BACKEND_URL: gs://exa-pulumi-state/${{ matrix.stack }}
+      PULUMI_CONFIG_PASSPHRASE: ""
+      STACK: ${{ matrix.stack }}
+      TARGET: ${{ github.base_ref == 'main' && 'production' || github.base_ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, fetch-tags: true, persist-credentials: false }
+      - run: echo ::add-matcher::.github/matcher.json
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, check-latest: true, package-manager-cache: false }
+      - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.7.1, cache: false }
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        env: { REDISMS_DISABLE_POSTINSTALL: "true" }
+      - uses: pulumi/actions@v7
+      - id: account
+        run: echo "email=preview-$STACK@$(yq -er '.config."gcp:project"' "infra/Pulumi.$STACK.yaml").iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v3
+        continue-on-error: ${{ matrix.stack != env.TARGET }}
+        with:
+          workload_identity_provider: ${{ vars.GCP_PREVIEW_IDENTITY_PROVIDER }}
+          service_account: ${{ steps.account.outputs.email }}
+      - run: pulumi preview --stack "$STACK" --cwd infra --json --config "exa:rollout=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --config "exa:serverImage=sha-$GITHUB_SHA" > "$RUNNER_TEMP/$STACK.json" 2> >(tee "$RUNNER_TEMP/$STACK.err" >&2)
+        continue-on-error: ${{ matrix.stack != env.TARGET }}
+        env: { PULUMI_ENABLE_STREAMING_JSON_PREVIEW: "true" }
+      - run: node infra/meta.ts preview "$STACK" --json > "$RUNNER_TEMP/meta.json" 2> >(tee "$RUNNER_TEMP/meta.err" >&2)
+        continue-on-error: ${{ matrix.stack != env.TARGET }}
+      - if: ${{ !cancelled() }}
+        run: |
+          for program in meta "$STACK"; do
+            [[ ! -e $RUNNER_TEMP/$program.json ]] || jq -rs --arg program "$program" --rawfile errors "$RUNNER_TEMP/$program.err" '
+              "### \($program)", "",
+              if any(.[]; .summaryEvent.result == "succeeded") then
+                (map(.summaryEvent // empty | .resourceChanges | to_entries | map("\(.value) \(.key)") | join(", ")) | .[]), "",
+                (map(.resourcePreEvent.metadata // empty | select(.op | IN("create", "update", "delete", "replace", "import")))
+                  | select(length > 0)
+                  | "```diff",
+                    (.[] | "@@ \(.op) \(.type | split(":") | last) \(.urn | split("::") | last) @@",
+                      (. as $step
+                        | ((.detailedDiff // {} | keys | select(length > 0)) // .diffs // ([.old.inputs, .new.inputs] | map(. // {} | keys) | add | unique)) - ["__defaults"]
+                        | .[]
+                        | ([scan("[^.\\[\\]\"]+|\\[[0-9]+\\]|\\[\"[^\"]*\"\\]")] | map(if startswith("[\"") then .[2:-2] elif startswith("[") then .[1:-1] | tonumber end)) as $path
+                        | ([$step.old.inputs, $step.new.inputs]
+                          | map(try getpath($path) catch null | walk(if type == "object" and has("4dabf18193072939515e22adb298388d") then "[secret]" elif type == "string" then gsub("04da6b54-80e4-46f7-96ec-b56ff0331ba9"; "[unknown]") end) | if . != null then @json end)
+                          | if all(. != null) and .[0] != .[1] then
+                              map(explode) as [$x, $y]
+                              | ([$x, $y] | map(length) | min) as $length
+                              | (first(range($length) | select($x[.] != $y[.])) // $length) as $prefix
+                              | (first(range($length - $prefix) | select($x[-1 - .] != $y[-1 - .])) // $length - $prefix) as $suffix
+                              | (.[0][:[$prefix - 12, 0] | max] | [match("[^0-9A-Za-z]"; "g").offset + 1] | last // 0) as $from
+                              | map(length as $end | ((.[$end - $suffix + 12:] | match("[^0-9A-Za-z]").offset + $end - $suffix + 12) // $end) as $to
+                                | (if $from > 0 then "…" else "" end) + .[$from:$to] + (if $to < $end then "…" else "" end))
+                            end) as [$before, $after]
+                        | (select($before != null) | "- \(.): \($before)"), (select($after != null) | "+ \(.): \($after)"))),
+                    "```", "")
+              else
+                [.[] | .diagnosticEvent // empty | select(.severity == "error") | .message] | if . == [] then [$errors] end | .[] | sub("\n+$"; "") | select(. != "") | "```", ., "```", ""
+              end
+            ' "$RUNNER_TEMP/$program.json"
+          done | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash
