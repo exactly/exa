@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { Keyboard, type View as RNView } from "react-native";
+import { Keyboard } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -16,8 +16,8 @@ import { Search } from "@tamagui/lucide-icons-2/icons/Search";
 import { Settings } from "@tamagui/lucide-icons-2/icons/Settings";
 import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { useToastController } from "@tamagui/toast";
-import { AnimatePresence, getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
+import { toast } from "@tamagui/toast";
+import { AnimatePresence, getTokens, ScrollView, Spinner, XStack, YStack, type TamaguiElement } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -52,7 +52,6 @@ export default function ReceiverSelection() {
     t,
     i18n: { language },
   } = useTranslation();
-  const toast = useToastController();
   const { receiver, asset, fromChain } = useLocalSearchParams();
 
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
@@ -60,7 +59,7 @@ export default function ReceiverSelection() {
   const { data: spotlightSeen } = useQuery<boolean>({ queryKey: ["settings", "advanced-spotlight"] });
   const { data: chains } = useQuery(lifiChainsOptions);
   const [settings, setSettings] = useState(false);
-  const cogRef = useRef<RNView>(null);
+  const cogRef = useRef<TamaguiElement>(null);
 
   const { data: savedContacts } = useQuery<Contact[] | undefined>({ queryKey: ["contacts", "saved"] });
   const { data: recentContacts } = useQuery<Contact[] | undefined>({ queryKey: ["contacts", "recent"] });
@@ -68,9 +67,7 @@ export default function ReceiverSelection() {
 
   function setAdvanced(enabled: boolean) {
     queryClient.setQueryData(["settings", "advanced-mode"], enabled);
-    toast.show(enabled ? t("Advanced mode enabled") : t("Advanced mode disabled"), {
-      burntOptions: { haptic: "success", preset: "done" },
-    });
+    toast.success(enabled ? t("Advanced mode enabled") : t("Advanced mode disabled"));
   }
 
   const form = useForm({ defaultValues: { receiver: "" } });
@@ -114,8 +111,8 @@ export default function ReceiverSelection() {
 
   return (
     <SafeView fullScreen paddingBottom={0}>
-      <View gap="$s4_5" fullScreen padded paddingBottom={0}>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" paddingBottom={0} fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -138,32 +135,32 @@ export default function ReceiverSelection() {
           </View>
         </XStack>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + getTokens().space.$s4.val }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + getTokens().space.s4.val }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <YStack flex={1} justifyContent="space-between" gap="$s5">
-            <YStack gap="$s4">
-              <YStack gap="$s5">
+          <YStack flex={1} justifyContent="space-between" gap="s5">
+            <YStack gap="s4">
+              <YStack gap="s5">
                 <form.Field name="receiver">
                   {({ state: { meta }, handleBlur, handleChange }) => (
-                    <YStack gap="$s2">
+                    <YStack gap="s2">
                       <XStack
                         alignItems="center"
-                        gap="$s2"
-                        paddingLeft="$s3_5"
+                        gap="s2"
+                        paddingLeft="s3_5"
                         borderWidth={1}
-                        borderColor="$borderNeutralSoft"
-                        borderRadius="$r3"
+                        borderColor="borderNeutralSoft"
+                        borderRadius="r3"
                         overflow="hidden"
                       >
-                        <Search size={20} color="$uiNeutralPlaceholder" />
+                        <Search size={20} color="uiNeutralPlaceholder" />
                         <Input
                           flex={1}
                           borderWidth={0}
                           backgroundColor="transparent"
+                          placeholderTextColor="uiNeutralPlaceholder"
                           placeholder={t("Enter ENS or wallet address")}
-                          placeholderTextColor="$uiNeutralPlaceholder"
                           value={value}
                           onChangeText={handleChange}
                           onBlur={handleBlur}
@@ -174,48 +171,48 @@ export default function ReceiverSelection() {
                           <View
                             width={40}
                             height={40}
-                            backgroundColor="$backgroundMild"
+                            backgroundColor="backgroundMild"
                             alignItems="center"
                             justifyContent="center"
                           >
-                            <Spinner size="small" color="$uiBrandSecondary" />
+                            <Spinner size="small" color="uiBrandSecondary" />
                           </View>
                         ) : value ? (
                           <View
-                            padding="$s3"
-                            backgroundColor="$backgroundMild"
+                            padding="s3"
+                            backgroundColor="backgroundMild"
                             cursor="pointer"
-                            pressStyle={{ opacity: 0.7 }}
+                            opacity="press:0.7"
                             role="button"
                             aria-label={t("Clear")}
                             onPress={() => {
                               handleChange("");
                             }}
                           >
-                            <X size={24} color="$iconBrandDefault" />
+                            <X size={24} color="iconBrandDefault" />
                           </View>
                         ) : (
                           <View
-                            padding="$s3"
-                            backgroundColor="$backgroundMild"
+                            padding="s3"
+                            backgroundColor="backgroundMild"
                             cursor="pointer"
-                            pressStyle={{ opacity: 0.7 }}
+                            opacity="press:0.7"
                             role="button"
                             aria-label={t("Scan QR code")}
                             onPress={() => {
                               router.push("/send-funds/qr");
                             }}
                           >
-                            <QrCode size={24} color="$iconBrandDefault" />
+                            <QrCode size={24} color="iconBrandDefault" />
                           </View>
                         )}
                       </XStack>
                       {name && !resolved && !resolving ? (
-                        <Text padding="$s3" footnote color="$uiErrorSecondary">
+                        <Text padding="s3" color="uiErrorSecondary" footnote>
                           {t("No address found for {{name}}", { name })}
                         </Text>
                       ) : !name && value && meta.isBlurred && !chainType ? (
-                        <Text padding="$s3" footnote color="$uiErrorSecondary">
+                        <Text padding="s3" color="uiErrorSecondary" footnote>
                           {t("Invalid receiver address")}
                         </Text>
                       ) : undefined}
@@ -226,17 +223,16 @@ export default function ReceiverSelection() {
                   {advanced && (
                     <XStack
                       key="advanced"
-                      transition="default"
-                      animateOnly={["opacity", "transform"]}
-                      enterStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
-                      exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
-                      gap="$s2"
+                      transition={{ preset: "default", properties: "opacity, transform" }}
+                      opacity="enter:0 exit:0"
+                      transform="enter:translateY(-8px) exit:translateY(-8px)"
+                      gap="s2"
                       alignSelf="center"
                       alignItems="center"
-                      paddingHorizontal="$s3_5"
-                      paddingVertical="$s3"
-                      borderRadius="$r3"
-                      backgroundColor="$backgroundStrong"
+                      paddingHorizontal="s3_5"
+                      paddingVertical="s3"
+                      borderRadius="r3"
+                      backgroundColor="backgroundStrong"
                     >
                       <Text caption2 secondary>
                         {t("Advanced mode on.")}
@@ -246,9 +242,9 @@ export default function ReceiverSelection() {
                         caption2
                         brand
                         textDecorationLine="underline"
-                        role="button"
                         cursor="pointer"
-                        pressStyle={{ opacity: 0.7 }}
+                        opacity="press:0.7"
+                        role="button"
                         onPress={() => {
                           setAdvanced(false);
                         }}
@@ -259,8 +255,8 @@ export default function ReceiverSelection() {
                   )}
                 </AnimatePresence>
                 {incompatible && (
-                  <View padding="$s3_5" borderRadius="$r3" backgroundColor="$interactiveBaseErrorSoftDefault">
-                    <Text caption2 color="$uiErrorSecondary">
+                  <View padding="s3_5" borderRadius="r3" backgroundColor="interactiveBaseErrorSoftDefault">
+                    <Text caption2 color="uiErrorSecondary">
                       {t("This is a {{network}} address. Turn on Advanced mode to send to other networks.", {
                         network: chains?.find((item) => item.chainType === chainType)?.name ?? "",
                       })}{" "}
@@ -269,9 +265,9 @@ export default function ReceiverSelection() {
                         caption2
                         brand
                         textDecorationLine="underline"
-                        role="button"
                         cursor="pointer"
-                        pressStyle={{ opacity: 0.7 }}
+                        opacity="press:0.7"
+                        role="button"
                         onPress={() => {
                           setAdvanced(true);
                         }}
@@ -283,32 +279,32 @@ export default function ReceiverSelection() {
                 )}
               </YStack>
               {!!target && (
-                <YStack gap="$s4">
+                <YStack gap="s4">
                   <XStack
-                    gap="$s3"
+                    gap="s3"
                     alignItems="center"
                     cursor="pointer"
-                    pressStyle={{ opacity: 0.7 }}
+                    opacity="press:0.7"
                     role="button"
                     aria-label={name ?? target}
                     onPress={() => {
                       submit(target, chainType ?? ChainType.EVM, name);
                     }}
                   >
-                    <View padding="$s3" borderRadius="$r3" backgroundColor="$backgroundMild">
-                      <Wallet size={20} color="$uiNeutralPrimary" />
+                    <View padding="s3" borderRadius="r3" backgroundColor="backgroundMild">
+                      <Wallet size={20} color="uiNeutralPrimary" />
                     </View>
                     <Text flex={1} subHeadline primary mono={!name} numberOfLines={1}>
                       {name ?? shortenHex(target, 6, 6)}
                     </Text>
-                    <Check size={16} color="$uiSuccessSecondary" />
+                    <Check size={16} color="uiSuccessSecondary" />
                   </XStack>
                   {!savedContacts?.some(({ address }) => address === target) && (
                     <XStack
-                      gap="$s3"
+                      gap="s3"
                       alignItems="center"
                       cursor="pointer"
-                      pressStyle={{ opacity: 0.7 }}
+                      opacity="press:0.7"
                       role="button"
                       aria-label={t("Save contact")}
                       onPress={() => {
@@ -316,14 +312,11 @@ export default function ReceiverSelection() {
                           { address: target, chainType: chainType ?? ChainType.EVM, ens: name ?? "" },
                           ...(old ?? []),
                         ]);
-                        toast.show(t("Contact saved successfully"), {
-                          duration: 2000,
-                          burntOptions: { haptic: "success", preset: "done" },
-                        });
+                        toast.success(t("Contact saved successfully"), { duration: 2000 });
                       }}
                     >
-                      <View padding="$s3" borderRadius="$r3" backgroundColor="$backgroundMild">
-                        <Plus size={20} color="$interactiveOnBaseBrandSoft" />
+                      <View padding="s3" borderRadius="r3" backgroundColor="backgroundMild">
+                        <Plus size={20} color="interactiveOnBaseBrandSoft" />
                       </View>
                       <Text subHeadline primary>
                         {t("Save contact")}
@@ -333,7 +326,7 @@ export default function ReceiverSelection() {
                 </YStack>
               )}
               {!value && (
-                <YStack gap="$s6">
+                <YStack gap="s6">
                   {(
                     [
                       {
@@ -349,43 +342,40 @@ export default function ReceiverSelection() {
                     ] as const
                   ).map(({ title, contacts, list }) =>
                     contacts?.length ? (
-                      <YStack key={title} gap="$s5">
-                        <XStack gap="$s3" alignItems="center">
-                          <ContactIcon size={16} color="$uiNeutralSecondary" />
-                          <Text flex={1} subHeadline color="$uiNeutralSecondary">
+                      <YStack key={title} gap="s5">
+                        <XStack gap="s3" alignItems="center">
+                          <ContactIcon size={16} color="uiNeutralSecondary" />
+                          <Text flex={1} color="uiNeutralSecondary" subHeadline>
                             {title}
                           </Text>
                           {list === "recent" && (
                             <XStack
-                              gap="$s2"
+                              gap="s2"
                               alignItems="center"
                               cursor="pointer"
-                              pressStyle={{ opacity: 0.7 }}
+                              opacity="press:0.7"
                               role="button"
                               aria-label={t("Clear all")}
                               onPress={() => {
                                 queryClient.setQueryData<Contact[]>(["contacts", "recent"], []);
-                                toast.show(t("Recent contacts cleared"), {
-                                  duration: 2000,
-                                  burntOptions: { haptic: "success", preset: "done" },
-                                });
+                                toast.success(t("Recent contacts cleared"), { duration: 2000 });
                               }}
                             >
                               <Text emphasized footnote brand>
                                 {t("Clear all")}
                               </Text>
-                              <X size={16} color="$interactiveBaseBrandDefault" />
+                              <X size={16} color="interactiveBaseBrandDefault" />
                             </XStack>
                           )}
                         </XStack>
-                        <YStack gap="$s5">
+                        <YStack gap="s5">
                           {contacts.map((contact) => (
                             <XStack
                               key={contact.address}
-                              gap="$s3"
+                              gap="s3"
                               alignItems="center"
                               cursor="pointer"
-                              pressStyle={{ opacity: 0.7 }}
+                              opacity="press:0.7"
                               role="button"
                               aria-label={contact.ens || contact.address}
                               onPress={() => {
@@ -402,7 +392,7 @@ export default function ReceiverSelection() {
                               }}
                             >
                               <View>
-                                <View borderRadius="$r_0" overflow="hidden">
+                                <View borderRadius="r_0" overflow="hidden">
                                   <Blocky seed={contact.address} />
                                 </View>
                                 {!!contact.chainType && contact.chainType !== ChainType.EVM && (
@@ -411,8 +401,8 @@ export default function ReceiverSelection() {
                                     bottom={-2}
                                     right={-2}
                                     borderWidth={1}
-                                    borderColor="$backgroundSoft"
-                                    borderRadius="$r_0"
+                                    borderColor="backgroundSoft"
+                                    borderRadius="r_0"
                                     overflow="hidden"
                                   >
                                     <ChainLogo
@@ -422,7 +412,7 @@ export default function ReceiverSelection() {
                                   </View>
                                 )}
                               </View>
-                              <YStack gap="$s2" flex={1}>
+                              <YStack gap="s2" flex={1}>
                                 <Text subHeadline primary>
                                   {contact.ens || shortenHex(contact.address, 6, 6)}
                                 </Text>
@@ -442,7 +432,7 @@ export default function ReceiverSelection() {
                                   <IconButton
                                     icon={Plus}
                                     size={16}
-                                    color="$uiBrandSecondary"
+                                    color="uiBrandSecondary"
                                     aria-label={t("Save contact")}
                                     onPress={(event) => {
                                       event.stopPropagation();
@@ -450,10 +440,7 @@ export default function ReceiverSelection() {
                                         { address: contact.address, chainType: contact.chainType, ens: contact.ens },
                                         ...(old ?? []),
                                       ]);
-                                      toast.show(t("Contact saved successfully"), {
-                                        duration: 2000,
-                                        burntOptions: { haptic: "success", preset: "done" },
-                                      });
+                                      toast.success(t("Contact saved successfully"), { duration: 2000 });
                                     }}
                                   />
                                 )
@@ -461,7 +448,7 @@ export default function ReceiverSelection() {
                                 <IconButton
                                   icon={Pencil}
                                   size={16}
-                                  color="$uiBrandSecondary"
+                                  color="uiBrandSecondary"
                                   aria-label={t("Edit contact")}
                                   onPress={(event) => {
                                     event.stopPropagation();

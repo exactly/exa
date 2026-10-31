@@ -79,15 +79,15 @@ export default function LoanSummary({
     );
   }, [amount, borrow, isBorrow, language, split, timestamp]);
   return (
-    <YStack gap="$s1">
+    <YStack gap="s1">
       <XStack justifyContent="space-between" alignItems="center">
-        <Text footnote color="$uiNeutralPlaceholder">
+        <Text footnote color="uiNeutralPlaceholder">
           {t("You repay in total")}
         </Text>
         {pending ? (
           <Skeleton width={100} height={24} />
         ) : (
-          <XStack alignItems="center" gap="$s2">
+          <XStack alignItems="center" gap="s2">
             <AssetLogo height={16} symbol={symbol} width={16} />
             <Text title3>
               {!isBorrow && split

@@ -35,18 +35,18 @@ export default function UnsupportedSheet({
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s7"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
-        <YStack gap="$s5" paddingTop="$s7" paddingHorizontal="$s5">
+        <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
             {t(reason === "token" ? "Non-supported token" : "Non-supported network")}
           </Text>
-          <YStack gap="$s4">
-            <Text subHeadline color="$uiNeutralSecondary">
+          <YStack gap="s4">
+            <Text subHeadline color="uiNeutralSecondary">
               {reason === "token"
                 ? t(
                     "This token isn't supported yet, so it can't be swapped or sent through the app for now. We're continuously working to add support for more tokens, and this one may be supported in the future.",
@@ -55,14 +55,14 @@ export default function UnsupportedSheet({
                     "This network isn't supported yet, so assets on it can't be recovered through the app for now. We're continuously working to add support for more networks, and this one may be supported in the future.",
                   )}
             </Text>
-            <Text subHeadline color="$uiNeutralSecondary">
+            <Text subHeadline color="uiNeutralSecondary">
               {reason === "token"
                 ? t("You can contact us to share feedback and help us prioritize which tokens to support next.")
                 : t("You can contact us to share feedback and help us prioritize which networks to support next.")}
             </Text>
           </YStack>
         </YStack>
-        <YStack paddingHorizontal="$s5" paddingBottom="$s7">
+        <YStack paddingHorizontal="s5" paddingBottom="s7">
           <Button
             onPress={() => {
               pendingMessageRef.current =

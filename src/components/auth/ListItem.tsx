@@ -27,7 +27,7 @@ function ListItem({ item, animationValue }: ListItemProperties) {
       height="100%"
       justifyContent="center"
       alignItems="center"
-      paddingHorizontal="$s7"
+      paddingHorizontal="s7"
     >
       <Image source={item.image} contentFit="contain" width="100%" height="100%" />
     </AnimatedView>

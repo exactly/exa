@@ -36,19 +36,19 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
         paddingTop={0}
-        $platform-web={{ paddingBottom: "$s4" }}
+        paddingBottom="web:s4"
+        borderTopLeftRadius="r4"
+        borderTopRightRadius="r4"
+        backgroundColor="backgroundSoft"
         fullScreen
-        borderTopLeftRadius="$r4"
-        borderTopRightRadius="$r4"
-        backgroundColor="$backgroundSoft"
       >
-        <View position="absolute" top="$s5" right="$s5" zIndex={10}>
-          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
+        <View position="absolute" top="s5" right="s5" zIndex={10}>
+          <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
-          <YStack gap="$s3" paddingHorizontal="$s5" paddingVertical="$s7">
-            <YStack gap="$s3" paddingBottom="$s4">
-              <XStack alignItems="center" gap="$s3">
+        <ScrollView maxHeight="web:100vh">
+          <YStack gap="s3" paddingHorizontal="s5" paddingVertical="s7">
+            <YStack gap="s3" paddingBottom="s4">
+              <XStack alignItems="center" gap="s3">
                 <LogoComponent width={32} height={32} />
                 <Text emphasized title3>
                   {t(benefit.partner)}
@@ -59,7 +59,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
                 {t(benefit.longTitle ?? benefit.title)}
               </Text>
               {benefit.descriptions && (
-                <YStack gap="$s4">
+                <YStack gap="s4">
                   {benefit.descriptions.map((description) => (
                     <Text key={description} subHeadline secondary>
                       {t(description)}
@@ -69,20 +69,20 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               )}
             </YStack>
             <Button
-              backgroundColor="$interactiveBaseBrandDefault"
+              backgroundColor="interactiveBaseBrandDefault"
               justifyContent="space-between"
               minHeight={64}
-              padding="$s4"
+              padding="s4"
               onPress={() => {
                 const { url, external } = benefit;
                 if (!url) return;
                 openBrowser(url.replace("{language}", language.split("-")[0] ?? "en"), { external }).catch(reportError);
               }}
             >
-              <Button.Text emphasized subHeadline color="$interactiveOnBaseBrandDefault">
+              <Button.Text emphasized subHeadline color="interactiveOnBaseBrandDefault">
                 {benefit.buttonText ? t(benefit.buttonText) : t("Get benefit")}
               </Button.Text>
-              <ExternalLink size={20} color="$interactiveOnBaseBrandDefault" />
+              <ExternalLink size={20} color="interactiveOnBaseBrandDefault" />
             </Button>
           </YStack>
         </ScrollView>

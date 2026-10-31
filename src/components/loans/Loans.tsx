@@ -31,13 +31,13 @@ export default function Loans() {
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
   const { refetch } = useMarkets();
   return (
-    <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View fullScreen backgroundColor="$backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
+    <SafeView fullScreen tab backgroundColor="backgroundSoft">
+      <View fullScreen backgroundColor="backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={loansScrollReference}
           backgroundColor="transparent"
-          contentContainerStyle={{ flexGrow: 1, backgroundColor: "$backgroundMild" }}
+          contentContainerStyle={{ flexGrow: 1, backgroundColor: "backgroundMild" }}
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={
@@ -52,8 +52,8 @@ export default function Loans() {
           }
         >
           <>
-            <View backgroundColor="$backgroundSoft" padded>
-              <YStack paddingBottom="$s3" gap="$s4_5">
+            <View backgroundColor="backgroundSoft" padded>
+              <YStack paddingBottom="s3" gap="s4_5">
                 <XStack alignItems="center" justifyContent="space-between">
                   <IconButton
                     icon={ArrowLeft}
@@ -71,7 +71,7 @@ export default function Loans() {
                   </Text>
                   <IconButton
                     icon={CircleHelp}
-                    color="$uiNeutralSecondary"
+                    color="uiNeutralSecondary"
                     aria-label={t("Help")}
                     onPress={() => {
                       presentArticle("11541409").catch(reportError);
@@ -85,12 +85,12 @@ export default function Loans() {
                 </Text>
               </YStack>
             </View>
-            <View gap="$s6" padded>
+            <View gap="s6" padded>
               <CreditLine />
               <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
             </View>
-            <XStack gap="$s4" alignItems="flex-start" padding="$s4" flexWrap="wrap">
-              <Text caption2 color="$interactiveOnDisabled">
+            <XStack gap="s4" alignItems="flex-start" padding="s4" flexWrap="wrap">
+              <Text caption2 color="interactiveOnDisabled">
                 {t(
                   "You are accessing a decentralized protocol using your crypto as collateral. The Exa App does not issue funding or provide credit. No credit checks or intermediaries are involved.",
                 )}

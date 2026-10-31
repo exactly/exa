@@ -72,14 +72,14 @@ export default function PriceChart({
   const digits = decimals(value);
   const price = usd(value, language).slice(1);
   return (
-    <YStack gap="$s4">
-      <YStack gap="$s4">
-        <XStack alignItems="center" gap="$s4">
-          <YStack flex={1} gap="$s1">
+    <YStack gap="s4">
+      <YStack gap="s4">
+        <XStack alignItems="center" gap="s4">
+          <YStack flex={1} gap="s1">
             <Text title3 numberOfLines={1} adjustsFontSizeToFit>
               {name}
             </Text>
-            <Text footnote color="$uiNeutralSecondary">
+            <Text footnote color="uiNeutralSecondary">
               {symbol}
             </Text>
           </YStack>
@@ -87,13 +87,13 @@ export default function PriceChart({
         </XStack>
         {point || data === null || isError ? (
           <XStack alignItems="center" aria-label={`$${price}`}>
-            <Text aria-hidden callout color="$uiNeutralSecondary">
+            <Text aria-hidden callout color="uiNeutralSecondary">
               $
             </Text>
             <Text aria-hidden largeTitle numberOfLines={1}>
               {price.slice(0, -digits - 1)}
             </Text>
-            <Text aria-hidden callout color="$uiNeutralSecondary" alignSelf="flex-start">
+            <Text aria-hidden callout color="uiNeutralSecondary" alignSelf="flex-start">
               {price.slice(-digits - 1)}
             </Text>
           </XStack>
@@ -108,8 +108,8 @@ export default function PriceChart({
           <Skeleton width={180} height={21} />
         )}
         {closed && onchain !== undefined && last && (
-          <XStack gap="$s2" alignItems="center" flexWrap="wrap">
-            <Text caption color="$uiNeutralSecondary">
+          <XStack gap="s2" alignItems="center" flexWrap="wrap">
+            <Text caption color="uiNeutralSecondary">
               {t("Onchain price: {{price}}", { price: usd(onchain, language) })}
             </Text>
             <Change from={last.value} to={onchain} label={t("vs. last close")} />
@@ -133,7 +133,7 @@ export default function PriceChart({
           {x !== undefined && point && (
             <Text
               caption2
-              color="$uiNeutralSecondary"
+              color="uiNeutralSecondary"
               position="absolute"
               width={160}
               left={Math.min(Math.max(x - 80, 0), width - 160)}
@@ -145,15 +145,15 @@ export default function PriceChart({
           )}
         </YStack>
         {data === null ? (
-          <YStack flex={1} alignItems="center" justifyContent="center" gap="$s3">
-            <ChartLine size={24} color="$uiNeutralPlaceholder" />
-            <Text footnote color="$uiNeutralSecondary">
+          <YStack flex={1} alignItems="center" justifyContent="center" gap="s3">
+            <ChartLine size={24} color="uiNeutralPlaceholder" />
+            <Text footnote color="uiNeutralSecondary">
               {t("Price history unavailable")}
             </Text>
           </YStack>
         ) : isError && !points ? (
-          <YStack flex={1} alignItems="center" justifyContent="center" gap="$s3">
-            <Text footnote color="$uiNeutralSecondary">
+          <YStack flex={1} alignItems="center" justifyContent="center" gap="s3">
+            <Text footnote color="uiNeutralSecondary">
               {t("Price history unavailable")}
             </Text>
             <Chip
@@ -184,30 +184,30 @@ export default function PriceChart({
           <Skeleton width="100%" height={height} />
         )}
       </YStack>
-      <XStack gap="$s3" justifyContent="center">
+      <XStack gap="s3" justifyContent="center">
         {(Object.keys(ranges) as (keyof typeof ranges)[]).map((key) => (
           <XStack
             key={key}
-            padding="$s3"
-            borderRadius="$r3"
-            backgroundColor={key === range ? "$interactiveBaseBrandSoftDefault" : "transparent"}
+            padding="s3"
+            borderRadius="r3"
+            backgroundColor={key === range ? "interactiveBaseBrandSoftDefault" : "transparent"}
             cursor="pointer"
+            opacity="press:0.7"
             role="button"
             aria-label={t(key)}
-            pressStyle={{ opacity: 0.7 }}
             onPress={() => {
               selectionAsync().catch(reportError);
               setRange(key);
             }}
           >
-            <Text footnote color={key === range ? "$interactiveOnBaseBrandSoft" : "$uiNeutralSecondary"}>
+            <Text footnote color={key === range ? "interactiveOnBaseBrandSoft" : "uiNeutralSecondary"}>
               {t(key)}
             </Text>
           </XStack>
         ))}
       </XStack>
       {data && (
-        <Text caption2 color="$uiNeutralPlaceholder" textAlign="center">
+        <Text caption2 color="uiNeutralPlaceholder" textAlign="center">
           {t("Last updated: {{time}}", {
             time: formatDistanceToNowStrict(data.updated, { addSuffix: true, locale: date() }),
           })}
@@ -229,19 +229,19 @@ export function PriceSummary({ token, onPress }: { onPress: () => void; token: T
   return (
     <XStack
       alignItems="center"
-      gap="$s4"
-      padding="$s4"
+      gap="s4"
+      padding="s4"
       borderWidth={1}
-      borderColor="$borderNeutralSoft"
-      borderRadius="$r3"
+      borderColor="borderNeutralSoft"
+      borderRadius="r3"
       cursor="pointer"
+      opacity="press:0.7"
       role="button"
       aria-label={t("{{symbol}} price", { symbol: token.symbol })}
-      pressStyle={{ opacity: 0.7 }}
       onPress={onPress}
     >
-      <YStack flex={1} gap="$s2">
-        <Text footnote color="$uiNeutralSecondary">
+      <YStack flex={1} gap="s2">
+        <Text footnote color="uiNeutralSecondary">
           {t("{{symbol}} price", { symbol: token.symbol })}
         </Text>
         {data === null || (isError && !data) ? (
@@ -259,7 +259,7 @@ export function PriceSummary({ token, onPress }: { onPress: () => void; token: T
           <Skeleton width={120} height={36} />
         )}
       </YStack>
-      <ChevronRight size={16} color="$interactiveOnBaseBrandSoft" />
+      <ChevronRight size={16} color="interactiveOnBaseBrandSoft" />
     </XStack>
   );
 }
@@ -276,13 +276,13 @@ export function Trend({ chainId, address, symbol }: { address: string; chainId: 
   if (!first || !last) return null;
   const change = Number(delta(first.value, last.value).toFixed(precision + 2));
   return (
-    <XStack gap="$s2" alignItems="center">
+    <XStack gap="s2" alignItems="center">
       {change > 0 ? <TrendingUp size={16} color={tint(change)} /> : null}
       {change < 0 ? <TrendingDown size={16} color={tint(change)} /> : null}
       <Text caption emphasized color={tint(change)}>
         {`${sign(change)}${percent(Math.abs(change), language)}`}
       </Text>
-      <Text caption color="$uiNeutralSecondary">
+      <Text caption color="uiNeutralSecondary">
         {t("24h")}
       </Text>
     </XStack>
@@ -351,11 +351,11 @@ function Change({ from, to, label }: { from: number; label: string; to: number }
   } = useTranslation();
   const change = delta(from, to);
   return (
-    <XStack gap="$s2" alignItems="center">
+    <XStack gap="s2" alignItems="center">
       <Text caption emphasized color={tint(change)}>
         {`${sign(change)}${usd(Math.abs(to - from), language)} (${sign(change)}${percent(Math.abs(change), language)})`}
       </Text>
-      <Text caption color="$uiNeutralSecondary" numberOfLines={1} flexShrink={1}>
+      <Text caption color="uiNeutralSecondary" numberOfLines={1} flexShrink={1}>
         {label}
       </Text>
     </XStack>
@@ -373,9 +373,9 @@ function sign(change: number) {
 }
 
 function tint(change: number) {
-  if (change > 0) return "$uiSuccessSecondary";
-  if (change < 0) return "$uiErrorSecondary";
-  return "$uiNeutralSecondary";
+  if (change > 0) return "uiSuccessSecondary";
+  if (change < 0) return "uiErrorSecondary";
+  return "uiNeutralSecondary";
 }
 
 function usd(value: number, language: string) {

@@ -11,8 +11,8 @@ import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Landmark } from "@tamagui/lucide-icons-2/icons/Landmark";
 import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
-import { useToastController } from "@tamagui/toast";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { toast } from "@tamagui/toast";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { getPixKeyType, isCNPJ, isCPF, PixKeyType } from "@pix.js/qrcode";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -59,7 +59,6 @@ export default function NewRecipient() {
   const { t } = useTranslation();
   const router = useRouter();
   const { currency, provider, scan } = useLocalSearchParams();
-  const toast = useToastController();
 
   const [step, setStep] = useState(1);
   const [openSelect, setOpenSelect] = useState<string | undefined>();
@@ -85,17 +84,11 @@ export default function NewRecipient() {
       queryClient.invalidateQueries({ queryKey: ["ramp", "external-accounts"] }).catch(reportError);
       const usable = newAccount.addressValid !== false;
       if (!usable) {
-        toast.show(t("Contact created, but its details need review before you can send."), {
-          duration: 3000,
-          burntOptions: { haptic: "warning", preset: "none" },
-        });
+        toast.warning(t("Contact created, but its details need review before you can send."), { duration: 3000 });
         router.replace({ pathname: "/send-funds/recipients", params: { currency, provider } });
         return;
       }
-      toast.show(t("Contact saved successfully"), {
-        duration: 2000,
-        burntOptions: { haptic: "success", preset: "done" },
-      });
+      toast.success(t("Contact saved successfully"), { duration: 2000 });
       router.push({
         pathname: "/send-funds/send-amount",
         params: { currency, provider, contactId: newAccount.id, ...(amount && { amount }) },
@@ -104,17 +97,11 @@ export default function NewRecipient() {
     onError: (error) => {
       const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
       if (codeMessage) {
-        toast.show(t(codeMessage), {
-          duration: 3000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
+        toast.error(t(codeMessage), { duration: 3000 });
         return;
       }
       reportError(error);
-      toast.show(t("Couldn't create the account. Please try again."), {
-        duration: 3000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Couldn't create the account. Please try again."), { duration: 3000 });
     },
   });
 
@@ -184,10 +171,7 @@ export default function NewRecipient() {
         onScan={(data) => {
           const code = parseBRCode(data);
           if (!code) {
-            toast.show(t("Couldn't read this QR code. Make sure it's a PIX code."), {
-              duration: 3000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
+            toast.error(t("Couldn't read this QR code. Make sure it's a PIX code."), { duration: 3000 });
             return false;
           }
           if (!(code.type === "static" && fill("account_pixKey", code.key))) fill("account_pixKey", code.brCode);
@@ -212,9 +196,9 @@ export default function NewRecipient() {
   const info = currentStep.fields.some((field) => field.info);
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s5" fullScreen padded>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild">
+      <View gap="s5" fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -240,32 +224,32 @@ export default function NewRecipient() {
         </XStack>
 
         {totalSteps > 1 && (
-          <XStack gap="$s2" justifyContent="center">
+          <XStack gap="s2" justifyContent="center">
             {steps.map((_, index) => (
               <View
                 // eslint-disable-next-line @eslint-react/no-array-index-key -- stable order, fixed length
                 key={index}
                 width={48}
                 height={4}
-                borderRadius="$r1"
-                backgroundColor={index + 1 <= step ? "$interactiveBaseBrandDefault" : "$borderNeutralSoft"}
+                borderRadius="r1"
+                backgroundColor={index + 1 <= step ? "interactiveBaseBrandDefault" : "borderNeutralSoft"}
               />
             ))}
           </XStack>
         )}
 
         <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-          <YStack flex={1} gap="$s5">
-            <YStack gap="$s2">
-              <XStack gap="$s2" alignItems="center">
+          <YStack flex={1} gap="s5">
+            <YStack gap="s2">
+              <XStack gap="s2" alignItems="center">
                 <Text title3 emphasized primary>
                   {t(currentStep.title)}
                 </Text>
                 {info && (
                   <IconButton
                     icon={Info}
-                    size="$iconSize.md"
-                    color="$interactiveBaseBrandDefault"
+                    size={getTokens().iconSize.md.val}
+                    color="interactiveBaseBrandDefault"
                     aria-label={t("More info")}
                     onPress={() => {
                       setOpenInfo(true);
@@ -274,13 +258,13 @@ export default function NewRecipient() {
                 )}
               </XStack>
               {currentStep.subtitle && (
-                <Text footnote color="$uiNeutralPlaceholder">
+                <Text footnote color="uiNeutralPlaceholder">
                   {t(currentStep.subtitle)}
                 </Text>
               )}
             </YStack>
 
-            <YStack gap="$s4">
+            <YStack gap="s4">
               {currentStep.fields.map((field) => (
                 <form.Field key={field.path} name={field.path} validators={{ onChange: validator(field) }}>
                   {({ state: { value, meta }, handleChange }) => {
@@ -449,18 +433,18 @@ function AccountHint({ value, code }: { code: ReturnType<typeof parseBRCode>; va
   if (!code) {
     if (!isPixKey(trimmed)) return null;
     return (
-      <Text footnote color="$uiNeutralPlaceholder">
+      <Text footnote color="uiNeutralPlaceholder">
         {t("PIX key · {{type}}", { type: t(pixKeyLabels[getPixKeyType(trimmed)]) })}
       </Text>
     );
   }
   if (code.type !== "dynamic" || !code.oneTime) return null;
   return (
-    <YStack gap="$s1">
-      <Text footnote color="$uiWarningSecondary">
+    <YStack gap="s1">
+      <Text footnote color="uiWarningSecondary">
         {t("One-time charge")}
       </Text>
-      <Text caption color="$uiNeutralPlaceholder">
+      <Text caption color="uiNeutralPlaceholder">
         {t("The saved contact may stop working once it's paid.")}
       </Text>
     </YStack>
@@ -472,25 +456,25 @@ function BRCodeField({ value, name }: { name?: string; value: string }) {
   const [revealed, setRevealed] = useState(false);
   return (
     <XStack
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
       borderWidth={1}
-      borderColor="$borderNeutralSoft"
+      borderColor="borderNeutralSoft"
       alignItems="center"
       overflow="hidden"
     >
       {revealed ? (
-        <Text flex={1} padding="$s3" caption secondary userSelect="text">
+        <Text flex={1} padding="s3" userSelect="text" caption secondary>
           {value}
         </Text>
       ) : (
-        <Text flex={1} padding="$s3" numberOfLines={1}>
+        <Text flex={1} padding="s3" numberOfLines={1}>
           {name ? t("BR Code · {{name}}", { name }) : t("BR Code")}
         </Text>
       )}
       <View
-        backgroundColor="$interactiveBaseBrandSoftDefault"
-        padding="$s3_5"
+        backgroundColor="interactiveBaseBrandSoftDefault"
+        padding="s3_5"
         alignSelf="stretch"
         justifyContent="center"
         alignItems="center"
@@ -500,7 +484,7 @@ function BRCodeField({ value, name }: { name?: string; value: string }) {
           setRevealed(!revealed);
         }}
       >
-        {revealed ? <EyeOff size={24} color="$iconBrandDefault" /> : <Eye size={24} color="$iconBrandDefault" />}
+        {revealed ? <EyeOff size={24} color="iconBrandDefault" /> : <Eye size={24} color="iconBrandDefault" />}
       </View>
     </XStack>
   );

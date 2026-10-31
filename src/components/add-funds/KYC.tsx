@@ -84,9 +84,9 @@ export default function KYC() {
 
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
-        <View gap="$s4_5">
-          <View flexDirection="row" gap="$s3" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" fullScreen padded>
+        <View gap="s4_5">
+          <View flexDirection="row" gap="s3" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -102,21 +102,21 @@ export default function KYC() {
           </View>
         </View>
         <ScrollView flex={1}>
-          <View flex={1} gap="$s4_5">
-            <YStack flex={1} padding="$s4" gap="$s6">
+          <View flex={1} gap="s4_5">
+            <YStack flex={1} padding="s4" gap="s6">
               <YStack flex={1} justifyContent="center">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center">
                   <ThemedSvg xml={faceId} width="100%" height="100%" />
                 </View>
-                <YStack gap="$s4" alignSelf="center">
-                  <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
+                <YStack gap="s4" alignSelf="center">
+                  <Text title emphasized textAlign="center" color="interactiveTextBrandDefault">
                     {storedTokens
                       ? isAddress
                         ? t("Your address needs to be verified")
                         : t("Your ID needs to be updated")
                       : t("We need more information about you")}
                   </Text>
-                  <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
+                  <Text color="uiNeutralPlaceholder" textAlign="center" footnote>
                     {storedTokens
                       ? isAddress
                         ? t("There was an issue with your address. Please update your information to continue.")

@@ -1,6 +1,5 @@
-import React from "react";
+import React, { type ComponentPropsWithoutRef } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import type { GestureResponderEvent } from "react-native";
 
 import { TrendingUp } from "@tamagui/lucide-icons-2/icons/TrendingUp";
 import { XStack } from "tamagui";
@@ -13,7 +12,7 @@ export default function Rate({
   rate,
 }: {
   compact?: boolean;
-  onPress?: (event: GestureResponderEvent) => void;
+  onPress?: ComponentPropsWithoutRef<typeof XStack>["onPress"];
   rate: bigint;
 }) {
   const {
@@ -21,17 +20,17 @@ export default function Rate({
   } = useTranslation();
   return (
     <XStack
-      gap={compact ? "$s3" : "$s2"}
+      gap={compact ? "s3" : "s2"}
       alignItems="center"
-      paddingHorizontal={compact ? "$s3" : "$s3_5"}
-      paddingVertical="$s2"
-      borderRadius="$r_0"
-      backgroundColor="$interactiveBaseSuccessSoftDefault"
+      paddingHorizontal={compact ? "s3" : "s3_5"}
+      paddingVertical="s2"
+      borderRadius="r_0"
+      backgroundColor="interactiveBaseSuccessSoftDefault"
       cursor={onPress ? "pointer" : undefined}
       onPress={onPress}
     >
-      <TrendingUp size={compact ? 16 : 20} color="$interactiveOnBaseSuccessSoft" />
-      <Text caption={compact} subHeadline={!compact} color="$interactiveOnBaseSuccessSoft">
+      <TrendingUp size={compact ? 16 : 20} color="interactiveOnBaseSuccessSoft" />
+      <Text caption={compact} subHeadline={!compact} color="interactiveOnBaseSuccessSoft">
         <Trans
           i18nKey="<rate>{{rate}}</rate> APR"
           values={{
@@ -42,7 +41,7 @@ export default function Rate({
             }),
           }}
           components={{
-            rate: <Text caption={compact} subHeadline={!compact} emphasized color="$interactiveOnBaseSuccessSoft" />,
+            rate: <Text caption={compact} subHeadline={!compact} emphasized color="interactiveOnBaseSuccessSoft" />,
           }}
         />
       </Text>

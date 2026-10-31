@@ -36,14 +36,14 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
     }, []),
   );
 
-  if (!permission) return <View fullScreen backgroundColor="$backgroundSoft" />;
+  if (!permission) return <View fullScreen backgroundColor="backgroundSoft" />;
   if (!permission.granted) {
     if (!permission.canAskAgain) {
       return (
-        <View fullScreen justifyContent="center" alignItems="center" backgroundColor="$backgroundSoft">
+        <View fullScreen justifyContent="center" alignItems="center" backgroundColor="backgroundSoft">
           <BackControl onPress={onClose} />
           <View padded>
-            <YStack gap="$s4">
+            <YStack gap="s4">
               <Text secondary subHeadline textAlign="center">
                 {t(
                   "Camera access is currently disabled for Exa App. In order to continue, enable camera access for Exa App from your device settings.",
@@ -65,10 +65,10 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
       );
     }
     return (
-      <View fullScreen justifyContent="center" alignItems="center" backgroundColor="$backgroundSoft">
+      <View fullScreen justifyContent="center" alignItems="center" backgroundColor="backgroundSoft">
         <BackControl onPress={onClose} />
         <View padded>
-          <YStack gap="$s4">
+          <YStack gap="s4">
             <Text secondary subHeadline textAlign="center">
               {t(
                 "Before we continue, we need your permission to access the camera. The camera will only be used for scanning QR codes.",
@@ -95,7 +95,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
     );
   }
   return (
-    <View fullScreen backgroundColor="$backgroundSoft">
+    <View fullScreen backgroundColor="backgroundSoft">
       {active && (
         <CameraView
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
@@ -114,11 +114,11 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
       <Button
         primary
         minHeight="auto"
-        padding="$s3"
+        padding="s3"
         position="absolute"
-        borderRadius="$r_0"
+        borderRadius="r_0"
         bottom={bottom}
-        right="$s4"
+        right="s4"
         hitSlop={15}
         onPress={() => {
           setCameraFacing(cameraFacing === "back" ? "front" : "back");
@@ -128,7 +128,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
           <SwitchCamera />
         </Button.Icon>
       </Button>
-      <View position="absolute" borderRadius="$r_0" backgroundColor="transparent" top={top} left="$s4" padding="$s3">
+      <View position="absolute" borderRadius="r_0" backgroundColor="transparent" top={top} left="s4" padding="s3">
         <IconButton icon={ArrowLeft} color="white" aria-label={t("Back")} onPress={onClose} />
       </View>
     </View>
@@ -141,19 +141,19 @@ function BackControl({ onPress }: { onPress: () => void }) {
   return (
     <XStack
       position="absolute"
-      borderRadius="$r_0"
+      borderRadius="r_0"
       backgroundColor="transparent"
       alignItems="center"
       top={top}
-      left="$s4"
-      padding="$s3"
-      gap="$s2"
+      left="s4"
+      padding="s3"
+      gap="s2"
       cursor="pointer"
       role="button"
       aria-label={t("Back")}
       onPress={onPress}
     >
-      <ArrowLeft size={24} color="$uiNeutralPrimary" />
+      <ArrowLeft size={24} color="uiNeutralPrimary" />
       <Text headline>{t("Back")}</Text>
     </XStack>
   );

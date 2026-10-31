@@ -35,8 +35,8 @@ export default function Settings() {
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>
-      <View fullScreen padded gap="$s5">
-        <View flexDirection="row" gap="$s3" justifyContent="space-around" alignItems="center">
+      <View fullScreen padded gap="s5">
+        <View flexDirection="row" gap="s3" justifyContent="space-around" alignItems="center">
           <View position="absolute" left={0}>
             <IconButton
               icon={ArrowLeft}
@@ -50,29 +50,29 @@ export default function Settings() {
               }}
             />
           </View>
-          <Text emphasized subHeadline color="$uiNeutralPrimary">
+          <Text emphasized subHeadline color="uiNeutralPrimary">
             {t("Settings")}
           </Text>
         </View>
         <ScrollView flex={1}>
-          <View gap="$s4_5">
-            <View borderRadius="$r3" borderWidth={1} borderColor="$borderNeutralSoft">
-              <Separator borderColor="$borderNeutralSoft" />
+          <View gap="s4_5">
+            <View borderRadius="r3" borderWidth={1} borderColor="borderNeutralSoft">
+              <Separator borderColor="borderNeutralSoft" />
               <Pressable
                 onPress={() => {
                   present().catch(reportError);
                 }}
               >
-                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-                  <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                    <HelpCircle color="$backgroundBrand" />
-                    <Text subHeadline color="$uiNeutralPrimary">
+                <XStack justifyContent="space-between" alignItems="center" padding="s4">
+                  <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                    <HelpCircle color="backgroundBrand" />
+                    <Text subHeadline color="uiNeutralPrimary">
                       {t("Support")}
                     </Text>
                   </XStack>
                 </XStack>
               </Pressable>
-              <Separator borderColor="$borderNeutralSoft" />
+              <Separator borderColor="borderNeutralSoft" />
               <Pressable
                 onPress={() => {
                   if (!connector) return;
@@ -88,10 +88,10 @@ export default function Settings() {
                     .catch(reportError);
                 }}
               >
-                <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-                  <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                    <LogOut color="$interactiveBaseErrorDefault" />
-                    <Text subHeadline color="$uiNeutralPrimary">
+                <XStack justifyContent="space-between" alignItems="center" padding="s4">
+                  <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                    <LogOut color="interactiveBaseErrorDefault" />
+                    <Text subHeadline color="uiNeutralPrimary">
                       {t("Logout")}
                     </Text>
                   </XStack>
@@ -99,20 +99,20 @@ export default function Settings() {
               </Pressable>
             </View>
             {process.env.EXPO_PUBLIC_ENV === "e2e" ? (
-              <View borderRadius="$r3" borderWidth={1} borderColor="$borderNeutralSoft">
-                <Separator borderColor="$borderNeutralSoft" />
+              <View borderRadius="r3" borderWidth={1} borderColor="borderNeutralSoft">
+                <Separator borderColor="borderNeutralSoft" />
                 <Pressable onPress={() => submitCoverage()}>
-                  <XStack justifyContent="space-between" alignItems="center" padding="$s4">
+                  <XStack justifyContent="space-between" alignItems="center" padding="s4">
                     <XStack justifyContent="space-between" flex={1}>
-                      <XStack justifyContent="flex-start" alignItems="center" gap="$s3">
-                        <SendHorizontal color="$backgroundBrand" />
-                        <Text subHeadline color="$uiNeutralPrimary">
+                      <XStack justifyContent="flex-start" alignItems="center" gap="s3">
+                        <SendHorizontal color="backgroundBrand" />
+                        <Text subHeadline color="uiNeutralPrimary">
                           Submit coverage
                         </Text>
                       </XStack>
                       {(coverageSuccess || coverageError) && (
                         <Pressable aria-label={t("Finished")}>
-                          <Check color={coverageSuccess ? "$backgroundBrand" : "$interactiveBaseErrorDefault"} />
+                          <Check color={coverageSuccess ? "backgroundBrand" : "interactiveBaseErrorDefault"} />
                         </Pressable>
                       )}
                     </XStack>
@@ -130,7 +130,7 @@ export default function Settings() {
                   .catch(reportError);
               }}
             >
-              <Text footnote color="$uiNeutralSecondary" textAlign="center">
+              <Text footnote color="uiNeutralSecondary" textAlign="center">
                 {release}
               </Text>
             </Pressable>

@@ -8,7 +8,7 @@ import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
@@ -22,7 +22,6 @@ import type { KYCState } from "../../utils/useKYC";
 export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolean; kyc: KYCState }) {
   const router = useRouter();
   const { t } = useTranslation();
-  const toast = useToastController();
   const { mutate: beginKYC, isPending } = useBeginKYC();
   const step = useOnboardingSteps({ kyc, isDeployed }).find(({ status }) => status !== "completed");
   function handleStepPress() {
@@ -34,10 +33,7 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
       case "verify-identity":
         beginKYC(undefined, {
           onError(error) {
-            toast.show(t("Error verifying identity"), {
-              duration: 1000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
+            toast.error(t("Error verifying identity"), { duration: 1000 });
             reportError(error);
           },
         });
@@ -50,45 +46,42 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
   return (
     <YStack
       key="getting-started"
-      backgroundColor="$backgroundBrandSoft"
+      backgroundColor="backgroundBrandSoft"
       borderWidth={1}
-      borderColor="$borderBrandSoft"
-      borderRadius="$r3"
-      opacity={1}
-      transform={[{ translateY: 0 }]}
-      transition="default"
-      animateOnly={["opacity", "transform"]}
-      enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
-      exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+      borderColor="borderBrandSoft"
+      borderRadius="r3"
+      opacity="1 enter:0 exit:0"
+      transform="translateY(0px) enter:translateY(-20px) exit:translateY(-20px)"
+      transition={{ preset: "default", properties: "opacity, transform" }}
     >
-      <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-        <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
+      <XStack justifyContent="space-between" alignItems="center" padding="s4">
+        <Text emphasized headline color="uiBrandSecondary" maxFontSizeMultiplier={1.3}>
           {t("Getting Started")}
         </Text>
         <Pressable hitSlop={15}>
-          <XStack gap="$s1" alignItems="center">
+          <XStack gap="s1" alignItems="center">
             <Pressable
               hitSlop={15}
               onPress={() => {
                 router.push("/getting-started");
               }}
             >
-              <Text emphasized footnote color="$interactiveBaseBrandDefault">
+              <Text emphasized footnote color="interactiveBaseBrandDefault">
                 {t("View all steps")}
               </Text>
             </Pressable>
-            <ChevronRight size={14 * PixelRatio.getFontScale()} color="$interactiveTextBrandDefault" />
+            <ChevronRight size={14 * PixelRatio.getFontScale()} color="interactiveTextBrandDefault" />
           </XStack>
         </Pressable>
       </XStack>
-      <XStack justifyContent="space-between" alignItems="center" padding="$s4">
-        <XStack gap="$s3" alignItems="center" flex={1}>
+      <XStack justifyContent="space-between" alignItems="center" padding="s4">
+        <XStack gap="s3" alignItems="center" flex={1}>
           {step?.id === "add-funds" ? (
-            <ArrowDownToLine size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
+            <ArrowDownToLine size={24 * PixelRatio.getFontScale()} color="uiBrandSecondary" />
           ) : (
-            <IdCard size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
+            <IdCard size={24 * PixelRatio.getFontScale()} color="uiBrandSecondary" />
           )}
-          <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
+          <Text emphasized headline color="uiBrandSecondary" maxFontSizeMultiplier={1.3}>
             {step ? t(step.title) : ""}
           </Text>
         </XStack>
@@ -96,15 +89,15 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
           <View
             width={44}
             height={44}
-            backgroundColor="$interactiveBaseBrandDefault"
-            borderRadius="$r3"
+            backgroundColor="interactiveBaseBrandDefault"
+            borderRadius="r3"
             justifyContent="center"
             alignItems="center"
           >
             {isPending ? (
-              <Spinner color="$interactiveOnBaseBrandDefault" size="small" />
+              <Spinner color="interactiveOnBaseBrandDefault" size="small" />
             ) : (
-              <ArrowRight size={24 * PixelRatio.getFontScale()} color="$interactiveOnBaseBrandDefault" />
+              <ArrowRight size={24 * PixelRatio.getFontScale()} color="interactiveOnBaseBrandDefault" />
             )}
           </View>
         </Pressable>

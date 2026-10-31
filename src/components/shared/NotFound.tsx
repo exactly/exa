@@ -33,28 +33,28 @@ export default function NotFound() {
   }, []);
 
   return (
-    <SafeView fullScreen gap="$s4" padded backgroundColor="$backgroundSoft">
-      <YStack flex={1} gap="$s7">
-        <YStack flex={1} justifyContent="center" gap="$s3_5">
+    <SafeView fullScreen gap="s4" backgroundColor="backgroundSoft" padded>
+      <YStack flex={1} gap="s7">
+        <YStack flex={1} justifyContent="center" gap="s3_5">
           <Image
             source={errorImage}
             contentFit="contain"
             width="100%"
             aspectRatio={1}
             flexShrink={1}
-            paddingHorizontal="$s8"
+            paddingHorizontal="s8"
           />
-          <YStack gap="$s5">
-            <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
+          <YStack gap="s5">
+            <Text emphasized textAlign="center" color="interactiveTextBrandDefault" title>
               {t("We couldn’t find that page")}
             </Text>
-            <Text color="$uiNeutralSecondary" footnote textAlign="center">
+            <Text color="uiNeutralSecondary" textAlign="center" footnote>
               {t("The link you followed doesn’t match any screen in the app.")}
             </Text>
           </YStack>
         </YStack>
       </YStack>
-      <YStack paddingBottom="$s7" gap="$s4">
+      <YStack paddingBottom="s7" gap="s4">
         {Platform.OS !== "web" && (
           <Button
             onPress={() => {
@@ -75,7 +75,7 @@ export default function NotFound() {
             router.replace(credential ? "/(main)/(home)" : "/(auth)");
           }}
         >
-          <Text emphasized footnote centered color="$interactiveBaseBrandDefault">
+          <Text emphasized footnote centered color="interactiveBaseBrandDefault">
             {t("Go home")}
           </Text>
         </Pressable>

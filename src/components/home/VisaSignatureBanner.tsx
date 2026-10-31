@@ -11,22 +11,22 @@ export default function VisaSignatureBanner({ onPress }: { onPress: () => void }
   const { t } = useTranslation();
   return (
     <XStack
-      backgroundColor="$backgroundBanner"
-      borderRadius="$r4"
+      backgroundColor="backgroundBanner"
+      borderRadius="r4"
       alignItems="center"
       overflow="hidden"
       minHeight={120}
       cursor="pointer"
-      onPress={onPress}
       position="relative"
       flex={1}
+      onPress={onPress}
     >
-      <YStack padding="$s4" gap="$s2" height="100%" flex={1}>
+      <YStack padding="s4" gap="s2" height="100%" flex={1}>
         <YStack height="100%" justifyContent="space-between" alignItems="flex-start">
           <Text textAlign="left" maxFontSizeMultiplier={1} emphasized body color="white">
             {t("Get your Visa Signature Exa Card")}
           </Text>
-          <XStack alignSelf="flex-start" alignItems="center" gap="$s2">
+          <XStack alignSelf="flex-start" alignItems="center" gap="s2">
             <Text emphasized footnote color="white" maxFontSizeMultiplier={1}>
               {t("Upgrade now")}
             </Text>

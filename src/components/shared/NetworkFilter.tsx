@@ -18,7 +18,7 @@ export default function NetworkFilter({
   icon,
   size = 18,
   ...properties
-}: Omit<ComponentPropsWithoutRef<typeof XStack>, "onChange"> & {
+}: Omit<ComponentPropsWithoutRef<typeof XStack>, "all" | "onChange"> & {
   all?: boolean;
   chains: { disabled?: boolean; id: number; name: string }[];
   icon?: React.ReactNode;
@@ -35,14 +35,14 @@ export default function NetworkFilter({
     <>
       <XStack
         alignItems="center"
-        gap="$s2"
-        padding="$s3_5"
-        backgroundColor="$backgroundMild"
+        gap="s2"
+        padding="s3_5"
+        backgroundColor="backgroundMild"
         cursor="pointer"
+        opacity="press:0.7"
+        {...properties}
         role="button"
         aria-label={t("Select network")}
-        pressStyle={{ opacity: 0.7 }}
-        {...properties}
         onPress={() => {
           onOpenChange(true);
         }}
@@ -53,7 +53,7 @@ export default function NetworkFilter({
           ) : (
             <ChainLogo chainId={value ?? sole?.id} size={size} />
           ))}
-        <ChevronDown size={size + 2} color="$uiNeutralPrimary" />
+        <ChevronDown size={size + 2} color="uiNeutralPrimary" />
       </XStack>
       <SelectSheet
         open={open}

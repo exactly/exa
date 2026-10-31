@@ -21,7 +21,7 @@ import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
 import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -66,7 +66,6 @@ export default function CardStatus({
   spotlightRef?: React.RefObject<null | RNView>;
 }) {
   const { t } = useTranslation();
-  const toast = useToastController();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const {
     mutate: changeCardStatus,
@@ -77,10 +76,7 @@ export default function CardStatus({
     mutationFn: setCardStatus,
     onError: (error) => {
       reportError(error);
-      toast.show(t("An error occurred. Please try again later."), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
@@ -91,17 +87,14 @@ export default function CardStatus({
   return (
     <YStack
       key="card-status"
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
       overflow="hidden"
-      opacity={1}
-      transform={[{ translateY: 0 }]}
-      transition="default"
-      animateOnly={["opacity", "transform"]}
-      enterStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
-      exitStyle={{ opacity: 0, transform: [{ translateY: -20 }] }}
+      opacity="1 enter:0 exit:0"
+      transform="translateY(0px) enter:translateY(-20px) exit:translateY(-20px)"
+      transition={{ preset: "default", properties: "opacity, transform" }}
     >
-      <XStack padding="$s4" justifyContent="space-between" alignItems="center">
+      <XStack padding="s4" justifyContent="space-between" alignItems="center">
         <Text headline emphasized>
           {t("Exa Card pay mode")}
         </Text>
@@ -109,10 +102,10 @@ export default function CardStatus({
           <Text footnote brand emphasized>
             {t("Learn more")}
           </Text>
-          <ChevronRight size={14} color="$interactiveBaseBrandDefault" />
+          <ChevronRight size={14} color="interactiveBaseBrandDefault" />
         </Pressable>
       </XStack>
-      <YStack paddingHorizontal="$s4" paddingTop="$s3" gap="$s4">
+      <YStack paddingHorizontal="s4" paddingTop="s3" gap="s4">
         <Pressable
           onPress={() => {
             selectionAsync().catch(reportError);
@@ -121,11 +114,11 @@ export default function CardStatus({
         >
           <XStack
             height={96}
-            borderRadius="$r4"
+            borderRadius="r4"
             overflow="hidden"
             alignItems="center"
             justifyContent="flex-end"
-            backgroundColor={card?.productId === BASE_PRODUCT_ID ? "$baseBlue" : "$cardPreviewBackground"}
+            backgroundColor={card?.productId === BASE_PRODUCT_ID ? "baseBlue" : "cardPreviewBackground"}
           >
             <View position="absolute" top={0} left={0} right={0} bottom={0} alignItems="center" justifyContent="center">
               <Art width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
@@ -135,11 +128,8 @@ export default function CardStatus({
                 <View
                   key="exa-logo"
                   style={styles.exa}
-                  transition="default"
-                  animateOnly={["opacity"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0 }}
-                  exitStyle={{ opacity: 0 }}
+                  transition={{ preset: "default", properties: "opacity" }}
+                  opacity="1 enter:0 exit:0"
                 >
                   <Exa width={50} height={20} {...(Platform.OS === "web" ? undefined : { shouldRasterizeIOS: true })} />
                 </View>
@@ -148,14 +138,14 @@ export default function CardStatus({
             <XStack
               hitSlop={15}
               style={styles.details}
-              borderRadius="$r3"
-              paddingVertical="$s2"
-              paddingHorizontal="$s3"
+              borderRadius="r3"
+              paddingVertical="s2"
+              paddingHorizontal="s3"
               alignItems="center"
-              gap="$s2"
-              transition="quick"
-              animateOnly={["transform", "backgroundColor"]}
-              pressStyle={{ scale: 0.92, backgroundColor: "rgba(255,255,255,0.15)" }}
+              gap="s2"
+              transition={{ preset: "quick", properties: "transform, backgroundColor" }}
+              scale="press:0.92"
+              backgroundColor="press:rgba(255,255,255,0.15)"
               cursor="pointer"
               zIndex={4}
               onPress={(event) => {
@@ -181,11 +171,8 @@ export default function CardStatus({
                   backgroundColor="rgba(0,0,0,0.4)"
                   zIndex={2}
                   pointerEvents="none"
-                  transition="default"
-                  animateOnly={["opacity"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0 }}
-                  exitStyle={{ opacity: 0 }}
+                  transition={{ preset: "default", properties: "opacity" }}
+                  opacity="1 enter:0 exit:0"
                 />
               )}
               {frozen && (
@@ -194,15 +181,13 @@ export default function CardStatus({
                   position="absolute"
                   top={0}
                   bottom={0}
-                  left="$s4"
+                  left="s4"
                   justifyContent="center"
                   zIndex={3}
                   pointerEvents="none"
-                  transition="default"
-                  animateOnly={["opacity", "transform"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
-                  exitStyle={{ opacity: 0, transform: [{ scale: 0.7 }] }}
+                  transition={{ preset: "default", properties: "opacity, transform" }}
+                  opacity="1 enter:0 exit:0"
+                  transform="enter:scale(0.7) exit:scale(0.7)"
                 >
                   <Snowflake size={48} strokeWidth={2} color="white" />
                 </View>
@@ -214,10 +199,9 @@ export default function CardStatus({
           {frozen && (
             <YStack
               key="freeze-toggle"
-              transition="default"
-              animateOnly={["opacity", "transform"]}
-              enterStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
-              exitStyle={{ opacity: 0, transform: [{ translateY: -8 }] }}
+              transition={{ preset: "default", properties: "opacity, transform" }}
+              opacity="enter:0 exit:0"
+              transform="enter:translateY(-8px) exit:translateY(-8px)"
             >
               <XStack
                 role="switch"
@@ -225,7 +209,7 @@ export default function CardStatus({
                 aria-label={t("Freeze card")}
                 aria-disabled={isSettingCardStatus}
                 justifyContent="space-between"
-                paddingVertical="$s4"
+                paddingVertical="s4"
                 alignItems="center"
                 cursor="pointer"
                 onPress={() => {
@@ -234,15 +218,15 @@ export default function CardStatus({
                   changeCardStatus("ACTIVE");
                 }}
               >
-                <XStack alignItems="center" gap="$s3">
+                <XStack alignItems="center" gap="s3">
                   <Square size={24}>
                     {isSettingCardStatus ? (
-                      <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
+                      <Spinner width={24} color="interactiveBaseBrandDefault" alignSelf="flex-start" />
                     ) : (
-                      <Snowflake size={24} color="$interactiveBaseBrandDefault" />
+                      <Snowflake size={24} color="interactiveBaseBrandDefault" />
                     )}
                   </Square>
-                  <Text subHeadline color="$uiNeutralPrimary">
+                  <Text subHeadline color="uiNeutralPrimary">
                     {t("Freeze card")}
                   </Text>
                 </XStack>
@@ -255,10 +239,9 @@ export default function CardStatus({
           {!frozen && (
             <YStack
               key="pay-mode"
-              transition="default"
-              animateOnly={["opacity", "transform"]}
-              enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
-              exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
+              transition={{ preset: "default", properties: "opacity, transform" }}
+              opacity="enter:0 exit:0"
+              transform="enter:translateY(8px) exit:translateY(8px)"
             >
               <PayModeToggle
                 spotlightRef={spotlightRef}
@@ -274,10 +257,9 @@ export default function CardStatus({
         {!frozen && (
           <YStack
             key="limit-paginator"
-            transition="default"
-            animateOnly={["opacity", "transform"]}
-            enterStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
-            exitStyle={{ opacity: 0, transform: [{ translateY: 8 }] }}
+            transition={{ preset: "default", properties: "opacity, transform" }}
+            opacity="enter:0 exit:0"
+            transform="enter:translateY(8px) exit:translateY(8px)"
           >
             <LimitPaginator
               collateral={collateral}
@@ -354,10 +336,10 @@ function PayModeToggle({
   return (
     <YStack>
       <XStack
-        borderRadius="$r_0"
+        borderRadius="r_0"
         borderWidth={1}
-        style={{ borderColor }}
         height={48}
+        style={{ borderColor }}
         onLayout={(event) => {
           setWidth(event.nativeEvent.layout.width);
         }}
@@ -371,7 +353,7 @@ function PayModeToggle({
             onModeChange(0);
           }}
         >
-          <XStack alignItems="center" justifyContent="center" gap="$s2" flex={1}>
+          <XStack alignItems="center" justifyContent="center" gap="s2" flex={1}>
             <Zap size={16} color={nowColor} />
             <Text headline emphasized style={{ color: nowColor }} maxFontSizeMultiplier={1}>
               {t("Now")}
@@ -387,7 +369,7 @@ function PayModeToggle({
             else onModeChange(lastInstallments ?? 1);
           }}
         >
-          <XStack alignItems="center" justifyContent="center" gap="$s2" flex={1}>
+          <XStack alignItems="center" justifyContent="center" gap="s2" flex={1}>
             <CalendarDays size={16} color={laterColor} />
             <Text headline emphasized style={{ color: laterColor }} maxFontSizeMultiplier={1}>
               {t("Later in {{count}}", { count: mode > 0 ? mode : (lastInstallments ?? 1) })}
@@ -400,28 +382,25 @@ function PayModeToggle({
           <XStack
             key="promo-badge"
             marginTop={-10}
-            transition="default"
-            animateOnly={["opacity"]}
-            opacity={1}
-            enterStyle={{ opacity: 0 }}
-            exitStyle={{ opacity: 0 }}
+            transition={{ preset: "default", properties: "opacity" }}
+            opacity="1 enter:0 exit:0"
           >
             <View flex={1} />
             <View flex={1} alignItems="center">
               <XStack
-                backgroundColor="$interactiveBaseSuccessDefault"
+                backgroundColor="interactiveBaseSuccessDefault"
                 minHeight={20}
-                borderRadius="$r2"
+                borderRadius="r2"
                 alignItems="center"
                 justifyContent="center"
-                paddingHorizontal="$s2"
+                paddingHorizontal="s2"
               >
                 <Text
-                  color="$interactiveOnBaseSuccessDefault"
-                  caption2
+                  color="interactiveOnBaseSuccessDefault"
                   textTransform="uppercase"
-                  emphasized
                   textAlign="center"
+                  caption2
+                  emphasized
                 >
                   {t("0% interest")}
                 </Text>
@@ -467,27 +446,27 @@ function LimitPaginator({
     <View
       height={48}
       overflow="hidden"
-      marginVertical="$s4"
+      marginVertical="s4"
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
     >
       {width > 0 && (
-        <XStack width={width * 2} x={mode > 0 ? -width : 0} transition="default" animateOnly={["transform"]}>
+        <XStack width={width * 2} x={mode > 0 ? -width : 0} transition={{ preset: "default", properties: "transform" }}>
           <XStack
             width={width}
             height={48}
             alignItems="center"
-            gap="$s3"
-            paddingHorizontal="$s4"
+            gap="s3"
+            paddingHorizontal="s4"
             hitSlop={15}
             onPress={onSpendingLimitInfoPress}
             aria-label={t("Spending limit info")}
           >
-            <Wallet size={20} color="$uiNeutralSecondary" />
-            <XStack flex={1} alignItems="center" gap="$s2">
+            <Wallet size={20} color="uiNeutralSecondary" />
+            <XStack flex={1} alignItems="center" gap="s2">
               <Text callout emphasized>
                 {t("Spending limit")}
               </Text>
-              <Info size={16} color="$uiInfoSecondary" />
+              <Info size={16} color="uiInfoSecondary" />
             </XStack>
             <Text title3 aria-label={hidden ? "***" : `$${spending}`}>
               <Text aria-hidden secondary>
@@ -502,19 +481,19 @@ function LimitPaginator({
             width={width}
             height={48}
             alignItems="center"
-            gap="$s3"
-            paddingHorizontal="$s4"
+            gap="s3"
+            paddingHorizontal="s4"
             hitSlop={15}
             onPress={onCreditLimitInfoPress}
             aria-label={t("Credit limit info")}
           >
-            <CreditCard size={20} color="$uiNeutralSecondary" />
+            <CreditCard size={20} color="uiNeutralSecondary" />
             <YStack flex={1} justifyContent="center">
-              <XStack alignItems="center" gap="$s2">
+              <XStack alignItems="center" gap="s2">
                 <Text callout emphasized>
                   {t("Credit limit")}
                 </Text>
-                <Info size={16} color="$uiInfoSecondary" />
+                <Info size={16} color="uiInfoSecondary" />
               </XStack>
               <Text sensitive footnote secondary>
                 {t("Collateral {{value}}", {

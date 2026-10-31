@@ -46,24 +46,24 @@ function TokenListItem({
     <Pressable onPress={onPress}>
       <XStack
         alignItems="center"
-        gap="$s3"
-        paddingVertical="$s3_5"
-        paddingHorizontal="$s3"
-        backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
-        borderRadius="$r3"
+        gap="s3"
+        paddingVertical="s3_5"
+        paddingHorizontal="s3"
+        backgroundColor={isSelected ? "interactiveBaseBrandSoftDefault" : "transparent"}
+        borderRadius="r3"
       >
         <AssetLogo symbol={token.symbol} uri={token.logoURI} chainId={token.chainId} width={40} height={40} network />
-        <XStack gap="$s2" flex={1} justifyContent="space-between">
+        <XStack gap="s2" flex={1} justifyContent="space-between">
           <YStack flex={1}>
             <Text emphasized subHeadline textAlign="left">
               {token.symbol}
             </Text>
-            <Text footnote color="$uiNeutralSecondary" numberOfLines={1} textAlign="left">
+            <Text footnote color="uiNeutralSecondary" numberOfLines={1} textAlign="left">
               {token.name}
             </Text>
           </YStack>
-          <YStack alignItems="flex-end" justifyContent="flex-end" gap="$s2">
-            <Text emphasized callout color="$uiNeutralPrimary" textAlign="right">
+          <YStack alignItems="flex-end" justifyContent="flex-end" gap="s2">
+            <Text emphasized callout color="uiNeutralPrimary" textAlign="right">
               {formatUSDValue(
                 matchingAsset?.type === "protocol"
                   ? Number(
@@ -74,7 +74,7 @@ function TokenListItem({
                 language,
               )}
             </Text>
-            <Text footnote color="$uiNeutralSecondary" textAlign="right">
+            <Text footnote color="uiNeutralSecondary" textAlign="right">
               {matchingAsset
                 ? matchingAsset.type === "protocol"
                   ? formatTokenAmount(matchingAsset.floatingDepositAssets, matchingAsset.decimals, language)
@@ -90,9 +90,9 @@ function TokenListItem({
 
 function TokenSkeletonItem() {
   return (
-    <XStack alignItems="center" gap="$s3" paddingVertical="$s3_5" paddingHorizontal="$s3">
+    <XStack alignItems="center" gap="s3" paddingVertical="s3_5" paddingHorizontal="s3">
       <Skeleton radius="round" height={40} width={40} />
-      <YStack flex={1} gap="$s2">
+      <YStack flex={1} gap="s2">
         <Skeleton height={16} width={60} />
         <Skeleton height={12} width={120} />
       </YStack>
@@ -197,31 +197,31 @@ export default function TokenSelectModal({
 
   return (
     <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
-      <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
-          <XStack alignItems="center" justifyContent="center" marginHorizontal="$s4">
-            <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="$s6">
+      <SafeView paddingTop={0} paddingBottom={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <View paddingTop="s6" flex={1} gap="s4_5" fullScreen>
+          <XStack alignItems="center" justifyContent="center" marginHorizontal="s4">
+            <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="s6">
               {title ?? t("Select token")}
             </Text>
             <IconButton position="absolute" right={0} icon={X} aria-label={t("Close")} onPress={close} />
           </XStack>
           <XStack
             alignItems="center"
-            gap="$s2"
-            marginHorizontal="$s4"
-            paddingLeft="$s3_5"
+            gap="s2"
+            marginHorizontal="s4"
+            paddingLeft="s3_5"
             borderWidth={1}
-            borderColor="$borderNeutralSoft"
-            borderRadius="$r3"
+            borderColor="borderNeutralSoft"
+            borderRadius="r3"
             overflow="hidden"
           >
-            <Search size={20} color="$uiNeutralPlaceholder" />
+            <Search size={20} color="uiNeutralPlaceholder" />
             <Input
               flex={1}
               borderWidth={0}
               backgroundColor="transparent"
+              placeholderTextColor="uiNeutralPlaceholder"
               placeholder={t("Search by token name or address")}
-              placeholderTextColor="$uiNeutralPlaceholder"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -231,9 +231,7 @@ export default function TokenSelectModal({
                 value={typeof filter === "number" ? filter : undefined}
                 open={picking}
                 icon={
-                  filter === "stocks" ? (
-                    <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" />
-                  ) : undefined
+                  filter === "stocks" ? <ChartNoAxesCombined size={18} color="interactiveOnBaseBrandSoft" /> : undefined
                 }
                 onChange={setSelection}
                 onOpenChange={setPicking}
@@ -248,12 +246,12 @@ export default function TokenSelectModal({
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <XStack gap="$s3" alignItems="center" paddingHorizontal="$s4">
+              <XStack gap="s3" alignItems="center" paddingHorizontal="s4">
                 {chips.map((item) =>
                   item === "stocks" ? (
                     <Chip
                       key={item}
-                      icon={<ChartNoAxesCombined size={16} color="$uiNeutralPrimary" />}
+                      icon={<ChartNoAxesCombined size={16} color="uiNeutralPrimary" />}
                       label={t("Stocks")}
                       selected={filter === "stocks"}
                       onPress={() => {
@@ -277,7 +275,7 @@ export default function TokenSelectModal({
                 )}
                 {networks.length > 1 && (
                   <Chip
-                    icon={<Ellipsis size={16} color="$uiNeutralPrimary" />}
+                    icon={<Ellipsis size={16} color="uiNeutralPrimary" />}
                     label={t("More")}
                     selected={false}
                     onPress={() => {
@@ -288,7 +286,7 @@ export default function TokenSelectModal({
               </XStack>
             </ScrollView>
           )}
-          <View flex={1} paddingHorizontal="$s3">
+          <View flex={1} paddingHorizontal="s3">
             {isLoading ? (
               <SkeletonItems />
             ) : (
@@ -312,11 +310,11 @@ export default function TokenSelectModal({
                 )}
                 keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s4.val) }}
+                contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, getTokens().space.s4.val) }}
                 windowSize={5}
                 ListEmptyComponent={() => (
-                  <View padding="$s6" alignItems="center">
-                    <Text subHeadline color="$uiNeutralSecondary">
+                  <View padding="s6" alignItems="center">
+                    <Text subHeadline color="uiNeutralSecondary">
                       {searchQuery ? t("No tokens found") : t("No tokens available")}
                     </Text>
                   </View>

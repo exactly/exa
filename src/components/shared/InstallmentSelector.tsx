@@ -29,7 +29,7 @@ export default function InstallmentSelector({
 }) {
   const { market: assetMarket, account } = useAsset(market);
   return (
-    <YStack gap="$s3">
+    <YStack gap="s3">
       {Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1).map((installment) => (
         <Installment
           key={installment}
@@ -86,34 +86,34 @@ function Installment({
     <XStack
       key={installment}
       minHeight={72}
-      backgroundColor={selected ? "$interactiveBaseBrandSoftDefault" : "$backgroundSoft"}
-      borderRadius="$r4"
-      gap="$s3"
+      backgroundColor={selected ? "interactiveBaseBrandSoftDefault" : "backgroundSoft"}
+      borderRadius="r4"
+      gap="s3"
       alignItems="center"
-      padding="$s4"
+      padding="s4"
       cursor="pointer"
+      flex={1}
       onPress={() => {
         onSelect(installment);
       }}
-      flex={1}
     >
-      <XStack gap="$s3_5" alignItems="center" flex={1}>
+      <XStack gap="s3_5" alignItems="center" flex={1}>
         <XStack
-          backgroundColor={selected ? "$interactiveBaseBrandDefault" : "$backgroundStrong"}
+          backgroundColor={selected ? "interactiveBaseBrandDefault" : "backgroundStrong"}
           width={16}
           height={16}
-          padding="$s2"
-          borderRadius="$r_0"
+          padding="s2"
+          borderRadius="r_0"
           alignItems="center"
           justifyContent="center"
         >
-          {selected && <Check size={12} color="$interactiveOnBaseBrandDefault" />}
+          {selected && <Check size={12} color="interactiveOnBaseBrandDefault" />}
         </XStack>
-        <Text headline color={hasInstallments ? "$uiNeutralSecondary" : "$uiNeutralPrimary"}>
+        <Text headline color={hasInstallments ? "uiNeutralSecondary" : "uiNeutralPrimary"}>
           {hasInstallments ? t("{{count}} installments of", { count: installment }) : t("Pay Now")}
         </Text>
       </XStack>
-      <XStack gap="$s2" alignItems="center" justifyContent="flex-end" flex={1}>
+      <XStack gap="s2" alignItems="center" justifyContent="flex-end" flex={1}>
         <AssetLogo height={16} symbol={symbol} width={16} />
         <XStack>
           {hasInstallments &&

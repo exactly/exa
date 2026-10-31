@@ -50,37 +50,36 @@ function OptionList({
       : options;
   return (
     <YStack
-      gap="$s3"
+      gap="s3"
       flex={heightPercent ? 1 : undefined}
-      borderTopLeftRadius="$r5"
-      borderTopRightRadius="$r5"
-      backgroundColor="$backgroundSoft"
-      paddingTop="$s5"
-      paddingHorizontal="$s4"
-      paddingBottom="$s7"
-      $platform-android={{ paddingBottom: "$s5" }}
+      borderTopLeftRadius="r5"
+      borderTopRightRadius="r5"
+      backgroundColor="backgroundSoft"
+      paddingTop="s5"
+      paddingHorizontal="s4"
+      paddingBottom="s7 android:s5"
     >
-      <YStack gap="$s5">
+      <YStack gap="s5">
         <Text emphasized headline centered>
           {title}
         </Text>
         {searchable && (
           <XStack
             alignItems="center"
-            gap="$s2"
-            paddingLeft="$s3_5"
+            gap="s2"
+            paddingLeft="s3_5"
             borderWidth={1}
-            borderColor="$borderNeutralSoft"
-            borderRadius="$r3"
+            borderColor="borderNeutralSoft"
+            borderRadius="r3"
             overflow="hidden"
           >
-            <Search size={20} color="$uiNeutralPlaceholder" />
+            <Search size={20} color="uiNeutralPlaceholder" />
             <Input
               flex={1}
               borderWidth={0}
               backgroundColor="transparent"
+              placeholderTextColor="uiNeutralPlaceholder"
               placeholder={t("Search")}
-              placeholderTextColor="$uiNeutralPlaceholder"
               value={query}
               onChangeText={setQuery}
             />
@@ -88,20 +87,19 @@ function OptionList({
         )}
       </YStack>
       <ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <YStack gap="$s2">
+        <YStack gap="s2">
           {filtered.map((option) => (
             <XStack
               key={option.value}
-              paddingVertical="$s4"
-              paddingHorizontal="$s3"
-              borderRadius="$r3"
-              backgroundColor={option.value === value ? "$interactiveBaseBrandSoftDefault" : "transparent"}
+              paddingVertical="s4"
+              paddingHorizontal="s3"
+              borderRadius="r3"
+              backgroundColor={option.value === value ? "interactiveBaseBrandSoftDefault" : "transparent"}
               justifyContent="space-between"
               alignItems="center"
               cursor={option.disabled ? "default" : "pointer"}
-              opacity={option.disabled ? 0.5 : 1}
+              opacity={option.disabled ? 0.5 : "1 press:0.7"}
               aria-disabled={option.disabled}
-              pressStyle={option.disabled ? undefined : { opacity: 0.7 }}
               onPress={
                 option.disabled
                   ? undefined
@@ -111,13 +109,13 @@ function OptionList({
                     }
               }
             >
-              <XStack alignItems="center" gap="$s3">
+              <XStack alignItems="center" gap="s3">
                 {option.icon}
                 <Text emphasized headline primary>
                   {option.label}
                 </Text>
               </XStack>
-              {option.value === value && <Check size={20} color="$interactiveBaseBrandDefault" />}
+              {option.value === value && <Check size={20} color="interactiveBaseBrandDefault" />}
             </XStack>
           ))}
         </YStack>

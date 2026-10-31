@@ -19,20 +19,20 @@ export default function PaymentHistory({ onSelect }: { onSelect: (maturity: numb
   const past = useStatements();
   return (
     <View
-      backgroundColor="$backgroundSoft"
-      borderRadius="$r3"
-      shadowColor="$backgroundStrong"
+      backgroundColor="backgroundSoft"
+      borderRadius="r3"
+      shadowColor="backgroundStrong"
       shadowOffset={{ width: 0, height: 6 }}
       shadowOpacity={0.6}
       shadowRadius={28}
     >
-      <XStack padding="$s4" alignItems="center" justifyContent="space-between">
+      <XStack padding="s4" alignItems="center" justifyContent="space-between">
         <Text emphasized headline flex={1}>
           {t("Payment history")}
         </Text>
         {past?.length !== 0 && (
           <XStack
-            gap="$s2"
+            gap="s2"
             alignItems="center"
             cursor="pointer"
             role="button"
@@ -41,10 +41,10 @@ export default function PaymentHistory({ onSelect }: { onSelect: (maturity: numb
               router.push("/payment-history");
             }}
           >
-            <Text emphasized footnote color="$interactiveBaseBrandDefault">
+            <Text emphasized footnote color="interactiveBaseBrandDefault">
               {t("See all")}
             </Text>
-            <ChevronRight size={16} color="$interactiveBaseBrandDefault" />
+            <ChevronRight size={16} color="interactiveBaseBrandDefault" />
           </XStack>
         )}
       </XStack>
@@ -55,11 +55,11 @@ export default function PaymentHistory({ onSelect }: { onSelect: (maturity: numb
           description={t("Once you make a payment, you’ll see it here.")}
         />
       ) : (
-        <YStack role="list" paddingHorizontal="$s4" paddingTop="$s3_5" paddingBottom="$s4" gap="$s4">
+        <YStack role="list" paddingHorizontal="s4" paddingTop="s3_5" paddingBottom="s4" gap="s4">
           {past ? (
             past.slice(0, 4).map((maturity, index) => (
               <React.Fragment key={maturity}>
-                {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
+                {index > 0 && <Separator borderColor="borderNeutralSoft" />}
                 <PaymentRow maturity={maturity} onSelect={onSelect} />
               </React.Fragment>
             ))

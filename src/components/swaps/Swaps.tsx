@@ -18,7 +18,7 @@ import { OctagonX } from "@tamagui/lucide-icons-2/icons/OctagonX";
 import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
 import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -136,7 +136,6 @@ export default function Swaps() {
   const [flips, setFlips] = useState(0);
   const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
   const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
-  const toast = useToastController();
   const beginKYC = useBeginKYC();
   const {
     approved: isKYCApproved,
@@ -891,12 +890,12 @@ export default function Swaps() {
 
   if (!isSwapping && !isSwapSuccess && !writeContractError)
     return (
-      <SafeView fullScreen backgroundColor="$backgroundSoft">
+      <SafeView fullScreen backgroundColor="backgroundSoft">
         <View
           padded
           flexDirection="row"
-          gap="$s3_5"
-          paddingBottom="$s4"
+          gap="s3_5"
+          paddingBottom="s4"
           justifyContent="space-between"
           alignItems="center"
         >
@@ -923,12 +922,12 @@ export default function Swaps() {
           />
         </View>
         {chain.id === base.id && !isKYCFetched ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" padding="$s4">
-            <Spinner size="large" color="$uiBrandSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" padding="s4">
+            <Spinner size="large" color="uiBrandSecondary" />
           </YStack>
         ) : processing ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
-            <IdCard size={48} color="$uiBrandSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
+            <IdCard size={48} color="uiBrandSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("Verification in review")}
             </Text>
@@ -937,8 +936,8 @@ export default function Swaps() {
             </Text>
           </YStack>
         ) : failed ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
-            <IdCard size={48} color="$uiBrandSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
+            <IdCard size={48} color="uiBrandSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("We couldn’t verify your identity")}
             </Text>
@@ -947,7 +946,7 @@ export default function Swaps() {
             </Text>
             <Button
               primary
-              marginTop="$s4"
+              marginTop="s4"
               onPress={() => {
                 present().catch(reportError);
               }}
@@ -959,14 +958,14 @@ export default function Swaps() {
             </Button>
           </YStack>
         ) : unavailable ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
-            <TriangleAlert size={48} color="$uiNeutralSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
+            <TriangleAlert size={48} color="uiNeutralSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("An error occurred. Please try again later.")}
             </Text>
             <Button
               primary
-              marginTop="$s4"
+              marginTop="s4"
               loading={isKYCFetching}
               disabled={isKYCFetching}
               onPress={() => {
@@ -980,8 +979,8 @@ export default function Swaps() {
             </Button>
           </YStack>
         ) : unverified ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
-            <IdCard size={48} color="$uiBrandSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
+            <IdCard size={48} color="uiBrandSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("Verify your identity")}
             </Text>
@@ -990,7 +989,7 @@ export default function Swaps() {
             </Text>
             <Button
               primary
-              marginTop="$s4"
+              marginTop="s4"
               loading={beginKYC.isPending}
               disabled={beginKYC.isPending}
               onPress={() => {
@@ -1004,11 +1003,7 @@ export default function Swaps() {
                       refetchKYC().catch(reportError);
                       return;
                     }
-                    toast.show(t("Error verifying identity"), {
-                      native: true,
-                      duration: 1000,
-                      burntOptions: { haptic: "error", preset: "error" },
-                    });
+                    toast.error(t("Error verifying identity"), { duration: 1000 });
                     reportError(error);
                   },
                 });
@@ -1021,14 +1016,14 @@ export default function Swaps() {
             </Button>
           </YStack>
         ) : balancesUnavailable || chainsUnavailable ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
-            <TriangleAlert size={48} color="$uiNeutralSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
+            <TriangleAlert size={48} color="uiNeutralSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("An error occurred. Please try again later.")}
             </Text>
             <Button
               primary
-              marginTop="$s4"
+              marginTop="s4"
               loading={isBalancesFetching || isChainsFetching}
               disabled={isBalancesFetching || isChainsFetching}
               onPress={() => {
@@ -1042,8 +1037,8 @@ export default function Swaps() {
             </Button>
           </YStack>
         ) : empty ? (
-          <YStack flex={1} justifyContent="center" alignItems="center" gap="$s3" padding="$s4">
-            <TriangleAlert size={48} color="$uiNeutralSecondary" />
+          <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
+            <TriangleAlert size={48} color="uiNeutralSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("Nothing to swap yet")}
             </Text>
@@ -1065,8 +1060,8 @@ export default function Swaps() {
                       <Text
                         pill
                         caption2
-                        color="$interactiveOnBaseBrandDefault"
-                        backgroundColor="$interactiveBaseBrandDefault"
+                        color="interactiveOnBaseBrandDefault"
+                        backgroundColor="interactiveBaseBrandDefault"
                       >
                         {t("NEW")}
                       </Text>
@@ -1084,7 +1079,7 @@ export default function Swaps() {
               flex={1}
             >
               <View padded>
-                <YStack paddingBottom="$s3" gap="$s4_5">
+                <YStack paddingBottom="s3" gap="s4_5">
                   <MarketClosedBanner
                     open={[fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen()}
                   />
@@ -1095,25 +1090,26 @@ export default function Swaps() {
                       return (
                         <React.Fragment key={type}>
                           {!paying && (
-                            <XStack paddingTop="$s3_5" justifyContent="center" alignItems="center" zIndex={1}>
+                            <XStack paddingTop="s3_5" justifyContent="center" alignItems="center" zIndex={1}>
                               <XStack
                                 position="absolute"
                                 width={48}
                                 height={48}
-                                borderRadius="$r_0"
+                                borderRadius="r_0"
                                 borderWidth={4}
-                                borderColor="$backgroundSoft"
-                                backgroundColor={locked ? "$interactiveDisabled" : "$interactiveBaseBrandSoftDefault"}
+                                borderColor="backgroundSoft"
+                                backgroundColor={locked ? "interactiveDisabled" : "interactiveBaseBrandSoftDefault"}
                                 justifyContent="center"
                                 alignItems="center"
                                 cursor={locked ? "not-allowed" : "pointer"}
+                                rotate={`${flips * 180}deg`}
+                                transition="quick"
+                                opacity="press:0.85"
+                                scale="press:0.9"
                                 role="button"
                                 aria-label={t("Switch tokens")}
                                 aria-disabled={locked}
                                 disabled={locked}
-                                rotate={`${flips * 180}deg`}
-                                transition="quick"
-                                pressStyle={{ opacity: 0.85, scale: 0.9 }}
                                 onPress={() => {
                                   selectionAsync().catch(reportError);
                                   if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -1132,7 +1128,7 @@ export default function Swaps() {
                               >
                                 <ArrowDownUp
                                   size={20}
-                                  color={locked ? "$interactiveOnDisabled" : "$interactiveOnBaseBrandSoft"}
+                                  color={locked ? "interactiveOnDisabled" : "interactiveOnBaseBrandSoft"}
                                 />
                               </XStack>
                             </XStack>
@@ -1209,16 +1205,16 @@ export default function Swaps() {
                       }
                     />
                   )}
-                  <Text caption2 color="$interactiveOnDisabled">
+                  <Text caption2 color="interactiveOnDisabled">
                     <Trans
                       i18nKey="Swaps are provided via <provider>LI.FI</provider> on decentralized networks. Some assets may not be available in every country, so please check your local regulations before swapping."
                       components={{
                         provider: (
                           <Text
                             cursor="pointer"
-                            caption2
-                            color="$interactiveOnDisabled"
+                            color="interactiveOnDisabled"
                             textDecorationLine="underline"
+                            caption2
                             onPress={() => {
                               openBrowser(`https://li.fi/`).catch(reportError);
                             }}
@@ -1230,26 +1226,26 @@ export default function Swaps() {
                 </YStack>
               </View>
             </ScrollView>
-            <YStack padding="$s4" gap="$s3">
+            <YStack padding="s4" gap="s3">
               {(!!failure || insufficientGas || rerouting || transient) && (
                 <XStack
-                  gap="$s4"
+                  gap="s4"
                   alignItems="center"
                   backgroundColor={
                     failure || insufficientGas
-                      ? "$interactiveBaseErrorSoftDefault"
-                      : "$interactiveBaseInformationSoftDefault"
+                      ? "interactiveBaseErrorSoftDefault"
+                      : "interactiveBaseInformationSoftDefault"
                   }
-                  borderRadius="$r3"
-                  paddingHorizontal="$s4"
-                  paddingVertical="$s3"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
                 >
                   {failure || insufficientGas ? (
-                    <OctagonX size={16} color="$uiErrorSecondary" />
+                    <OctagonX size={16} color="uiErrorSecondary" />
                   ) : (
-                    <Info size={16} color="$uiInfoSecondary" />
+                    <Info size={16} color="uiInfoSecondary" />
                   )}
-                  <Text caption2 color={failure || insufficientGas ? "$uiErrorSecondary" : "$uiInfoSecondary"} flex={1}>
+                  <Text caption2 color={failure || insufficientGas ? "uiErrorSecondary" : "uiInfoSecondary"} flex={1}>
                     {failure === "collateral"
                       ? t("This swap would leave your collateral below what your debt requires. Try a smaller amount.")
                       : failure === "route"
@@ -1269,9 +1265,9 @@ export default function Swaps() {
                 </XStack>
               )}
               {impact >= 0.02 && (
-                <XStack gap="$s3" alignItems="center">
-                  <TriangleAlert size={16} color="$uiWarningSecondary" />
-                  <Text caption color="$uiWarningSecondary" flex={1}>
+                <XStack gap="s3" alignItems="center">
+                  <TriangleAlert size={16} color="uiWarningSecondary" />
+                  <Text caption color="uiWarningSecondary" flex={1}>
                     {t("High price impact: you receive {{percent}}% less value than you pay.", {
                       percent: (impact * 100).toFixed(1),
                     })}
@@ -1279,19 +1275,19 @@ export default function Swaps() {
                 </XStack>
               )}
               {showWarning && (
-                <YStack gap="$s4_5">
-                  <Separator borderColor={danger ? "$borderErrorStrong" : "$borderNeutralSoft"} />
-                  <YStack gap="$s3_5">
+                <YStack gap="s4_5">
+                  <Separator borderColor={danger ? "borderErrorStrong" : "borderNeutralSoft"} />
+                  <YStack gap="s3_5">
                     {danger ? (
-                      <XStack gap="$s3" alignItems="flex-start">
-                        <TriangleAlert size={16} color="$uiErrorSecondary" />
-                        <Text caption color="$uiErrorSecondary" flex={1}>
+                      <XStack gap="s3" alignItems="flex-start">
+                        <TriangleAlert size={16} color="uiErrorSecondary" />
+                        <Text caption color="uiErrorSecondary" flex={1}>
                           {t("Swapping this much of your collateral could instantly trigger liquidation.")}
                         </Text>
                       </XStack>
                     ) : null}
                     <XStack
-                      gap="$s3"
+                      gap="s3"
                       alignItems="center"
                       cursor="pointer"
                       onPress={() => {
@@ -1302,16 +1298,16 @@ export default function Swaps() {
                         <Checkbox.Indicator>
                           <Check
                             size={16}
-                            color={danger ? "$interactiveOnBaseErrorDefault" : "$interactiveOnBaseBrandDefault"}
+                            color={danger ? "interactiveOnBaseErrorDefault" : "interactiveOnBaseBrandDefault"}
                           />
                         </Checkbox.Indicator>
                       </Checkbox>
-                      <Text caption color={danger ? "$uiErrorSecondary" : "$uiNeutralSecondary"} flex={1}>
+                      <Text caption color={danger ? "uiErrorSecondary" : "uiNeutralSecondary"} flex={1}>
                         {t("I acknowledge the risks of swapping this much of my collateral assets.")}
                       </Text>
                     </XStack>
                   </YStack>
-                  <Separator borderColor="$borderNeutralSoft" />
+                  <Separator borderColor="borderNeutralSoft" />
                 </YStack>
               )}
               <Button

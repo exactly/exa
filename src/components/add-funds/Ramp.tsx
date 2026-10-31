@@ -15,8 +15,8 @@ import { QrCode } from "@tamagui/lucide-icons-2/icons/QrCode";
 import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { Share as ShareIcon } from "@tamagui/lucide-icons-2/icons/Share";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
-import { useToastController } from "@tamagui/toast";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { toast } from "@tamagui/toast";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { createStatic } from "@pix.js/qrcode";
 import { useQuery } from "@tanstack/react-query";
@@ -51,7 +51,6 @@ export default function Ramp() {
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
   const fontScale = PixelRatio.getFontScale();
   const [qrSheetOpen, setQRSheetOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -135,10 +134,7 @@ export default function Ramp() {
           }}
           onError={() => {
             setVerifying(false);
-            toast.show(t("Something went wrong. Please try again."), {
-              duration: 1000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
+            toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
           }}
         />
       </SafeView>
@@ -187,16 +183,16 @@ export default function Ramp() {
   function copyToClipboard(text: string) {
     setStringAsync(text)
       .then(() => {
-        toast.show(t("Copied!"), { duration: 1000, burntOptions: { haptic: "success" } });
+        toast.success(t("Copied!"), { duration: 1000 });
       })
       .catch(reportError);
   }
 
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
-        <View gap="$s4_5">
-          <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" fullScreen padded>
+        <View gap="s4_5">
+          <View flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -215,8 +211,8 @@ export default function Ramp() {
           </View>
         </View>
         <ScrollView flex={1}>
-          <View flex={1} gap="$s4_5">
-            <YStack flex={1} padding="$s4" gap="$s5">
+          <View flex={1} gap="s4_5">
+            <YStack flex={1} padding="s4" gap="s5">
               {typedProvider === "bridge" && requirement && (
                 <InfoAlert
                   title={t("We need more information to keep your account active after {{date}}.", { date })}
@@ -224,19 +220,19 @@ export default function Ramp() {
                   onPress={() => setVerifying(true)}
                 />
               )}
-              <YStack gap="$s4" alignSelf="center">
+              <YStack gap="s4" alignSelf="center">
                 <Text emphasized title3>
                   {typedCurrency} {t("Account details")}
                 </Text>
                 {typedProvider === "manteca" && (
-                  <Text color="$uiNeutralPlaceholder" subHeadline>
+                  <Text color="uiNeutralPlaceholder" subHeadline>
                     {t("Transfer {{currency}} from bank accounts under your name to receive USDC in your Exa App.", {
                       currency: typedCurrency,
                     })}
                   </Text>
                 )}
                 {typedProvider === "bridge" && (
-                  <Text color="$uiNeutralPlaceholder" subHeadline>
+                  <Text color="uiNeutralPlaceholder" subHeadline>
                     {t("Copy and share your account details to receive transfers into your Exa account in USDC.")}
                   </Text>
                 )}
@@ -244,21 +240,21 @@ export default function Ramp() {
               {deposit && <DepositCard copyToClipboard={copyToClipboard} deposit={deposit} isLoading={isPending} />}
               {feeWarning && (
                 <XStack
-                  gap="$s4"
+                  gap="s4"
                   alignItems="center"
-                  backgroundColor="$interactiveBaseWarningSoftDefault"
-                  borderRadius="$r3"
-                  paddingHorizontal="$s4"
-                  paddingVertical="$s3"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
                 >
-                  <TriangleAlert size={16} color="$uiWarningSecondary" />
-                  <Text caption2 color="$uiWarningSecondary" flex={1} aria-live="polite">
+                  <TriangleAlert size={16} color="uiWarningSecondary" />
+                  <Text caption2 color="uiWarningSecondary" flex={1} aria-live="polite">
                     {feeWarning}
                   </Text>
                 </XStack>
               )}
               {isPending && !deposit && (
-                <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
+                <YStack gap="s4" backgroundColor="backgroundSoft" padding="s4_5" borderRadius="r3">
                   <Skeleton width="100%" height={40} />
                   <Skeleton width="100%" height={40} />
                 </YStack>
@@ -278,8 +274,8 @@ export default function Ramp() {
             </YStack>
           </View>
         </ScrollView>
-        <YStack gap="$s4" padding="$s2">
-          <XStack alignItems="center" gap="$s3">
+        <YStack gap="s4" padding="s2">
+          <XStack alignItems="center" gap="s3">
             <Button
               secondary
               flex={1}
@@ -309,7 +305,7 @@ export default function Ramp() {
             </Button>
           </XStack>
           <Pressable role="button" onPress={() => setDetailsOpen(true)}>
-            <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
+            <Text emphasized footnote color="uiBrandSecondary" textAlign="center">
               {t("Fees and transfer times")}
             </Text>
           </Pressable>
@@ -317,12 +313,12 @@ export default function Ramp() {
       </View>
       {qrCode && (
         <ModalSheet open={qrSheetOpen} onClose={() => setQRSheetOpen(false)}>
-          <SafeView borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-            <YStack gap="$s4" alignItems="center" padding="$s5">
-              <Text emphasized headline color="$uiNeutralPrimary">
+          <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4">
+            <YStack gap="s4" alignItems="center" padding="s5">
+              <Text emphasized headline color="uiNeutralPrimary">
                 {t("Deposit with PIX")}
               </Text>
-              <YStack padding="$s3" borderRadius="$r4" backgroundColor="white" overflow="hidden">
+              <YStack padding="s3" borderRadius="r4" backgroundColor="white" overflow="hidden">
                 <QRCode
                   data={qrCode}
                   size={200}
@@ -333,7 +329,7 @@ export default function Ramp() {
                 />
               </YStack>
               <Pressable onPress={() => setQRSheetOpen(false)}>
-                <Text emphasized footnote color="$uiBrandSecondary">
+                <Text emphasized footnote color="uiBrandSecondary">
                   {t("Close")}
                 </Text>
               </Pressable>
@@ -342,17 +338,17 @@ export default function Ramp() {
         </ModalSheet>
       )}
       <ModalSheet open={detailsOpen} onClose={() => setDetailsOpen(false)}>
-        <SafeView borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-          <ScrollView $platform-web={{ maxHeight: "100vh" }}>
-            <YStack gap="$s5" padding="$s5">
-              <Text emphasized headline color="$uiNeutralPrimary">
+        <SafeView borderTopLeftRadius="r4" borderTopRightRadius="r4">
+          <ScrollView maxHeight="web:100vh">
+            <YStack gap="s5" padding="s5">
+              <Text emphasized headline color="uiNeutralPrimary">
                 {t("Fees and transfer times")}
               </Text>
-              <YStack gap="$s4">
+              <YStack gap="s4">
                 {typedProvider === "manteca" && (
-                  <XStack gap="$s3" alignItems="center">
-                    <Banknote size={16} color="$uiNeutralPrimary" />
-                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                  <XStack gap="s3" alignItems="center">
+                    <Banknote size={16} color="uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="uiNeutralPlaceholder">
                       {t("Amount")}
                     </Text>
                     <XStack alignItems="center">
@@ -360,12 +356,12 @@ export default function Ramp() {
                         (minAmount === undefined ? (
                           <Skeleton width={80} height={16} />
                         ) : (
-                          <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                          <Text emphasized secondary caption2 color="uiNeutralSecondary">
                             {`${t("Min")} ${limitCurrency} ${formatAmount(minAmount)} - `}
                           </Text>
                         ))}
                       {maxAmount !== undefined && limitCurrency ? (
-                        <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                        <Text emphasized secondary caption2 color="uiNeutralSecondary">
                           {`${t("Max")} ${limitCurrency} ${formatAmount(maxAmount)}`}
                         </Text>
                       ) : (
@@ -375,19 +371,19 @@ export default function Ramp() {
                   </XStack>
                 )}
                 {typedProvider === "bridge" && (
-                  <XStack gap="$s3" alignItems="center">
+                  <XStack gap="s3" alignItems="center">
                     <View flexShrink={0} alignItems="center">
-                      <Banknote size={16} color="$uiNeutralPrimary" />
+                      <Banknote size={16} color="uiNeutralPrimary" />
                     </View>
-                    <XStack gap="$s1" alignItems="center" flex={1} flexWrap="wrap">
-                      <Text secondary caption2 color="$uiNeutralPlaceholder">
+                    <XStack gap="s1" alignItems="center" flex={1} flexWrap="wrap">
+                      <Text secondary caption2 color="uiNeutralPlaceholder">
                         {t(
                           "We cover incoming transfers to your Bridge accounts in Exa App up to $3,000 or 60 transactions per month. Fees apply after that.",
                         )}
                         {bridgeFees && (
                           <>
                             {" "}
-                            <Text secondary caption2 color="$uiNeutralPlaceholder">
+                            <Text secondary caption2 color="uiNeutralPlaceholder">
                               {bridgeFees}
                             </Text>
                           </>
@@ -397,9 +393,9 @@ export default function Ramp() {
                   </XStack>
                 )}
                 {deposits.some((d) => d.estimatedProcessingTime) && (
-                  <XStack gap="$s3" alignItems="flex-start">
-                    <Clock size={16} color="$uiNeutralPrimary" />
-                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder" flex={1}>
+                  <XStack gap="s3" alignItems="flex-start">
+                    <Clock size={16} color="uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="uiNeutralPlaceholder" flex={1}>
                       {t("Delivery time: {{details}}", {
                         details: deposits
                           .filter((d) => d.estimatedProcessingTime)
@@ -419,23 +415,23 @@ export default function Ramp() {
                   </XStack>
                 )}
                 {quote?.buyRate && (
-                  <XStack gap="$s3" alignItems="center">
-                    <Repeat size={16} color="$uiNeutralPrimary" />
-                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                  <XStack gap="s3" alignItems="center">
+                    <Repeat size={16} color="uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="uiNeutralPlaceholder">
                       {t("Exchange rate")}
                     </Text>
-                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                    <Text emphasized secondary caption2 color="uiNeutralPlaceholder">
                       {`${typedCurrency} ${Number(quote.buyRate).toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })} = 1 USDC`}
                     </Text>
                   </XStack>
                 )}
                 {deposit?.fee && Number.parseFloat(deposit.fee) !== 0 && (
-                  <XStack gap="$s3" alignItems="center">
-                    <Percent size={16} color="$uiNeutralPrimary" />
-                    <Text emphasized secondary caption2 color="$uiNeutralPlaceholder">
+                  <XStack gap="s3" alignItems="center">
+                    <Percent size={16} color="uiNeutralPrimary" />
+                    <Text emphasized secondary caption2 color="uiNeutralPlaceholder">
                       {t("Fee")}
                     </Text>
-                    <Text emphasized secondary caption2 color="$uiNeutralSecondary">
+                    <Text emphasized secondary caption2 color="uiNeutralSecondary">
                       {deposit.fee}
                     </Text>
                   </XStack>
@@ -443,7 +439,7 @@ export default function Ramp() {
                 {typedProvider === "bridge" ? <BridgeDisclaimer primary /> : <MantecaDisclaimer primary />}
               </YStack>
               <Pressable role="button" onPress={() => setDetailsOpen(false)}>
-                <Text emphasized footnote color="$uiBrandSecondary" textAlign="center">
+                <Text emphasized footnote color="uiBrandSecondary" textAlign="center">
                   {t("Close")}
                 </Text>
               </Pressable>
@@ -465,8 +461,8 @@ function DepositCard({ deposit, isLoading, copyToClipboard }: DepositCardPropert
   const { t } = useTranslation();
   const rows = depositRows(deposit);
   return (
-    <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
-      <Text emphasized secondary caption color="$uiNeutralPlaceholder">
+    <YStack gap="s4" backgroundColor="backgroundSoft" padding="s4_5" borderRadius="r3">
+      <Text emphasized secondary caption color="uiNeutralPlaceholder">
         {deposit.displayName}
       </Text>
       {rows.map(({ label, value }) => (
@@ -487,7 +483,7 @@ function DepositCard({ deposit, isLoading, copyToClipboard }: DepositCardPropert
 function DetailRow({ label, value, isLoading, onCopy }: DetailRowProperties) {
   const { t } = useTranslation();
   return (
-    <XStack gap="$s3" alignItems="center" justifyContent="space-between">
+    <XStack gap="s3" alignItems="center" justifyContent="space-between">
       <YStack flex={1} minWidth={0}>
         <Text secondary caption>
           {label}
@@ -498,11 +494,11 @@ function DetailRow({ label, value, isLoading, onCopy }: DetailRowProperties) {
       </YStack>
       <IconButton
         icon={Copy}
-        size="$iconSize.md"
-        color={isLoading || !value ? "$uiNeutralPlaceholder" : "$interactiveBaseBrandDefault"}
+        size={getTokens().iconSize.md.val}
+        color={isLoading || !value ? "uiNeutralPlaceholder" : "interactiveBaseBrandDefault"}
+        flexShrink={0}
         disabled={isLoading || !value}
         aria-label={t("Copy")}
-        flexShrink={0}
         onPress={onCopy}
       />
     </XStack>

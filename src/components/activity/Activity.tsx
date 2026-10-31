@@ -1,7 +1,6 @@
-import React, { memo, use, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, use, useCallback, useMemo, useRef, useState, type ComponentPropsWithoutRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, PixelRatio, useWindowDimensions } from "react-native";
-import type { LayoutChangeEvent } from "react-native";
 
 import { useFocusEffect } from "expo-router";
 
@@ -61,8 +60,8 @@ export default function Activity() {
     return { items, offsets, stickies };
   }, [activity, fontScale, limit]);
 
-  const onHeaderLayout = useCallback(
-    (event: LayoutChangeEvent) => setHeaderHeight(event.nativeEvent.layout.height),
+  const onHeaderLayout = useCallback<NonNullable<ComponentPropsWithoutRef<typeof View>["onLayout"]>>(
+    (event) => setHeaderHeight(event.nativeEvent.layout.height),
     [],
   );
 
@@ -85,14 +84,14 @@ export default function Activity() {
   });
 
   return (
-    <SafeView fullScreen tab backgroundColor="$backgroundSoft">
+    <SafeView fullScreen tab backgroundColor="backgroundSoft">
       <View
         fullScreen
-        gap="$s5"
+        gap="s5"
         flex={1}
-        backgroundColor={layout.items.length > 0 ? "$backgroundMild" : "$backgroundSoft"}
+        backgroundColor={layout.items.length > 0 ? "backgroundMild" : "backgroundSoft"}
       >
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
         <FlatList<ActivityItemType>
           ref={listRef}
           style={{ flex: 1 }}
@@ -137,11 +136,15 @@ type ActivityItemType =
   | { date: string; height: number; type: "header" }
   | { event: ActivityEvent; height: number; isLast: boolean; type: "event" };
 
-const ListHeader = memo(function ListHeader({ onLayout }: { onLayout: (event: LayoutChangeEvent) => void }) {
+const ListHeader = memo(function ListHeader({
+  onLayout,
+}: {
+  onLayout: ComponentPropsWithoutRef<typeof View>["onLayout"];
+}) {
   const { t } = useTranslation();
   return (
     <View onLayout={onLayout}>
-      <View padded backgroundColor="$backgroundSoft">
+      <View padded backgroundColor="backgroundSoft">
         <Text fontSize={20} fontWeight="bold">
           {t("All Activity")}
         </Text>
@@ -155,8 +158,8 @@ ListHeader.displayName = "ListHeader";
 
 const HeaderRow = memo(function HeaderRow({ date, height }: { date: string; height: number }) {
   return (
-    <View height={height} paddingHorizontal="$s4" paddingVertical="$s3" backgroundColor="$backgroundSoft">
-      <Text subHeadline color="$uiNeutralSecondary">
+    <View height={height} paddingHorizontal="s4" paddingVertical="s3" backgroundColor="backgroundSoft">
+      <Text subHeadline color="uiNeutralSecondary">
         {date}
       </Text>
     </View>

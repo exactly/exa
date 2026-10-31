@@ -6,7 +6,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
@@ -38,7 +38,6 @@ export default function EditRecipient() {
   const { t } = useTranslation();
   const router = useRouter();
   const { id, currency, provider } = useLocalSearchParams();
-  const toast = useToastController();
 
   const [openSelect, setOpenSelect] = useState<string | undefined>();
 
@@ -83,18 +82,14 @@ export default function EditRecipient() {
       updateExternalAccount(typeof id === "string" ? id : "", input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ramp", "external-accounts"] }).catch(reportError);
-      toast.show(t("Contact updated"), {
-        duration: 2000,
-        burntOptions: { haptic: "success", preset: "done" },
-      });
+      toast.success(t("Contact updated"), { duration: 2000 });
       router.dismissTo({ pathname: "/send-funds/recipients", params: { currency, provider } });
     },
     onError: (error) => {
       const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
       if (!codeMessage) reportError(error);
-      toast.show(codeMessage ? t(codeMessage) : t("Couldn't update the contact. Please try again."), {
+      toast.error(codeMessage ? t(codeMessage) : t("Couldn't update the contact. Please try again."), {
         duration: 3000,
-        burntOptions: { haptic: "error", preset: "error" },
       });
     },
   });
@@ -137,9 +132,9 @@ export default function EditRecipient() {
   const openField = openSelect ? fields.find((f) => f.path === openSelect) : undefined;
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s5" fullScreen padded>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild">
+      <View gap="s5" fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -161,12 +156,12 @@ export default function EditRecipient() {
         </XStack>
 
         <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-          <YStack flex={1} gap="$s5">
-            <YStack gap="$s2">
+          <YStack flex={1} gap="s5">
+            <YStack gap="s2">
               <Text title3 emphasized primary>
                 {isUSD ? t("Update details") : t("Update address")}
               </Text>
-              <Text footnote color="$uiNeutralPlaceholder">
+              <Text footnote color="uiNeutralPlaceholder">
                 {isUSD
                   ? t("Update the account details and/or the address. At least one is required.")
                   : t("Enter the beneficiary's complete new address. This replaces the current one.")}
@@ -174,14 +169,14 @@ export default function EditRecipient() {
             </YStack>
 
             {sections.map((section) => (
-              <YStack key={section.title ?? "address"} gap="$s4">
+              <YStack key={section.title ?? "address"} gap="s4">
                 {section.title && (
-                  <YStack gap="$s1">
-                    <Text emphasized footnote color="$uiNeutralSecondary">
+                  <YStack gap="s1">
+                    <Text emphasized footnote color="uiNeutralSecondary">
                       {t(section.title)}
                     </Text>
                     {section.subtitle && (
-                      <Text caption color="$uiNeutralPlaceholder">
+                      <Text caption color="uiNeutralPlaceholder">
                         {t(section.subtitle)}
                       </Text>
                     )}

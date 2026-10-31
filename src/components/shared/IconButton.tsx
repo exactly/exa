@@ -7,11 +7,12 @@ import { styled, View } from "tamagui";
 
 export default function IconButton({
   icon: Icon,
-  color = "$uiNeutralPrimary",
+  color = "uiNeutralPrimary",
   size = 24,
   ...properties
 }: ComponentPropsWithoutRef<typeof Frame> & {
   color?: string;
+  disabled?: boolean;
   icon: ComponentType<ComponentPropsWithoutRef<typeof ArrowRight>>;
   size?: ComponentPropsWithoutRef<typeof ArrowRight>["size"];
 }) {
@@ -43,8 +44,11 @@ const Frame = styled(View, {
   borderColor: "transparent",
   cursor: "pointer",
   userSelect: "none",
-  borderRadius: "$r2",
-  focusVisibleStyle: { outlineStyle: "solid", outlineWidth: 2, outlineColor: "$borderBrandStrong", outlineOffset: 2 },
-  pressStyle: { opacity: 0.7 },
+  borderRadius: "r2",
+  outlineStyle: "focus-visible:solid",
+  outlineWidth: "focus-visible:2px",
+  outlineColor: "focus-visible:borderBrandStrong",
+  outlineOffset: "focus-visible:2px",
+  opacity: "press:0.7",
   variants: { disabled: { true: { opacity: 0.5, cursor: "default" } } } as const,
 });

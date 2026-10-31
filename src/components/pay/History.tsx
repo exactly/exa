@@ -32,14 +32,14 @@ export default function History() {
     ]);
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="backgroundSoft">
       <View
         padded
         flexDirection="row"
-        gap="$s3_5"
-        paddingBottom="$s4"
+        gap="s3_5"
+        paddingBottom="s4"
         alignItems="center"
-        backgroundColor="$backgroundSoft"
+        backgroundColor="backgroundSoft"
       >
         <IconButton
           icon={ArrowLeft}
@@ -54,33 +54,33 @@ export default function History() {
         />
       </View>
       <ScrollView
-        backgroundColor="$backgroundSoft"
-        showsVerticalScrollIndicator={false}
+        backgroundColor="backgroundSoft"
         flex={1}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl onRefresh={refresh} />}
       >
-        <XStack paddingHorizontal="$s5" paddingBottom="$s5" alignItems="center">
+        <XStack paddingHorizontal="s5" paddingBottom="s5" alignItems="center">
           <Text emphasized title3>
             {t("Payment history")}
           </Text>
         </XStack>
         {past === undefined ? (
-          <YStack paddingHorizontal="$s5" paddingBottom="$s5" gap="$s4">
+          <YStack paddingHorizontal="s5" paddingBottom="s5" gap="s4">
             <Skeleton height={20} width="100%" />
             <Skeleton height={20} width="100%" />
             <Skeleton height={20} width="100%" />
           </YStack>
         ) : past.length === 0 ? (
-          <YStack alignItems="center" justifyContent="center" paddingVertical="$s7">
-            <Text emphasized headline color="$uiNeutralSecondary">
+          <YStack alignItems="center" justifyContent="center" paddingVertical="s7">
+            <Text emphasized headline color="uiNeutralSecondary">
               {t("No payments yet")}
             </Text>
           </YStack>
         ) : (
-          <YStack role="list" paddingHorizontal="$s5" paddingBottom="$s5" gap="$s4">
+          <YStack role="list" paddingHorizontal="s5" paddingBottom="s5" gap="s4">
             {past.map((maturity, index) => (
               <React.Fragment key={maturity}>
-                {index > 0 && <Separator borderColor="$borderNeutralSoft" />}
+                {index > 0 && <Separator borderColor="borderNeutralSoft" />}
                 <PaymentRow maturity={maturity} onSelect={setSelected} />
               </React.Fragment>
             ))}

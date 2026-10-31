@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useBytecode } from "wagmi";
@@ -35,10 +35,10 @@ export default function GettingStarted() {
   const steps = useOnboardingSteps({ kyc, isDeployed: !!bytecode });
   const currentStep = steps.find(({ status }) => status === "pending");
   return (
-    <SafeView fullScreen backgroundColor="$backgroundBrandSoft" paddingBottom={0}>
-      <View gap="$s4_5" fullScreen>
-        <View gap="$s4_5" padded paddingBottom={0}>
-          <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundBrandSoft" paddingBottom={0}>
+      <View gap="s4_5" fullScreen>
+        <View gap="s4_5" paddingBottom={0} padded>
+          <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <IconButton
                 icon={ArrowLeft}
@@ -52,15 +52,15 @@ export default function GettingStarted() {
                 }}
               />
             </View>
-            <Text color="$uiNeutralPrimary" emphasized subHeadline>
+            <Text color="uiNeutralPrimary" emphasized subHeadline>
               {t("Getting started")}
             </Text>
           </View>
         </View>
         <ScrollView flex={1} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           {isFetched && !error && currentStep && <CurrentStep id={currentStep.id} />}
-          <YStack backgroundColor="$backgroundSoft" paddingHorizontal="$s5" paddingVertical="$s7" gap="$s6" flex={1}>
-            <YStack gap="$s4">
+          <YStack backgroundColor="backgroundSoft" paddingHorizontal="s5" paddingVertical="s7" gap="s6" flex={1}>
+            <YStack gap="s4">
               <Text emphasized headline primary>
                 {t("Remaining steps")}
               </Text>
@@ -68,7 +68,7 @@ export default function GettingStarted() {
                 {t("You are almost set to start using the Exa Card.")}
               </Text>
             </YStack>
-            <YStack gap="$s4">
+            <YStack gap="s4">
               {steps.map(({ id, status, title }) => (
                 <Step
                   key={id}
@@ -78,7 +78,7 @@ export default function GettingStarted() {
                     status === "review" ? t("IN REVIEW") : status === "failed" ? t("VERIFICATION FAILED") : undefined
                   }
                   {...(id === "verify-identity" && {
-                    icon: <IdCard size={20} strokeWidth={2} color="$uiBrandSecondary" />,
+                    icon: <IdCard size={20} strokeWidth={2} color="uiBrandSecondary" />,
                     description:
                       status === "review"
                         ? t("We’re reviewing the documents you submitted. This usually takes 2 to 3 business days.")
@@ -93,7 +93,7 @@ export default function GettingStarted() {
                     },
                   })}
                   {...(id === "add-funds" && {
-                    icon: <ArrowDownToLine size={20} strokeWidth={2} color="$uiBrandSecondary" />,
+                    icon: <ArrowDownToLine size={20} strokeWidth={2} color="uiBrandSecondary" />,
                     description: t("Your funds serve as collateral to increase your spending limits."),
                     action: t("Learn more about collateral"),
                     onPress: () => {
@@ -113,25 +113,24 @@ export default function GettingStarted() {
 function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-identity" }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToastController();
   const beginKYC = useBeginKYC();
   const addFunds = id === "add-funds";
   return (
-    <YStack gap="$s6" borderBottomWidth={1} borderBottomColor="$borderBrandSoft" padding="$s4">
-      <YStack gap="$s4">
+    <YStack gap="s6" borderBottomWidth={1} borderBottomColor="borderBrandSoft" padding="s4">
+      <YStack gap="s4">
         <XStack>
           {addFunds ? (
-            <ArrowDownToLine size={32} color="$uiBrandSecondary" />
+            <ArrowDownToLine size={32} color="uiBrandSecondary" />
           ) : (
-            <IdCard size={32} color="$uiBrandSecondary" />
+            <IdCard size={32} color="uiBrandSecondary" />
           )}
         </XStack>
-        <Text emphasized title3 color="$uiBrandSecondary">
+        <Text emphasized title3 color="uiBrandSecondary">
           {addFunds ? t("Add funds to your account") : t("Verify your identity")}
         </Text>
       </YStack>
       <YStack>
-        <Text subHeadline color="$uiNeutralSecondary">
+        <Text subHeadline color="uiNeutralSecondary">
           {addFunds
             ? t(
                 "Your funds serve as collateral, increasing your spending limits. The more funds you add, the more you can spend with the Exa Card.",
@@ -144,8 +143,8 @@ function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-iden
       <YStack>
         <Button
           primary
-          marginTop="$s4"
-          marginBottom="$s5"
+          marginTop="s4"
+          marginBottom="s5"
           loading={beginKYC.isPending}
           disabled={beginKYC.isPending}
           onPress={() => {
@@ -158,10 +157,7 @@ function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-iden
                 if (result.status === "complete") router.dismissTo("/(main)/(home)");
               },
               onError(error) {
-                toast.show(t("Error verifying identity"), {
-                  duration: 1000,
-                  burntOptions: { haptic: "error", preset: "error" },
-                });
+                toast.error(t("Error verifying identity"), { duration: 1000 });
                 reportError(error);
               },
             });

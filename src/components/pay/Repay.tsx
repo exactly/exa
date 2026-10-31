@@ -497,9 +497,9 @@ export default function Repay() {
   if (!maturity) return <Redirect href="/(main)/(home)" />;
   if (!isPending && !isSuccess && !writeError)
     return (
-      <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
-        <View fullScreen gap="$s5" paddingTop="$s4_5">
-          <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
+      <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+        <View fullScreen gap="s5" paddingTop="s4_5">
+          <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
             <View padded position="absolute" left={0}>
               <IconButton
                 icon={ArrowLeft}
@@ -513,7 +513,7 @@ export default function Repay() {
                 }}
               />
             </View>
-            <Text color="$uiNeutralPrimary" emphasized subHeadline textAlign="center">
+            <Text color="uiNeutralPrimary" textAlign="center" emphasized subHeadline>
               {t("Pay due {{date}}", { date: dueDateFormatted })}
             </Text>
           </View>
@@ -522,12 +522,12 @@ export default function Repay() {
             contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between" }}
           >
             <View padded>
-              <YStack gap="$s4" paddingTop="$s5">
-                <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+              <YStack gap="s4" paddingTop="s5">
+                <XStack justifyContent="space-between" gap="s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
                     {t("Debt")}
                   </Text>
-                  <XStack alignItems="center" gap="$s2">
+                  <XStack alignItems="center" gap="s2">
                     <AssetLogo symbol="USDC" width={24} height={24} />
                     <Text primary title3 textAlign="right">
                       {(Number(positionValue) / 1e6).toLocaleString(language, {
@@ -537,7 +537,7 @@ export default function Repay() {
                     </Text>
                   </XStack>
                 </XStack>
-                <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                <XStack justifyContent="space-between" gap="s3" alignItems="center">
                   <Text secondary footnote textAlign="left">
                     {t("Enter amount")}
                   </Text>
@@ -556,11 +556,11 @@ export default function Repay() {
                   />
                 )}
                 {positionAssets ? (
-                  <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                  <XStack justifyContent="space-between" gap="s3" alignItems="center">
                     <Text secondary footnote textAlign="left">
                       {t("Subtotal")}
                     </Text>
-                    <XStack alignItems="center" gap="$s3">
+                    <XStack alignItems="center" gap="s3">
                       <AssetLogo symbol="USDC" width={20} height={20} />
                       {isRouteFetching ? (
                         <Skeleton height={25} width={40} />
@@ -577,11 +577,11 @@ export default function Repay() {
                   </XStack>
                 ) : null}
                 {repayAssets ? (
-                  <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                  <XStack justifyContent="space-between" gap="s3" alignItems="center">
                     {discountOrPenaltyPercentage >= 0 ? (
                       <Text secondary footnote textAlign="left">
                         {t("Early repay discount")}{" "}
-                        <Text color="$uiSuccessSecondary" footnote textAlign="left">
+                        <Text color="uiSuccessSecondary" textAlign="left" footnote>
                           {t("{{discount}} off", {
                             discount: Math.abs(discountOrPenaltyPercentage)
                               .toLocaleString(language, {
@@ -596,7 +596,7 @@ export default function Repay() {
                     ) : (
                       <Text secondary footnote textAlign="left">
                         {t("Late repay")}{" "}
-                        <Text color="$uiErrorSecondary" footnote textAlign="left">
+                        <Text color="uiErrorSecondary" textAlign="left" footnote>
                           {t("Penalties {{percent}}", {
                             percent: Math.abs(discountOrPenaltyPercentage)
                               .toLocaleString(language, {
@@ -609,7 +609,7 @@ export default function Repay() {
                         </Text>
                       </Text>
                     )}
-                    <XStack alignItems="center" gap="$s2">
+                    <XStack alignItems="center" gap="s2">
                       <AssetLogo symbol="USDC" width={20} height={20} />
                       <Text
                         primary
@@ -617,8 +617,8 @@ export default function Repay() {
                         textAlign="right"
                         color={
                           discountOrPenaltyPercentage >= 0
-                            ? "$interactiveOnBaseSuccessSoft"
-                            : "$interactiveOnBaseErrorSoft"
+                            ? "interactiveOnBaseSuccessSoft"
+                            : "interactiveOnBaseErrorSoft"
                         }
                       >
                         {Math.abs(Number(positionAssets - repayAssets) / 1e6).toLocaleString(language, {
@@ -631,13 +631,13 @@ export default function Repay() {
                 ) : null}
                 {repayAssets ? (
                   <>
-                    <Separator height={1} borderColor="$borderNeutralSoft" />
-                    <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                    <Separator height={1} borderColor="borderNeutralSoft" />
+                    <XStack justifyContent="space-between" gap="s3" alignItems="center">
                       <Text secondary footnote textAlign="left">
                         {t("You will pay")}
                       </Text>
                       <YStack alignItems="flex-end">
-                        <XStack alignItems="center" gap="$s3">
+                        <XStack alignItems="center" gap="s3">
                           <AssetLogo symbol="USDC" width={20} height={20} />
                           {isRouteFetching ? (
                             <Skeleton height={25} width={40} />
@@ -647,7 +647,7 @@ export default function Repay() {
                               maxFontSizeMultiplier={1}
                               numberOfLines={1}
                               textAlign="right"
-                              color={discountOrPenaltyPercentage >= 0 ? "$uiSuccessSecondary" : "$uiErrorSecondary"}
+                              color={discountOrPenaltyPercentage >= 0 ? "uiSuccessSecondary" : "uiErrorSecondary"}
                             >
                               {(Number(repayAssets) / 1e6).toLocaleString(language, {
                                 minimumFractionDigits: 2,
@@ -658,7 +658,7 @@ export default function Repay() {
                           )}
                         </XStack>
                         {route && (
-                          <XStack gap="$s3" alignItems="center" justifyContent="flex-end">
+                          <XStack gap="s3" alignItems="center" justifyContent="flex-end">
                             <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1} textAlign="right">
                               {`${(
                                 Number(route.fromAmount) /
@@ -680,15 +680,15 @@ export default function Repay() {
           </ScrollView>
           <View
             padded
-            backgroundColor="$backgroundSoft"
-            borderRadius="$r4"
+            backgroundColor="backgroundSoft"
+            borderRadius="r4"
             borderBottomLeftRadius={0}
             borderBottomRightRadius={0}
           >
-            <YStack gap="$s4" paddingBottom={insets.bottom}>
+            <YStack gap="s4" paddingBottom={insets.bottom}>
               <XStack
                 justifyContent="space-between"
-                gap="$s3"
+                gap="s3"
                 alignItems="center"
                 cursor="pointer"
                 onPress={() => {
@@ -698,20 +698,20 @@ export default function Repay() {
                 <Text secondary callout textAlign="left">
                   {t("Pay with")}
                 </Text>
-                <XStack gap="$s3" alignItems="center">
+                <XStack gap="s3" alignItems="center">
                   <AssetLogo height={16} symbol={symbol} width={16} />
                   <Text primary emphasized headline textAlign="right">
                     {symbol}
                   </Text>
-                  <ChevronRight size={24} color="$interactiveBaseBrandDefault" />
+                  <ChevronRight size={24} color="interactiveBaseBrandDefault" />
                 </XStack>
               </XStack>
-              <XStack justifyContent="space-between" gap="$s3">
+              <XStack justifyContent="space-between" gap="s3">
                 <Text secondary callout textAlign="left">
                   {t("Portfolio balance")}
                 </Text>
-                <YStack gap="$s2">
-                  <XStack alignItems="center" gap="$s2">
+                <YStack gap="s2">
+                  <XStack alignItems="center" gap="s2">
                     <AssetLogo height={16} symbol={symbol} width={16} />
                     {isFetchingAsset ? (
                       <Skeleton height={23} width={100} />
@@ -732,15 +732,15 @@ export default function Repay() {
               </XStack>
               <XStack
                 justifyContent="space-between"
-                gap="$s3"
+                gap="s3"
                 opacity={selectedAsset.address === exaUSDC?.market ? 0 : 1}
                 pointerEvents={selectedAsset.address === exaUSDC?.market ? "none" : "auto"}
               >
                 <Text secondary callout textAlign="left">
                   {t("Available for repayment")}
                 </Text>
-                <YStack gap="$s2">
-                  <XStack alignItems="center" gap="$s2">
+                <YStack gap="s2">
+                  <XStack alignItems="center" gap="s2">
                     <AssetLogo symbol="USDC" width={16} height={16} />
                     {isRouteFromFetching ? (
                       <Skeleton height={23} width={50} />

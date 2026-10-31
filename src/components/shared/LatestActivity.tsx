@@ -25,8 +25,8 @@ export default function LatestActivity({
   const router = useRouter();
   const { t } = useTranslation();
   return (
-    <View backgroundColor="$backgroundSoft" borderRadius="$r3" gap="$s4">
-      <XStack alignItems="center" justifyContent="space-between" paddingHorizontal="$s4" paddingTop="$s4">
+    <View backgroundColor="backgroundSoft" borderRadius="r3" gap="s4">
+      <XStack alignItems="center" justifyContent="space-between" paddingHorizontal="s4" paddingTop="s4">
         <Text emphasized headline flex={1}>
           {title ?? t("Latest activity")}
         </Text>
@@ -37,11 +37,11 @@ export default function LatestActivity({
               router.push("/activity");
             }}
           >
-            <XStack gap="$s1" alignItems="center">
-              <Text color="$interactiveTextBrandDefault" emphasized footnote fontWeight="bold">
+            <XStack gap="s1" alignItems="center">
+              <Text color="interactiveTextBrandDefault" fontWeight="bold" emphasized footnote>
                 {t("View all")}
               </Text>
-              <ChevronRight size={14} color="$interactiveTextBrandDefault" strokeWidth={2.5} />
+              <ChevronRight size={14} color="interactiveTextBrandDefault" strokeWidth={2.5} />
             </XStack>
           </Pressable>
         ) : null}
@@ -49,14 +49,14 @@ export default function LatestActivity({
       <YStack>
         {!activity?.length &&
           (emptyComponent ?? (
-            <YStack alignItems="center" justifyContent="center" gap="$s4_5" padding="$s4" paddingTop={0}>
-              <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
+            <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop={0}>
+              <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
                 📋
               </Text>
-              <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
+              <Text textAlign="center" color="uiBrandSecondary" emphasized headline>
                 {t("No activity yet")}
               </Text>
-              <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
+              <Text textAlign="center" color="uiNeutralSecondary" subHeadline>
                 {t("Your deposits, purchases and transfers will show up here.")}
               </Text>
             </YStack>

@@ -42,7 +42,7 @@ export default function Failure({
     i18n: { language },
   } = useTranslation();
   return (
-    <View fullScreen backgroundColor="$backgroundSoft">
+    <View fullScreen backgroundColor="backgroundSoft">
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
@@ -54,8 +54,8 @@ export default function Failure({
         colors={[theme.uiErrorSecondary.val, theme.backgroundSoft.val]}
       />
       <SafeView flex={1} backgroundColor="transparent">
-        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="$s4">
-          <YStack gap="$s7" paddingBottom="$s9">
+        <ScrollView showsVerticalScrollIndicator={false} flex={1} padding="s4">
+          <YStack gap="s7" paddingBottom="s9">
             <IconButton
               alignSelf="flex-start"
               icon={X}
@@ -66,18 +66,18 @@ export default function Failure({
               }}
             />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="$r4" backgroundColor="$interactiveBaseErrorSoftDefault" size={80}>
-                <X size={48} color="$uiErrorSecondary" strokeWidth={2} />
+              <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size={80}>
+                <X size={48} color="uiErrorSecondary" strokeWidth={2} />
               </Square>
             </XStack>
-            <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+            <YStack gap="s4_5" justifyContent="center" alignItems="center">
               <Text secondary body>
                 {t("Failed")}
               </Text>
-              <Text title primary color="$uiNeutralPrimary">
+              <Text title primary color="uiNeutralPrimary">
                 {`$${fromUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <Text emphasized secondary subHeadline>
                   {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
@@ -92,11 +92,11 @@ export default function Failure({
                   height={16}
                 />
               </XStack>
-              <ArrowDown size={24} color="$uiNeutralPrimary" />
-              <Text title primary color="$uiNeutralPrimary">
+              <ArrowDown size={24} color="uiNeutralPrimary" />
+              <Text title primary color="uiNeutralPrimary">
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
-              <XStack gap="$s2" alignItems="center">
+              <XStack gap="s2" alignItems="center">
                 <Text emphasized secondary subHeadline>
                   {formatTokenAmount(toAmount, toToken.decimals, language)}
                 </Text>
@@ -114,14 +114,14 @@ export default function Failure({
             </YStack>
           </YStack>
         </ScrollView>
-        <YStack alignItems="center" gap="$s4" padding="$s4">
+        <YStack alignItems="center" gap="s4" padding="s4">
           <Pressable
             onPress={() => {
               queryClient.invalidateQueries({ queryKey: ["swap"] }).catch(reportError);
               onClose();
             }}
           >
-            <Text emphasized footnote color="$uiBrandSecondary">
+            <Text emphasized footnote color="uiBrandSecondary">
               {t("Close")}
             </Text>
           </Pressable>

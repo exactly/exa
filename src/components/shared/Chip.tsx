@@ -19,22 +19,21 @@ export default function Chip({
 }) {
   return (
     <XStack
-      gap="$s2"
+      gap="s2"
       alignItems="center"
-      padding="$s3"
+      padding="s3"
       borderWidth={1}
-      borderColor={selected ? "$borderBrandSoft" : "$borderNeutralSoft"}
-      backgroundColor={selected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
-      borderRadius="$r_0"
-      opacity={disabled ? 0.5 : 1}
+      borderColor={selected ? "borderBrandSoft" : "borderNeutralSoft"}
+      backgroundColor={selected ? "interactiveBaseBrandSoftDefault" : "transparent"}
+      borderRadius="r_0"
+      opacity={`${disabled ? 0.5 : 1} press:0.7`}
       cursor="pointer"
       role="button"
       aria-label={label}
-      pressStyle={{ opacity: 0.7 }}
       onPress={onPress}
     >
       {icon}
-      <Text footnote numberOfLines={1} color={selected ? "$interactiveOnBaseBrandSoft" : "$uiNeutralPrimary"}>
+      <Text footnote numberOfLines={1} color={selected ? "interactiveOnBaseBrandSoft" : "uiNeutralPrimary"}>
         {label}
       </Text>
     </XStack>

@@ -73,10 +73,10 @@ export default function AddFunds() {
     providers && Object.values(providers).some((p) => p.onramp.currencies.some((item) => typeof item === "string"));
   if (type === "crypto") return <Redirect href="/add-funds/assets" />;
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild">
-      <View gap="$s6" fullScreen padded>
-        <YStack gap="$s4_5">
-          <XStack flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild">
+      <View gap="s6" fullScreen padded>
+        <YStack gap="s4_5">
+          <XStack flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -105,12 +105,12 @@ export default function AddFunds() {
           </XStack>
         </YStack>
         <ScrollView flex={1}>
-          <YStack flex={1} gap="$s3_5">
+          <YStack flex={1} gap="s3_5">
             {type !== "crypto" && type !== "fiat" && (
               <>
                 {method === "siwe" && (
                   <AddFundsOption
-                    icon={<Wallet width={40} height={40} color="$iconBrandDefault" />}
+                    icon={<Wallet width={40} height={40} color="iconBrandDefault" />}
                     title={t("With connected wallet")}
                     subtitle={
                       ownerAccount &&
@@ -122,7 +122,7 @@ export default function AddFunds() {
                   />
                 )}
                 <AddFundsOption
-                  icon={<Blocks size={24} color="$iconBrandDefault" />}
+                  icon={<Blocks size={24} color="iconBrandDefault" />}
                   title={t("Digital assets")}
                   subtitle={t("USDC, ETH, stocks, and more")}
                   onPress={() => {
@@ -131,7 +131,7 @@ export default function AddFunds() {
                 />
                 {hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
-                    icon={<Banknote size={24} color="$iconBrandDefault" />}
+                    icon={<Banknote size={24} color="iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("Pesos, dollars, or euros")}
                     disabled={isKYCApproved && !hasFiat}
@@ -150,22 +150,22 @@ export default function AddFunds() {
               </View>
             )}
             {type === "fiat" && providers && (
-              <YStack gap="$s5">
+              <YStack gap="s5">
                 {(["manteca", "bridge"] as const).map((key) => {
                   const provider = providers[key];
                   if (provider.status === "NOT_AVAILABLE") return null;
                   const fiatCurrencies = provider.onramp.currencies.filter((item) => typeof item === "string");
                   if (fiatCurrencies.length === 0) return null;
                   return (
-                    <YStack key={key} gap="$s3_5">
-                      <Text footnote color="$uiNeutralSecondary">
+                    <YStack key={key} gap="s3_5">
+                      <Text footnote color="uiNeutralSecondary">
                         {key === "manteca"
                           ? countryCode === "AR"
                             ? t("From any Argentine bank account in your name")
                             : t("From any account in your name")
                           : t("From any account")}
                       </Text>
-                      <YStack gap="$s3_5">
+                      <YStack gap="s3_5">
                         {fiatCurrencies.map((item) => {
                           if (typeof item !== "string") return null;
                           return (
@@ -186,24 +186,18 @@ export default function AddFunds() {
             )}
           </YStack>
         </ScrollView>
-        <XStack
-          gap="$s4"
-          alignItems="flex-start"
-          borderTopWidth={1}
-          borderTopColor="$borderNeutralSoft"
-          paddingTop="$s3"
-        >
+        <XStack gap="s4" alignItems="flex-start" borderTopWidth={1} borderTopColor="borderNeutralSoft" paddingTop="s3">
           <View>
-            <Info size={16} width={16} height={16} color="$uiInfoSecondary" />
+            <Info size={16} width={16} height={16} color="uiInfoSecondary" />
           </View>
           <XStack flex={1}>
-            <Text emphasized caption2 color="$uiNeutralPlaceholder">
+            <Text emphasized caption2 color="uiNeutralPlaceholder">
               {t("Assets are added to your balance as collateral to increase your credit limit.")}
               <Text
                 cursor="pointer"
+                color="uiBrandSecondary"
                 emphasized
                 caption2
-                color="$uiBrandSecondary"
                 onPress={() => {
                   presentArticle("8950805").catch(reportError);
                 }}

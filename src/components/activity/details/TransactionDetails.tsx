@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { setStringAsync } from "expo-clipboard";
 
 import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
-import { useToastController } from "@tamagui/toast";
-import { Separator, XStack, YStack } from "tamagui";
+import { toast } from "@tamagui/toast";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
 
@@ -25,31 +25,30 @@ export default function TransactionDetails({
 }: {
   item: ActivityItem | CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
-  const toast = useToastController();
   const { t } = useTranslation();
   return (
-    <YStack gap="$s4">
-      <YStack gap="$s4">
+    <YStack gap="s4">
+      <YStack gap="s4">
         <Text emphasized headline>
           {t("Transaction details")}
         </Text>
-        <Separator height={1} borderColor="$borderNeutralSoft" />
+        <Separator height={1} borderColor="borderNeutralSoft" />
       </YStack>
-      <YStack gap="$s3_5">
+      <YStack gap="s3_5">
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Network fee")}
           </Text>
-          <Text callout color="$uiSuccessSecondary">
+          <Text callout color="uiSuccessSecondary">
             {t("FREE")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Network")}
           </Text>
-          <XStack gap="$s3" alignItems="center">
-            <Text callout color="$uiNeutralPrimary" alignContent="center">
+          <XStack gap="s3" alignItems="center">
+            <Text callout color="uiNeutralPrimary" alignContent="center">
               {chain.name}
             </Text>
             <ChainLogo size={20} />
@@ -57,19 +56,16 @@ export default function TransactionDetails({
         </XStack>
         {item.type === "sent" && (
           <XStack justifyContent="space-between">
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("To")}
             </Text>
             <XStack
               alignItems="center"
-              gap="$s3"
+              gap="s3"
               onPress={() => {
                 setStringAsync(item.receiver)
                   .then(() => {
-                    toast.show(t("Address copied!"), {
-                      duration: 1000,
-                      burntOptions: { haptic: "success" },
-                    });
+                    toast.success(t("Address copied!"), { duration: 1000 });
                   })
                   .catch(reportError);
               }}
@@ -77,25 +73,25 @@ export default function TransactionDetails({
               <Text callout textDecorationLine="underline">
                 {shortenHex(item.receiver)}
               </Text>
-              <Copy size={20} color="$uiNeutralSecondary" />
+              <Copy size={20} color="uiNeutralSecondary" />
             </XStack>
           </XStack>
         )}
         {item.timestamp && item.type !== "card" && (
           <>
             <XStack justifyContent="space-between">
-              <Text emphasized footnote color="$uiNeutralSecondary">
+              <Text emphasized footnote color="uiNeutralSecondary">
                 {t("Date")}
               </Text>
-              <Text callout color="$uiNeutralPrimary">
+              <Text callout color="uiNeutralPrimary">
                 {format(item.timestamp, "yyyy-MM-dd")}
               </Text>
             </XStack>
             <XStack justifyContent="space-between">
-              <Text emphasized footnote color="$uiNeutralSecondary">
+              <Text emphasized footnote color="uiNeutralSecondary">
                 {t("Time")}
               </Text>
-              <Text callout color="$uiNeutralPrimary">
+              <Text callout color="uiNeutralPrimary">
                 {format(item.timestamp, "HH:mm:ss")}
               </Text>
             </XStack>
@@ -103,15 +99,15 @@ export default function TransactionDetails({
         )}
         {item.type !== "panda" && (
           <XStack justifyContent="space-between">
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("Transaction hash")}
             </Text>
-            <XStack alignItems="center" gap="$s3">
+            <XStack alignItems="center" gap="s3">
               <Text
                 textDecorationLine="underline"
-                callout
-                color="$uiNeutralPrimary"
+                color="uiNeutralPrimary"
                 cursor="pointer"
+                callout
                 onPress={() => {
                   const explorerUrl = chain.blockExplorers?.default.url;
                   if (!explorerUrl) return;
@@ -127,15 +123,16 @@ export default function TransactionDetails({
                   if (!explorerUrl) return;
                   setStringAsync(`${explorerUrl}/tx/${item.transactionHash}`)
                     .then(() => {
-                      toast.show(t("Link copied!"), {
-                        duration: 1000,
-                        burntOptions: { haptic: "success" },
-                      });
+                      toast.success(t("Link copied!"), { duration: 1000 });
                     })
                     .catch(reportError);
                 }}
               >
-                <Copy size="$iconSize.md" strokeWidth="$iconStroke.md" color="$interactiveBaseBrandDefault" />
+                <Copy
+                  size={getTokens().iconSize.md.val}
+                  strokeWidth={getTokens().iconStroke.md.val}
+                  color="interactiveBaseBrandDefault"
+                />
               </XStack>
             </XStack>
           </XStack>

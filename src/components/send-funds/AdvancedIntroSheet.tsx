@@ -22,21 +22,20 @@ export default function AdvancedIntroSheet({
   return (
     <ModalSheet open={open} onClose={onDismiss}>
       <SafeView
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingHorizontal="$s5"
-        paddingTop="$s7"
-        $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingHorizontal="s5"
+        paddingTop="s7 web:s7"
+        paddingBottom="web:s7 android:s5"
       >
-        <YStack gap="$s5" alignItems="center">
+        <YStack gap="s5" alignItems="center">
           <Text
             pill
             caption2
             alignSelf="center"
-            color="$interactiveOnBaseBrandDefault"
-            backgroundColor="$interactiveBaseBrandDefault"
+            color="interactiveOnBaseBrandDefault"
+            backgroundColor="interactiveBaseBrandDefault"
           >
             {t("NEW")}
           </Text>
@@ -48,7 +47,7 @@ export default function AdvancedIntroSheet({
               "Send Bitcoin using your USDC balance. Choose what your recipient gets, pick what you pay with, and we'll find the best route.",
             )}
           </Text>
-          <YStack gap="$s4_5" paddingTop="$s3_5" alignSelf="stretch">
+          <YStack gap="s4_5" paddingTop="s3_5" alignSelf="stretch">
             <Button primary onPress={onEnable}>
               <Button.Text>{t("Turn it on")}</Button.Text>
               <Button.Icon>
@@ -62,7 +61,7 @@ export default function AdvancedIntroSheet({
               centered
               role="button"
               cursor="pointer"
-              pressStyle={{ opacity: 0.7 }}
+              opacity="press:0.7"
               onPress={onDismiss}
             >
               {t("Not now")}

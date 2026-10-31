@@ -4,7 +4,7 @@ import type { View as RNView } from "react-native";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
@@ -143,17 +143,14 @@ export default function Home() {
   const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
   const promoSheetOpen =
     isPromoActive() && !promoSeen && !!card && card.status !== "FROZEN" && !spotlightVisible && focused;
-  const toast = useToastController();
   const { mutate: mutateMode } = useMutation({
     ...cardModeMutationOptions,
     onSuccess: (_data, mode) => {
-      toast.show(mode === 0 ? t("Pay Now selected") : t("Installments selected", { count: mode }), {
-        burntOptions: { haptic: "success", preset: "done" },
-      });
+      toast.success(mode === 0 ? t("Pay Now selected") : t("Installments selected", { count: mode }));
     },
     onError: (error, _, context: undefined | { previous?: CardDetails }) => {
       if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
-      toast.show(t("Failed to update pay mode"), { burntOptions: { haptic: "error", preset: "error" } });
+      toast.error(t("Failed to update pay mode"));
       reportError(error);
     },
   });
@@ -218,13 +215,13 @@ export default function Home() {
   });
 
   return (
-    <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View fullScreen backgroundColor="$backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
+    <SafeView fullScreen tab backgroundColor="backgroundSoft">
+      <View fullScreen backgroundColor="backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
-          contentContainerStyle={{ backgroundColor: "$backgroundMild", paddingBottom: use(TabBarContext) }}
+          contentContainerStyle={{ backgroundColor: "backgroundMild", paddingBottom: use(TabBarContext) }}
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={(event) => {
@@ -233,8 +230,8 @@ export default function Home() {
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <ProfileHeader />
-          <View flex={1} gap="$s5" paddingBottom="$s5">
-            <YStack backgroundColor="$backgroundSoft" padding="$s4" gap="$s4">
+          <View flex={1} gap="s5" paddingBottom="s5">
+            <YStack backgroundColor="backgroundSoft" padding="s4" gap="s4">
               {overdueMaturity !== undefined && (
                 <InfoAlert
                   variant="error"
@@ -256,7 +253,7 @@ export default function Home() {
               )}
               <PluginUpgrade />
               <FundingAlert />
-              <YStack gap="$s5">
+              <YStack gap="s5">
                 <PortfolioSummary
                   collateralUSD={collateralUSD}
                   averageRate={averageRate}
@@ -267,7 +264,7 @@ export default function Home() {
               </YStack>
             </YStack>
             {(card ?? (isKYCFetched && (!isKYCApproved || !bytecode))) && (
-              <View paddingHorizontal="$s4" gap="$s5">
+              <View paddingHorizontal="s4" gap="s5">
                 <AnimatePresence>
                   {card && (
                     <CardStatus
@@ -321,7 +318,7 @@ export default function Home() {
                 onStocksPress={stocksAvailable ? openStocks : undefined}
               />
             )}
-            <View paddingHorizontal="$s4" gap="$s5">
+            <View paddingHorizontal="s4" gap="s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />

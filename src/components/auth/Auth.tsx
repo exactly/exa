@@ -122,12 +122,12 @@ export default function Auth() {
   const loading = loadingAuth || loadingContext || loadingOwner;
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="backgroundSoft">
       {!loadingContext && !embeddingContext && (
         <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch" zIndex={1}>
           <IconButton
             icon={Headphones}
-            color="$uiNeutralSecondary"
+            color="uiNeutralSecondary"
             aria-label={t("Contact support")}
             onPress={() => {
               loginUnidentified().then(present).catch(reportError);
@@ -152,7 +152,7 @@ export default function Auth() {
         )}
       </View>
       <View padded flexDirection="column" alignSelf="stretch" alignItems="center" justifyContent="flex-end">
-        <View flexDirection="column" alignSelf="stretch" gap="$s6">
+        <View flexDirection="column" alignSelf="stretch" gap="s6">
           <View flexDirection="row" justifyContent="center">
             <Pagination
               length={pages.length}
@@ -161,7 +161,7 @@ export default function Auth() {
               isScrolling={isScrolling}
             />
           </View>
-          <View gap="$s3" paddingHorizontal="$s5" opacity={measured ? 1 : 0}>
+          <View gap="s3" paddingHorizontal="s5" opacity={measured ? 1 : 0}>
             <View>
               {pages.map((page) => (
                 <Text
@@ -170,7 +170,7 @@ export default function Auth() {
                   title
                   centered
                   fontSize={title.size}
-                  lineHeight={title.size * 1.3}
+                  lineHeight={`${title.size * 1.3}px`}
                   position="absolute"
                   left={0}
                   right={0}
@@ -197,7 +197,7 @@ export default function Auth() {
                 title
                 centered
                 fontSize={title.size}
-                lineHeight={title.size * 1.3}
+                lineHeight={`${title.size * 1.3}px`}
                 height={Math.max(title.size * 2.6 * fontScale, ...Object.values(title.heights))}
               >
                 {t(currentItem.title)}
@@ -232,7 +232,7 @@ export default function Auth() {
               </Text>
             </View>
           </View>
-          <View alignItems="stretch" alignSelf="stretch" gap="$s3">
+          <View alignItems="stretch" alignSelf="stretch" gap="s3">
             <View flexDirection="row" alignSelf="stretch">
               <Button
                 primary

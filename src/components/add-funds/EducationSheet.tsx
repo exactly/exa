@@ -28,16 +28,16 @@ export default function EducationSheet({
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <ScrollView showsVerticalScrollIndicator={false} $platform-web={{ maxHeight: "100vh" }}>
+      <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
-          borderTopLeftRadius="$r4"
-          borderTopRightRadius="$r4"
-          backgroundColor="$backgroundSoft"
-          paddingHorizontal="$s5"
-          $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          borderTopLeftRadius="r4"
+          borderTopRightRadius="r4"
+          backgroundColor="backgroundSoft"
+          paddingHorizontal="s5"
+          paddingTop="web:s7"
+          paddingBottom="web:s7 android:s5"
         >
-          <YStack gap="$s5">
+          <YStack gap="s5">
             <Text emphasized primary headline>
               {title}
             </Text>
@@ -53,7 +53,7 @@ export default function EducationSheet({
                 presentArticle(article).catch(reportError);
               }}
             >
-              <Text emphasized footnote color="$uiBrandSecondary" centered>
+              <Text emphasized footnote color="uiBrandSecondary" centered>
                 {t("Learn more")}
               </Text>
             </Pressable>

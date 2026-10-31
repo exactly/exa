@@ -40,21 +40,21 @@ function TabItem({
   title: string;
 }) {
   return (
-    <YStack alignItems="center" paddingTop="$s3_5" paddingBottom="$s3">
+    <YStack alignItems="center" paddingTop="s3_5" paddingBottom="s3">
       <YStack>
         {showNotification && <StatusIndicator type="notification" />}
         <Icon
-          size="$iconSize.lg"
-          strokeWidth="$iconStroke.lg"
-          color={isFocused ? "$interactiveOnBaseBrandDefault" : "$uiNeutralSecondary"}
+          size={getTokens().iconSize.lg.val}
+          strokeWidth={getTokens().iconStroke.lg.val}
+          color={isFocused ? "interactiveOnBaseBrandDefault" : "uiNeutralSecondary"}
         />
       </YStack>
       <Text
         numberOfLines={1}
+        color={isFocused ? "interactiveOnBaseBrandDefault" : "uiNeutralSecondary"}
         maxFontSizeMultiplier={1.3}
         caption2
         emphasized={isFocused}
-        color={isFocused ? "$interactiveOnBaseBrandDefault" : "$uiNeutralSecondary"}
       >
         {title}
       </Text>
@@ -93,16 +93,16 @@ export default function HomeLayout() {
             pointerEvents="box-none"
             paddingLeft={insets.left}
             paddingRight={insets.right}
-            paddingBottom={Math.max(insets.bottom, getTokens().space.$s6.val)}
+            paddingBottom={Math.max(insets.bottom, getTokens().space.s6.val)}
             onLayout={({ nativeEvent }) => setHeight(nativeEvent.layout.height)}
           >
             <XStack
-              marginHorizontal="$s4"
-              padding="$s1"
-              borderRadius="$r_0"
+              marginHorizontal="s4"
+              padding="s1"
+              borderRadius="r_0"
               borderWidth={1}
-              borderColor="$borderNeutralMild"
-              backgroundColor="$backgroundSoft"
+              borderColor="borderNeutralMild"
+              backgroundColor="backgroundSoft"
             >
               <XStack flex={1} role="tablist" onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
                 {focused !== -1 && width > 0 && (
@@ -112,10 +112,10 @@ export default function HomeLayout() {
                     bottom={0}
                     width={width / tabs.length}
                     x={(focused * width) / tabs.length}
-                    transition={["quick", { overshootClamping: true }]}
-                    padding="$s1"
+                    transition={{ preset: "quick", spring: { overshootClamping: true } }}
+                    padding="s1"
                   >
-                    <View flex={1} borderRadius="$r_0" backgroundColor="$interactiveBaseBrandDefault" />
+                    <View flex={1} borderRadius="r_0" backgroundColor="interactiveBaseBrandDefault" />
                   </View>
                 )}
                 {tabs.map(({ name, title, href, Icon }, index) => (

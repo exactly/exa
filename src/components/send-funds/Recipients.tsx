@@ -10,7 +10,7 @@ import { PencilLine } from "@tamagui/lucide-icons-2/icons/PencilLine";
 import { QrCode } from "@tamagui/lucide-icons-2/icons/QrCode";
 import { Settings } from "@tamagui/lucide-icons-2/icons/Settings";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -36,7 +36,6 @@ export default function Recipients() {
   const router = useRouter();
   const insets = useInsets();
   const { currency, provider } = useLocalSearchParams();
-  const toast = useToastController();
 
   const {
     data: allRecipients,
@@ -51,19 +50,16 @@ export default function Recipients() {
     mutationFn: deleteExternalAccount,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ramp", "external-accounts"] }).catch(reportError);
-      toast.show(t("Contact deleted"), {
-        duration: 2000,
-        burntOptions: { haptic: "success", preset: "done" },
-      });
+      toast.success(t("Contact deleted"), { duration: 2000 });
     },
     onError: (error) => {
       const inUse = error instanceof APIError && error.text === "withdrawal in progress";
       if (!inUse) reportError(error);
-      toast.show(
+      toast.error(
         inUse
           ? t("Can't delete this contact while a withdrawal is in progress.")
           : t("Couldn't delete the contact. Please try again."),
-        { duration: 3000, burntOptions: { haptic: "error", preset: "error" } },
+        { duration: 3000 },
       );
     },
   });
@@ -77,9 +73,9 @@ export default function Recipients() {
   const recipients = allRecipients?.filter((recipient) => recipient.currency === currency) ?? [];
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
-      <View gap="$s5" fullScreen padded paddingBottom={0}>
-        <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+      <View gap="s5" paddingBottom={0} fullScreen padded>
+        <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
             aria-label={t("Back")}
@@ -99,11 +95,11 @@ export default function Recipients() {
             }}
           />
         </XStack>
-        <ScrollView flex={1} contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.$s4.val }}>
-          <YStack flex={1} gap="$s5">
-            <YStack gap="$s3_5">
+        <ScrollView flex={1} contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.s4.val }}>
+          <YStack flex={1} gap="s5">
+            <YStack gap="s3_5">
               <AddFundsOption
-                icon={<Settings size={24} color="$iconBrandDefault" />}
+                icon={<Settings size={24} color="iconBrandDefault" />}
                 title={t("Transfer to a new beneficiary")}
                 subtitle={method ? t("Via {{method}}", { method: t(method) }) : t("Add new beneficiary")}
                 onPress={() => {
@@ -112,11 +108,11 @@ export default function Recipients() {
               />
               {currency === "BRL" && (
                 <>
-                  <Text footnote color="$uiNeutralPlaceholder">
+                  <Text footnote color="uiNeutralPlaceholder">
                     {t("or")}
                   </Text>
                   <AddFundsOption
-                    icon={<QrCode size={24} color="$iconBrandDefault" />}
+                    icon={<QrCode size={24} color="iconBrandDefault" />}
                     title={t("Scan QR code")}
                     onPress={() => {
                       router.push({ pathname: "/send-funds/new-recipient", params: { currency, provider, scan: "1" } });
@@ -125,10 +121,10 @@ export default function Recipients() {
                 </>
               )}
             </YStack>
-            <YStack gap="$s3_5" paddingHorizontal="$s3_5">
-              <XStack gap="$s2" alignItems="center">
-                <Contact size={16} color="$interactiveBaseBrandDefault" />
-                <Text emphasized footnote color="$uiNeutralSecondary">
+            <YStack gap="s3_5" paddingHorizontal="s3_5">
+              <XStack gap="s2" alignItems="center">
+                <Contact size={16} color="interactiveBaseBrandDefault" />
+                <Text emphasized footnote color="uiNeutralSecondary">
                   {t("Contacts")}
                 </Text>
               </XStack>
@@ -136,24 +132,24 @@ export default function Recipients() {
                 <Skeleton width="100%" height={64} />
               ) : isError ? (
                 <View
-                  margin="$s2"
-                  borderRadius="$r3"
-                  backgroundColor="$uiNeutralTertiary"
-                  padding="$s3_5"
+                  margin="s2"
+                  borderRadius="r3"
+                  backgroundColor="uiNeutralTertiary"
+                  padding="s3_5"
                   alignSelf="center"
                 >
-                  <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
+                  <Text textAlign="center" color="uiNeutralSecondary" subHeadline>
                     {t("Couldn't load your contacts. Please try again.")}
                   </Text>
                 </View>
               ) : recipients.length === 0 ? (
-                <View margin="$s2" alignSelf="center">
-                  <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
+                <View margin="s2" alignSelf="center">
+                  <Text textAlign="center" color="uiNeutralSecondary" subHeadline>
                     {t("You don't have any contacts yet.")}
                   </Text>
                 </View>
               ) : (
-                <YStack gap="$s3_5">
+                <YStack gap="s3_5">
                   {recipients.map((recipient) => (
                     <RecipientRow
                       key={recipient.id}
@@ -162,10 +158,7 @@ export default function Recipients() {
                       deleting={deleteMutation.isPending && deleteMutation.variables === recipient.id}
                       onSelect={() => {
                         if (recipient.addressValid === false) {
-                          toast.show(t("This contact needs review before you can send."), {
-                            duration: 3000,
-                            burntOptions: { haptic: "warning" },
-                          });
+                          toast.warning(t("This contact needs review before you can send."), { duration: 3000 });
                           return;
                         }
                         router.push({
@@ -214,41 +207,41 @@ function RecipientRow({
   return (
     <XStack
       alignItems="center"
-      gap="$s3"
-      paddingBottom="$s3_5"
+      gap="s3"
+      paddingBottom="s3_5"
       borderBottomWidth={1}
-      borderBottomColor="$borderNeutralSoft"
+      borderBottomColor="borderNeutralSoft"
       opacity={deleting ? 0.5 : 1}
     >
       <XStack
         flex={1}
         alignItems="center"
-        gap="$s3"
+        gap="s3"
         cursor="pointer"
-        pressStyle={{ opacity: 0.7 }}
+        opacity="press:0.7"
         onPress={deleting ? undefined : onSelect}
       >
-        <View borderRadius="$r_0" overflow="hidden">
+        <View borderRadius="r_0" overflow="hidden">
           <Blocky seed={recipient.id} />
         </View>
-        <YStack flex={1} gap="$s1">
+        <YStack flex={1} gap="s1">
           <Text subHeadline primary>
             {recipient.ownerName}
           </Text>
-          <Text caption color="$uiNeutralSecondary">
+          <Text caption color="uiNeutralSecondary">
             {recipient.bankName ?? fallbackBank}
           </Text>
         </YStack>
       </XStack>
       {deleting ? (
-        <Spinner color="$uiNeutralSecondary" />
+        <Spinner color="uiNeutralSecondary" />
       ) : (
         <>
-          {recipient.addressValid === false && <TriangleAlert size={16} color="$uiWarningSecondary" />}
+          {recipient.addressValid === false && <TriangleAlert size={16} color="uiWarningSecondary" />}
           <IconButton
             icon={PencilLine}
             size={16}
-            color="$interactiveBaseBrandDefault"
+            color="interactiveBaseBrandDefault"
             aria-label={t("Edit contact")}
             onPress={() => {
               setOpen(true);
@@ -258,14 +251,13 @@ function RecipientRow({
       )}
       <ModalSheet open={open} onClose={() => setOpen(false)}>
         <YStack
-          gap="$s4"
-          borderTopLeftRadius="$r5"
-          borderTopRightRadius="$r5"
-          backgroundColor="$backgroundSoft"
-          paddingTop="$s6"
-          paddingHorizontal="$s5"
-          paddingBottom="$s7"
-          $platform-android={{ paddingBottom: "$s5" }}
+          gap="s4"
+          borderTopLeftRadius="r5"
+          borderTopRightRadius="r5"
+          backgroundColor="backgroundSoft"
+          paddingTop="s6"
+          paddingHorizontal="s5"
+          paddingBottom="s7 android:s5"
         >
           <Button
             primary
@@ -283,9 +275,9 @@ function RecipientRow({
             emphasized
             footnote
             textAlign="center"
-            color="$uiErrorSecondary"
+            color="uiErrorSecondary"
             cursor="pointer"
-            pressStyle={{ opacity: 0.7 }}
+            opacity="press:0.7"
             onPress={() => {
               setOpen(false);
               onDelete();

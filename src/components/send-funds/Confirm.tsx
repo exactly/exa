@@ -664,8 +664,8 @@ export default function Confirm() {
   if (invalidReceiver || !pay) {
     return (
       <SafeView fullScreen>
-        <View gap="$s5" fullScreen padded justifyContent="center" alignItems="center">
-          <Text body primary color="$uiNeutralPrimary">
+        <View gap="s5" justifyContent="center" alignItems="center" fullScreen padded>
+          <Text body primary color="uiNeutralPrimary">
             {invalidReceiver ? t("Invalid receiver address") : t("Invalid asset address")}
           </Text>
           <Button
@@ -678,7 +678,7 @@ export default function Confirm() {
           >
             <Button.Text>{t("Go back")}</Button.Text>
             <Button.Icon>
-              <ArrowLeft size={24} color="$uiNeutralPrimary" />
+              <ArrowLeft size={24} color="uiNeutralPrimary" />
             </Button.Icon>
           </Button>
         </View>
@@ -689,8 +689,8 @@ export default function Confirm() {
   if (!pending && !sendError && !success) {
     return (
       <SafeView fullScreen>
-        <View gap="$s4_5" fullScreen padded>
-          <XStack gap="$s3_5" justifyContent="space-between" alignItems="center">
+        <View gap="s4_5" fullScreen padded>
+          <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -712,7 +712,7 @@ export default function Confirm() {
               }}
             />
           </XStack>
-          <YStack flex={1} position="relative" gap="$s4">
+          <YStack flex={1} position="relative" gap="s4">
             <ScrollView
               flex={1}
               showsVerticalScrollIndicator={false}
@@ -720,8 +720,8 @@ export default function Confirm() {
                 setRoom(nativeEvent.layout.width);
               }}
             >
-              <YStack gap="$s4">
-                <YStack gap="$s4" alignItems="center" paddingVertical="$s4_5">
+              <YStack gap="s4">
+                <YStack gap="s4" alignItems="center" paddingVertical="s4_5">
                   {received ? (
                     <>
                       <YStack
@@ -746,7 +746,7 @@ export default function Confirm() {
                         textAlign="center"
                         numberOfLines={2}
                         fontSize={receivedSize}
-                        lineHeight={Math.round(receivedSize * 1.3)}
+                        lineHeight={`${Math.round(receivedSize * 1.3)}px`}
                       >
                         {`${receivedAmount} ${receivedSymbol}`}
                       </Text>
@@ -758,10 +758,10 @@ export default function Confirm() {
                     <Skeleton width={220} height={47} />
                   )}
                 </YStack>
-                <YStack gap="$s4">
-                  <Separator borderColor="$borderNeutralSoft" />
-                  <YStack gap="$s3_5">
-                    <XStack gap="$s3_5" alignItems="center" justifyContent="space-between">
+                <YStack gap="s4">
+                  <Separator borderColor="borderNeutralSoft" />
+                  <YStack gap="s3_5">
+                    <XStack gap="s3_5" alignItems="center" justifyContent="space-between">
                       <Text footnote secondary flexShrink={0}>
                         {t("To")}
                       </Text>
@@ -770,15 +770,15 @@ export default function Confirm() {
                         maxWidth={expanded ? "50%" : undefined}
                         alignItems="flex-end"
                         cursor="pointer"
-                        pressStyle={{ opacity: 0.7 }}
+                        opacity="press:0.7"
                         role="button"
                         aria-label={receiver}
                         onPress={() => {
                           setExpanded(!expanded);
                         }}
                       >
-                        <XStack gap="$s3" alignItems="center">
-                          <View borderRadius="$r_0" overflow="hidden">
+                        <XStack gap="s3" alignItems="center">
+                          <View borderRadius="r_0" overflow="hidden">
                             <Blocky seed={receiver} scale={2} />
                           </View>
                           <Text subHeadline primary mono={!ens} flexShrink={1} textAlign="right">
@@ -792,11 +792,11 @@ export default function Confirm() {
                         )}
                       </YStack>
                     </XStack>
-                    <XStack gap="$s3_5" alignItems="center">
+                    <XStack gap="s3_5" alignItems="center">
                       <Text footnote secondary flex={1}>
                         {t("Network")}
                       </Text>
-                      <XStack gap="$s3" alignItems="center">
+                      <XStack gap="s3" alignItems="center">
                         <ChainLogo chainId={destinationChain} size={20} />
                         <Text subHeadline primary>
                           {networkName}
@@ -805,7 +805,7 @@ export default function Confirm() {
                     </XStack>
                     <Detail label={t("Network fees")}>
                       {sponsored ? (
-                        <Text subHeadline color="$uiSuccessSecondary">
+                        <Text subHeadline color="uiSuccessSecondary">
                           {t("Free")}
                         </Text>
                       ) : networkFeeUSD === undefined ? (
@@ -831,7 +831,7 @@ export default function Confirm() {
                           {feePercent === undefined ? (
                             <Skeleton width={60} height={21} />
                           ) : (
-                            <Text subHeadline color={highFee ? "$uiWarningSecondary" : "$uiNeutralPrimary"}>
+                            <Text subHeadline color={highFee ? "uiWarningSecondary" : "uiNeutralPrimary"}>
                               {`${feePercent.toLocaleString(language, { maximumFractionDigits: 2 })}%`}
                             </Text>
                           )}
@@ -840,7 +840,7 @@ export default function Confirm() {
                           {quoteSeconds === undefined ? (
                             <Skeleton width={60} height={21} />
                           ) : (
-                            <Text subHeadline color={quoteExpired ? "$uiErrorSecondary" : "$uiNeutralPrimary"}>
+                            <Text subHeadline color={quoteExpired ? "uiErrorSecondary" : "uiNeutralPrimary"}>
                               {`${Math.floor(quoteSeconds / 60)}:${String(quoteSeconds % 60).padStart(2, "0")}`}
                             </Text>
                           )}
@@ -860,7 +860,7 @@ export default function Confirm() {
                       {arrivalEstimate === undefined ? (
                         <Skeleton width={60} height={21} />
                       ) : (
-                        <Text subHeadline color={arrivalEstimate.slow ? "$uiWarningSecondary" : "$uiNeutralPrimary"}>
+                        <Text subHeadline color={arrivalEstimate.slow ? "uiWarningSecondary" : "uiNeutralPrimary"}>
                           {t("~{{minutes}} min", { minutes: arrivalEstimate.minutes })}
                         </Text>
                       )}
@@ -868,14 +868,14 @@ export default function Confirm() {
                   </YStack>
                   {routed && (
                     <>
-                      <Separator borderColor="$borderNeutralSoft" />
-                      <XStack gap="$s3_5" alignItems="flex-start">
+                      <Separator borderColor="borderNeutralSoft" />
+                      <XStack gap="s3_5" alignItems="flex-start">
                         <Text footnote secondary flex={1}>
                           {t("Total")}
                         </Text>
                         {route ? (
-                          <YStack gap="$s2" alignItems="flex-end">
-                            <XStack gap="$s3" alignItems="center">
+                          <YStack gap="s2" alignItems="flex-end">
+                            <XStack gap="s3" alignItems="center">
                               <AssetLogo
                                 uri={external?.logoURI}
                                 symbol={paySymbol}
@@ -901,32 +901,32 @@ export default function Confirm() {
                 </YStack>
               </YStack>
             </ScrollView>
-            <YStack gap="$s4">
+            <YStack gap="s4">
               {shortfall ? (
                 <XStack
-                  gap="$s4"
+                  gap="s4"
                   alignItems="center"
-                  backgroundColor="$interactiveBaseErrorSoftDefault"
-                  borderRadius="$r3"
-                  paddingHorizontal="$s4"
-                  paddingVertical="$s3"
+                  backgroundColor="interactiveBaseErrorSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
                 >
-                  <TriangleAlert size={16} color="$uiErrorSecondary" />
-                  <Text caption2 color="$uiErrorSecondary" flex={1}>
+                  <TriangleAlert size={16} color="uiErrorSecondary" />
+                  <Text caption2 color="uiErrorSecondary" flex={1}>
                     {shortfall}
                   </Text>
                 </XStack>
               ) : highFee && !transient ? (
                 <XStack
-                  gap="$s4"
+                  gap="s4"
                   alignItems="center"
-                  backgroundColor="$interactiveBaseWarningSoftDefault"
-                  borderRadius="$r3"
-                  paddingHorizontal="$s4"
-                  paddingVertical="$s3"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
                 >
-                  <TriangleAlert size={16} color="$uiWarningSecondary" />
-                  <Text caption2 color="$uiWarningSecondary" flex={1}>
+                  <TriangleAlert size={16} color="uiWarningSecondary" />
+                  <Text caption2 color="uiWarningSecondary" flex={1}>
                     {t("High swap fee of {{percent}}%. Proceed with caution.", {
                       percent: feePercent.toLocaleString(language, { maximumFractionDigits: 2 }),
                     })}
@@ -934,15 +934,15 @@ export default function Confirm() {
                 </XStack>
               ) : (
                 <XStack
-                  gap="$s4"
+                  gap="s4"
                   alignItems="center"
-                  backgroundColor="$interactiveBaseInformationSoftDefault"
-                  borderRadius="$r3"
-                  paddingHorizontal="$s4"
-                  paddingVertical="$s3"
+                  backgroundColor="interactiveBaseInformationSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
                 >
-                  <Info size={16} color="$uiInfoSecondary" />
-                  <Text caption2 color="$uiInfoSecondary" flex={1}>
+                  <Info size={16} color="uiInfoSecondary" />
+                  <Text caption2 color="uiInfoSecondary" flex={1}>
                     {stalled
                       ? t("This route is temporarily unavailable. Retrying automatically...")
                       : denied.length > 0 && !route && isRouteFetching
@@ -993,10 +993,10 @@ export default function Confirm() {
                 {!web && (
                   <AnimatedView
                     style={[StyleSheet.absoluteFill, fillStyle]}
-                    backgroundColor="$interactiveOnBaseBrandDefault"
+                    backgroundColor="interactiveOnBaseBrandDefault"
                     opacity={0.2}
-                    borderTopRightRadius="$r3"
-                    borderBottomRightRadius="$r3"
+                    borderTopRightRadius="r3"
+                    borderBottomRightRadius="r3"
                     pointerEvents="none"
                   />
                 )}
@@ -1019,15 +1019,12 @@ export default function Confirm() {
                   left={0}
                   right={0}
                   bottom={0}
-                  backgroundColor="$backgroundMild"
-                  transition="default"
-                  animateOnly={["opacity"]}
-                  opacity={1}
-                  enterStyle={{ opacity: 0 }}
-                  exitStyle={{ opacity: 0 }}
+                  backgroundColor="backgroundMild"
+                  transition={{ preset: "default", properties: "opacity" }}
+                  opacity="1 enter:0 exit:0"
                 >
-                  <YStack flex={1} gap="$s6" alignItems="center" padding="$s7">
-                    <OctagonX size={48} color="$uiErrorSecondary" />
+                  <YStack flex={1} gap="s6" alignItems="center" padding="s7">
+                    <OctagonX size={48} color="uiErrorSecondary" />
                     <Text title primary textAlign="center">
                       {failure === "route"
                         ? t("No route available for this transfer.")
@@ -1106,7 +1103,7 @@ export default function Confirm() {
   return (
     <GradientScrollView variant={failed ? "error" : success ? (processing ? "info" : "success") : "neutral"}>
       <View flex={1}>
-        <YStack gap="$s7" paddingBottom="$s9">
+        <YStack gap="s7" paddingBottom="s9">
           <IconButton
             alignSelf="flex-start"
             icon={X}
@@ -1118,26 +1115,26 @@ export default function Confirm() {
           <XStack justifyContent="center" alignItems="center">
             <Square
               size={80}
-              borderRadius="$r4"
+              borderRadius="r4"
               backgroundColor={
                 failed
-                  ? "$interactiveBaseErrorSoftDefault"
+                  ? "interactiveBaseErrorSoftDefault"
                   : success
                     ? processing
-                      ? "$interactiveBaseInformationSoftDefault"
-                      : "$interactiveBaseSuccessSoftDefault"
-                    : "$backgroundStrong"
+                      ? "interactiveBaseInformationSoftDefault"
+                      : "interactiveBaseSuccessSoftDefault"
+                    : "backgroundStrong"
               }
             >
               {(pending || (sendError && !!submitted)) && (
-                <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />
+                <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
               )}
-              {success && processing && <ExaSpinner backgroundColor="transparent" color="$uiInfoSecondary" />}
-              {success && !processing && !failed && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-              {failed && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+              {success && processing && <ExaSpinner backgroundColor="transparent" color="uiInfoSecondary" />}
+              {success && !processing && !failed && <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />}
+              {failed && <X size={48} color="uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
-          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+          <YStack gap="s4_5" justifyContent="center" alignItems="center">
             <Text secondary body textAlign={sendError && !failed ? "center" : undefined}>
               <Trans
                 i18nKey={
@@ -1152,13 +1149,13 @@ export default function Confirm() {
                           : "Sent to <em>{{recipient}}</em>"
                 }
                 values={{ recipient: ens || shortenHex(receiver, 5, 7) }}
-                components={{ em: <Text emphasized primary body color="$uiNeutralPrimary" /> }}
+                components={{ em: <Text emphasized primary body color="uiNeutralPrimary" /> }}
               />
             </Text>
-            <Text title primary color="$uiNeutralPrimary">
+            <Text title primary color="uiNeutralPrimary">
               {`$${receivedUSD.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             </Text>
-            <XStack gap="$s2" alignItems="center">
+            <XStack gap="s2" alignItems="center">
               <Text emphasized secondary subHeadline>
                 {receivedAmount}
               </Text>
@@ -1208,16 +1205,16 @@ export default function Confirm() {
         )}
       </View>
       {!pending && (
-        <YStack flex={2} justifyContent="flex-end" gap="$s5">
+        <YStack flex={2} justifyContent="flex-end" gap="s5">
           {success && (
             <View padded alignItems="center">
               <Text
                 emphasized
                 footnote
-                color="$interactiveBaseBrandDefault"
+                color="interactiveBaseBrandDefault"
                 alignSelf="center"
-                hitSlop={20}
                 cursor="pointer"
+                hitSlop={20}
                 onPress={() => {
                   router.dismissTo(exit);
                 }}
@@ -1227,7 +1224,7 @@ export default function Confirm() {
             </View>
           )}
           {sendError && (
-            <View padded gap="$s4">
+            <View padded gap="s4">
               <Button primary onPress={retry}>
                 <Button.Text>{submitted ? t("Check status") : t("Try again")}</Button.Text>
                 <Button.Icon>
@@ -1237,10 +1234,10 @@ export default function Confirm() {
               <Text
                 emphasized
                 footnote
-                color="$interactiveBaseBrandDefault"
+                color="interactiveBaseBrandDefault"
                 alignSelf="center"
-                hitSlop={20}
                 cursor="pointer"
+                hitSlop={20}
                 onPress={() => {
                   router.dismissTo(exit);
                 }}
@@ -1257,7 +1254,7 @@ export default function Confirm() {
 
 function Detail({ label, children }: { children: React.ReactNode; label: string }) {
   return (
-    <XStack gap="$s2" alignItems="center">
+    <XStack gap="s2" alignItems="center">
       <Text footnote secondary>
         {label}
       </Text>

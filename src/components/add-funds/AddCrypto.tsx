@@ -12,7 +12,7 @@ import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
 import { Share as ShareIcon } from "@tamagui/lucide-icons-2/icons/Share";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -93,7 +93,6 @@ export default function AddCrypto() {
   const other = !!asset && !isPending && !supportedAssets.includes(asset);
   const bridgeLogoURI = isBridge && network in networkLogos ? networkLogos[network] : undefined;
 
-  const toast = useToastController();
   const [copyAddressShown, setCopyAddressShown] = useState(false);
   const [supportedAssetsShown, setSupportedAssetsShown] = useState(false);
 
@@ -139,9 +138,9 @@ export default function AddCrypto() {
 
   return (
     <SafeView fullScreen>
-      <View gap="$s3_5" fullScreen padded>
-        <View gap="$s5" paddingBottom="$s3">
-          <XStack gap="$s3" justifyContent="space-around" alignItems="center">
+      <View gap="s3_5" fullScreen padded>
+        <View gap="s5" paddingBottom="s3">
+          <XStack gap="s3" justifyContent="space-around" alignItems="center">
             <View position="absolute" left={0}>
               <IconButton
                 icon={X}
@@ -159,9 +158,9 @@ export default function AddCrypto() {
           </XStack>
         </View>
         <ScrollView showsVerticalScrollIndicator={false} flex={1} contentContainerStyle={{ flexGrow: 1 }}>
-          <YStack gap="$s5" flexGrow={1}>
-            <YStack gap="$s2">
-              <XStack gap="$s2">
+          <YStack gap="s5" flexGrow={1}>
+            <YStack gap="s2">
+              <XStack gap="s2">
                 <AssetChip
                   assets={assets}
                   isPending={!isBridge && !asset && isPending}
@@ -175,7 +174,7 @@ export default function AddCrypto() {
                         source={{ uri: bridgeLogoURI }}
                         width={24}
                         height={24}
-                        borderRadius="$r_0"
+                        borderRadius="r_0"
                         overflow="hidden"
                       />
                     ) : (
@@ -185,13 +184,13 @@ export default function AddCrypto() {
                 />
               </XStack>
               <YStack
-                backgroundColor="$backgroundSoft"
-                borderTopLeftRadius="$r2"
-                borderTopRightRadius="$r2"
-                borderBottomLeftRadius="$r5"
-                borderBottomRightRadius="$r5"
-                padding="$s4_5"
-                gap="$s4"
+                backgroundColor="backgroundSoft"
+                borderTopLeftRadius="r2"
+                borderTopRightRadius="r2"
+                borderBottomLeftRadius="r5"
+                borderBottomRightRadius="r5"
+                padding="s4_5"
+                gap="s4"
               >
                 <Text footnote secondary centered>
                   {t("Wallet address")}
@@ -215,13 +214,13 @@ export default function AddCrypto() {
                       alignItems="center"
                       justifyContent="center"
                     >
-                      <View backgroundColor="$backgroundSoft" borderRadius="$r_0" padding="$s2">
+                      <View backgroundColor="backgroundSoft" borderRadius="r_0" padding="s2">
                         {bridgeLogoURI ? (
                           <Image
                             source={{ uri: bridgeLogoURI }}
                             width={32}
                             height={32}
-                            borderRadius="$r_0"
+                            borderRadius="r_0"
                             overflow="hidden"
                           />
                         ) : (
@@ -237,7 +236,7 @@ export default function AddCrypto() {
                       {address}
                     </Text>
                   ) : isBridge && isError && !isFetching ? (
-                    <Text color="$uiErrorSecondary" centered>
+                    <Text color="uiErrorSecondary" centered>
                       {t("Failed to load deposit address.")}
                     </Text>
                   ) : (
@@ -247,45 +246,42 @@ export default function AddCrypto() {
               </YStack>
             </YStack>
             {!!memo && (
-              <YStack gap="$s4" backgroundColor="$backgroundSoft" padding="$s4_5" borderRadius="$r3">
-                <Text emphasized secondary caption color="$uiNeutralPlaceholder">
+              <YStack gap="s4" backgroundColor="backgroundSoft" padding="s4_5" borderRadius="r3">
+                <Text emphasized secondary caption color="uiNeutralPlaceholder">
                   {t("Memo")}
                 </Text>
-                <XStack gap="$s3" alignItems="center" justifyContent="space-between">
+                <XStack gap="s3" alignItems="center" justifyContent="space-between">
                   <Text emphasized secondary footnote mono>
                     {memo}
                   </Text>
                   <IconButton
                     icon={Copy}
-                    color="$interactiveBaseBrandDefault"
+                    color="interactiveBaseBrandDefault"
                     aria-label={t("Copy memo")}
                     onPress={() => {
                       if (!memo) return;
                       setStringAsync(memo)
                         .then(() => {
-                          toast.show(t("Memo copied!"), {
-                            duration: 1000,
-                            burntOptions: { haptic: "success" },
-                          });
+                          toast.success(t("Memo copied!"), { duration: 1000 });
                         })
                         .catch(reportError);
                     }}
                   />
                 </XStack>
-                <Text caption2 color="$uiNeutralPlaceholder">
+                <Text caption2 color="uiNeutralPlaceholder">
                   {t("The memo is required. Deposits sent without it may be permanently lost.")}
                 </Text>
               </YStack>
             )}
             <View flexGrow={1} />
-            <YStack gap="$s3_5">
+            <YStack gap="s3_5">
               {isBridge && <BridgeDisclaimer />}
               {!!asset && (other || !!receiveChainId) && (
                 <Callout
-                  background="$interactiveBaseInformationSoftDefault"
-                  icon={<Info size={16} width={16} height={16} color="$uiInfoSecondary" />}
+                  background="interactiveBaseInformationSoftDefault"
+                  icon={<Info size={16} width={16} height={16} color="uiInfoSecondary" />}
                 >
-                  <Text caption2 color="$uiInfoSecondary">
+                  <Text caption2 color="uiInfoSecondary">
                     {other
                       ? receiveChainId
                         ? t(
@@ -320,12 +316,12 @@ export default function AddCrypto() {
                 article="8950805"
               >
                 <XStack
-                  backgroundColor="$backgroundMild"
-                  borderRadius="$r4"
-                  padding="$s4_5"
+                  backgroundColor="backgroundMild"
+                  borderRadius="r4"
+                  padding="s4_5"
                   justifyContent="center"
                   flexWrap="wrap"
-                  gap="$s3_5"
+                  gap="s3_5"
                 >
                   {isPending
                     ? Array.from({ length: 5 }, (_, index) => (
@@ -345,7 +341,7 @@ export default function AddCrypto() {
             )}
           </YStack>
         </ScrollView>
-        <YStack gap="$s3_5">
+        <YStack gap="s3_5">
           {isBridge && isError && !isFetching ? (
             <Button
               secondary
@@ -359,7 +355,7 @@ export default function AddCrypto() {
               </Button.Icon>
             </Button>
           ) : (
-            <XStack alignItems="center" gap="$s3">
+            <XStack alignItems="center" gap="s3">
               <Button
                 secondary
                 flex={1}
@@ -392,13 +388,13 @@ function AssetChip({ assets, isPending, onPress }: { assets: string[]; isPending
   return (
     <YStack
       flex={1}
-      backgroundColor="$backgroundSoft"
-      borderTopLeftRadius="$r5"
-      borderTopRightRadius="$r2"
-      borderBottomLeftRadius="$r2"
-      borderBottomRightRadius="$r2"
-      padding="$s4_5"
-      gap="$s4"
+      backgroundColor="backgroundSoft"
+      borderTopLeftRadius="r5"
+      borderTopRightRadius="r2"
+      borderBottomLeftRadius="r2"
+      borderBottomRightRadius="r2"
+      padding="s4_5"
+      gap="s4"
       cursor={onPress ? "pointer" : undefined}
       role={onPress ? "button" : undefined}
       tabIndex={onPress ? 0 : undefined}
@@ -407,7 +403,7 @@ function AssetChip({ assets, isPending, onPress }: { assets: string[]; isPending
       <Text footnote secondary centered>
         {t("Asset")}
       </Text>
-      <XStack alignItems="center" justifyContent="center" gap="$s2">
+      <XStack alignItems="center" justifyContent="center" gap="s2">
         {isPending ? (
           <Skeleton width={24} height={24} radius="round" />
         ) : assets.length === 1 ? (
@@ -441,10 +437,10 @@ function Callout({
   return (
     <XStack
       backgroundColor={background}
-      borderRadius="$r5"
-      paddingHorizontal="$s4"
-      paddingVertical="$s3_5"
-      gap="$s4"
+      borderRadius="r5"
+      paddingHorizontal="s4"
+      paddingVertical="s3_5"
+      gap="s4"
       alignItems="flex-start"
     >
       <View>{icon}</View>
@@ -458,18 +454,18 @@ function NetworkChip({ logo, name }: { logo: React.ReactElement; name: string })
   return (
     <YStack
       flex={1}
-      backgroundColor="$backgroundSoft"
-      borderTopLeftRadius="$r2"
-      borderTopRightRadius="$r5"
-      borderBottomLeftRadius="$r2"
-      borderBottomRightRadius="$r2"
-      padding="$s4_5"
-      gap="$s4"
+      backgroundColor="backgroundSoft"
+      borderTopLeftRadius="r2"
+      borderTopRightRadius="r5"
+      borderBottomLeftRadius="r2"
+      borderBottomRightRadius="r2"
+      padding="s4_5"
+      gap="s4"
     >
       <Text footnote secondary centered>
         {t("Network")}
       </Text>
-      <XStack alignItems="center" justifyContent="center" gap="$s2">
+      <XStack alignItems="center" justifyContent="center" gap="s2">
         {logo}
         <Text emphasized title3 numberOfLines={1}>
           {name}

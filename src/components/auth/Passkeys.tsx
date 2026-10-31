@@ -30,13 +30,13 @@ export default function Passkeys() {
   });
 
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="backgroundSoft">
       <View fullScreen padded>
-        <View position="absolute" right="$s5" zIndex={1}>
+        <View position="absolute" right="s5" zIndex={1}>
           <IconButton
             icon={X}
             size={25}
-            color="$uiNeutralSecondary"
+            color="uiNeutralSecondary"
             aria-label={t("Close")}
             onPress={() => {
               if (router.canGoBack()) {
@@ -54,13 +54,13 @@ export default function Passkeys() {
             width="100%"
             aspectRatio={1}
             flexShrink={1}
-            paddingHorizontal="$s5"
+            paddingHorizontal="s5"
           />
-          <View gap="$s5" justifyContent="center">
+          <View gap="s5" justifyContent="center">
             <Text emphasized title brand centered>
               {t("A secure and easy way to access your account")}
             </Text>
-            <Text fontSize={13} color="$uiNeutralSecondary" textAlign="center">
+            <Text fontSize={13} color="uiNeutralSecondary" textAlign="center">
               {t(
                 "To keep your account secure, Exa App uses passkeys, a passwordless authentication method protected by your device biometric verification.",
               )}
@@ -69,14 +69,14 @@ export default function Passkeys() {
         </View>
         <View alignItems="stretch" alignSelf="stretch">
           <View flexDirection="row" alignSelf="stretch" justifyContent="center">
-            <Text fontSize={11} color="$uiNeutralPlaceholder">
+            <Text fontSize={11} color="uiNeutralPlaceholder">
               <Trans
                 i18nKey="By continuing, I accept the <terms>Terms & Conditions</terms>"
                 components={{
                   terms: (
                     <Text
                       fontSize={11}
-                      color="$interactiveBaseBrandDefault"
+                      color="interactiveBaseBrandDefault"
                       onPress={() => {
                         openBrowser(
                           "https://intercom.help/exa-app/en/articles/9942510-exa-app-terms-and-conditions",
@@ -93,8 +93,8 @@ export default function Passkeys() {
               <Button
                 primary
                 flex={1}
-                marginTop="$s4"
-                marginBottom="$s5"
+                marginTop="s4"
+                marginBottom="s5"
                 loading={loading}
                 disabled={loading}
                 onPress={() => {
@@ -111,13 +111,13 @@ export default function Passkeys() {
             <XStack justifyContent="center">
               <Text
                 cursor="pointer"
-                onPress={() => {
-                  router.push("/(auth)/(passkeys)/about");
-                }}
                 textAlign="center"
                 fontSize={13}
                 fontWeight="bold"
-                color="$interactiveBaseBrandDefault"
+                color="interactiveBaseBrandDefault"
+                onPress={() => {
+                  router.push("/(auth)/(passkeys)/about");
+                }}
               >
                 {t("Learn more about passkeys")}
               </Text>

@@ -60,11 +60,11 @@ export default function InstallmentsSheet({
   }
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <SafeView paddingTop={0} borderTopLeftRadius="$r4" borderTopRightRadius="$r4" backgroundColor="$backgroundSoft">
-        <YStack gap="$s5" paddingVertical="$s5">
-          <YStack gap="$s5">
-            <YStack gap="$s4" paddingHorizontal="$s5">
-              <XStack justifyContent="space-between" alignItems="center" gap="$s3">
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="backgroundSoft">
+        <YStack gap="s5" paddingVertical="s5">
+          <YStack gap="s5">
+            <YStack gap="s4" paddingHorizontal="s5">
+              <XStack justifyContent="space-between" alignItems="center" gap="s3">
                 <Text emphasized headline flex={1}>
                   {t("Set installments")}
                 </Text>
@@ -77,27 +77,27 @@ export default function InstallmentsSheet({
               </Text>
               {isPromoActive() && (
                 <YStack
-                  backgroundColor="$interactiveBaseSuccessDefault"
-                  borderRadius="$r3"
-                  padding="$s4"
-                  gap="$s1"
+                  backgroundColor="interactiveBaseSuccessDefault"
+                  borderRadius="r3"
+                  padding="s4"
+                  gap="s1"
                   alignItems="center"
                 >
-                  <XStack alignItems="center" gap="$s2">
-                    <Text emphasized subHeadline color="$interactiveOnBaseSuccessDefault">
+                  <XStack alignItems="center" gap="s2">
+                    <Text emphasized subHeadline color="interactiveOnBaseSuccessDefault">
                       {t("*0% interest promo through {{month}}", { month: promoEnd })}
                     </Text>
                     <IconButton
                       icon={Info}
                       size={16}
-                      color="$interactiveOnBaseSuccessDefault"
+                      color="interactiveOnBaseSuccessDefault"
                       aria-label={t("More info")}
                       onPress={() => {
                         presentArticle("14424639").catch(reportError);
                       }}
                     />
                   </XStack>
-                  <Text caption2 color="$interactiveOnBaseSuccessDefault">
+                  <Text caption2 color="interactiveOnBaseSuccessDefault">
                     {t("Applies only for 1, 2, or 3 installments. Interest is reimbursed in early {{month}}.", {
                       month: refund,
                     })}
@@ -132,22 +132,21 @@ export default function InstallmentsSheet({
                                 }),
                               });
                         const promoted = isPromoted(installment) && rateLabel !== null;
-                        const accentColor = promoted ? "$interactiveBaseSuccessDefault" : "$cardCreditInteractive";
+                        const accentColor = promoted ? "interactiveBaseSuccessDefault" : "cardCreditInteractive";
                         return (
                           <YStack
                             key={installment}
                             width={CARD_SIZE}
                             height={CARD_SIZE}
-                            borderRadius="$r3"
+                            borderRadius="r3"
                             alignItems="center"
                             justifyContent="center"
-                            gap="$s3_5"
+                            gap="s3_5"
                             backgroundColor={isSelected ? accentColor : "transparent"}
                             borderWidth={1}
-                            borderColor={isSelected || promoted ? accentColor : "$cardCreditBorder"}
-                            transition="quick"
-                            animateOnly={["transform"]}
-                            pressStyle={{ scale: 0.96 }}
+                            borderColor={isSelected || promoted ? accentColor : "cardCreditBorder"}
+                            transition={{ preset: "quick", properties: "transform" }}
+                            scale="press:0.96"
                             cursor="pointer"
                             onPress={() => {
                               setSelected(installment);
@@ -161,22 +160,22 @@ export default function InstallmentsSheet({
                               }
                             }}
                           >
-                            <Text title2 emphasized color={isSelected ? "$cardCreditText" : accentColor}>
+                            <Text title2 emphasized color={isSelected ? "cardCreditText" : accentColor}>
                               {installment}
                             </Text>
                             {promoted ? (
-                              <YStack alignItems="center" gap="$s1">
+                              <YStack alignItems="center" gap="s1">
                                 <Text
                                   caption2
                                   emphasized
-                                  color={isSelected ? "$cardCreditText" : accentColor}
+                                  color={isSelected ? "cardCreditText" : accentColor}
                                   numberOfLines={1}
                                 >
                                   {t("0% APR*")}
                                 </Text>
                                 <Text
                                   caption2
-                                  color={isSelected ? "$cardCreditText" : "$uiNeutralSecondary"}
+                                  color={isSelected ? "cardCreditText" : "uiNeutralSecondary"}
                                   numberOfLines={1}
                                   textDecorationLine="line-through"
                                   opacity={0.6}
@@ -187,7 +186,7 @@ export default function InstallmentsSheet({
                             ) : rates ? (
                               <Text
                                 caption2
-                                color={isSelected ? "$cardCreditText" : "$uiNeutralSecondary"}
+                                color={isSelected ? "cardCreditText" : "uiNeutralSecondary"}
                                 numberOfLines={1}
                               >
                                 {rateLabel ?? t("N/A")}
@@ -211,7 +210,7 @@ export default function InstallmentsSheet({
               router.push("/calculator");
             }}
           >
-            <Text footnote emphasized brand textAlign="center" paddingHorizontal="$s4">
+            <Text footnote emphasized brand textAlign="center" paddingHorizontal="s4">
               {t("Installments calculator")}
             </Text>
           </Pressable>

@@ -27,18 +27,18 @@ export default function Tabs<T extends string>({
     <XStack alignSelf="stretch" alignItems="flex-end" role="tablist">
       {items.map(({ key, label, Icon, badge }) => {
         const selected = key === value;
-        const color = selected ? "$interactiveOnBaseBrandSoft" : "$uiNeutralSecondary";
+        const color = selected ? "interactiveOnBaseBrandSoft" : "uiNeutralSecondary";
         return (
           <XStack
             key={key}
             flex={1}
-            gap="$s2"
+            gap="s2"
             alignItems="center"
             justifyContent="center"
-            paddingHorizontal="$s3"
-            paddingVertical="$s3_5"
+            paddingHorizontal="s3"
+            paddingVertical="s3_5"
             borderBottomWidth={selected ? 2 : 1}
-            borderBottomColor={selected ? "$interactiveBaseBrandDefault" : "$borderNeutralSoft"}
+            borderBottomColor={selected ? "interactiveBaseBrandDefault" : "borderNeutralSoft"}
             cursor="pointer"
             role="tab"
             aria-selected={selected}

@@ -20,27 +20,27 @@ export default function VerificationFailure({ open, onClose }: { onClose: () => 
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <View position="absolute" top="s5" right="s5" zIndex={100_000}>
+          <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+        <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <YStack flex={1} padding="$s4">
-              <YStack flex={1} justifyContent="center" gap="$s4">
+            <YStack flex={1} padding="s4">
+              <YStack flex={1} justifyContent="center" gap="s4">
                 <Image
                   source={verifyIdentity}
                   contentFit="contain"
                   width="100%"
                   aspectRatio={1}
-                  paddingHorizontal="$s8"
+                  paddingHorizontal="s8"
                 />
               </YStack>
-              <YStack gap="$s4_5">
-                <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
+              <YStack gap="s4_5">
+                <Text emphasized textAlign="center" color="interactiveTextBrandDefault" title>
                   {t("We couldn’t verify your identity")}
                 </Text>
-                <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
+                <Text color="uiNeutralPlaceholder" textAlign="center" footnote>
                   {t("This may be due to missing or incorrect information. Please contact support to resolve it.")}
                 </Text>
                 <Button

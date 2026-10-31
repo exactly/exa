@@ -15,12 +15,12 @@ export default function PasskeysAbout() {
   const { t } = useTranslation();
   const router = useRouter();
   return (
-    <SafeView fullScreen paddingTop={0} backgroundColor="$backgroundSoft">
+    <SafeView fullScreen paddingTop={0} backgroundColor="backgroundSoft">
       <View
         flexDirection="column"
         alignItems="center"
         position="relative"
-        backgroundColor="$backgroundSoft"
+        backgroundColor="backgroundSoft"
         justifyContent="space-between"
         fullScreen
       >
@@ -28,30 +28,30 @@ export default function PasskeysAbout() {
           position="relative"
           height={4}
           width={40}
-          borderRadius="$r_0"
-          marginTop="$s3"
-          backgroundColor="$backgroundMild"
+          borderRadius="r_0"
+          marginTop="s3"
+          backgroundColor="backgroundMild"
         />
-        <View flex={1} paddingVertical="$s8" paddingHorizontal="$s4" alignItems="center">
-          <View flex={1} flexDirection="column" justifyContent="space-between" gap="$s5">
+        <View flex={1} paddingVertical="s8" paddingHorizontal="s4" alignItems="center">
+          <View flex={1} flexDirection="column" justifyContent="space-between" gap="s5">
             <ScrollView flex={1} showsVerticalScrollIndicator={false}>
-              <View flex={1} gap="$s8">
-                <View gap="$s5">
+              <View flex={1} gap="s8">
+                <View gap="s5">
                   <Text fontSize={17} fontWeight="bold" textAlign="left">
                     {t("How passkeys work")}
                   </Text>
-                  <Text fontSize={16} color="$uiNeutralSecondary" textAlign="left">
+                  <Text fontSize={16} color="uiNeutralSecondary" textAlign="left">
                     {t(
                       "Passkeys replace passwords with cryptographic keys. Your private key stays on your device, while the public key is shared with the service. This ensures secure and seamless authentication.",
                     )}
                   </Text>
                 </View>
-                <YStack gap="$s5">
+                <YStack gap="s5">
                   <Text fontSize={17} fontWeight="bold" textAlign="left">
                     {t("Passkeys advantages")}
                   </Text>
                   {advantages.map(({ title, body }) => (
-                    <YStack key={title} gap="$s4">
+                    <YStack key={title} gap="s4">
                       <Text callout emphasized secondary>
                         {t(title)}
                       </Text>

@@ -23,14 +23,14 @@ export default function ProcessingBalanceBanner() {
   if (country !== "US" || !processingBalance) return null;
   return (
     <View
-      backgroundColor="$interactiveBaseWarningSoftDefault"
+      backgroundColor="interactiveBaseWarningSoftDefault"
       display="flex"
       flexDirection="row"
       justifyContent="space-between"
-      paddingVertical="$s3"
-      paddingHorizontal="$s4"
+      paddingVertical="s3"
+      paddingHorizontal="s4"
     >
-      <Text emphasized footnote color="$interactiveOnBaseWarningSoft">
+      <Text emphasized footnote color="interactiveOnBaseWarningSoft">
         {t("Processing balance → {{amount}}", {
           amount: `$${processingBalance.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         })}

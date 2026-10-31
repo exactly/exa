@@ -128,7 +128,7 @@ export default function Asset() {
   const priced =
     protocol && symbol ? { address, chainId, symbol, priceUSD: formatUnits(protocol.usdPrice, 18) } : entry;
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
       <View padded flexDirection="row" alignItems="center" justifyContent="space-between">
         <IconButton
           icon={ArrowLeft}
@@ -151,11 +151,11 @@ export default function Asset() {
       </View>
       <ScrollView
         flex={1}
-        backgroundColor="$backgroundMild"
+        backgroundColor="backgroundMild"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom }}
       >
-        <View padded gap="$s4_5" backgroundColor="$backgroundSoft" paddingBottom="$s5">
+        <View padded gap="s4_5" backgroundColor="backgroundSoft" paddingBottom="s5">
           <MarketClosedBanner open={stock && !marketOpen()} />
           {priced ? (
             <PriceChart
@@ -180,7 +180,7 @@ export default function Asset() {
             <Skeleton width="100%" height={320} />
           )}
           {(chainId === chain.id || (alchemyChains.has(chainId) && factory === true)) && (
-            <XStack gap="$s3">
+            <XStack gap="s3">
               {[
                 ...(!token || (stock && restrictedCountries.has(country ?? ""))
                   ? []
@@ -247,7 +247,7 @@ export default function Asset() {
                           }
                     }
                   >
-                    <Button width="100%" padding="$s3_5" justifyContent="center" minHeight="auto">
+                    <Button width="100%" padding="s3_5" justifyContent="center" minHeight="auto">
                       <Button.Icon>
                         <Icon />
                       </Button.Icon>
@@ -259,13 +259,13 @@ export default function Asset() {
             </XStack>
           )}
         </View>
-        <View padded gap="$s5" paddingTop="$s6">
+        <View padded gap="s5" paddingTop="s6">
           {amount > 0n && (
-            <YStack borderRadius="$r3" backgroundColor="$backgroundSoft">
-              <Text headline emphasized padding="$s4">
+            <YStack borderRadius="r3" backgroundColor="backgroundSoft">
+              <Text headline emphasized padding="s4">
                 {t("Balance")}
               </Text>
-              <XStack alignItems="center" gap="$s3" paddingHorizontal="$s4" paddingTop="$s4" paddingBottom="$s4_5">
+              <XStack alignItems="center" gap="s3" paddingHorizontal="s4" paddingTop="s4" paddingBottom="s4_5">
                 <AssetLogo
                   network
                   height={32}
@@ -274,7 +274,7 @@ export default function Asset() {
                   symbol={symbol}
                   uri={protocol ? undefined : entry?.logoURI}
                 />
-                <YStack gap="$s2">
+                <YStack gap="s2">
                   <Amount
                     amount={
                       (protocol
@@ -284,7 +284,7 @@ export default function Asset() {
                         : 0) + (external?.usdValue ?? 0)
                     }
                   />
-                  <Text sensitive caption color="$uiNeutralSecondary">
+                  <Text sensitive caption color="uiNeutralSecondary">
                     {stock && shares !== undefined
                       ? t("{{amount}} shares", {
                           count: shares,
@@ -297,11 +297,11 @@ export default function Asset() {
             </YStack>
           )}
           {market && stats.some((key) => market[key] != null) && (
-            <YStack borderRadius="$r3" backgroundColor="$backgroundSoft">
-              <Text headline emphasized padding="$s4">
+            <YStack borderRadius="r3" backgroundColor="backgroundSoft">
+              <Text headline emphasized padding="s4">
                 {t("Onchain stats")}
               </Text>
-              <XStack flexWrap="wrap" rowGap="$s6" paddingHorizontal="$s4" paddingTop="$s4" paddingBottom="$s4_5">
+              <XStack flexWrap="wrap" rowGap="s6" paddingHorizontal="s4" paddingTop="s4" paddingBottom="s4_5">
                 {stats.map((key) => {
                   const value = market[key];
                   if (value == null) return null;
@@ -309,16 +309,16 @@ export default function Asset() {
                     ([threshold]) => Math.round((value / threshold) * 1e4) >= 1e4,
                   ) ?? [1, ""];
                   return (
-                    <YStack key={key} width="50%" gap="$s3" paddingRight="$s3">
+                    <YStack key={key} width="50%" gap="s3" paddingRight="s3">
                       <Text title2>
                         {`$${(value / divisor).toLocaleString(language, { maximumFractionDigits: 1 })}`}
-                        <Text title2 color="$uiNeutralSecondary">
+                        <Text title2 color="uiNeutralSecondary">
                           {suffix}
                         </Text>
                       </Text>
                       <XStack
                         alignItems="center"
-                        gap="$s2"
+                        gap="s2"
                         cursor="pointer"
                         role="button"
                         aria-label={t(labels[key])}
@@ -326,10 +326,10 @@ export default function Asset() {
                           setInfo(key);
                         }}
                       >
-                        <Text caption color="$uiNeutralSecondary" numberOfLines={1} flexShrink={1}>
+                        <Text caption color="uiNeutralSecondary" numberOfLines={1} flexShrink={1}>
                           {t(labels[key])}
                         </Text>
-                        <Info size={12} color="$interactiveOnBaseBrandSoft" y={1} />
+                        <Info size={12} color="interactiveOnBaseBrandSoft" y={1} />
                       </XStack>
                     </YStack>
                   );
@@ -347,7 +347,7 @@ export default function Asset() {
         }}
       >
         {info && (
-          <Text subHeadline color="$uiNeutralSecondary">
+          <Text subHeadline color="uiNeutralSecondary">
             {t(descriptions[info])}
           </Text>
         )}

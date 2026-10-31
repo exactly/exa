@@ -5,7 +5,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
@@ -103,9 +103,9 @@ export default function Pay() {
     ? (borrowPreview.assets * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
     : 0n;
   return (
-    <SafeView fullScreen backgroundColor="$backgroundMild" paddingBottom={0}>
-      <View fullScreen gap="$s5" paddingTop="$s4_5">
-        <View flexDirection="row" gap="$s3_5" justifyContent="space-around" alignItems="center">
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+      <View fullScreen gap="s5" paddingTop="s4_5">
+        <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
           <View padded position="absolute" left={0}>
             <IconButton
               icon={ArrowLeft}
@@ -128,8 +128,8 @@ export default function Pay() {
             <Text emphasized title3 textAlign="left">
               {t("Review rollover")}
             </Text>
-            <YStack gap="$s4" paddingTop="$s5">
-              <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+            <YStack gap="s4" paddingTop="s5">
+              <XStack justifyContent="space-between" gap="s3" alignItems="center">
                 <YStack>
                   <Text headline textAlign="left">
                     {t("Debt to rollover")}
@@ -147,7 +147,7 @@ export default function Pay() {
                 </Text>
               </XStack>
               {borrowPreview ? (
-                <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+                <XStack justifyContent="space-between" gap="s3" alignItems="center">
                   <YStack>
                     <Text headline textAlign="left">
                       {t("Rollover interest")}
@@ -180,7 +180,7 @@ export default function Pay() {
               ) : (
                 <Skeleton width="100%" height={40} />
               )}
-              <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+              <XStack justifyContent="space-between" gap="s3" alignItems="center">
                 <YStack>
                   <Text headline textAlign="left">
                     {t("Current debt")}
@@ -197,17 +197,17 @@ export default function Pay() {
                   })}`}
                 </Text>
               </XStack>
-              <Separator height={1} borderColor="$borderNeutralSoft" paddingVertical="$s2" />
-              <XStack justifyContent="space-between" gap="$s3" alignItems="center">
+              <Separator height={1} borderColor="borderNeutralSoft" paddingVertical="s2" />
+              <XStack justifyContent="space-between" gap="s3" alignItems="center">
                 <YStack flex={1}>
-                  <Text headline color="$uiBrandSecondary" textAlign="left">
+                  <Text headline color="uiBrandSecondary" textAlign="left">
                     {t("Total after rollover")}
                   </Text>
                   <Text secondary footnote textAlign="left">
                     {borrowLabel}
                   </Text>
                 </YStack>
-                <Text title color="$uiBrandSecondary" textAlign="right">
+                <Text title color="uiBrandSecondary" textAlign="right">
                   {`$${(Number(existingDebtPreviewValue + rolloverPreviewValue) / 1e18).toLocaleString(language, {
                     style: "decimal",
                     minimumFractionDigits: 2,
@@ -218,7 +218,7 @@ export default function Pay() {
             </YStack>
           </View>
         </ScrollView>
-        <View padded paddingBottom={insets.bottom} marginBottom="$s4">
+        <View padded paddingBottom={insets.bottom} marginBottom="s4">
           <RolloverButton repayMaturity={repayMaturity} borrowMaturity={borrowMaturity} borrow={borrow} />
         </View>
       </View>
@@ -242,7 +242,6 @@ function RolloverButton({
   const { t } = useTranslation();
   const { address } = useAccount();
   const router = useRouter();
-  const toast = useToastController();
 
   const slippage = (WAD * 105n) / 100n;
   const maxRepayAssets = (borrow.previewValue * slippage) / WAD;
@@ -302,20 +301,13 @@ function RolloverButton({
       if (status === "failure") throw new Error("failed to propose rollover");
     },
     onSuccess() {
-      toast.show(t("Processing rollover"), {
-        duration: 1000,
-        burntOptions: { haptic: "success", preset: "done" },
-      });
+      toast.success(t("Processing rollover"), { duration: 1000 });
       if (address) refetchPendingProposals().catch(reportError);
       router.dismissTo("/activity");
     },
     onError(error) {
       if (reportError(error).authKnown) resetProposeRollDebt();
-      else
-        toast.show(t("Rollover failed"), {
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
+      else toast.error(t("Rollover failed"), { duration: 1000 });
     },
   });
 

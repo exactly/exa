@@ -13,7 +13,7 @@ import { Eye } from "@tamagui/lucide-icons-2/icons/Eye";
 import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
 import { Hash } from "@tamagui/lucide-icons-2/icons/Hash";
 import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -67,7 +67,6 @@ import View from "../shared/View";
 import type { Credential } from "@exactly/common/validation";
 
 export default function Card() {
-  const toast = useToastController();
   const [displayPIN, setDisplayPIN] = useState(false);
   const router = useRouter();
   const {
@@ -150,10 +149,7 @@ export default function Card() {
           if (isSuccess) {
             router.push("/(main)/getting-started");
           } else {
-            toast.show(t("An error occurred. Please try again later."), {
-              duration: 1000,
-              burntOptions: { haptic: "error", preset: "error" },
-            });
+            toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
           }
           return;
         }
@@ -177,10 +173,7 @@ export default function Card() {
         const { text } = error;
         if (text !== "not started" && text !== "no kyc") {
           reportError(error);
-          toast.show(t("An error occurred. Please try again later."), {
-            duration: 1000,
-            burntOptions: { haptic: "error", preset: "error" },
-          });
+          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
           return;
         }
       }
@@ -188,10 +181,7 @@ export default function Card() {
         .fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 })
         .catch((error: unknown) => {
           reportError(error);
-          toast.show(t("An error occurred. Please try again later."), {
-            duration: 1000,
-            burntOptions: { haptic: "error", preset: "error" },
-          });
+          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
         });
       if (!status) return;
       const code = "code" in status ? status.code : undefined;
@@ -219,10 +209,7 @@ export default function Card() {
           if (approved) setDisclaimerShown(true);
         },
         onError(error) {
-          toast.show(t("An error occurred. Please try again later."), {
-            duration: 1000,
-            burntOptions: { haptic: "error", preset: "error" },
-          });
+          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
           reportError(error);
         },
       });
@@ -238,10 +225,7 @@ export default function Card() {
     mutationFn: setCardStatus,
     onError: (error) => {
       reportError(error);
-      toast.show(t("An error occurred. Please try again later."), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
@@ -262,10 +246,7 @@ export default function Card() {
       await createCard();
     },
     onSuccess: async () => {
-      toast.show(t("Card activated!"), {
-        duration: 1000,
-        burntOptions: { haptic: "success" },
-      });
+      toast.success(t("Card activated!"), { duration: 1000 });
       queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
       const { data: card } = await refetchCard();
       if (card) queryClient.setQueryData(["card-details-open"], true);
@@ -273,10 +254,7 @@ export default function Card() {
     onError: async (error: Error) => {
       if (!(error instanceof APIError)) {
         reportError(error);
-        toast.show(t("Error activating card"), {
-          duration: 1000,
-          burntOptions: { haptic: "error", preset: "error" },
-        });
+        toast.error(t("Error activating card"), { duration: 1000 });
         return;
       }
       if (error.text.includes("already created")) {
@@ -286,36 +264,33 @@ export default function Card() {
         return;
       }
       reportError(error);
-      toast.show(t("Error activating card"), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Error activating card"), { duration: 1000 });
     },
   });
 
   const displayStatus = isSettingCardStatus ? optimisticCardStatus : cardDetails?.status;
   return (
-    <SafeView fullScreen tab backgroundColor="$backgroundSoft">
-      <View fullScreen backgroundColor="$backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="$backgroundSoft" />
+    <SafeView fullScreen tab backgroundColor="backgroundSoft">
+      <View fullScreen backgroundColor="backgroundMild">
+        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
-          contentContainerStyle={{ backgroundColor: "$backgroundMild", paddingBottom: use(TabBarContext) }}
+          contentContainerStyle={{ backgroundColor: "backgroundMild", paddingBottom: use(TabBarContext) }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl onRefresh={refresh} />}
         >
           <View fullScreen>
-            <View flex={1} gap="$s5" paddingBottom="$s5">
-              <View alignItems="center" gap="$s4" width="100%" backgroundColor="$backgroundSoft" padded>
-                <XStack gap="$s3_5" justifyContent="space-between" alignItems="center" width="100%">
+            <View flex={1} gap="s5" paddingBottom="s5">
+              <View alignItems="center" gap="s4" width="100%" backgroundColor="backgroundSoft" padded>
+                <XStack gap="s3_5" justifyContent="space-between" alignItems="center" width="100%">
                   <Text fontSize={20} fontWeight="bold">
                     {t("My Exa Card")}
                   </Text>
-                  <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
+                  <View display="flex" flexDirection="row" alignItems="center" gap="s4">
                     <IconButton
                       icon={hidden ? EyeOff : Eye}
-                      color="$uiNeutralSecondary"
+                      color="uiNeutralSecondary"
                       aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
                       onPress={() => {
                         queryClient.setQueryData(["settings", "sensitive"], !hidden);
@@ -323,7 +298,7 @@ export default function Card() {
                     />
                     <IconButton
                       icon={CircleHelp}
-                      color="$uiNeutralSecondary"
+                      color="uiNeutralSecondary"
                       aria-label={t("Help")}
                       onPress={() => {
                         presentArticle("10022626").catch(reportError);
@@ -371,15 +346,15 @@ export default function Card() {
                   }}
                 />
                 <YStack
-                  borderRadius="$r3"
+                  borderRadius="r3"
                   borderWidth={1}
-                  borderColor="$borderNeutralSoft"
+                  borderColor="borderNeutralSoft"
                   width="100%"
-                  paddingHorizontal="$s4"
+                  paddingHorizontal="s4"
                 >
                   <XStack
                     alignItems="center"
-                    paddingVertical="$s4"
+                    paddingVertical="s4"
                     justifyContent="space-between"
                     cursor="pointer"
                     onPress={() => {
@@ -387,16 +362,16 @@ export default function Card() {
                       revealCard().catch(reportError);
                     }}
                   >
-                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                      <CreditCard size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
-                      <Text subHeadline color="$uiNeutralPrimary">
+                    <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                      <CreditCard size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
+                      <Text subHeadline color="uiNeutralPrimary">
                         {t("Card details")}
                       </Text>
                     </XStack>
-                    <ChevronRight color="$uiBrandSecondary" size={24} />
+                    <ChevronRight color="uiBrandSecondary" size={24} />
                   </XStack>
 
-                  <Separator borderColor="$borderNeutralSoft" />
+                  <Separator borderColor="borderNeutralSoft" />
 
                   {cardDetails && (
                     <>
@@ -406,7 +381,7 @@ export default function Card() {
                         aria-label={t("Freeze card")}
                         aria-disabled={isFetchingCard || isSettingCardStatus}
                         justifyContent="space-between"
-                        paddingVertical="$s4"
+                        paddingVertical="s4"
                         alignItems="center"
                         cursor="pointer"
                         onPress={() => {
@@ -419,15 +394,15 @@ export default function Card() {
                           setFreezeConfirmOpen(true);
                         }}
                       >
-                        <XStack alignItems="center" gap="$s3">
+                        <XStack alignItems="center" gap="s3">
                           <Square size={24}>
                             {isSettingCardStatus ? (
-                              <Spinner width={24} color="$interactiveBaseBrandDefault" alignSelf="flex-start" />
+                              <Spinner width={24} color="interactiveBaseBrandDefault" alignSelf="flex-start" />
                             ) : (
-                              <Snowflake size={24} color="$interactiveBaseBrandDefault" fontWeight="bold" />
+                              <Snowflake size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
                             )}
                           </Square>
-                          <Text subHeadline color="$uiNeutralPrimary">
+                          <Text subHeadline color="uiNeutralPrimary">
                             {t("Freeze card")}
                           </Text>
                         </XStack>
@@ -435,7 +410,7 @@ export default function Card() {
                           <Switch.Thumb />
                         </Switch>
                       </XStack>
-                      <Separator borderColor="$borderNeutralSoft" />
+                      <Separator borderColor="borderNeutralSoft" />
                     </>
                   )}
 
@@ -443,7 +418,7 @@ export default function Card() {
                     <>
                       <XStack
                         alignItems="center"
-                        paddingVertical="$s4"
+                        paddingVertical="s4"
                         justifyContent="space-between"
                         cursor="pointer"
                         onPress={() => {
@@ -451,46 +426,46 @@ export default function Card() {
                           setDisplayPIN(true);
                         }}
                       >
-                        <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                          <Hash size={24} color="$backgroundBrand" />
-                          <Text subHeadline color="$uiNeutralPrimary">
+                        <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                          <Hash size={24} color="backgroundBrand" />
+                          <Text subHeadline color="uiNeutralPrimary">
                             {t("View PIN number")}
                           </Text>
                         </XStack>
-                        <ChevronRight color="$uiBrandSecondary" size={24} />
+                        <ChevronRight color="uiBrandSecondary" size={24} />
                       </XStack>
-                      <Separator borderColor="$borderNeutralSoft" />
+                      <Separator borderColor="borderNeutralSoft" />
                     </>
                   )}
 
                   <XStack
                     alignItems="center"
-                    paddingVertical="$s4"
+                    paddingVertical="s4"
                     justifyContent="space-between"
                     cursor="pointer"
-                    gap="$s3"
+                    gap="s3"
                     onPress={() => {
                       if (!limit) return;
                       selectionAsync().catch(reportError);
                       setSpendingLimitsOpen(true);
                     }}
                   >
-                    <XStack gap="$s3" justifyContent="flex-start" alignItems="center">
-                      <DollarSign size={24} color="$backgroundBrand" />
-                      <Text subHeadline color="$uiNeutralPrimary">
+                    <XStack gap="s3" justifyContent="flex-start" alignItems="center">
+                      <DollarSign size={24} color="backgroundBrand" />
+                      <Text subHeadline color="uiNeutralPrimary">
                         {t("Weekly spending limit")}
                       </Text>
                     </XStack>
                     <XStack alignItems="center">
                       {limit ? (
                         <>
-                          <Text caption emphasized color="$uiBrandSecondary">
+                          <Text caption emphasized color="uiBrandSecondary">
                             {`$${(limit - spent).toLocaleString(language, {
                               style: "decimal",
                               maximumFractionDigits: 0,
                             })}`}
                           </Text>
-                          <ChevronRight color="$uiBrandSecondary" size={24} />
+                          <ChevronRight color="uiBrandSecondary" size={24} />
                         </>
                       ) : isFetchingCard ? (
                         <Skeleton width={100} height={16} />
@@ -499,40 +474,40 @@ export default function Card() {
                   </XStack>
                 </YStack>
                 {revealError && (
-                  <Text color="$uiErrorPrimary" fontWeight="bold">
+                  <Text color="uiErrorPrimary" fontWeight="bold">
                     {revealError.message}
                   </Text>
                 )}
               </View>
-              <View paddingHorizontal="$s4" gap="$s5">
+              <View paddingHorizontal="s4" gap="s5">
                 <LatestActivity
                   activity={purchases}
                   title={t("Latest purchases")}
                   emptyComponent={
-                    <YStack alignItems="center" justifyContent="center" gap="$s4_5" padding="$s4" paddingTop={0}>
-                      <Text textAlign="center" color="$uiNeutralSecondary" emphasized title>
+                    <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop={0}>
+                      <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
                         💳
                       </Text>
-                      <Text textAlign="center" color="$uiBrandSecondary" emphasized headline>
+                      <Text textAlign="center" color="uiBrandSecondary" emphasized headline>
                         {t("Make your first purchase today!")}
                       </Text>
-                      <Text textAlign="center" color="$uiNeutralSecondary" subHeadline>
+                      <Text textAlign="center" color="uiNeutralSecondary" subHeadline>
                         {t("Your transactions will show up here once you start using your card.")}
                       </Text>
                     </YStack>
                   }
                 />
-                <XStack gap="$s4" alignItems="flex-start" paddingTop="$s3" flexWrap="wrap">
-                  <Text caption2 color="$interactiveOnDisabled">
+                <XStack gap="s4" alignItems="flex-start" paddingTop="s3" flexWrap="wrap">
+                  <Text caption2 color="interactiveOnDisabled">
                     <Trans
                       i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <protocol>Exactly Protocol</protocol> subject to its separate terms and conditions. Third National is not a party to any agreement with <protocol>Exactly Protocol</protocol> and is not responsible for any funding or credit arrangement between user and <protocol>Exactly Protocol</protocol>."
                       components={{
                         protocol: (
                           <Text
                             cursor="pointer"
-                            caption2
-                            color="$interactiveOnDisabled"
+                            color="interactiveOnDisabled"
                             textDecorationLine="underline"
+                            caption2
                             onPress={() => {
                               openBrowser("https://exact.ly/").catch(reportError);
                             }}

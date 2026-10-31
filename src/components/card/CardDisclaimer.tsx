@@ -31,14 +31,14 @@ export default function CardDisclaimer({
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View position="absolute" top="$s5" right="$s5" zIndex={100_000}>
-          <IconButton icon={X} size={25} color="$uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
+      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+        <View position="absolute" top="s5" right="s5" zIndex={100_000}>
+          <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>
-        <ScrollView $platform-web={{ maxHeight: "100vh" }}>
+        <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
-            <YStack flex={1} padding="$s4" gap="$s6">
-              <YStack flex={1} justifyContent="center" gap="$s4">
+            <YStack flex={1} padding="s4" gap="s6">
+              <YStack flex={1} justifyContent="center" gap="s4">
                 <View width="100%" aspectRatio={1} justifyContent="center" alignItems="center" position="relative">
                   <View width="100%" height="100%">
                     <ThemedSvg xml={exaCardBlob} width="100%" height="100%" />
@@ -47,22 +47,22 @@ export default function CardDisclaimer({
                     <ThemedSvg xml={exaCard} width="100%" height="100%" />
                   </View>
                 </View>
-                <Text emphasized textAlign="center" color="$interactiveTextBrandDefault" title>
+                <Text emphasized textAlign="center" color="interactiveTextBrandDefault" title>
                   {t("Activate your new Exa Card")}
                 </Text>
               </YStack>
-              <YStack gap="$s4_5">
-                <YStack gap="$s4">
+              <YStack gap="s4_5">
+                <YStack gap="s4">
                   <Pressable
                     onPress={() => {
                       presentArticle("10707672").catch(reportError);
                     }}
                   >
-                    <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
+                    <Text color="uiNeutralPlaceholder" textAlign="center" footnote>
                       <Trans
                         i18nKey="By continuing, you accept both the notice below and the <terms>Terms and Conditions</terms> of the Exa Card."
                         components={{
-                          terms: <Text color="$interactiveTextBrandDefault" footnote />,
+                          terms: <Text color="interactiveTextBrandDefault" footnote />,
                         }}
                       />
                     </Text>
@@ -74,16 +74,16 @@ export default function CardDisclaimer({
                     </Button.Icon>
                   </Button>
                 </YStack>
-                <Text color="$interactiveOnDisabled" caption>
+                <Text color="interactiveOnDisabled" caption>
                   <Trans
                     i18nKey="The Exa Card is issued by Third National pursuant to a license from Visa. Any credit issued by <protocol>Exactly Protocol</protocol> subject to its separate terms and conditions. Third National is not a party to any agreement with <protocol>Exactly Protocol</protocol> and is not responsible for any funding or credit arrangement between user and <protocol>Exactly Protocol</protocol>."
                     components={{
                       protocol: (
                         <Text
                           cursor="pointer"
-                          caption
-                          color="$interactiveOnDisabled"
+                          color="interactiveOnDisabled"
                           textDecorationLine="underline"
+                          caption
                           onPress={() => {
                             openBrowser("https://exact.ly/").catch(reportError);
                           }}

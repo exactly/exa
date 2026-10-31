@@ -84,34 +84,33 @@ export default function PaySheet({
   return (
     <ModalSheet open={open} onClose={close}>
       <YStack
-        gap="$s4_5"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingTop="$s7"
-        paddingHorizontal="$s4"
-        paddingBottom="$s7"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s4_5"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingTop="s7"
+        paddingHorizontal="s4"
+        paddingBottom="s7 android:s5"
       >
         <Text emphasized subHeadline primary textAlign="center">
           {t("Pay with")}
         </Text>
         <XStack
           alignItems="center"
-          gap="$s2"
-          paddingLeft="$s3_5"
+          gap="s2"
+          paddingLeft="s3_5"
           borderWidth={1}
-          borderColor="$borderNeutralSoft"
-          borderRadius="$r3"
+          borderColor="borderNeutralSoft"
+          borderRadius="r3"
           overflow="hidden"
         >
-          <Search size={20} color="$uiNeutralPlaceholder" />
+          <Search size={20} color="uiNeutralPlaceholder" />
           <Input
             flex={1}
             borderWidth={0}
             backgroundColor="transparent"
+            placeholderTextColor="uiNeutralPlaceholder"
             placeholder={t("Search assets")}
-            placeholderTextColor="$uiNeutralPlaceholder"
             value={query}
             onChangeText={setQuery}
           />
@@ -124,7 +123,7 @@ export default function PaySheet({
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <XStack gap="$s3" alignItems="center">
+            <XStack gap="s3" alignItems="center">
               {networks.map((item) => (
                 <Chip
                   key={item.id}
@@ -140,11 +139,11 @@ export default function PaySheet({
           </ScrollView>
         )}
         <ScrollView maxHeight={400} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <YStack gap="$s6" paddingBottom="$s4_5">
+          <YStack gap="s6" paddingBottom="s4_5">
             {groups.map((group) => (
-              <YStack key={group.id} gap="$s5">
+              <YStack key={group.id} gap="s5">
                 {groups.length > 1 && (
-                  <Text subHeadline color="$uiNeutralPlaceholder">
+                  <Text subHeadline color="uiNeutralPlaceholder">
                     {chains?.find((item) => item.id === group.id)?.name ??
                       alchemyChains.get(group.id)?.name ??
                       chain.name}
@@ -173,12 +172,12 @@ export default function PaySheet({
                   return (
                     <XStack
                       key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
-                      gap="$s3"
+                      gap="s3"
                       alignItems="center"
                       cursor="pointer"
+                      opacity="press:0.7"
                       role="button"
                       aria-label={t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })}
-                      pressStyle={{ opacity: 0.7 }}
                       onPress={() => {
                         onSelect(asset.type === "external" ? asset.address : asset.market, group.id);
                         close();
@@ -192,7 +191,7 @@ export default function PaySheet({
                         chainId={group.id}
                         network
                       />
-                      <YStack gap="$s2" flex={1}>
+                      <YStack gap="s2" flex={1}>
                         <Text emphasized callout primary numberOfLines={1}>
                           {asset.symbol}
                         </Text>
@@ -200,7 +199,7 @@ export default function PaySheet({
                           {name}
                         </Text>
                       </YStack>
-                      <YStack gap="$s2" alignItems="flex-end">
+                      <YStack gap="s2" alignItems="flex-end">
                         <Text emphasized callout primary>
                           {`$${asset.usdValue.toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                         </Text>
@@ -214,7 +213,7 @@ export default function PaySheet({
               </YStack>
             ))}
             {groups.length === 0 && (
-              <Text textAlign="center" footnote color="$uiNeutralSecondary">
+              <Text textAlign="center" color="uiNeutralSecondary" footnote>
                 {t("No available assets.")}
               </Text>
             )}

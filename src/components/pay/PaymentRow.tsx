@@ -20,7 +20,7 @@ export default function PaymentRow({ maturity, onSelect }: { maturity: number; o
     <Button
       transparent
       aria-label={label}
-      gap="$s3"
+      gap="s3"
       minHeight={0}
       paddingHorizontal={0}
       onPress={() => {
@@ -28,11 +28,11 @@ export default function PaymentRow({ maturity, onSelect }: { maturity: number; o
         onSelect(maturity);
       }}
     >
-      <Button.Text emphasized={false} color="$uiNeutralPrimary">
+      <Button.Text emphasized={false} color="uiNeutralPrimary">
         {label}
       </Button.Text>
       <Button.Icon>
-        <ChevronRight size={20} color="$interactiveBaseBrandDefault" />
+        <ChevronRight size={20} color="interactiveBaseBrandDefault" />
       </Button.Icon>
     </Button>
   );

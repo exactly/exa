@@ -56,8 +56,8 @@ export default function ActivityDetails() {
     return (
       <SafeView fullScreen padded>
         <Back />
-        <YStack flex={1} justifyContent="center" alignItems="center" gap="$s4">
-          <Text textAlign="center" subHeadline color="$uiNeutralSecondary">
+        <YStack flex={1} justifyContent="center" alignItems="center" gap="s4">
+          <Text textAlign="center" color="uiNeutralSecondary" subHeadline>
             {t("Couldn't load this activity. Please try again.")}
           </Text>
           <Button
@@ -86,8 +86,8 @@ export default function ActivityDetails() {
         outlined
         width="100%"
         alignSelf="flex-end"
-        marginTop="$s4"
-        marginBottom="$s5"
+        marginTop="s4"
+        marginBottom="s5"
         onPress={() => {
           present().catch(reportError);
         }}

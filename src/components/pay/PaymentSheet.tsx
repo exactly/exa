@@ -7,7 +7,7 @@ import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
 import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { XStack, YStack, type YStackProps } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
@@ -40,7 +40,6 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
   const router = useRouter();
   const maturity = Array.isArray(parameters.maturity) ? parameters.maturity[0] : parameters.maturity;
   const { address } = useAccount();
-  const toast = useToastController();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
@@ -120,15 +119,12 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
       return;
     }
     if (!isLatestPlugin) {
-      toast.show(t("Upgrade account to rollover"), {
-        duration: 1000,
-        burntOptions: { haptic: "error", preset: "error" },
-      });
+      toast.error(t("Upgrade account to rollover"), { duration: 1000 });
       return;
     }
     close();
     router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, close, router, isLatestPlugin, toast, t]);
+  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, close, router, isLatestPlugin, t]);
 
   const renderContent = () => {
     if (!displayMaturity || !USDCMarket || !borrow) return <NotAvailableView onClose={close} />;
@@ -164,19 +160,19 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
           title={borrow.isUpcoming ? t("Early repayment discount") : t("Late payment fees")}
         >
           {borrow.isUpcoming ? (
-            <Text body color="$uiNeutralSecondary">
+            <Text body color="uiNeutralSecondary">
               {t(
                 "You can repay early and save on interest. The final amount updates automatically before you confirm.",
               )}
             </Text>
           ) : (
             <>
-              <Text body color="$uiNeutralSecondary">
+              <Text body color="uiNeutralSecondary">
                 {t(
                   "Late fees are charged daily after the due date. The rate applies to your full balance (principal + interest) and keeps adding up until you pay.",
                 )}
               </Text>
-              <Text emphasized body color="$uiNeutralSecondary">
+              <Text emphasized body color="uiNeutralSecondary">
                 {t("Example: On a $100 balance, a 0.45% daily fee adds $0.45 per day.")}
               </Text>
             </>
@@ -195,7 +191,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
           <Text
             footnote
             emphasized
-            color="$interactiveTextBrandDefault"
+            color="interactiveTextBrandDefault"
             cursor="pointer"
             textAlign="center"
             onPress={() => setInfoOpen(false)}
@@ -211,12 +207,12 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
 function Frame({ children, ...properties }: YStackProps & { children: React.ReactNode }) {
   return (
     <YStack
-      borderTopLeftRadius="$r5"
-      borderTopRightRadius="$r5"
-      backgroundColor="$backgroundSoft"
-      paddingTop="$s5"
-      paddingHorizontal="$s5"
-      paddingBottom="$s7"
+      borderTopLeftRadius="r5"
+      borderTopRightRadius="r5"
+      backgroundColor="backgroundSoft"
+      paddingTop="s5"
+      paddingHorizontal="s5"
+      paddingBottom="s7"
       {...properties}
     >
       {children}
@@ -232,9 +228,9 @@ function NotAvailableView({ onClose }: { onClose: () => void }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        gap="$s4"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
+        gap="s4"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
       >
         <Text secondary body textAlign="center">
           {t("This payment is no longer available")}
@@ -281,28 +277,28 @@ function DetailsView({
 
   return (
     <Frame>
-      <YStack backgroundColor="$backgroundSoft" gap="$s5">
-        <YStack gap="$s1">
-          <XStack gap="$s2" alignItems="center">
-            <Text emphasized headline flexShrink={1} color={isUpcoming ? "$uiNeutralPrimary" : "$uiErrorSecondary"}>
+      <YStack backgroundColor="backgroundSoft" gap="s5">
+        <YStack gap="s1">
+          <XStack gap="s2" alignItems="center">
+            <Text emphasized headline flexShrink={1} color={isUpcoming ? "uiNeutralPrimary" : "uiErrorSecondary"}>
               {dueStatus}
             </Text>
           </XStack>
-          <Text caption color="$uiNeutralSecondary">
+          <Text caption color="uiNeutralSecondary">
             {dueDate.toLocaleDateString(language, { year: "numeric", month: "short", day: "numeric" })}
             {` - ${dueDate.toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
           </Text>
         </YStack>
-        <XStack gap="$s3_5" alignItems="center">
+        <XStack gap="s3_5" alignItems="center">
           <Amount amount={Number(previewValue) / 1e18} status={isUpcoming ? "success" : "danger"} flex={1} />
-          <YStack alignItems="flex-end" gap="$s3">
+          <YStack alignItems="flex-end" gap="s3">
             {isUpcoming ? (
               discount >= 0.001 ? (
                 <>
-                  <Text sensitive body strikeThrough color="$uiNeutralSecondary">
+                  <Text sensitive body strikeThrough color="uiNeutralSecondary">
                     {`$${originalAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </Text>
-                  <Text emphasized subHeadline color="$uiSuccessSecondary">
+                  <Text emphasized subHeadline color="uiSuccessSecondary">
                     {t("{{percent}} OFF", {
                       percent: discount.toLocaleString(language, {
                         style: "percent",
@@ -315,14 +311,14 @@ function DetailsView({
               ) : null
             ) : (
               <>
-                <Text sensitive body color="$uiErrorSecondary">
+                <Text sensitive body color="uiErrorSecondary">
                   {penaltyPercent.toLocaleString(language, {
                     style: "percent",
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
                 </Text>
-                <Text emphasized subHeadline color="$uiErrorSecondary">
+                <Text emphasized subHeadline color="uiErrorSecondary">
                   {t("Late payment fee")}
                 </Text>
               </>
@@ -331,13 +327,13 @@ function DetailsView({
           <IconButton
             icon={Info}
             size={16}
-            color="$interactiveBaseBrandDefault"
+            color="interactiveBaseBrandDefault"
             aria-label={t("Payment info")}
             onPress={onInfoPress}
           />
         </XStack>
         <YStack>
-          <XStack gap="$s3">
+          <XStack gap="s3">
             <Button primary flex={1} onPress={onRepayPress}>
               <Button.Text>{t("Pay")}</Button.Text>
               <Button.Icon>

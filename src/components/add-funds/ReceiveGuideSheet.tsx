@@ -46,7 +46,7 @@ export default function ReceiveGuideSheet({
   const learn = (
     <Text
       caption2
-      color="$uiBrandSecondary"
+      color="uiBrandSecondary"
       cursor="pointer"
       onPress={() => {
         presentArticle("8950805").catch(reportError);
@@ -97,35 +97,35 @@ export default function ReceiveGuideSheet({
       }}
       disableDrag
     >
-      <ScrollView showsVerticalScrollIndicator={false} $platform-web={{ maxHeight: "100vh" }}>
+      <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
-          borderTopLeftRadius="$r4"
-          borderTopRightRadius="$r4"
-          backgroundColor="$backgroundSoft"
-          paddingHorizontal="$s5"
-          $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          borderTopLeftRadius="r4"
+          borderTopRightRadius="r4"
+          backgroundColor="backgroundSoft"
+          paddingHorizontal="s5"
+          paddingTop="web:s7"
+          paddingBottom="web:s7 android:s5"
         >
-          <YStack gap="$s5">
+          <YStack gap="s5">
             <Text emphasized primary headline>
               {copy.title}
             </Text>
             <XStack
-              backgroundColor="$backgroundStrong"
-              borderRadius="$r3"
-              paddingVertical="$s5"
-              paddingHorizontal="$s3_5"
+              backgroundColor="backgroundStrong"
+              borderRadius="r3"
+              paddingVertical="s5"
+              paddingHorizontal="s3_5"
               justifyContent="center"
               alignItems="center"
-              gap="$s3_5"
+              gap="s3_5"
             >
               <View position="relative">
                 <AssetLogo symbol={symbol} width={48} height={48} />
                 <View position="absolute" bottom={-4} right={-4}>
-                  <ChainLogo chainId={chainId} size={24} borderRadius="$r_0" />
+                  <ChainLogo chainId={chainId} size={24} borderRadius="r_0" />
                 </View>
               </View>
-              <ArrowRight size={24} color="$uiNeutralSecondary" />
+              <ArrowRight size={24} color="uiNeutralSecondary" />
               <View position="relative">
                 {variant === "bridge" ? (
                   <AssetLogo symbol={asset} width={48} height={48} />
@@ -143,21 +143,21 @@ export default function ReceiveGuideSheet({
                   </XStack>
                 )}
                 <View position="absolute" bottom={-4} right={-4}>
-                  <ChainLogo size={24} borderRadius="$r_0" />
+                  <ChainLogo size={24} borderRadius="r_0" />
                 </View>
               </View>
             </XStack>
-            <YStack gap="$s4_5">
+            <YStack gap="s4_5">
               <Step index={1} text={t("Once received, go to your Portfolio.")} />
               <Step index={2} text={t("Find {{asset}} on {{network}} and select it.", { asset: symbol, network })} />
               <Step index={3} text={copy.step} />
             </YStack>
-            <Separator borderColor="$borderNeutralSoft" />
-            <XStack gap="$s4" alignItems="flex-start">
+            <Separator borderColor="borderNeutralSoft" />
+            <XStack gap="s4" alignItems="flex-start">
               <View>
-                <Info size={16} color="$uiInfoSecondary" />
+                <Info size={16} color="uiInfoSecondary" />
               </View>
-              <Text caption2 color="$uiNeutralPlaceholder" flex={1}>
+              <Text caption2 color="uiNeutralPlaceholder" flex={1}>
                 {copy.note}
               </Text>
             </XStack>
@@ -175,10 +175,10 @@ export default function ReceiveGuideSheet({
               </Button.Icon>
             </Button>
             <Pressable role="checkbox" aria-checked={hide} onPress={() => setHide(!hide)}>
-              <XStack gap="$s3" alignItems="center" justifyContent="center">
-                <Checkbox borderColor="$uiNeutralSecondary" checked={hide}>
+              <XStack gap="s3" alignItems="center" justifyContent="center">
+                <Checkbox borderColor="uiNeutralSecondary" checked={hide}>
                   <Checkbox.Indicator>
-                    <Check size={16} color="$interactiveOnBaseBrandDefault" />
+                    <Check size={16} color="interactiveOnBaseBrandDefault" />
                   </Checkbox.Indicator>
                 </Checkbox>
                 <Text footnote secondary>
@@ -195,16 +195,16 @@ export default function ReceiveGuideSheet({
 
 function Step({ index, text }: { index: number; text: string }) {
   return (
-    <XStack gap="$s3_5" alignItems="center">
+    <XStack gap="s3_5" alignItems="center">
       <View
         width={24}
         height={24}
-        borderRadius="$r_0"
-        backgroundColor="$interactiveBaseBrandSoftDefault"
+        borderRadius="r_0"
+        backgroundColor="interactiveBaseBrandSoftDefault"
         alignItems="center"
         justifyContent="center"
       >
-        <Text emphasized subHeadline color="$interactiveOnBaseBrandSoft">
+        <Text emphasized subHeadline color="interactiveOnBaseBrandSoft">
           {index}
         </Text>
       </View>

@@ -56,8 +56,8 @@ export default function ProfileHeader() {
     queryClient.setQueryData(["settings", "sensitive"], !hidden);
   }
   return (
-    <View padded backgroundColor="$backgroundSoft">
-      <View display="flex" flexDirection="row" justifyContent="space-between" gap="$s4">
+    <View padded backgroundColor="backgroundSoft">
+      <View display="flex" flexDirection="row" justifyContent="space-between" gap="s4">
         <Pressable
           hitSlop={15}
           style={{ flexShrink: 1 }}
@@ -72,19 +72,19 @@ export default function ProfileHeader() {
               .catch(reportError);
           }}
         >
-          <View display="flex" flexDirection="row" alignItems="center" gap="$s3">
+          <View display="flex" flexDirection="row" alignItems="center" gap="s3">
             <View position="relative">
               <View
-                width="$s6"
-                height="$s6"
-                borderRadius="$r_0"
-                backgroundColor="$uiNeutralPrimary"
+                width="s6"
+                height="s6"
+                borderRadius="r_0"
+                backgroundColor="uiNeutralPrimary"
                 alignItems="center"
                 justifyContent="center"
               >
                 <Logo
-                  width={getTokens().iconSize.$sm.val}
-                  height={getTokens().iconSize.$sm.val}
+                  width={getTokens().iconSize.sm.val}
+                  height={getTokens().iconSize.sm.val}
                   color={theme.backgroundSoft.val}
                 />
               </View>
@@ -92,8 +92,8 @@ export default function ProfileHeader() {
             <View
               key={greeting}
               transition="quick"
-              enterStyle={{ opacity: 0, transform: [{ translateY: 6 }] }}
-              transform={[{ translateY: 0 }]}
+              opacity="1 enter:0"
+              transform="translateY(0px) enter:translateY(6px)"
               flexDirection="row"
               flexShrink={1}
               width={natural?.width}
@@ -115,10 +115,10 @@ export default function ProfileHeader() {
             </View>
           </View>
         </Pressable>
-        <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
+        <View display="flex" flexDirection="row" alignItems="center" gap="s4">
           <IconButton
             icon={hidden ? EyeOff : Eye}
-            color="$uiNeutralSecondary"
+            color="uiNeutralSecondary"
             aria-label={hidden ? t("Show sensitive") : t("Hide sensitive")}
             onPress={toggle}
           />
@@ -132,12 +132,12 @@ export default function ProfileHeader() {
               hitSlop={15}
             >
               <StatusIndicator type="notification" />
-              <ClockArrowUp color="$uiNeutralSecondary" />
+              <ClockArrowUp color="uiNeutralSecondary" />
             </Pressable>
           )}
           <IconButton
             icon={Settings}
-            color="$uiNeutralSecondary"
+            color="uiNeutralSecondary"
             aria-label={t("Settings")}
             onPress={() => {
               router.push("/settings");

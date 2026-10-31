@@ -43,9 +43,9 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
 
   return (
     <SafeView fullScreen>
-      <View gap="$s4_5" fullScreen padded>
-        <View gap="$s4_5">
-          <View flexDirection="row" gap="$s3_5" justifyContent="space-between" alignItems="center">
+      <View gap="s4_5" fullScreen padded>
+        <View gap="s4_5">
+          <View flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}
@@ -57,12 +57,12 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
           </View>
         </View>
         <ScrollView flex={1}>
-          <View flex={1} gap="$s4_5">
-            <YStack flex={1} padding="$s4" gap="$s6">
+          <View flex={1} gap="s4_5">
+            <YStack flex={1} padding="s4" gap="s6">
               <YStack flex={1} justifyContent="center">
                 <AssetHero direction={direction} currency={currency || undefined} network={network || undefined} />
-                <YStack gap="$s4" alignSelf="center">
-                  <Text title emphasized textAlign="center" color="$interactiveTextBrandDefault">
+                <YStack gap="s4" alignSelf="center">
+                  <Text title emphasized textAlign="center" color="interactiveTextBrandDefault">
                     {offramp
                       ? isCrypto
                         ? t("Send {{crypto}} to {{network}}", { crypto: currency, network })
@@ -71,7 +71,7 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
                         ? t("Deposit {{crypto}} via {{network}}", { crypto: currency, network })
                         : t("Turn {{currency}} transfers to onchain USDC", { currency })}
                   </Text>
-                  <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
+                  <Text color="uiNeutralPlaceholder" textAlign="center" footnote>
                     {offramp
                       ? isCrypto
                         ? t("Send USDC from your Exa account and receive {{crypto}} on {{network}}.", {
@@ -97,7 +97,7 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
           </View>
         </ScrollView>
 
-        <YStack gap="$s4_5">
+        <YStack gap="s4_5">
           <Button
             onPress={() => {
               router.push({
@@ -115,10 +115,10 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
           {offramp && (
             <Text
               cursor="pointer"
+              color="interactiveBaseBrandDefault"
+              textAlign="center"
               emphasized
               footnote
-              color="$interactiveBaseBrandDefault"
-              textAlign="center"
               onPress={() => {
                 presentArticle("8950801").catch(reportError);
               }}

@@ -18,25 +18,25 @@ export default function CreditLimitSheet({ onClose, open }: { onClose: () => voi
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
-        gap="$s7"
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        gap="s7"
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingBottom="android:s5"
       >
-        <YStack gap="$s4" paddingTop="$s5" paddingHorizontal="$s5">
-          <YStack gap="$s4">
-            <XStack justifyContent="space-between" alignItems="center" gap="$s3">
+        <YStack gap="s4" paddingTop="s5" paddingHorizontal="s5">
+          <YStack gap="s4">
+            <XStack justifyContent="space-between" alignItems="center" gap="s3">
               <Text emphasized headline flex={1}>
                 {t("Credit limit")}
               </Text>
               <IconButton icon={X} aria-label={t("Close")} onPress={onClose} />
             </XStack>
-            <YStack gap="$s4">
+            <YStack gap="s4">
               <Text subHeadline secondary>
                 <Trans
                   i18nKey="The maximum amount you can spend using <highlight>Pay Later</highlight>. It’s based on the value of your collateral assets and updates as their value changes."
-                  components={{ highlight: <Text subHeadline emphasized color="$cardCreditInteractive" /> }}
+                  components={{ highlight: <Text subHeadline emphasized color="cardCreditInteractive" /> }}
                 />
               </Text>
               <Text subHeadline secondary>
@@ -52,7 +52,7 @@ export default function CreditLimitSheet({ onClose, open }: { onClose: () => voi
             </YStack>
           </YStack>
         </YStack>
-        <YStack gap="$s5" paddingHorizontal="$s4" paddingBottom="$s7">
+        <YStack gap="s5" paddingHorizontal="s4" paddingBottom="s7">
           <Button
             onPress={() => {
               presentArticle("9922633").catch(reportError);
@@ -66,7 +66,7 @@ export default function CreditLimitSheet({ onClose, open }: { onClose: () => voi
             </Button.Icon>
           </Button>
           <Pressable onPress={onClose}>
-            <Text emphasized footnote color="$interactiveBaseBrandDefault" alignSelf="center">
+            <Text emphasized footnote color="interactiveBaseBrandDefault" alignSelf="center">
               {t("Close")}
             </Text>
           </Pressable>

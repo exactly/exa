@@ -5,20 +5,26 @@ const StatusIndicator = styled(View, {
   width: 12,
   height: 12,
   borderRadius: 100,
-  backgroundColor: "$uiBrandPrimary",
+  backgroundColor: "uiBrandPrimary",
   position: "absolute",
   right: -2,
   top: -2,
   borderWidth: 2,
-  borderColor: "$borderBrandSoft",
+  borderColor: "borderBrandSoft",
+  zIndex: 1,
   variants: {
     type: {
-      online: { backgroundColor: "$uiBrandPrimary", borderColor: "$borderBrandSoft" },
-      notification: { backgroundColor: "$uiInfoSecondary", borderColor: "$interactiveBaseInformationSoftDefault" },
+      online: {
+        backgroundColor: "uiBrandPrimary",
+        borderColor: "borderBrandSoft",
+      },
+      notification: {
+        backgroundColor: "uiInfoSecondary",
+        borderColor: "interactiveBaseInformationSoftDefault",
+      },
     },
   },
   defaultVariants: { type: "online" },
-  zIndex: 1,
 });
 
 export default StatusIndicator;

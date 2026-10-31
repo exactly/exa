@@ -49,10 +49,9 @@ export default function CardContents({
   return (
     <XStack
       height={160}
-      transition="default"
-      animateOnly={["opacity"]}
+      transition={{ preset: "default", properties: "opacity" }}
       justifyContent="space-between"
-      padding="$s4"
+      padding="s4"
       opacity={disabled ? 0.5 : 1}
     >
       <YStack height="100%" justifyContent="space-between" alignItems="flex-start" flex={1} width="100%" zIndex={1}>
@@ -67,9 +66,8 @@ export default function CardContents({
             <View
               key="credit"
               transition="default"
-              enterStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
-              exitStyle={{ opacity: 0, transform: [{ translateX: -100 }] }}
-              transform={[{ translateX: 0 }]}
+              opacity="1 enter:0 exit:0"
+              transform="translateX(0px) enter:translateX(-100px) exit:translateX(-100px)"
             >
               <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
                 {`$${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
@@ -88,9 +86,8 @@ export default function CardContents({
             <View
               key="debit"
               transition="default"
-              enterStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
-              exitStyle={{ opacity: 0, transform: [{ translateX: 100 }] }}
-              transform={[{ translateX: 0 }]}
+              opacity="1 enter:0 exit:0"
+              transform="translateX(0px) enter:translateX(100px) exit:translateX(100px)"
             >
               <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
                 {`$${(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
@@ -144,13 +141,10 @@ export default function CardContents({
             backgroundColor="rgba(0,0,0,0.4)"
             zIndex={2}
             pointerEvents="none"
-            transition="default"
-            animateOnly={["opacity"]}
-            opacity={1}
-            enterStyle={{ opacity: 0 }}
-            exitStyle={{ opacity: 0 }}
+            transition={{ preset: "default", properties: "opacity" }}
+            opacity="1 enter:0 exit:0"
           >
-            <View position="absolute" top="$s4" left="$s4">
+            <View position="absolute" top="s4" left="s4">
               <Snowflake size={40} strokeWidth={2} color="white" />
             </View>
           </View>

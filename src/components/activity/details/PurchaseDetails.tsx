@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 
 import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
-import { useToastController } from "@tamagui/toast";
+import { toast } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
@@ -22,26 +22,25 @@ export default function PurchaseDetails({
 }: {
   item: CreditActivity | DebitActivity | InstallmentsActivity | PandaActivity;
 }) {
-  const toast = useToastController();
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const refund = item.usdAmount < 0;
   return (
-    <YStack gap="$s4">
-      <YStack gap="$s4">
+    <YStack gap="s4">
+      <YStack gap="s4">
         <Text emphasized headline>
           {refund ? t("Refund details") : t("Purchase details")}
         </Text>
-        <Separator height={1} borderColor="$borderNeutralSoft" />
+        <Separator height={1} borderColor="borderNeutralSoft" />
       </YStack>
-      <YStack gap="$s3_5">
+      <YStack gap="s3_5">
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Amount")}
           </Text>
-          <Text callout color="$uiNeutralPrimary">
+          <Text callout color="uiNeutralPrimary">
             {Math.abs(item.amount).toLocaleString(language, {
               maximumFractionDigits: 8,
               minimumFractionDigits: 0,
@@ -51,37 +50,34 @@ export default function PurchaseDetails({
         </XStack>
         {!refund && (
           <XStack justifyContent="space-between">
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("ID")}
             </Text>
             <Pressable
               onPress={() => {
                 setStringAsync(item.id)
                   .then(() => {
-                    toast.show(t("Operation ID copied!"), {
-                      duration: 1000,
-                      burntOptions: { haptic: "success" },
-                    });
+                    toast.success(t("Operation ID copied!"), { duration: 1000 });
                   })
                   .catch(reportError);
               }}
               hitSlop={15}
             >
-              <XStack gap="$s3">
-                <Text callout color="$uiNeutralPrimary">
+              <XStack gap="s3">
+                <Text callout color="uiNeutralPrimary">
                   {shortenHex(item.id)}
                 </Text>
-                <Copy size={20} color="$uiNeutralPrimary" />
+                <Copy size={20} color="uiNeutralPrimary" />
               </XStack>
             </Pressable>
           </XStack>
         )}
         {!refund && Math.abs(item.usdAmount) > 0 && (
           <XStack justifyContent="space-between">
-            <Text emphasized footnote color="$uiNeutralSecondary">
+            <Text emphasized footnote color="uiNeutralSecondary">
               {t("Exchange rate")}
             </Text>
-            <Text callout color="$uiNeutralPrimary">
+            <Text callout color="uiNeutralPrimary">
               1 USD&nbsp;=&nbsp;
               {(Math.abs(item.amount) / Math.abs(item.usdAmount)).toLocaleString(language, {
                 maximumFractionDigits: 2,
@@ -91,18 +87,18 @@ export default function PurchaseDetails({
           </XStack>
         )}
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Date")}
           </Text>
-          <Text callout color="$uiNeutralPrimary">
+          <Text callout color="uiNeutralPrimary">
             {format(item.timestamp, "yyyy-MM-dd")}
           </Text>
         </XStack>
         <XStack justifyContent="space-between">
-          <Text emphasized footnote color="$uiNeutralSecondary">
+          <Text emphasized footnote color="uiNeutralSecondary">
             {t("Time")}
           </Text>
-          <Text callout color="$uiNeutralPrimary">
+          <Text callout color="uiNeutralPrimary">
             {format(item.timestamp, "HH:mm:ss")}
           </Text>
         </XStack>

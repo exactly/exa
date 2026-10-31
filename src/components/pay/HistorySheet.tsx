@@ -49,12 +49,12 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
   return (
     <ModalSheet open={maturity !== undefined} onClose={close}>
       <SafeView
-        borderTopLeftRadius="$r4"
-        borderTopRightRadius="$r4"
-        backgroundColor="$backgroundSoft"
-        paddingHorizontal="$s5"
-        $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r4"
+        borderTopRightRadius="r4"
+        backgroundColor="backgroundSoft"
+        paddingHorizontal="s5"
+        paddingTop="web:s7"
+        paddingBottom="web:s7 android:s5"
       >
         {displayMaturity !== undefined && breakdownOpen ? (
           <Breakdown
@@ -65,19 +65,19 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
             onClose={close}
           />
         ) : (
-          <YStack gap="$s5">
-            <XStack gap="$s3" alignItems="center">
+          <YStack gap="s5">
+            <XStack gap="s3" alignItems="center">
               {paidAt ? (
-                <CircleCheck size={32} color="$uiSuccessSecondary" />
+                <CircleCheck size={32} color="uiSuccessSecondary" />
               ) : (
-                <FileText size={32} color="$uiNeutralSecondary" />
+                <FileText size={32} color="uiNeutralSecondary" />
               )}
-              <YStack flex={1} gap="$s1">
+              <YStack flex={1} gap="s1">
                 <Text emphasized headline>
                   {displayMaturity !== undefined && t("Due {{date}}", { date: day(displayMaturity) })}
                 </Text>
                 {paid && (
-                  <Text footnote color="$uiNeutralSecondary">
+                  <Text footnote color="uiNeutralSecondary">
                     {t("Paid on {{date}}", { date: paid })}
                   </Text>
                 )}
@@ -85,7 +85,7 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
               <IconButton
                 icon={Headset}
                 aria-label={t("Support")}
-                color="$uiNeutralSecondary"
+                color="uiNeutralSecondary"
                 onPress={() => {
                   present().catch(reportError);
                 }}

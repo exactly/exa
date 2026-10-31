@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { vs } from "react-native-size-matters";
 
-import { ToggleGroup, YStack } from "tamagui";
+import { YStack } from "tamagui";
 
+import { ToggleGroup } from "tamagui/unstyled";
 import { safeParse } from "valibot";
 
 import { Address } from "@exactly/common/validation";
@@ -32,27 +33,27 @@ export default function AssetSelector({
   if (assets.length === 0) {
     if (isPending || isBalancesPending || !markets) {
       return (
-        <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator" padding="$s3">
+        <YStack gap="s2" borderWidth={1} borderRadius="r3" borderColor="borderNeutralSeparator" padding="s3">
           <AssetSkeleton />
         </YStack>
       );
     }
     return (
-      <Text textAlign="center" emphasized footnote color="$uiNeutralSecondary">
+      <Text textAlign="center" color="uiNeutralSecondary" emphasized footnote>
         {t("No available assets.")}
       </Text>
     );
   }
 
   return (
-    <YStack gap="$s2" borderWidth={1} borderRadius="$r3" borderColor="$borderNeutralSeparator">
+    <YStack gap="s2" borderWidth={1} borderRadius="r3" borderColor="borderNeutralSeparator">
       <ToggleGroup
         type="single"
         flexDirection="column"
         backgroundColor="transparent"
-        padding="$s3"
+        padding="s3"
         value={selectedMarket}
-        onValueChange={(value) => {
+        onValueChange={(value: string) => {
           const { success, output } = safeParse(Address, value === "" ? selectedMarket : value);
           if (!success) return;
           setSelectedMarket(output);
@@ -82,7 +83,6 @@ export default function AssetSelector({
           return (
             <ToggleGroup.Item
               aria-label={t("{{symbol}}, {{balance}} available", { symbol, balance })}
-              unstyled
               key={asset.type === "external" ? asset.address : asset.market}
               value={(asset.type === "external" ? asset.address : asset.market) as Address}
               borderWidth={0}
@@ -94,29 +94,29 @@ export default function AssetSelector({
                 alignItems="center"
                 justifyContent="space-between"
                 paddingVertical={vs(10)}
-                backgroundColor={isSelected ? "$interactiveBaseBrandSoftDefault" : "transparent"}
+                backgroundColor={isSelected ? "interactiveBaseBrandSoftDefault" : "transparent"}
                 width="100%"
-                paddingHorizontal="$s4"
-                borderRadius="$r3"
+                paddingHorizontal="s4"
+                borderRadius="r3"
               >
-                <View flexDirection="row" gap="$s3_5" alignItems="center" maxWidth="50%">
+                <View flexDirection="row" gap="s3_5" alignItems="center" maxWidth="50%">
                   <AssetLogo symbol={symbol} width={32} height={32} />
-                  <View gap="$s2" alignItems="flex-start" flexShrink={1}>
-                    <Text fontSize={15} fontWeight="bold" color="$uiNeutralPrimary" numberOfLines={1}>
+                  <View gap="s2" alignItems="flex-start" flexShrink={1}>
+                    <Text fontSize={15} fontWeight="bold" color="uiNeutralPrimary" numberOfLines={1}>
                       {symbol}
                     </Text>
-                    <Text fontSize={12} color="$uiNeutralSecondary" numberOfLines={1}>
+                    <Text fontSize={12} color="uiNeutralSecondary" numberOfLines={1}>
                       {name}
                     </Text>
                   </View>
                 </View>
-                <View gap="$s2" flex={1}>
+                <View gap="s2" flex={1}>
                   <View flexDirection="row" alignItems="center" justifyContent="flex-end">
-                    <Text fontSize={15} fontWeight="bold" textAlign="right" color="$uiNeutralPrimary">
+                    <Text fontSize={15} fontWeight="bold" textAlign="right" color="uiNeutralPrimary">
                       {`$${asset.usdValue.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </Text>
                   </View>
-                  <Text fontSize={12} color="$uiNeutralSecondary" textAlign="right">
+                  <Text fontSize={12} color="uiNeutralSecondary" textAlign="right">
                     {`${balance} ${symbol}`}
                   </Text>
                 </View>

@@ -37,29 +37,28 @@ export default function SwapSheet({
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
-        borderTopLeftRadius="$r5"
-        borderTopRightRadius="$r5"
-        backgroundColor="$backgroundSoft"
-        paddingHorizontal="$s5"
-        paddingTop="$s7"
-        $platform-web={{ paddingVertical: "$s7" }}
-        $platform-android={{ paddingBottom: "$s5" }}
+        borderTopLeftRadius="r5"
+        borderTopRightRadius="r5"
+        backgroundColor="backgroundSoft"
+        paddingHorizontal="s5"
+        paddingTop="s7 web:s7"
+        paddingBottom="web:s7 android:s5"
       >
-        <YStack gap="$s5">
+        <YStack gap="s5">
           <Text emphasized headline primary>
             {payChain === toChain ? t("Swap assets") : t("Swap across networks")}
           </Text>
           <XStack
-            backgroundColor="$backgroundStrong"
-            borderRadius="$r3"
-            paddingVertical="$s5"
-            paddingHorizontal="$s3_5"
-            gap="$s3_5"
+            backgroundColor="backgroundStrong"
+            borderRadius="r3"
+            paddingVertical="s5"
+            paddingHorizontal="s3_5"
+            gap="s3_5"
             alignItems="center"
             justifyContent="center"
           >
             <AssetLogo uri={payUri} symbol={paySymbol} width={40} height={40} chainId={payChain} network />
-            <Shuffle size={24} color="$uiNeutralPrimary" />
+            <Shuffle size={24} color="uiNeutralPrimary" />
             <AssetLogo uri={toUri} symbol={toSymbol} width={40} height={40} chainId={toChain} network />
           </XStack>
           <Text subHeadline secondary>
@@ -71,7 +70,7 @@ export default function SwapSheet({
                   "You're paying with a different asset, on a different network. We'll find the best route across both and show the cost before you confirm.",
                 )}
           </Text>
-          <YStack paddingTop="$s3_5">
+          <YStack paddingTop="s3_5">
             <Button
               primary
               onPress={() => {

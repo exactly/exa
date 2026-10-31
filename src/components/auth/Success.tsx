@@ -16,7 +16,7 @@ export default function Success() {
   const { t } = useTranslation();
   const router = useRouter();
   return (
-    <SafeView fullScreen backgroundColor="$backgroundSoft">
+    <SafeView fullScreen backgroundColor="backgroundSoft">
       <View fullScreen padded>
         <View justifyContent="center" alignItems="center" flexGrow={1} flexShrink={1}>
           <Image
@@ -25,9 +25,9 @@ export default function Success() {
             width="100%"
             aspectRatio={1}
             flexShrink={1}
-            paddingHorizontal="$s5"
+            paddingHorizontal="s5"
           />
-          <View gap="$s5" justifyContent="center">
+          <View gap="s5" justifyContent="center">
             <Text emphasized title brand centered>
               {t("Account created successfully!")}
             </Text>
@@ -38,8 +38,8 @@ export default function Success() {
             <Button
               primary
               flex={1}
-              marginTop="$s4"
-              marginBottom="$s5"
+              marginTop="s4"
+              marginBottom="s5"
               onPress={() => {
                 router.replace("/(main)/(home)");
               }}

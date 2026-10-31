@@ -219,8 +219,8 @@ export default function Review() {
         <View
           padded
           flexDirection="row"
-          gap="$s3_5"
-          paddingBottom="$s4"
+          gap="s3_5"
+          paddingBottom="s4"
           justifyContent="space-between"
           alignItems="center"
         >
@@ -253,22 +253,22 @@ export default function Review() {
           />
         </View>
         <ScrollView
-          backgroundColor="$backgroundMild"
+          backgroundColor="backgroundMild"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom }}
         >
-          <YStack padding="$s4" gap="$s4" flex={1} justifyContent="space-between">
-            <YStack gap="$s4">
+          <YStack padding="s4" gap="s4" flex={1} justifyContent="space-between">
+            <YStack gap="s4">
               <Text primary emphasized body>
                 {t("Review terms")}
               </Text>
-              <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                <Text footnote color="$uiNeutralSecondary">
+              <XStack gap="s4" alignItems="center" justifyContent="space-between">
+                <Text footnote color="uiNeutralSecondary">
                   {receiver === address ? t("You receive") : t("You send")}
                 </Text>
-                <XStack alignItems="center" gap="$s2">
+                <XStack alignItems="center" gap="s2">
                   <AssetLogo height={16} symbol={symbol} width={16} />
-                  <Text title3 color="$uiNeutralPrimary">
+                  <Text title3 color="uiNeutralPrimary">
                     {(Number(amount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
@@ -276,8 +276,8 @@ export default function Review() {
                   </Text>
                 </XStack>
               </XStack>
-              <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                <Text footnote color="$uiNeutralSecondary">
+              <XStack gap="s4" alignItems="center" justifyContent="space-between">
+                <Text footnote color="uiNeutralSecondary">
                   {t("Fixed {{rate}} APR", {
                     rate: rate.toLocaleString(language, {
                       style: "percent",
@@ -286,9 +286,9 @@ export default function Review() {
                     }),
                   })}
                 </Text>
-                <XStack alignItems="center" gap="$s2">
+                <XStack alignItems="center" gap="s2">
                   <AssetLogo height={16} symbol={symbol} width={16} />
-                  <Text title3 color="$uiNeutralPrimary">
+                  <Text title3 color="uiNeutralPrimary">
                     {(Number(feeAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
@@ -296,16 +296,16 @@ export default function Review() {
                   </Text>
                 </XStack>
               </XStack>
-              <Separator height={1} borderColor="$borderNeutralSoft" />
+              <Separator height={1} borderColor="borderNeutralSoft" />
               <YStack>
-                <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                  <Text footnote color="$uiNeutralSecondary">
+                <XStack gap="s4" alignItems="center" justifyContent="space-between">
+                  <Text footnote color="uiNeutralSecondary">
                     {t("You repay {{count}} installments of", { count })}
                   </Text>
-                  <XStack alignItems="center" gap="$s2">
-                    <XStack alignItems="center" gap="$s2">
+                  <XStack alignItems="center" gap="s2">
+                    <XStack alignItems="center" gap="s2">
                       <AssetLogo height={16} symbol={symbol} width={16} />
-                      <Text title3 color="$uiNeutralPrimary">
+                      <Text title3 color="uiNeutralPrimary">
                         {(Number(installmentsAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
@@ -315,21 +315,21 @@ export default function Review() {
                   </XStack>
                 </XStack>
                 {singleInstallment ? null : (
-                  <XStack gap="$s4" alignItems="center" justifyContent="flex-end">
-                    <Text footnote color="$uiNeutralSecondary">
+                  <XStack gap="s4" alignItems="center" justifyContent="flex-end">
+                    <Text footnote color="uiNeutralSecondary">
                       {t("each")}
                     </Text>
                   </XStack>
                 )}
               </YStack>
               {singleInstallment ? null : (
-                <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                  <Text footnote color="$uiNeutralSecondary">
+                <XStack gap="s4" alignItems="center" justifyContent="space-between">
+                  <Text footnote color="uiNeutralSecondary">
                     {t("Total")}
                   </Text>
-                  <XStack alignItems="center" gap="$s2">
+                  <XStack alignItems="center" gap="s2">
                     <AssetLogo height={16} symbol={symbol} width={16} />
-                    <Text title3 color="$uiNeutralPrimary">
+                    <Text title3 color="uiNeutralPrimary">
                       {(Number(totalAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -338,23 +338,23 @@ export default function Review() {
                   </XStack>
                 </XStack>
               )}
-              <Separator height={1} borderColor="$borderNeutralSoft" />
-              <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                <Text footnote color="$uiNeutralSecondary">
+              <Separator height={1} borderColor="borderNeutralSoft" />
+              <XStack gap="s4" alignItems="center" justifyContent="space-between">
+                <Text footnote color="uiNeutralSecondary">
                   {singleInstallment ? t("Installment due") : t("First installment due")}
                 </Text>
-                <Text headline color="$uiNeutralPrimary">
+                <Text headline color="uiNeutralPrimary">
                   {maturityLabel}
                 </Text>
               </XStack>
               {!singleInstallment && (
                 <YStack>
-                  <XStack gap="$s4" justifyContent="space-between">
-                    <Text footnote color="$uiNeutralSecondary">
+                  <XStack gap="s4" justifyContent="space-between">
+                    <Text footnote color="uiNeutralSecondary">
                       {t("Following installments due")}
                     </Text>
                     <YStack alignItems="flex-end">
-                      <Text headline color="$uiNeutralPrimary">
+                      <Text headline color="uiNeutralPrimary">
                         {t("Every 28 days")}
                       </Text>
                     </YStack>
@@ -362,24 +362,24 @@ export default function Review() {
                   <XStack alignItems="center" justifyContent="flex-end">
                     <Text
                       cursor="pointer"
+                      color="interactiveBaseBrandDefault"
                       subHeadline
-                      color="$interactiveBaseBrandDefault"
                       onPress={() => {
                         setPaymentScheduleShown(true);
                       }}
                     >
                       {t("payment schedule")}
                     </Text>
-                    <ChevronRight size={12} color="$interactiveBaseBrandDefault" strokeWidth={2} />
+                    <ChevronRight size={12} color="interactiveBaseBrandDefault" strokeWidth={2} />
                   </XStack>
                 </YStack>
               )}
-              <Separator height={1} borderColor="$borderNeutralSoft" />
-              <XStack gap="$s4" alignItems="center" justifyContent="space-between">
-                <Text footnote color="$uiNeutralSecondary">
+              <Separator height={1} borderColor="borderNeutralSoft" />
+              <XStack gap="s4" alignItems="center" justifyContent="space-between">
+                <Text footnote color="uiNeutralSecondary">
                   {t("Receiving address")}
                 </Text>
-                <Text headline color="$uiNeutralPrimary">
+                <Text headline color="uiNeutralPrimary">
                   {receiver === address ? t("Your Exa account") : shortenHex(receiver, 6, 8)}
                 </Text>
               </XStack>
@@ -420,7 +420,7 @@ export default function Review() {
   return (
     <GradientScrollView variant={error ? "error" : success ? (isLatestPlugin ? "info" : "success") : "neutral"}>
       <View flex={1}>
-        <YStack gap="$s7" paddingBottom="$s9">
+        <YStack gap="s7" paddingBottom="s9">
           <IconButton
             alignSelf="flex-start"
             icon={X}
@@ -436,28 +436,28 @@ export default function Review() {
           <XStack justifyContent="center" alignItems="center">
             <Square
               size={80}
-              borderRadius="$r4"
+              borderRadius="r4"
               backgroundColor={
                 error
-                  ? "$interactiveBaseErrorSoftDefault"
+                  ? "interactiveBaseErrorSoftDefault"
                   : success
                     ? isLatestPlugin
-                      ? "$interactiveBaseInformationSoftDefault"
-                      : "$interactiveBaseSuccessSoftDefault"
-                    : "$backgroundStrong"
+                      ? "interactiveBaseInformationSoftDefault"
+                      : "interactiveBaseSuccessSoftDefault"
+                    : "backgroundStrong"
               }
             >
-              {processing && <ExaSpinner backgroundColor="transparent" color="$uiNeutralPrimary" />}
-              {success && isLatestPlugin && <Check size={48} color="$uiInfoSecondary" strokeWidth={2} />}
-              {success && !isLatestPlugin && <Check size={48} color="$uiSuccessSecondary" strokeWidth={2} />}
-              {error && <X size={48} color="$uiErrorSecondary" strokeWidth={2} />}
+              {processing && <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />}
+              {success && isLatestPlugin && <Check size={48} color="uiInfoSecondary" strokeWidth={2} />}
+              {success && !isLatestPlugin && <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />}
+              {error && <X size={48} color="uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
-          <YStack gap="$s4_5" justifyContent="center" alignItems="center">
+          <YStack gap="s4_5" justifyContent="center" alignItems="center">
             <Text emphasized primary body>
               {statusMessage}
             </Text>
-            <XStack gap="$s2" alignItems="center" justifyContent="center">
+            <XStack gap="s2" alignItems="center" justifyContent="center">
               <AssetLogo height={32} symbol={symbol} width={32} />
               <Text primary fontSize={34}>
                 {(Number(totalAmount) / 10 ** (assetMarket?.decimals ?? 6)).toLocaleString(language, {
@@ -470,7 +470,7 @@ export default function Review() {
         </YStack>
       </View>
       {!processing && (
-        <YStack flex={2} justifyContent="flex-end" gap="$s5">
+        <YStack flex={2} justifyContent="flex-end" gap="s5">
           {success && (
             <Button
               primary
@@ -488,9 +488,9 @@ export default function Review() {
             hitSlop={20}
             cursor="pointer"
             alignSelf="center"
+            color="uiBrandSecondary"
             emphasized
             footnote
-            color="$uiBrandSecondary"
             onPress={() => {
               if (error && router.canGoBack()) {
                 router.back();

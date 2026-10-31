@@ -72,12 +72,12 @@ export default function RampButton({
                 position="absolute"
                 bottom={-4}
                 right={-4}
-                borderRadius="$r_0"
+                borderRadius="r_0"
                 borderWidth={1}
                 borderColor="white"
                 overflow="hidden"
               >
-                <Image source={{ uri: networkLogos[network] }} width={14} height={14} borderRadius="$r_0" />
+                <Image source={{ uri: networkLogos[network] }} width={14} height={14} borderRadius="r_0" />
               </View>
             )}
           </View>

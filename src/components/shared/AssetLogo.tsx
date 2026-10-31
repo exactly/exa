@@ -34,7 +34,7 @@ export default function AssetLogo({
   const source = defaultUri ?? (symbol ? getTokenLogoURI(tokens, symbol, chainId) : undefined);
   const uri = source === failed ? undefined : source;
   const logo = uri ? (
-    <View width={width} height={height} borderRadius="$r_0" overflow="hidden">
+    <View width={width} height={height} borderRadius="r_0" overflow="hidden">
       <Image
         source={{ uri }}
         cachePolicy="memory-disk"
@@ -51,12 +51,12 @@ export default function AssetLogo({
     <View
       width={width}
       height={height}
-      borderRadius="$r_0"
-      backgroundColor="$backgroundStrong"
+      borderRadius="r_0"
+      backgroundColor="backgroundStrong"
       alignItems="center"
       justifyContent="center"
     >
-      <Text fontSize={width * 0.4} fontWeight="bold" color="$uiNeutralSecondary">
+      <Text fontSize={width * 0.4} fontWeight="bold" color="uiNeutralSecondary">
         {symbol ? symbol.slice(0, 2).toUpperCase() : "—"}
       </Text>
     </View>
@@ -70,8 +70,8 @@ export default function AssetLogo({
         bottom={-2}
         right={-2}
         borderWidth={1}
-        borderColor="$backgroundSoft"
-        borderRadius="$r_0"
+        borderColor="backgroundSoft"
+        borderRadius="r_0"
         overflow="hidden"
       >
         <ChainLogo chainId={chainId} size={Math.min(16, Math.round(width / 2))} />
