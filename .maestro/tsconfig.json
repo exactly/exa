@@ -13,6 +13,8 @@
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../.cache/typescript/.maestro/tsconfig.tsbuildinfo",
     "pretty": true,
     "strict": true
   },
