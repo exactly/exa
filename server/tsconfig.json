@@ -13,6 +13,8 @@
     "skipLibCheck": true,
     "checkJs": true,
     "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../.cache/typescript/server/tsconfig.tsbuildinfo",
     "pretty": true,
     "strict": true
   },
